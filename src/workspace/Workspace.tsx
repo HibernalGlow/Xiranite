@@ -80,50 +80,52 @@ export function Workspace() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* top bar */}
-      <header className="z-20 flex shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-4 py-2.5 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-sm bg-[image:var(--gradient-acid)] font-mono text-sm font-bold text-acid-foreground">
-            ▚
+      <header className="z-20 flex shrink-0 items-center justify-between gap-3 border-b border-border bg-surface/80 px-4 h-14 backdrop-blur-xl">
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-accent">
+            XIRANITE
           </span>
-          <h1 className="font-mono text-sm font-bold tracking-[0.25em] text-foreground">GRIDLOCK</h1>
+
+          {/* layout switcher - integrated into nav style */}
+          <nav className="hidden md:flex items-center gap-2 ml-4">
+            {MODES.map((m) => (
+              <button
+                key={m.mode}
+                onClick={() => switchMode(m.mode)}
+                title={m.hint}
+                className={`px-3 py-1 rounded font-mono text-xs font-medium transition-all duration-300 ${
+                  ws.mode === m.mode && !ws.fullscreenId
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "text-muted-foreground hover:bg-surface-raised hover:text-foreground border border-transparent"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        {/* layout switcher */}
-        <div className="ml-2 flex items-center gap-1 rounded-md border border-border bg-background/60 p-1">
-          {MODES.map((m) => (
-            <button
-              key={m.mode}
-              onClick={() => switchMode(m.mode)}
-              title={m.hint}
-              className={`rounded-[4px] px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wider transition-colors ${
-                ws.mode === m.mode && !ws.fullscreenId
-                  ? "bg-[image:var(--gradient-acid)] text-acid-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
+        {/* Center Context (Optional, for spatial feel) */}
+        <div className="hidden lg:flex absolute left-1/2 -translate-x-1/2 items-center gap-2 px-4 py-1.5 rounded-full bg-surface border border-border">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          <span className="font-mono text-[10px] text-muted-foreground tracking-widest uppercase">Workspace Active</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden font-mono text-[11px] text-muted-foreground lg:inline">
-            {ws.panels.length} components · state persists across layouts
-          </span>
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setPaletteOpen(true)}
-            className="flex items-center gap-2 rounded-sm border border-border bg-background/60 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground hover:border-acid/60 hover:text-foreground"
+            className="flex items-center gap-2 rounded border border-border bg-background/60 px-3 py-1.5 font-mono text-xs text-muted-foreground hover:border-primary/60 hover:text-primary transition-colors"
           >
-            <span>⌘K</span>
-            <span className="hidden sm:inline">command</span>
+            <span className="material-symbols-outlined text-[16px]">search</span>
+            <span className="hidden sm:inline">Search / ⌘K</span>
           </button>
           <ThemeMenu />
 
           <button
             onClick={() => setAdderOpen((v) => !v)}
-            className="rounded-sm border border-acid/60 bg-acid/10 px-3 py-1.5 font-mono text-xs font-semibold tracking-wider text-acid transition-colors hover:bg-acid hover:text-acid-foreground"
+            className="flex items-center gap-2 p-1.5 rounded text-muted-foreground hover:bg-surface-raised transition-all duration-300 hover:text-primary"
           >
-            + INSERT
+            <span className="material-symbols-outlined">add_box</span>
           </button>
         </div>
       </header>

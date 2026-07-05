@@ -45,56 +45,13 @@
 
 :root {
   --radius: 0.5rem;
-
-  /* ── Theme: 武陵城 / Wuling Tactical (Endfield Tactical Workspace) ─────────── */
-  --background: #f9f9fc;
-  --foreground: #1a1c1e;
-
-  --surface: #f9f9fc;
-  --surface-raised: #f3f3f6;
-
-  --card: #eeeef0;
-  --card-foreground: #1a1c1e;
-  --popover: #ffffff;
-  --popover-foreground: #1a1c1e;
-
-  --primary: #286b33;
-  --primary-foreground: #ffffff;
-
-  --secondary: #1b6d24;
-  --secondary-foreground: #ffffff;
-
-  --muted: #e2e2e5;
-  --muted-foreground: #40493f;
-
-  --accent: #006b5c;
-  --accent-foreground: #ffffff;
-
-  --destructive: #ba1a1a;
-  --destructive-foreground: #ffffff;
-
-  --border: #707a6e;
-  --input: #c0c9bc;
-  --ring: #286b33;
-
-  --acid: #abf4ac;
-  --acid-foreground: #002107;
-  --cyan: #68fadd;
-  --magenta: #a3f69c;
-  --grid-line: #dadadc;
-
-  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
-  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(40, 107, 51, 0.15), transparent 60%);
-  --shadow-acid: 0 0 0 1px rgba(40, 107, 51, 0.2), 0 20px 60px -20px rgba(40, 107, 51, 0.25);
-  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
 }
 
-.dark {
-  --background: #161311;
-  --foreground: #eae1dd;
-}
+/* =========================================
+   WULING TACTICAL (Endfield)
+   ========================================= */
 
-/* ── Theme: 武陵城 / Wuling Tactical (Explicit) ─────────── */
+/* LIGHT MODE (Default for Wuling) */
 [data-theme="wuling"] {
   --background: #f9f9fc;
   --foreground: #1a1c1e;
@@ -138,8 +95,100 @@
   --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
 }
 
-/* ── Theme: 乌托邦 / Utopia (Atmospheric Urban Workspace) ─────────── */
+/* DARK MODE for Wuling */
+.dark[data-theme="wuling"] {
+  --background: #1a1c1e;
+  --foreground: #f9f9fc;
+
+  --surface: #1a1c1e;
+  --surface-raised: #2f3133;
+
+  --card: #2f3133;
+  --card-foreground: #f9f9fc;
+  --popover: #121416;
+  --popover-foreground: #f9f9fc;
+
+  --primary: #81c784;
+  --primary-foreground: #09541e;
+
+  --secondary: #a0f399;
+  --secondary-foreground: #217128;
+
+  --muted: #40493f;
+  --muted-foreground: #c0c9bc;
+
+  --accent: #2bcdb2;
+  --accent-foreground: #005246;
+
+  --destructive: #ffdad6;
+  --destructive-foreground: #93000a;
+
+  --border: #707a6e;
+  --input: #40493f;
+  --ring: #81c784;
+
+  --acid: #abf4ac;
+  --acid-foreground: #002107;
+  --cyan: #68fadd;
+  --magenta: #a3f69c;
+  --grid-line: #40493f;
+
+  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
+  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(129, 199, 132, 0.15), transparent 60%);
+  --shadow-acid: 0 0 0 1px rgba(129, 199, 132, 0.2), 0 20px 60px -20px rgba(129, 199, 132, 0.25);
+  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.4);
+}
+
+/* =========================================
+   UTOPIA (Atmospheric Urban)
+   ========================================= */
+
+/* LIGHT MODE for Utopia */
 [data-theme="utopia"] {
+  --background: #eae1dd;
+  --foreground: #161311;
+
+  --surface: #eae1dd;
+  --surface-raised: #e0bfb8;
+
+  --card: #d2c4bb;
+  --card-foreground: #161311;
+  --popover: #ffffff;
+  --popover-foreground: #161311;
+
+  --primary: #ad321c;
+  --primary-foreground: #ffffff;
+
+  --secondary: #65411a;
+  --secondary-foreground: #ffffff;
+
+  --muted: #d2c4bb;
+  --muted-foreground: #59413c;
+
+  --accent: #9b8e87;
+  --accent-foreground: #ffffff;
+
+  --destructive: #93000a;
+  --destructive-foreground: #ffffff;
+
+  --border: #a88a84;
+  --input: #d2c4bb;
+  --ring: #ad321c;
+
+  --acid: #ffdad3;
+  --acid-foreground: #3e0400;
+  --cyan: #efe0d7;
+  --magenta: #ffdcbd;
+  --grid-line: #d2c4bb;
+
+  --gradient-acid: linear-gradient(135deg, #ad321c, #e2583e, #65411a);
+  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(173, 50, 28, 0.15), transparent 60%);
+  --shadow-acid: 0 0 0 1px rgba(173, 50, 28, 0.2), 0 20px 60px -20px rgba(173, 50, 28, 0.25);
+  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
+}
+
+/* DARK MODE (Default for Utopia) */
+.dark[data-theme="utopia"] {
   --background: #161311;
   --foreground: #eae1dd;
 
@@ -195,6 +244,7 @@
       linear-gradient(var(--grid-line) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 44px 44px;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
 
@@ -208,8 +258,8 @@
 @utility bg-scan {
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(255,255,255, 0.03) 0px,
-    rgba(255,255,255, 0.03) 1px,
+    rgba(128,128,128, 0.05) 0px,
+    rgba(128,128,128, 0.05) 1px,
     transparent 1px,
     transparent 3px
   );
