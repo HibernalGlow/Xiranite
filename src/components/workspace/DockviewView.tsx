@@ -28,6 +28,8 @@ export function DockviewView() {
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const apiRef = useRef<DockviewApi | null>(null)
+  const removeDisposableRef = useRef<{ dispose(): void } | null>(null)
+  const syncingFromStoreRef = useRef(false)
 
   // 仅渲染未在 dockview 模式下隐藏的组件
   const dockComponents = useMemo(
@@ -38,6 +40,7 @@ export function DockviewView() {
   const onReady = useCallback((event: DockviewReadyEvent) => {
     const api: DockviewApi = event.api
     apiRef.current = api
+    removeDisposableRef.current?.dispose()
     api.clear()
     dockComponents.forEach((comp, i) => {
       const mod = getModule(comp.moduleId)
@@ -45,11 +48,23 @@ export function DockviewView() {
         id: comp.id,
         title: mod?.name ?? comp.moduleId,
         component: "module",
+        tabComponent: "moduleTab",
         params: { moduleId: comp.moduleId, compId: comp.id },
         position: { referencePanel: undefined, direction: i === 0 ? "within" : "right" },
       })
     })
-  }, [dockComponents])
+    removeDisposableRef.current = api.onDidRemovePanel((panel) => {
+      if (syncingFromStoreRef.current) return
+      dispatch(actions.setComponentVisibility(panel.api.id, "dockview", false))
+    })
+  }, [dockComponents, dispatch])
+
+  useEffect(() => {
+    return () => {
+      removeDisposableRef.current?.dispose()
+      removeDisposableRef.current = null
+    }
+  }, [])
 
   // ⚠️ 关键修复：dockComponents 变化时主动同步 dockview API。
   // onReady 只在挂载时触发一次，关闭 tab 后 api 内部状态不会自动更新；
@@ -64,10 +79,15 @@ export function DockviewView() {
     const wantedIds = new Set(dockComponents.map(c => c.id))
 
     // 删：api 有但 dockComponents 没有（被关闭的）
-    for (const panel of api.panels) {
-      if (!wantedIds.has(panel.id)) {
-        api.removePanel(panel)
+    syncingFromStoreRef.current = true
+    try {
+      for (const panel of api.panels) {
+        if (!wantedIds.has(panel.id)) {
+          api.removePanel(panel)
+        }
       }
+    } finally {
+      syncingFromStoreRef.current = false
     }
 
     // 加：dockComponents 有但 api 没有（新 deploy 的）
@@ -78,6 +98,7 @@ export function DockviewView() {
           id: comp.id,
           title: mod?.name ?? comp.moduleId,
           component: "module",
+          tabComponent: "moduleTab",
           params: { moduleId: comp.moduleId, compId: comp.id },
           position: { direction: "right" },
         })
@@ -101,7 +122,7 @@ export function DockviewView() {
 
   // 自定义 tab header（带关闭按钮）— 关闭仅 toggle hiddenIn.dockview
   const tabComponents = useMemo(() => ({
-    default: (props: IDockviewPanelHeaderProps) => {
+    moduleTab: (props: IDockviewPanelHeaderProps) => {
       const title = String(props.api.title ?? "panel")
       return (
         <div className="flex items-center gap-2 px-1 group/tab">
@@ -110,7 +131,7 @@ export function DockviewView() {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              dispatch(actions.toggleComponentVisibility(props.api.id, "dockview"))
+              dispatch(actions.setComponentVisibility(props.api.id, "dockview", false))
             }}
             className="grid h-4 w-4 place-items-center rounded opacity-0 group-hover/tab:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-opacity"
           >
