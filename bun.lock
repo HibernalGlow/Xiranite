@@ -23,6 +23,7 @@
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-findz": "workspace:*",
         "@xiranite/node-formatv": "workspace:*",
+        "@xiranite/node-kavvka": "workspace:*",
         "@xiranite/node-lata": "workspace:*",
         "@xiranite/node-linedup": "workspace:*",
         "@xiranite/node-linku": "workspace:*",
@@ -234,6 +235,27 @@
       "version": "0.1.0",
       "bin": {
         "xiranite-formatv": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/kavvka": {
+      "name": "@xiranite/node-kavvka",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-kavvka": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -979,6 +1001,8 @@
     "@xiranite/node-findz": ["@xiranite/node-findz@workspace:packages/nodes/findz"],
 
     "@xiranite/node-formatv": ["@xiranite/node-formatv@workspace:packages/nodes/formatv"],
+
+    "@xiranite/node-kavvka": ["@xiranite/node-kavvka@workspace:packages/nodes/kavvka"],
 
     "@xiranite/node-lata": ["@xiranite/node-lata@workspace:packages/nodes/lata"],
 

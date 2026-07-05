@@ -8,6 +8,7 @@ import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
 import findzEntry from "@xiranite/node-findz"
 import formatvEntry from "@xiranite/node-formatv"
+import kavvkaEntry from "@xiranite/node-kavvka"
 import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
@@ -45,6 +46,7 @@ const packageModules = {
   [encodebEntry.def.id]: encodebEntry,
   [findzEntry.def.id]: findzEntry,
   [formatvEntry.def.id]: formatvEntry,
+  [kavvkaEntry.def.id]: kavvkaEntry,
   [lataEntry.def.id]: lataEntry,
   [linedupEntry.def.id]: linedupEntry,
   [linkuEntry.def.id]: linkuEntry,

@@ -6,6 +6,7 @@ import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
 import findzEntry from "@xiranite/node-findz"
 import formatvEntry from "@xiranite/node-formatv"
+import kavvkaEntry from "@xiranite/node-kavvka"
 import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
@@ -29,6 +30,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   encodebEntry.def,
   findzEntry.def,
   formatvEntry.def,
+  kavvkaEntry.def,
   lataEntry.def,
   linedupEntry.def,
   linkuEntry.def,
