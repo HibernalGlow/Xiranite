@@ -20,10 +20,12 @@
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-linedup": "workspace:*",
         "@xiranite/node-linku": "workspace:*",
+        "@xiranite/node-movea": "workspace:*",
         "@xiranite/node-owithu": "workspace:*",
         "@xiranite/node-recycleu": "workspace:*",
         "@xiranite/node-reinstallp": "workspace:*",
         "@xiranite/node-scoolp": "workspace:*",
+        "@xiranite/node-seriex": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "@xyflow/react": "^12.11.1",
@@ -175,6 +177,27 @@
         "react": "^19.0.0",
       },
     },
+    "packages/nodes/movea": {
+      "name": "@xiranite/node-movea",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-movea": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
     "packages/nodes/owithu": {
       "name": "@xiranite/node-owithu",
       "version": "0.1.0",
@@ -250,6 +273,27 @@
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "smol-toml": "^1.7.0",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/seriex": {
+      "name": "@xiranite/node-seriex",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-seriex": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -709,6 +753,8 @@
 
     "@xiranite/node-linku": ["@xiranite/node-linku@workspace:packages/nodes/linku"],
 
+    "@xiranite/node-movea": ["@xiranite/node-movea@workspace:packages/nodes/movea"],
+
     "@xiranite/node-owithu": ["@xiranite/node-owithu@workspace:packages/nodes/owithu"],
 
     "@xiranite/node-recycleu": ["@xiranite/node-recycleu@workspace:packages/nodes/recycleu"],
@@ -716,6 +762,8 @@
     "@xiranite/node-reinstallp": ["@xiranite/node-reinstallp@workspace:packages/nodes/reinstallp"],
 
     "@xiranite/node-scoolp": ["@xiranite/node-scoolp@workspace:packages/nodes/scoolp"],
+
+    "@xiranite/node-seriex": ["@xiranite/node-seriex@workspace:packages/nodes/seriex"],
 
     "@xiranite/node-sleept": ["@xiranite/node-sleept@workspace:packages/nodes/sleept"],
 

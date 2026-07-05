@@ -3,10 +3,12 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
+import moveaEntry from "@xiranite/node-movea"
 import owithuEntry from "@xiranite/node-owithu"
 import recycleuEntry from "@xiranite/node-recycleu"
 import reinstallpEntry from "@xiranite/node-reinstallp"
 import scoolpEntry from "@xiranite/node-scoolp"
+import seriexEntry from "@xiranite/node-seriex"
 import sleeptEntry from "@xiranite/node-sleept"
 
 const PACKAGE_MODULES: ModuleDef[] = [
@@ -14,10 +16,12 @@ const PACKAGE_MODULES: ModuleDef[] = [
   encodebEntry.def,
   linedupEntry.def,
   linkuEntry.def,
+  moveaEntry.def,
   owithuEntry.def,
   recycleuEntry.def,
   reinstallpEntry.def,
   scoolpEntry.def,
+  seriexEntry.def,
   sleeptEntry.def,
 ]
 
