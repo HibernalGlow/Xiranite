@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@xiranite/contract": "workspace:*",
+    "@xiranite/node-bandia": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",

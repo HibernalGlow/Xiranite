@@ -16,6 +16,7 @@
         "@tanstack/react-query": "^5.90.16",
         "@tanstack/react-table": "^8.21.3",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/node-bandia": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
@@ -96,6 +97,27 @@
         "typescript": "~5.9.3",
       },
       "peerDependencies": {
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/bandia": {
+      "name": "@xiranite/node-bandia",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-bandia": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
         "react": "^19.0.0",
       },
     },
@@ -899,6 +921,8 @@
     "@xiranite/cli-runtime": ["@xiranite/cli-runtime@workspace:packages/cli-runtime"],
 
     "@xiranite/contract": ["@xiranite/contract@workspace:packages/contract"],
+
+    "@xiranite/node-bandia": ["@xiranite/node-bandia@workspace:packages/nodes/bandia"],
 
     "@xiranite/node-cleanf": ["@xiranite/node-cleanf@workspace:packages/nodes/cleanf"],
 

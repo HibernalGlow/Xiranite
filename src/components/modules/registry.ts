@@ -1,4 +1,5 @@
 import type { ModuleDef } from "@/types/workspace"
+import bandiaEntry from "@xiranite/node-bandia"
 import cleanfEntry from "@xiranite/node-cleanf"
 import crashuEntry from "@xiranite/node-crashu"
 import dissolvefEntry from "@xiranite/node-dissolvef"
@@ -19,6 +20,7 @@ import seriexEntry from "@xiranite/node-seriex"
 import sleeptEntry from "@xiranite/node-sleept"
 
 const PACKAGE_MODULES: ModuleDef[] = [
+  bandiaEntry.def,
   cleanfEntry.def,
   crashuEntry.def,
   dissolvefEntry.def,
