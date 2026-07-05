@@ -21,7 +21,10 @@
   },
   "dependencies": {
     "@xiranite/contract": "workspace:*",
+    "@xiranite/node-cleanf": "workspace:*",
+    "@xiranite/node-encodeb": "workspace:*",
     "@xiranite/node-linedup": "workspace:*",
+    "@xiranite/node-recycleu": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
     "@base-ui/react": "^1.1.0",
     "@dnd-kit/core": "^6.3.1",
