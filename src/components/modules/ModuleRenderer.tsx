@@ -8,6 +8,7 @@ import encodebEntry from "@xiranite/node-encodeb"
 import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
+import markuEntry from "@xiranite/node-marku"
 import migratefEntry from "@xiranite/node-migratef"
 import moveaEntry from "@xiranite/node-movea"
 import owithuEntry from "@xiranite/node-owithu"
@@ -40,6 +41,7 @@ const packageModules = {
   [lataEntry.def.id]: lataEntry,
   [linedupEntry.def.id]: linedupEntry,
   [linkuEntry.def.id]: linkuEntry,
+  [markuEntry.def.id]: markuEntry,
   [migratefEntry.def.id]: migratefEntry,
   [moveaEntry.def.id]: moveaEntry,
   [owithuEntry.def.id]: owithuEntry,
