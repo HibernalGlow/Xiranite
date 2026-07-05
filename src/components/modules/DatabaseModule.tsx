@@ -1,40 +1,61 @@
 /**
- * DatabaseModule — Notion 式表格视图。
+ * DatabaseModule — Notion 式表格视图（基于 @tanstack/react-table）。
  *
- * 收集当前 workspace 所有组件的元数据，按表格展示：
- * - 模块 / 状态 / 可见性（在哪些 viewMode 显示）/ 标签 / 创建时间 / 修改时间
- * - 支持排序（点列头切换 asc/desc）
- * - 支持筛选（按模块名/标签搜索）
- * - 支持行内编辑标签字段（tags 为 string[]，回车添加）
+ * 参考 sadmann7/tablecn 的 DataTable 架构：
+ * - 列定义带 meta（variant: text/select/multiSelect）
+ * - 列头用 DropdownMenu 切换 asc/desc/hide
+ * - Toolbar 自动按列 variant 渲染筛选器
+ * - 行选择 + actionBar
  *
- * 数据全部从 store 读取，无需后端持久化（comp.data 已经在 workspaceContext 持久化）。
- * 后续可扩展为用户自定义字段（schema-driven）。
+ * 数据源：store.components，无需后端改动。
  */
 import { useMemo, useState } from "react"
-import { Search, Tag, X, ArrowUpDown, ArrowUp, ArrowDown, Eye, EyeOff } from "lucide-react"
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type ColumnFiltersState,
+  type RowSelectionState,
+  type SortingState,
+  type VisibilityState,
+} from "@tanstack/react-table"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown, EyeOff, Tag, X } from "lucide-react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { useComponentData } from "@/hooks/useComponentData"
 import { getModule } from "@/components/modules/registry"
-import type { ComponentInstance, ViewMode } from "@/types/workspace"
 import type { ModuleProps } from "./ModuleRenderer"
+import type { ComponentInstance, ViewMode } from "@/types/workspace"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-interface DatabaseState {
-  /** 用户自定义标签 — key 为 componentId，value 为 tag 数组 */
-  tagsByComponent?: Record<string, string[]>
-  /** 当前排序列 */
-  sortKey?: SortKey
-  sortDir?: "asc" | "desc"
-  /** 筛选关键字 */
-  filterText?: string
+// ── 列 meta 类型 ─────────────────────────────────────────────────────────────
+// 参考 tablecn 的 meta.variant：通过 module augmentation 给所有列的 meta 字段
+// 提供类型支持，toolbar 可据此渲染不同 variant 的筛选器。
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData, TValue> {
+    label: string
+    variant?: "text" | "select" | "multiSelect"
+    options?: { label: string; value: string }[]
+  }
 }
-
-type SortKey = "moduleId" | "state" | "visibility" | "tags" | "createdAt" | "modifiedAt"
 
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 
-function formatTime(ts: number | undefined): string {
-  if (!ts) return "—"
+function formatTime(ts: number): string {
   const d = new Date(ts)
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, "0")
@@ -44,111 +65,234 @@ function formatTime(ts: number | undefined): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
+// ── 行类型：把 ComponentInstance + 计算字段组合成 row ────────────────────────
+interface ComponentRow {
+  id: string
+  moduleId: string
+  moduleName: string
+  state: string
+  visibilityCount: number
+  visibilityIn: Record<ViewMode, boolean>
+  tags: string[]
+  createdAt: number
+  dataKeys: number
+  comp: ComponentInstance
+}
+
+interface DatabaseState {
+  tagsByComponent?: Record<string, string[]>
+}
+
 export default function DatabaseModule({ compId }: ModuleProps) {
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const [data, setData] = useComponentData<DatabaseState>(compId)
   const [tagInput, setTagInput] = useState<Record<string, string>>({})
 
-  const tagsByComponent = data.tagsByComponent ?? {}
-  const sortKey = data.sortKey ?? "moduleId"
-  const sortDir = data.sortDir ?? "asc"
-  const filterText = data.filterText ?? ""
-
-  // 排序+筛选后的行
-  const rows = useMemo(() => {
-    let list = visibleComponents.slice()
-    if (filterText.trim()) {
-      const q = filterText.toLowerCase()
-      list = list.filter(c => {
-        const mod = getModule(c.moduleId)
-        const name = (mod?.name ?? c.moduleId).toLowerCase()
-        const tags = (tagsByComponent[c.id] ?? []).join(" ").toLowerCase()
-        return name.includes(q) || tags.includes(q) || c.id.includes(q)
-      })
-    }
-    const dir = sortDir === "asc" ? 1 : -1
-    list.sort((a, b) => {
-      let va: string | number = ""
-      let vb: string | number = ""
-      switch (sortKey) {
-        case "moduleId":
-          va = a.moduleId; vb = b.moduleId; break
-        case "state":
-          va = a.state; vb = b.state; break
-        case "visibility":
-          va = VIEW_MODES.filter(m => !a.hiddenIn?.[m]).length
-          vb = VIEW_MODES.filter(m => !b.hiddenIn?.[m]).length
-          break
-        case "tags":
-          va = (tagsByComponent[a.id] ?? []).join(",")
-          vb = (tagsByComponent[b.id] ?? []).join(",")
-          break
-        case "createdAt":
-          va = parseInt(a.id.split("-").pop() ?? "0", 10)
-          vb = parseInt(b.id.split("-").pop() ?? "0", 10)
-          break
-        case "modifiedAt":
-          va = a.data ? Object.keys(a.data).length : 0
-          vb = b.data ? Object.keys(b.data).length : 0
-          break
+  // 行数据
+  const rows = useMemo<ComponentRow[]>(() => {
+    return visibleComponents.map(comp => {
+      const mod = getModule(comp.moduleId)
+      const tags = data.tagsByComponent?.[comp.id] ?? []
+      const visibilityIn = {
+        cards: !comp.hiddenIn?.cards,
+        dockview: !comp.hiddenIn?.dockview,
+        flow: !comp.hiddenIn?.flow,
+        lane: !comp.hiddenIn?.lane,
       }
-      if (va < vb) return -1 * dir
-      if (va > vb) return 1 * dir
-      return 0
+      return {
+        id: comp.id,
+        moduleId: comp.moduleId,
+        moduleName: mod?.name ?? comp.moduleId,
+        state: comp.state,
+        visibilityCount: VIEW_MODES.filter(m => visibilityIn[m]).length,
+        visibilityIn,
+        tags,
+        createdAt: parseInt(comp.id.split("-").pop() ?? "0", 10),
+        dataKeys: comp.data ? Object.keys(comp.data).length : 0,
+        comp,
+      }
     })
-    return list
-  }, [visibleComponents, filterText, sortKey, sortDir, tagsByComponent])
+  }, [visibleComponents, data.tagsByComponent])
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setData({ sortDir: sortDir === "asc" ? "desc" : "asc" })
-    } else {
-      setData({ sortKey: key, sortDir: "asc" })
-    }
-  }
+  // 表格状态
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [globalFilter, setGlobalFilter] = useState("")
 
-  function addTag(compId: string) {
-    const text = (tagInput[compId] ?? "").trim()
-    if (!text) return
-    const cur = tagsByComponent[compId] ?? []
-    if (cur.includes(text)) { setTagInput({ ...tagInput, [compId]: "" }); return }
-    const next = { ...tagsByComponent, [compId]: [...cur, text] }
-    setData({ tagsByComponent: next })
-    setTagInput({ ...tagInput, [compId]: "" })
-  }
+  // ── 列定义 ────────────────────────────────────────────────────────────────
+  const columns = useMemo<ColumnDef<ComponentRow, unknown>[]>(() => [
+    {
+      id: "select",
+      size: 32,
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected()
+              ? true
+              : table.getIsSomePageRowsSelected() ? "indeterminate" : false
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "moduleName",
+      meta: { label: "Module", variant: "text" },
+      header: ({ column }) => <ColumnHeader column={column} label="Module" />,
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span className="font-semibold">{row.original.moduleName}</span>
+          <span className="text-[9px] text-muted-foreground">{row.original.id}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "state",
+      meta: {
+        label: "State",
+        variant: "select",
+        options: [
+          { label: "docked", value: "docked" },
+          { label: "focused", value: "focused" },
+          { label: "fullscreen", value: "fullscreen" },
+        ],
+      },
+      header: ({ column }) => <ColumnHeader column={column} label="State" />,
+      cell: ({ row }) => (
+        <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
+          {row.original.state}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "visibilityCount",
+      meta: { label: "Visible In" },
+      header: ({ column }) => <ColumnHeader column={column} label="Visible In" />,
+      cell: ({ row }) => {
+        const vis = row.original.visibilityIn
+        return (
+          <div className="flex items-center gap-1">
+            {VIEW_MODES.map(m => (
+              <button
+                key={m}
+                onClick={() => dispatch(actions.toggleComponentVisibility(row.original.id, m))}
+                title={`${m}: ${vis[m] ? "visible" : "hidden"}`}
+                className={cn(
+                  "h-5 w-5 grid place-items-center rounded border text-[8px] uppercase",
+                  vis[m]
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "border-border/40 text-muted-foreground/40 hover:text-foreground"
+                )}
+              >
+                {m.slice(0, 1)}
+              </button>
+            ))}
+          </div>
+        )
+      },
+    },
+    {
+      id: "tags",
+      meta: { label: "Tags" },
+      header: ({ column }) => <ColumnHeader column={column} label="Tags" />,
+      cell: ({ row }) => {
+        const tags = row.original.tags
+        const inputVal = tagInput[row.original.id] ?? ""
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            {tags.map(t => (
+              <Badge key={t} variant="secondary" className="text-[9px] gap-0.5">
+                <Tag className="h-2.5 w-2.5" />
+                {t}
+                <button
+                  onClick={() => {
+                    const next = { ...data.tagsByComponent, [row.original.id]: tags.filter(x => x !== t) }
+                    setData({ tagsByComponent: next })
+                  }}
+                  className="hover:text-destructive ml-0.5"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </Badge>
+            ))}
+            <input
+              value={inputVal}
+              onChange={(e) => setTagInput({ ...tagInput, [row.original.id]: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  const text = inputVal.trim()
+                  if (!text || tags.includes(text)) { setTagInput({ ...tagInput, [row.original.id]: "" }); return }
+                  const next = { ...data.tagsByComponent, [row.original.id]: [...tags, text] }
+                  setData({ tagsByComponent: next })
+                  setTagInput({ ...tagInput, [row.original.id]: "" })
+                }
+                if (e.key === "Backspace" && !inputVal && tags.length > 0) {
+                  const next = { ...data.tagsByComponent, [row.original.id]: tags.slice(0, -1) }
+                  setData({ tagsByComponent: next })
+                }
+              }}
+              placeholder="+ tag"
+              className="bg-transparent text-[10px] outline-none w-16 placeholder:text-muted-foreground/60 focus:bg-background focus:px-1 focus:rounded focus:border focus:border-border/60"
+            />
+          </div>
+        )
+      },
+    },
+    {
+      accessorKey: "createdAt",
+      meta: { label: "Created" },
+      header: ({ column }) => <ColumnHeader column={column} label="Created" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-[10px]">{formatTime(row.original.createdAt)}</span>
+      ),
+    },
+    {
+      accessorKey: "dataKeys",
+      meta: { label: "Data Keys" },
+      header: ({ column }) => <ColumnHeader column={column} label="Data" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-[10px]">{row.original.dataKeys} keys</span>
+      ),
+    },
+  ], [data.tagsByComponent, dispatch, setData, tagInput])
 
-  function removeTag(compId: string, tag: string) {
-    const cur = tagsByComponent[compId] ?? []
-    const next = { ...tagsByComponent, [compId]: cur.filter(t => t !== tag) }
-    setData({ tagsByComponent: next })
-  }
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting, columnFilters, columnVisibility, rowSelection, globalFilter },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
 
-  function toggleVisibility(comp: ComponentInstance, mode: ViewMode) {
-    dispatch(actions.toggleComponentVisibility(comp.id, mode))
-  }
+  const selectedRows = table.getFilteredSelectedRowModel().rows
+  const allModules = useMemo(() => {
+    const set = new Map<string, string>()
+    rows.forEach(r => set.set(r.moduleId, r.moduleName))
+    return Array.from(set, ([value, label]) => ({ value, label }))
+  }, [rows])
 
-  function SortHeader({ k, label }: { k: SortKey; label: string }) {
-    const active = sortKey === k
-    return (
-      <button
-        onClick={() => toggleSort(k)}
-        className={cn(
-          "flex items-center gap-1 text-[10px] font-mono tracking-widest uppercase px-2 py-1 hover:bg-muted/60 transition-colors",
-          active ? "text-primary" : "text-muted-foreground"
-        )}
-      >
-        {label}
-        {active ? (
-          sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-        ) : (
-          <ArrowUpDown className="h-3 w-3 opacity-40" />
-        )}
-      </button>
-    )
-  }
-
-  if (visibleComponents.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="text-center space-y-2">
@@ -161,135 +305,156 @@ export default function DatabaseModule({ compId }: ModuleProps) {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      {/* 顶栏：搜索 + 计数 */}
-      <div className="flex items-center gap-2 px-3 h-9 border-b border-border/40 bg-muted/20 flex-shrink-0">
-        <div className="flex items-center gap-1.5 flex-1 max-w-xs">
-          <Search className="h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            value={filterText}
-            onChange={(e) => setData({ filterText: e.target.value })}
-            placeholder="Filter by name / tag / id..."
-            className="flex-1 bg-transparent text-xs font-mono outline-none placeholder:text-muted-foreground/60"
-          />
-          {filterText && (
-            <button onClick={() => setData({ filterText: "" })} className="text-muted-foreground hover:text-foreground">
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-        <div className="text-[10px] font-mono text-muted-foreground">
-          {rows.length} / {visibleComponents.length} ROWS
-        </div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/20 flex-shrink-0">
+        <Input
+          value={globalFilter}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+          placeholder="Search all columns..."
+          className="h-8 w-48 text-xs font-mono"
+        />
+        {/* 模块筛选（select variant） */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs">
+              Module: {String(table.getColumn("moduleName")?.getFilterValue() ?? "All")}
+              <ChevronDown className="h-3 w-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => table.getColumn("moduleName")?.setFilterValue(undefined)}>
+              All
+            </DropdownMenuItem>
+            {allModules.map(m => (
+              <DropdownMenuItem
+                key={m.value}
+                onClick={() => table.getColumn("moduleName")?.setFilterValue(m.label)}
+              >
+                {m.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex-1" />
+
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {rows.length} ROWS · {selectedRows.length} SELECTED
+        </span>
       </div>
 
-      {/* 表格 */}
+      {/* 表格主体 */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-xs font-mono">
-          <thead className="sticky top-0 bg-muted/40 backdrop-blur z-10">
-            <tr className="border-b border-border/60">
-              <th className="text-left"><SortHeader k="moduleId" label="Module" /></th>
-              <th className="text-left"><SortHeader k="state" label="State" /></th>
-              <th className="text-left"><SortHeader k="visibility" label="Visibility" /></th>
-              <th className="text-left"><SortHeader k="tags" label="Tags" /></th>
-              <th className="text-left"><SortHeader k="createdAt" label="Created" /></th>
-              <th className="text-left"><SortHeader k="modifiedAt" label="Data Size" /></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(comp => {
-              const mod = getModule(comp.moduleId)
-              const tags = tagsByComponent[comp.id] ?? []
-              const inputVal = tagInput[comp.id] ?? ""
-              return (
-                <tr key={comp.id} className="border-b border-border/30 hover:bg-muted/30 group">
-                  {/* Module */}
-                  <td className="px-2 py-1.5">
-                    <div className="flex flex-col">
-                      <span className="text-foreground font-semibold">{mod?.name ?? comp.moduleId}</span>
-                      <span className="text-[9px] text-muted-foreground">{comp.id}</span>
-                    </div>
-                  </td>
-                  {/* State */}
-                  <td className="px-2 py-1.5">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-muted/60 uppercase tracking-wider">
-                      {comp.state}
-                    </span>
-                  </td>
-                  {/* Visibility — 4 个 viewMode 各自的开关 */}
-                  <td className="px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      {VIEW_MODES.map(m => {
-                        const hidden = comp.hiddenIn?.[m]
-                        return (
-                          <button
-                            key={m}
-                            onClick={() => toggleVisibility(comp, m)}
-                            title={`${m}: ${hidden ? "hidden" : "visible"}`}
-                            className={cn(
-                              "grid h-5 w-5 place-items-center rounded border",
-                              hidden
-                                ? "border-border/40 text-muted-foreground/40 hover:text-foreground"
-                                : "border-primary/40 bg-primary/10 text-primary"
-                            )}
-                          >
-                            {hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </td>
-                  {/* Tags — 行内编辑 */}
-                  <td className="px-2 py-1.5">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {tags.map(t => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px]"
-                        >
-                          <Tag className="h-2.5 w-2.5" />
-                          {t}
-                          <button
-                            onClick={() => removeTag(comp.id, t)}
-                            className="hover:text-destructive ml-0.5"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </span>
-                      ))}
-                      <input
-                        value={inputVal}
-                        onChange={(e) => setTagInput({ ...tagInput, [comp.id]: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") { e.preventDefault(); addTag(comp.id) }
-                          if (e.key === "Backspace" && !inputVal && tags.length > 0) {
-                            removeTag(comp.id, tags[tags.length - 1])
-                          }
-                        }}
-                        placeholder="+ tag"
-                        className="bg-transparent text-[10px] outline-none w-16 placeholder:text-muted-foreground/60 focus:bg-background focus:px-1 focus:rounded focus:border focus:border-border/60"
-                      />
-                    </div>
-                  </td>
-                  {/* Created */}
-                  <td className="px-2 py-1.5 text-muted-foreground text-[10px]">
-                    {formatTime(parseInt(comp.id.split("-").pop() ?? "0", 10))}
-                  </td>
-                  {/* Data Size */}
-                  <td className="px-2 py-1.5 text-muted-foreground text-[10px]">
-                    {comp.data ? `${Object.keys(comp.data).length} keys` : "—"}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map(headerGroup => (
+              <TableRow key={headerGroup.id} className="border-border/60">
+                {headerGroup.headers.map(header => (
+                  <TableHead key={header.id} colSpan={header.colSpan} className="h-9">
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map(row => (
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="border-border/30">
+                  {row.getVisibleCells().map(cell => (
+                    <TableCell key={cell.id} className="py-1.5">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-        {rows.length === 0 && (
-          <div className="p-8 text-center text-[10px] font-mono text-muted-foreground">
-            // no rows match filter "{filterText}"
-          </div>
-        )}
+      {/* 分页栏 */}
+      <div className="flex items-center justify-between px-3 py-2 border-t border-border/40 bg-muted/20 flex-shrink-0 text-xs">
+        <span className="font-mono text-muted-foreground">
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+            Prev
+          </Button>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+            Next
+          </Button>
+        </div>
       </div>
     </div>
+  )
+}
+
+// ── 列头组件（带排序 + 隐藏菜单）─────────────────────────────────────────────
+function ColumnHeader<TData, TValue>({
+  column,
+  label,
+}: {
+  column: import("@tanstack/react-table").Column<TData, TValue>
+  label: string
+}) {
+  if (!column.getCanSort() && !column.getCanHide()) {
+    return <div className="text-[10px] font-mono tracking-widest uppercase">{label}</div>
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "-ml-1.5 flex h-7 items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-muted/60",
+          "text-[10px] font-mono tracking-widest uppercase",
+        )}
+      >
+        {label}
+        {column.getCanSort() && (
+          column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3" />
+          : column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3" />
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-28">
+        {column.getCanSort() && (
+          <>
+            <DropdownMenuCheckboxItem
+              checked={column.getIsSorted() === "asc"}
+              onClick={() => column.toggleSorting(false)}
+            >
+              <ArrowUp className="h-3 w-3" /> Asc
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={column.getIsSorted() === "desc"}
+              onClick={() => column.toggleSorting(true)}
+            >
+              <ArrowDown className="h-3 w-3" /> Desc
+            </DropdownMenuCheckboxItem>
+            {column.getIsSorted() && (
+              <DropdownMenuItem onClick={() => column.clearSorting()}>
+                <X className="h-3 w-3" /> Reset
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {column.getCanHide() && (
+          <DropdownMenuCheckboxItem
+            checked={!column.getIsVisible()}
+            onClick={() => column.toggleVisibility(false)}
+          >
+            <EyeOff className="h-3 w-3" /> Hide
+          </DropdownMenuCheckboxItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
