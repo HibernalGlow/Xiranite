@@ -1,0 +1,216 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-acid: var(--acid);
+  --color-acid-foreground: var(--acid-foreground);
+  --color-cyan: var(--cyan);
+  --color-magenta: var(--magenta);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-grid-line: var(--grid-line);
+  --font-mono: "JetBrains Mono", "Space Mono", ui-monospace, monospace;
+  --font-display: "Inter", "Space Grotesk", system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* ── Theme: 武陵城 / Wuling Tactical (Endfield Tactical Workspace) ─────────── */
+  --background: #f9f9fc;
+  --foreground: #1a1c1e;
+
+  --surface: #f9f9fc;
+  --surface-raised: #f3f3f6;
+
+  --card: #eeeef0;
+  --card-foreground: #1a1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1c1e;
+
+  --primary: #286b33;
+  --primary-foreground: #ffffff;
+
+  --secondary: #1b6d24;
+  --secondary-foreground: #ffffff;
+
+  --muted: #e2e2e5;
+  --muted-foreground: #40493f;
+
+  --accent: #006b5c;
+  --accent-foreground: #ffffff;
+
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+
+  --border: #707a6e;
+  --input: #c0c9bc;
+  --ring: #286b33;
+
+  --acid: #abf4ac;
+  --acid-foreground: #002107;
+  --cyan: #68fadd;
+  --magenta: #a3f69c;
+  --grid-line: #dadadc;
+
+  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
+  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(40, 107, 51, 0.15), transparent 60%);
+  --shadow-acid: 0 0 0 1px rgba(40, 107, 51, 0.2), 0 20px 60px -20px rgba(40, 107, 51, 0.25);
+  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
+}
+
+.dark {
+  --background: #161311;
+  --foreground: #eae1dd;
+}
+
+/* ── Theme: 武陵城 / Wuling Tactical (Explicit) ─────────── */
+[data-theme="wuling"] {
+  --background: #f9f9fc;
+  --foreground: #1a1c1e;
+
+  --surface: #f9f9fc;
+  --surface-raised: #f3f3f6;
+
+  --card: #eeeef0;
+  --card-foreground: #1a1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1c1e;
+
+  --primary: #286b33;
+  --primary-foreground: #ffffff;
+
+  --secondary: #1b6d24;
+  --secondary-foreground: #ffffff;
+
+  --muted: #e2e2e5;
+  --muted-foreground: #40493f;
+
+  --accent: #006b5c;
+  --accent-foreground: #ffffff;
+
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+
+  --border: #707a6e;
+  --input: #c0c9bc;
+  --ring: #286b33;
+
+  --acid: #abf4ac;
+  --acid-foreground: #002107;
+  --cyan: #68fadd;
+  --magenta: #a3f69c;
+  --grid-line: #dadadc;
+
+  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
+  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(40, 107, 51, 0.15), transparent 60%);
+  --shadow-acid: 0 0 0 1px rgba(40, 107, 51, 0.2), 0 20px 60px -20px rgba(40, 107, 51, 0.25);
+  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Theme: 乌托邦 / Utopia (Atmospheric Urban Workspace) ─────────── */
+[data-theme="utopia"] {
+  --background: #161311;
+  --foreground: #eae1dd;
+
+  --surface: #161311;
+  --surface-raised: #1f1b19;
+
+  --card: #231f1d;
+  --card-foreground: #eae1dd;
+  --popover: #110d0c;
+  --popover-foreground: #eae1dd;
+
+  --primary: #ffb4a5;
+  --primary-foreground: #650b00;
+
+  --secondary: #f0bd8b;
+  --secondary-foreground: #482904;
+
+  --muted: #393431;
+  --muted-foreground: #e0bfb8;
+
+  --accent: #d2c4bb;
+  --accent-foreground: #372f29;
+
+  --destructive: #ffb4ab;
+  --destructive-foreground: #690005;
+
+  --border: #a88a84;
+  --input: #59413c;
+  --ring: #ffb4a5;
+
+  --acid: #ffdad3;
+  --acid-foreground: #3e0400;
+  --cyan: #efe0d7;
+  --magenta: #ffdcbd;
+  --grid-line: #3d3836;
+
+  --gradient-acid: linear-gradient(135deg, #f16348, #ffb4a5, #f0bd8b);
+  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(255, 180, 165, 0.15), transparent 60%);
+  --shadow-acid: 0 0 0 1px rgba(255, 180, 165, 0.2), 0 20px 60px -20px rgba(255, 180, 165, 0.25);
+  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.8);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-display);
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+}
+
+@utility text-acid-gradient {
+  background: var(--gradient-acid);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@utility bg-scan {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255,255,255, 0.03) 0px,
+    rgba(255,255,255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
