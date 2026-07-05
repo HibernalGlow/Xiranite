@@ -40,6 +40,7 @@
         "@xiranite/node-scoolp": "workspace:*",
         "@xiranite/node-seriex": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
+        "@xiranite/node-trename": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "@xyflow/react": "^12.11.1",
         "chrono-node": "^2.9.0",
@@ -613,6 +614,27 @@
         "react": "^19.0.0",
       },
     },
+    "packages/nodes/trename": {
+      "name": "@xiranite/node-trename",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-trename": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
     "packages/ui": {
       "name": "@xiranite/ui",
       "version": "0.1.0",
@@ -1077,6 +1099,7 @@
     "@xiranite/node-seriex": ["@xiranite/node-seriex@workspace:packages/nodes/seriex"],
 
     "@xiranite/node-sleept": ["@xiranite/node-sleept@workspace:packages/nodes/sleept"],
+    "@xiranite/node-trename": ["@xiranite/node-trename@workspace:packages/nodes/trename"],
 
     "@xiranite/ui": ["@xiranite/ui@workspace:packages/ui"],
 

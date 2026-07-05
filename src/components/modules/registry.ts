@@ -23,6 +23,7 @@ import reinstallpEntry from "@xiranite/node-reinstallp"
 import scoolpEntry from "@xiranite/node-scoolp"
 import seriexEntry from "@xiranite/node-seriex"
 import sleeptEntry from "@xiranite/node-sleept"
+import trenameEntry from "@xiranite/node-trename"
 
 const PACKAGE_MODULES: ModuleDef[] = [
   bandiaEntry.def,
@@ -49,6 +50,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   scoolpEntry.def,
   seriexEntry.def,
   sleeptEntry.def,
+  trenameEntry.def,
 ]
 
 export const MODULE_REGISTRY: ModuleDef[] = [
