@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
-import type { ReactNode } from "react"
 import type { NodeCardProps, NodeRunEvent } from "@xiranite/contract"
 import { Activity, Calendar, Cpu, Moon, Play, Power, RotateCcw, Square, Timer, Wifi } from "lucide-react"
+import { ActionButton, Field, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
 import type { NetCounters, PowerMode, SleeptInput, SleeptRuntime } from "./core.js"
 import { formatDuration, runSleept } from "./core.js"
 
@@ -80,10 +80,8 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function refreshStats() {
     const result = await runSleept({ action: "get_stats" }, createBrowserRuntime())
-    const data = result.data
-    if (data) {
-      setStats({ cpu: data.currentCpu, upload: data.currentUpload, download: data.currentDownload })
-    }
+    const next = result.data
+    if (next) setStats({ cpu: next.currentCpu, upload: next.currentUpload, download: next.currentDownload })
   }
 
   function reset() {
@@ -93,145 +91,104 @@ export function Component({ compId, host }: NodeCardProps) {
     setLogs([])
   }
 
+  const durationSeconds = state.hours * 3600 + state.minutes * 60 + state.seconds
+
   return (
-    <div className="h-full min-h-[320px] overflow-hidden p-3 text-xs font-mono">
-      <div className="grid h-full min-h-0 grid-cols-[1.1fr_1.1fr_1fr] grid-rows-[132px_1fr_92px] gap-2">
-        <Panel title="Mode" className="col-span-1">
-          <div className="grid h-full grid-cols-2 gap-2">
-            <ModeButton active={state.timerMode === "countdown"} onClick={() => patch({ timerMode: "countdown" })}><Timer size={14} /> Countdown</ModeButton>
-            <ModeButton active={state.timerMode === "specific_time"} onClick={() => patch({ timerMode: "specific_time" })}><Calendar size={14} /> At time</ModeButton>
-            <ModeButton active={state.timerMode === "netspeed"} onClick={() => patch({ timerMode: "netspeed" })}><Wifi size={14} /> Network</ModeButton>
-            <ModeButton active={state.timerMode === "cpu"} onClick={() => patch({ timerMode: "cpu" })}><Cpu size={14} /> CPU</ModeButton>
-          </div>
-        </Panel>
-        <Panel title="Power">
-          <div className="grid h-full grid-cols-3 gap-2">
-            <ModeButton active={state.powerMode === "sleep"} onClick={() => patch({ powerMode: "sleep" })}><Moon size={14} /> Sleep</ModeButton>
-            <ModeButton active={state.powerMode === "shutdown"} onClick={() => patch({ powerMode: "shutdown" })}><Power size={14} /> Off</ModeButton>
-            <ModeButton active={state.powerMode === "restart"} onClick={() => patch({ powerMode: "restart" })}><RotateCcw size={14} /> Reboot</ModeButton>
-            <label className="col-span-3 flex items-center gap-2 rounded border border-border p-2">
-              <input type="checkbox" checked={state.dryrun} onChange={(event) => patch({ dryrun: event.currentTarget.checked })} />
-              Dry-run
-            </label>
-          </div>
-        </Panel>
-        <Panel title="Operation">
-          <div className="flex h-full flex-col gap-2">
-            <button className="flex flex-1 items-center justify-center gap-1 rounded bg-primary text-primary-foreground disabled:opacity-50" disabled={phase === "running"} onClick={start}>
-              <Play size={14} /> Start
-            </button>
-            <button className="flex h-8 items-center justify-center gap-1 rounded border border-border" onClick={reset}>
-              <Square size={14} /> Reset
-            </button>
-            <button className="flex h-8 items-center justify-center gap-1 rounded border border-border" onClick={refreshStats}>
-              <Activity size={14} /> Refresh
-            </button>
-          </div>
-        </Panel>
-        <Panel title="Timer">
-          <TimerSettings state={state} patch={patch} />
-        </Panel>
-        <Panel title="Status" className="col-span-2">
-          <div className="flex h-full items-center gap-4">
-            <div className="relative h-24 w-24 shrink-0">
-              <svg viewBox="0 0 100 100" className="-rotate-90">
-                <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" className="text-muted/40" />
-                <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={`${progress * 2.7} 270`} className={phase === "error" ? "text-red-500" : phase === "completed" ? "text-green-500" : "text-primary"} />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-semibold">{progress}%</span>
-                <span className="text-[10px] text-muted-foreground">{phase}</span>
-              </div>
+    <NodeContent>
+      <NodeHeader
+        title="sleept"
+        meta={`${state.timerMode} / ${state.powerMode} / ${state.dryrun ? "dry-run" : "live"}`}
+        actions={
+          <>
+            <ActionButton variant="primary" disabled={phase === "running"} onClick={start}><Play size={14} /> Start</ActionButton>
+            <ActionButton onClick={refreshStats}><Activity size={14} /> Stats</ActionButton>
+            <ActionButton onClick={reset}><Square size={14} /> Reset</ActionButton>
+          </>
+        }
+      />
+
+      <NodeBody className="flex flex-col gap-2">
+        <div className="grid shrink-0 grid-cols-4 gap-1">
+          <SegmentButton active={state.timerMode === "countdown"} onClick={() => patch({ timerMode: "countdown" })}><Timer size={14} /> Countdown</SegmentButton>
+          <SegmentButton active={state.timerMode === "specific_time"} onClick={() => patch({ timerMode: "specific_time" })}><Calendar size={14} /> At</SegmentButton>
+          <SegmentButton active={state.timerMode === "netspeed"} onClick={() => patch({ timerMode: "netspeed" })}><Wifi size={14} /> Net</SegmentButton>
+          <SegmentButton active={state.timerMode === "cpu"} onClick={() => patch({ timerMode: "cpu" })}><Cpu size={14} /> CPU</SegmentButton>
+        </div>
+
+        <div className="grid shrink-0 grid-cols-4 gap-1">
+          <SegmentButton active={state.powerMode === "sleep"} onClick={() => patch({ powerMode: "sleep" })}><Moon size={14} /> Sleep</SegmentButton>
+          <SegmentButton active={state.powerMode === "shutdown"} onClick={() => patch({ powerMode: "shutdown" })}><Power size={14} /> Off</SegmentButton>
+          <SegmentButton active={state.powerMode === "restart"} onClick={() => patch({ powerMode: "restart" })}><RotateCcw size={14} /> Reboot</SegmentButton>
+          <SegmentButton active={state.dryrun} onClick={() => patch({ dryrun: !state.dryrun })}>Dry</SegmentButton>
+        </div>
+
+        <div className="min-h-0 flex flex-1 gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <TimerSettings state={state} patch={patch} />
+            <div className="grid grid-cols-4 gap-1">
+              <StatPill label="duration" value={formatDuration(durationSeconds)} tone="accent" />
+              <StatPill label="cpu" value={`${stats.cpu.toFixed(1)}%`} />
+              <StatPill label="up" value={stats.upload.toFixed(1)} />
+              <StatPill label="down" value={stats.download.toFixed(1)} />
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="truncate text-muted-foreground">{progressText || "waiting"}</div>
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="CPU" value={`${stats.cpu.toFixed(1)}%`} />
-                <Stat label="UP" value={`${stats.upload.toFixed(1)}`} />
-                <Stat label="DOWN" value={`${stats.download.toFixed(1)}`} />
-              </div>
-              <div className="text-muted-foreground">duration {formatDuration((state.hours * 3600) + (state.minutes * 60) + state.seconds)}</div>
-            </div>
+            <div className="truncate text-[11px] text-muted-foreground">{progressText || "waiting"}</div>
           </div>
-        </Panel>
-        <Panel title="Log" className="col-span-3">
-          <div className="h-full overflow-auto rounded bg-muted/30 p-2 text-[11px] text-muted-foreground">
-            {logs.length ? logs.map((line) => <div key={line}>{line}</div>) : "No logs"}
-          </div>
-        </Panel>
-      </div>
-    </div>
+          <ProgressRing progress={progress} phase={phase} />
+        </div>
+      </NodeBody>
+
+      <NodeFooter>
+        <LogView lines={logs} className="h-14" />
+      </NodeFooter>
+    </NodeContent>
   )
 }
 
 function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch: (patchData: Partial<SleeptCardState>) => void }) {
   if (state.timerMode === "specific_time") {
-    return <Input label="Target" value={state.targetDatetime} onChange={(value) => patch({ targetDatetime: value })} />
+    return <Field label="target datetime" value={state.targetDatetime} onChange={(event) => patch({ targetDatetime: event.currentTarget.value })} />
   }
 
   if (state.timerMode === "netspeed") {
     return (
-      <div className="grid h-full grid-cols-2 gap-2">
-        <Input label="Upload KB/s" value={state.uploadThreshold} onChange={(value) => patch({ uploadThreshold: Number(value) })} />
-        <Input label="Download KB/s" value={state.downloadThreshold} onChange={(value) => patch({ downloadThreshold: Number(value) })} />
-        <Input label="Minutes" value={state.netDuration} onChange={(value) => patch({ netDuration: Number(value) })} />
-        <ModeButton active={state.netTriggerMode === "any"} onClick={() => patch({ netTriggerMode: state.netTriggerMode === "any" ? "both" : "any" })}>Trigger {state.netTriggerMode}</ModeButton>
+      <div className="grid grid-cols-4 gap-1">
+        <Field label="upload" value={state.uploadThreshold} onChange={(event) => patch({ uploadThreshold: Number(event.currentTarget.value) })} />
+        <Field label="download" value={state.downloadThreshold} onChange={(event) => patch({ downloadThreshold: Number(event.currentTarget.value) })} />
+        <Field label="minutes" value={state.netDuration} onChange={(event) => patch({ netDuration: Number(event.currentTarget.value) })} />
+        <SegmentButton active={state.netTriggerMode === "any"} onClick={() => patch({ netTriggerMode: state.netTriggerMode === "any" ? "both" : "any" })}>{state.netTriggerMode}</SegmentButton>
       </div>
     )
   }
 
   if (state.timerMode === "cpu") {
     return (
-      <div className="grid h-full grid-cols-2 gap-2">
-        <Input label="Threshold %" value={state.cpuThreshold} onChange={(value) => patch({ cpuThreshold: Number(value) })} />
-        <Input label="Minutes" value={state.cpuDuration} onChange={(value) => patch({ cpuDuration: Number(value) })} />
+      <div className="grid grid-cols-2 gap-1">
+        <Field label="threshold %" value={state.cpuThreshold} onChange={(event) => patch({ cpuThreshold: Number(event.currentTarget.value) })} />
+        <Field label="minutes" value={state.cpuDuration} onChange={(event) => patch({ cpuDuration: Number(event.currentTarget.value) })} />
       </div>
     )
   }
 
   return (
-    <div className="grid h-full grid-cols-3 gap-2">
-      <Input label="Hours" value={state.hours} onChange={(value) => patch({ hours: Number(value) })} />
-      <Input label="Minutes" value={state.minutes} onChange={(value) => patch({ minutes: Number(value) })} />
-      <Input label="Seconds" value={state.seconds} onChange={(value) => patch({ seconds: Number(value) })} />
-      {[5, 300, 1800].map((seconds) => (
-        <button key={seconds} className="rounded border border-border" onClick={() => patch({ hours: 0, minutes: Math.floor(seconds / 60), seconds: seconds % 60 })}>{seconds < 60 ? `${seconds}s` : `${seconds / 60}m`}</button>
-      ))}
+    <div className="grid grid-cols-3 gap-1">
+      <Field label="hours" value={state.hours} onChange={(event) => patch({ hours: Number(event.currentTarget.value) })} />
+      <Field label="minutes" value={state.minutes} onChange={(event) => patch({ minutes: Number(event.currentTarget.value) })} />
+      <Field label="seconds" value={state.seconds} onChange={(event) => patch({ seconds: Number(event.currentTarget.value) })} />
     </div>
   )
 }
 
-function Panel(props: { title: string; className?: string; children: ReactNode }) {
+function ProgressRing({ progress, phase }: { progress: number; phase: string }) {
   return (
-    <section className={`flex min-h-0 flex-col gap-1 rounded border border-border bg-card/40 p-2 ${props.className ?? ""}`}>
-      <div className="font-semibold">{props.title}</div>
-      <div className="min-h-0 flex-1">{props.children}</div>
-    </section>
-  )
-}
-
-function ModeButton(props: { active?: boolean; onClick?: () => void; children: ReactNode }) {
-  return (
-    <button className={`flex items-center justify-center gap-1 rounded border border-border p-2 ${props.active ? "bg-primary text-primary-foreground" : "bg-muted/20"}`} onClick={props.onClick}>
-      {props.children}
-    </button>
-  )
-}
-
-function Input(props: { label: string; value: string | number; onChange: (value: string) => void }) {
-  return (
-    <label className="flex min-w-0 flex-col gap-1">
-      <span className="text-[10px] text-muted-foreground">{props.label}</span>
-      <input className="min-w-0 rounded border border-border bg-muted/30 px-2 py-1 outline-none" value={props.value} onChange={(event) => props.onChange(event.currentTarget.value)} />
-    </label>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border border-border p-2">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold">{value}</div>
+    <div className="relative h-24 w-24 shrink-0 self-center">
+      <svg viewBox="0 0 100 100" className="-rotate-90">
+        <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" className="text-muted/40" />
+        <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={`${progress * 2.7} 270`} className={phase === "error" ? "text-red-500" : phase === "completed" ? "text-green-500" : "text-primary"} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-lg font-semibold">{progress}%</span>
+        <span className="text-[10px] text-muted-foreground">{phase}</span>
+      </div>
     </div>
   )
 }

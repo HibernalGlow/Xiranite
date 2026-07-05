@@ -1,12 +1,12 @@
 {
-  "name": "@xiranite/node-cleanf",
+  "name": "@xiranite/node-reinstallp",
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "File cleanup node migrated from aestivus/cleanf.",
+  "description": "Editable Python package reinstall node migrated from aestivus/reinstallp.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-cleanf": "./dist/cli.js"
+    "xiranite-reinstallp": "./dist/cli.js"
   },
   "exports": {
     ".": {

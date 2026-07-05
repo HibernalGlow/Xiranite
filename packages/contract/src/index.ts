@@ -30,32 +30,6 @@ export interface NodeDef {
   keywords?: string[]
 }
 
-export interface NodeBlockDef {
-  id: string
-  title: string
-  icon?: string
-  colSpan?: 1 | 2 | 3 | 4
-  minWidth?: number
-  minHeight?: number
-  fullHeight?: boolean
-  collapsible?: boolean
-}
-
-export interface NodeCardLayoutItem {
-  id: string
-  x: number
-  y: number
-  w: number
-  h: number
-  minW?: number
-  minH?: number
-}
-
-export interface NodeCardSchema {
-  blocks: NodeBlockDef[]
-  defaultLayout: NodeCardLayoutItem[]
-}
-
 export interface HostComponentRef {
   id: string
   moduleId: string
@@ -122,7 +96,6 @@ export interface CliCommand {
 export interface NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> {
   def: NodeDef
   Component: ComponentType<NodeCardProps>
-  card: NodeCardSchema
   cli?: CliCommand
   core: TCore
 }

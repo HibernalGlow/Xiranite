@@ -4,7 +4,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import cleanfEntry from "@xiranite/node-cleanf"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
+import linkuEntry from "@xiranite/node-linku"
 import recycleuEntry from "@xiranite/node-recycleu"
+import reinstallpEntry from "@xiranite/node-reinstallp"
 import sleeptEntry from "@xiranite/node-sleept"
 import { useNodeHostApi } from "./hostApi"
 
@@ -25,7 +27,9 @@ const packageModules = {
   [cleanfEntry.def.id]: cleanfEntry,
   [encodebEntry.def.id]: encodebEntry,
   [linedupEntry.def.id]: linedupEntry,
+  [linkuEntry.def.id]: linkuEntry,
   [recycleuEntry.def.id]: recycleuEntry,
+  [reinstallpEntry.def.id]: reinstallpEntry,
   [sleeptEntry.def.id]: sleeptEntry,
 }
 

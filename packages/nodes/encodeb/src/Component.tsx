@@ -1,7 +1,7 @@
 import { useState } from "react"
-import type { ReactNode } from "react"
 import type { NodeCardProps } from "@xiranite/contract"
-import { Clipboard, Copy, FileText, Play, RotateCcw, Search, Zap } from "lucide-react"
+import { Clipboard, Copy, FileText, RotateCcw, Search, Zap } from "lucide-react"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { EncodebData, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths } from "./core.js"
 
@@ -44,11 +44,7 @@ export function Component({ compId, host }: NodeCardProps) {
 
   function selectPreset(next: keyof typeof ENCODEB_PRESETS | "custom") {
     const config = next === "custom" ? null : ENCODEB_PRESETS[next]
-    patch({
-      preset: next,
-      srcEncoding: config?.srcEncoding ?? srcEncoding,
-      dstEncoding: config?.dstEncoding ?? dstEncoding,
-    })
+    patch({ preset: next, srcEncoding: config?.srcEncoding ?? srcEncoding, dstEncoding: config?.dstEncoding ?? dstEncoding })
   }
 
   async function execute(action: EncodebInput["action"]) {
@@ -90,91 +86,64 @@ export function Component({ compId, host }: NodeCardProps) {
   const previewRows = data.mappings?.length ? data.mappings : (data.matches ?? []).map((match) => ({ src: match, dst: "", type: "file", depth: 0 } satisfies EncodebMapping))
 
   return (
-    <div className="h-full min-h-[330px] overflow-hidden p-3 text-xs font-mono">
-      <div className="grid h-full min-h-0 grid-cols-[1.1fr_1fr_130px] grid-rows-[1fr_132px] gap-2">
-        <Panel title="Source" action={<button title="Paste paths" onClick={pastePaths}><Clipboard size={13} /></button>}>
-          <textarea
+    <NodeContent>
+      <NodeHeader
+        title="encodeb"
+        meta={`${paths.length} path(s) / ${srcEncoding} -> ${dstEncoding} / ${strategy}`}
+        actions={
+          <>
+            <IconButton title="Paste paths" onClick={pastePaths}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={!paths.length || running} onClick={() => execute("find")}><Search size={14} /> Find</ActionButton>
+            <ActionButton disabled={!paths.length || running} onClick={() => execute("preview")}><FileText size={14} /> Preview</ActionButton>
+            <ActionButton variant="primary" disabled={!paths.length || running} onClick={() => execute("recover")}><Zap size={14} /> Recover</ActionButton>
+            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+          </>
+        }
+      />
+
+      <NodeBody className="flex flex-col gap-2">
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+          <TextArea
+            label="paths"
             value={pathText}
             onChange={(event) => patch({ pathText: event.currentTarget.value })}
             disabled={running}
-            className="h-full w-full resize-none rounded border border-border bg-muted/30 p-2 text-xs outline-none"
             placeholder="one file or folder path per line"
           />
-          <div className="mt-1 text-[10px] text-muted-foreground">{paths.length} path(s)</div>
-        </Panel>
-        <Panel title="Encoding">
-          <div className="flex h-full flex-col gap-2">
-            <div className="grid grid-cols-4 gap-1">
+          <div className="flex min-h-0 flex-col gap-2">
+            <div className="grid shrink-0 grid-cols-4 gap-1">
               {(["cn", "jp", "kr", "custom"] as const).map((key) => (
-                <button key={key} className={`h-8 rounded border ${preset === key ? "border-primary bg-primary/10" : "border-border"}`} disabled={running} onClick={() => selectPreset(key)}>
+                <SegmentButton key={key} active={preset === key} disabled={running} onClick={() => selectPreset(key)}>
                   {key}
-                </button>
+                </SegmentButton>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="grid gap-1 text-[10px] text-muted-foreground">
-                src
-                <input value={srcEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ srcEncoding: event.currentTarget.value })} className="h-8 rounded border border-border bg-background px-2 text-xs outline-none" />
-              </label>
-              <label className="grid gap-1 text-[10px] text-muted-foreground">
-                dst
-                <input value={dstEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ dstEncoding: event.currentTarget.value })} className="h-8 rounded border border-border bg-background px-2 text-xs outline-none" />
-              </label>
+            <div className="grid shrink-0 grid-cols-2 gap-1">
+              <Field label="src" value={srcEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ srcEncoding: event.currentTarget.value })} />
+              <Field label="dst" value={dstEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ dstEncoding: event.currentTarget.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-1">
-              {(["replace", "copy"] as const).map((mode) => (
-                <button key={mode} className={`h-8 rounded border ${strategy === mode ? "border-primary bg-primary/10" : "border-border"}`} disabled={running} onClick={() => patch({ strategy: mode })}>
-                  {mode}
-                </button>
-              ))}
+            <div className="grid shrink-0 grid-cols-4 gap-1">
+              <SegmentButton active={strategy === "replace"} disabled={running} onClick={() => patch({ strategy: "replace" })}>replace</SegmentButton>
+              <SegmentButton active={strategy === "copy"} disabled={running} onClick={() => patch({ strategy: "copy" })}>copy</SegmentButton>
+              <StatPill label="preview" value={data.mappings?.length ?? 0} tone="accent" />
+              <StatPill label="matches" value={data.matches?.length ?? 0} />
             </div>
+            <ResultView className="flex-1 text-muted-foreground">
+              {previewRows.length ? previewRows.slice(0, 80).map((row) => (
+                <div key={`${row.src}:${row.dst}`} className="mb-1">
+                  <div className="truncate">{row.src}</div>
+                  {row.dst ? <div className="truncate text-primary">-&gt; {row.dst}</div> : null}
+                </div>
+              )) : <div className="flex h-full items-center justify-center">No preview rows</div>}
+            </ResultView>
           </div>
-        </Panel>
-        <Panel title="Actions">
-          <div className="flex h-full flex-col gap-2">
-            <button className="flex flex-1 items-center justify-center gap-1 rounded border border-border disabled:opacity-50" disabled={!paths.length || running} onClick={() => execute("find")}>
-              <Search size={14} /> Find
-            </button>
-            <button className="flex flex-1 items-center justify-center gap-1 rounded border border-border disabled:opacity-50" disabled={!paths.length || running} onClick={() => execute("preview")}>
-              <FileText size={14} /> Preview
-            </button>
-            <button className="flex flex-1 items-center justify-center gap-1 rounded bg-primary text-primary-foreground disabled:opacity-50" disabled={!paths.length || running} onClick={() => execute("recover")}>
-              <Zap size={14} /> Recover
-            </button>
-            <button className="flex h-8 items-center justify-center gap-1 rounded border border-border" onClick={reset}>
-              <RotateCcw size={14} /> Reset
-            </button>
-          </div>
-        </Panel>
-        <Panel title="Preview" className="col-span-2">
-          <div className="h-full overflow-auto rounded bg-muted/30 p-2 text-[11px]">
-            {previewRows.length ? previewRows.slice(0, 80).map((row) => (
-              <div key={`${row.src}:${row.dst}`} className="mb-1">
-                <div className="truncate text-muted-foreground">{row.src}</div>
-                {row.dst ? <div className="truncate text-primary">-&gt; {row.dst}</div> : null}
-              </div>
-            )) : <div className="flex h-full items-center justify-center text-muted-foreground">No preview rows</div>}
-          </div>
-        </Panel>
-        <Panel title="Log" action={<button title="Copy logs" onClick={copyLogs}><Copy size={13} /></button>}>
-          <div className="h-full overflow-auto rounded bg-muted/30 p-2 text-[11px] text-muted-foreground">
-            {running ? <div>running...</div> : null}
-            {logs.length ? logs.slice(-10).map((line) => <div key={line}>{line}</div>) : "No logs"}
-          </div>
-        </Panel>
-      </div>
-    </div>
-  )
-}
+        </div>
+      </NodeBody>
 
-function Panel(props: { title: string; action?: ReactNode; className?: string; children: ReactNode }) {
-  return (
-    <section className={`flex min-h-0 flex-col gap-2 rounded border border-border bg-card/40 p-2 ${props.className ?? ""}`}>
-      <div className="flex items-center justify-between">
-        <span className="font-semibold">{props.title}</span>
-        {props.action ? <div className="text-muted-foreground">{props.action}</div> : null}
-      </div>
-      <div className="min-h-0 flex-1">{props.children}</div>
-    </section>
+      <NodeFooter>
+        <LogView lines={running ? ["running...", ...logs] : logs} className="h-14" />
+      </NodeFooter>
+    </NodeContent>
   )
 }

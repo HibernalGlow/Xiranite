@@ -4,13 +4,13 @@ import * as core from "./core.js"
 
 const entry: NodeEntry<typeof core> = {
   def: {
-    id: "encodeb",
-    name: "Encodeb",
+    id: "reinstallp",
+    name: "Reinstallp",
     version: "0.1.0",
-    category: "file",
-    description: "Preview and recover garbled filenames by re-decoding path components.",
-    icon: "FileText",
-    keywords: ["encoding", "filename", "mojibake", "cp437", "cp936"],
+    category: "dev",
+    description: "Scan and reinstall Python editable packages with uv.",
+    icon: "PackageCheck",
+    keywords: ["python", "uv", "pip", "editable", "pyproject"],
   },
   Component,
   core,

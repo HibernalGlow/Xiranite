@@ -9,14 +9,14 @@ import type { LucideIcon } from "lucide-react"
 import {
   FileText, Plus, FlaskConical, Terminal, CheckSquare,
   Clock, Calculator, LayoutDashboard, SlidersHorizontal, Filter,
-  Brush, Trash2,
+  Brush, Trash2, Link, PackageCheck,
   ArrowRight,
 } from "lucide-react"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   FileText, Plus, FlaskConical, Terminal,
   CheckSquare, Clock, Calculator, LayoutDashboard, Filter,
-  Brush, Trash2,
+  Brush, Trash2, Link, PackageCheck,
 }
 
 export function ModuleRegistry() {

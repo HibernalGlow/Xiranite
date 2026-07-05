@@ -1,12 +1,12 @@
 {
-  "name": "@xiranite/node-cleanf",
+  "name": "@xiranite/node-linku",
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "File cleanup node migrated from aestivus/cleanf.",
+  "description": "Symlink management node migrated from aestivus/linku.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-cleanf": "./dist/cli.js"
+    "xiranite-linku": "./dist/cli.js"
   },
   "exports": {
     ".": {

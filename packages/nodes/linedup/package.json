@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
-    "@xiranite/contract": "workspace:*"
+    "@xiranite/contract": "workspace:*",
+    "@xiranite/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0",

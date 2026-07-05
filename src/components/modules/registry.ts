@@ -2,14 +2,18 @@ import type { ModuleDef } from "@/types/workspace"
 import cleanfEntry from "@xiranite/node-cleanf"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
+import linkuEntry from "@xiranite/node-linku"
 import recycleuEntry from "@xiranite/node-recycleu"
+import reinstallpEntry from "@xiranite/node-reinstallp"
 import sleeptEntry from "@xiranite/node-sleept"
 
 const PACKAGE_MODULES: ModuleDef[] = [
   cleanfEntry.def,
   encodebEntry.def,
   linedupEntry.def,
+  linkuEntry.def,
   recycleuEntry.def,
+  reinstallpEntry.def,
   sleeptEntry.def,
 ]
 
