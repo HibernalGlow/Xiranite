@@ -61,41 +61,6 @@
    - Xiranite 通过 package.json 依赖这些包，不反向污染
    - 需要定义清晰的"模块契约"（Module Contract）
 
-让我思考一下设计方案的关键部分：
-
-### 包结构
-```
-packages/
-  module-contract/         # 共享类型和接口（ModuleDef, ModuleInstance API）
-  module-cli-runtime/      # CLI 运行时（统一的命令注册、参数解析）
-  modules/
-    scratch/               # 每个模块一个包
-    counter/
-    calculator/
-    clock/
-    tasks/
-    kanban/
-    terminal/
-    acid-mixer/
-    enginev/
-    database/
-xiranite/                  # 主应用，消费这些包
-```
-
-### 每个模块包的导出
-```json
-{
-  "name": "@xiranite/module-scratch",
-  "bin": {
-    "xiranite-scratch": "./dist/cli.js"
-  },
-  "exports": {
-    ".": "./dist/index.js",        // React 组件 + ModuleDef
-    "./cli": "./dist/cli.js",      // CLI 入口
-    "./core": "./dist/core.js"     // 纯逻辑（无 React）
-  }
-}
-```
 
 ### 模块契约
 每个模块必须实现：
