@@ -4,6 +4,7 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import crashuEntry from "@xiranite/node-crashu"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
+import enginevEntry from "@xiranite/node-enginev"
 import findzEntry from "@xiranite/node-findz"
 import formatvEntry from "@xiranite/node-formatv"
 import kavvkaEntry from "@xiranite/node-kavvka"
@@ -29,6 +30,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   crashuEntry.def,
   dissolvefEntry.def,
   encodebEntry.def,
+  enginevEntry.def,
   findzEntry.def,
   formatvEntry.def,
   kavvkaEntry.def,
@@ -115,14 +117,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "Agile workflow visualization. Drag-and-drop state management for complex operations.",
     icon: "LayoutDashboard",
   },
-  {
-    id: "enginev",
-    name: "ENGINE-V",
-    version: "v1.0.0",
-    category: "FILE",
-    description: "Wallpaper Engine 工坊管理：扫描 / 过滤 / 批量重命名 / 删除 / 导出。端到端示例服务。",
-    icon: "Image",
-  },
+
   {
     id: "database",
     name: "DATABASE",

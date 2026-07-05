@@ -6,6 +6,7 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import crashuEntry from "@xiranite/node-crashu"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
+import enginevEntry from "@xiranite/node-enginev"
 import findzEntry from "@xiranite/node-findz"
 import formatvEntry from "@xiranite/node-formatv"
 import kavvkaEntry from "@xiranite/node-kavvka"
@@ -35,7 +36,6 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   clock:       lazy(() => import("./ClockModule")),
   calculator:  lazy(() => import("./CalculatorModule")),
   kanban:      lazy(() => import("./KanbanModule")),
-  enginev:     lazy(() => import("./EngineVModule")),
   database:    lazy(() => import("./DatabaseModule")),
 }
 
@@ -45,6 +45,7 @@ const packageModules = {
   [crashuEntry.def.id]: crashuEntry,
   [dissolvefEntry.def.id]: dissolvefEntry,
   [encodebEntry.def.id]: encodebEntry,
+  [enginevEntry.def.id]: enginevEntry,
   [findzEntry.def.id]: findzEntry,
   [formatvEntry.def.id]: formatvEntry,
   [kavvkaEntry.def.id]: kavvkaEntry,

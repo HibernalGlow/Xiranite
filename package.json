@@ -26,6 +26,7 @@
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
     "@xiranite/node-encodeb": "workspace:*",
+    "@xiranite/node-enginev": "workspace:*",
     "@xiranite/node-findz": "workspace:*",
     "@xiranite/node-formatv": "workspace:*",
     "@xiranite/node-kavvka": "workspace:*",
