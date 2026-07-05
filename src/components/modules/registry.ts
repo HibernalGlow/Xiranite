@@ -8,6 +8,7 @@ import linkuEntry from "@xiranite/node-linku"
 import migratefEntry from "@xiranite/node-migratef"
 import moveaEntry from "@xiranite/node-movea"
 import owithuEntry from "@xiranite/node-owithu"
+import rawfilterEntry from "@xiranite/node-rawfilter"
 import recycleuEntry from "@xiranite/node-recycleu"
 import reinstallpEntry from "@xiranite/node-reinstallp"
 import scoolpEntry from "@xiranite/node-scoolp"
@@ -24,6 +25,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   migratefEntry.def,
   moveaEntry.def,
   owithuEntry.def,
+  rawfilterEntry.def,
   recycleuEntry.def,
   reinstallpEntry.def,
   scoolpEntry.def,

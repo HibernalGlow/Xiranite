@@ -30,6 +30,7 @@
     "@xiranite/node-migratef": "workspace:*",
     "@xiranite/node-movea": "workspace:*",
     "@xiranite/node-owithu": "workspace:*",
+    "@xiranite/node-rawfilter": "workspace:*",
     "@xiranite/node-recycleu": "workspace:*",
     "@xiranite/node-reinstallp": "workspace:*",
     "@xiranite/node-scoolp": "workspace:*",
