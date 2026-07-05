@@ -1,0 +1,250 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* workspace tokens */
+  --color-ws-canvas: var(--ws-canvas);
+  --color-ws-grid: var(--ws-grid-color);
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+  ============================================================
+  THEME CONFIGURATION — SPATIAL STUDIO / WULING_CITY_OS
+  ============================================================
+*/
+
+:root {
+  --radius: 0.375rem;
+  /* Spatial Studio light (default) */
+  --background: oklch(0.975 0.004 148);
+  --foreground: oklch(0.12 0.01 148);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.01 148);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.01 148);
+  --primary: oklch(0.40 0.12 148);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.95 0.01 148);
+  --secondary-foreground: oklch(0.25 0.03 148);
+  --muted: oklch(0.95 0.008 148);
+  --muted-foreground: oklch(0.50 0.03 148);
+  --accent: oklch(0.93 0.02 148);
+  --accent-foreground: oklch(0.25 0.04 148);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.88 0.02 148);
+  --input: oklch(0.90 0.015 148);
+  --ring: oklch(0.55 0.12 148);
+  --chart-1: oklch(0.40 0.12 148);
+  --chart-2: oklch(0.58 0.18 196);
+  --chart-3: oklch(0.72 0.15 65);
+  --chart-4: oklch(0.62 0.20 340);
+  --chart-5: oklch(0.65 0.18 30);
+  --sidebar: oklch(0.96 0.006 148);
+  --sidebar-foreground: oklch(0.15 0.02 148);
+  --sidebar-primary: oklch(0.40 0.12 148);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.90 0.03 148);
+  --sidebar-accent-foreground: oklch(0.20 0.04 148);
+  --sidebar-border: oklch(0.88 0.02 148);
+  --sidebar-ring: oklch(0.55 0.12 148);
+  /* workspace tokens */
+  --ws-grid-color: oklch(0.86 0.015 148 / 0.55);
+  --ws-canvas: oklch(0.97 0.005 148);
+  --ws-accent-glow: oklch(0.40 0.12 148 / 0.18);
+  --ws-focused-overlay: oklch(0.12 0.01 148 / 0.45);
+}
+
+/* ── ENDFIELD TACTICAL (dark slate + Endfield Green) ── */
+.theme-endfield {
+  --background: oklch(0.13 0.025 216);
+  --foreground: oklch(0.90 0.04 148);
+  --card: oklch(0.17 0.025 216);
+  --card-foreground: oklch(0.90 0.04 148);
+  --popover: oklch(0.15 0.025 216);
+  --popover-foreground: oklch(0.90 0.04 148);
+  --primary: oklch(0.62 0.18 152);
+  --primary-foreground: oklch(0.10 0.02 216);
+  --secondary: oklch(0.22 0.03 216);
+  --secondary-foreground: oklch(0.80 0.05 148);
+  --muted: oklch(0.20 0.025 216);
+  --muted-foreground: oklch(0.55 0.05 165);
+  --accent: oklch(0.24 0.04 216);
+  --accent-foreground: oklch(0.85 0.06 152);
+  --destructive: oklch(0.62 0.24 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.26 0.03 216);
+  --input: oklch(0.22 0.03 216);
+  --ring: oklch(0.55 0.15 152);
+  --chart-1: oklch(0.62 0.18 152);
+  --chart-2: oklch(0.55 0.16 196);
+  --chart-3: oklch(0.70 0.15 65);
+  --chart-4: oklch(0.60 0.18 340);
+  --chart-5: oklch(0.62 0.18 30);
+  --sidebar: oklch(0.11 0.025 216);
+  --sidebar-foreground: oklch(0.85 0.05 148);
+  --sidebar-primary: oklch(0.62 0.18 152);
+  --sidebar-primary-foreground: oklch(0.10 0.02 216);
+  --sidebar-accent: oklch(0.22 0.04 216);
+  --sidebar-accent-foreground: oklch(0.85 0.06 152);
+  --sidebar-border: oklch(0.24 0.03 216);
+  --sidebar-ring: oklch(0.55 0.15 152);
+  --ws-grid-color: oklch(0.30 0.04 216 / 0.5);
+  --ws-canvas: oklch(0.14 0.025 216);
+  --ws-accent-glow: oklch(0.62 0.18 152 / 0.22);
+  --ws-focused-overlay: oklch(0.05 0.01 216 / 0.72);
+}
+
+/* ── WULING CITY (dark warm gold/amber — 明日方舟终末地 武陵城) ── */
+.theme-wuling {
+  --background: oklch(0.12 0.03 55);
+  --foreground: oklch(0.93 0.04 80);
+  --card: oklch(0.16 0.04 55);
+  --card-foreground: oklch(0.93 0.04 80);
+  --popover: oklch(0.14 0.03 55);
+  --popover-foreground: oklch(0.93 0.04 80);
+  --primary: oklch(0.70 0.16 68);
+  --primary-foreground: oklch(0.12 0.02 55);
+  --secondary: oklch(0.20 0.05 55);
+  --secondary-foreground: oklch(0.85 0.06 80);
+  --muted: oklch(0.19 0.04 55);
+  --muted-foreground: oklch(0.57 0.07 75);
+  --accent: oklch(0.22 0.06 55);
+  --accent-foreground: oklch(0.88 0.08 80);
+  --destructive: oklch(0.60 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.28 0.06 55);
+  --input: oklch(0.22 0.05 55);
+  --ring: oklch(0.62 0.14 68);
+  --chart-1: oklch(0.70 0.16 68);
+  --chart-2: oklch(0.65 0.18 38);
+  --chart-3: oklch(0.62 0.18 152);
+  --chart-4: oklch(0.60 0.18 340);
+  --chart-5: oklch(0.58 0.16 210);
+  --sidebar: oklch(0.10 0.03 55);
+  --sidebar-foreground: oklch(0.88 0.05 80);
+  --sidebar-primary: oklch(0.70 0.16 68);
+  --sidebar-primary-foreground: oklch(0.12 0.02 55);
+  --sidebar-accent: oklch(0.22 0.06 55);
+  --sidebar-accent-foreground: oklch(0.88 0.08 80);
+  --sidebar-border: oklch(0.24 0.06 55);
+  --sidebar-ring: oklch(0.62 0.14 68);
+  --ws-grid-color: oklch(0.28 0.05 55 / 0.5);
+  --ws-canvas: oklch(0.13 0.03 55);
+  --ws-accent-glow: oklch(0.70 0.16 68 / 0.22);
+  --ws-focused-overlay: oklch(0.05 0.01 55 / 0.72);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* ── Workspace canvas dot/grid background ── */
+.ws-canvas-bg {
+  background-color: var(--ws-canvas);
+  background-image:
+    linear-gradient(var(--ws-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ws-grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Component card visuals ──
+   Motion (motion/react) drives x/y/width/height/scale/opacity transitions,
+   so CSS only handles decorative styling — no transform/opacity here to
+   avoid fighting the spring animation. */
+.comp-card {
+  will-change: transform;
+}
+
+.comp-card--focused {
+  z-index: 20;
+}
+
+.comp-card--fullscreen {
+  z-index: 50;
+}
+
+.comp-card--floating {
+  z-index: 30;
+  box-shadow: 0 24px 60px oklch(0 0 0 / 0.35);
+}
+
+.comp-card--compact {
+  /* header-only — body hidden via conditional render */
+}
+
+/* ── Glow effect for primary ── */
+.btn-primary-glow {
+  box-shadow: 0 0 18px var(--ws-accent-glow), 0 2px 8px oklch(0 0 0 / 0.22);
+}
+
+/* ── Monospace ── */
+.font-mono { font-family: "JetBrains Mono", ui-monospace, monospace !important; }
+
+/* ── Focused overlay (legacy — kept for non-focus-mode dimming) ── */
+.focused-overlay {
+  background-color: var(--ws-focused-overlay);
+}
+
+/* ── Tab animations (Arc style) ── */
+.tab-slide-in {
+  animation: tabSlideIn 0.18s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes tabSlideIn {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+

@@ -1,0 +1,207 @@
+<!DOCTYPE html><html class="" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Spatial Studio - Grid Overview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;family=Jetbrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Source+Serif+4:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"secondary-container": "#a0f399", "surface-dim": "#dadadc", "surface-container-lowest": "#ffffff", "on-background": "#1a1c1e", "primary-container": "#81c784", "on-tertiary-fixed": "#00201a", "tertiary-container": "#2bcdb2", "surface-variant": "#e2e2e5", "surface-container-highest": "#e2e2e5", "surface-bright": "#f9f9fc", "surface-tint": "#286b33", "on-secondary-fixed-variant": "#005312", "tertiary-fixed-dim": "#44ddc1", "on-secondary-fixed": "#002204", "on-primary-fixed-variant": "#07521d", "on-error-container": "#93000a", "inverse-on-surface": "#f0f0f3", "on-error": "#ffffff", primary: "#286b33", "error-container": "#ffdad6", "on-tertiary-fixed-variant": "#005145", "on-secondary": "#ffffff", "secondary-fixed-dim": "#88d982", "surface-container": "#eeeef0", "secondary-fixed": "#a3f69c", "surface-container-high": "#e8e8ea", background: "#f9f9fc", "inverse-primary": "#90d792", secondary: "#1b6d24", "on-primary-container": "#09541e", "on-primary": "#ffffff", "primary-fixed-dim": "#90d792", "primary-fixed": "#abf4ac", "surface-container-low": "#f3f3f6", "outline-variant": "#c0c9bc", "on-tertiary-container": "#005246", "tertiary-fixed": "#68fadd", surface: "#f9f9fc", "on-tertiary": "#ffffff", error: "#ba1a1a", outline: "#707a6e", "on-primary-fixed": "#002107", "inverse-surface": "#2f3133", tertiary: "#006b5c", "on-surface-variant": "#40493f", "on-secondary-container": "#217128", "on-surface": "#1a1c1e"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", xs: "4px", lg: "24px", xl: "40px", gutter: "24px", sm: "8px", "margin-desktop": "32px", md: "16px", "margin-mobile": "16px", "container-padding": "24px", "dock-padding": "12px", "margin-page": "40px", "floating-gap": "16px"}, fontFamily: {"label-sm": ["Inter"], "label-md": ["Inter"], "body-sm": ["Inter"], "body-md": ["Inter"], "body-lg": ["Inter"], "headline-xl": ["\"Source Serif 4\""], "headline-lg": ["Inter"], "headline-md": ["Inter"], "data-mono": ["JetBrains Mono"], "display-xl": ["Inter"], "headline-lg-mobile": ["Inter"], "label-caps": ["JetBrains Mono"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Jetbrains Mono"]}, fontSize: {"label-sm": ["11px", {lineHeight: "14px", letterSpacing: "0.02em", fontWeight: "500"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "body-sm": ["14px", {lineHeight: "20px", fontWeight: "400"}], "body-md": ["16px", {lineHeight: "24px", fontWeight: "400"}], "body-lg": ["18px", {lineHeight: "28px", fontWeight: "400"}], "headline-xl": ["40px", {lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", fontWeight: "600"}], "headline-md": ["24px", {lineHeight: "32px", fontWeight: "500"}], "data-mono": ["14px", {lineHeight: "20px", letterSpacing: "0.05em", fontWeight: "500"}], "display-xl": ["48px", {lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "700"}], "headline-lg-mobile": ["28px", {lineHeight: "36px", fontWeight: "600"}], "label-caps": ["12px", {lineHeight: "16px", letterSpacing: "0.1em", fontWeight: "700"}]}}}};</script>
+<style>
+        .ink-wash {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+        
+        .glow-hover:hover {
+            box-shadow: 0 0 20px 0 rgba(212, 163, 115, 0.05) inset;
+        }
+        
+        .cinnabar-glow {
+            box-shadow: 0 0 30px 0 rgba(226, 88, 62, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-surface-bright text-on-surface min-h-screen relative font-body-md overflow-x-hidden">
+<!-- Ink Wash Texture Overlay -->
+
+<!-- TopNavBar -->
+<nav class="hidden md:flex justify-between items-center px-lg py-sm w-full max-w-full fixed top-0 z-50 bg-surface-container-lowest border-b border-outline-variant/30 shadow-sm transition-all duration-300 ease-in-out">
+<div class="flex items-center gap-xl">
+<span class="font-headline-md text-headline-md text-primary font-bold">Spatial Studio</span>
+<div class="flex gap-lg">
+<a class="text-primary border-b-2 border-primary pb-1 font-label-md text-label-md" href="#">Grid</a>
+<a class="text-on-surface-variant hover:text-primary-fixed transition-colors font-label-md text-label-md" href="#">Stack</a>
+<a class="text-on-surface-variant hover:text-primary-fixed transition-colors font-label-md text-label-md" href="#">Split</a>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:text-primary-fixed transition-colors p-sm rounded-full">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary-fixed transition-colors p-sm rounded-full">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant/30 ml-sm" data-alt="A sophisticated close-up portrait of a user in a dimly lit, modern creative studio space. Warm cinematic lighting, atmospheric urban style, deep shadows with subtle gilded gold accents. High-end professional photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8d41NarjmbMBjBMzZ4fUQocio59o67HzwgB7xuycAcQR5J6jpHQTGeAN2sqSzIurTG0u_s8ORIA7hkWbWRJUl3BMtGWHiMIb4e_86SEfB333j24Z5bO06oxzQFK8WebqFEsGxbFnXXFmggi7mXxxLd39uTyeDyUmQwnrLvTNc4uBK12DXi-KfNhCKAOWdMufdgVAbhOxGZH0u8Lakhutd3j5h0zlLevzxy-puRivQ1x6au_FbLPfG">
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="pt-[88px] md:pt-[104px] pb-[120px] px-margin-mobile md:px-margin-desktop max-w-7xl mx-auto">
+<!-- Header Section -->
+<header class="flex flex-col md:flex-row md:justify-between md:items-end gap-lg mb-xl">
+<div>
+<h1 class="font-headline-xl text-headline-xl text-on-background mb-xs">Workspaces</h1>
+<p class="font-body-md text-on-surface-variant">Active production environments and sandboxes.</p>
+</div>
+<div class="flex gap-md">
+<button class="px-lg py-sm rounded-DEFAULT border border-secondary/40 text-secondary bg-transparent hover:bg-secondary/5 font-label-md text-label-md transition-all flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                    Filter
+                </button>
+<button class="px-lg py-sm rounded-DEFAULT bg-[#E2583E] text-white hover:bg-[#d1472e] cinnabar-glow font-label-md text-label-md transition-all flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    New Workspace
+                </button>
+</div>
+</header>
+<!-- Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-lg">
+<!-- Card 1: Production (Synced) -->
+<article class="bg-surface-container-lowest rounded-DEFAULT border border-outline-variant/50 p-lg hover:bg-surface-container-low transition-all group relative overflow-hidden flex flex-col h-full min-h-[320px]">
+<div class="flex justify-between items-start mb-auto">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-secondary-container/20 flex items-center justify-center border border-secondary/20">
+<span class="material-symbols-outlined text-secondary text-[16px]">domain</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-secondary/15 px-sm py-xs rounded-full border border-secondary/20">Production</span>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="mt-xl mb-md">
+<h2 class="font-headline-md text-headline-md text-on-background group-hover:text-primary transition-colors">Alpha Core System</h2>
+<p class="font-body-sm text-on-surface-variant mt-sm line-clamp-2">Main deployment environment for the Alpha initiative. Requires strict access protocols.</p>
+</div>
+<div class="mt-auto pt-md border-t border-outline-variant/30 flex justify-between items-center">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm">Updated 2h ago</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E2583E]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Synced</span>
+</div>
+</div>
+</article>
+<!-- Card 2: Sandbox (Unsaved) -->
+<article class="bg-surface-container-lowest rounded-DEFAULT border border-outline-variant/50 p-lg hover:bg-surface-container-low transition-all group relative overflow-hidden flex flex-col h-full min-h-[320px]">
+<div class="flex justify-between items-start mb-auto">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-tertiary-container/20 flex items-center justify-center border border-tertiary/20">
+<span class="material-symbols-outlined text-tertiary text-[16px]">experiment</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary bg-tertiary/15 px-sm py-xs rounded-full border border-tertiary/20">Sandbox</span>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="mt-xl mb-md">
+<h2 class="font-headline-md text-headline-md text-on-background group-hover:text-primary transition-colors">Beta Feature Test</h2>
+<p class="font-body-sm text-on-surface-variant mt-sm line-clamp-2">Experimental UI components and layout variations for the upcoming Q3 release.</p>
+</div>
+<div class="mt-auto pt-md border-t border-outline-variant/30 flex justify-between items-center">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm">Updated 10m ago</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E2583E] animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-primary tracking-wider uppercase">Unsaved</span>
+</div>
+</div>
+</article>
+<!-- Card 3: Image Featured -->
+<article class="bg-surface-container-lowest rounded-DEFAULT border border-outline-variant/50 p-lg hover:bg-surface-container-low transition-all group relative overflow-hidden flex flex-col h-full min-h-[320px]">
+<div class="h-32 w-full relative overflow-hidden border-b border-outline-variant/30">
+<img alt="Workspace preview" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A cinematic, atmospheric wide shot of a modern architectural space rendered in a deep, dark brown palette with subtle, glowing red and gilded gold lighting elements. Sophisticated, moody urban aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgzU9JQ_6W-_vgM9dSJFhu_NdMeJJZzbc0P1sypjQzdk91kVG8FzvlWDnAgBcpD3yhmBVgS9N1ZpG8dcqcP8tyTHpafvIQzBrBy59_5qBIFuNjsDoi2UCFSIVzmQYtECVXfT__cNrGf-8fhiD_SYXz5tC1Ksym1-bkE6PgXTb4q3UVCpcxCRo2YLeqNzlvhuEOpvIQEj_kBFViFeHcQ94NbmsvqqYfxwf0WxoU_nofvshYH8yLPWvc">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container to-transparent"></div>
+<div class="absolute top-md left-md">
+<span class="font-label-sm text-label-sm text-secondary bg-surface-container/80 backdrop-blur-sm px-sm py-xs rounded-full border border-secondary/20">Design Concept</span>
+</div>
+</div>
+<div class="p-lg flex flex-col flex-grow">
+<div class="mb-md">
+<h2 class="font-headline-md text-headline-md text-on-background group-hover:text-primary transition-colors">Atmospheric Urban UI</h2>
+<p class="font-body-sm text-on-surface-variant mt-sm line-clamp-2">Visual explorations for the new design system update focusing on tonal depth and organic sophisticated lighting.</p>
+</div>
+<div class="mt-auto pt-md border-t border-outline-variant/30 flex justify-between items-center">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm">Updated 1d ago</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E2583E]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Synced</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 4: Data Heavy -->
+<article class="bg-surface-container-lowest rounded-DEFAULT border border-outline-variant/50 p-lg hover:bg-surface-container-low transition-all group relative overflow-hidden flex flex-col h-full min-h-[320px]">
+<div class="flex justify-between items-start mb-auto">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-secondary-container/20 flex items-center justify-center border border-secondary/20">
+<span class="material-symbols-outlined text-secondary text-[16px]">database</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-secondary/15 px-sm py-xs rounded-full border border-secondary/20">Production</span>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="mt-xl mb-md">
+<h2 class="font-headline-md text-headline-md text-on-background group-hover:text-primary transition-colors">Global Logistics Model</h2>
+<div class="mt-md flex gap-sm">
+<div class="bg-surface-container-low border border-outline-variant/20 rounded-DEFAULT p-sm flex-1">
+<div class="font-label-sm text-label-sm text-on-surface-variant mb-xs">Nodes</div>
+<div class="font-body-lg text-secondary font-medium">1,248</div>
+</div>
+<div class="bg-surface-container-low border border-outline-variant/20 rounded-DEFAULT p-sm flex-1">
+<div class="font-label-sm text-label-sm text-on-surface-variant mb-xs">Edges</div>
+<div class="font-body-lg text-secondary font-medium">8,402</div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-md border-t border-outline-variant/30 flex justify-between items-center">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm">Updated 5h ago</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E2583E]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase">Synced</span>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-md left-1/2 -translate-x-1/2 z-50 flex gap-lg items-center bg-surface-container-lowest border border-outline-variant/50 shadow-xl rounded-DEFAULT px-lg py-sm">
+<button class="text-primary-container bg-primary/10 rounded-full px-md py-xs flex flex-col items-center gap-1 scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[20px]" data-icon="grid_view" data-weight="fill" style="font-variation-settings: 'FILL' 1;">grid_view</span>
+<span class="font-label-sm text-label-sm font-bold">Grid</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-variant/50 rounded-full p-xs flex flex-col items-center gap-1 scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[20px]" data-icon="layers">layers</span>
+<span class="font-label-sm text-label-sm">Stack</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-variant/50 rounded-full p-xs flex flex-col items-center gap-1 scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[20px]" data-icon="splitscreen">splitscreen</span>
+<span class="font-label-sm text-label-sm">Split</span>
+</button>
+</nav>
+
+
+</body></html>
