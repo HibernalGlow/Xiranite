@@ -527,7 +527,7 @@ export default function DatabaseModule({ compId }: ModuleProps) {
         const key = (prop && "key" in prop ? prop.key : propId) as keyof DatabaseRow
         const counts: Record<string, { count: number; hasMore: boolean }> = {}
         for (const r of rows) {
-          const v = String((r as Record<string, unknown>)[key] ?? "")
+          const v = String((r as unknown as Record<string, unknown>)[key] ?? "")
           if (!counts[v]) counts[v] = { count: 0, hasMore: false }
           counts[v].count++
         }

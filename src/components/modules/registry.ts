@@ -1,6 +1,14 @@
 import type { ModuleDef } from "@/types/workspace"
+import linedupEntry from "@xiranite/node-linedup"
+import sleeptEntry from "@xiranite/node-sleept"
+
+const PACKAGE_MODULES: ModuleDef[] = [
+  linedupEntry.def,
+  sleeptEntry.def,
+]
 
 export const MODULE_REGISTRY: ModuleDef[] = [
+  ...PACKAGE_MODULES,
   {
     id: "scratch",
     name: "SCRATCH",

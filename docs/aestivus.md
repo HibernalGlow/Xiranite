@@ -487,3 +487,15 @@ function DatabaseModule({ compId, host }: { compId: string; host: HostApi }) {
 - 三层：contract / runtime / modules
 - Xiranite 作为 host 消费 modules
 
+
+关键设计原则
+Component 是无壳的纯内容 —— 这是 Xiranite 集成时的唯一入口
+CardShell 仅在 Demo 内部使用 —— 不出现在 exports，不污染消费者
+CLI 完全不渲染 React —— 与 UI 解耦
+core.ts 是纯逻辑 —— UI 和 CLI 共用同一份逻辑（如 scratch 的 buffer 操作、calculator 的求值、tasks 的列表管理）
+这样：
+
+集成到 Xiranite
+独立调试 → 模块自带可选外壳，也能看到卡片样式
+CLI → 无 UI，纯命令行；citty + ink 复刻原版 Python 的 rich 富文本引导式命令行 + typer 一般命令行的双重体验
+CLI 无参数启动时进入 guided mode

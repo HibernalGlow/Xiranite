@@ -1,6 +1,9 @@
 import { lazy, Suspense } from "react"
 import type { ComponentType } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
+import linedupEntry from "@xiranite/node-linedup"
+import sleeptEntry from "@xiranite/node-sleept"
+import { useNodeHostApi } from "./hostApi"
 
 const modules: Record<string, ReturnType<typeof lazy>> = {
   scratch:     lazy(() => import("./ScratchModule")),
@@ -15,6 +18,11 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   database:    lazy(() => import("./DatabaseModule")),
 }
 
+const packageModules = {
+  [linedupEntry.def.id]: linedupEntry,
+  [sleeptEntry.def.id]: sleeptEntry,
+}
+
 export interface ModuleProps {
   /** 当前组件实例的 id — 模块用 useComponentData(compId) 持久化状态到 store。
    *  这样切换 viewMode 时模块状态不丢失（comp.data 一直在 store 中）。 */
@@ -22,6 +30,13 @@ export interface ModuleProps {
 }
 
 export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
+  const host = useNodeHostApi()
+  const packageEntry = packageModules[moduleId as keyof typeof packageModules]
+  if (packageEntry) {
+    const PackageComponent = packageEntry.Component
+    return <PackageComponent compId={compId} host={host} />
+  }
+
   const Comp = modules[moduleId] as ComponentType<ModuleProps> | undefined
   if (!Comp) return <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">// unknown module: {moduleId}</div>
   return (

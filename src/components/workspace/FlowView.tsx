@@ -28,7 +28,7 @@ type FlowNodeData = {
   compId?: string
 }
 
-function FlowNode({ data, id, selected }: NodeProps<Node<FlowNodeData>>) {
+function FlowNode({ data, id }: NodeProps<Node<FlowNodeData>>) {
   const dispatch = useWSDispatch()
   const { zoom } = useViewport()
   const mod = data.moduleId ? getModule(data.moduleId) : null

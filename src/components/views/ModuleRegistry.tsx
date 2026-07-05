@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input"
 import type { LucideIcon } from "lucide-react"
 import {
   FileText, Plus, FlaskConical, Terminal, CheckSquare,
-  Clock, Calculator, LayoutDashboard, SlidersHorizontal,
+  Clock, Calculator, LayoutDashboard, SlidersHorizontal, Filter,
   ArrowRight,
 } from "lucide-react"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   FileText, Plus, FlaskConical, Terminal,
-  CheckSquare, Clock, Calculator, LayoutDashboard,
+  CheckSquare, Clock, Calculator, LayoutDashboard, Filter,
 }
 
 export function ModuleRegistry() {

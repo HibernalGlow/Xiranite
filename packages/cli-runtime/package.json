@@ -1,0 +1,31 @@
+{
+  "name": "@xiranite/cli-runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Small CLI helpers for Xiranite node packages.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@xiranite/contract": "workspace:*",
+    "citty": "^0.1.6",
+    "ink": "^6.5.1",
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "~5.9.3"
+  }
+}
