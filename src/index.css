@@ -96,6 +96,34 @@
   --ws-focused-overlay: oklch(0.12 0.01 148 / 0.45);
 }
 
+/* Spatial Studio dark — 当 ThemeProvider colorMode=dark/system-dark 时应用
+   （.dark 加在 <html>）。endfield/wuling 自身就是深色，无需重复覆盖。 */
+:root.dark {
+  /* spatial 在 dark 模式下的覆盖 — 保留 forest green 色相但变深 */
+  --background: oklch(0.13 0.015 148);
+  --foreground: oklch(0.90 0.01 148);
+  --card: oklch(0.17 0.015 148);
+  --card-foreground: oklch(0.90 0.01 148);
+  --popover: oklch(0.17 0.015 148);
+  --popover-foreground: oklch(0.90 0.01 148);
+  --primary: oklch(0.62 0.16 148);
+  --primary-foreground: oklch(0.12 0.02 148);
+  --secondary: oklch(0.20 0.02 148);
+  --secondary-foreground: oklch(0.90 0.01 148);
+  --muted: oklch(0.20 0.012 148);
+  --muted-foreground: oklch(0.62 0.02 148);
+  --accent: oklch(0.22 0.025 148);
+  --accent-foreground: oklch(0.90 0.01 148);
+  --border: oklch(0.26 0.015 148);
+  --input: oklch(0.20 0.015 148);
+  --ring: oklch(0.62 0.16 148);
+  --sidebar: oklch(0.15 0.012 148);
+  --sidebar-foreground: oklch(0.90 0.01 148);
+  --ws-grid-color: oklch(0.30 0.02 148 / 0.5);
+  --ws-canvas: oklch(0.13 0.015 148);
+  --ws-accent-glow: oklch(0.62 0.16 148 / 0.20);
+}
+
 /* ── ENDFIELD TACTICAL (dark slate + Endfield Green) ── */
 .theme-endfield {
   --background: oklch(0.13 0.025 216);
@@ -193,6 +221,53 @@
     linear-gradient(var(--ws-grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--ws-grid-color) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* ── Dockview 主题桥接 ──
+   dockview-react 的 DockviewReact 组件默认 className 是 `dockview-theme-abyss`
+   （见 dockview-react.js 源码），它在自己根 div 上写死了：
+     --dv-color-abyss-dark: #000c18
+     --dv-color-abyss: #10192c
+     --dv-color-abyss-light: #1c1c2a
+     --dv-color-abyss-lighter: #2b2b4a
+   这些变量定义在 dockview 内部根 div 上，比外层容器的 .dv-theme-bridge 优先级高，
+   所以单纯在外层覆盖 --dv-* 不生效。
+
+   解决方案：用 `.dv-theme-bridge .dockview-theme-abyss` 双类选择器（外层 + dockview 内部根），
+   在 dockview 内部根 div 上重新覆盖这些 abyss 变量，让它们读项目的 --card / --muted / --border。
+   这样切换 spatial / endfield / wuling 主题时 dockview 自动跟随。 */
+.dv-theme-bridge .dockview-theme-abyss,
+.dv-theme-bridge.dockview-theme-abyss {
+  --dv-color-abyss-dark: var(--card);
+  --dv-color-abyss: var(--card);
+  --dv-color-abyss-light: var(--muted);
+  --dv-color-abyss-lighter: var(--border);
+  --dv-color-abyss-accent: var(--primary);
+  --dv-color-abyss-primary-text: var(--foreground);
+  --dv-color-abyss-secondary-text: var(--muted-foreground);
+
+  --dv-paneview-active-outline-color: var(--primary);
+  --dv-drag-over-background-color: var(--muted);
+  --dv-drag-over-border-color: transparent;
+  --dv-icon-hover-background-color: var(--muted);
+  --dv-floating-box-shadow: 0 8px 32px oklch(0 0 0 / 0.2);
+
+  --dv-group-view-background-color: var(--card);
+  --dv-tabs-and-actions-container-background-color: var(--muted);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--card);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--muted);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--card);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--muted);
+  --dv-activegroup-visiblepanel-tab-color: var(--foreground);
+  --dv-activegroup-hiddenpanel-tab-color: var(--muted-foreground);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--muted-foreground);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--muted-foreground);
+  --dv-tab-divider-color: var(--border);
+  --dv-activegroup-visiblepanel-tab-active-background-color: var(--primary);
+  --dv-separator-border: var(--border);
+  --dv-paneview-header-border-color: var(--border);
+  --dv-scrollbar-background-color: var(--muted-foreground);
+  --dv-tabs-container-scrollbar-color: var(--muted-foreground);
 }
 
 /* ── Component card visuals ──

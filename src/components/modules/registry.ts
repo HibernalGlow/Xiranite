@@ -65,6 +65,14 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "Agile workflow visualization. Drag-and-drop state management for complex operations.",
     icon: "LayoutDashboard",
   },
+  {
+    id: "enginev",
+    name: "ENGINE-V",
+    version: "v1.0.0",
+    category: "FILE",
+    description: "Wallpaper Engine 工坊管理：扫描 / 过滤 / 批量重命名 / 删除 / 导出。端到端示例服务。",
+    icon: "Image",
+  },
 ]
 
 export function getModule(id: string): ModuleDef | undefined {

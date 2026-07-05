@@ -80,7 +80,10 @@ export function ModuleRegistry() {
               <div
                 key={mod.id}
                 className="group relative bg-card border border-border/60 rounded-sm p-4 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer"
-                onClick={() => dispatch(actions.deployComponent(mod.id))}
+                onClick={() => {
+                  dispatch(actions.deployComponent(mod.id))
+                  dispatch(actions.setOverlay(null))
+                }}
               >
                 {/* Corner indicator */}
                 <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-border rounded-full group-hover:bg-primary transition-colors" />

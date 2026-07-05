@@ -2,7 +2,7 @@ import { memo } from "react"
 import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
 import { useWSDispatch, actions } from "@/store/workspaceContext"
-import type { ComponentInstance, ComputedLayout, LayoutMode } from "@/types/workspace"
+import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import {
@@ -10,8 +10,6 @@ import {
   Minimize2,
   X,
   Minus,
-  Pin,
-  PinOff,
   Expand,
 } from "lucide-react"
 
@@ -21,7 +19,7 @@ interface Props {
   canvasRef: React.RefObject<HTMLDivElement | null>
   isFocused: boolean
   hasFocused: boolean
-  layoutMode: LayoutMode
+  cardLayout: CardLayout
 }
 
 const stateLabel: Record<ComputedLayout["state"], string> = {
@@ -32,13 +30,12 @@ const stateLabel: Record<ComputedLayout["state"], string> = {
   fullscreen: "FULL",
 }
 
-function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
+function ComponentCardInner({ comp, layout }: Props) {
   const dispatch = useWSDispatch()
   const mod = getModule(comp.moduleId)
 
   const isFullscreen = layout.state === "fullscreen"
   const isCompact = layout.state === "compact"
-  const isFloating = layout.state === "floating"
   const isFocusedState = layout.state === "focused"
   const isTiny = layout.w < 240
 
@@ -50,33 +47,18 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
     dispatch(actions.setFullscreen(isFullscreen ? null : comp.id))
   }
 
-  function toggleFloat() {
-    // In free mode, pin/unpin toggles whether this card floats on top.
-    dispatch(actions.setComponentState(comp.id, isFloating ? "docked" : "floating"))
-  }
-
   function activateFocus() {
-    // Enter focus layout mode and mark this panel as the hero.
-    dispatch(actions.setLayout("focus"))
+    dispatch(actions.setCardLayout("focus"))
     dispatch(actions.focusComponent(comp.id))
   }
 
   function exitFocus() {
-    dispatch(actions.setLayout("grid"))
+    dispatch(actions.setCardLayout("grid"))
     dispatch(actions.focusComponent(null))
   }
 
   return (
     <motion.div
-      drag={layoutMode === "free" && !isFullscreen}
-      dragMomentum={false}
-      dragConstraints={canvasRef}
-      onPointerDown={() => dispatch(actions.raiseComponent(comp.id))}
-      onDragEnd={(_, info) => {
-        const nx = Math.max(0, layout.x + info.offset.x)
-        const ny = Math.max(0, layout.y + info.offset.y)
-        dispatch(actions.moveComponent(comp.id, nx, ny))
-      }}
       initial={false}
       animate={{
         x: layout.x,
@@ -87,6 +69,7 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
         scale: layout.scale,
       }}
       transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.7 }}
+      onPointerDown={() => dispatch(actions.raiseComponent(comp.id))}
       style={{
         position: "absolute",
         zIndex: layout.z,
@@ -98,17 +81,11 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
         (isFocusedState || isFullscreen)
           ? "border-primary/60 shadow-[0_0_0_1px_var(--ws-accent-glow),0_24px_60px_-20px_var(--ws-accent-glow)]"
           : "border-border shadow-[0_12px_40px_-12px_oklch(0_0_0/0.35)]",
-        isFloating && !isFullscreen && "comp-card--floating",
         isCompact && "comp-card--compact",
       )}
     >
       {/* ── Header ── */}
-      <div
-        className={cn(
-          "flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-3 select-none",
-          layoutMode === "free" && !isFullscreen && "cursor-grab active:cursor-grabbing",
-        )}
-      >
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-3 select-none">
         <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
         <span className="truncate text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase">
           {mod?.name ?? comp.moduleId}
@@ -126,12 +103,6 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
           <HeaderBtn label={comp.collapsed ? "Expand" : "Collapse"} onClick={toggleCollapse}>
             {comp.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
           </HeaderBtn>
-
-          {layoutMode === "free" && (
-            <HeaderBtn label="Float" onClick={toggleFloat}>
-              {isFloating ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-            </HeaderBtn>
-          )}
 
           {!isFocusedState && !isFullscreen && (
             <HeaderBtn label="Focus" onClick={activateFocus}>
@@ -151,7 +122,7 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
             {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </HeaderBtn>
 
-          <HeaderBtn label="Remove" danger onClick={() => dispatch(actions.removeComponent(comp.id))}>
+          <HeaderBtn label="Hide in Cards" danger onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}>
             <X className="h-3 w-3" />
           </HeaderBtn>
         </div>
@@ -169,7 +140,7 @@ function ComponentCardInner({ comp, layout, canvasRef, layoutMode }: Props) {
               </span>
             </div>
           ) : (
-            <ModuleRenderer moduleId={comp.moduleId} />
+            <ModuleRenderer moduleId={comp.moduleId} compId={comp.id} />
           )}
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useTheme } from "@/components/theme-provider"
 import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
@@ -6,7 +7,7 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette } from "lucide-react"
 
 interface ThemeOption {
   key: AppTheme
@@ -48,11 +49,34 @@ const THEMES: ThemeOption[] = [
   },
 ]
 
+// 每个主题预设的默认颜色模式：spatial 是浅色，endfield/wuling 是深色。
+// 切换预设时自动同步颜色模式；用户也可在 Color Mode 区域单独覆盖。
+const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
+  spatial: "light",
+  endfield: "dark",
+  wuling: "dark",
+}
+
+type ColorMode = "system" | "light" | "dark"
+
+const COLOR_MODES: { key: ColorMode; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "system",  label: "Follow System",  description: "Auto-switch with OS light/dark preference", icon: Monitor },
+  { key: "light",   label: "Light",          description: "Force light color scheme",                icon: Sun },
+  { key: "dark",    label: "Dark",            description: "Force dark color scheme",                 icon: Moon },
+]
+
 export function ThemeSettings() {
   const { state } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { theme: colorMode, setTheme: setColorMode } = useTheme()
 
   const active = THEMES.find(t => t.key === state.theme) ?? THEMES[0]
+
+  // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
+  function selectPreset(key: AppTheme) {
+    dispatch(actions.setTheme(key))
+    setColorMode(PRESET_DEFAULT_MODE[key])
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -92,14 +116,14 @@ export function ThemeSettings() {
 
             {/* Theme selector */}
             <div className="bg-card border border-border rounded-sm p-4 space-y-2">
-              <p className="text-xs font-mono text-muted-foreground tracking-widest mb-3">SELECT THEME</p>
+              <p className="text-xs font-mono text-muted-foreground tracking-widest mb-3">SELECT THEME PRESET</p>
               {THEMES.map(t => {
                 const Icon = t.icon
                 const isActive = t.key === state.theme
                 return (
                   <button
                     key={t.key}
-                    onClick={() => dispatch(actions.setTheme(t.key))}
+                    onClick={() => selectPreset(t.key)}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 rounded-sm border transition-all text-left",
                       isActive
@@ -118,6 +142,39 @@ export function ThemeSettings() {
                   </button>
                 )
               })}
+            </div>
+
+            {/* Color Mode (system / light / dark) — 控制深浅色，独立于主题预设 */}
+            <div className="bg-card border border-border rounded-sm p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">COLOR MODE</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                切换主题预设会自动设置默认模式（spatial=light, endfield/wuling=dark）。
+                你可在此单独覆盖，选择跟随系统或强制深浅色。
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {COLOR_MODES.map(m => {
+                  const Icon = m.icon
+                  const isActive = colorMode === m.key
+                  return (
+                    <button
+                      key={m.key}
+                      onClick={() => setColorMode(m.key)}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 rounded-sm border transition-all",
+                        isActive
+                          ? "border-primary/50 bg-primary/8"
+                          : "border-border/40 hover:border-border hover:bg-muted/30"
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                      <span className={cn("text-[11px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{m.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
@@ -6,16 +6,25 @@ import { computeLayout } from "@/lib/workspaceLayout"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
 
-export function WorkspaceCanvas() {
+/**
+ * CardView — 卡片形态渲染器。
+ * 仅在 viewMode === "cards" 时挂载。grid/stack/split/focus 子布局由 cardLayout 决定。
+ * free 模式已删除。
+ */
+export function CardView() {
   const { state, visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const canvasRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 1200, h: 800 })
 
-  const { layoutMode, focusedComponentId, fullscreenComponentId } = state
+  const { cardLayout, focusedComponentId, fullscreenComponentId } = state
 
-  // Track canvas size via ResizeObserver so the layout engine can compute
-  // target geometry in real px. An Arc-like smooth handoff between modes.
+  // 仅渲染未在 cards 模式下隐藏的组件
+  const cardComponents = useMemo(
+    () => visibleComponents.filter(c => !c.hiddenIn?.cards),
+    [visibleComponents],
+  )
+
   useEffect(() => {
     const el = canvasRef.current
     if (!el) return
@@ -27,7 +36,6 @@ export function WorkspaceCanvas() {
     return () => ro.disconnect()
   }, [])
 
-  // Esc exits fullscreen / clears focus.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -40,15 +48,15 @@ export function WorkspaceCanvas() {
   }, [fullscreenComponentId, focusedComponentId, dispatch])
 
   const layouts = computeLayout({
-    components: visibleComponents,
-    mode: layoutMode,
+    components: cardComponents,
+    layout: cardLayout,
     focusedId: focusedComponentId,
     fullscreenId: fullscreenComponentId,
     W: size.w,
     H: size.h,
   })
 
-  if (visibleComponents.length === 0) {
+  if (cardComponents.length === 0) {
     return (
       <div className="flex-1 ws-canvas-bg flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -65,7 +73,7 @@ export function WorkspaceCanvas() {
             size="sm"
             variant="outline"
             className="font-mono text-xs"
-            onClick={() => dispatch(actions.setSidebarView("registry"))}
+            onClick={() => dispatch(actions.setOverlay("registry"))}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             OPEN MODULE REGISTRY
@@ -77,7 +85,7 @@ export function WorkspaceCanvas() {
 
   return (
     <div className="flex-1 ws-canvas-bg overflow-hidden relative" ref={canvasRef}>
-      {visibleComponents.map(comp => (
+      {cardComponents.map(comp => (
         <ComponentCard
           key={comp.id}
           comp={comp}
@@ -85,11 +93,10 @@ export function WorkspaceCanvas() {
           canvasRef={canvasRef}
           isFocused={focusedComponentId === comp.id}
           hasFocused={focusedComponentId !== null}
-          layoutMode={layoutMode}
+          cardLayout={cardLayout}
         />
       ))}
 
-      {/* Fullscreen exit hint */}
       <AnimatePresence>
         {fullscreenComponentId && (
           <motion.button

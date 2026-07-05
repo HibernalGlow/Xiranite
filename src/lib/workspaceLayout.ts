@@ -1,4 +1,4 @@
-import type { ComponentInstance, ComputedLayout, LayoutMode } from "@/types/workspace"
+import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 
 const GAP = 16
 const PAD = 16
@@ -9,7 +9,7 @@ const MIN_PANEL_H = 240
 
 export interface LayoutContext {
   components: ComponentInstance[]
-  mode: LayoutMode
+  layout: CardLayout
   focusedId: string | null
   fullscreenId: string | null
   W: number
@@ -18,13 +18,13 @@ export interface LayoutContext {
 
 /**
  * Pure layout engine — given workspace state + canvas size, returns the target
- * geometry for every component. The same component instance is only ever
- * repositioned (never remounted), so internal state survives every layout
- * morph. Inspired by spatial-canvas's computeLayout, adapted to Xiranite.
+ * geometry for every component. free 模式已删除（无法持久化的 bug）。
+ *
+ * 4 种布局：grid / stack / split / focus
  */
 export function computeLayout({
   components,
-  mode,
+  layout,
   focusedId,
   fullscreenId,
   W,
@@ -53,7 +53,7 @@ export function computeLayout({
     ...extra,
   })
 
-  // 1. Fullscreen wins over everything — keep others mounted but parked off-screen.
+  // 1. Fullscreen wins over everything
   if (fullscreenId) {
     components.forEach(comp => {
       if (comp.id === fullscreenId) {
@@ -70,29 +70,8 @@ export function computeLayout({
     return out
   }
 
-  // 2. Free layout: use each component's stored position/size with focus dimming.
-  if (mode === "free") {
-    components.forEach(comp => {
-      const px = comp.position?.x ?? PAD
-      const py = comp.position?.y ?? PAD
-      const pw = comp.size?.w ?? 340
-      const ph = comp.collapsed ? collapsedH : comp.size?.h ?? 280
-      const focused = focusedId === comp.id
-      out[comp.id] = base(
-        comp,
-        comp.collapsed ? "compact" : "floating",
-        { x: px, y: py, w: pw, h: ph },
-        {
-          opacity: focusedId && !focused ? 0.5 : 1,
-          z: focused ? 900 : comp.z ?? 1,
-        },
-      )
-    })
-    return out
-  }
-
-  // 3. Grid: auto-tile into 1/2/3 columns based on count.
-  if (mode === "grid") {
+  // 2. Grid: auto-tile into 1/2/3 columns based on count
+  if (layout === "grid") {
     const n = components.length || 1
     const cols = n <= 1 ? 1 : n <= 4 ? 2 : 3
     const rows = Math.ceil(n / cols)
@@ -112,8 +91,8 @@ export function computeLayout({
     return out
   }
 
-  // 4. Stack: cascading overlap deck of cards.
-  if (mode === "stack") {
+  // 3. Stack: cascading overlap deck of cards
+  if (layout === "stack") {
     const cardW = Math.min(620, innerW - 80)
     const cardH = Math.min(440, innerH - 120)
     const step = 32
@@ -129,8 +108,8 @@ export function computeLayout({
     return out
   }
 
-  // 5. Split: two columns, items distributed left/right.
-  if (mode === "split") {
+  // 4. Split: two columns, items distributed left/right
+  if (layout === "split") {
     const cols = 2
     const cw = (innerW - GAP) / cols
     components.forEach((comp, i) => {
@@ -149,7 +128,7 @@ export function computeLayout({
     return out
   }
 
-  // 6. Focus: one hero panel, the rest as a thumbnail strip on the right.
+  // 5. Focus: one hero panel, the rest as a thumbnail strip on the right
   const heroId = focusedId ?? components[0]?.id ?? null
   const others = components.filter(comp => comp.id !== heroId)
   const stripW = others.length ? STRIP_W : 0
