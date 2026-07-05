@@ -17,6 +17,7 @@
         "@tanstack/react-table": "^8.21.3",
         "@xiranite/contract": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
+        "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-lata": "workspace:*",
@@ -101,6 +102,27 @@
       "version": "0.1.0",
       "bin": {
         "xiranite-cleanf": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/crashu": {
+      "name": "@xiranite/node-crashu",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-crashu": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -835,6 +857,8 @@
     "@xiranite/contract": ["@xiranite/contract@workspace:packages/contract"],
 
     "@xiranite/node-cleanf": ["@xiranite/node-cleanf@workspace:packages/nodes/cleanf"],
+
+    "@xiranite/node-crashu": ["@xiranite/node-crashu@workspace:packages/nodes/crashu"],
 
     "@xiranite/node-dissolvef": ["@xiranite/node-dissolvef@workspace:packages/nodes/dissolvef"],
 

@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react"
 import type { ComponentType } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import cleanfEntry from "@xiranite/node-cleanf"
+import crashuEntry from "@xiranite/node-crashu"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
 import lataEntry from "@xiranite/node-lata"
@@ -33,6 +34,7 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
 
 const packageModules = {
   [cleanfEntry.def.id]: cleanfEntry,
+  [crashuEntry.def.id]: crashuEntry,
   [dissolvefEntry.def.id]: dissolvefEntry,
   [encodebEntry.def.id]: encodebEntry,
   [lataEntry.def.id]: lataEntry,

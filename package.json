@@ -22,6 +22,7 @@
   "dependencies": {
     "@xiranite/contract": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
+    "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
     "@xiranite/node-encodeb": "workspace:*",
     "@xiranite/node-lata": "workspace:*",
