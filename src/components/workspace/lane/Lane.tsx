@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils"
 const RATIO_PRESETS = [0.5, 1, 1.5, 2, 3]
 
 /** 泳道折叠/展开图标 — 从 Xlchemy LaneDragHandle.svelte 移植的 SVG。
- *  画的是一个泳道外框 + 一个 lane 矩形，直观表示"泳道"。 */
+ *  原版设计：泳道外框 + 内部 lane 矩形，矩形 fill 状态表示折叠/展开：
+ *  - 展开态：矩形空心（fill: none），hover 变实心
+ *  - 折叠态：矩形实心（fill: currentColor），hover 变空心 */
 function LaneIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg
@@ -30,7 +32,6 @@ function LaneIcon({ collapsed }: { collapsed: boolean }) {
       viewBox="0 0 15 10"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform 150ms" }}
     >
       <path
         d="M11.75 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V6.75C0.75 7.85457 1.64543 8.75 2.75 8.75H11.75C12.8546 8.75 13.75 7.85457 13.75 6.75V2.75C13.75 1.64543 12.8546 0.75 11.75 0.75Z"
@@ -46,6 +47,8 @@ function LaneIcon({ collapsed }: { collapsed: boolean }) {
         rx="2"
         stroke="currentColor"
         strokeWidth="1.5"
+        fill={collapsed ? "currentColor" : "none"}
+        className="transition-[fill]"
       />
     </svg>
   )

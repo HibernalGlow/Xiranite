@@ -12,6 +12,7 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   calculator:  lazy(() => import("./CalculatorModule")),
   kanban:      lazy(() => import("./KanbanModule")),
   enginev:     lazy(() => import("./EngineVModule")),
+  database:    lazy(() => import("./DatabaseModule")),
 }
 
 export interface ModuleProps {

@@ -73,6 +73,14 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "Wallpaper Engine 工坊管理：扫描 / 过滤 / 批量重命名 / 删除 / 导出。端到端示例服务。",
     icon: "Image",
   },
+  {
+    id: "database",
+    name: "DATABASE",
+    version: "v0.1.0",
+    category: "META",
+    description: "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
+    icon: "TableProperties",
+  },
 ]
 
 export function getModule(id: string): ModuleDef | undefined {

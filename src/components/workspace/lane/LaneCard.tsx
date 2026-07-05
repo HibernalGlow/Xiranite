@@ -52,6 +52,12 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      // ⚠️ 关键：draggable 元素默认不允许被 drop 到自己上。
+      // 必须 onDragOver + preventDefault 才能让父级 LaneView 的 onDrop 触发。
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
+      }}
       className={[
         "rounded-md border bg-card overflow-hidden flex flex-col",
         "border-border/60 shadow-sm",
