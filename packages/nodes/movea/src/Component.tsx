@@ -49,7 +49,8 @@ export function Component({ compId, host }: NodeCardProps) {
       log(`Matched ${matchedFolders.length} folder(s).`)
       return
     }
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-movea CLI for filesystem actions.")
       return
     }
@@ -63,7 +64,7 @@ export function Component({ compId, host }: NodeCardProps) {
       level1Name: data.level1Name,
       movePlan: parseMovePlan(data.movePlanText),
     }
-    const response = await host.runNode<MoveaInput, MoveaData>("movea", input, (event) => {
+    const response = await runNode<MoveaInput, MoveaData>("movea", input, (event) => {
       if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
       else log(event.message)
     }) as MoveaResult
@@ -103,9 +104,9 @@ export function Component({ compId, host }: NodeCardProps) {
           <PathField label="archive" value={data.archiveName ?? ""} disabled={running} onChange={(value) => patch({ archiveName: value })} onPaste={() => paste("archiveName")} />
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="grid shrink-0 grid-cols-3 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <StatPill label="folders" value={data.result?.totalFolders ?? 0} tone="accent" />
               <StatPill label="archives" value={data.result?.totalArchives ?? 0} />
               <StatPill label="movable" value={data.result?.totalMovableFolders ?? 0} />
@@ -120,7 +121,7 @@ export function Component({ compId, host }: NodeCardProps) {
             </ResultView>
           </div>
 
-          <div className="flex w-44 shrink-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <TextArea label="regex patterns" value={data.regexText ?? ""} disabled={running} onChange={(event) => patch({ regexText: event.currentTarget.value })} />
             <TextArea label="target folders" value={data.subfoldersText ?? ""} disabled={running} onChange={(event) => patch({ subfoldersText: event.currentTarget.value })} />
             <TextArea label="move plan JSON" value={data.movePlanText ?? ""} disabled={running} onChange={(event) => patch({ movePlanText: event.currentTarget.value })} />
@@ -138,7 +139,7 @@ export function Component({ compId, host }: NodeCardProps) {
 
 function PathField(props: { label: string; value: string; disabled: boolean; onChange: (value: string) => void; onPaste: () => void }) {
   return (
-    <div className="flex min-w-[9rem] flex-1 gap-1">
+    <div className="flex min-w-0 flex-1 gap-1">
       <Field label={props.label} value={props.value} disabled={props.disabled} onChange={(event) => props.onChange(event.currentTarget.value)} className="min-w-0 flex-1" />
       <IconButton title={`Paste ${props.label}`} onClick={props.onPaste} disabled={props.disabled}><FolderInput size={13} /></IconButton>
     </div>

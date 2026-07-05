@@ -51,14 +51,15 @@ export function Component({ compId, host }: NodeCardProps) {
   async function execute(preview = previewMode) {
     if (!paths.length || running) return
     const input: CleanfInput = { paths, presets: selectedPresets, exclude: data.excludeKeywords, preview }
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-cleanf CLI to scan or remove files.")
       return
     }
 
     setRunning(true)
     patch({ phase: "running", progress: 0, progressText: preview ? "Previewing..." : "Cleaning...", result: null })
-    const response = await host.runNode<CleanfInput, CleanfData>("cleanf", input, (event) => {
+    const response = await runNode<CleanfInput, CleanfData>("cleanf", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as CleanfResult
@@ -97,7 +98,7 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
             label="paths"
             value={pathText}
@@ -106,13 +107,13 @@ export function Component({ compId, host }: NodeCardProps) {
             placeholder="one folder path per line"
           />
           <div className="flex min-h-0 flex-col gap-2">
-            <div className="grid shrink-0 grid-cols-3 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <SegmentButton active={previewMode} onClick={() => patch({ previewMode: !previewMode })}><Eye size={14} /> Preview</SegmentButton>
               <StatPill label="found" value={result?.totalRemoved ?? 0} tone="good" />
               <StatPill label="skipped" value={result?.skipped ?? 0} />
             </div>
             <Field label="exclude keywords" value={data.excludeKeywords ?? ""} disabled={running} onChange={(event) => patch({ excludeKeywords: event.currentTarget.value })} />
-            <div className="min-h-0 flex-1 overflow-auto rounded bg-muted/20 p-1">
+            <div className="min-h-0 flex-1 overflow-auto border-t border-border/40 pt-1">
               {Object.values(CLEANING_PRESETS).map((preset) => (
                 <button
                   key={preset.id}

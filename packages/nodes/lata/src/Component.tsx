@@ -35,13 +35,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: LataInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-lata CLI for Taskfile actions.")
       return
     }
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "loading" })
-    const response = await host.runNode<LataInput, LataData>("lata", {
+    const response = await runNode<LataInput, LataData>("lata", {
       action,
       taskfilePath: data.taskfilePath,
       taskName: selectedTask,
@@ -85,9 +86,9 @@ export function Component({ compId, host }: NodeCardProps) {
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="Taskfile" value={data.taskfilePath ?? ""} disabled={running} onChange={(event) => patch({ taskfilePath: event.currentTarget.value })} className="min-w-[14rem] flex-1" />
+          <Field label="Taskfile" value={data.taskfilePath ?? ""} disabled={running} onChange={(event) => patch({ taskfilePath: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste Taskfile path" onClick={pastePath} disabled={running}><Rocket size={13} /></IconButton>
-          <Field label="args" value={data.taskArgs ?? ""} disabled={running} onChange={(event) => patch({ taskArgs: event.currentTarget.value })} className="min-w-[8rem] flex-1" />
+          <Field label="args" value={data.taskArgs ?? ""} disabled={running} onChange={(event) => patch({ taskArgs: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">

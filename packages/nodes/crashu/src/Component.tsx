@@ -47,13 +47,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: CrashuInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-crashu CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: action === "move" || action === "execute" ? "moving" : action })
-    const response = await host.runNode<CrashuInput, CrashuData>("crashu", {
+    const response = await runNode<CrashuInput, CrashuData>("crashu", {
       action,
       sourcePaths,
       targetPath: data.targetPath,
@@ -103,20 +104,20 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea label="sources" value={data.sourcePathsText ?? ""} disabled={running} onChange={(event) => patch({ sourcePathsText: event.currentTarget.value })} placeholder="one source folder per line" />
           <TextArea label="targets" value={data.targetNamesText ?? ""} disabled={running || Boolean(data.targetPath?.trim())} onChange={(event) => patch({ targetNamesText: event.currentTarget.value })} placeholder="manual target names, one per line" />
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="target folder" value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-[12rem] flex-1" />
+          <Field label="target folder" value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste target folder" disabled={running} onClick={() => paste("targetPath")}><FolderOpen size={13} /></IconButton>
-          <Field label="destination" value={data.destinationPath ?? ""} disabled={running} onChange={(event) => patch({ destinationPath: event.currentTarget.value })} className="min-w-[12rem] flex-1" />
+          <Field label="destination" value={data.destinationPath ?? ""} disabled={running} onChange={(event) => patch({ destinationPath: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste destination" disabled={running} onClick={() => paste("destinationPath")}><FolderOpen size={13} /></IconButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="w-24" />
+          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
           <SegmentButton active={autoMove} disabled={running} onClick={() => patch({ autoMove: !autoMove })}>auto move</SegmentButton>
           <SegmentButton active={direction === "to_target"} disabled={running} onClick={() => patch({ moveDirection: "to_target" })}>to target</SegmentButton>
           <SegmentButton active={direction === "to_source"} disabled={running} onClick={() => patch({ moveDirection: "to_source" })}>to source</SegmentButton>

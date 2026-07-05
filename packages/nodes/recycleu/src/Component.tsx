@@ -35,14 +35,15 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(input: RecycleuInput) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-recycleu CLI for system actions.")
       return
     }
 
     setRunning(true)
     patch({ phase: "running", progress: 0, progressText: "Starting..." })
-    const result = await host.runNode<RecycleuInput, RecycleuData>("recycleu", input, (event) => {
+    const result = await runNode<RecycleuInput, RecycleuData>("recycleu", input, (event) => {
       const seconds = event.message.match(/(\d+)s/)?.[1]
       if (event.type === "progress") {
         patch({
@@ -100,7 +101,7 @@ export function Component({ compId, host }: NodeCardProps) {
           ))}
         </div>
 
-        <div className="min-h-0 flex flex-1 items-center gap-3">
+        <div className="min-h-0 flex flex-1 flex-col items-stretch gap-2">
           <div className="relative h-28 w-28 shrink-0">
             <svg className="-rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="43" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/40" />
@@ -123,7 +124,7 @@ export function Component({ compId, host }: NodeCardProps) {
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="grid grid-cols-3 gap-1">
+            <div className="flex flex-wrap gap-1">
               <StatPill label="phase" value={phase} tone={phase === "error" ? "bad" : phase === "completed" ? "good" : "neutral"} />
               <StatPill label="last" value={data.lastCleanTime ?? "-"} />
               <StatPill label="progress" value={`${data.progress ?? 0}%`} tone="accent" />

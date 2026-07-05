@@ -54,14 +54,15 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-findz CLI for filesystem search.")
       return
     }
 
     setRunning(true)
     patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
-    const response = await host.runNode<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
+    const response = await runNode<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as FindzResult
@@ -77,11 +78,12 @@ export function Component({ compId, host }: NodeCardProps) {
   }
 
   async function showHelp() {
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Filter help is available from `xiranite-findz help-filter`.")
       return
     }
-    const response = await host.runNode<FindzInput, FindzData>("findz", { action: "help" }) as FindzResult
+    const response = await runNode<FindzInput, FindzData>("findz", { action: "help" }) as FindzResult
     patch({ result: response.data ?? null })
   }
 
@@ -131,10 +133,10 @@ export function Component({ compId, host }: NodeCardProps) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="max" type="number" value={data.maxResults ?? 0} disabled={running} onChange={(event) => patch({ maxResults: Number(event.currentTarget.value) })} className="w-20" />
-          <Field label="return" type="number" value={data.maxReturnFiles ?? 5000} disabled={running} onChange={(event) => patch({ maxReturnFiles: Number(event.currentTarget.value) })} className="w-24" />
-          <Field label="group" value={data.groupBy ?? ""} disabled={running} onChange={(event) => patch({ groupBy: event.currentTarget.value })} placeholder="archive/ext/dir" className="min-w-[8rem] flex-1" />
-          <Field label="refine" value={data.refine ?? ""} disabled={running} onChange={(event) => patch({ refine: event.currentTarget.value })} placeholder="count > 10" className="min-w-[8rem] flex-1" />
+          <Field label="max" type="number" value={data.maxResults ?? 0} disabled={running} onChange={(event) => patch({ maxResults: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label="return" type="number" value={data.maxReturnFiles ?? 5000} disabled={running} onChange={(event) => patch({ maxReturnFiles: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label="group" value={data.groupBy ?? ""} disabled={running} onChange={(event) => patch({ groupBy: event.currentTarget.value })} placeholder="archive/ext/dir" className="min-w-0 flex-1" />
+          <Field label="refine" value={data.refine ?? ""} disabled={running} onChange={(event) => patch({ refine: event.currentTarget.value })} placeholder="count > 10" className="min-w-0 flex-1" />
         </div>
 
         <div className="min-h-0 flex flex-1 flex-col gap-2">

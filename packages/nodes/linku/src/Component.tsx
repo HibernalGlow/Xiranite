@@ -35,13 +35,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: LinkuInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-linku CLI for symlink actions.")
       return
     }
     setRunning(true)
     patch({ phase: "running", action })
-    const response = await host.runNode<LinkuInput, LinkuData>("linku", {
+    const response = await runNode<LinkuInput, LinkuData>("linku", {
       action,
       path: data.path,
       target: data.target,
@@ -78,14 +79,14 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid shrink-0 grid-cols-3 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <PathField label="source" value={data.path ?? ""} disabled={running} onChange={(value) => patch({ path: value })} onPaste={() => paste("path")} />
           <PathField label="target/link" value={data.target ?? ""} disabled={running} onChange={(value) => patch({ target: value })} onPaste={() => paste("target")} />
           <PathField label="config" value={data.configPath ?? ""} disabled={running} onChange={(value) => patch({ configPath: value })} onPaste={() => paste("configPath")} />
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
-          <div className="grid w-28 shrink-0 content-start gap-1">
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
+          <div className="flex shrink-0 flex-wrap gap-1">
             <StatPill label="created" value={String(data.result?.created ?? false)} tone={data.result?.created ? "good" : "neutral"} />
             <StatPill label="recovered" value={data.result?.recoveredCount ?? 0} />
             <StatPill label="failed" value={data.result?.failedCount ?? 0} tone={data.result?.failedCount ? "bad" : "neutral"} />

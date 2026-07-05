@@ -40,13 +40,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: RawfilterInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-rawfilter CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "planning" })
-    const response = await host.runNode<RawfilterInput, RawfilterData>("rawfilter", {
+    const response = await runNode<RawfilterInput, RawfilterData>("rawfilter", {
       action,
       path: data.pathText,
       nameOnlyMode,
@@ -93,9 +94,9 @@ export function Component({ compId, host }: NodeCardProps) {
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-[14rem] flex-1" />
+          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste folder" disabled={running} onClick={pastePath}><FolderOpen size={14} /></IconButton>
-          <Field label="similarity" type="number" min={0} max={1} step={0.01} value={minSimilarity} disabled={running || nameOnlyMode} onChange={(event) => patch({ minSimilarity: Number(event.currentTarget.value) })} className="w-24" />
+          <Field label="similarity" type="number" min={0} max={1} step={0.01} value={minSimilarity} disabled={running || nameOnlyMode} onChange={(event) => patch({ minSimilarity: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">

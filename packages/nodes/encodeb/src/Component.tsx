@@ -49,14 +49,15 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: EncodebInput["action"]) {
     if (!paths.length || running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-encodeb CLI to scan, preview, or recover filenames.")
       return
     }
 
     setRunning(true)
     patch({ phase: action ?? "preview", mappings: [], matches: [] })
-    const response = await host.runNode<EncodebInput, EncodebData>("encodeb", {
+    const response = await runNode<EncodebInput, EncodebData>("encodeb", {
       action,
       paths,
       srcEncoding,
@@ -103,7 +104,7 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
             label="paths"
             value={pathText}
@@ -112,18 +113,18 @@ export function Component({ compId, host }: NodeCardProps) {
             placeholder="one file or folder path per line"
           />
           <div className="flex min-h-0 flex-col gap-2">
-            <div className="grid shrink-0 grid-cols-4 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               {(["cn", "jp", "kr", "custom"] as const).map((key) => (
                 <SegmentButton key={key} active={preset === key} disabled={running} onClick={() => selectPreset(key)}>
                   {key}
                 </SegmentButton>
               ))}
             </div>
-            <div className="grid shrink-0 grid-cols-2 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <Field label="src" value={srcEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ srcEncoding: event.currentTarget.value })} />
               <Field label="dst" value={dstEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ dstEncoding: event.currentTarget.value })} />
             </div>
-            <div className="grid shrink-0 grid-cols-4 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <SegmentButton active={strategy === "replace"} disabled={running} onClick={() => patch({ strategy: "replace" })}>replace</SegmentButton>
               <SegmentButton active={strategy === "copy"} disabled={running} onClick={() => patch({ strategy: "copy" })}>copy</SegmentButton>
               <StatPill label="preview" value={data.mappings?.length ?? 0} tone="accent" />

@@ -54,13 +54,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: DissolvefInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-dissolvef CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: "running" })
-    const response = await host.runNode<DissolvefInput, DissolvefData>("dissolvef", {
+    const response = await runNode<DissolvefInput, DissolvefData>("dissolvef", {
       action,
       path: data.pathText,
       historyPath: data.historyPath,
@@ -121,9 +122,9 @@ export function Component({ compId, host }: NodeCardProps) {
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-[14rem] flex-1" />
+          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste folder" onClick={() => paste("pathText")} disabled={running}><FolderOpen size={13} /></IconButton>
-          <Field label="history" value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-[10rem] flex-1" />
+          <Field label="history" value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
@@ -138,10 +139,10 @@ export function Component({ compId, host }: NodeCardProps) {
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="exclude" value={data.excludeText ?? ""} disabled={running} onChange={(event) => patch({ excludeText: event.currentTarget.value })} className="min-w-[10rem] flex-1" />
-          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running || direct || !enableSimilarity} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="w-24" />
-          <Field label="file conflict" value={data.fileConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ fileConflict: event.currentTarget.value })} className="w-28" />
-          <Field label="dir conflict" value={data.dirConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ dirConflict: event.currentTarget.value })} className="w-28" />
+          <Field label="exclude" value={data.excludeText ?? ""} disabled={running} onChange={(event) => patch({ excludeText: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running || direct || !enableSimilarity} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label="file conflict" value={data.fileConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ fileConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label="dir conflict" value={data.dirConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ dirConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">

@@ -36,13 +36,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(input: ReinstallpInput) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-reinstallp CLI to scan or install packages.")
       return
     }
     setRunning(true)
     patch({ phase: "running" })
-    const response = await host.runNode<ReinstallpInput, ReinstallpData>("reinstallp", input) as ReinstallpResult
+    const response = await runNode<ReinstallpInput, ReinstallpData>("reinstallp", input) as ReinstallpResult
     patch({
       phase: response.success ? "completed" : "error",
       result: response.data ?? null,

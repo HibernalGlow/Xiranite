@@ -14,12 +14,12 @@ export function NodeContent({ children, className }: { children: ReactNode; clas
 
 export function NodeHeader({ title, meta, actions }: { title: string; meta?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/50 pb-2">
-      <div className="min-w-0">
+    <div className="flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
+      <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] font-semibold uppercase tracking-normal text-foreground">{title}</div>
         {meta ? <div className="truncate text-[10px] text-muted-foreground">{meta}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">{actions}</div> : null}
     </div>
   )
 }
@@ -34,11 +34,11 @@ export function NodeFooter({ children, className }: { children: ReactNode; class
 
 export function Field({ label, className, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
-    <label className={cx("grid min-w-0 gap-1 text-[10px] text-muted-foreground", className)}>
+    <label className={cx("grid min-w-0 flex-1 basis-24 gap-1 text-[10px] text-muted-foreground", className)}>
       <span className="truncate">{label}</span>
       <input
         {...props}
-        className="h-8 min-w-0 rounded border border-border bg-background px-2 text-xs text-foreground outline-none disabled:opacity-50"
+        className="h-8 min-w-0 border-b border-border/70 bg-transparent px-1 text-xs text-foreground outline-none disabled:opacity-50"
       />
     </label>
   )
@@ -50,7 +50,7 @@ export function TextArea({ label, className, ...props }: TextareaHTMLAttributes<
       <span className="shrink-0 truncate">{label}</span>
       <textarea
         {...props}
-        className="min-h-0 flex-1 resize-none rounded border border-border bg-background p-2 text-xs text-foreground outline-none disabled:opacity-50"
+        className="min-h-0 flex-1 resize-none border border-border/50 bg-transparent p-2 text-xs text-foreground outline-none disabled:opacity-50"
       />
     </label>
   )
@@ -103,7 +103,7 @@ export function SegmentButton({ active, children, onClick, disabled }: { active?
 
 export function StatPill({ label, value, tone = "neutral" }: { label: string; value: ReactNode; tone?: "neutral" | "good" | "bad" | "accent" }) {
   return (
-    <div className="min-w-0 rounded bg-muted/30 px-2 py-1">
+    <div className="min-w-0 flex-1 basis-20 border-l border-border/70 px-2 py-0.5">
       <div className="truncate text-[9px] uppercase tracking-normal text-muted-foreground">{label}</div>
       <div className={cx("truncate text-xs font-semibold", tone === "good" && "text-green-600", tone === "bad" && "text-red-500", tone === "accent" && "text-primary")}>
         {value}
@@ -114,12 +114,12 @@ export function StatPill({ label, value, tone = "neutral" }: { label: string; va
 
 export function LogView({ lines, empty = "No logs", className }: { lines?: string[]; empty?: string; className?: string }) {
   return (
-    <div className={cx("min-h-0 overflow-auto rounded bg-muted/30 p-2 text-[11px] text-muted-foreground", className)}>
+    <div className={cx("min-h-0 overflow-auto border-t border-border/40 pt-1 text-[11px] text-muted-foreground", className)}>
       {lines?.length ? lines.slice(-12).map((line, index) => <div key={`${index}:${line}`} className="break-all">{line}</div>) : empty}
     </div>
   )
 }
 
 export function ResultView({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("min-h-0 overflow-auto rounded bg-muted/30 p-2 text-[11px]", className)}>{children}</div>
+  return <div className={cx("min-h-0 overflow-auto border-t border-border/40 pt-1 text-[11px]", className)}>{children}</div>
 }

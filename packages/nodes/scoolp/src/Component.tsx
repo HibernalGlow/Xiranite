@@ -64,7 +64,9 @@ export function Component({ compId, host }: NodeCardProps) {
       return
     }
 
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+
+    if (!runNode) {
       log("Host runner unavailable. Paste sync TOML for local dry-run or use the xiranite-scoolp CLI for system actions.")
       return
     }
@@ -79,7 +81,7 @@ export function Component({ compId, host }: NodeCardProps) {
       packages: splitPackages(data.packages),
       dryRun,
     }
-    const response = await host.runNode<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
+    const response = await runNode<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
       if (event.type === "log") log(event.message)
     }) as ScoolpResult
     patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
@@ -111,19 +113,19 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           {actions.map((item) => (
             <SegmentButton key={item.id} active={action === item.id} disabled={running} onClick={() => patch({ action: item.id })}>{item.label}</SegmentButton>
           ))}
         </div>
 
-        <div className="grid shrink-0 grid-cols-3 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Field label="path" value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
           <Field label="package" value={data.packageName ?? ""} disabled={running} onChange={(event) => patch({ packageName: event.currentTarget.value })} />
           <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>{dryRun ? "dry-run" : "execute"}</SegmentButton>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
             label="sync toml / package list"
             value={action === "install" ? data.packages ?? "" : data.configText ?? ""}
@@ -136,7 +138,7 @@ export function Component({ compId, host }: NodeCardProps) {
           </ResultView>
         </div>
 
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <StatPill label="packages" value={result?.installedPackages.length || result?.availablePackages.length || 0} tone="accent" />
           <StatPill label="buckets" value={result?.buckets.length ?? result?.syncConfig?.buckets.length ?? 0} />
           <StatPill label="cache" value={result?.cache?.obsoleteCount ?? 0} />

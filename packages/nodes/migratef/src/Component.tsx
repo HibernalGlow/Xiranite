@@ -37,13 +37,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: MigratefInput["action"], dryRun = false) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-migratef CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: "running" })
-    const response = await host.runNode<MigratefInput, MigratefData>("migratef", {
+    const response = await runNode<MigratefInput, MigratefData>("migratef", {
       action,
       mode,
       sourcePaths: splitLines(data.sourceText),
@@ -86,22 +87,22 @@ export function Component({ compId, host }: NodeCardProps) {
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="target" value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-[12rem] flex-1" />
+          <Field label="target" value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste target" onClick={() => paste("targetPath")} disabled={running}><FolderSync size={13} /></IconButton>
-          <Field label="history" value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-[10rem] flex-1" />
+          <Field label="history" value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste history" onClick={() => paste("historyPath")} disabled={running}><FolderSync size={13} /></IconButton>
         </div>
 
-        <div className="grid shrink-0 grid-cols-3 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           {(["preserve", "flat", "direct"] as const).map((item) => (
             <SegmentButton key={item} active={mode === item} disabled={running} onClick={() => patch({ mode: item })}>{item}</SegmentButton>
           ))}
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
-          <TextArea label="sources" value={data.sourceText ?? ""} disabled={running} onChange={(event) => patch({ sourceText: event.currentTarget.value })} className="w-44 shrink-0" />
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
+          <TextArea label="sources" value={data.sourceText ?? ""} disabled={running} onChange={(event) => patch({ sourceText: event.currentTarget.value })} className="min-w-0 flex-1" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="grid shrink-0 grid-cols-4 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <StatPill label="migrated" value={data.result?.migratedCount ?? 0} tone="good" />
               <StatPill label="skipped" value={data.result?.skippedCount ?? 0} />
               <StatPill label="errors" value={data.result?.errorCount ?? data.result?.failedCount ?? 0} tone={(data.result?.errorCount || data.result?.failedCount) ? "bad" : "neutral"} />

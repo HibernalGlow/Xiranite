@@ -31,13 +31,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: SeriexInput["action"], dryRun = false) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-seriex CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: "running" })
-    const response = await host.runNode<SeriexInput, SeriexData>("seriex", {
+    const response = await runNode<SeriexInput, SeriexData>("seriex", {
       action,
       directoryPath: data.directoryPath,
       configPath: data.configPath,
@@ -85,12 +86,12 @@ export function Component({ compId, host }: NodeCardProps) {
         <div className="flex shrink-0 flex-wrap items-end gap-2">
           <PathField label="directory" value={data.directoryPath ?? ""} disabled={running} onChange={(value) => patch({ directoryPath: value })} onPaste={() => paste("directoryPath")} />
           <PathField label="config" value={data.configPath ?? ""} disabled={running} onChange={(value) => patch({ configPath: value })} onPaste={() => paste("configPath")} />
-          <Field label="prefix" value={data.prefix ?? "[#s]"} disabled={running} onChange={(event) => patch({ prefix: event.currentTarget.value })} className="w-24 shrink-0" />
+          <Field label="prefix" value={data.prefix ?? "[#s]"} disabled={running} onChange={(event) => patch({ prefix: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="grid shrink-0 grid-cols-4 gap-1">
+            <div className="flex shrink-0 flex-wrap gap-1">
               <StatPill label="series" value={data.result?.totalSeries ?? 0} tone="accent" />
               <StatPill label="files" value={data.result?.totalFiles ?? 0} />
               <StatPill label="moved" value={data.result?.movedCount ?? 0} tone="good" />
@@ -114,7 +115,7 @@ export function Component({ compId, host }: NodeCardProps) {
             value={data.knownSeriesText ?? ""}
             disabled={running}
             onChange={(event) => patch({ knownSeriesText: event.currentTarget.value })}
-            className="w-44 shrink-0"
+            className="min-w-0 flex-1"
           />
         </div>
       </NodeBody>
@@ -128,7 +129,7 @@ export function Component({ compId, host }: NodeCardProps) {
 
 function PathField(props: { label: string; value: string; disabled: boolean; onChange: (value: string) => void; onPaste: () => void }) {
   return (
-    <div className="flex min-w-[10rem] flex-1 gap-1">
+    <div className="flex min-w-0 flex-1 gap-1">
       <Field label={props.label} value={props.value} disabled={props.disabled} onChange={(event) => props.onChange(event.currentTarget.value)} className="min-w-0 flex-1" />
       <IconButton title={`Paste ${props.label}`} onClick={props.onPaste} disabled={props.disabled}><FolderTree size={13} /></IconButton>
     </div>

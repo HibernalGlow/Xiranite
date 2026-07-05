@@ -56,14 +56,15 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-mvz CLI for archive filesystem actions.")
       return
     }
 
     setRunning(true)
     patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
-    const response = await host.runNode<MvzInput, MvzData>("mvz", buildInput(nextAction, data), (event) => {
+    const response = await runNode<MvzInput, MvzData>("mvz", buildInput(nextAction, data), (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as MvzResult
@@ -127,12 +128,12 @@ export function Component({ compId, host }: NodeCardProps) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="output" value={data.output ?? ""} disabled={running || action === "delete" || action === "rename" || (data.near ?? true)} onChange={(event) => patch({ output: event.currentTarget.value })} className="min-w-[10rem] flex-1" />
-          <Field label="separator" value={separator} disabled={running} onChange={(event) => patch({ separator: event.currentTarget.value })} className="w-24" />
+          <Field label="output" value={data.output ?? ""} disabled={running || action === "delete" || action === "rename" || (data.near ?? true)} onChange={(event) => patch({ output: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label="separator" value={separator} disabled={running} onChange={(event) => patch({ separator: event.currentTarget.value })} className="min-w-0 flex-1" />
           {action === "rename" ? (
             <>
-              <Field label="pattern" value={data.pattern ?? ""} disabled={running} onChange={(event) => patch({ pattern: event.currentTarget.value })} className="min-w-[8rem] flex-1" />
-              <Field label="replacement" value={data.replacement ?? ""} disabled={running} onChange={(event) => patch({ replacement: event.currentTarget.value })} className="min-w-[8rem] flex-1" />
+              <Field label="pattern" value={data.pattern ?? ""} disabled={running} onChange={(event) => patch({ pattern: event.currentTarget.value })} className="min-w-0 flex-1" />
+              <Field label="replacement" value={data.replacement ?? ""} disabled={running} onChange={(event) => patch({ replacement: event.currentTarget.value })} className="min-w-0 flex-1" />
             </>
           ) : null}
         </div>

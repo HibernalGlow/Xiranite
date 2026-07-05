@@ -50,13 +50,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: MarkuInput["action"] = "run") {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-marku CLI for Markdown actions.")
       return
     }
     setRunning(true)
     patch({ phase: action })
-    const response = await host.runNode<MarkuInput, MarkuData>("marku", {
+    const response = await runNode<MarkuInput, MarkuData>("marku", {
       action,
       module: selectedModule,
       inputText: hasText ? data.inputText : "",
@@ -113,13 +114,13 @@ export function Component({ compId, host }: NodeCardProps) {
           ))}
         </div>
 
-        <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea label="text input" value={data.inputText ?? ""} disabled={running} onChange={(event) => patch({ inputText: event.currentTarget.value })} placeholder="paste markdown text, or leave empty to use paths" />
           <TextArea label="paths / config" value={data.pathText ?? ""} disabled={running || hasText} onChange={(event) => patch({ pathText: event.currentTarget.value })} placeholder="one file or folder per line" />
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="config json" value={data.configText ?? ""} disabled={running} onChange={(event) => patch({ configText: event.currentTarget.value })} className="min-w-[14rem] flex-1" />
+          <Field label="config json" value={data.configText ?? ""} disabled={running} onChange={(event) => patch({ configText: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste text" disabled={running} onClick={pasteText}><FileCode size={13} /></IconButton>
           <IconButton title="Paste path" disabled={running} onClick={pastePath}><Clipboard size={13} /></IconButton>
           <SegmentButton active={recursive} disabled={running || hasText} onClick={() => patch({ recursive: !recursive })}>recursive</SegmentButton>

@@ -66,8 +66,9 @@ export function Component({ compId, host }: NodeCardProps) {
     }
 
     try {
-      const result = host.runNode
-        ? await host.runNode<SleeptInput, unknown>("sleept", input, onEvent)
+      const runNode = host.runner?.runNode
+      const result = runNode
+        ? await runNode<SleeptInput, unknown>("sleept", input, onEvent)
         : await runSleept({ ...input, dryrun: true }, createBrowserRuntime(), onEvent)
 
       setPhase(result.success ? "completed" : "error")
@@ -108,24 +109,24 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <SegmentButton active={state.timerMode === "countdown"} onClick={() => patch({ timerMode: "countdown" })}><Timer size={14} /> Countdown</SegmentButton>
           <SegmentButton active={state.timerMode === "specific_time"} onClick={() => patch({ timerMode: "specific_time" })}><Calendar size={14} /> At</SegmentButton>
           <SegmentButton active={state.timerMode === "netspeed"} onClick={() => patch({ timerMode: "netspeed" })}><Wifi size={14} /> Net</SegmentButton>
           <SegmentButton active={state.timerMode === "cpu"} onClick={() => patch({ timerMode: "cpu" })}><Cpu size={14} /> CPU</SegmentButton>
         </div>
 
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <SegmentButton active={state.powerMode === "sleep"} onClick={() => patch({ powerMode: "sleep" })}><Moon size={14} /> Sleep</SegmentButton>
           <SegmentButton active={state.powerMode === "shutdown"} onClick={() => patch({ powerMode: "shutdown" })}><Power size={14} /> Off</SegmentButton>
           <SegmentButton active={state.powerMode === "restart"} onClick={() => patch({ powerMode: "restart" })}><RotateCcw size={14} /> Reboot</SegmentButton>
           <SegmentButton active={state.dryrun} onClick={() => patch({ dryrun: !state.dryrun })}>Dry</SegmentButton>
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <TimerSettings state={state} patch={patch} />
-            <div className="grid grid-cols-4 gap-1">
+            <div className="flex flex-wrap gap-1">
               <StatPill label="duration" value={formatDuration(durationSeconds)} tone="accent" />
               <StatPill label="cpu" value={`${stats.cpu.toFixed(1)}%`} />
               <StatPill label="up" value={stats.upload.toFixed(1)} />
@@ -151,7 +152,7 @@ function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch
 
   if (state.timerMode === "netspeed") {
     return (
-      <div className="grid grid-cols-4 gap-1">
+      <div className="flex flex-wrap gap-1">
         <Field label="upload" value={state.uploadThreshold} onChange={(event) => patch({ uploadThreshold: Number(event.currentTarget.value) })} />
         <Field label="download" value={state.downloadThreshold} onChange={(event) => patch({ downloadThreshold: Number(event.currentTarget.value) })} />
         <Field label="minutes" value={state.netDuration} onChange={(event) => patch({ netDuration: Number(event.currentTarget.value) })} />
@@ -162,7 +163,7 @@ function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch
 
   if (state.timerMode === "cpu") {
     return (
-      <div className="grid grid-cols-2 gap-1">
+      <div className="flex flex-wrap gap-1">
         <Field label="threshold %" value={state.cpuThreshold} onChange={(event) => patch({ cpuThreshold: Number(event.currentTarget.value) })} />
         <Field label="minutes" value={state.cpuDuration} onChange={(event) => patch({ cpuDuration: Number(event.currentTarget.value) })} />
       </div>
@@ -170,7 +171,7 @@ function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <div className="flex flex-wrap gap-1">
       <Field label="hours" value={state.hours} onChange={(event) => patch({ hours: Number(event.currentTarget.value) })} />
       <Field label="minutes" value={state.minutes} onChange={(event) => patch({ minutes: Number(event.currentTarget.value) })} />
       <Field label="seconds" value={state.seconds} onChange={(event) => patch({ seconds: Number(event.currentTarget.value) })} />

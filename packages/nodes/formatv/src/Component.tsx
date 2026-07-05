@@ -39,13 +39,14 @@ export function Component({ compId, host }: NodeCardProps) {
 
   async function execute(action: FormatvInput["action"]) {
     if (running) return
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-formatv CLI for filesystem actions.")
       return
     }
     setRunning(true)
     patch({ phase: action })
-    const response = await host.runNode<FormatvInput, FormatvData>("formatv", {
+    const response = await runNode<FormatvInput, FormatvData>("formatv", {
       action,
       paths,
       recursive,
@@ -98,9 +99,9 @@ export function Component({ compId, host }: NodeCardProps) {
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="paths" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-[14rem] flex-1" />
+          <Field label="paths" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
           <IconButton title="Paste paths" disabled={running} onClick={pastePath}><FolderOpen size={13} /></IconButton>
-          <Field label="prefix" value={prefixName} disabled={running} onChange={(event) => patch({ prefixName: event.currentTarget.value })} className="w-24" />
+          <Field label="prefix" value={prefixName} disabled={running} onChange={(event) => patch({ prefixName: event.currentTarget.value })} className="min-w-0 flex-1" />
           <SegmentButton active={recursive} disabled={running} onClick={() => patch({ recursive: !recursive })}>recursive</SegmentButton>
           <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>dry-run</SegmentButton>
         </div>

@@ -55,14 +55,15 @@ export function Component({ compId, host }: NodeCardProps) {
   async function execute(action: BandiaAction = mode) {
     if (running) return
     const input = buildInput(action, data, paths, mappings)
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+    if (!runNode) {
       log("Host runner unavailable. Use the xiranite-bandia CLI for Bandizip filesystem actions.")
       return
     }
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting", result: null })
-    const response = await host.runNode<BandiaInput, BandiaData>("bandia", input, (event) => {
+    const response = await runNode<BandiaInput, BandiaData>("bandia", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as BandiaResult
@@ -139,16 +140,16 @@ export function Component({ compId, host }: NodeCardProps) {
         <div className="flex shrink-0 flex-wrap gap-1">
           {mode === "extract" ? (
             <>
-              <Field label="workers" type="number" value={data.workers ?? 2} disabled={running || !(data.parallel ?? false)} onChange={(event) => patch({ workers: Number(event.currentTarget.value) })} className="w-20" />
-              <Field label="prefix" value={data.outputPrefix ?? "[extract] "} disabled={running || (data.extractMode ?? "auto") === "auto"} onChange={(event) => patch({ outputPrefix: event.currentTarget.value })} className="min-w-[8rem] flex-1" />
-              <Field label="overwrite" value={data.overwriteMode ?? "overwrite"} disabled={running} onChange={(event) => patch({ overwriteMode: event.currentTarget.value as BandiaOverwriteMode })} className="w-28" />
+              <Field label="workers" type="number" value={data.workers ?? 2} disabled={running || !(data.parallel ?? false)} onChange={(event) => patch({ workers: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+              <Field label="prefix" value={data.outputPrefix ?? "[extract] "} disabled={running || (data.extractMode ?? "auto") === "auto"} onChange={(event) => patch({ outputPrefix: event.currentTarget.value })} className="min-w-0 flex-1" />
+              <Field label="overwrite" value={data.overwriteMode ?? "overwrite"} disabled={running} onChange={(event) => patch({ overwriteMode: event.currentTarget.value as BandiaOverwriteMode })} className="min-w-0 flex-1" />
             </>
           ) : (
-            <Field label="output dir" value={data.outputDir ?? ""} disabled={running || mappings.length > 0} onChange={(event) => patch({ outputDir: event.currentTarget.value })} className="min-w-[10rem] flex-1" />
+            <Field label="output dir" value={data.outputDir ?? ""} disabled={running || mappings.length > 0} onChange={(event) => patch({ outputDir: event.currentTarget.value })} className="min-w-0 flex-1" />
           )}
         </div>
 
-        <div className="min-h-0 flex flex-1 gap-2">
+        <div className="min-h-0 flex flex-1 flex-col gap-2">
           <TextArea
             label={mode === "extract" ? "archive paths" : "source paths"}
             value={data.pathText ?? ""}

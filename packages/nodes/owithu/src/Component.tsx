@@ -55,7 +55,9 @@ export function Component({ compId, host }: NodeCardProps) {
       return
     }
 
-    if (!host.runNode) {
+    const runNode = host.runner?.runNode
+
+    if (!runNode) {
       log("Host runner unavailable. Paste TOML to preview locally or use the xiranite-owithu CLI for registry changes.")
       return
     }
@@ -69,7 +71,7 @@ export function Component({ compId, host }: NodeCardProps) {
       hive,
       onlyKey: data.onlyKey,
     }
-    const response = await host.runNode<OwithuInput, OwithuData>("owithu", input, (event) => {
+    const response = await runNode<OwithuInput, OwithuData>("owithu", input, (event) => {
       if (event.type === "log") log(event.message)
     }) as OwithuResult
     patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
@@ -103,19 +105,19 @@ export function Component({ compId, host }: NodeCardProps) {
       />
 
       <NodeBody className="flex flex-col gap-2">
-        <div className="grid shrink-0 grid-cols-2 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Field label="config path" value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
           <Field label="only key" value={data.onlyKey ?? ""} disabled={running} onChange={(event) => patch({ onlyKey: event.currentTarget.value })} />
         </div>
 
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <SegmentButton active={!hive} disabled={running} onClick={() => patch({ hive: "" })}>config</SegmentButton>
           {(["HKCU", "HKCR", "HKLM"] as const).map((item) => (
             <SegmentButton key={item} active={hive === item} disabled={running} onClick={() => patch({ hive: item })}>{item}</SegmentButton>
           ))}
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
             label="toml"
             value={data.configText ?? ""}
@@ -133,7 +135,7 @@ export function Component({ compId, host }: NodeCardProps) {
           </ResultView>
         </div>
 
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <StatPill label="entries" value={result?.entries.length ?? 0} />
           <StatPill label="ops" value={result?.plan.length ?? 0} tone="accent" />
           <StatPill label="registered" value={result?.registeredCount ?? 0} tone="good" />
