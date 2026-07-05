@@ -1,11 +1,15 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import {
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
+  useReactFlow,
+  useViewport,
   Background,
   Controls,
   MiniMap,
-  NodeResizer,
+  NodeResizeControl,
+  ResizeControlVariant,
   type Node,
   type Edge,
   type NodeChange,
@@ -17,87 +21,128 @@ import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { Button } from "@/components/ui/button"
-import { Plus, X, Workflow } from "lucide-react"
+import { MoveDiagonal2, Plus, X, Workflow } from "lucide-react"
 
-/**
- * FlowView — 真实接入 @xyflow/react。
- *
- * 三种 viewMode 共享同一份 store：components 数组。
- * - 组件 → React Flow 节点（每个 component 一个节点）
- * - flowPosition / flowSize 持久化在 store 中
- * - 节点内容用 ModuleRenderer 渲染（与 CardView/DockviewView 共享）
- * - NodeResizer 让用户可拖拽节点边框调整大小，调整后写回 store.flowSize
- * - 关闭按钮 dispatch REMOVE_COMPONENT
- *
- * 切到其他 viewMode 时 ReactFlow 卸载，节点位置/尺寸不丢失。
- */
-function FlowNode({ data, id, selected }: NodeProps) {
+type FlowNodeData = {
+  moduleId?: string
+  compId?: string
+}
+
+function FlowNode({ data, id, selected }: NodeProps<Node<FlowNodeData>>) {
   const dispatch = useWSDispatch()
-  const d = data as { moduleId?: string; compId?: string }
-  const mod = d.moduleId ? getModule(d.moduleId) : null
+  const { zoom } = useViewport()
+  const mod = data.moduleId ? getModule(data.moduleId) : null
+  const handleScale = zoom > 0 ? 1 / zoom : 1
 
   return (
-    <div
-      className="rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)] flex flex-col overflow-hidden"
-      style={{ width: 384, height: 320 }}
-    >
-      {/* NodeResizer 必须在节点根 div 内，selected 时显示 8 个 resize handle */}
-      <NodeResizer
+    <div className="relative h-full w-full rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)] flex flex-col overflow-visible">
+      <NodeResizeControl
         nodeId={id}
-        isVisible={!!selected}
+        position="bottom-right"
+        variant={ResizeControlVariant.Handle}
         minWidth={280}
         minHeight={180}
-        color="oklch(0.62 0.18 152)"
-      />
+        autoScale={false}
+        className="!h-10 !w-10 !rounded-[14px] !border !border-black/10 !bg-white !text-neutral-800 !shadow-[0_10px_24px_-10px_oklch(0_0_0/0.7)]"
+        style={{
+          right: -14,
+          bottom: -14,
+          cursor: "nwse-resize",
+          pointerEvents: "all",
+          touchAction: "none",
+          transform: `scale(${handleScale})`,
+          transformOrigin: "center",
+          zIndex: 20,
+        }}
+        onResize={(_, params) => {
+          dispatch(actions.setComponentFlowSize(id, params.width, params.height))
+        }}
+        onResizeEnd={(_, params) => {
+          dispatch(actions.setComponentFlowSize(id, params.width, params.height))
+        }}
+      >
+        <MoveDiagonal2 className="pointer-events-none absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 stroke-[2.5]" />
+      </NodeResizeControl>
       <div className="flex h-8 items-center gap-2 border-b border-border/60 bg-muted/30 px-2 flex-shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
         <span className="text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase truncate flex-1">
-          {mod?.name ?? d.moduleId ?? "node"}
+          {mod?.name ?? data.moduleId ?? "node"}
         </span>
         <button
           onClick={(e) => {
             e.stopPropagation()
-            dispatch(actions.toggleComponentVisibility(id, "flow"))
+            dispatch(actions.setComponentVisibility(id, "flow", false))
           }}
           className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          title="Hide in flow"
         >
           <X className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {d.moduleId && d.compId && <ModuleRenderer moduleId={d.moduleId} compId={d.compId} />}
+      <div className="flex-1 min-h-0 overflow-hidden rounded-b-md">
+        {data.moduleId && data.compId && <ModuleRenderer moduleId={data.moduleId} compId={data.compId} />}
       </div>
     </div>
   )
 }
 
-// ⚠️ nodeTypes 必须在组件外定义 — 否则每次 FlowCanvas 渲染都会创建新对象，
-// ReactFlow 内部 useStore 会检测到引用变化并重置内部状态，导致节点不渲染。
 const nodeTypes = { module: FlowNode }
 
 function FlowCanvas() {
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { fitView } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
 
-  // 仅渲染未在 flow 模式下隐藏的组件
   const flowComponents = useMemo(
     () => visibleComponents.filter(c => !c.hiddenIn?.flow),
     [visibleComponents],
   )
 
-  const nodes: Node[] = useMemo(() => flowComponents.map(comp => ({
-    id: comp.id,
-    type: "module",
-    position: comp.flowPosition ?? { x: 100, y: 100 },
-    data: { moduleId: comp.moduleId, compId: comp.id },
-    zIndex: comp.z ?? 1,
-  })), [flowComponents])
+  const nodes: Node<FlowNodeData>[] = useMemo(() => {
+    const seenPositions = new Map<string, number>()
+
+    return flowComponents.map((comp, index) => {
+      const storedPosition = comp.flowPosition
+      const positionKey = storedPosition ? `${storedPosition.x}:${storedPosition.y}` : ""
+      const collisionIndex = positionKey ? (seenPositions.get(positionKey) ?? 0) : 0
+      if (positionKey) seenPositions.set(positionKey, collisionIndex + 1)
+
+      const position = storedPosition && collisionIndex === 0
+        ? storedPosition
+        : {
+            x: 100 + (index % 3) * 440,
+            y: 100 + Math.floor(index / 3) * 380,
+          }
+
+      return {
+        id: comp.id,
+        type: "module",
+        position,
+        data: { moduleId: comp.moduleId, compId: comp.id },
+        width: comp.flowSize?.width ?? 384,
+        height: comp.flowSize?.height ?? 320,
+        zIndex: comp.z ?? 1,
+      }
+    })
+  }, [flowComponents])
 
   const edges: Edge[] = useMemo(() => [], [])
+  const nodeIdsKey = useMemo(() => nodes.map(node => node.id).join("|"), [nodes])
+
+  useEffect(() => {
+    if (!nodesInitialized || nodes.length === 0) return
+
+    let raf = requestAnimationFrame(() => {
+      void fitView({ padding: 0.18, duration: 180, maxZoom: 1 })
+    })
+
+    return () => cancelAnimationFrame(raf)
+  }, [fitView, nodeIdsKey, nodes.length, nodesInitialized])
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     changes.forEach(c => {
-      if (c.type === "position" && c.position) {
+      if (c.type === "position" && c.position && c.dragging === false) {
         dispatch(actions.setComponentFlowPos(c.id, c.position.x, c.position.y))
       } else if (c.type === "dimensions" && c.dimensions) {
         dispatch(actions.setComponentFlowSize(c.id, c.dimensions.width, c.dimensions.height))
@@ -107,7 +152,7 @@ function FlowCanvas() {
 
   if (flowComponents.length === 0) {
     return (
-      <div className="flex-1 ws-canvas-bg flex items-center justify-center">
+      <div className="flex-1 min-h-0 w-full ws-canvas-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <Workflow className="h-10 w-10 text-muted-foreground/40 mx-auto" />
           <p className="text-sm font-mono text-muted-foreground">// flow canvas is empty</p>
@@ -126,13 +171,14 @@ function FlowCanvas() {
   }
 
   return (
-    <div className="flex-1 ws-canvas-bg relative">
+    <div className="flex-1 min-h-0 w-full ws-canvas-bg relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         fitView
+        className="h-full w-full"
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="oklch(0.5 0 0 / 0.2)" />
@@ -144,7 +190,7 @@ function FlowCanvas() {
         />
       </ReactFlow>
       <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-card/80 backdrop-blur border border-border text-[10px] font-mono text-muted-foreground z-10 pointer-events-none">
-        drag nodes · positions persisted via flowPosition in store
+        drag nodes - positions and sizes persist in workspace state
       </div>
     </div>
   )

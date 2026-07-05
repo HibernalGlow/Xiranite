@@ -59,6 +59,7 @@ type Action =
   | { type: "SET_COMPONENT_DATA"; id: string; data: Record<string, unknown> }
   | { type: "PATCH_COMPONENT_DATA"; id: string; patch: Record<string, unknown> }
   | { type: "SET_COMPONENT_DOCK_PANEL"; id: string; panelId: string }
+  | { type: "SET_COMPONENT_VISIBILITY"; id: string; viewMode: ViewMode; visible: boolean }
   | { type: "TOGGLE_COMPONENT_VISIBILITY"; id: string; viewMode: ViewMode }
   | { type: "SET_COMPONENT_TAGS"; id: string; tags: string[] }
   | { type: "FOCUS_COMPONENT"; id: string | null }
@@ -230,6 +231,18 @@ function reducer(state: WSState, action: Action): WSState {
       }
     case "SET_COMPONENT_DOCK_PANEL":
       return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, dockPanel: action.panelId } : c) }
+    case "SET_COMPONENT_VISIBILITY": {
+      let changed = false
+      const components = state.components.map(c => {
+        if (c.id !== action.id) return c
+        const cur = c.hiddenIn ?? {}
+        const nextHidden = !action.visible
+        if (!!cur[action.viewMode] === nextHidden) return c
+        changed = true
+        return { ...c, hiddenIn: { ...cur, [action.viewMode]: nextHidden } }
+      })
+      return changed ? { ...state, components } : state
+    }
     case "TOGGLE_COMPONENT_VISIBILITY":
       return {
         ...state,
@@ -528,6 +541,7 @@ export const actions = {
   setComponentData: (id: string, data: Record<string, unknown>): Action => ({ type: "SET_COMPONENT_DATA", id, data }),
   patchComponentData: (id: string, patch: Record<string, unknown>): Action => ({ type: "PATCH_COMPONENT_DATA", id, patch }),
   setComponentDockPanel: (id: string, panelId: string): Action => ({ type: "SET_COMPONENT_DOCK_PANEL", id, panelId }),
+  setComponentVisibility: (id: string, viewMode: ViewMode, visible: boolean): Action => ({ type: "SET_COMPONENT_VISIBILITY", id, viewMode, visible }),
   toggleComponentVisibility: (id: string, viewMode: ViewMode): Action => ({ type: "TOGGLE_COMPONENT_VISIBILITY", id, viewMode }),
   setComponentTags: (id: string, tags: string[]): Action => ({ type: "SET_COMPONENT_TAGS", id, tags }),
   focusComponent: (id: string | null): Action => ({ type: "FOCUS_COMPONENT", id }),

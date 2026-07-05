@@ -1,67 +1,48 @@
 /**
- * DatabaseModule — Notion 式表格视图（基于 niko-table + TanStack Table + shadcn/ui）。
+ * DatabaseModule — Notion 式表格视图（基于 ocean-dataview）。
  *
  * 实现要点：
  * 1. 数据源同 store.components + MODULE_REGISTRY —— 与卡片注册 / CardView / DockviewView /
  *    FlowView / LaneView 共享同一份 ComponentInstance[]。这里仅做"派生视图"：
  *    将 ComponentInstance + ModuleDef 映射为 DatabaseRow[]（计算属性，无独立状态）。
- * 2. 直接复用 niko-table 官方组件（src/components/niko-table/*）：
- *    - <DataTableRoot>             顶层 Provider + 自动配置 useReactTable
- *    - <DataTableToolbarSection>   工具栏容器
- *    - <DataTableSearchFilter>    全局搜索（带 debounce）
- *    - <DataTableFacetedFilter>   按列 faceted filter（select/multiSelect 自动派生 options）
- *    - <DataTableSortMenu>         多列排序管理
- *    - <DataTableViewMenu>         列可见性切换
- *    - <DataTableExportButton>     CSV 导出
- *    - <DataTableClearFilter>      清空所有筛选
- *    - <DataTable> + <DataTableHeader> + <DataTableBody>  表格主体
- *    - <DataTablePagination>       分页栏
- *    - <DataTableSelectionBar>      批量操作栏
- *    - <DataTableColumnHeader> + <DataTableColumnTitle> + <DataTableColumnSortMenu>  列头组合
+ * 2. 使用 ocean-dataview 的 DataViewProvider + TableView + usePageController：
+ *    - usePageController 把 store 数据包装成 queryFn（同步内存数据）
+ *      在 queryFn 内应用 search / filter / sort / 分页
+ *    - DataViewProvider 提供 context（properties / controller / defaults）
+ *    - NotionToolbar 提供 search / filter / sort / settings UI（基于 nuqs URL 状态）
+ *    - TableView 自动从 properties 生成列
  * 3. tags 直接挂到 ComponentInstance.tags（store action: SET_COMPONENT_TAGS），
  *    与所有 viewMode 共享，跨会话持久化。
+ * 4. visibility 通过 formula cell 嵌入 4 个 viewMode 切换按钮
+ * 5. actions 通过 button property 返回 ButtonAction[]
  *
- * 参考：https://niko-table.com
+ * 数据流：store.components → visibleComponents → computeRows() → queryFn → ocean TableView
  */
 import * as React from "react"
 
-import { DataTableRoot } from "@/components/niko-table/core/data-table-root"
-import { DataTable } from "@/components/niko-table/core/data-table"
-import {
-  DataTableHeader,
-  DataTableBody,
-} from "@/components/niko-table/core/data-table-structure"
-import { DataTableColumnHeader } from "@/components/niko-table/components/data-table-column-header"
-import { DataTableColumnTitle } from "@/components/niko-table/components/data-table-column-title"
-import { DataTableColumnSortMenu } from "@/components/niko-table/components/data-table-column-sort"
-import { DataTableToolbarSection } from "@/components/niko-table/components/data-table-toolbar-section"
-import { DataTableSearchFilter } from "@/components/niko-table/components/data-table-search-filter"
-import { DataTableFacetedFilter } from "@/components/niko-table/components/data-table-faceted-filter"
-import { DataTableSortMenu } from "@/components/niko-table/components/data-table-sort-menu"
-import { DataTableViewMenu } from "@/components/niko-table/components/data-table-view-menu"
-import { DataTableExportButton } from "@/components/niko-table/components/data-table-export-button"
-import { DataTableClearFilter } from "@/components/niko-table/components/data-table-clear-filter"
-import { DataTablePagination } from "@/components/niko-table/components/data-table-pagination"
-import { DataTableSelectionBar } from "@/components/niko-table/components/data-table-selection-bar"
-import { FILTER_VARIANTS } from "@/components/niko-table/lib/constants"
-import type { DataTableColumnDef } from "@/components/niko-table/types"
+import { useInfiniteController } from "@hibernalglow/ocean-dataview/hooks"
+import { DataViewProvider } from "@hibernalglow/ocean-dataview/providers"
+import { NotionToolbar } from "@hibernalglow/ocean-dataview/toolbars/notion"
+import { TableView } from "@hibernalglow/ocean-dataview/views/table-view"
+import { ListView } from "@hibernalglow/ocean-dataview/views/list-view"
+import { GalleryView } from "@hibernalglow/ocean-dataview/views/gallery-view"
+import { BoardView } from "@hibernalglow/ocean-dataview/views/board-view"
+import type {
+  BadgeColor,
+  BasePaginatedResponse,
+  BulkAction,
+  DataViewProperty,
+  SearchQuery,
+  SortQuery,
+  WhereNode,
+} from "@hibernalglow/ocean-dataview/types"
 
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { getModule, MODULE_REGISTRY } from "@/components/modules/registry"
 import type { ModuleProps } from "./ModuleRenderer"
 import type { ComponentInstance, ViewMode } from "@/types/workspace"
-import type { RowSelectionState } from "@tanstack/react-table"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Ellipsis, Eye, EyeOff, Tag, X } from "lucide-react"
+import { Eye, EyeOff, Tag, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
@@ -123,9 +104,9 @@ function toDatabaseRow(comp: ComponentInstance): DatabaseRow {
 }
 
 // ── Tags cell：行内编辑 ─────────────────────────────────────────────────────
-function TagsCell({ row }: { row: { original: DatabaseRow } }) {
+function TagsCell({ item }: { item: DatabaseRow }) {
   const dispatch = useWSDispatch()
-  const comp = row.original._comp
+  const comp = item._comp
   const tags = comp.tags ?? []
   const [input, setInput] = React.useState("")
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -135,7 +116,10 @@ function TagsCell({ row }: { row: { original: DatabaseRow } }) {
   return (
     <div className="flex flex-wrap items-center gap-1 py-0.5">
       {tags.map(t => (
-        <Badge key={t} variant="secondary" className="text-[9px] gap-0.5 py-0 px-1">
+        <span
+          key={t}
+          className="inline-flex items-center gap-0.5 text-[9px] py-0 px-1 rounded bg-badge-gray-subtle text-badge-gray-subtle-foreground"
+        >
           <Tag className="h-2.5 w-2.5" />
           {t}
           <button
@@ -145,7 +129,7 @@ function TagsCell({ row }: { row: { original: DatabaseRow } }) {
           >
             <X className="h-2.5 w-2.5" />
           </button>
-        </Badge>
+        </span>
       ))}
       <input
         ref={inputRef}
@@ -174,9 +158,9 @@ function TagsCell({ row }: { row: { original: DatabaseRow } }) {
 }
 
 // ── Visibility cell：4 个 viewMode 切换按钮 ─────────────────────────────────
-function VisibilityCell({ row }: { row: { original: DatabaseRow } }) {
+function VisibilityCell({ item }: { item: DatabaseRow }) {
   const dispatch = useWSDispatch()
-  const comp = row.original._comp
+  const comp = item._comp
   return (
     <div className="flex items-center gap-1">
       {VIEW_MODES.map(m => {
@@ -201,232 +185,382 @@ function VisibilityCell({ row }: { row: { original: DatabaseRow } }) {
   )
 }
 
-// ── Actions cell：行级菜单 ─────────────────────────────────────────────────
-function ActionsCell({ row }: { row: { original: DatabaseRow } }) {
-  const dispatch = useWSDispatch()
-  const comp = row.original._comp
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          aria-label="Open menu"
-          variant="ghost"
-          size="icon"
-          className="size-7 p-0 data-[state=open]:bg-muted"
-        >
-          <Ellipsis className="size-4" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem
-          onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}
-        >
-          Toggle cards
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "dockview"))}
-        >
-          Toggle dockview
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "flow"))}
-        >
-          Toggle flow
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "lane"))}
-        >
-          Toggle lane
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-// ── 列定义 ─────────────────────────────────────────────────────────────────
-// 参考 niko-table examples/basic-table 的列定义模式：
-// header: () => <DataTableColumnHeader><DataTableColumnTitle /><DataTableColumnSortMenu /></DataTableColumnHeader>
-// meta.variant: 控制工具栏 faceted filter 的渲染
-function useDatabaseColumns(): DataTableColumnDef<DatabaseRow>[] {
-  return React.useMemo(() => [
+// ── properties 定义 ─────────────────────────────────────────────────────────
+// ocean 的 property 系统支持 text / number / select / formula / button 等类型。
+// formula 用于自定义 cell 渲染（moduleName / visibility / tags / createdAtDisplay）。
+// button 用于行级 actions。
+// hidden backing text/number property 为 sort 提供后端字段（sortBy 指向其 id）。
+function buildProperties(
+  dispatch: ReturnType<typeof useWSDispatch>,
+): readonly DataViewProperty<DatabaseRow>[] {
+  return [
+    // hidden backing properties — 为 sort/search 提供字段
     {
-      id: "select",
-      size: 32,
-      header: ({ table }) => (
-        <Checkbox
-          aria-label="Select all"
-          className="translate-y-0.5"
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          aria-label="Select row"
-          className="translate-y-0.5"
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
+      id: "moduleName",
+      type: "text" as const,
+      key: "moduleName",
+      hidden: true,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: true,
     },
     {
-      accessorKey: "moduleName",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Module" />
-          <DataTableColumnSortMenu />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => (
+      id: "createdAt",
+      type: "number" as const,
+      key: "createdAt",
+      hidden: true,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
+    },
+    // _comp 反向引用 — ocean 的 transformData 会剥离未声明的字段，
+    // 所以必须把它声明为 hidden backing property 才能在 formula cell 中访问
+    {
+      id: "_comp",
+      type: "text" as const,
+      key: "_comp",
+      hidden: true,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
+    },
+    // id — 用于 moduleDisplay formula 中显示 comp.id
+    {
+      id: "rowId",
+      type: "text" as const,
+      key: "id",
+      hidden: true,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
+    },
+    // visible properties
+    {
+      id: "moduleDisplay",
+      type: "formula" as const,
+      name: "Module",
+      size: 220,
+      sortBy: "moduleName",
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
+      value: (_property, item) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">{row.original.moduleName}</span>
-          <span className="text-[9px] text-muted-foreground font-mono">{row.original.id}</span>
+          <span className="font-semibold text-sm">{item.moduleName}</span>
+          <span className="text-[9px] text-muted-foreground font-mono">{item.id}</span>
         </div>
       ),
-      meta: {
-        label: "Module",
-        placeholder: "Search modules...",
-        variant: FILTER_VARIANTS.TEXT,
-      },
     },
     {
-      accessorKey: "category",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Category" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.TEXT} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => (
-        <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
-          {row.original.category}
-        </Badge>
-      ),
-      meta: {
-        label: "Category",
-        variant: FILTER_VARIANTS.MULTI_SELECT,
-        // 用 registry 的所有 category 作为静态选项
+      id: "category",
+      type: "select" as const,
+      key: "category",
+      name: "Category",
+      size: 120,
+      enableSearch: true,
+      config: {
         options: Array.from(new Set(MODULE_REGISTRY.map(m => m.category))).map(c => ({
           label: c,
           value: c,
+          color: "gray" as BadgeColor,
         })),
       },
     },
     {
-      accessorKey: "state",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="State" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.TEXT} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => (
-        <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
-          {row.original.state}
-        </Badge>
-      ),
-      meta: {
-        label: "State",
-        variant: FILTER_VARIANTS.MULTI_SELECT,
+      id: "state",
+      type: "select" as const,
+      key: "state",
+      name: "State",
+      size: 120,
+      enableSearch: true,
+      config: {
         options: ["docked", "floating", "focused", "fullscreen", "compact"].map(s => ({
           label: s,
           value: s,
+          color: "blue" as BadgeColor,
         })),
       },
     },
     {
-      accessorKey: "visibilityCount",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Visible In" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.NUMBER} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => <VisibilityCell row={row} />,
-      enableColumnFilter: false,
+      id: "visibility",
+      type: "formula" as const,
+      name: "Visible In",
+      size: 180,
+      enableFilter: false,
+      enableSort: false,
+      enableGroup: false,
+      enableSearch: false,
+      value: (_property, item) => <VisibilityCell item={item} />,
     },
     {
-      accessorKey: "tags",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Tags" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.TEXT} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => <TagsCell row={row} />,
-      meta: {
-        label: "Tags",
-        variant: FILTER_VARIANTS.TEXT,
-        placeholder: "Search tags...",
-      },
-      // tag 列的 filter 按 tag 子串匹配
-      filterFn: (row, _columnId, filterValue: string) =>
-        (row.original.tags ?? []).some(t =>
-          t.toLowerCase().includes(String(filterValue).toLowerCase()),
-        ),
+      id: "tags",
+      type: "formula" as const,
+      name: "Tags",
+      size: 200,
+      enableFilter: false,
+      enableSort: false,
+      enableGroup: false,
+      enableSearch: true,
+      value: (_property, item) => <TagsCell item={item} />,
     },
     {
-      accessorKey: "createdAt",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Created" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.NUMBER} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => (
+      id: "createdAtDisplay",
+      type: "formula" as const,
+      name: "Created",
+      size: 140,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
+      sortBy: "createdAt",
+      value: (_property, item) => (
         <span className="text-muted-foreground text-[10px] font-mono">
-          {formatTime(row.original.createdAt)}
+          {formatTime(item.createdAt)}
         </span>
       ),
-      enableColumnFilter: false,
     },
     {
-      accessorKey: "dataKeys",
-      header: () => (
-        <DataTableColumnHeader>
-          <DataTableColumnTitle title="Data" />
-          <DataTableColumnSortMenu variant={FILTER_VARIANTS.NUMBER} />
-        </DataTableColumnHeader>
-      ),
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-[10px] font-mono">
-          {row.original.dataKeys} keys
-        </span>
-      ),
-      enableColumnFilter: false,
+      id: "dataKeys",
+      type: "number" as const,
+      key: "dataKeys",
+      name: "Data",
+      size: 80,
+      enableFilter: false,
+      enableGroup: false,
+      enableSearch: false,
     },
     {
       id: "actions",
-      size: 40,
-      header: () => <div className="text-[10px] font-mono tracking-widest uppercase">·</div>,
-      cell: ({ row }) => <ActionsCell row={row} />,
-      enableSorting: false,
-      enableHiding: false,
+      type: "button" as const,
+      name: "",
+      size: 50,
+      enableFilter: false,
+      enableSort: false,
+      enableGroup: false,
+      enableSearch: false,
+      value: (item: DatabaseRow) => VIEW_MODES.map(m => ({
+        label: `Toggle ${m}`,
+        onClick: () => dispatch(actions.toggleComponentVisibility(item._comp.id, m)),
+      })),
     },
-  ], [])
+  ]
 }
+
+// ── queryFn 内的过滤 / 排序 / 搜索 ──────────────────────────────────────────
+// ocean 把 filter / search / sort 通过 queryFn params 传给后端。
+// 我们是前端内存数据，需要在 queryFn 内应用这些参数。
+
+function isWhereExpr(node: WhereNode): node is { and?: WhereNode[]; or?: WhereNode[] } {
+  return "and" in node || "or" in node
+}
+
+function matchWhereRule(row: DatabaseRow, rule: { property: string; condition: string; value?: unknown }): boolean {
+  const value = (row as unknown as Record<string, unknown>)[rule.property]
+  switch (rule.condition) {
+    case "eq": return value === rule.value
+    case "ne": return value !== rule.value
+    case "inArray": return Array.isArray(rule.value) && rule.value.includes(value)
+    case "notInArray": return Array.isArray(rule.value) && !rule.value.includes(value)
+    case "iLike":
+      return String(value ?? "").toLowerCase().includes(String(rule.value ?? "").toLowerCase())
+    case "notILike":
+      return !String(value ?? "").toLowerCase().includes(String(rule.value ?? "").toLowerCase())
+    case "isEmpty":
+      return value == null || (Array.isArray(value) && value.length === 0) || value === ""
+    case "isNotEmpty":
+      return value != null && (!Array.isArray(value) || value.length > 0) && value !== ""
+    case "startsWith":
+      return String(value ?? "").startsWith(String(rule.value ?? ""))
+    case "endsWith":
+      return String(value ?? "").endsWith(String(rule.value ?? ""))
+    case "lt": return Number(value) < Number(rule.value)
+    case "lte": return Number(value) <= Number(rule.value)
+    case "gt": return Number(value) > Number(rule.value)
+    case "gte": return Number(value) >= Number(rule.value)
+    default: return true // unsupported condition, skip
+  }
+}
+
+function matchWhereNode(row: DatabaseRow, node: WhereNode): boolean {
+  if (isWhereExpr(node)) {
+    if (node.and) return node.and.every(n => matchWhereNode(row, n))
+    if (node.or) return node.or.some(n => matchWhereNode(row, n))
+    return true
+  }
+  return matchWhereRule(row, node)
+}
+
+function applyFilter(rows: DatabaseRow[], filter: WhereNode[] | null): DatabaseRow[] {
+  if (!filter || filter.length === 0) return rows
+  return rows.filter(row => filter.every(node => matchWhereNode(row, node)))
+}
+
+function applySearch(rows: DatabaseRow[], search: SearchQuery | null): DatabaseRow[] {
+  if (!search || !search.search) return rows
+  const q = search.search.toLowerCase()
+  const fields = search.searchFields?.length ? search.searchFields : ["moduleName", "category", "state", "tags"]
+  return rows.filter(row => {
+    return fields.some(field => {
+      const value = (row as unknown as Record<string, unknown>)[field]
+      if (value == null) return false
+      if (Array.isArray(value)) return value.some(v => String(v).toLowerCase().includes(q))
+      return String(value).toLowerCase().includes(q)
+    })
+  })
+}
+
+function compareValues(a: unknown, b: unknown): number {
+  if (typeof a === "number" && typeof b === "number") return a - b
+  const sa = String(a ?? "")
+  const sb = String(b ?? "")
+  return sa < sb ? -1 : sa > sb ? 1 : 0
+}
+
+function applySort(rows: DatabaseRow[], sort: SortQuery[] | undefined): DatabaseRow[] {
+  if (!sort || sort.length === 0) return rows
+  return [...rows].sort((a, b) => {
+    for (const s of sort) {
+      const av = (a as unknown as Record<string, unknown>)[s.property]
+      const bv = (b as unknown as Record<string, unknown>)[s.property]
+      if (av === bv) continue
+      const cmp = compareValues(av, bv)
+      return s.direction === "desc" ? -cmp : cmp
+    }
+    return 0
+  })
+}
+
+// ── query options 类型 ──────────────────────────────────────────────────────
+// useInfiniteController 的泛型 TQueryOptions — 兼容 useSuspenseInfiniteQuery 的 options 形状。
+// 必须用 InfiniteController：BoardView 强制要求；且 provider 内部根据 controller 类型
+// 切换 PageQueryBridge / InfiniteQueryBridge，Infinite 对 table/list/gallery/board 都兼容。
+type DatabaseQueryOptions = {
+  queryKey: readonly unknown[]
+  queryFn: (ctx: { pageParam: unknown }) => Promise<BasePaginatedResponse<DatabaseRow>>
+  // pageParam 是 cursor 字符串（首次为 initialPageParam）；返回 undefined 终止分页
+  getNextPageParam: (lastPage: BasePaginatedResponse<DatabaseRow>) => string | undefined
+  initialPageParam: string
+}
+
+// ── View 切换 tabs 类型 ─────────────────────────────────────────────────────
+// 注意：与 Xiranite 的 ViewMode (cards/dockview/flow/lane) 区分，这里是 ocean 数据视图切换
+type DataViewMode = "table" | "list" | "gallery" | "board"
 
 export default function DatabaseModule({ compId }: ModuleProps) {
   void compId // 模块本身不维护本地状态——数据源同 store.components
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
+  const [viewMode, setViewMode] = React.useState<DataViewMode>("table")
 
-  // 派生 DatabaseRow[] — 不维护独立状态，每次都重新计算
-  const rows = React.useMemo(
-    () => visibleComponents.map(toDatabaseRow),
-    [visibleComponents],
+  // ref 保存最新数据 — 因为 dataQuery 用 useCallback([]) 缓存，闭包捕获的是初始 visibleComponents。
+  // 通过 ref 在 queryFn 内部读取最新值。
+  const visibleComponentsRef = React.useRef(visibleComponents)
+  visibleComponentsRef.current = visibleComponents
+
+  // properties 数组 — dispatch 引用稳定，所以 properties 也稳定
+  const properties = React.useMemo(
+    () => buildProperties(dispatch),
+    [dispatch],
   )
 
-  const columns = useDatabaseColumns()
+  // dataQuery 工厂 — 把 store 数据包装成 infinite query options
+  // useInfiniteController 内部用 ref 缓存 dataQuery，所以不需要外层 useCallback 稳定引用。
+  // pageParam 是 cursor 字符串：首次为 initialPageParam ("0")，后续为上一次 endCursor
+  const { controller } = useInfiniteController<DatabaseQueryOptions>({
+    dataQuery: (params) => ({
+      queryKey: [
+        "xiranite",
+        "database",
+        visibleComponentsRef.current,
+        params.search,
+        params.sort,
+        params.filter,
+        params.limit,
+      ] as const,
+      initialPageParam: "0",
+      getNextPageParam: (lastPage: BasePaginatedResponse<DatabaseRow>) => {
+        // hasNextPage 为 boolean 时返回 endCursor；否则终止
+        if (typeof lastPage.hasNextPage === "boolean" && lastPage.hasNextPage) {
+          return lastPage.endCursor == null ? undefined : String(lastPage.endCursor)
+        }
+        return undefined
+      },
+      queryFn: async ({ pageParam }: { pageParam: unknown }) => {
+        const comps = visibleComponentsRef.current
+        let rows = comps.map(toDatabaseRow)
+        rows = applySearch(rows, params.search)
+        rows = applyFilter(rows, params.filter)
+        rows = applySort(rows, params.sort)
+        // pageParam 是 cursor 字符串（首次为 "0"）
+        const cursor = pageParam != null ? Number(pageParam) : 0
+        const limit = params.limit
+        const start = Number.isFinite(cursor) ? cursor : 0
+        const page = rows.slice(start, start + limit)
+        return {
+          items: page,
+          hasNextPage: start + limit < rows.length,
+          endCursor: start + limit < rows.length ? String(start + limit) : null,
+        }
+      },
+    }),
+    // ── columnQuery：BoardView 看板列计数 ─────────────────────────────────
+    // 按 groupBy.propertyId（如 "state"）对应的 key 分组计数。
+    // 返回 { counts: Record<value, { count, hasMore }>, sortValues? }。
+    // hasMore=false：内存数据全量加载，单页内不需要 loadMore。
+    columnQuery: (params) => ({
+      queryKey: [
+        "xiranite",
+        "database",
+        "column-counts",
+        visibleComponentsRef.current,
+        params.groupBy,
+        params.search,
+        params.filter,
+      ] as const,
+      queryFn: async () => {
+        const comps = visibleComponentsRef.current
+        let rows = comps.map(toDatabaseRow)
+        rows = applySearch(rows, params.search)
+        rows = applyFilter(rows, params.filter)
+        const propId = params.groupBy.propertyId
+        // 从 properties 里取该 property 的 key（一般 id === key）
+        const prop = properties.find(p => p.id === propId)
+        const key = (prop && "key" in prop ? prop.key : propId) as keyof DatabaseRow
+        const counts: Record<string, { count: number; hasMore: boolean }> = {}
+        for (const r of rows) {
+          const v = String((r as Record<string, unknown>)[key] ?? "")
+          if (!counts[v]) counts[v] = { count: 0, hasMore: false }
+          counts[v].count++
+        }
+        return { counts }
+      },
+    }),
+  })
 
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  // bulkActions — 启用行选择 + 浮动操作栏
+  const bulkActions = React.useMemo<BulkAction<DatabaseRow>[]>(() => [
+    {
+      label: "Show in cards",
+      onClick: (items) => {
+        items.forEach(r => {
+          if (!r.visibilityIn.cards) {
+            dispatch(actions.toggleComponentVisibility(r._comp.id, "cards"))
+          }
+        })
+      },
+    },
+    {
+      label: "Hide in cards",
+      onClick: (items) => {
+        items.forEach(r => {
+          if (r.visibilityIn.cards) {
+            dispatch(actions.toggleComponentVisibility(r._comp.id, "cards"))
+          }
+        })
+      },
+    },
+  ], [dispatch])
 
-  if (rows.length === 0) {
+  if (visibleComponents.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="text-center space-y-2">
@@ -441,79 +575,82 @@ export default function DatabaseModule({ compId }: ModuleProps) {
     )
   }
 
-  const selectedCount = Object.values(rowSelection).filter(Boolean).length
-
   return (
-    <div className="h-full flex flex-col bg-card p-2 overflow-hidden">
-      <DataTableRoot
-        data={rows}
-        columns={columns}
-        config={{
-          enableRowSelection: true,
-          enableMultiSort: true,
-          initialPageSize: 20,
-        }}
-        state={{ rowSelection }}
-        onRowSelectionChange={setRowSelection}
-        getRowId={(row) => row.id}
+    <div className="h-full flex flex-col bg-card overflow-hidden">
+      <DataViewProvider
+        controller={controller}
+        properties={properties}
+        defaults={{ limit: 25, column: { propertyId: "state", propertyType: "select" } }}
+        className="h-full flex flex-col"
       >
-        <DataTableToolbarSection className="justify-between">
-          <div className="flex items-center gap-2 flex-wrap">
-            <DataTableSearchFilter placeholder="Search components..." />
-            <DataTableFacetedFilter accessorKey="category" />
-            <DataTableFacetedFilter accessorKey="state" />
-            <DataTableClearFilter />
-          </div>
-          <div className="flex items-center gap-2">
-            <DataTableSortMenu />
-            <DataTableViewMenu />
-            <DataTableExportButton filename="components" />
-          </div>
-        </DataTableToolbarSection>
-
-        <DataTable className="rounded-md border">
-          <DataTableHeader />
-          <DataTableBody />
-        </DataTable>
-
-        <DataTablePagination />
-
-        <DataTableSelectionBar
-          selectedCount={selectedCount}
-          onClear={() => setRowSelection({})}
+        <NotionToolbar
+          enableSearch
+          enableFilter
+          enableSort
+          enableSettings
         >
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 text-xs"
-            onClick={() => {
-              const selectedRows = rows.filter(r => rowSelection[r.id])
-              selectedRows.forEach(r => {
-                if (!r.visibilityIn.cards) {
-                  dispatch(actions.toggleComponentVisibility(r.id, "cards"))
-                }
-              })
-            }}
-          >
-            Show in cards
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 text-xs"
-            onClick={() => {
-              const selectedRows = rows.filter(r => rowSelection[r.id])
-              selectedRows.forEach(r => {
-                if (r.visibilityIn.cards) {
-                  dispatch(actions.toggleComponentVisibility(r.id, "cards"))
-                }
-              })
-            }}
-          >
-            Hide in cards
-          </Button>
-        </DataTableSelectionBar>
-      </DataTableRoot>
+          <ViewTabs
+            value={viewMode}
+            onChange={setViewMode}
+            tabs={[
+              { value: "table", label: "Table" },
+              { value: "list", label: "List" },
+              { value: "gallery", label: "Gallery" },
+              { value: "board", label: "Board" },
+            ]}
+          />
+        </NotionToolbar>
+        {viewMode === "table" && (
+          <TableView
+            bulkActions={bulkActions}
+            pagination="loadMore"
+            showPropertyNames
+            showVerticalLines
+            stickyHeader={{ enabled: true, offset: 0 }}
+          />
+        )}
+        {viewMode === "list" && (
+          <ListView pagination="loadMore" />
+        )}
+        {viewMode === "gallery" && (
+          <GalleryView pagination="loadMore" />
+        )}
+        {viewMode === "board" && (
+          <BoardView pagination="loadMore" />
+        )}
+      </DataViewProvider>
+    </div>
+  )
+}
+
+// ── View 切换 tabs ──────────────────────────────────────────────────────────
+// (DataViewMode 类型已在文件顶部声明)
+
+function ViewTabs({
+  value,
+  onChange,
+  tabs,
+}: {
+  value: DataViewMode
+  onChange: (v: DataViewMode) => void
+  tabs: { value: DataViewMode; label: string }[]
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {tabs.map(t => (
+        <button
+          key={t.value}
+          onClick={() => onChange(t.value)}
+          className={cn(
+            "h-7 px-3 rounded text-xs font-medium transition-colors",
+            value === t.value
+              ? "bg-secondary text-secondary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   )
 }

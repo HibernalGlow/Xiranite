@@ -18,7 +18,7 @@ export function WorkspaceLayout() {
 
       {/* 主面板：四种形态共享同一份 store 数据，互不隔离。
           切换 viewMode 只换渲染器，组件实例 + data 不重挂载 */}
-      <main className="flex-1 flex overflow-hidden relative">
+      <main className="flex-1 min-h-0 flex overflow-hidden relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={state.viewMode}
@@ -26,7 +26,7 @@ export function WorkspaceLayout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="flex-1 flex"
+            className="flex-1 min-h-0 w-full flex"
           >
             {state.viewMode === "cards" && <CardView />}
             {state.viewMode === "dockview" && <DockviewView />}
