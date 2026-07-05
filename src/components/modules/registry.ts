@@ -4,6 +4,7 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import crashuEntry from "@xiranite/node-crashu"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
+import findzEntry from "@xiranite/node-findz"
 import formatvEntry from "@xiranite/node-formatv"
 import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
@@ -26,6 +27,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   crashuEntry.def,
   dissolvefEntry.def,
   encodebEntry.def,
+  findzEntry.def,
   formatvEntry.def,
   lataEntry.def,
   linedupEntry.def,

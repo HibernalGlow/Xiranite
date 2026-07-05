@@ -21,6 +21,7 @@
         "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
+        "@xiranite/node-findz": "workspace:*",
         "@xiranite/node-formatv": "workspace:*",
         "@xiranite/node-lata": "workspace:*",
         "@xiranite/node-linedup": "workspace:*",
@@ -196,6 +197,27 @@
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "iconv-lite": "^0.7.0",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/findz": {
+      "name": "@xiranite/node-findz",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-findz": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -953,6 +975,8 @@
     "@xiranite/node-dissolvef": ["@xiranite/node-dissolvef@workspace:packages/nodes/dissolvef"],
 
     "@xiranite/node-encodeb": ["@xiranite/node-encodeb@workspace:packages/nodes/encodeb"],
+
+    "@xiranite/node-findz": ["@xiranite/node-findz@workspace:packages/nodes/findz"],
 
     "@xiranite/node-formatv": ["@xiranite/node-formatv@workspace:packages/nodes/formatv"],
 
