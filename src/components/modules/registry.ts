@@ -2,6 +2,7 @@ import type { ModuleDef } from "@/types/workspace"
 import cleanfEntry from "@xiranite/node-cleanf"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
+import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
 import migratefEntry from "@xiranite/node-migratef"
@@ -17,6 +18,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   cleanfEntry.def,
   dissolvefEntry.def,
   encodebEntry.def,
+  lataEntry.def,
   linedupEntry.def,
   linkuEntry.def,
   migratefEntry.def,

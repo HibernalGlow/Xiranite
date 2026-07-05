@@ -24,6 +24,7 @@
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
     "@xiranite/node-encodeb": "workspace:*",
+    "@xiranite/node-lata": "workspace:*",
     "@xiranite/node-linedup": "workspace:*",
     "@xiranite/node-linku": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",

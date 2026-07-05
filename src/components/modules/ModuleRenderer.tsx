@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import cleanfEntry from "@xiranite/node-cleanf"
 import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
+import lataEntry from "@xiranite/node-lata"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
 import migratefEntry from "@xiranite/node-migratef"
@@ -33,6 +34,7 @@ const packageModules = {
   [cleanfEntry.def.id]: cleanfEntry,
   [dissolvefEntry.def.id]: dissolvefEntry,
   [encodebEntry.def.id]: encodebEntry,
+  [lataEntry.def.id]: lataEntry,
   [linedupEntry.def.id]: linedupEntry,
   [linkuEntry.def.id]: linkuEntry,
   [migratefEntry.def.id]: migratefEntry,
