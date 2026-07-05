@@ -1,159 +1,206 @@
-import { useCallback, useEffect, useMemo } from "react"
+/**
+ * FlowView —— TLDraw 白板版本。
+ *
+ * 替代原 @xyflow/react 实现。
+ * - 每个可见组件 = 一个 custom shape（type: "module"）
+ * - shape 内部渲染 ModuleRenderer
+ * - shape 位置/大小变化同步回 store.flowPosition / flowSize
+ */
+import { useEffect, useRef } from "react"
 import {
-  ReactFlow,
-  ReactFlowProvider,
-  useNodesInitialized,
-  useReactFlow,
-  useViewport,
-  Background,
-  Controls,
-  MiniMap,
-  NodeResizeControl,
-  ResizeControlVariant,
-  type Node,
-  type Edge,
-  type NodeChange,
-  type NodeProps,
-  BackgroundVariant,
-} from "@xyflow/react"
-import "@xyflow/react/dist/style.css"
+  HTMLContainer,
+  Rectangle2d,
+  ShapeUtil,
+  Tldraw,
+  createShapeId,
+  defaultShapeUtils,
+  useEditor,
+  type TLBaseShape,
+  type TLIndicatorPath,
+} from "tldraw"
+import "tldraw/tldraw.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
-import { getModule } from "@/components/modules/registry"
+import { Plus, Workflow, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { MoveDiagonal2, Plus, X, Workflow } from "lucide-react"
 
-type FlowNodeData = {
-  moduleId?: string
-  compId?: string
+// ── 自定义 shape 类型（通过 module augmentation 注册到 TLShape union） ────────
+type ModuleShapeProps = {
+  w: number
+  h: number
+  moduleId: string
+  compId: string
+}
+type ModuleShape = TLBaseShape<"module", ModuleShapeProps>
+
+declare module "@tldraw/tlschema" {
+  interface TLGlobalShapePropsMap {
+    module: ModuleShapeProps
+  }
 }
 
-function FlowNode({ data, id }: NodeProps<Node<FlowNodeData>>) {
+// ── ModuleShapeUtil：继承 ShapeUtil（不依赖 TLBaseBoxShape union） ─────────────
+class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
+  static override type = "module" as const
+
+  override getDefaultProps(): ModuleShape["props"] {
+    return { w: 384, h: 320, moduleId: "", compId: "" }
+  }
+
+  override getGeometry(shape: ModuleShape) {
+    return new Rectangle2d({
+      width: shape.props.w,
+      height: shape.props.h,
+      x: 0,
+      y: 0,
+      isFilled: true,
+    })
+  }
+
+  override component(shape: ModuleShape) {
+    return <ModuleShapeComponent shape={shape} />
+  }
+
+  override getIndicatorPath(shape: ModuleShape): TLIndicatorPath {
+    const path = new Path2D()
+    path.roundRect(0, 0, shape.props.w, shape.props.h, 6)
+    return { path }
+  }
+
+  override canEdit() { return false }
+  override isAspectRatioLocked() { return false }
+  override canResize() { return true }
+  override canBind() { return false }
+}
+
+// ── Shape 内部组件（用 hook 拿 dispatch） ────────────────────────────────────
+function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const dispatch = useWSDispatch()
-  const { zoom } = useViewport()
-  const mod = data.moduleId ? getModule(data.moduleId) : null
-  const handleScale = zoom > 0 ? 1 / zoom : 1
+  const { moduleId, compId, w, h } = shape.props
+
+  const handleClose = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    dispatch(actions.setComponentVisibility(compId, "flow", false))
+  }
 
   return (
-    <div className="relative h-full w-full rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)] flex flex-col overflow-visible">
-      <NodeResizeControl
-        nodeId={id}
-        position="bottom-right"
-        variant={ResizeControlVariant.Handle}
-        minWidth={280}
-        minHeight={180}
-        autoScale={false}
-        className="!h-10 !w-10 !rounded-[14px] !border !border-black/10 !bg-white !text-neutral-800 !shadow-[0_10px_24px_-10px_oklch(0_0_0/0.7)]"
-        style={{
-          right: -14,
-          bottom: -14,
-          cursor: "nwse-resize",
-          pointerEvents: "all",
-          touchAction: "none",
-          transform: `scale(${handleScale})`,
-          transformOrigin: "center",
-          zIndex: 20,
-        }}
-        onResize={(_, params) => {
-          dispatch(actions.setComponentFlowSize(id, params.width, params.height))
-        }}
-        onResizeEnd={(_, params) => {
-          dispatch(actions.setComponentFlowSize(id, params.width, params.height))
-        }}
-      >
-        <MoveDiagonal2 className="pointer-events-none absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 stroke-[2.5]" />
-      </NodeResizeControl>
+    <HTMLContainer
+      className="relative overflow-hidden rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)] flex flex-col"
+      style={{ width: w, height: h }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <div className="flex h-8 items-center gap-2 border-b border-border/60 bg-muted/30 px-2 flex-shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
         <span className="text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase truncate flex-1">
-          {mod?.name ?? data.moduleId ?? "node"}
+          {moduleId}
         </span>
         <button
-          onClick={(e) => {
-            e.stopPropagation()
-            dispatch(actions.setComponentVisibility(id, "flow", false))
-          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={handleClose}
           className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           title="Hide in flow"
         >
           <X className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden rounded-b-md">
-        {data.moduleId && data.compId && <ModuleRenderer moduleId={data.moduleId} compId={data.compId} />}
+      <div className="flex-1 min-h-0 overflow-hidden pointer-events-none">
+        {moduleId && compId && (
+          <ModuleRenderer moduleId={moduleId} compId={compId} />
+        )}
       </div>
-    </div>
+    </HTMLContainer>
   )
 }
 
-const nodeTypes = { module: FlowNode }
-
-function FlowCanvas() {
+// ── store → tldraw：把 visibleComponents 同步成 shapes ───────────────────────
+function useSyncShapesFromStore(editor: ReturnType<typeof useEditor> | null) {
   const { visibleComponents } = useWorkspace()
-  const dispatch = useWSDispatch()
-  const { fitView } = useReactFlow()
-  const nodesInitialized = useNodesInitialized()
-
-  const flowComponents = useMemo(
-    () => visibleComponents.filter(c => !c.hiddenIn?.flow),
-    [visibleComponents],
-  )
-
-  const nodes: Node<FlowNodeData>[] = useMemo(() => {
-    const seenPositions = new Map<string, number>()
-
-    return flowComponents.map((comp, index) => {
-      const storedPosition = comp.flowPosition
-      const positionKey = storedPosition ? `${storedPosition.x}:${storedPosition.y}` : ""
-      const collisionIndex = positionKey ? (seenPositions.get(positionKey) ?? 0) : 0
-      if (positionKey) seenPositions.set(positionKey, collisionIndex + 1)
-
-      const position = storedPosition && collisionIndex === 0
-        ? storedPosition
-        : {
-            x: 100 + (index % 3) * 440,
-            y: 100 + Math.floor(index / 3) * 380,
-          }
-
-      return {
-        id: comp.id,
-        type: "module",
-        position,
-        data: { moduleId: comp.moduleId, compId: comp.id },
-        width: comp.flowSize?.width ?? 384,
-        height: comp.flowSize?.height ?? 320,
-        zIndex: comp.z ?? 1,
-      }
-    })
-  }, [flowComponents])
-
-  const edges: Edge[] = useMemo(() => [], [])
-  const nodeIdsKey = useMemo(() => nodes.map(node => node.id).join("|"), [nodes])
+  const lastSigRef = useRef<string>("")
 
   useEffect(() => {
-    if (!nodesInitialized || nodes.length === 0) return
+    if (!editor) return
 
-    let raf = requestAnimationFrame(() => {
-      void fitView({ padding: 0.18, duration: 180, maxZoom: 1 })
-    })
+    const flowComps = visibleComponents.filter(c => !c.hiddenIn?.flow)
+    const desired = flowComps.map((comp, i) => ({
+      id: createShapeId(comp.id),
+      type: "module" as const,
+      x: comp.flowPosition?.x ?? 100 + (i % 3) * 440,
+      y: comp.flowPosition?.y ?? 100 + Math.floor(i / 3) * 380,
+      props: {
+        w: comp.flowSize?.width ?? 384,
+        h: comp.flowSize?.height ?? 320,
+        moduleId: comp.moduleId,
+        compId: comp.id,
+      },
+    })) as ModuleShape[]
 
-    return () => cancelAnimationFrame(raf)
-  }, [fitView, nodeIdsKey, nodes.length, nodesInitialized])
+    const sig = JSON.stringify(desired)
+    if (sig === lastSigRef.current) return
+    lastSigRef.current = sig
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    changes.forEach(c => {
-      if (c.type === "position" && c.position && c.dragging === false) {
-        dispatch(actions.setComponentFlowPos(c.id, c.position.x, c.position.y))
-      } else if (c.type === "dimensions" && c.dimensions) {
-        dispatch(actions.setComponentFlowSize(c.id, c.dimensions.width, c.dimensions.height))
-      }
-    })
-  }, [dispatch])
+    const current = editor.getCurrentPageShapes()
+    const currentIds = new Set(current.map(s => s.id))
+    const desiredIds = new Set(desired.map(s => s.id))
 
-  if (flowComponents.length === 0) {
+    // 删除不再需要的 shapes
+    const toRemove = current.filter(s => !desiredIds.has(s.id)).map(s => s.id)
+    if (toRemove.length) editor.deleteShapes(toRemove)
+
+    // 区分新建 vs 更新
+    const toCreate = desired.filter(s => !currentIds.has(s.id))
+    const toUpdate = desired.filter(s => currentIds.has(s.id))
+    if (toCreate.length) editor.createShapes(toCreate)
+    if (toUpdate.length) editor.updateShapes(toUpdate)
+  }, [editor, visibleComponents])
+}
+
+// ── tldraw → store：把 shape 变化同步回 store ────────────────────────────────
+function useSyncChangesToStore(editor: ReturnType<typeof useEditor> | null) {
+  const dispatch = useWSDispatch()
+
+  useEffect(() => {
+    if (!editor) return
+    const unsub = editor.sideEffects.registerAfterChangeHandler(
+      "shape",
+      (prev, next) => {
+        if (next.type !== "module") return
+        const shape = next as ModuleShape
+        const { compId, w, h } = shape.props
+        if (!compId) return
+
+        if (prev?.x !== next.x || prev?.y !== next.y) {
+          dispatch(actions.setComponentFlowPos(compId, next.x, next.y))
+        }
+        if (prev?.type === "module") {
+          const p = prev as ModuleShape
+          if (p.props.w !== w || p.props.h !== h) {
+            dispatch(actions.setComponentFlowSize(compId, w, h))
+          }
+        }
+      },
+    )
+    return unsub
+  }, [editor, dispatch])
+}
+
+// ── 主组件 ───────────────────────────────────────────────────────────────────
+const customShapeUtils = [...defaultShapeUtils, ModuleShapeUtil]
+
+function FlowCanvas() {
+  const editor = useEditor()
+  const { visibleComponents } = useWorkspace()
+  const dispatch = useWSDispatch()
+
+  useSyncShapesFromStore(editor)
+  useSyncChangesToStore(editor)
+
+  const isEmpty = visibleComponents.filter(c => !c.hiddenIn?.flow).length === 0
+
+  if (isEmpty) {
     return (
-      <div className="flex-1 min-h-0 w-full ws-canvas-bg flex items-center justify-center">
-        <div className="text-center space-y-4">
+      <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+        <div className="text-center space-y-4 pointer-events-auto">
           <Workflow className="h-10 w-10 text-muted-foreground/40 mx-auto" />
           <p className="text-sm font-mono text-muted-foreground">// flow canvas is empty</p>
           <Button
@@ -169,37 +216,19 @@ function FlowCanvas() {
       </div>
     )
   }
-
-  return (
-    <div className="flex-1 min-h-0 w-full ws-canvas-bg relative">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        fitView
-        className="h-full w-full"
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="oklch(0.5 0 0 / 0.2)" />
-        <Controls className="!bg-card !border !border-border !rounded !shadow" />
-        <MiniMap
-          className="!bg-card !border !border-border !rounded"
-          nodeColor={() => "oklch(0.5 0.15 250)"}
-          maskColor="oklch(0 0 0 / 0.6)"
-        />
-      </ReactFlow>
-      <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-card/80 backdrop-blur border border-border text-[10px] font-mono text-muted-foreground z-10 pointer-events-none">
-        drag nodes - positions and sizes persist in workspace state
-      </div>
-    </div>
-  )
+  return null
 }
 
 export function FlowView() {
   return (
-    <ReactFlowProvider>
-      <FlowCanvas />
-    </ReactFlowProvider>
+    <div className="flex-1 min-h-0 w-full ws-canvas-bg relative">
+      <Tldraw
+        shapeUtils={customShapeUtils}
+        options={{ maxPages: 1 }}
+        components={{ PageMenu: () => null, MainMenu: () => null }}
+      >
+        <FlowCanvas />
+      </Tldraw>
+    </div>
   )
 }
