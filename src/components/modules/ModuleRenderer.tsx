@@ -5,6 +5,7 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
+import migratefEntry from "@xiranite/node-migratef"
 import moveaEntry from "@xiranite/node-movea"
 import owithuEntry from "@xiranite/node-owithu"
 import recycleuEntry from "@xiranite/node-recycleu"
@@ -32,6 +33,7 @@ const packageModules = {
   [encodebEntry.def.id]: encodebEntry,
   [linedupEntry.def.id]: linedupEntry,
   [linkuEntry.def.id]: linkuEntry,
+  [migratefEntry.def.id]: migratefEntry,
   [moveaEntry.def.id]: moveaEntry,
   [owithuEntry.def.id]: owithuEntry,
   [recycleuEntry.def.id]: recycleuEntry,

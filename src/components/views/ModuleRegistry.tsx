@@ -10,14 +10,14 @@ import {
   FileText, Plus, FlaskConical, Terminal, CheckSquare,
   Clock, Calculator, LayoutDashboard, SlidersHorizontal, Filter,
   Brush, Trash2, Link, MousePointerClick, Package, PackageCheck,
-  ArrowRight, FolderInput, FolderTree,
+  ArrowRight, FolderInput, FolderTree, FolderSync,
 } from "lucide-react"
 
 const ICON_MAP: Record<string, LucideIcon> = {
   FileText, Plus, FlaskConical, Terminal,
   CheckSquare, Clock, Calculator, LayoutDashboard, Filter,
   Brush, Trash2, Link, MousePointerClick, Package, PackageCheck,
-  FolderInput, FolderTree,
+  FolderInput, FolderTree, FolderSync,
 }
 
 export function ModuleRegistry() {

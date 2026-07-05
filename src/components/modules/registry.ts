@@ -3,6 +3,7 @@ import cleanfEntry from "@xiranite/node-cleanf"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
+import migratefEntry from "@xiranite/node-migratef"
 import moveaEntry from "@xiranite/node-movea"
 import owithuEntry from "@xiranite/node-owithu"
 import recycleuEntry from "@xiranite/node-recycleu"
@@ -16,6 +17,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   encodebEntry.def,
   linedupEntry.def,
   linkuEntry.def,
+  migratefEntry.def,
   moveaEntry.def,
   owithuEntry.def,
   recycleuEntry.def,

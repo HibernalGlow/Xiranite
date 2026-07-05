@@ -20,6 +20,7 @@
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-linedup": "workspace:*",
         "@xiranite/node-linku": "workspace:*",
+        "@xiranite/node-migratef": "workspace:*",
         "@xiranite/node-movea": "workspace:*",
         "@xiranite/node-owithu": "workspace:*",
         "@xiranite/node-recycleu": "workspace:*",
@@ -161,6 +162,27 @@
       "version": "0.1.0",
       "bin": {
         "xiranite-linku": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/migratef": {
+      "name": "@xiranite/node-migratef",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-migratef": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -752,6 +774,8 @@
     "@xiranite/node-linedup": ["@xiranite/node-linedup@workspace:packages/nodes/linedup"],
 
     "@xiranite/node-linku": ["@xiranite/node-linku@workspace:packages/nodes/linku"],
+
+    "@xiranite/node-migratef": ["@xiranite/node-migratef@workspace:packages/nodes/migratef"],
 
     "@xiranite/node-movea": ["@xiranite/node-movea@workspace:packages/nodes/movea"],
 
