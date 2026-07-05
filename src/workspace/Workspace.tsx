@@ -134,11 +134,11 @@ export function Workspace() {
 
 
       {/* canvas */}
-      <div className="relative flex-1 overflow-hidden bg-scan" ref={canvasRef}>
+      <div className="relative flex-1 overflow-hidden ws-canvas-bg" ref={canvasRef}>
         {ws.panels.length === 0 && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
             <div>
-              <p className="text-acid-gradient font-mono text-2xl font-bold">EMPTY WORKSPACE</p>
+              <p className="text-primary font-mono text-2xl font-bold">EMPTY WORKSPACE</p>
               <p className="mt-2 font-mono text-xs text-muted-foreground">insert a component to begin</p>
             </div>
           </div>
@@ -152,6 +152,7 @@ export function Workspace() {
             title={p.title}
             layout={layouts[p.id]}
             canvasRef={canvasRef}
+            layoutMode={ws.mode}
           />
         ))}
 
@@ -163,7 +164,7 @@ export function Workspace() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
               onClick={() => ws.setFullscreen(null)}
-              className="absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-surface-raised px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-acid"
+              className="fixed bottom-6 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-primary backdrop-blur-md"
             >
               ESC · EXIT FULLSCREEN
             </motion.button>

@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -10,8 +12,6 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -31,225 +31,240 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-  --color-acid: var(--acid);
-  --color-acid-foreground: var(--acid-foreground);
-  --color-cyan: var(--cyan);
-  --color-magenta: var(--magenta);
-  --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-grid-line: var(--grid-line);
-  --font-mono: "JetBrains Mono", "Space Mono", ui-monospace, monospace;
-  --font-display: "Inter", "Space Grotesk", system-ui, sans-serif;
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-ws-canvas: var(--ws-canvas);
+  --color-ws-grid: var(--ws-grid-color);
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
+/*
+  ============================================================
+  THEME: SPATIAL STUDIO (Light default — 空间工作室)
+  ============================================================
+*/
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.375rem;
+  --background: oklch(0.975 0.004 148);
+  --foreground: oklch(0.12 0.01 148);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.01 148);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.01 148);
+  --primary: oklch(0.40 0.12 148);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.95 0.01 148);
+  --secondary-foreground: oklch(0.25 0.03 148);
+  --muted: oklch(0.95 0.008 148);
+  --muted-foreground: oklch(0.50 0.03 148);
+  --accent: oklch(0.93 0.02 148);
+  --accent-foreground: oklch(0.25 0.04 148);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.88 0.02 148);
+  --input: oklch(0.90 0.015 148);
+  --ring: oklch(0.55 0.12 148);
+  --chart-1: oklch(0.40 0.12 148);
+  --chart-2: oklch(0.58 0.18 196);
+  --chart-3: oklch(0.72 0.15 65);
+  --chart-4: oklch(0.62 0.20 340);
+  --chart-5: oklch(0.65 0.18 30);
+  --sidebar: oklch(0.96 0.006 148);
+  --sidebar-foreground: oklch(0.15 0.02 148);
+  --sidebar-primary: oklch(0.40 0.12 148);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.90 0.03 148);
+  --sidebar-accent-foreground: oklch(0.20 0.04 148);
+  --sidebar-border: oklch(0.88 0.02 148);
+  --sidebar-ring: oklch(0.55 0.12 148);
+  --ws-grid-color: oklch(0.86 0.015 148 / 0.55);
+  --ws-canvas: oklch(0.97 0.005 148);
+  --ws-accent-glow: oklch(0.40 0.12 148 / 0.18);
+  --ws-focused-overlay: oklch(0.12 0.01 148 / 0.45);
 }
 
-/* =========================================
-   WULING TACTICAL (Endfield)
-   ========================================= */
+/*
+  ============================================================
+  THEME: ENDFIELD TACTICAL (Dark slate + Endfield Green — 终末地战术)
+  ============================================================
+*/
+.dark,
+[data-theme="endfield"] {
+  --background: oklch(0.13 0.025 216);
+  --foreground: oklch(0.90 0.04 148);
+  --card: oklch(0.17 0.025 216);
+  --card-foreground: oklch(0.90 0.04 148);
+  --popover: oklch(0.15 0.025 216);
+  --popover-foreground: oklch(0.90 0.04 148);
+  --primary: oklch(0.62 0.18 152);
+  --primary-foreground: oklch(0.10 0.02 216);
+  --secondary: oklch(0.22 0.03 216);
+  --secondary-foreground: oklch(0.80 0.05 148);
+  --muted: oklch(0.20 0.025 216);
+  --muted-foreground: oklch(0.55 0.05 165);
+  --accent: oklch(0.24 0.04 216);
+  --accent-foreground: oklch(0.85 0.06 152);
+  --destructive: oklch(0.62 0.24 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.26 0.03 216);
+  --input: oklch(0.22 0.03 216);
+  --ring: oklch(0.55 0.15 152);
+  --chart-1: oklch(0.62 0.18 152);
+  --chart-2: oklch(0.55 0.16 196);
+  --chart-3: oklch(0.70 0.15 65);
+  --chart-4: oklch(0.60 0.18 340);
+  --chart-5: oklch(0.62 0.18 30);
+  --sidebar: oklch(0.11 0.025 216);
+  --sidebar-foreground: oklch(0.85 0.05 148);
+  --sidebar-primary: oklch(0.62 0.18 152);
+  --sidebar-primary-foreground: oklch(0.10 0.02 216);
+  --sidebar-accent: oklch(0.22 0.04 216);
+  --sidebar-accent-foreground: oklch(0.85 0.06 152);
+  --sidebar-border: oklch(0.24 0.03 216);
+  --sidebar-ring: oklch(0.55 0.15 152);
+  --ws-grid-color: oklch(0.30 0.04 216 / 0.5);
+  --ws-canvas: oklch(0.14 0.025 216);
+  --ws-accent-glow: oklch(0.62 0.18 152 / 0.22);
+  --ws-focused-overlay: oklch(0.05 0.01 216 / 0.72);
+}
 
-/* LIGHT MODE (Default for Wuling) */
+/*
+  ============================================================
+  THEME: 武陵城 WULING CITY (Dark warm gold/amber — 明日方舟终末地)
+  ============================================================
+*/
 [data-theme="wuling"] {
-  --background: #f9f9fc;
-  --foreground: #1a1c1e;
-
-  --surface: #f9f9fc;
-  --surface-raised: #f3f3f6;
-
-  --card: #eeeef0;
-  --card-foreground: #1a1c1e;
-  --popover: #ffffff;
-  --popover-foreground: #1a1c1e;
-
-  --primary: #286b33;
-  --primary-foreground: #ffffff;
-
-  --secondary: #1b6d24;
-  --secondary-foreground: #ffffff;
-
-  --muted: #e2e2e5;
-  --muted-foreground: #40493f;
-
-  --accent: #006b5c;
-  --accent-foreground: #ffffff;
-
-  --destructive: #ba1a1a;
-  --destructive-foreground: #ffffff;
-
-  --border: #707a6e;
-  --input: #c0c9bc;
-  --ring: #286b33;
-
-  --acid: #abf4ac;
-  --acid-foreground: #002107;
-  --cyan: #68fadd;
-  --magenta: #a3f69c;
-  --grid-line: #dadadc;
-
-  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
-  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(40, 107, 51, 0.15), transparent 60%);
-  --shadow-acid: 0 0 0 1px rgba(40, 107, 51, 0.2), 0 20px 60px -20px rgba(40, 107, 51, 0.25);
-  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
-}
-
-/* DARK MODE for Wuling */
-.dark[data-theme="wuling"] {
-  --background: #1a1c1e;
-  --foreground: #f9f9fc;
-
-  --surface: #1a1c1e;
-  --surface-raised: #2f3133;
-
-  --card: #2f3133;
-  --card-foreground: #f9f9fc;
-  --popover: #121416;
-  --popover-foreground: #f9f9fc;
-
-  --primary: #81c784;
-  --primary-foreground: #09541e;
-
-  --secondary: #a0f399;
-  --secondary-foreground: #217128;
-
-  --muted: #40493f;
-  --muted-foreground: #c0c9bc;
-
-  --accent: #2bcdb2;
-  --accent-foreground: #005246;
-
-  --destructive: #ffdad6;
-  --destructive-foreground: #93000a;
-
-  --border: #707a6e;
-  --input: #40493f;
-  --ring: #81c784;
-
-  --acid: #abf4ac;
-  --acid-foreground: #002107;
-  --cyan: #68fadd;
-  --magenta: #a3f69c;
-  --grid-line: #40493f;
-
-  --gradient-acid: linear-gradient(135deg, #81c784, #90d792, #2bcdb2);
-  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(129, 199, 132, 0.15), transparent 60%);
-  --shadow-acid: 0 0 0 1px rgba(129, 199, 132, 0.2), 0 20px 60px -20px rgba(129, 199, 132, 0.25);
-  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.4);
-}
-
-/* =========================================
-   UTOPIA (Atmospheric Urban)
-   ========================================= */
-
-/* LIGHT MODE for Utopia */
-[data-theme="utopia"] {
-  --background: #eae1dd;
-  --foreground: #161311;
-
-  --surface: #eae1dd;
-  --surface-raised: #e0bfb8;
-
-  --card: #d2c4bb;
-  --card-foreground: #161311;
-  --popover: #ffffff;
-  --popover-foreground: #161311;
-
-  --primary: #ad321c;
-  --primary-foreground: #ffffff;
-
-  --secondary: #65411a;
-  --secondary-foreground: #ffffff;
-
-  --muted: #d2c4bb;
-  --muted-foreground: #59413c;
-
-  --accent: #9b8e87;
-  --accent-foreground: #ffffff;
-
-  --destructive: #93000a;
-  --destructive-foreground: #ffffff;
-
-  --border: #a88a84;
-  --input: #d2c4bb;
-  --ring: #ad321c;
-
-  --acid: #ffdad3;
-  --acid-foreground: #3e0400;
-  --cyan: #efe0d7;
-  --magenta: #ffdcbd;
-  --grid-line: #d2c4bb;
-
-  --gradient-acid: linear-gradient(135deg, #ad321c, #e2583e, #65411a);
-  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(173, 50, 28, 0.15), transparent 60%);
-  --shadow-acid: 0 0 0 1px rgba(173, 50, 28, 0.2), 0 20px 60px -20px rgba(173, 50, 28, 0.25);
-  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.1);
-}
-
-/* DARK MODE (Default for Utopia) */
-.dark[data-theme="utopia"] {
-  --background: #161311;
-  --foreground: #eae1dd;
-
-  --surface: #161311;
-  --surface-raised: #1f1b19;
-
-  --card: #231f1d;
-  --card-foreground: #eae1dd;
-  --popover: #110d0c;
-  --popover-foreground: #eae1dd;
-
-  --primary: #ffb4a5;
-  --primary-foreground: #650b00;
-
-  --secondary: #f0bd8b;
-  --secondary-foreground: #482904;
-
-  --muted: #393431;
-  --muted-foreground: #e0bfb8;
-
-  --accent: #d2c4bb;
-  --accent-foreground: #372f29;
-
-  --destructive: #ffb4ab;
-  --destructive-foreground: #690005;
-
-  --border: #a88a84;
-  --input: #59413c;
-  --ring: #ffb4a5;
-
-  --acid: #ffdad3;
-  --acid-foreground: #3e0400;
-  --cyan: #efe0d7;
-  --magenta: #ffdcbd;
-  --grid-line: #3d3836;
-
-  --gradient-acid: linear-gradient(135deg, #f16348, #ffb4a5, #f0bd8b);
-  --gradient-flare: radial-gradient(circle at 30% 20%, rgba(255, 180, 165, 0.15), transparent 60%);
-  --shadow-acid: 0 0 0 1px rgba(255, 180, 165, 0.2), 0 20px 60px -20px rgba(255, 180, 165, 0.25);
-  --shadow-panel: 0 12px 40px -12px rgba(0, 0, 0, 0.8);
+  --background: oklch(0.12 0.03 55);
+  --foreground: oklch(0.93 0.04 80);
+  --card: oklch(0.16 0.04 55);
+  --card-foreground: oklch(0.93 0.04 80);
+  --popover: oklch(0.14 0.03 55);
+  --popover-foreground: oklch(0.93 0.04 80);
+  --primary: oklch(0.70 0.16 68);
+  --primary-foreground: oklch(0.12 0.02 55);
+  --secondary: oklch(0.20 0.05 55);
+  --secondary-foreground: oklch(0.85 0.06 80);
+  --muted: oklch(0.19 0.04 55);
+  --muted-foreground: oklch(0.57 0.07 75);
+  --accent: oklch(0.22 0.06 55);
+  --accent-foreground: oklch(0.88 0.08 80);
+  --destructive: oklch(0.60 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.28 0.06 55);
+  --input: oklch(0.22 0.05 55);
+  --ring: oklch(0.62 0.14 68);
+  --chart-1: oklch(0.70 0.16 68);
+  --chart-2: oklch(0.65 0.18 38);
+  --chart-3: oklch(0.62 0.18 152);
+  --chart-4: oklch(0.60 0.18 340);
+  --chart-5: oklch(0.58 0.16 210);
+  --sidebar: oklch(0.10 0.03 55);
+  --sidebar-foreground: oklch(0.88 0.05 80);
+  --sidebar-primary: oklch(0.70 0.16 68);
+  --sidebar-primary-foreground: oklch(0.12 0.02 55);
+  --sidebar-accent: oklch(0.22 0.06 55);
+  --sidebar-accent-foreground: oklch(0.88 0.08 80);
+  --sidebar-border: oklch(0.24 0.06 55);
+  --sidebar-ring: oklch(0.62 0.14 68);
+  --ws-grid-color: oklch(0.28 0.05 55 / 0.5);
+  --ws-canvas: oklch(0.13 0.03 55);
+  --ws-accent-glow: oklch(0.70 0.16 68 / 0.22);
+  --ws-focused-overlay: oklch(0.05 0.01 55 / 0.72);
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    @apply border-border;
   }
-
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-display);
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 44px 44px;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    @apply bg-background text-foreground;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   }
 }
 
+/* ── Workspace canvas dot/grid background ── */
+.ws-canvas-bg {
+  background-color: var(--ws-canvas);
+  background-image:
+    linear-gradient(var(--ws-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ws-grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Component card transitions ── */
+.comp-card {
+  transition: transform 0.22s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.22s ease,
+              opacity 0.22s ease;
+}
+
+.comp-card--focused {
+  transform: scale(1.015);
+  z-index: 20;
+}
+
+.comp-card--dimmed {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.comp-card--fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 50 !important;
+  transform: none !important;
+  border-radius: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+.comp-card--floating {
+  position: absolute;
+  z-index: 30;
+  box-shadow: 0 24px 60px oklch(0 0 0 / 0.35);
+}
+
+/* ── Glow effect for primary ── */
+.btn-primary-glow {
+  box-shadow: 0 0 18px var(--ws-accent-glow), 0 2px 8px oklch(0 0 0 / 0.22);
+}
+
+/* ── Focused overlay ── */
+.focused-overlay {
+  background-color: var(--ws-focused-overlay);
+}
+
+/* ── Tab animations (Arc style) ── */
+.tab-slide-in {
+  animation: tabSlideIn 0.18s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes tabSlideIn {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ── Utility: acid gradient text ── */
 @utility text-acid-gradient {
-  background: var(--gradient-acid);
+  background: linear-gradient(135deg, oklch(0.62 0.18 152), oklch(0.70 0.16 68));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -258,8 +273,8 @@
 @utility bg-scan {
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(128,128,128, 0.05) 0px,
-    rgba(128,128,128, 0.05) 1px,
+    oklch(0.5 0 0 / 0.04) 0px,
+    oklch(0.5 0 0 / 0.04) 1px,
     transparent 1px,
     transparent 3px
   );

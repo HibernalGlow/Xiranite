@@ -45,14 +45,19 @@ export function computeLayout({
 
   // 1. Fullscreen wins over everything.
   if (fullscreenId) {
+    // First, compute what layout would look like WITHOUT fullscreen so we can
+    // preserve positions for a smooth exit transition.
+    const underlying = computeLayout({ panels, mode, focusedId, fullscreenId: null, W, H });
+
     panels.forEach((p) => {
       if (p.id === fullscreenId) {
-        out[p.id] = base(p, "fullscreen", { x: PAD, y: PAD, w: innerW, h: innerH }, { z: 1000 });
+        out[p.id] = base(p, "fullscreen", { x: 0, y: 0, w: W, h: H }, { z: 1000 });
       } else {
-        // keep mounted but parked off the visible field
-        out[p.id] = base(p, "docked", { x: PAD, y: PAD, w: 400, h: 300 }, {
+        // Park at their underlying layout position but invisible
+        const u = underlying[p.id];
+        out[p.id] = base(p, "docked", { x: u?.x ?? PAD, y: u?.y ?? PAD, w: u?.w ?? 400, h: u?.h ?? 300 }, {
           opacity: 0,
-          scale: 0.9,
+          scale: 0.95,
           interactive: false,
           z: 0,
         });

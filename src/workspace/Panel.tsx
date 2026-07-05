@@ -18,12 +18,14 @@ function PanelInner({
   title,
   layout,
   canvasRef,
+  layoutMode,
 }: {
   id: string;
   kind: string;
   title: string;
   layout: ComputedLayout;
   canvasRef: React.RefObject<HTMLDivElement | null>;
+  layoutMode: string;
 }) {
   const ws = useWorkspace();
   const reg = registryByKind(kind);
@@ -33,7 +35,8 @@ function PanelInner({
 
   return (
     <motion.div
-      drag={ws.mode === "free" && !isFullscreen}
+      key={`${id}-${layoutMode}`}
+      drag={layoutMode === "free" && !isFullscreen}
       dragMomentum={false}
       dragConstraints={canvasRef}
       onPointerDown={() => ws.raise(id)}
@@ -54,19 +57,19 @@ function PanelInner({
       }}
       transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.7 }}
       style={{ position: "absolute", zIndex: layout.z, pointerEvents: layout.interactive ? "auto" : "none" }}
-      className={`group flex flex-col overflow-hidden rounded-md border bg-surface backdrop-blur-sm ${
+      className={`group flex flex-col overflow-hidden rounded-sm border bg-card backdrop-blur-sm ${
         layout.state === "focused" || isFullscreen
-          ? "border-acid/60 shadow-[var(--shadow-acid)]"
-          : "border-border shadow-[var(--shadow-panel)]"
+          ? "border-primary/50 ring-1 ring-primary/30"
+          : "border-border shadow-sm"
       }`}
     >
       {/* header */}
       <div
-        className={`flex h-11 shrink-0 items-center gap-2 border-b border-border bg-surface-raised px-3 ${
-          ws.mode === "free" && !isFullscreen ? "cursor-grab active:cursor-grabbing" : ""
+        className={`flex h-11 shrink-0 items-center gap-2 border-b border-border bg-muted/30 px-3 ${
+          layoutMode === "free" && !isFullscreen ? "cursor-grab active:cursor-grabbing" : ""
         }`}
       >
-        <span className="text-acid">{reg?.glyph}</span>
+        <span className="text-primary">{reg?.glyph}</span>
         <span className="truncate font-mono text-xs font-semibold tracking-wider text-foreground">
           {title}
         </span>
@@ -77,7 +80,7 @@ function PanelInner({
           <HeaderBtn label="collapse" onClick={() => ws.toggleCollapse(id)}>
             {isCompact ? "▢" : "▬"}
           </HeaderBtn>
-          <HeaderBtn label="focus" onClick={() => { ws.setMode("focus"); ws.focus(id); }}>
+          <HeaderBtn label="focus" onClick={() => { if (ws.mode === "focus" && ws.focusedId === id) { ws.setMode("grid"); ws.focus(null); } else { ws.setMode("focus"); ws.focus(id); } }}>
             ◎
           </HeaderBtn>
           <HeaderBtn label="fullscreen" onClick={() => ws.setFullscreen(isFullscreen ? null : id)}>
@@ -122,7 +125,7 @@ function HeaderBtn({
         onClick();
       }}
       className={`grid h-6 w-6 place-items-center rounded-[3px] border border-transparent font-mono text-xs text-muted-foreground transition-colors hover:border-border ${
-        danger ? "hover:bg-destructive hover:text-destructive-foreground" : "hover:bg-background hover:text-acid"
+        danger ? "hover:bg-destructive hover:text-destructive-foreground" : "hover:bg-background hover:text-primary"
       }`}
     >
       {children}
