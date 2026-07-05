@@ -47,6 +47,8 @@ export interface ComponentDTO {
   laneId?: string
   /** 各 viewMode 下独立的可见性开关 */
   hiddenIn?: { cards?: boolean; dockview?: boolean; flow?: boolean; lane?: boolean }
+  /** 用户自定义标签 — Database 模块维护，与所有 viewMode 共享 */
+  tags?: string[]
   /** Cards 模式层级 */
   z?: number
   collapsed?: boolean

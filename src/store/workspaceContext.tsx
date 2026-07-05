@@ -60,6 +60,7 @@ type Action =
   | { type: "PATCH_COMPONENT_DATA"; id: string; patch: Record<string, unknown> }
   | { type: "SET_COMPONENT_DOCK_PANEL"; id: string; panelId: string }
   | { type: "TOGGLE_COMPONENT_VISIBILITY"; id: string; viewMode: ViewMode }
+  | { type: "SET_COMPONENT_TAGS"; id: string; tags: string[] }
   | { type: "FOCUS_COMPONENT"; id: string | null }
   | { type: "SET_FULLSCREEN"; id: string | null }
   | { type: "RAISE_COMPONENT"; id: string }
@@ -240,6 +241,15 @@ function reducer(state: WSState, action: Action): WSState {
           return { ...c, hiddenIn: { ...cur, [action.viewMode]: next } }
         }),
       }
+    case "SET_COMPONENT_TAGS":
+      // Database 模块维护的标签 — 直接挂到 ComponentInstance 上，
+      // 与所有 viewMode 共享同一份数据源（不存到 comp.data，避免冗余映射）。
+      return {
+        ...state,
+        components: state.components.map(c =>
+          c.id === action.id ? { ...c, tags: action.tags } : c
+        ),
+      }
     case "FOCUS_COMPONENT":
       return { ...state, focusedComponentId: action.id }
     case "SET_FULLSCREEN":
@@ -287,6 +297,7 @@ function reducer(state: WSState, action: Action): WSState {
         dockPanel: c.dockPanel,
         laneId: c.laneId,
         hiddenIn: c.hiddenIn,
+        tags: c.tags,
         z: c.z,
         collapsed: c.collapsed,
         position: { x: 20, y: 20 },
@@ -467,6 +478,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             dockPanel: c.dockPanel,
             laneId: c.laneId,
             hiddenIn: c.hiddenIn,
+            tags: c.tags,
             z: c.z,
             collapsed: c.collapsed,
             createdAt: Date.now(),
@@ -517,6 +529,7 @@ export const actions = {
   patchComponentData: (id: string, patch: Record<string, unknown>): Action => ({ type: "PATCH_COMPONENT_DATA", id, patch }),
   setComponentDockPanel: (id: string, panelId: string): Action => ({ type: "SET_COMPONENT_DOCK_PANEL", id, panelId }),
   toggleComponentVisibility: (id: string, viewMode: ViewMode): Action => ({ type: "TOGGLE_COMPONENT_VISIBILITY", id, viewMode }),
+  setComponentTags: (id: string, tags: string[]): Action => ({ type: "SET_COMPONENT_TAGS", id, tags }),
   focusComponent: (id: string | null): Action => ({ type: "FOCUS_COMPONENT", id }),
   setFullscreen: (id: string | null): Action => ({ type: "SET_FULLSCREEN", id }),
   raiseComponent: (id: string): Action => ({ type: "RAISE_COMPONENT", id }),

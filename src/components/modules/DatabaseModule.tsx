@@ -1,17 +1,20 @@
 /**
- * DatabaseModule — Notion 式表格视图（基于 @tanstack/react-table）。
+ * DatabaseModule — Notion 式表格视图（基于 @tanstack/react-table + tablecn 组件）。
  *
- * 参考 sadmann7/tablecn 的 DataTable 架构：
- * - 列定义带 meta（variant: text/select/multiSelect）
- * - 列头用 DropdownMenu 切换 asc/desc/hide
- * - Toolbar 自动按列 variant 渲染筛选器
- * - 行选择 + actionBar
+ * 实现要点：
+ * 1. 数据源同 store.components — 与卡片注册 / CardView / DockviewView / FlowView / LaneView
+ *    共享同一份 ComponentInstance[]。不再在 comp.data 内维护单独的 tagsByComponent map。
+ * 2. 直接复用 tablecn 的官方组件（src/components/data-table/*）：
+ *    - <DataTable>            表格主体 + 分页 + actionBar
+ *    - <DataTableToolbar>      按 meta.variant 自动渲染 text/select/multiSelect 筛选器
+ *    - <DataTableColumnHeader> 列头排序 + 隐藏菜单
+ * 3. tags 直接挂到 ComponentInstance.tags（store action: SET_COMPONENT_TAGS），
+ *    与所有 viewMode 共享，跨会话持久化。
  *
- * 数据源：store.components，无需后端改动。
+ * 参考：https://github.com/sadmann7/tablecn
  */
-import { useMemo, useState } from "react"
+import * as React from "react"
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -23,39 +26,30 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown, EyeOff, Tag, X } from "lucide-react"
+import { Ellipsis, Eye, EyeOff, Tag, X } from "lucide-react"
+
+import { DataTable } from "@/components/data-table/data-table"
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
-import { useComponentData } from "@/hooks/useComponentData"
-import { getModule } from "@/components/modules/registry"
+import { getModule, MODULE_REGISTRY } from "@/components/modules/registry"
 import type { ModuleProps } from "./ModuleRenderer"
 import type { ComponentInstance, ViewMode } from "@/types/workspace"
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
-
-// ── 列 meta 类型 ─────────────────────────────────────────────────────────────
-// 参考 tablecn 的 meta.variant：通过 module augmentation 给所有列的 meta 字段
-// 提供类型支持，toolbar 可据此渲染不同 variant 的筛选器。
-declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData, TValue> {
-    label: string
-    variant?: "text" | "select" | "multiSelect"
-    options?: { label: string; value: string }[]
-  }
-}
 
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 
 function formatTime(ts: number): string {
+  if (!ts || Number.isNaN(ts)) return "—"
   const d = new Date(ts)
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, "0")
@@ -65,152 +59,155 @@ function formatTime(ts: number): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
-// ── 行类型：把 ComponentInstance + 计算字段组合成 row ────────────────────────
-interface ComponentRow {
-  id: string
-  moduleId: string
-  moduleName: string
-  state: string
-  visibilityCount: number
-  visibilityIn: Record<ViewMode, boolean>
-  tags: string[]
-  createdAt: number
-  dataKeys: number
-  comp: ComponentInstance
+// 从 comp-${counter}-${timestamp} 解析部署时间戳
+function parseCreatedAt(id: string): number {
+  const parts = id.split("-")
+  const last = parts[parts.length - 1]
+  const n = Number(last)
+  return Number.isFinite(n) ? n : 0
 }
 
-interface DatabaseState {
-  tagsByComponent?: Record<string, string[]>
-}
-
-export default function DatabaseModule({ compId }: ModuleProps) {
-  const { visibleComponents } = useWorkspace()
+// ── 列定义 ─────────────────────────────────────────────────────────────────
+// 参考 tablecn 的 getTasksTableColumns 模式：每列带 meta.variant 让 toolbar 自动渲染筛选器。
+function useDatabaseColumns(): ColumnDef<ComponentInstance>[] {
   const dispatch = useWSDispatch()
-  const [data, setData] = useComponentData<DatabaseState>(compId)
-  const [tagInput, setTagInput] = useState<Record<string, string>>({})
+  const [tagInput, setTagInput] = React.useState<Record<string, string>>({})
 
-  // 行数据
-  const rows = useMemo<ComponentRow[]>(() => {
-    return visibleComponents.map(comp => {
-      const mod = getModule(comp.moduleId)
-      const tags = data.tagsByComponent?.[comp.id] ?? []
-      const visibilityIn = {
-        cards: !comp.hiddenIn?.cards,
-        dockview: !comp.hiddenIn?.dockview,
-        flow: !comp.hiddenIn?.flow,
-        lane: !comp.hiddenIn?.lane,
-      }
-      return {
-        id: comp.id,
-        moduleId: comp.moduleId,
-        moduleName: mod?.name ?? comp.moduleId,
-        state: comp.state,
-        visibilityCount: VIEW_MODES.filter(m => visibilityIn[m]).length,
-        visibilityIn,
-        tags,
-        createdAt: parseInt(comp.id.split("-").pop() ?? "0", 10),
-        dataKeys: comp.data ? Object.keys(comp.data).length : 0,
-        comp,
-      }
-    })
-  }, [visibleComponents, data.tagsByComponent])
-
-  // 表格状态
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [globalFilter, setGlobalFilter] = useState("")
-
-  // ── 列定义 ────────────────────────────────────────────────────────────────
-  const columns = useMemo<ColumnDef<ComponentRow, unknown>[]>(() => [
+  return React.useMemo(() => [
     {
       id: "select",
       size: 32,
       header: ({ table }) => (
         <Checkbox
+          aria-label="Select all"
+          className="translate-y-0.5"
           checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected() ? "indeterminate" : false
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
         />
       ),
       cell: ({ row }) => (
         <Checkbox
+          aria-label="Select row"
+          className="translate-y-0.5"
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
         />
       ),
       enableSorting: false,
       enableHiding: false,
     },
     {
-      accessorKey: "moduleName",
-      meta: { label: "Module", variant: "text" },
-      header: ({ column }) => <ColumnHeader column={column} label="Module" />,
-      cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span className="font-semibold">{row.original.moduleName}</span>
-          <span className="text-[9px] text-muted-foreground">{row.original.id}</span>
-        </div>
+      id: "moduleName",
+      accessorKey: "moduleId",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Module" />
       ),
+      cell: ({ row }) => {
+        const mod = getModule(row.original.moduleId)
+        return (
+          <div className="flex flex-col">
+            <span className="font-semibold text-sm">{mod?.name ?? row.original.moduleId}</span>
+            <span className="text-[9px] text-muted-foreground font-mono">{row.original.id}</span>
+          </div>
+        )
+      },
+      meta: {
+        label: "Module",
+        placeholder: "Search modules...",
+        variant: "text",
+      },
+      enableColumnFilter: true,
     },
     {
-      accessorKey: "state",
+      id: "category",
+      accessorFn: (row) => getModule(row.moduleId)?.category ?? "—",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Category" />
+      ),
+      cell: ({ row }) => (
+        <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
+          {getModule(row.original.moduleId)?.category ?? "—"}
+        </Badge>
+      ),
       meta: {
-        label: "State",
-        variant: "select",
-        options: [
-          { label: "docked", value: "docked" },
-          { label: "focused", value: "focused" },
-          { label: "fullscreen", value: "fullscreen" },
-        ],
+        label: "Category",
+        variant: "multiSelect",
+        options: Array.from(
+          new Set(MODULE_REGISTRY.map(m => m.category))
+        ).map(c => ({ label: c, value: c })),
       },
-      header: ({ column }) => <ColumnHeader column={column} label="State" />,
+      enableColumnFilter: true,
+    },
+    {
+      id: "state",
+      accessorKey: "state",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="State" />
+      ),
       cell: ({ row }) => (
         <Badge variant="outline" className="text-[9px] uppercase tracking-wider">
           {row.original.state}
         </Badge>
       ),
+      meta: {
+        label: "State",
+        variant: "multiSelect",
+        options: ["docked", "floating", "focused", "fullscreen", "compact"].map(s => ({
+          label: s,
+          value: s,
+        })),
+      },
+      enableColumnFilter: true,
     },
     {
-      accessorKey: "visibilityCount",
-      meta: { label: "Visible In" },
-      header: ({ column }) => <ColumnHeader column={column} label="Visible In" />,
+      id: "visibility",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Visible In" />
+      ),
+      // 不参与 filter（自定义渲染），但可排序（按可见数）
+      accessorFn: (row) =>
+        VIEW_MODES.filter(m => !row.hiddenIn?.[m]).length,
       cell: ({ row }) => {
-        const vis = row.original.visibilityIn
+        const comp = row.original
         return (
           <div className="flex items-center gap-1">
-            {VIEW_MODES.map(m => (
-              <button
-                key={m}
-                onClick={() => dispatch(actions.toggleComponentVisibility(row.original.id, m))}
-                title={`${m}: ${vis[m] ? "visible" : "hidden"}`}
-                className={cn(
-                  "h-5 w-5 grid place-items-center rounded border text-[8px] uppercase",
-                  vis[m]
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border/40 text-muted-foreground/40 hover:text-foreground"
-                )}
-              >
-                {m.slice(0, 1)}
-              </button>
-            ))}
+            {VIEW_MODES.map(m => {
+              const visible = !comp.hiddenIn?.[m]
+              return (
+                <button
+                  key={m}
+                  onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, m))}
+                  title={`${m}: ${visible ? "visible" : "hidden"}`}
+                  className={cn(
+                    "h-5 w-5 grid place-items-center rounded border text-[8px] uppercase",
+                    visible
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border/40 text-muted-foreground/40 hover:text-foreground"
+                  )}
+                >
+                  {visible ? <Eye className="h-2.5 w-2.5" /> : <EyeOff className="h-2.5 w-2.5" />}
+                </button>
+              )
+            })}
           </div>
         )
       },
+      enableColumnFilter: false,
     },
     {
       id: "tags",
-      meta: { label: "Tags" },
-      header: ({ column }) => <ColumnHeader column={column} label="Tags" />,
+      accessorFn: (row) => row.tags?.join(",") ?? "",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Tags" />
+      ),
       cell: ({ row }) => {
-        const tags = row.original.tags
-        const inputVal = tagInput[row.original.id] ?? ""
+        const comp = row.original
+        const tags = comp.tags ?? []
+        const inputVal = tagInput[comp.id] ?? ""
+        const commit = (next: string[]) => dispatch(actions.setComponentTags(comp.id, next))
         return (
           <div className="flex flex-wrap items-center gap-1">
             {tags.map(t => (
@@ -218,11 +215,9 @@ export default function DatabaseModule({ compId }: ModuleProps) {
                 <Tag className="h-2.5 w-2.5" />
                 {t}
                 <button
-                  onClick={() => {
-                    const next = { ...data.tagsByComponent, [row.original.id]: tags.filter(x => x !== t) }
-                    setData({ tagsByComponent: next })
-                  }}
+                  onClick={() => commit(tags.filter(x => x !== t))}
                   className="hover:text-destructive ml-0.5"
+                  aria-label={`Remove ${t}`}
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
@@ -230,19 +225,20 @@ export default function DatabaseModule({ compId }: ModuleProps) {
             ))}
             <input
               value={inputVal}
-              onChange={(e) => setTagInput({ ...tagInput, [row.original.id]: e.target.value })}
+              onChange={(e) => setTagInput({ ...tagInput, [comp.id]: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault()
                   const text = inputVal.trim()
-                  if (!text || tags.includes(text)) { setTagInput({ ...tagInput, [row.original.id]: "" }); return }
-                  const next = { ...data.tagsByComponent, [row.original.id]: [...tags, text] }
-                  setData({ tagsByComponent: next })
-                  setTagInput({ ...tagInput, [row.original.id]: "" })
+                  if (!text || tags.includes(text)) {
+                    setTagInput({ ...tagInput, [comp.id]: "" })
+                    return
+                  }
+                  commit([...tags, text])
+                  setTagInput({ ...tagInput, [comp.id]: "" })
                 }
                 if (e.key === "Backspace" && !inputVal && tags.length > 0) {
-                  const next = { ...data.tagsByComponent, [row.original.id]: tags.slice(0, -1) }
-                  setData({ tagsByComponent: next })
+                  commit(tags.slice(0, -1))
                 }
               }}
               placeholder="+ tag"
@@ -251,210 +247,137 @@ export default function DatabaseModule({ compId }: ModuleProps) {
           </div>
         )
       },
+      meta: {
+        label: "Tags",
+        variant: "text",
+        placeholder: "Search tags...",
+      },
+      // 让 filter 按完整 tag 字符串匹配
+      filterFn: (row, _columnId, filterValue: string) =>
+        (row.original.tags ?? []).some(t => t.toLowerCase().includes(String(filterValue).toLowerCase())),
+      enableColumnFilter: true,
     },
     {
-      accessorKey: "createdAt",
-      meta: { label: "Created" },
-      header: ({ column }) => <ColumnHeader column={column} label="Created" />,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-[10px]">{formatTime(row.original.createdAt)}</span>
+      id: "createdAt",
+      accessorFn: (row) => parseCreatedAt(row.id),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Created" />
       ),
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-[10px] font-mono">
+          {formatTime(parseCreatedAt(row.original.id))}
+        </span>
+      ),
+      enableColumnFilter: false,
     },
     {
-      accessorKey: "dataKeys",
-      meta: { label: "Data Keys" },
-      header: ({ column }) => <ColumnHeader column={column} label="Data" />,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-[10px]">{row.original.dataKeys} keys</span>
+      id: "dataKeys",
+      accessorFn: (row) => (row.data ? Object.keys(row.data).length : 0),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Data" />
       ),
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-[10px] font-mono">
+          {row.original.data ? Object.keys(row.original.data).length : 0} keys
+        </span>
+      ),
+      enableColumnFilter: false,
     },
-  ], [data.tagsByComponent, dispatch, setData, tagInput])
+    {
+      id: "actions",
+      size: 40,
+      header: () => <div className="text-[10px] font-mono tracking-widest uppercase">·</div>,
+      cell: ({ row }) => {
+        const comp = row.original
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Open menu"
+                variant="ghost"
+                size="icon"
+                className="size-7 p-0 data-[state=open]:bg-muted"
+              >
+                <Ellipsis className="size-4" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem
+                onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}
+              >
+                Toggle cards
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "dockview"))}
+              >
+                Toggle dockview
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "flow"))}
+              >
+                Toggle flow
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => dispatch(actions.toggleComponentVisibility(comp.id, "lane"))}
+              >
+                Toggle lane
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      },
+      enableSorting: false,
+      enableHiding: false,
+    },
+  ], [dispatch, tagInput])
+}
+
+export default function DatabaseModule({ compId }: ModuleProps) {
+  void compId // 模块本身不维护本地状态——数据源同 store.components，与卡片注册同源
+  const { visibleComponents } = useWorkspace()
+
+  const columns = useDatabaseColumns()
+
+  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
 
   const table = useReactTable({
-    data: rows,
+    data: visibleComponents,
     columns,
-    state: { sorting, columnFilters, columnVisibility, rowSelection, globalFilter },
+    state: { sorting, columnFilters, columnVisibility, rowSelection },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => row.id,
   })
 
-  const selectedRows = table.getFilteredSelectedRowModel().rows
-  const allModules = useMemo(() => {
-    const set = new Map<string, string>()
-    rows.forEach(r => set.set(r.moduleId, r.moduleName))
-    return Array.from(set, ([value, label]) => ({ value, label }))
-  }, [rows])
-
-  if (rows.length === 0) {
+  if (visibleComponents.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="text-center space-y-2">
-          <p className="text-sm font-mono text-muted-foreground">// no components to display</p>
-          <p className="text-[10px] font-mono text-muted-foreground/60">Deploy some modules first.</p>
+          <p className="text-sm font-mono text-muted-foreground">
+            // no components to display
+          </p>
+          <p className="text-[10px] font-mono text-muted-foreground/60">
+            Deploy some modules first.
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col bg-card">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/20 flex-shrink-0">
-        <Input
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          placeholder="Search all columns..."
-          className="h-8 w-48 text-xs font-mono"
-        />
-        {/* 模块筛选（select variant） */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 text-xs">
-              Module: {String(table.getColumn("moduleName")?.getFilterValue() ?? "All")}
-              <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => table.getColumn("moduleName")?.setFilterValue(undefined)}>
-              All
-            </DropdownMenuItem>
-            {allModules.map(m => (
-              <DropdownMenuItem
-                key={m.value}
-                onClick={() => table.getColumn("moduleName")?.setFilterValue(m.label)}
-              >
-                {m.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <div className="flex-1" />
-
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {rows.length} ROWS · {selectedRows.length} SELECTED
-        </span>
-      </div>
-
-      {/* 表格主体 */}
-      <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className="border-border/60">
-                {headerGroup.headers.map(header => (
-                  <TableHead key={header.id} colSpan={header.colSpan} className="h-9">
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"} className="border-border/30">
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell key={cell.id} className="py-1.5">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* 分页栏 */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border/40 bg-muted/20 flex-shrink-0 text-xs">
-        <span className="font-mono text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-        </span>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
-            Prev
-          </Button>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
-            Next
-          </Button>
-        </div>
-      </div>
+    <div className="h-full flex flex-col bg-card p-2">
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
     </div>
-  )
-}
-
-// ── 列头组件（带排序 + 隐藏菜单）─────────────────────────────────────────────
-function ColumnHeader<TData, TValue>({
-  column,
-  label,
-}: {
-  column: import("@tanstack/react-table").Column<TData, TValue>
-  label: string
-}) {
-  if (!column.getCanSort() && !column.getCanHide()) {
-    return <div className="text-[10px] font-mono tracking-widest uppercase">{label}</div>
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "-ml-1.5 flex h-7 items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-muted/60",
-          "text-[10px] font-mono tracking-widest uppercase",
-        )}
-      >
-        {label}
-        {column.getCanSort() && (
-          column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3" />
-          : column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3" />
-          : <ChevronsUpDown className="h-3 w-3 opacity-40" />
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-28">
-        {column.getCanSort() && (
-          <>
-            <DropdownMenuCheckboxItem
-              checked={column.getIsSorted() === "asc"}
-              onClick={() => column.toggleSorting(false)}
-            >
-              <ArrowUp className="h-3 w-3" /> Asc
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={column.getIsSorted() === "desc"}
-              onClick={() => column.toggleSorting(true)}
-            >
-              <ArrowDown className="h-3 w-3" /> Desc
-            </DropdownMenuCheckboxItem>
-            {column.getIsSorted() && (
-              <DropdownMenuItem onClick={() => column.clearSorting()}>
-                <X className="h-3 w-3" /> Reset
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {column.getCanHide() && (
-          <DropdownMenuCheckboxItem
-            checked={!column.getIsVisible()}
-            onClick={() => column.toggleVisibility(false)}
-          >
-            <EyeOff className="h-3 w-3" /> Hide
-          </DropdownMenuCheckboxItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }

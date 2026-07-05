@@ -69,6 +69,11 @@ export interface ComponentInstance {
    * 切到 cards 模式仍然显示。
    */
   hiddenIn?: Partial<Record<ViewMode, boolean>>
+  /**
+   * 用户自定义标签 — Database 模块（Notion 式表格）维护，
+   * 但与所有 viewMode 共享（数据源同 store.components）。
+   */
+  tags?: string[]
 }
 
 export interface ModuleDef {
