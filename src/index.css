@@ -6,6 +6,11 @@
 /* 包通过 git submodule 引入到 vendor/ocean-dataview，src 相对路径为 ./vendor/ocean-dataview/src */
 @source "./vendor/ocean-dataview/src";
 
+/* 隐藏 tldraw 未授权水印（个人项目用途） */
+[data-testid^="tl-watermark"] {
+  display: none !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
