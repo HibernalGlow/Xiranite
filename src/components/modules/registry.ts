@@ -1,5 +1,6 @@
 import type { ModuleDef } from "@/types/workspace"
 import cleanfEntry from "@xiranite/node-cleanf"
+import dissolvefEntry from "@xiranite/node-dissolvef"
 import encodebEntry from "@xiranite/node-encodeb"
 import linedupEntry from "@xiranite/node-linedup"
 import linkuEntry from "@xiranite/node-linku"
@@ -14,6 +15,7 @@ import sleeptEntry from "@xiranite/node-sleept"
 
 const PACKAGE_MODULES: ModuleDef[] = [
   cleanfEntry.def,
+  dissolvefEntry.def,
   encodebEntry.def,
   linedupEntry.def,
   linkuEntry.def,
