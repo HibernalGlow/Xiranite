@@ -19,29 +19,10 @@
 import { useMemo, useCallback } from "react"
 import { Plus, Columns3 } from "lucide-react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
-import { getDragMode, getDragState, clearDrag, setCardDropTarget } from "@/store/dragState"
+import { getDragMode, getDragState, clearDrag } from "@/store/dragState"
 import { Button } from "@/components/ui/button"
 import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
-
-function findNearestCard(e: React.DragEvent, laneEl: HTMLElement): { cardId: string | null; insertAfter: boolean } {
-  const cards = laneEl.querySelectorAll<HTMLElement>("[data-card-id]")
-  if (cards.length === 0) return { cardId: null, insertAfter: false }
-  let nearest: HTMLElement | null = null
-  let nearestDist = Infinity
-  let insertAfter = false
-  for (const card of Array.from(cards)) {
-    const rect = card.getBoundingClientRect()
-    const midpoint = rect.top + rect.height / 2
-    const dist = Math.abs(e.clientY - midpoint)
-    if (dist < nearestDist) {
-      nearestDist = dist
-      nearest = card
-      insertAfter = e.clientY > midpoint
-    }
-  }
-  return { cardId: nearest?.dataset?.cardId ?? null, insertAfter }
-}
 
 export function LaneView() {
   const { state, visibleComponents } = useWorkspace()
@@ -91,22 +72,6 @@ export function LaneView() {
     if (mode === "none") return
     e.preventDefault()
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
-
-    if (mode === "card") {
-      const target = (e.target as HTMLElement).closest("[data-lane-id]") as HTMLElement | null
-      const targetCard = (e.target as HTMLElement).closest("[data-card-id]") as HTMLElement | null
-      if (targetCard) {
-        const rect = targetCard.getBoundingClientRect()
-        const midpoint = rect.top + rect.height / 2
-        const insertAfter = e.clientY > midpoint
-        setCardDropTarget(targetCard.dataset.cardId ?? null, insertAfter)
-      } else if (target) {
-        const { cardId, insertAfter } = findNearestCard(e, target)
-        setCardDropTarget(cardId, insertAfter)
-      } else {
-        setCardDropTarget(null, false)
-      }
-    }
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -115,6 +80,7 @@ export function LaneView() {
     e.preventDefault()
     e.stopPropagation()
 
+    // 找到 drop 落点的 lane 元素
     const target = (e.target as HTMLElement).closest("[data-lane-id]") as HTMLElement | null
     const toLaneId = target?.dataset?.laneId ?? null
     if (!toLaneId) {
@@ -128,8 +94,35 @@ export function LaneView() {
         dispatch(actions.reorderLane(fromId, toLaneId))
       }
     } else if (mode === "card") {
-      const { cardId, fromLaneId, targetCardId, insertAfter } = getDragState()
-      if (cardId && fromLaneId && toLaneId) {
+      const { cardId, fromLaneId } = getDragState()
+      if (cardId && fromLaneId) {
+        // 计算 drop 位置：找最近的 card，判断在前还是后插入
+        const targetCardEl = (e.target as HTMLElement).closest("[data-card-id]") as HTMLElement | null
+        let targetCardId: string | null = null
+        let insertAfter = false
+        if (targetCardEl) {
+          targetCardId = targetCardEl.dataset.cardId ?? null
+          const rect = targetCardEl.getBoundingClientRect()
+          insertAfter = e.clientY > rect.top + rect.height / 2
+        } else {
+          // 没落到具体 card 上 — 找最近的一个
+          const cards = target?.querySelectorAll<HTMLElement>("[data-card-id]") ?? []
+          if (cards.length > 0) {
+            let nearest: HTMLElement | null = null
+            let nearestDist = Infinity
+            for (const card of Array.from(cards)) {
+              const rect = card.getBoundingClientRect()
+              const midpoint = rect.top + rect.height / 2
+              const dist = Math.abs(e.clientY - midpoint)
+              if (dist < nearestDist) {
+                nearestDist = dist
+                nearest = card
+                insertAfter = e.clientY > midpoint
+              }
+            }
+            targetCardId = nearest?.dataset?.cardId ?? null
+          }
+        }
         dispatch(actions.moveComponentToLane(cardId, toLaneId, targetCardId, insertAfter))
       }
     }
@@ -139,7 +132,6 @@ export function LaneView() {
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     const related = e.relatedTarget as Node | null
     if (related && (e.currentTarget as Node).contains(related)) return
-    setCardDropTarget(null, false)
   }, [])
 
   // 没有任何 lane：显示空态 + 创建默认 lane

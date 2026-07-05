@@ -6,15 +6,35 @@ import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
-  Sun, Moon, Monitor, Palette, Columns3,
+  Sun, Moon, Monitor, Palette,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+/** 泳道模式图标 — 与 Lane 内部用同一个 SVG，画泳道外框 + lane 矩形。 */
+function LaneModeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 15 10"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M11.75 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V6.75C0.75 7.85457 1.64543 8.75 2.75 8.75H11.75C12.8546 8.75 13.75 7.85457 13.75 6.75V2.75C13.75 1.64543 12.8546 0.75 11.75 0.75Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <rect x="0.75" y="0.75" width="5" height="8" rx="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  )
+}
 
 const VIEW_OPTIONS: { key: ViewMode; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [
   { key: "cards",    label: "CARDS",    icon: LayoutDashboard, hint: "卡片布局" },
   { key: "dockview", label: "DOCKVIEW", icon: Share2,         hint: "Dockview 面板" },
   { key: "flow",     label: "FLOW",     icon: Workflow,       hint: "React Flow 节点" },
-  { key: "lane",     label: "LANE",     icon: Columns3,       hint: "泳道模式" },
+  { key: "lane",     label: "LANE",     icon: LaneModeIcon,   hint: "泳道模式" },
 ]
 
 const CARD_LAYOUT_OPTIONS: { key: CardLayout; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [
