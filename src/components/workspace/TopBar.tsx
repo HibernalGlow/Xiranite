@@ -6,7 +6,7 @@ import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
-  Sun, Moon, Monitor, Palette,
+  Sun, Moon, Monitor, Palette, Columns3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -14,6 +14,7 @@ const VIEW_OPTIONS: { key: ViewMode; label: string; icon: React.ComponentType<{ 
   { key: "cards",    label: "CARDS",    icon: LayoutDashboard, hint: "卡片布局" },
   { key: "dockview", label: "DOCKVIEW", icon: Share2,         hint: "Dockview 面板" },
   { key: "flow",     label: "FLOW",     icon: Workflow,       hint: "React Flow 节点" },
+  { key: "lane",     label: "LANE",     icon: Columns3,       hint: "泳道模式" },
 ]
 
 const CARD_LAYOUT_OPTIONS: { key: CardLayout; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [

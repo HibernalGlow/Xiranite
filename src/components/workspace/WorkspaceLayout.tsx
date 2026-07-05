@@ -4,6 +4,7 @@ import { TopBar } from "./TopBar"
 import { CardView } from "./CardView"
 import { DockviewView } from "./DockviewView"
 import { FlowView } from "./FlowView"
+import { LaneView } from "./lane/LaneView"
 import { OverlayHost } from "./OverlayHost"
 import { cn } from "@/lib/utils"
 
@@ -15,7 +16,7 @@ export function WorkspaceLayout() {
     <div className={cn("flex flex-col h-screen overflow-hidden bg-background text-foreground", themeClass)}>
       <TopBar />
 
-      {/* 主面板：三种形态共享同一份 store 数据，互不隔离。
+      {/* 主面板：四种形态共享同一份 store 数据，互不隔离。
           切换 viewMode 只换渲染器，组件实例 + data 不重挂载 */}
       <main className="flex-1 flex overflow-hidden relative">
         <AnimatePresence mode="wait">
@@ -30,6 +31,7 @@ export function WorkspaceLayout() {
             {state.viewMode === "cards" && <CardView />}
             {state.viewMode === "dockview" && <DockviewView />}
             {state.viewMode === "flow" && <FlowView />}
+            {state.viewMode === "lane" && <LaneView />}
           </motion.div>
         </AnimatePresence>
       </main>

@@ -16,6 +16,20 @@ export interface WorkspaceDTO {
   updatedAt: number
 }
 
+// ── Lane ───────────────────────────────────────────────────────────────────
+/** 泳道 DTO — 仅在 viewMode=lane 时持久化 */
+export interface LaneDTO {
+  id: string
+  label: string
+  workspaceId: string
+  widthRatio: number
+  collapsed: boolean
+  hidden?: boolean
+  cardOrder?: string[]
+  createdAt: number
+  updatedAt: number
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 export interface ComponentDTO {
   id: string
@@ -29,8 +43,10 @@ export interface ComponentDTO {
   flowSize?: { width: number; height: number }
   /** Dockview 面板 id */
   dockPanel?: string
+  /** 归属的 Lane id（仅 viewMode=lane 时用） */
+  laneId?: string
   /** 各 viewMode 下独立的可见性开关 */
-  hiddenIn?: { cards?: boolean; dockview?: boolean; flow?: boolean }
+  hiddenIn?: { cards?: boolean; dockview?: boolean; flow?: boolean; lane?: boolean }
   /** Cards 模式层级 */
   z?: number
   collapsed?: boolean
