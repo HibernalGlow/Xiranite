@@ -13,6 +13,7 @@ import linkuEntry from "@xiranite/node-linku"
 import markuEntry from "@xiranite/node-marku"
 import migratefEntry from "@xiranite/node-migratef"
 import moveaEntry from "@xiranite/node-movea"
+import mvzEntry from "@xiranite/node-mvz"
 import owithuEntry from "@xiranite/node-owithu"
 import rawfilterEntry from "@xiranite/node-rawfilter"
 import recycleuEntry from "@xiranite/node-recycleu"
@@ -48,6 +49,7 @@ const packageModules = {
   [markuEntry.def.id]: markuEntry,
   [migratefEntry.def.id]: migratefEntry,
   [moveaEntry.def.id]: moveaEntry,
+  [mvzEntry.def.id]: mvzEntry,
   [owithuEntry.def.id]: owithuEntry,
   [rawfilterEntry.def.id]: rawfilterEntry,
   [recycleuEntry.def.id]: recycleuEntry,
