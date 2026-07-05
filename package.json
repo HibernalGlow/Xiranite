@@ -46,6 +46,7 @@
     "@xiranite/node-seriex": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
     "@xiranite/node-trename": "workspace:*",
+    "@xiranite/node-weibospider": "workspace:*",
     "@xiranite/ui": "workspace:*",
     "@base-ui/react": "^1.1.0",
     "@dnd-kit/core": "^6.3.1",

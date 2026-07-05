@@ -26,6 +26,7 @@ import scoolpEntry from "@xiranite/node-scoolp"
 import seriexEntry from "@xiranite/node-seriex"
 import sleeptEntry from "@xiranite/node-sleept"
 import trenameEntry from "@xiranite/node-trename"
+import weibospiderEntry from "@xiranite/node-weibospider"
 import { useNodeHostApi } from "./hostApi"
 
 const modules: Record<string, ReturnType<typeof lazy>> = {
@@ -66,6 +67,7 @@ const packageModules = {
   [seriexEntry.def.id]: seriexEntry,
   [sleeptEntry.def.id]: sleeptEntry,
   [trenameEntry.def.id]: trenameEntry,
+  [weibospiderEntry.def.id]: weibospiderEntry,
 }
 
 export interface ModuleProps {

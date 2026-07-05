@@ -24,6 +24,7 @@ import scoolpEntry from "@xiranite/node-scoolp"
 import seriexEntry from "@xiranite/node-seriex"
 import sleeptEntry from "@xiranite/node-sleept"
 import trenameEntry from "@xiranite/node-trename"
+import weibospiderEntry from "@xiranite/node-weibospider"
 
 const PACKAGE_MODULES: ModuleDef[] = [
   bandiaEntry.def,
@@ -51,6 +52,7 @@ const PACKAGE_MODULES: ModuleDef[] = [
   seriexEntry.def,
   sleeptEntry.def,
   trenameEntry.def,
+  weibospiderEntry.def,
 ]
 
 export const MODULE_REGISTRY: ModuleDef[] = [
