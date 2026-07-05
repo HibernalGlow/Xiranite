@@ -35,6 +35,7 @@
         "@xiranite/node-rawfilter": "workspace:*",
         "@xiranite/node-recycleu": "workspace:*",
         "@xiranite/node-reinstallp": "workspace:*",
+        "@xiranite/node-repacku": "workspace:*",
         "@xiranite/node-scoolp": "workspace:*",
         "@xiranite/node-seriex": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
@@ -489,6 +490,27 @@
       "version": "0.1.0",
       "bin": {
         "xiranite-reinstallp": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "@types/react": "^19.2.14",
+        "typescript": "~5.9.3",
+      },
+      "peerDependencies": {
+        "lucide-react": "^1.0.0",
+        "react": "^19.0.0",
+      },
+    },
+    "packages/nodes/repacku": {
+      "name": "@xiranite/node-repacku",
+      "version": "0.1.0",
+      "bin": {
+        "xiranite-repacku": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -1024,6 +1046,8 @@
     "@xiranite/node-recycleu": ["@xiranite/node-recycleu@workspace:packages/nodes/recycleu"],
 
     "@xiranite/node-reinstallp": ["@xiranite/node-reinstallp@workspace:packages/nodes/reinstallp"],
+
+    "@xiranite/node-repacku": ["@xiranite/node-repacku@workspace:packages/nodes/repacku"],
 
     "@xiranite/node-scoolp": ["@xiranite/node-scoolp@workspace:packages/nodes/scoolp"],
 

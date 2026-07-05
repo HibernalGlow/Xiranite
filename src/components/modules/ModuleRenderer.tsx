@@ -18,6 +18,7 @@ import moveaEntry from "@xiranite/node-movea"
 import mvzEntry from "@xiranite/node-mvz"
 import owithuEntry from "@xiranite/node-owithu"
 import rawfilterEntry from "@xiranite/node-rawfilter"
+import repackuEntry from "@xiranite/node-repacku"
 import recycleuEntry from "@xiranite/node-recycleu"
 import reinstallpEntry from "@xiranite/node-reinstallp"
 import scoolpEntry from "@xiranite/node-scoolp"
@@ -56,6 +57,7 @@ const packageModules = {
   [mvzEntry.def.id]: mvzEntry,
   [owithuEntry.def.id]: owithuEntry,
   [rawfilterEntry.def.id]: rawfilterEntry,
+  [repackuEntry.def.id]: repackuEntry,
   [recycleuEntry.def.id]: recycleuEntry,
   [reinstallpEntry.def.id]: reinstallpEntry,
   [scoolpEntry.def.id]: scoolpEntry,

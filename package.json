@@ -40,6 +40,7 @@
     "@xiranite/node-rawfilter": "workspace:*",
     "@xiranite/node-recycleu": "workspace:*",
     "@xiranite/node-reinstallp": "workspace:*",
+    "@xiranite/node-repacku": "workspace:*",
     "@xiranite/node-scoolp": "workspace:*",
     "@xiranite/node-seriex": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
