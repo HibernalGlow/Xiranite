@@ -26,9 +26,11 @@ func main() {
 	localBackend, err := StartLocalBackend()
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)
-	} else {
+	} else if localBackend != nil {
 		defer localBackend.Stop()
 		log.Printf("Xiranite local backend ready: %s", localBackend.Config.BaseURL)
+	} else {
+		log.Printf("Xiranite frontend dev proxy active; local backend startup is delegated to the Vite dev server")
 	}
 
 	var backendConfig *LocalBackendConfig

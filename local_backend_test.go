@@ -5,6 +5,19 @@ import (
 	"testing"
 )
 
+func TestStartLocalBackendSkipsDevProxyWithoutExternalBackend(t *testing.T) {
+	t.Setenv("FRONTEND_DEVSERVER_URL", "http://127.0.0.1:5173")
+	t.Setenv("XIRANITE_BACKEND_URL", "")
+
+	backend, err := StartLocalBackend()
+	if err != nil {
+		t.Fatalf("expected dev proxy mode to skip local backend without error: %v", err)
+	}
+	if backend != nil {
+		t.Fatalf("expected no local backend in dev proxy attach mode, got %#v", backend)
+	}
+}
+
 func TestInjectBackendConfig(t *testing.T) {
 	html := "<!doctype html><html><head><title>X</title></head><body></body></html>"
 	result := injectBackendConfig(html, &LocalBackendConfig{

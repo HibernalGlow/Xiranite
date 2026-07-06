@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
+import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { cn } from "@/lib/utils"
 import { translateLabel } from "@/lib/i18nLabel"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
@@ -10,7 +11,7 @@ import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
-  CircleDot, Image,
+  CircleDot, Image, Code2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -90,6 +91,7 @@ export function TopBar() {
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const runtimeInfo = getRuntimeConnectionInfo()
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -229,6 +231,25 @@ export function TopBar() {
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "relative hidden h-8 w-8 text-muted-foreground hover:text-foreground sm:inline-flex",
+            runtimeInfo.frontendSource === "vite-dev" && "text-primary hover:text-primary",
+          )}
+          onClick={() => dispatch(actions.setOverlay("settings"))}
+          title={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
+          aria-label={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
+        >
+          <Code2 className="h-4 w-4" />
+          <span
+            className={cn(
+              "absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full",
+              runtimeInfo.frontendSource === "vite-dev" ? "bg-primary" : "bg-muted-foreground/40",
+            )}
+          />
+        </Button>
         <Button
           variant="ghost"
           size="sm"

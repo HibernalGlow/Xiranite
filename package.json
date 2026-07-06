@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "bun run build:packages && bun scripts/dev-with-backend.ts",
     "dev:desktop": "bun run build:packages && bun scripts/dev-desktop.ts",
+    "dev:desktop:attach": "bun run build:packages && bun scripts/dev-desktop-attach.ts",
     "dev:vite": "vite",
     "build": "bun run build:packages && tsc -b && vite build",
     "build:base-packages": "bun --filter @xiranite/contract build && bun --filter @xiranite/shared build && bun --filter @xiranite/cli-runtime build && bun --filter @xiranite/ui build && bun --filter @xiranite/repository build && bun --filter @xiranite/services build && bun --filter @xiranite/api build",

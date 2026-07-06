@@ -42,6 +42,10 @@ func StartLocalBackend() (*LocalBackend, error) {
 		}, nil
 	}
 
+	if strings.TrimSpace(os.Getenv("FRONTEND_DEVSERVER_URL")) != "" {
+		return nil, nil
+	}
+
 	command, args, cwd, err := resolveLocalBackendCommand()
 	if err != nil {
 		return nil, err
