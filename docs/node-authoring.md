@@ -2,6 +2,8 @@
 
 This guide defines the adapter-free package contract for Xiranite nodes. Use it when migrating an aestivus adapter, writing a node in an external repository, or reviewing whether a node package can be installed independently without polluting Xiranite.
 
+For a handoff-style guide aimed at authors working outside this repository, see [external-node-packages.md](external-node-packages.md).
+
 ## Package Shape
 
 Each node is an independent npm package under the Bun workspace:
@@ -168,12 +170,13 @@ Run these before considering a node complete:
 ```powershell
 bun --filter @xiranite/node-example test
 bun --filter @xiranite/node-example build
+bun scripts/validate-node-architecture.ts --node example
 bun run test:packages
 bun run build:packages
 bun run build
 ```
 
-Run architecture scans from the repo root:
+The validation script is the preferred architecture gate. If you need to debug a failure manually, run these equivalent scans from the repo root:
 
 ```powershell
 rg -n "NodeCardSchema|NodeCardProps|card:\s*NodeCard" packages src
