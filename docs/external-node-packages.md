@@ -1,20 +1,20 @@
-# External Xiranite Node Packages
+# 外部 Xiranite 节点包
 
-This document is the handoff contract for writing a Xiranite node outside this repository and integrating it later.
+本文档是在此仓库外部编写 Xiranite 节点并后续集成时的交接契约。
 
-## What An External Node Is
+## 什么是外部节点
 
-An external node is a normal npm package that exports a Xiranite `NodeEntry`:
+外部节点是一个普通的 npm 包，导出 Xiranite `NodeEntry`：
 
-- UI entry: shell-less `Component.tsx`
-- shared logic: pure `core.ts`
-- command line: `cli.ts`
-- native adapters: `platform.ts`
-- optional standalone demo shell: `src/demo/CardShell.tsx`
+- UI 入口：无壳的 `Component.tsx`
+- 共享逻辑：纯 `core.ts`
+- 命令行：`cli.ts`
+- 原生适配器：`platform.ts`
+- 可选的独立演示外壳：`src/demo/CardShell.tsx`
 
-The package must not import Xiranite app internals. Xiranite is the consumer.
+该包不得导入 Xiranite 应用内部模块。Xiranite 是消费者。
 
-## Required Package Shape
+## 必需的包结构
 
 ```text
 my-node-package/
@@ -31,9 +31,9 @@ my-node-package/
       CardShell.tsx
 ```
 
-`src/index.ts` is the only integration entry Xiranite should import.
+`src/index.ts` 是 Xiranite 唯一应导入的集成入口。
 
-## Public Entry
+## 公开入口
 
 ```ts
 import type { NodeEntry } from "@xiranite/contract"
@@ -46,7 +46,7 @@ const entry: NodeEntry<typeof core> = {
     name: "Example",
     version: "0.1.0",
     category: "file",
-    description: "Short description.",
+    description: "简短描述。",
     icon: "FileText",
     keywords: ["example"],
   },
@@ -59,11 +59,11 @@ export * from "./core.js"
 export default entry
 ```
 
-Do not export `cli`, `platform`, `demo`, or `CardShell` from `index.ts`.
+不要从 `index.ts` 导出 `cli`、`platform`、`demo` 或 `CardShell`。
 
-## Package Manifest
+## 包清单
 
-Use this shape for local workspace development:
+本地工作区开发使用此结构：
 
 ```json
 {
@@ -104,82 +104,82 @@ Use this shape for local workspace development:
 }
 ```
 
-Before publishing outside the monorepo, replace `workspace:*` with published versions.
+在发布到 monorepo 外部之前，将 `workspace:*` 替换为已发布的版本号。
 
-## Component Rules
+## 组件规则
 
-`Component.tsx` is content only. Xiranite supplies card shells, dock panels, flow shapes, floating windows, and demo wrappers.
+`Component.tsx` 仅包含内容。Xiranite 提供卡片外壳、停靠面板、流程形状、浮动窗口和演示包装器。
 
-Allowed:
+允许：
 
-- `NodeComponentProps` from `@xiranite/contract`
-- `@xiranite/ui` content primitives
-- local component state derived from `host.getData` / `host.patchData`
-- pasted input, local previews, logs, and CLI fallback messaging
+- 来自 `@xiranite/contract` 的 `NodeComponentProps`
+- `@xiranite/ui` 内容原语
+- 源自 `host.getData` / `host.patchData` 的本地组件状态
+- 粘贴的输入、本地预览、日志和 CLI 回退消息
 
-Forbidden:
+禁止：
 
-- `CardShell`, local `Panel`, shadcn `Card`, or nested card shells
-- `@/store`, `@/components`, `@/lib`, or other Xiranite app imports
-- `host.runNode`, `host.runner`, or any backend runner assumption
-- fixed card dimensions such as `min-h-[320px]`
-- fixed arbitrary grids such as `grid-cols-[1.1fr_1fr_130px]`
+- `CardShell`、本地 `Panel`、shadcn `Card` 或嵌套卡片外壳
+- `@/store`、`@/components`、`@/lib` 或其他 Xiranite 应用导入
+- `host.runNode`、`host.runner` 或任何后端运行器假设
+- 固定卡片尺寸，如 `min-h-[320px]`
+- 固定任意网格，如 `grid-cols-[1.1fr_1fr_130px]`
 
-## Core And Platform Split
+## 核心逻辑与平台分离
 
-`core.ts` should contain pure logic and runtime-injected operations:
+`core.ts` 应包含纯逻辑和运行时注入的操作：
 
-- parse inputs
-- validate configs
-- build plans
-- transform data
-- calculate stats
-- execute through an injected runtime interface
+- 解析输入
+- 验证配置
+- 构建计划
+- 转换数据
+- 计算统计
+- 通过注入的运行时接口执行
 
-`platform.ts` owns concrete native work:
+`platform.ts` 负责具体的原生工作：
 
-- filesystem
-- shell/subprocess
-- Windows registry
-- browser/network
-- archive tools
-- OS-specific behavior
+- 文件系统
+- Shell/子进程
+- Windows 注册表
+- 浏览器/网络
+- 归档工具
+- 操作系统特定行为
 
-This split keeps UI, CLI, tests, and future backend execution using the same logic without adapters.
+这种分离使得 UI、CLI、测试和未来的后端执行都能使用相同的逻辑，无需适配器。
 
-## CLI Rules
+## CLI 规则
 
-Use `citty` through `@xiranite/cli-runtime`.
+通过 `@xiranite/cli-runtime` 使用 `citty`。
 
-- `xexample` should be directly executable under the current Xiranite CLI naming policy.
-- `xiranite example ...` can call the same CLI through the aggregate registry.
-- No-arg TTY may enter Ink guided mode.
-- No-arg non-TTY should return usage/error code for automation.
-- CLI must not import `Component.tsx` or `@xiranite/ui`.
-- JSON output should be available for scripts when useful.
+- `xexample` 在当前 Xiranite CLI 命名策略下应可直接执行。
+- `xiranite example ...` 可通过聚合注册表调用相同的 CLI。
+- 无参数 TTY 可进入 Ink 引导模式。
+- 无参数非 TTY 应返回用法/错误代码以供自动化使用。
+- CLI 不得导入 `Component.tsx` 或 `@xiranite/ui`。
+- 在需要时，应为脚本提供 JSON 输出。
 
-## Integration Into Xiranite
+## 集成到 Xiranite
 
-Current integration is explicit:
+当前集成是显式的：
 
-1. Add the package dependency to root `package.json`.
-2. Import the package default entry in `src/components/modules/registry.ts`.
-3. Append `entry.def` to `MODULE_REGISTRY`.
-4. Import the package default entry in `src/components/modules/ModuleRenderer.tsx`.
-5. Add it to `packageModules`.
+1. 将包依赖添加到根 `package.json`。
+2. 在 `src/components/modules/registry.ts` 中导入包默认入口。
+3. 将 `entry.def` 追加到 `MODULE_REGISTRY`。
+4. 在 `src/components/modules/ModuleRenderer.tsx` 中导入包默认入口。
+5. 将其添加到 `packageModules`。
 
-Only import the default package entry. Do not import `./cli`, `./platform`, or `./demo`.
+仅导入默认包入口。不要导入 `./cli`、`./platform` 或 `./demo`。
 
-## Validation
+## 验证
 
-From the external package:
+从外部包：
 
 ```powershell
 bun test
 bun run build
 ```
 
-From the Xiranite repo after linking or copying the package:
+从 Xiranite 仓库（链接或复制包后）：
 
 ```powershell
 bun --filter @xiranite/node-example test
@@ -190,18 +190,18 @@ bun run build:packages
 bun run build
 ```
 
-The architecture validator is intentionally stricter than TypeScript. Passing TypeScript is not enough; the node must preserve Xiranite's shell-less component and CLI/core boundaries.
+架构验证器有意比 TypeScript 更严格。仅通过 TypeScript 检查是不够的；节点必须保持 Xiranite 的无壳组件和 CLI/core 边界。
 
-## Codex Skill
+## Codex 技能
 
-A local Codex skill is installed at:
+本地 Codex 技能安装在：
 
 ```text
 C:\Users\30902\.codex\skills\xiranite-node-authoring
 ```
 
-Use it from any repository with:
+从任何仓库使用：
 
 ```text
-Use $xiranite-node-authoring to create or review an adapter-free Xiranite node package.
+使用 $xiranite-node-authoring 创建或审核一个无适配器的 Xiranite 节点包。
 ```

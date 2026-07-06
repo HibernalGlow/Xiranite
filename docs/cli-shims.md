@@ -1,20 +1,20 @@
-# Xiranite CLI Shims
+# Xiranite CLI Shim
 
-Use `scripts/install-cli-shims.ts` to expose the migrated TypeScript CLIs as system commands without deleting the old Python installation.
+使用 `scripts/install-cli-shims.ts` 将迁移后的 TypeScript CLI 暴露为系统命令，同时保留旧的 Python 安装。
 
-The script writes managed shim files into a target directory:
+该脚本将受管理的 shim 文件写入目标目录：
 
 - `xiranite.cmd`
-- `x<node>.cmd` for every migrated node package under the current CLI naming policy
-- optional legacy aliases: `anode.cmd`, `aestiv.cmd`, `aestiva.cmd`
+- 根据当前 CLI 命名策略，每个已迁移节点包对应一个 `x<node>.cmd`
+- 可选的旧版别名：`anode.cmd`、`aestiv.cmd`、`aestiva.cmd`
 
-Default target:
+默认目标：
 
 ```powershell
 ~\.xiranite\bin
 ```
 
-Recommended flow:
+推荐流程：
 
 ```powershell
 bun run build:packages
@@ -22,23 +22,23 @@ bun scripts/install-cli-shims.ts --dry-run --legacy-aliases
 bun scripts/install-cli-shims.ts --force --legacy-aliases
 ```
 
-Then place the target directory before Python Scripts in the user `PATH`. For the current PowerShell session:
+然后将目标目录置于用户 `PATH` 中的 Python Scripts 之前。对于当前 PowerShell 会话：
 
 ```powershell
 $env:Path = "$HOME\.xiranite\bin;$env:Path"
 ```
 
-The shims are intentionally small and reversible. They call the built JS files with Bun, for example:
+这些 shim 体积小巧且可逆。它们通过 Bun 调用编译后的 JS 文件，例如：
 
 ```cmd
 bun "D:\1VSCODE\Projects\Xiranite\packages\cli\dist\index.js" %*
 ```
 
-Safety rules:
+安全规则：
 
-- `--dry-run` prints planned writes without touching the filesystem.
-- Existing unmanaged files are skipped unless `--force` is passed.
-- Existing managed Xiranite shims are safe to overwrite.
-- The script checks that `dist/cli.js` files exist and asks you to run `bun run build:packages` if they are missing.
+- `--dry-run` 打印计划写入的内容，不触碰文件系统。
+- 除非传递 `--force`，否则跳过现有未受管理的文件。
+- 现有受管理的 Xiranite shim 可安全覆盖。
+- 脚本会检查 `dist/cli.js` 文件是否存在，如果缺失则提示你运行 `bun run build:packages`。
 
-The legacy aliases dispatch to the aggregate `xiranite` CLI. Keep them disabled unless you deliberately want the old Python command names to resolve to Xiranite.
+旧版别名会分发到聚合的 `xiranite` CLI。除非你刻意希望旧的 Python 命令名称解析到 Xiranite，否则保持禁用状态。

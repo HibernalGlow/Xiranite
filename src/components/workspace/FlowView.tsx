@@ -18,12 +18,14 @@ import {
   useEditor,
   type TLBaseShape,
   type TLIndicatorPath,
+  type TLResizeInfo,
 } from "tldraw"
 import "tldraw/tldraw.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useTheme } from "@/components/theme-provider"
 import { Plus, Workflow, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { ComponentInstance } from "@/types/workspace"
@@ -79,6 +81,23 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
   override isAspectRatioLocked() { return false }
   override canResize() { return true }
   override canBind() { return false }
+
+  override onResize(shape: ModuleShape, info: TLResizeInfo<ModuleShape>): ModuleShape {
+    const minW = 240
+    const minH = 160
+    const newW = Math.max(minW, info.initialBounds.width * info.scaleX)
+    const newH = Math.max(minH, info.initialBounds.height * info.scaleY)
+    return {
+      ...shape,
+      x: info.newPoint.x,
+      y: info.newPoint.y,
+      props: {
+        ...shape.props,
+        w: newW,
+        h: newH,
+      },
+    }
+  }
 }
 
 // ── Shape 内部组件（用 hook 拿 dispatch） ────────────────────────────────────
@@ -232,10 +251,12 @@ function FlowCanvas() {
 }
 
 export function FlowView() {
+  const { theme } = useTheme()
   return (
     <div className="flex-1 min-h-0 w-full ws-canvas-bg relative">
       <Tldraw
         shapeUtils={customShapeUtils}
+        colorScheme={theme}
         options={{ maxPages: 1 }}
         components={{ PageMenu: () => null, MainMenu: () => null }}
       >
