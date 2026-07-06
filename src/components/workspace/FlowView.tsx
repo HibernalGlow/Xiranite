@@ -23,6 +23,11 @@ import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { Plus, Workflow, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { ComponentInstance } from "@/types/workspace"
+
+function isFlowCanvasVisible(component: ComponentInstance) {
+  return component.hiddenIn?.flow === false
+}
 
 // ── 自定义 shape 类型（通过 module augmentation 注册到 TLShape union） ────────
 type ModuleShapeProps = {
@@ -121,7 +126,7 @@ function useSyncShapesFromStore(editor: ReturnType<typeof useEditor> | null) {
   useEffect(() => {
     if (!editor) return
 
-    const flowComps = visibleComponents.filter(c => !c.hiddenIn?.flow)
+    const flowComps = visibleComponents.filter(isFlowCanvasVisible)
     const desired = flowComps.map((comp, i) => ({
       id: createShapeId(comp.id),
       type: "module" as const,
@@ -195,7 +200,7 @@ function FlowCanvas() {
   useSyncShapesFromStore(editor)
   useSyncChangesToStore(editor)
 
-  const isEmpty = visibleComponents.filter(c => !c.hiddenIn?.flow).length === 0
+  const isEmpty = visibleComponents.filter(isFlowCanvasVisible).length === 0
 
   if (isEmpty) {
     return (

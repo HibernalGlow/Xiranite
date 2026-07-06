@@ -49,7 +49,7 @@ type Action =
   | { type: "ADD_WORKSPACE" }
   | { type: "REMOVE_WORKSPACE"; id: string }
   | { type: "RENAME_WORKSPACE"; id: string; label: string }
-  | { type: "DEPLOY_COMPONENT"; moduleId: string }
+  | { type: "DEPLOY_COMPONENT"; moduleId: string; viewMode?: ViewMode }
   | { type: "REMOVE_COMPONENT"; id: string }
   | { type: "SET_COMPONENT_STATE"; id: string; state: ComponentState }
   | { type: "SET_COMPONENT_POSITION"; id: string; x: number; y: number }
@@ -167,6 +167,13 @@ function reducer(state: WSState, action: Action): WSState {
         flowPosition: { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
         flowSize: { width: 384, height: 320 },
         dockPanel: "default",
+        // 若指定了 viewMode，则只在当前 viewMode 可见，其他视图自动隐藏
+        hiddenIn: action.viewMode
+          ? Object.fromEntries(
+              (["cards", "dockview", "flow", "lane"] as ViewMode[])
+                .map(m => [m, m !== action.viewMode])
+            ) as Record<ViewMode, boolean>
+          : undefined,
       }
       let lanes = state.lanes
       // 若当前 workspace 还没有任何 lane，自动建一个默认 lane 容纳新组件
@@ -531,7 +538,7 @@ export const actions = {
   addWorkspace: (): Action => ({ type: "ADD_WORKSPACE" }),
   removeWorkspace: (id: string): Action => ({ type: "REMOVE_WORKSPACE", id }),
   renameWorkspace: (id: string, label: string): Action => ({ type: "RENAME_WORKSPACE", id, label }),
-  deployComponent: (moduleId: string): Action => ({ type: "DEPLOY_COMPONENT", moduleId }),
+  deployComponent: (moduleId: string, viewMode?: ViewMode): Action => ({ type: "DEPLOY_COMPONENT", moduleId, viewMode }),
   removeComponent: (id: string): Action => ({ type: "REMOVE_COMPONENT", id }),
   setComponentState: (id: string, state: ComponentState): Action => ({ type: "SET_COMPONENT_STATE", id, state }),
   setComponentPosition: (id: string, x: number, y: number): Action => ({ type: "SET_COMPONENT_POSITION", id, x, y }),
