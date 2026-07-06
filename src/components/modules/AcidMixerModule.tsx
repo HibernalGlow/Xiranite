@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -13,6 +14,7 @@ const COLORS = ["text-chart-1", "text-chart-2", "text-chart-3", "text-chart-4", 
 const STREAM_COLORS = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"]
 
 export default function AcidMixerModule() {
+  const { t } = useTranslation()
   const [streams, setStreams] = useState<Stream[]>([
     { id: `s-${++sid}`, label: "STREAM_A", value: 42, color: COLORS[0] },
     { id: `s-${++sid}`, label: "STREAM_B", value: 17, color: COLORS[1] },
@@ -75,7 +77,7 @@ export default function AcidMixerModule() {
       <Separator className="opacity-50" />
 
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-mono text-muted-foreground">OP</span>
+        <span className="text-[10px] font-mono text-muted-foreground">{t("module:acidMixer.operation")}</span>
         {(["+", "*", "max", "mix"] as const).map(op => (
           <button
             key={op}
@@ -102,7 +104,7 @@ export default function AcidMixerModule() {
       <div className="flex items-center gap-2">
         <Button size="sm" className="flex-1 h-8 font-mono text-xs" onClick={compute}>
           <FlaskConical className="h-3.5 w-3.5 mr-1.5" />
-          SYNTHESIZE
+          {t("module:acidMixer.synthesize")}
         </Button>
         {output !== null && (
           <Badge variant="outline" className="font-mono text-primary border-primary/40 h-8 px-3">

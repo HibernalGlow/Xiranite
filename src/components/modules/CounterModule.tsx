@@ -1,12 +1,14 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Minus, Plus, RotateCcw } from "lucide-react"
 
 export default function CounterModule() {
+  const { t } = useTranslation()
   const [value, setValue] = useState(0)
   const [step, setStep] = useState(1)
-  const [label, setLabel] = useState("COUNT")
+  const [label, setLabel] = useState(t("module:counter.defaultLabel"))
 
   return (
     <div className="flex flex-col items-center gap-4 p-2 h-full justify-between">
@@ -22,7 +24,7 @@ export default function CounterModule() {
         <span className="font-mono text-5xl font-bold tabular-nums text-primary leading-none">
           {value.toLocaleString()}
         </span>
-        <span className="text-[10px] font-mono text-muted-foreground">STEP: {step}</span>
+        <span className="text-[10px] font-mono text-muted-foreground">{t("module:counter.stepValue", { step })}</span>
       </div>
 
       <div className="flex items-center gap-2 w-full">
@@ -39,7 +41,7 @@ export default function CounterModule() {
           size="icon"
           className="h-9 w-9"
           onClick={() => setValue(0)}
-          title="Reset"
+          title={t("common:reset")}
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </Button>
@@ -54,7 +56,7 @@ export default function CounterModule() {
       </div>
 
       <div className="flex items-center gap-2 w-full">
-        <span className="text-[10px] font-mono text-muted-foreground flex-shrink-0">STEP</span>
+        <span className="text-[10px] font-mono text-muted-foreground flex-shrink-0">{t("module:counter.step")}</span>
         <Input
           type="number"
           value={step}

@@ -1,6 +1,8 @@
-import { useState } from "react"
+import { useRef, useState, type MouseEvent } from "react"
+import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
+import { translateLabel } from "@/lib/i18nLabel"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
 import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
@@ -10,6 +12,51 @@ import {
   Sun, Moon, Monitor, Palette, Minus, Square, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+declare global {
+  interface Window {
+    __electrobunWindowId?: number
+    __electrobunInternalBridge?: {
+      postMessage(message: string): void
+    }
+  }
+}
+
+const TITLEBAR_NO_DRAG_SELECTOR = [
+  ".electrobun-webkit-app-region-no-drag",
+  ".xiranite-app-region-no-drag",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  "a",
+  "[role='button']",
+].join(",")
+
+function isNoDragTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest(TITLEBAR_NO_DRAG_SELECTOR)
+}
+
+function postElectrobunInternalMessage(id: string, payload: unknown): boolean {
+  if (typeof window === "undefined") return false
+  const windowId = window.__electrobunWindowId
+  const bridge = window.__electrobunInternalBridge
+  if (typeof windowId !== "number" || !bridge) return false
+
+  bridge.postMessage(JSON.stringify([
+    JSON.stringify({ type: "message", id, payload }),
+  ]))
+  return true
+}
+
+function startElectrobunWindowMove(): void {
+  if (!postElectrobunInternalMessage("startWindowMove", { id: window.__electrobunWindowId })) return
+
+  const stopMove = () => {
+    postElectrobunInternalMessage("stopWindowMove", {})
+  }
+  window.addEventListener("mouseup", stopMove, { once: true })
+}
 
 /** 泳道模式图标 — 与 Lane 内部用同一个 SVG，画泳道外框 + lane 矩形。 */
 function LaneModeIcon({ className }: { className?: string }) {
@@ -31,18 +78,18 @@ function LaneModeIcon({ className }: { className?: string }) {
   )
 }
 
-const VIEW_OPTIONS: { key: ViewMode; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [
-  { key: "cards",    label: "CARDS",    icon: LayoutDashboard, hint: "卡片布局" },
-  { key: "dockview", label: "DOCKVIEW", icon: Share2,         hint: "Dockview 面板" },
-  { key: "flow",     label: "FLOW",     icon: Workflow,       hint: "React Flow 节点" },
-  { key: "lane",     label: "LANE",     icon: LaneModeIcon,   hint: "泳道模式" },
+const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "cards",    labelKey: "topbar:viewMode.cards",    hintKey: "topbar:viewMode.cardsHint",    icon: LayoutDashboard },
+  { key: "dockview", labelKey: "topbar:viewMode.dockview", hintKey: "topbar:viewMode.dockviewHint", icon: Share2 },
+  { key: "flow",     labelKey: "topbar:viewMode.flow",     hintKey: "topbar:viewMode.flowHint",     icon: Workflow },
+  { key: "lane",     labelKey: "topbar:viewMode.lane",     hintKey: "topbar:viewMode.laneHint",     icon: LaneModeIcon },
 ]
 
-const CARD_LAYOUT_OPTIONS: { key: CardLayout; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [
-  { key: "grid",  label: "GRID",  icon: Grid,                 hint: "auto tile" },
-  { key: "stack", label: "STACK", icon: AlignJustify,         hint: "cascade" },
-  { key: "split", label: "SPLIT", icon: SplitSquareVertical, hint: "two columns" },
-  { key: "focus", label: "FOCUS", icon: Target,              hint: "hero + strip" },
+const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "grid",  labelKey: "topbar:cardLayout.grid",  hintKey: "topbar:cardLayout.gridHint",  icon: Grid },
+  { key: "stack", labelKey: "topbar:cardLayout.stack", hintKey: "topbar:cardLayout.stackHint", icon: AlignJustify },
+  { key: "split", labelKey: "topbar:cardLayout.split", hintKey: "topbar:cardLayout.splitHint", icon: SplitSquareVertical },
+  { key: "focus", labelKey: "topbar:cardLayout.focus", hintKey: "topbar:cardLayout.focusHint", icon: Target },
 ]
 
 // 主题预设与颜色模式默认值同步
@@ -52,25 +99,28 @@ const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
   wuling: "dark",
 }
 
-const THEME_PRESETS: { key: AppTheme; label: string; swatch: string }[] = [
-  { key: "spatial",  label: "Spatial",  swatch: "oklch(0.40 0.12 148)" },
-  { key: "endfield", label: "Endfield", swatch: "oklch(0.62 0.18 152)" },
-  { key: "wuling",   label: "Wuling",   swatch: "oklch(0.70 0.16 68)" },
+const THEME_PRESETS: { key: AppTheme; labelKey: string; swatch: string }[] = [
+  { key: "spatial",  labelKey: "topbar:theme.spatial",  swatch: "oklch(0.40 0.12 148)" },
+  { key: "endfield", labelKey: "topbar:theme.endfield", swatch: "oklch(0.62 0.18 152)" },
+  { key: "wuling",   labelKey: "topbar:theme.wuling",   swatch: "oklch(0.70 0.16 68)" },
 ]
 
 type ColorMode = "system" | "light" | "dark"
-const COLOR_MODES: { key: ColorMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "system", label: "System", icon: Monitor },
-  { key: "light",  label: "Light",  icon: Sun },
-  { key: "dark",   label: "Dark",   icon: Moon },
+const COLOR_MODES: { key: ColorMode; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "system", labelKey: "topbar:theme.system", icon: Monitor },
+  { key: "light",  labelKey: "topbar:theme.light",  icon: Sun },
+  { key: "dark",   labelKey: "topbar:theme.dark",   icon: Moon },
 ]
 
 export function TopBar() {
   const { state } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { t } = useTranslation()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
+  const restoredFromDragAt = useRef(0)
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -82,67 +132,113 @@ export function TopBar() {
     const backend = await getBackend()
     const result = await backend.windows.controlMain(action)
     if (!result.success) console.info(`[window] ${result.message}`)
+    if (result.success && result.state) setIsMaximized(result.state === "maximized")
+  }
+
+  async function restoreMainForTitlebarDrag(event: MouseEvent<HTMLElement>) {
+    const input = {
+      screenX: event.screenX,
+      screenY: event.screenY,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      windowWidth: window.innerWidth,
+    }
+
+    const backend = await getBackend()
+    const result = await backend.windows.restoreMainForDrag(input)
+    if (!result.success) {
+      console.info(`[window] ${result.message}`)
+      return
+    }
+
+    restoredFromDragAt.current = Date.now()
+    setIsMaximized(false)
+    startElectrobunWindowMove()
+  }
+
+  function handleTitleBarMouseDown(event: MouseEvent<HTMLElement>) {
+    if (event.button !== 0 || isNoDragTarget(event.target)) return
+    if (!isMaximized) return
+
+    event.preventDefault()
+    void restoreMainForTitlebarDrag(event)
+  }
+
+  function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
+    if (isNoDragTarget(event.target)) return
+    if (Date.now() - restoredFromDragAt.current < 450) return
+
+    event.preventDefault()
+    void controlMainWindow("maximize")
   }
 
   return (
-    <header className="h-12 border-b border-border bg-background flex items-center px-4 gap-4 flex-shrink-0">
+    <header
+      onMouseDown={handleTitleBarMouseDown}
+      onDoubleClick={handleTitleBarDoubleClick}
+      className={cn(
+        "xiranite-app-region-drag",
+        !isMaximized && "electrobun-webkit-app-region-drag",
+        "flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-background px-4",
+      )}
+    >
       {/* Logo */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="font-mono text-sm font-bold text-primary tracking-tight">XIRANITE</span>
-        <span className="font-mono text-[9px] text-muted-foreground/60 hidden sm:inline">v0.5.0</span>
+        <span className="font-mono text-sm font-bold text-primary tracking-tight">{t("common:appName")}</span>
+        <span className="font-mono text-[9px] text-muted-foreground/60 hidden sm:inline">{t("common:version", { version: "0.5.0" })}</span>
       </div>
 
       {/* ── ViewMode 切换：cards / dockview / flow 三种主形态 ── */}
-      <div className="flex items-center gap-1 border-l border-border/60 pl-3">
-        {VIEW_OPTIONS.map(({ key, label, icon: Icon, hint }) => (
+      <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
+        {VIEW_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
           <button
             key={key}
             onClick={() => dispatch(actions.setViewMode(key))}
-            title={hint}
+            title={`${t(labelKey)}: ${t(hintKey)}`}
+            aria-label={`${t(labelKey)}: ${t(hintKey)}`}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-sm transition-colors border",
+              "grid h-8 w-8 place-items-center rounded-sm border transition-colors",
               state.viewMode === key
                 ? "bg-primary/10 text-primary border-primary/30 font-semibold"
                 : "text-muted-foreground hover:text-foreground border-transparent hover:border-border/60"
             )}
           >
-            <Icon className="h-3 w-3" />
-            {label}
+            <Icon className="h-3.5 w-3.5" />
           </button>
         ))}
       </div>
 
       {/* ── Cards 子布局：仅 viewMode === "cards" 时显示 ── */}
       {state.viewMode === "cards" && (
-        <div className="flex items-center gap-1 border-l border-border/60 pl-3">
-          {CARD_LAYOUT_OPTIONS.map(({ key, label, icon: Icon, hint }) => (
+        <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
+          {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
             <button
               key={key}
               onClick={() => dispatch(actions.setCardLayout(key))}
-              title={hint}
+              title={`${t(labelKey)}: ${t(hintKey)}`}
+              aria-label={`${t(labelKey)}: ${t(hintKey)}`}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono rounded-sm transition-colors border",
+                "grid h-8 w-8 place-items-center rounded-sm border transition-colors",
                 state.cardLayout === key
                   ? "bg-primary/10 text-primary border-primary/30 font-semibold"
                   : "text-muted-foreground hover:text-foreground border-transparent hover:border-border/60"
               )}
             >
-              <Icon className="h-3 w-3" />
-              {label}
+              <Icon className="h-3.5 w-3.5" />
             </button>
           ))}
         </div>
       )}
 
       {/* ── Workspace 选择器（顶栏中部） ── */}
-      <div className="relative">
+      <div className="electrobun-webkit-app-region-no-drag relative">
         <button
           onClick={() => setWsMenuOpen(o => !o)}
-          className="flex items-center gap-2 px-3 h-8 rounded border border-border/60 bg-muted/30 hover:bg-muted/60 text-xs font-mono min-w-[180px]"
+          className="flex h-8 w-[clamp(9rem,18vw,11.25rem)] items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono hover:bg-muted/60"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           <span className="flex-1 text-left truncate">
-            {state.workspaces.find(w => w.id === state.activeWorkspaceId)?.label ?? "—"}
+            {translateLabel(state.workspaces.find(w => w.id === state.activeWorkspaceId)?.label ?? "—", t)}
           </span>
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
@@ -165,7 +261,7 @@ export function TopBar() {
                     )}
                   >
                     <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", ws.id === state.activeWorkspaceId ? "bg-primary" : "bg-muted-foreground/40")} />
-                    <span className="flex-1 truncate">{ws.label}</span>
+                    <span className="flex-1 truncate">{translateLabel(ws.label, t)}</span>
                     {ws.id === state.activeWorkspaceId && <Check className="h-3 w-3" />}
                   </button>
                 ))}
@@ -176,7 +272,7 @@ export function TopBar() {
                   className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
                 >
                   <Plus className="h-3 w-3" />
-                  NEW WORKSPACE
+                  {t("topbar:workspace.new")}
                 </button>
               </div>
             </div>
@@ -188,30 +284,30 @@ export function TopBar() {
       <div className="flex-1" />
 
       {/* Search (装饰) */}
-      <button className="hidden md:flex items-center gap-2 px-3 h-8 rounded border border-border/60 bg-muted/30 text-muted-foreground hover:text-foreground hover:border-border transition-colors text-xs font-mono w-48">
+      <button className="electrobun-webkit-app-region-no-drag hidden h-8 w-48 items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono text-muted-foreground transition-colors hover:border-border hover:text-foreground xl:flex">
         <Search className="h-3.5 w-3.5" />
-        <span>SEARCH...</span>
+        <span>{t("topbar:search")}</span>
         <kbd className="ml-auto text-[9px] bg-muted px-1 rounded">⌘K</kbd>
       </button>
 
       {/* ── 弹出层入口（取代侧栏）── */}
-      <div className="flex items-center gap-1">
+      <div className="electrobun-webkit-app-region-no-drag flex items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
           className="h-8 px-2.5 text-xs font-mono text-muted-foreground hover:text-foreground"
           onClick={() => dispatch(actions.setOverlay("registry"))}
-          title="Module Registry"
+          title={t("overlay:registry")}
         >
           <Plus className="h-3.5 w-3.5" />
-          REGISTRY
+          <span className="hidden xl:inline">{t("topbar:registry")}</span>
         </Button>
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => dispatch(actions.setOverlay("deployment"))}
-          title="Deployment Hub"
+          title={t("topbar:deployment")}
         >
           <Bell className="h-4 w-4" />
           <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full" />
@@ -221,12 +317,12 @@ export function TopBar() {
         <div className="relative">
           <button
             onClick={() => setThemeMenuOpen(o => !o)}
-            title="Theme"
+            title={t("topbar:theme.label")}
             className="flex items-center gap-1.5 h-8 px-2 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors border border-transparent hover:border-border/60"
           >
             <Palette className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline uppercase tracking-widest text-[10px]">
-              {THEME_PRESETS.find(t => t.key === state.theme)?.label ?? "Theme"}
+            <span className="hidden xl:inline uppercase tracking-widest text-[10px]">
+              {THEME_PRESETS.find(p => p.key === state.theme) ? t(THEME_PRESETS.find(p => p.key === state.theme)!.labelKey) : t("topbar:theme.label")}
             </span>
             <ChevronDown className="h-3 w-3" />
           </button>
@@ -237,13 +333,13 @@ export function TopBar() {
               <div className="absolute right-0 top-full mt-1 w-64 rounded-md border border-border bg-card shadow-lg z-40 overflow-hidden">
                 {/* 主题预设 */}
                 <div className="p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">THEME PRESET</p>
-                  {THEME_PRESETS.map(t => {
-                    const isActive = t.key === state.theme
+                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.preset")}</p>
+                  {THEME_PRESETS.map(p => {
+                    const isActive = p.key === state.theme
                     return (
                       <button
-                        key={t.key}
-                        onClick={() => selectPreset(t.key)}
+                        key={p.key}
+                        onClick={() => selectPreset(p.key)}
                         className={cn(
                           "w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors",
                           isActive ? "bg-primary/10 text-primary" : "hover:bg-muted/60 text-foreground"
@@ -251,9 +347,9 @@ export function TopBar() {
                       >
                         <span
                           className="w-3 h-3 rounded-sm border border-border/60 flex-shrink-0"
-                          style={{ background: t.swatch }}
+                          style={{ background: p.swatch }}
                         />
-                        <span className="flex-1">{t.label}</span>
+                        <span className="flex-1">{t(p.labelKey)}</span>
                         {isActive && <Check className="h-3 w-3" />}
                       </button>
                     )
@@ -262,7 +358,7 @@ export function TopBar() {
 
                 {/* 颜色模式 */}
                 <div className="border-t border-border/60 p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">COLOR MODE</p>
+                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.colorMode")}</p>
                   <div className="grid grid-cols-3 gap-1">
                     {COLOR_MODES.map(m => {
                       const Icon = m.icon
@@ -279,7 +375,7 @@ export function TopBar() {
                           )}
                         >
                           <Icon className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-mono">{m.label}</span>
+                          <span className="text-[10px] font-mono">{t(m.labelKey)}</span>
                         </button>
                       )
                     })}
@@ -296,7 +392,7 @@ export function TopBar() {
                     className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
                   >
                     <Settings className="h-3.5 w-3.5" />
-                    OPEN THEME SETTINGS
+                    {t("topbar:theme.openSettings")}
                   </button>
                 </div>
               </div>
@@ -305,26 +401,26 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5 border-l border-border/60 pl-2">
+      <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-2">
         <button
-          title="Minimize"
-          aria-label="Minimize"
+          title={t("common:minimize")}
+          aria-label={t("common:minimize")}
           onClick={() => controlMainWindow("minimize")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
           <Minus className="h-3.5 w-3.5" />
         </button>
         <button
-          title="Maximize"
-          aria-label="Maximize"
+          title={t("common:maximize")}
+          aria-label={t("common:maximize")}
           onClick={() => controlMainWindow("maximize")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
           <Square className="h-3 w-3" />
         </button>
         <button
-          title="Close"
-          aria-label="Close"
+          title={t("common:close")}
+          aria-label={t("common:close")}
           onClick={() => controlMainWindow("close")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
@@ -332,14 +428,6 @@ export function TopBar() {
         </button>
       </div>
 
-      {/* Avatar */}
-      <div className="w-8 h-8 rounded-sm bg-muted border border-border overflow-hidden flex-shrink-0 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-all">
-        <img
-          src="/images/AP1WRLvshv4nlPBl6aRZZfGYMND5CAh8yAZ95K2KcoQYLTSWy9D-sEfixRCznEuUs1CsS5dVNaqd5MrTkq8di-8jybVA6_4ZunFzhfUcoV7MQ8I8FNLH1S_RjOVDJVxisq5upAYoR3lSTX84aPRdTVz3zS5DqUrlV-u9vp6EXQmxTvz473TultUc7_YuXmwSE0X6hZmd2YkeXGuA_G7T3sj36ol0dskhLJfG4eM6mizz9nVc124Zmc4TLz_JyjU=s2560"
-          alt="operator"
-          className="w-full h-full object-cover"
-        />
-      </div>
     </header>
   )
 }

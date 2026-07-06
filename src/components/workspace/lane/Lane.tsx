@@ -11,10 +11,12 @@
  * 拖拽 lane：拖动标题栏 grip 时 setLaneDrag(id)，可在 LaneContainer 中重排
  */
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWSDispatch, actions } from "@/store/workspaceContext"
 import { setLaneDrag, clearDrag } from "@/store/dragState"
+import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
 import { cn } from "@/lib/utils"
@@ -60,10 +62,11 @@ interface Props {
 }
 
 export function Lane({ lane, components }: Props) {
+  const { t } = useTranslation()
   const dispatch = useWSDispatch()
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const [name, setName] = useState(lane.label)
+  const [name, setName] = useState(translateLabel(lane.label, t))
   const [ratioInput, setRatioInput] = useState(String(lane.widthRatio))
 
   function handleDragStart(e: React.DragEvent) {
@@ -102,7 +105,7 @@ export function Lane({ lane, components }: Props) {
         <button
           onClick={() => dispatch(actions.toggleLaneCollapse(lane.id))}
           className="text-muted-foreground hover:text-foreground"
-          title="展开"
+          title={t("common:expand")}
         >
           <LaneIcon collapsed />
         </button>
@@ -110,7 +113,7 @@ export function Lane({ lane, components }: Props) {
           className="text-[10px] font-mono tracking-widest text-muted-foreground"
           style={{ writingMode: "vertical-rl" }}
         >
-          {lane.label}
+          {translateLabel(lane.label, t)}
         </span>
       </div>
     )
@@ -127,7 +130,7 @@ export function Lane({ lane, components }: Props) {
         <button
           onClick={() => dispatch(actions.toggleLaneCollapse(lane.id))}
           className="text-muted-foreground hover:text-foreground"
-          title="折叠"
+          title={t("common:collapse")}
         >
           <LaneIcon collapsed={false} />
         </button>
@@ -147,9 +150,9 @@ export function Lane({ lane, components }: Props) {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             className="flex-1 text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground cursor-grab active:cursor-grabbing truncate select-none"
-            title="拖动重排"
+            title={t("common:dragReorder")}
           >
-            {lane.label}
+            {translateLabel(lane.label, t)}
           </span>
         )}
 
@@ -159,7 +162,7 @@ export function Lane({ lane, components }: Props) {
             setMenuOpen(o => !o)
           }}
           className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-          title="更多操作"
+          title={t("common:moreActions")}
         >
           <Ellipsis className="h-3.5 w-3.5" />
         </button>
@@ -178,18 +181,18 @@ export function Lane({ lane, components }: Props) {
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setRenaming(true) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm"
             >
-              <Pencil className="h-3.5 w-3.5" /> Rename
+              <Pencil className="h-3.5 w-3.5" /> {t("common:rename")}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.toggleLaneCollapse(lane.id)) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm"
             >
-              <LaneIcon collapsed={false} /> Collapse
+              <LaneIcon collapsed={false} /> {t("common:collapse")}
             </button>
 
             <div className="px-2 py-1.5 border-t border-border/60 mt-1">
               <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                <span className="text-[10px] font-mono tracking-widest">WIDTH RATIO</span>
+                <span className="text-[10px] font-mono tracking-widest">{t("common:widthRatio")}</span>
               </div>
               <div className="grid grid-cols-5 gap-1 mb-1">
                 {RATIO_PRESETS.map(preset => (
@@ -227,13 +230,13 @@ export function Lane({ lane, components }: Props) {
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.toggleLaneVisibility(lane.id)) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm border-t border-border/60"
             >
-              <EyeOff className="h-3.5 w-3.5" /> Hide
+              <EyeOff className="h-3.5 w-3.5" /> {t("common:hide")}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.removeLane(lane.id)) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-destructive/10 hover:text-destructive rounded-sm"
             >
-              <Trash2 className="h-3.5 w-3.5" /> Delete
+              <Trash2 className="h-3.5 w-3.5" /> {t("common:delete")}
             </button>
           </div>
         </>
@@ -249,7 +252,7 @@ export function Lane({ lane, components }: Props) {
       >
         {components.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-[10px] font-mono text-muted-foreground/60">// empty lane</p>
+            <p className="text-[10px] font-mono text-muted-foreground/60">{t("view:lane.emptyLane")}</p>
           </div>
         ) : (
           components.map(c => (

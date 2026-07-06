@@ -87,6 +87,22 @@ export interface WindowCommandResult {
   supported: boolean
   id?: string
   message: string
+  state?: "normal" | "maximized" | "minimized" | "closed"
+}
+
+export interface WindowFrame {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface MainWindowDragInput {
+  screenX: number
+  screenY: number
+  clientX: number
+  clientY: number
+  windowWidth: number
 }
 
 export interface OpenComponentWindowInput {
@@ -100,9 +116,12 @@ export interface OpenComponentWindowInput {
 export interface WindowRuntime {
   getCapabilities(): Promise<WindowCapabilities>
   controlMain(action: MainWindowAction): Promise<WindowCommandResult>
+  restoreMainForDrag(input: MainWindowDragInput): Promise<WindowCommandResult>
   openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult>
   focus(id: string): Promise<WindowCommandResult>
   close(id: string): Promise<WindowCommandResult>
+  getFrame(id?: string): Promise<WindowFrame | null>
+  setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult>
 }
 
 export interface RuntimeInterface {

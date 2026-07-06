@@ -7,6 +7,7 @@
  * - shape 位置/大小变化同步回 store.flowPosition / flowSize
  */
 import { useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import {
   HTMLContainer,
   Rectangle2d,
@@ -82,6 +83,7 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
 // ── Shape 内部组件（用 hook 拿 dispatch） ────────────────────────────────────
 function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const dispatch = useWSDispatch()
+  const { t } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
 
   const handleClose = (e: React.MouseEvent) => {
@@ -105,7 +107,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={handleClose}
           className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title="Hide in flow"
+          title={t("common:hideIn", { view: t("topbar:viewMode.flow") })}
         >
           <X className="h-3 w-3" />
         </button>
@@ -201,6 +203,7 @@ function FlowCanvas() {
   useSyncShapesFromStore(editor)
   useSyncChangesToStore(editor)
 
+  const { t } = useTranslation()
   const isEmpty = visibleComponents.filter(isFlowCanvasVisible).length === 0
 
   if (isEmpty) {
@@ -208,7 +211,7 @@ function FlowCanvas() {
       <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
         <div className="text-center space-y-4 pointer-events-auto">
           <Workflow className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-          <p className="text-sm font-mono text-muted-foreground">// flow canvas is empty</p>
+          <p className="text-sm font-mono text-muted-foreground">{t("view:flow.empty")}</p>
           <Button
             size="sm"
             variant="outline"
@@ -216,7 +219,7 @@ function FlowCanvas() {
             onClick={() => dispatch(actions.setOverlay("registry"))}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            OPEN MODULE REGISTRY
+            {t("view:flow.openRegistry")}
           </Button>
         </div>
       </div>

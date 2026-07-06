@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react"
 import type { ComponentType } from "react"
+import { useTranslation } from "react-i18next"
 import { Skeleton } from "@/components/ui/skeleton"
 import bandiaEntry from "@xiranite/node-bandia"
 import cleanfEntry from "@xiranite/node-cleanf"
@@ -78,6 +79,7 @@ export interface ModuleProps {
 }
 
 export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
+  const { t } = useTranslation()
   const host = useNodeHostApi()
   const packageEntry = packageModules[moduleId as keyof typeof packageModules]
   if (packageEntry) {
@@ -86,7 +88,7 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
   }
 
   const Comp = modules[moduleId] as ComponentType<ModuleProps> | undefined
-  if (!Comp) return <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">// unknown module: {moduleId}</div>
+  if (!Comp) return <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">{t("module:unknown", { id: moduleId })}</div>
   return (
     <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
       <Comp compId={compId} />

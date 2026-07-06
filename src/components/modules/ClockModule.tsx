@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 
 export default function ClockModule() {
+  const { t } = useTranslation()
   const [now, setNow] = useState(() => new Date())
   const rafRef = useRef<number>(0)
 
@@ -37,9 +39,9 @@ export default function ClockModule() {
       </div>
       <span className="text-xs font-mono text-muted-foreground tracking-widest uppercase">{dateStr}</span>
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/40">LOCAL</Badge>
+        <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/40">{t("module:clock.local")}</Badge>
         <span className="text-[10px] font-mono text-muted-foreground">{tzStr}</span>
-        <Badge variant="outline" className="font-mono text-[10px]">SYNC</Badge>
+        <Badge variant="outline" className="font-mono text-[10px]">{t("module:clock.sync")}</Badge>
       </div>
     </div>
   )

@@ -1,22 +1,22 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 interface KanbanCard { id: string; text: string }
-interface KanbanColumn { id: string; title: string; cards: KanbanCard[] }
+interface KanbanColumn { id: string; titleKey: string; cards: KanbanCard[] }
 
 let kId = 0
 
-const DEFAULT_COLS: KanbanColumn[] = [
-  { id: "backlog", title: "BACKLOG", cards: [{ id: `k-${++kId}`, text: "Initialize project scope" }, { id: `k-${++kId}`, text: "Define operator roles" }] },
-  { id: "active",  title: "ACTIVE",  cards: [{ id: `k-${++kId}`, text: "Deploy analytical grid" }] },
-  { id: "done",    title: "DONE",    cards: [{ id: `k-${++kId}`, text: "System kernel boot" }] },
-]
-
 export default function KanbanModule() {
-  const [columns, setColumns] = useState<KanbanColumn[]>(DEFAULT_COLS)
+  const { t } = useTranslation()
+  const [columns, setColumns] = useState<KanbanColumn[]>([
+    { id: "backlog", titleKey: "module:kanban.backlog", cards: [{ id: `k-${++kId}`, text: t("module:kanban.defaultCards.initScope") }, { id: `k-${++kId}`, text: t("module:kanban.defaultCards.defineRoles") }] },
+    { id: "active",  titleKey: "module:kanban.active",  cards: [{ id: `k-${++kId}`, text: t("module:kanban.defaultCards.deployGrid") }] },
+    { id: "done",    titleKey: "module:kanban.done",    cards: [{ id: `k-${++kId}`, text: t("module:kanban.defaultCards.kernelBoot") }] },
+  ])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [dragging, setDragging] = useState<{ cardId: string; fromCol: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
@@ -65,7 +65,7 @@ export default function KanbanModule() {
           onDrop={() => onDrop(col.id)}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-mono font-bold text-muted-foreground tracking-widest">{col.title}</span>
+            <span className="text-[10px] font-mono font-bold text-muted-foreground tracking-widest">{t(col.titleKey)}</span>
             <span className="text-[10px] font-mono text-primary bg-primary/10 px-1 rounded">{col.cards.length}</span>
           </div>
 
@@ -93,7 +93,7 @@ export default function KanbanModule() {
               value={drafts[col.id] ?? ""}
               onChange={e => setDrafts(d => ({ ...d, [col.id]: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && addCard(col.id)}
-              placeholder="Add..."
+              placeholder={t("module:kanban.addPlaceholder")}
               className="h-6 text-[11px] font-mono bg-background/60 border-border/40 px-2"
             />
             <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => addCard(col.id)}>

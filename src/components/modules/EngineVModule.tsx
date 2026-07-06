@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useBackend } from "@/hooks/useBackend"
 import { useComponentData } from "@/hooks/useComponentData"
 import type { ModuleProps } from "@/components/modules/ModuleRenderer"
@@ -32,6 +33,7 @@ interface EngineVState {
  * 3. backend 在 web runtime 下走 mock 数据；切到 electbun 时自动走真实文件系统。
  */
 export default function EngineVModule({ compId }: ModuleProps) {
+  const { t } = useTranslation()
   const { backend, ready } = useBackend()
   // 关键：状态持久到 store，切换 viewMode 时不丢
   const [data, setData] = useComponentData<EngineVState>(compId)
@@ -50,13 +52,13 @@ export default function EngineVModule({ compId }: ModuleProps) {
   async function onScan() {
     if (!backend) return
     setScanning(true)
-    pushLog(`scan: ${workshopPath}`)
+    pushLog(t("module:enginev.log.scan", { path: workshopPath }))
     const r = await backend.enginev.scan({ workshopPath })
     if (r.success && r.data) {
       setData({ result: r.data })
-      pushLog(`✓ scanned ${r.data.totalCount} items`)
+      pushLog(t("module:enginev.log.scannedOk", { count: r.data.totalCount }))
     } else {
-      pushLog(`✗ ${r.message}${r.error ? ` — ${r.error}` : ""}`)
+      pushLog(t("module:enginev.log.fail", { message: `${r.message}${r.error ? ` — ${r.error}` : ""}` }))
     }
     setScanning(false)
   }
@@ -64,7 +66,7 @@ export default function EngineVModule({ compId }: ModuleProps) {
   async function onRenameAll() {
     if (!backend || !result) return
     setScanning(true)
-    pushLog(`rename (dryRun): ${result.wallpapers.length} items`)
+    pushLog(t("module:enginev.log.renameStart", { count: result.wallpapers.length }))
     const r = await backend.enginev.rename(
       {
         wallpapers: result.wallpapers,
@@ -74,9 +76,9 @@ export default function EngineVModule({ compId }: ModuleProps) {
       workshopPath,
     )
     if (r.success && r.data) {
-      pushLog(`✓ planned ${r.data.successCount}, failed ${r.data.failedCount}`)
+      pushLog(t("module:enginev.log.renameOk", { success: r.data.successCount, failed: r.data.failedCount }))
     } else {
-      pushLog(`✗ ${r.message}`)
+      pushLog(t("module:enginev.log.fail", { message: r.message }))
     }
     setScanning(false)
   }
@@ -88,7 +90,9 @@ export default function EngineVModule({ compId }: ModuleProps) {
       format: "json",
       exportPath: "/tmp/xiranite-export.json",
     })
-    pushLog(r.success ? `✓ exported → ${r.data?.path}` : `✗ ${r.message}`)
+    pushLog(r.success
+      ? t("module:enginev.log.exportOk", { path: r.data?.path ?? "" })
+      : t("module:enginev.log.fail", { message: r.message }))
   }
 
   function onClear() {
@@ -96,10 +100,10 @@ export default function EngineVModule({ compId }: ModuleProps) {
   }
 
   if (!ready) {
-    return <div className="p-4 text-xs font-mono text-muted-foreground">// backend loading…</div>
+    return <div className="p-4 text-xs font-mono text-muted-foreground">{t("module:enginev.backendLoading")}</div>
   }
   if (!backend) {
-    return <div className="p-4 text-xs font-mono text-destructive">// backend failed</div>
+    return <div className="p-4 text-xs font-mono text-destructive">{t("module:enginev.backendFailed")}</div>
   }
 
   return (
@@ -111,20 +115,20 @@ export default function EngineVModule({ compId }: ModuleProps) {
           value={workshopPath}
           onChange={e => setData({ workshopPath: e.target.value })}
           className="h-7 text-xs font-mono"
-          placeholder="/path/to/workshop"
+          placeholder={t("module:enginev.pathPlaceholder")}
         />
         <Button size="sm" onClick={onScan} disabled={scanning} className="h-7 text-xs">
           {scanning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-          SCAN
+          {t("module:enginev.scan")}
         </Button>
       </div>
 
       {/* ── Stats ── */}
       {result && (
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="TOTAL" value={result.totalCount} />
-          <Stat label="TYPES" value={Object.keys(result.typeStats).length} />
-          <Stat label="RATINGS" value={Object.keys(result.ratingStats).length} />
+          <Stat label={t("module:enginev.stats.total")} value={result.totalCount} />
+          <Stat label={t("module:enginev.stats.types")} value={Object.keys(result.typeStats).length} />
+          <Stat label={t("module:enginev.stats.ratings")} value={Object.keys(result.ratingStats).length} />
         </div>
       )}
 
@@ -132,13 +136,13 @@ export default function EngineVModule({ compId }: ModuleProps) {
       {result && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <Button size="sm" variant="outline" onClick={onRenameAll} disabled={scanning} className="h-7 text-xs">
-            <Filter className="h-3 w-3" /> RENAME (DRY)
+            <Filter className="h-3 w-3" /> {t("module:enginev.renameDry")}
           </Button>
           <Button size="sm" variant="outline" onClick={onExport} className="h-7 text-xs">
-            <Download className="h-3 w-3" /> EXPORT
+            <Download className="h-3 w-3" /> {t("module:enginev.export")}
           </Button>
           <Button size="sm" variant="outline" onClick={onClear} className="h-7 text-xs">
-            <Trash2 className="h-3 w-3" /> CLEAR
+            <Trash2 className="h-3 w-3" /> {t("module:enginev.clear")}
           </Button>
         </div>
       )}
@@ -149,10 +153,10 @@ export default function EngineVModule({ compId }: ModuleProps) {
           <table className="w-full text-[10px]">
             <thead className="sticky top-0 bg-muted/80 backdrop-blur">
               <tr className="text-left text-muted-foreground">
-                <th className="p-1.5 font-medium">ID</th>
-                <th className="p-1.5 font-medium">TITLE</th>
-                <th className="p-1.5 font-medium">TYPE</th>
-                <th className="p-1.5 font-medium text-right">SIZE</th>
+                <th className="p-1.5 font-medium">{t("module:enginev.tableHeaders.id")}</th>
+                <th className="p-1.5 font-medium">{t("module:enginev.tableHeaders.title")}</th>
+                <th className="p-1.5 font-medium">{t("module:enginev.tableHeaders.type")}</th>
+                <th className="p-1.5 font-medium text-right">{t("module:enginev.tableHeaders.size")}</th>
               </tr>
             </thead>
             <tbody>

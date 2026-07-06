@@ -7,13 +7,15 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
 interface ThemeOption {
   key: AppTheme
-  label: string
-  subtitle: string
-  description: string
+  labelKey: string
+  subtitleKey: string
+  descriptionKey: string
   palette: string[]
   paletteLabels: string[]
   icon: React.ComponentType<{ className?: string }>
@@ -22,27 +24,27 @@ interface ThemeOption {
 const THEMES: ThemeOption[] = [
   {
     key: "spatial",
-    label: "Spatial Studio",
-    subtitle: "Active Preset",
-    description: "A clean light interface with forest green accents. Precision-focused, minimal cognitive load.",
+    labelKey: "settings:themes.spatial.label",
+    subtitleKey: "settings:themes.spatial.subtitle",
+    descriptionKey: "settings:themes.spatial.description",
     palette: ["oklch(0.97 0.005 148)", "oklch(0.40 0.12 148)", "oklch(0.88 0.02 148)", "oklch(0.12 0.01 148)"],
     paletteLabels: ["BG", "Primary", "Border", "Text"],
     icon: Sun,
   },
   {
     key: "endfield",
-    label: "Endfield Tactical",
-    subtitle: "Dark Preset",
-    description: "A HUD-like, data-dense technical interface. Features deep slate foundations with vibrant Endfield Green highlights for precise operational contrast.",
+    labelKey: "settings:themes.endfield.label",
+    subtitleKey: "settings:themes.endfield.subtitle",
+    descriptionKey: "settings:themes.endfield.description",
     palette: ["oklch(0.13 0.025 216)", "oklch(0.17 0.025 216)", "oklch(0.62 0.18 152)", "oklch(0.90 0.04 148)"],
     paletteLabels: ["Void", "Card", "Green", "Text"],
     icon: Terminal,
   },
   {
     key: "wuling",
-    label: "武陵城 Wuling City",
-    subtitle: "Arknights Endfield",
-    description: "Warm amber foundations inspired by 明日方舟终末地 武陵城. Ancient city meeting cyberpunk — gold accents against deep ochre darkness.",
+    labelKey: "settings:themes.wuling.label",
+    subtitleKey: "settings:themes.wuling.subtitle",
+    descriptionKey: "settings:themes.wuling.description",
     palette: ["oklch(0.12 0.03 55)", "oklch(0.16 0.04 55)", "oklch(0.70 0.16 68)", "oklch(0.93 0.04 80)"],
     paletteLabels: ["Deep", "Surface", "Gold", "Text"],
     icon: Paintbrush,
@@ -59,18 +61,20 @@ const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
 
 type ColorMode = "system" | "light" | "dark"
 
-const COLOR_MODES: { key: ColorMode; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "system",  label: "Follow System",  description: "Auto-switch with OS light/dark preference", icon: Monitor },
-  { key: "light",   label: "Light",          description: "Force light color scheme",                icon: Sun },
-  { key: "dark",    label: "Dark",            description: "Force dark color scheme",                 icon: Moon },
+const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "system", labelKey: "settings:colorMode.system", descKey: "settings:colorMode.systemDesc", icon: Monitor },
+  { key: "light",  labelKey: "settings:colorMode.light",  descKey: "settings:colorMode.lightDesc",  icon: Sun },
+  { key: "dark",   labelKey: "settings:colorMode.dark",   descKey: "settings:colorMode.darkDesc",   icon: Moon },
 ]
 
 export function ThemeSettings() {
   const { state } = useWorkspace()
   const dispatch = useWSDispatch()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
+  const { t } = useTranslation()
+  const currentLang = getCurrentLanguage()
 
-  const active = THEMES.find(t => t.key === state.theme) ?? THEMES[0]
+  const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
 
   // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
   function selectPreset(key: AppTheme) {
@@ -81,8 +85,8 @@ export function ThemeSettings() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-6 pt-6 pb-4 border-b border-border/60 flex-shrink-0">
-        <h1 className="text-3xl font-mono font-black text-foreground tracking-tight">Theme &amp; Aesthetics</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configure the visual identity and atmospheric depth of your workspace.</p>
+        <h1 className="text-3xl font-mono font-black text-foreground tracking-tight">{t("settings:header")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("settings:headerSubtitle")}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -94,14 +98,14 @@ export function ThemeSettings() {
               <div className="flex items-start justify-between mb-3">
                 <Badge variant="outline" className="font-mono text-[9px] text-primary border-primary/40">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mr-1.5 inline-block" />
-                  ACTIVE PRESET
+                  {t("settings:activePreset")}
                 </Badge>
                 <active.icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <h2 className="text-2xl font-semibold text-foreground mb-2">{active.label}</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-4">{active.description}</p>
+              <h2 className="text-2xl font-semibold text-foreground mb-2">{t(active.labelKey)}</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-4">{t(active.descriptionKey)}</p>
 
-              <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-2">BASE PALETTE</p>
+              <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-2">{t("settings:texture.basePalette")}</p>
               <div className="flex rounded-sm overflow-hidden border border-border/40">
                 {active.palette.map((color, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 pb-2 pt-3" style={{ background: color }}>
@@ -116,14 +120,14 @@ export function ThemeSettings() {
 
             {/* Theme selector */}
             <div className="bg-card border border-border rounded-sm p-4 space-y-2">
-              <p className="text-xs font-mono text-muted-foreground tracking-widest mb-3">SELECT THEME PRESET</p>
-              {THEMES.map(t => {
-                const Icon = t.icon
-                const isActive = t.key === state.theme
+              <p className="text-xs font-mono text-muted-foreground tracking-widest mb-3">{t("settings:selectPreset")}</p>
+              {THEMES.map(th => {
+                const Icon = th.icon
+                const isActive = th.key === state.theme
                 return (
                   <button
-                    key={t.key}
-                    onClick={() => selectPreset(t.key)}
+                    key={th.key}
+                    onClick={() => selectPreset(th.key)}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 rounded-sm border transition-all text-left",
                       isActive
@@ -135,8 +139,8 @@ export function ThemeSettings() {
                       <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t.label}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground/70">{t.subtitle}</p>
+                      <p className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t(th.labelKey)}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground/70">{t(th.subtitleKey)}</p>
                     </div>
                     {isActive && <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                   </button>
@@ -148,12 +152,9 @@ export function ThemeSettings() {
             <div className="bg-card border border-border rounded-sm p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                <p className="text-xs font-mono text-muted-foreground tracking-widest">COLOR MODE</p>
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:colorMode.label")}</p>
               </div>
-              <p className="text-[11px] text-muted-foreground -mt-1">
-                切换主题预设会自动设置默认模式（spatial=light, endfield/wuling=dark）。
-                你可在此单独覆盖，选择跟随系统或强制深浅色。
-              </p>
+              <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:colorMode.description")}</p>
               <div className="grid grid-cols-3 gap-2">
                 {COLOR_MODES.map(m => {
                   const Icon = m.icon
@@ -170,11 +171,43 @@ export function ThemeSettings() {
                       )}
                     >
                       <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                      <span className={cn("text-[11px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{m.label}</span>
+                      <span className={cn("text-[11px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t(m.labelKey)}</span>
                     </button>
                   )
                 })}
               </div>
+            </div>
+
+            {/* Language — 界面语言切换 */}
+            <div className="bg-card border border-border rounded-sm p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Languages className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:language.label")}</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:language.description")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {LANGUAGES.map(l => {
+                  const isActive = currentLang === l.key
+                  return (
+                    <button
+                      key={l.key}
+                      onClick={() => changeLanguage(l.key as Language)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 p-3 rounded-sm border transition-all",
+                        isActive
+                          ? "border-primary/50 bg-primary/8"
+                          : "border-border/40 hover:border-border hover:bg-muted/30"
+                      )}
+                    >
+                      <span className={cn("text-sm font-medium", isActive ? "text-primary" : "text-foreground")}>
+                        {l.nativeLabel}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{l.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground/70">{t("settings:language.restartHint")}</p>
             </div>
           </div>
 
@@ -182,12 +215,12 @@ export function ThemeSettings() {
           <div className="space-y-4">
             {/* Atmospheric Effects */}
             <div className="bg-card border border-border rounded-sm p-5">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Atmospheric Effects</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:atmospheric.title")}</h3>
 
               <div className="space-y-5">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-foreground">Vignette Depth</span>
+                    <span className="text-sm text-foreground">{t("settings:atmospheric.vignette")}</span>
                     <span className="text-sm font-mono text-muted-foreground">{state.vignetteDepth}%</span>
                   </div>
                   <Slider
@@ -196,12 +229,12 @@ export function ThemeSettings() {
                     min={0} max={100} step={1}
                     className="mb-1"
                   />
-                  <p className="text-[11px] text-muted-foreground">Controls the peripheral darkness of the workspace canvas.</p>
+                  <p className="text-[11px] text-muted-foreground">{t("settings:atmospheric.vignetteDesc")}</p>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-foreground">Grain Texture Intensity</span>
+                    <span className="text-sm text-foreground">{t("settings:atmospheric.grain")}</span>
                     <span className="text-sm font-mono text-muted-foreground">{state.grainIntensity}%</span>
                   </div>
                   <Slider
@@ -214,7 +247,7 @@ export function ThemeSettings() {
                 <Separator className="opacity-50" />
 
                 <div>
-                  <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-3">AMBIENT LIGHTING</p>
+                  <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-3">{t("settings:atmospheric.ambient")}</p>
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
@@ -222,8 +255,8 @@ export function ThemeSettings() {
                         <div className="w-3.5 h-3.5 border border-current rounded-sm opacity-60" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">Action Glow</p>
-                        <p className="text-[11px] text-muted-foreground">Soft colored aura behind primary buttons</p>
+                        <p className="text-sm font-medium text-foreground">{t("settings:atmospheric.actionGlow")}</p>
+                        <p className="text-[11px] text-muted-foreground">{t("settings:atmospheric.actionGlowDesc")}</p>
                       </div>
                       <Switch
                         checked={state.actionGlow}
@@ -236,8 +269,8 @@ export function ThemeSettings() {
                         <div className="w-3.5 h-3.5 border-t-2 border-x border-b border-current rounded-sm opacity-60" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">Card Elevation Highlights</p>
-                        <p className="text-[11px] text-muted-foreground">Subtle top-border shine on elevated surfaces</p>
+                        <p className="text-sm font-medium text-foreground">{t("settings:atmospheric.cardElevation")}</p>
+                        <p className="text-[11px] text-muted-foreground">{t("settings:atmospheric.cardElevationDesc")}</p>
                       </div>
                       <Switch
                         checked={state.cardElevation}
@@ -251,7 +284,7 @@ export function ThemeSettings() {
 
             {/* Texture canvas preview */}
             <div className="bg-card border border-border rounded-sm p-5">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Texture Canvas</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:texture.title")}</h3>
               <div className="ws-canvas-bg rounded border border-border/40 h-28 flex items-center justify-center">
                 <div className="bg-card border border-border rounded-sm p-3">
                   <div className="grid grid-cols-3 gap-1">

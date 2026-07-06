@@ -4,6 +4,7 @@ import type {
   FileSystemRuntime,
   FsEntry,
   FsStat,
+  MainWindowDragInput,
   MainWindowAction,
   NodeRunnerRuntime,
   OpenComponentWindowInput,
@@ -14,6 +15,7 @@ import type {
   SubprocessSpawnOpts,
   WindowCapabilities,
   WindowCommandResult,
+  WindowFrame,
   WindowRuntime,
 } from "../runtime/runtime"
 import type { ProgressEvent } from "../shared/types"
@@ -245,6 +247,10 @@ class ElectbunWindowRuntime implements WindowRuntime {
     return (await this.invoke("window.main", { action })) as WindowCommandResult
   }
 
+  async restoreMainForDrag(input: MainWindowDragInput): Promise<WindowCommandResult> {
+    return (await this.invoke("window.restoreMainForDrag", input)) as WindowCommandResult
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     return (await this.invoke("window.openComponent", input)) as WindowCommandResult
   }
@@ -255,6 +261,14 @@ class ElectbunWindowRuntime implements WindowRuntime {
 
   async close(id: string): Promise<WindowCommandResult> {
     return (await this.invoke("window.close", { id })) as WindowCommandResult
+  }
+
+  async getFrame(id?: string): Promise<WindowFrame | null> {
+    return (await this.invoke("window.getFrame", { id })) as WindowFrame | null
+  }
+
+  async setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult> {
+    return (await this.invoke("window.setFrame", { id, ...frame })) as WindowCommandResult
   }
 }
 

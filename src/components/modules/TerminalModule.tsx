@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 
 interface TerminalLine {
@@ -7,32 +8,33 @@ interface TerminalLine {
   time: string
 }
 
-const MOTD = [
-  { type: "sys" as const, text: "WULING_CITY_OS v4.0.0 — Terminal Interface Active" },
-  { type: "sys" as const, text: "Type 'help' for available commands." },
-]
-
-const COMMANDS: Record<string, (args: string[]) => string[]> = {
-  help: () => [
-    "Available commands:",
-    "  help          — show this message",
-    "  echo <text>   — print text",
-    "  clear         — clear terminal",
-    "  date          — show current date/time",
-    "  whoami        — show operator identity",
-    "  status        — show system status",
-    "  ls            — list workspace modules",
-  ],
-  echo: (args) => [args.join(" ")],
-  date: () => [new Date().toString()],
-  whoami: () => ["OPERATOR_01 // SYS_VER_4.0_STABLE"],
-  status: () => [
-    "SYS: ONLINE", "NET: NOMINAL", "DB: SYNCED", "UPTIME: 99.9%",
-  ],
-  ls: () => [
-    "scratch    counter    acid-mixer    terminal",
-    "tasks      clock      calculator    kanban",
-  ],
+function useTerminalCommands(t: ReturnType<typeof useTranslation>["t"]) {
+  return {
+    motd: [
+      { type: "sys" as const, text: t("module:terminal.motd1") },
+      { type: "sys" as const, text: t("module:terminal.motd2") },
+    ],
+    commands: {
+      help: () => [
+        t("module:terminal.help.available"),
+        t("module:terminal.help.help"),
+        t("module:terminal.help.echo"),
+        t("module:terminal.help.clear"),
+        t("module:terminal.help.date"),
+        t("module:terminal.help.whoami"),
+        t("module:terminal.help.status"),
+        t("module:terminal.help.ls"),
+      ],
+      echo: (args: string[]) => [args.join(" ")],
+      date: () => [new Date().toString()],
+      whoami: () => [t("module:terminal.whoami")],
+      status: () => t("module:terminal.status", { returnObjects: true }) as string[],
+      ls: () => [
+        "scratch    counter    acid-mixer    terminal",
+        "tasks      clock      calculator    kanban",
+      ],
+    } as Record<string, (args: string[]) => string[]>,
+  }
 }
 
 function timestamp() {
@@ -40,8 +42,10 @@ function timestamp() {
 }
 
 export default function TerminalModule() {
+  const { t } = useTranslation()
+  const { motd, commands: COMMANDS } = useTerminalCommands(t)
   const [lines, setLines] = useState<TerminalLine[]>(
-    MOTD.map(l => ({ ...l, time: timestamp() }))
+    motd.map(l => ({ ...l, time: timestamp() }))
   )
   const [input, setInput] = useState("")
   const [history, setHistory] = useState<string[]>([])
@@ -72,7 +76,7 @@ export default function TerminalModule() {
       const out = handler(args)
       setLines(ls => [...ls, ...out.map(t => ({ type: "out" as const, text: t, time: timestamp() }))])
     } else {
-      setLines(ls => [...ls, { type: "err", text: `command not found: ${cmd}`, time: timestamp() }])
+      setLines(ls => [...ls, { type: "err", text: t("module:terminal.notFound", { cmd }), time: timestamp() }])
     }
   }
 

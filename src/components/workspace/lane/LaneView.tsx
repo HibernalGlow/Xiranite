@@ -17,6 +17,7 @@
  * - 关闭 card：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅 lane 模式下隐藏
  */
 import { useMemo, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { Plus, Columns3 } from "lucide-react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { getDragMode, getDragState, clearDrag } from "@/store/dragState"
@@ -26,6 +27,7 @@ import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
 
 export function LaneView() {
+  const { t } = useTranslation()
   const { state, visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
 
@@ -141,7 +143,7 @@ export function LaneView() {
       <div className="flex-1 ws-canvas-bg flex items-center justify-center">
         <div className="text-center space-y-4">
           <Columns3 className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-          <p className="text-sm font-mono text-muted-foreground">// no lanes — create one to start</p>
+          <p className="text-sm font-mono text-muted-foreground">{t("view:lane.empty")}</p>
           <Button
             size="sm"
             variant="outline"
@@ -149,7 +151,7 @@ export function LaneView() {
             onClick={() => dispatch(actions.addLane())}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            ADD LANE
+            {t("view:lane.addLane")}
           </Button>
         </div>
       </div>
@@ -176,7 +178,7 @@ export function LaneView() {
         <div className="flex-shrink-0 w-72 flex flex-col border-l border-border/40 bg-card/40">
           <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
             <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
-              UNFILED
+              {t("common:unfiled")}
             </span>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -192,7 +194,7 @@ export function LaneView() {
         <button
           onClick={() => dispatch(actions.addLane())}
           className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          title="Add lane"
+          title={t("common:addLane")}
         >
           <Plus className="h-4 w-4" />
         </button>

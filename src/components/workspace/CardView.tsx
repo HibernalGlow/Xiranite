@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
+import { useTranslation } from "react-i18next"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
@@ -15,6 +16,7 @@ import { LayoutGrid, Plus } from "lucide-react"
 export function CardView() {
   const { state, visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { t } = useTranslation()
   const canvasRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 1200, h: 800 })
 
@@ -67,8 +69,8 @@ export function CardView() {
             </div>
           </div>
           <div>
-            <p className="text-sm font-mono text-muted-foreground">// canvas is empty</p>
-            <p className="text-xs font-mono text-muted-foreground/60 mt-1">Deploy modules from the registry to populate this workspace.</p>
+            <p className="text-sm font-mono text-muted-foreground">{t("view:cards.empty")}</p>
+            <p className="text-xs font-mono text-muted-foreground/60 mt-1">{t("view:cards.emptyHint")}</p>
           </div>
           <Button
             size="sm"
@@ -77,7 +79,7 @@ export function CardView() {
             onClick={() => dispatch(actions.setOverlay("registry"))}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            OPEN MODULE REGISTRY
+            {t("view:cards.openRegistry")}
           </Button>
         </div>
       </div>
@@ -108,7 +110,7 @@ export function CardView() {
             onClick={() => dispatch(actions.setFullscreen(null))}
             className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1001] rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-primary backdrop-blur"
           >
-            ESC · EXIT FULLSCREEN
+            {t("view:cards.exitFullscreen")}
           </motion.button>
         )}
       </AnimatePresence>

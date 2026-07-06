@@ -1,0 +1,395 @@
+{
+  "common": {
+    "appName": "XIRANITE",
+    "version": "v{{version}}",
+    "search": "Search",
+    "searchPlaceholder": "SEARCH...",
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "rename": "Rename",
+    "add": "Add",
+    "remove": "Remove",
+    "hide": "Hide",
+    "loading": "Loading...",
+    "empty": "Empty",
+    "unknown": "Unknown",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "focus": "Focus",
+    "exitFocus": "Exit focus",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "openFloatingWindow": "Open floating window",
+    "hideIn": "Hide in {{view}}",
+    "live": "live",
+    "reset": "Reset",
+    "copy": "Copy",
+    "clear": "Clear",
+    "dock": "DOCKED",
+    "float": "FLOAT",
+    "compact": "COMPACT",
+    "focusState": "FOCUS",
+    "full": "FULL",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggleTheme": "Toggle theme",
+    "closeWindow": "Close window",
+    "resizeLane": "Resize lane",
+    "addLane": "Add lane",
+    "unfiled": "UNFILED",
+    "widthRatio": "WIDTH RATIO",
+    "moreActions": "More actions",
+    "dragReorder": "Drag to reorder",
+    "dragToOtherLane": "Drag to other lane"
+  },
+  "topbar": {
+    "viewMode": {
+      "cards": "CARDS",
+      "cardsHint": "Card layout",
+      "dockview": "DOCKVIEW",
+      "dockviewHint": "Dockview panels",
+      "flow": "FLOW",
+      "flowHint": "React Flow nodes",
+      "lane": "LANE",
+      "laneHint": "Swimlane mode"
+    },
+    "cardLayout": {
+      "grid": "GRID",
+      "gridHint": "auto tile",
+      "stack": "STACK",
+      "stackHint": "cascade",
+      "split": "SPLIT",
+      "splitHint": "two columns",
+      "focus": "FOCUS",
+      "focusHint": "hero + strip"
+    },
+    "theme": {
+      "label": "Theme",
+      "preset": "THEME PRESET",
+      "colorMode": "COLOR MODE",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark",
+      "openSettings": "OPEN THEME SETTINGS",
+      "spatial": "Spatial",
+      "endfield": "Endfield",
+      "wuling": "Wuling"
+    },
+    "workspace": {
+      "new": "NEW WORKSPACE",
+      "select": "Select Workspace",
+      "defaults": {
+        "alpha": "WORKSPACE ALPHA",
+        "grid": "ANALYTICAL GRID",
+        "kern": "SYSTEM KERNEL",
+        "net": "NETWORK NODE",
+        "arch": "ARCHIVE"
+      }
+    },
+    "registry": "REGISTRY",
+    "deployment": "Deployment Hub",
+    "search": "SEARCH...",
+    "searchHint": "Search"
+  },
+  "settings": {
+    "title": "THEME SETTINGS",
+    "header": "Theme & Aesthetics",
+    "headerSubtitle": "Configure the visual identity and atmospheric depth of your workspace.",
+    "activePreset": "ACTIVE PRESET",
+    "selectPreset": "SELECT THEME PRESET",
+    "colorMode": {
+      "label": "COLOR MODE",
+      "description": "Switching theme preset auto-sets default mode (spatial=light, endfield/wuling=dark). Override here.",
+      "system": "Follow System",
+      "systemDesc": "Auto-switch with OS light/dark preference",
+      "light": "Light",
+      "lightDesc": "Force light color scheme",
+      "dark": "Dark",
+      "darkDesc": "Force dark color scheme"
+    },
+    "language": {
+      "label": "LANGUAGE",
+      "subtitle": "Interface language",
+      "description": "Choose the display language for the application interface.",
+      "en": "English",
+      "zh": "中文（简体）",
+      "restartHint": "Changes apply instantly."
+    },
+    "atmospheric": {
+      "title": "Atmospheric Effects",
+      "vignette": "Vignette Depth",
+      "vignetteDesc": "Controls the peripheral darkness of the workspace canvas.",
+      "grain": "Grain Texture Intensity",
+      "ambient": "AMBIENT LIGHTING",
+      "actionGlow": "Action Glow",
+      "actionGlowDesc": "Soft colored aura behind primary buttons",
+      "cardElevation": "Card Elevation Highlights",
+      "cardElevationDesc": "Subtle top-border shine on elevated surfaces"
+    },
+    "texture": {
+      "title": "Texture Canvas",
+      "basePalette": "BASE PALETTE"
+    },
+    "themes": {
+      "spatial": {
+        "label": "Spatial Studio",
+        "subtitle": "Active Preset",
+        "description": "A clean light interface with forest green accents. Precision-focused, minimal cognitive load."
+      },
+      "endfield": {
+        "label": "Endfield Tactical",
+        "subtitle": "Dark Preset",
+        "description": "A HUD-like, data-dense technical interface. Features deep slate foundations with vibrant Endfield Green highlights for precise operational contrast."
+      },
+      "wuling": {
+        "label": "武陵城 Wuling City",
+        "subtitle": "Arknights Endfield",
+        "description": "Warm amber foundations inspired by 明日方舟终末地 武陵城. Ancient city meeting cyberpunk — gold accents against deep ochre darkness."
+      }
+    }
+  },
+  "registry": {
+    "title": "MODULE_REGISTRY",
+    "subtitle": "SYS.COMPONENTS.AVAILABLE // Select to deploy into workspace",
+    "searchPlaceholder": "SEARCH_MODULES...",
+    "filter": "FILTER",
+    "all": "ALL",
+    "deploy": "DEPLOY",
+    "version": "VERSION",
+    "category": "CATEGORY",
+    "categories": {
+      "UTILITY": "UTILITY",
+      "STATE": "STATE",
+      "PROCESS": "PROCESS",
+      "SYSTEM": "SYSTEM",
+      "ORGANIZE": "ORGANIZE",
+      "META": "META",
+      "INPUT": "INPUT",
+      "OUTPUT": "OUTPUT",
+      "FILES": "FILES",
+      "NETWORK": "NETWORK",
+      "MEDIA": "MEDIA",
+      "TEXT": "TEXT",
+      "OTHER": "OTHER"
+    }
+  },
+  "overlay": {
+    "registry": "MODULE REGISTRY",
+    "settings": "THEME SETTINGS",
+    "deployment": "DEPLOYMENT HUB"
+  },
+  "view": {
+    "cards": {
+      "empty": "// canvas is empty",
+      "emptyHint": "Deploy modules from the registry to populate this workspace.",
+      "openRegistry": "OPEN MODULE REGISTRY",
+      "exitFullscreen": "ESC · EXIT FULLSCREEN"
+    },
+    "flow": {
+      "empty": "// flow canvas is empty",
+      "openRegistry": "OPEN MODULE REGISTRY"
+    },
+    "lane": {
+      "empty": "// no lanes — create one to start",
+      "addLane": "ADD LANE",
+      "emptyLane": "// empty lane",
+      "defaultName": "DEFAULT LANE",
+      "laneN": "LANE {{n}}"
+    },
+    "floating": {
+      "title": "COMPONENT",
+      "missingModule": "missing module",
+      "loadingState": "loading persisted component state",
+      "missingTarget": "// missing floating component target"
+    },
+    "dockview": {
+      "empty": "// dock is empty",
+      "openRegistry": "OPEN MODULE REGISTRY"
+    },
+    "deployment": {
+      "title": "Deployment Hub",
+      "subtitle": "Active production environments and sandboxes",
+      "systemOnline": "SYSTEM.ONLINE",
+      "filter": "FILTER",
+      "newDeployment": "NEW DEPLOYMENT",
+      "uptime": "UP: {{uptime}}",
+      "type": {
+        "production": "PRODUCTION",
+        "sandbox": "SANDBOX",
+        "concept_01": "CONCEPT_01",
+        "data_core": "DATA_CORE"
+      },
+      "status": {
+        "synced": "SYNCED",
+        "unsaved": "UNSAVED",
+        "offline": "OFFLINE"
+      },
+      "deployments": {
+        "alpha": {
+          "name": "Alpha Core System",
+          "description": "Main deployment environment for the Alpha initiative. Requires strict access protocols."
+        },
+        "beta": {
+          "name": "Beta Feature Test",
+          "description": "Experimental UI components and layout variations for the upcoming Q3 release."
+        },
+        "atmospheric": {
+          "name": "Atmospheric Urban UI",
+          "description": "Visual explorations for the new design system update focusing on tonal depth and material contrast."
+        },
+        "logistics": {
+          "name": "Global Logistics Model",
+          "nodes": "NODES",
+          "edges": "EDGES"
+        }
+      }
+    },
+    "database": {
+      "empty": "// no components to display",
+      "emptyHint": "Deploy some modules first.",
+      "addTag": "+ tag",
+      "visibleIn": "Visible In",
+      "moduleName": "Module",
+      "category": "Category",
+      "state": "State",
+      "tags": "Tags",
+      "created": "Created",
+      "data": "Data",
+      "actions": "",
+      "showInCards": "Show in cards",
+      "hideInCards": "Hide in cards",
+      "viewModes": {
+        "cards": "Cards",
+        "dockview": "Dockview",
+        "flow": "Flow",
+        "lane": "Lane"
+      },
+      "tabs": {
+        "table": "Table",
+        "list": "List",
+        "gallery": "Gallery",
+        "board": "Board"
+      }
+    }
+  },
+  "module": {
+    "unknown": "// unknown module: {{id}}",
+    "scratch": {
+      "name": "SCRATCH",
+      "description": "Ephemeral text buffer. Temporary storage for quick notes, variables, or copy-paste ops.",
+      "placeholder": "// ephemeral buffer — type anything...",
+      "chars": "{{count}} chars"
+    },
+    "counter": {
+      "name": "COUNTER",
+      "description": "Incremental tracking node. Stateful integer tracking with broadcast capabilities.",
+      "defaultLabel": "COUNT",
+      "step": "STEP",
+      "stepValue": "STEP: {{step}}"
+    },
+    "acidMixer": {
+      "name": "ACID MIXER",
+      "description": "Compound synthesizer logic board. Combine distinct data streams to generate new outputs.",
+      "synthesize": "SYNTHESIZE",
+      "operation": "OP"
+    },
+    "terminal": {
+      "name": "TERMINAL",
+      "description": "Command line interface node. Direct execution access to core system services.",
+      "motd1": "WULING_CITY_OS v4.0.0 — Terminal Interface Active",
+      "motd2": "Type 'help' for available commands.",
+      "notFound": "command not found: {{cmd}}",
+      "help": {
+        "available": "Available commands:",
+        "help": "  help          — show this message",
+        "echo": "  echo <text>   — print text",
+        "clear": "  clear         — clear terminal",
+        "date": "  date          — show current date/time",
+        "whoami": "  whoami        — show operator identity",
+        "status": "  status        — show system status",
+        "ls": "  ls            — list workspace modules"
+      },
+      "whoami": "OPERATOR_01 // SYS_VER_4.0_STABLE",
+      "status": ["SYS: ONLINE", "NET: NOMINAL", "DB: SYNCED", "UPTIME: 99.9%"]
+    },
+    "tasks": {
+      "name": "TASKS",
+      "description": "Linear objective tracker. Sequential list management for operator workflows.",
+      "complete": "{{done}}/{{total}} COMPLETE",
+      "empty": "// no tasks — add below",
+      "placeholder": "New task...",
+      "defaults": {
+        "task1": "Initialize workspace configuration",
+        "task2": "Deploy core modules to active canvas",
+        "task3": "Review system kernel diagnostics"
+      }
+    },
+    "clock": {
+      "name": "CLOCK",
+      "description": "Global/Local temporal reference. High-precision sync with central server time.",
+      "local": "LOCAL",
+      "sync": "SYNC"
+    },
+    "calculator": {
+      "name": "CALCULATOR",
+      "description": "Arithmetic processing unit. Essential localized computation and conversion tool.",
+      "error": "ERR"
+    },
+    "kanban": {
+      "name": "KANBAN BOARD",
+      "description": "Agile workflow visualization. Drag-and-drop state management for complex operations.",
+      "backlog": "BACKLOG",
+      "active": "ACTIVE",
+      "done": "DONE",
+      "addPlaceholder": "Add...",
+      "defaultCards": {
+        "initScope": "Initialize project scope",
+        "defineRoles": "Define operator roles",
+        "deployGrid": "Deploy analytical grid",
+        "kernelBoot": "System kernel boot"
+      }
+    },
+    "database": {
+      "name": "DATABASE",
+      "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing."
+    },
+    "blocknote": {
+      "name": "BLOCKNOTE",
+      "description": "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically."
+    },
+    "enginev": {
+      "backendLoading": "// backend loading…",
+      "backendFailed": "// backend failed",
+      "pathPlaceholder": "/path/to/workshop",
+      "scan": "SCAN",
+      "renameDry": "RENAME (DRY)",
+      "export": "EXPORT",
+      "clear": "CLEAR",
+      "stats": {
+        "total": "TOTAL",
+        "types": "TYPES",
+        "ratings": "RATINGS"
+      },
+      "tableHeaders": {
+        "id": "ID",
+        "title": "TITLE",
+        "type": "TYPE",
+        "size": "SIZE"
+      },
+      "log": {
+        "scan": "scan: {{path}}",
+        "scannedOk": "✓ scanned {{count}} items",
+        "renameStart": "rename (dryRun): {{count}} items",
+        "renameOk": "✓ planned {{success}}, failed {{failed}}",
+        "exportOk": "✓ exported → {{path}}",
+        "fail": "✗ {{message}}"
+      }
+    }
+  }
+}

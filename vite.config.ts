@@ -40,6 +40,11 @@ export default defineConfig({
       "@tanstack/table-core",
     ],
   },
+  server: {
+    watch: {
+      ignored: ["**/build/**", "**/artifacts/**"],
+    },
+  },
   optimizeDeps: {
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),
     // 不预构建时浏览器 ESM `import { useSyncExternalStore }` 拿不到命名导出。

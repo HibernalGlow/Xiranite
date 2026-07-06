@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { cn } from "@/lib/utils"
@@ -23,6 +24,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
 export function ModuleRegistry() {
   const dispatch = useWSDispatch()
   const { state } = useWorkspace()
+  const { t, i18n } = useTranslation()
   const [query, setQuery] = useState("")
   const [catFilter, setCatFilter] = useState<string | null>(null)
 
@@ -39,19 +41,19 @@ export function ModuleRegistry() {
       {/* Header */}
       <div className="px-6 pt-6 pb-4 border-b border-border/60 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-3xl font-mono font-black text-foreground tracking-tight">MODULE_REGISTRY</h1>
-          <p className="text-xs font-mono text-muted-foreground mt-1">SYS.COMPONENTS.AVAILABLE // SELECT TO DEPLOY TO WORKSPACE</p>
+          <h1 className="text-3xl font-mono font-black text-foreground tracking-tight">{t("registry:title")}</h1>
+          <p className="text-xs font-mono text-muted-foreground mt-1">{t("registry:subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="SEARCH_MODULES..."
+            placeholder={t("registry:searchPlaceholder")}
             className="h-8 w-48 text-xs font-mono bg-muted/40 border-border/60"
           />
           <Button variant="outline" size="sm" className="h-8 font-mono text-xs gap-1.5">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            FILTER
+            {t("registry:filter")}
           </Button>
         </div>
       </div>
@@ -62,7 +64,7 @@ export function ModuleRegistry() {
           onClick={() => setCatFilter(null)}
           className={cn("text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors", !catFilter ? "border-primary/40 text-primary bg-primary/10" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
-          ALL
+          {t("registry:all")}
         </button>
         {categories.map(cat => (
           <button
@@ -70,7 +72,7 @@ export function ModuleRegistry() {
             onClick={() => setCatFilter(catFilter === cat ? null : cat)}
             className={cn("text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors", catFilter === cat ? "border-primary/40 text-primary bg-primary/10" : "border-transparent text-muted-foreground hover:text-foreground")}
           >
-            {cat}
+            {t(`registry:categories.${cat}`)}
           </button>
         ))}
       </div>
@@ -80,6 +82,10 @@ export function ModuleRegistry() {
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filtered.map(mod => {
             const Icon = ICON_MAP[mod.icon] ?? FileText
+            const descKey = `module:${mod.id}.description`
+            const catKey = `registry:categories.${mod.category}`
+            const desc = i18n.exists(descKey) ? t(descKey) : mod.description
+            const catLabel = i18n.exists(catKey) ? t(catKey) : mod.category
             return (
               <div
                 key={mod.id}
@@ -100,7 +106,7 @@ export function ModuleRegistry() {
                 </div>
 
                 <p className="text-xs text-muted-foreground leading-relaxed mb-4 line-clamp-3">
-                  {mod.description}
+                  {desc}
                 </p>
 
                 <div className="flex items-center justify-between">
@@ -108,11 +114,11 @@ export function ModuleRegistry() {
                     <span className="text-[10px] font-mono text-muted-foreground/70">{mod.version}</span>
                     <span className="text-[10px] font-mono text-muted-foreground/50">/</span>
                     <Badge variant="outline" className="text-[9px] font-mono h-4 px-1 border-border/50 text-muted-foreground">
-                      {mod.category}
+                      {catLabel}
                     </Badge>
                   </div>
                   <button className="flex items-center gap-1 text-[10px] font-mono text-primary opacity-60 group-hover:opacity-100 transition-opacity">
-                    DEPLOY <ArrowRight className="h-3 w-3" />
+                    {t("registry:deploy")} <ArrowRight className="h-3 w-3" />
                   </button>
                 </div>
               </div>

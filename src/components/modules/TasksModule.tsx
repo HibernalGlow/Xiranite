@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from "react"
+import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -10,17 +11,18 @@ interface Task { id: string; text: string; done: boolean }
 let taskId = 0
 
 export default function TasksModule() {
+  const { t } = useTranslation()
   const [tasks, setTasks] = useState<Task[]>([
-    { id: `tk-${++taskId}`, text: "Initialize workspace configuration", done: true },
-    { id: `tk-${++taskId}`, text: "Deploy core modules to active canvas", done: false },
-    { id: `tk-${++taskId}`, text: "Review system kernel diagnostics", done: false },
+    { id: `tk-${++taskId}`, text: t("module:tasks.defaults.task1"), done: true },
+    { id: `tk-${++taskId}`, text: t("module:tasks.defaults.task2"), done: false },
+    { id: `tk-${++taskId}`, text: t("module:tasks.defaults.task3"), done: false },
   ])
   const [draft, setDraft] = useState("")
 
   function add() {
-    const t = draft.trim()
-    if (!t) return
-    setTasks(ts => [...ts, { id: `tk-${++taskId}`, text: t, done: false }])
+    const text = draft.trim()
+    if (!text) return
+    setTasks(ts => [...ts, { id: `tk-${++taskId}`, text, done: false }])
     setDraft("")
   }
 
@@ -41,7 +43,7 @@ export default function TasksModule() {
   return (
     <div className="flex flex-col gap-2 p-1 h-full">
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] font-mono text-muted-foreground">{done}/{tasks.length} COMPLETE</span>
+        <span className="text-[10px] font-mono text-muted-foreground">{t("module:tasks.complete", { done, total: tasks.length })}</span>
         <div className="h-1.5 w-24 bg-muted rounded-full overflow-hidden">
           <div
             className="h-full bg-primary rounded-full transition-all"
@@ -80,7 +82,7 @@ export default function TasksModule() {
           </div>
         ))}
         {tasks.length === 0 && (
-          <p className="text-center text-xs font-mono text-muted-foreground py-4">// no tasks — add below</p>
+          <p className="text-center text-xs font-mono text-muted-foreground py-4">{t("module:tasks.empty")}</p>
         )}
       </div>
 
@@ -89,7 +91,7 @@ export default function TasksModule() {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={onKey}
-          placeholder="New task..."
+          placeholder={t("module:tasks.placeholder")}
           className="text-xs font-mono h-7 bg-muted/40 border-border/60"
         />
         <Button size="icon" className="h-7 w-7 flex-shrink-0" onClick={add}>

@@ -1,5 +1,6 @@
 import { memo } from "react"
 import { motion } from "motion/react"
+import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { useWSDispatch, actions } from "@/store/workspaceContext"
@@ -24,16 +25,17 @@ interface Props {
   cardLayout: CardLayout
 }
 
-const stateLabel: Record<ComputedLayout["state"], string> = {
-  docked: "DOCKED",
-  floating: "FLOAT",
-  compact: "COMPACT",
-  focused: "FOCUS",
-  fullscreen: "FULL",
+const stateLabelKey: Record<ComputedLayout["state"], string> = {
+  docked: "common:dock",
+  floating: "common:float",
+  compact: "common:compact",
+  focused: "common:focusState",
+  fullscreen: "common:full",
 }
 
 function ComponentCardInner({ comp, layout }: Props) {
   const dispatch = useWSDispatch()
+  const { t } = useTranslation()
   const mod = getModule(comp.moduleId)
 
   const isFullscreen = layout.state === "fullscreen"
@@ -114,37 +116,37 @@ function ComponentCardInner({ comp, layout }: Props) {
           </span>
         )}
         <span className="ml-1 rounded-[3px] bg-background/60 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground">
-          {stateLabel[layout.state]}
+          {t(stateLabelKey[layout.state])}
         </span>
 
         <div className="ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-          <HeaderBtn label={comp.collapsed ? "Expand" : "Collapse"} onClick={toggleCollapse}>
+          <HeaderBtn label={comp.collapsed ? t("common:expand") : t("common:collapse")} onClick={toggleCollapse}>
             {comp.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
           </HeaderBtn>
 
           {!isFocusedState && !isFullscreen && (
-            <HeaderBtn label="Focus" onClick={activateFocus}>
+            <HeaderBtn label={t("common:focus")} onClick={activateFocus}>
               <Expand className="h-3 w-3" />
             </HeaderBtn>
           )}
           {isFocusedState && (
-            <HeaderBtn label="Exit focus" onClick={exitFocus}>
+            <HeaderBtn label={t("common:exitFocus")} onClick={exitFocus}>
               <Minimize2 className="h-3 w-3" />
             </HeaderBtn>
           )}
 
           <HeaderBtn
-            label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            label={isFullscreen ? t("common:exitFullscreen") : t("common:fullscreen")}
             onClick={toggleFullscreen}
           >
             {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </HeaderBtn>
 
-          <HeaderBtn label="Open floating window" onClick={openFloatingWindow}>
+          <HeaderBtn label={t("common:openFloatingWindow")} onClick={openFloatingWindow}>
             <ExternalLink className="h-3 w-3" />
           </HeaderBtn>
 
-          <HeaderBtn label="Hide in Cards" danger onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}>
+          <HeaderBtn label={t("common:hideIn", { view: t("topbar:viewMode.cards") })} danger onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}>
             <X className="h-3 w-3" />
           </HeaderBtn>
         </div>
@@ -158,7 +160,7 @@ function ComponentCardInner({ comp, layout }: Props) {
               <span>
                 {mod?.name ?? comp.moduleId}
                 <br />
-                live
+                {t("common:live")}
               </span>
             </div>
           ) : (

@@ -3,6 +3,7 @@ import type {
   FileSystemRuntime,
   FsEntry,
   FsStat,
+  MainWindowDragInput,
   NodeRunnerRuntime,
   OpenComponentWindowInput,
   RuntimeInterface,
@@ -11,6 +12,7 @@ import type {
   SubprocessRuntime,
   WindowCapabilities,
   WindowCommandResult,
+  WindowFrame,
   WindowRuntime,
 } from "../runtime/runtime"
 import type { ProgressEvent } from "../shared/types"
@@ -172,6 +174,14 @@ class WebWindowRuntime implements WindowRuntime {
     }
   }
 
+  async restoreMainForDrag(_input: MainWindowDragInput): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      message: "Browser runtime cannot restore native windows for title-bar drag.",
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     const url = new URL(window.location.href)
     url.searchParams.set("floatingComponent", input.componentId)
@@ -214,6 +224,19 @@ class WebWindowRuntime implements WindowRuntime {
       supported: false,
       id,
       message: "Browser runtime does not track component popup close.",
+    }
+  }
+
+  async getFrame(): Promise<WindowFrame | null> {
+    return null
+  }
+
+  async setFrame(_frame: WindowFrame, id?: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Browser runtime cannot resize native windows.",
     }
   }
 }

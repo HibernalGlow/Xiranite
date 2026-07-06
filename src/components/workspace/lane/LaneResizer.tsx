@@ -5,6 +5,7 @@
  * 用 PointerEvent + setPointerCapture 实现，拖拽时实时调用 onResize(deltaPx)。
  */
 import { useRef } from "react"
+import { useTranslation } from "react-i18next"
 
 interface Props {
   onResize?: (deltaRatio: number) => void
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function LaneResizer({ onResize, onResizeEnd }: Props) {
+  const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
   const btnRef = useRef<HTMLButtonElement | null>(null)
@@ -49,7 +51,7 @@ export function LaneResizer({ onResize, onResizeEnd }: Props) {
     <button
       ref={btnRef}
       type="button"
-      aria-label="Resize lane"
+      aria-label={t("common:resizeLane")}
       onPointerDown={handlePointerDown}
       className="lane-resizer w-1 cursor-ew-resize bg-transparent hover:bg-primary/40 transition-colors flex-shrink-0"
     />

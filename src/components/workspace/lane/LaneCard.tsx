@@ -14,6 +14,7 @@
  *    只用本地 useState 跟踪 isDragging 显示视觉反馈。
  */
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { GripVertical, X } from "lucide-react"
 import { useWSDispatch, actions } from "@/store/workspaceContext"
 import { setCardDrag, clearDrag } from "@/store/dragState"
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function LaneCard({ compId, moduleId, laneId }: Props) {
+  const { t } = useTranslation()
   const dispatch = useWSDispatch()
   const mod = getModule(moduleId)
   const [isDragging, setIsDragging] = useState(false)
@@ -67,7 +69,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
       <div className="flex items-center gap-1.5 h-7 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
         <span
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          title="拖到其他泳道"
+          title={t("common:dragToOtherLane")}
         >
           <GripVertical className="h-3.5 w-3.5 rotate-90" />
         </span>

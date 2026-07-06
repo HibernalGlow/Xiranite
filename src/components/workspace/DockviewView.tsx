@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelHeaderProps } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button"
  * 选择器覆盖 abyss 变量，让其读取项目的 --card / --muted / --border。
  */
 export function DockviewView() {
+  const { t } = useTranslation()
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const apiRef = useRef<DockviewApi | null>(null)
@@ -148,7 +150,7 @@ export function DockviewView() {
       <div className="flex-1 ws-canvas-bg dv-theme-bridge flex items-center justify-center">
         <div className="text-center space-y-4">
           <LayoutPanelTop className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-          <p className="text-sm font-mono text-muted-foreground">// dock is empty</p>
+          <p className="text-sm font-mono text-muted-foreground">{t("view:dockview.empty")}</p>
           <Button
             size="sm"
             variant="outline"
@@ -156,7 +158,7 @@ export function DockviewView() {
             onClick={() => dispatch(actions.setOverlay("registry"))}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            OPEN MODULE REGISTRY
+            {t("view:dockview.openRegistry")}
           </Button>
         </div>
       </div>

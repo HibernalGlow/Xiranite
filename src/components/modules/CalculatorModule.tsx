@@ -1,8 +1,10 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 
 type Op = "+" | "-" | "*" | "/" | null
 
 export default function CalculatorModule() {
+  const { t } = useTranslation()
   const [display, setDisplay] = useState("0")
   const [prev, setPrev] = useState<number | null>(null)
   const [op, setOp] = useState<Op>(null)
@@ -43,7 +45,7 @@ export default function CalculatorModule() {
     if (prev === null || op === null) return
     const cur = parseFloat(display)
     const res = compute(prev, cur, op)
-    setDisplay(isNaN(res) ? "ERR" : String(parseFloat(res.toPrecision(10))))
+    setDisplay(isNaN(res) ? t("module:calculator.error") : String(parseFloat(res.toPrecision(10))))
     setPrev(null)
     setOp(null)
     setFresh(true)

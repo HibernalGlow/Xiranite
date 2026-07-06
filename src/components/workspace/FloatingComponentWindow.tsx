@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { getModule } from "@/components/modules/registry"
@@ -14,19 +15,20 @@ interface Props {
 }
 
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
+  const { t } = useTranslation()
   const { state } = useWorkspace()
   const comp = state.components.find((item) => item.id === compId)
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const mod = getModule(moduleId)
-  const title = titleFallback || mod?.name || moduleId || "COMPONENT"
+  const title = titleFallback || mod?.name || moduleId || t("view:floating.title")
 
   const themeClass = state.theme === "endfield" ? "theme-endfield" : state.theme === "wuling" ? "theme-wuling" : ""
 
   const detail = useMemo(() => {
-    if (!moduleId) return "missing module"
-    if (!comp) return "loading persisted component state"
+    if (!moduleId) return t("view:floating.missingModule")
+    if (!comp) return t("view:floating.loadingState")
     return `${comp.workspaceId} / ${comp.id}`
-  }, [comp, moduleId])
+  }, [comp, moduleId, t])
 
   async function closeWindow() {
     try {
@@ -40,7 +42,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
 
   return (
     <div className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+      <header className="electrobun-webkit-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
@@ -48,10 +50,10 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
         </div>
         <button
           type="button"
-          title="Close window"
-          aria-label="Close window"
+          title={t("common:closeWindow")}
+          aria-label={t("common:closeWindow")}
           onClick={closeWindow}
-          className="grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="electrobun-webkit-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -62,7 +64,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         ) : (
           <div className="grid h-full place-items-center font-mono text-xs text-muted-foreground">
-            // missing floating component target
+            {t("view:floating.missingTarget")}
           </div>
         )}
       </main>

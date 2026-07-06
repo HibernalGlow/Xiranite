@@ -1,14 +1,15 @@
 import { AnimatePresence, motion } from "motion/react"
 import { X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRegistry } from "@/components/views/ModuleRegistry"
 import { ThemeSettings } from "@/components/views/ThemeSettings"
 import { DeploymentHub } from "@/components/views/DeploymentHub"
 
-const TITLES = {
-  registry: "MODULE REGISTRY",
-  settings: "THEME SETTINGS",
-  deployment: "DEPLOYMENT HUB",
+const TITLE_KEYS = {
+  registry: "overlay:registry",
+  settings: "overlay:settings",
+  deployment: "overlay:deployment",
 } as const
 
 /**
@@ -20,6 +21,7 @@ const TITLES = {
 export function OverlayHost() {
   const { state } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { t } = useTranslation()
   const open = state.overlay !== null
 
   return (
@@ -45,7 +47,7 @@ export function OverlayHost() {
           >
             <header className="h-12 flex items-center justify-between px-4 border-b border-border flex-shrink-0">
               <h2 className="text-xs font-mono font-semibold tracking-widest text-foreground">
-                {state.overlay ? TITLES[state.overlay] : ""}
+                {state.overlay ? t(TITLE_KEYS[state.overlay]) : ""}
               </h2>
               <button
                 onClick={() => dispatch(actions.setOverlay(null))}

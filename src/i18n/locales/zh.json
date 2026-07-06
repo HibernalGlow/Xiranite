@@ -1,0 +1,395 @@
+{
+  "common": {
+    "appName": "XIRANITE",
+    "version": "v{{version}}",
+    "search": "搜索",
+    "searchPlaceholder": "搜索...",
+    "close": "关闭",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "cancel": "取消",
+    "confirm": "确认",
+    "save": "保存",
+    "delete": "删除",
+    "rename": "重命名",
+    "add": "添加",
+    "remove": "移除",
+    "hide": "隐藏",
+    "loading": "加载中...",
+    "empty": "空",
+    "unknown": "未知",
+    "expand": "展开",
+    "collapse": "折叠",
+    "focus": "聚焦",
+    "exitFocus": "退出聚焦",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "openFloatingWindow": "打开浮动窗口",
+    "hideIn": "在{{view}}中隐藏",
+    "live": "运行中",
+    "reset": "重置",
+    "copy": "复制",
+    "clear": "清空",
+    "dock": "停靠",
+    "float": "浮动",
+    "compact": "紧凑",
+    "focusState": "聚焦",
+    "full": "全屏",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统",
+    "toggleTheme": "切换主题",
+    "closeWindow": "关闭窗口",
+    "resizeLane": "调整泳道宽度",
+    "addLane": "添加泳道",
+    "unfiled": "未归类",
+    "widthRatio": "宽度比例",
+    "moreActions": "更多操作",
+    "dragReorder": "拖动重排",
+    "dragToOtherLane": "拖到其他泳道"
+  },
+  "topbar": {
+    "viewMode": {
+      "cards": "卡片",
+      "cardsHint": "卡片布局",
+      "dockview": "DOCKVIEW",
+      "dockviewHint": "Dockview 面板",
+      "flow": "流程",
+      "flowHint": "React Flow 节点",
+      "lane": "泳道",
+      "laneHint": "泳道模式"
+    },
+    "cardLayout": {
+      "grid": "网格",
+      "gridHint": "自动平铺",
+      "stack": "堆叠",
+      "stackHint": "层叠",
+      "split": "分屏",
+      "splitHint": "两列",
+      "focus": "聚焦",
+      "focusHint": "主卡 + 缩略"
+    },
+    "theme": {
+      "label": "主题",
+      "preset": "主题预设",
+      "colorMode": "颜色模式",
+      "system": "跟随系统",
+      "light": "浅色",
+      "dark": "深色",
+      "openSettings": "打开主题设置",
+      "spatial": "Spatial",
+      "endfield": "Endfield",
+      "wuling": "Wuling"
+    },
+    "workspace": {
+      "new": "新建工作区",
+      "select": "选择工作区",
+      "defaults": {
+        "alpha": "工作区 ALPHA",
+        "grid": "分析网格",
+        "kern": "系统内核",
+        "net": "网络节点",
+        "arch": "归档"
+      }
+    },
+    "registry": "模块库",
+    "deployment": "部署中心",
+    "search": "搜索...",
+    "searchHint": "搜索"
+  },
+  "settings": {
+    "title": "主题设置",
+    "header": "主题与美学",
+    "headerSubtitle": "配置工作区的视觉身份与氛围深度。",
+    "activePreset": "当前预设",
+    "selectPreset": "选择主题预设",
+    "colorMode": {
+      "label": "颜色模式",
+      "description": "切换主题预设会自动设置默认模式（spatial=浅色, endfield/wuling=深色）。可在此覆盖。",
+      "system": "跟随系统",
+      "systemDesc": "随系统浅色/深色偏好自动切换",
+      "light": "浅色",
+      "lightDesc": "强制浅色方案",
+      "dark": "深色",
+      "darkDesc": "强制深色方案"
+    },
+    "language": {
+      "label": "语言",
+      "subtitle": "界面语言",
+      "description": "选择应用程序界面的显示语言。",
+      "en": "English",
+      "zh": "中文（简体）",
+      "restartHint": "更改立即生效。"
+    },
+    "atmospheric": {
+      "title": "氛围效果",
+      "vignette": "晕影深度",
+      "vignetteDesc": "控制工作区画布的边缘暗度。",
+      "grain": "颗粒纹理强度",
+      "ambient": "环境光",
+      "actionGlow": "动作光晕",
+      "actionGlowDesc": "主按钮背后的柔和彩色光晕",
+      "cardElevation": "卡片高亮",
+      "cardElevationDesc": "高亮表面的细微顶部边框光泽"
+    },
+    "texture": {
+      "title": "纹理画布",
+      "basePalette": "基础调色板"
+    },
+    "themes": {
+      "spatial": {
+        "label": "Spatial Studio",
+        "subtitle": "当前预设",
+        "description": "清爽浅色界面，森林绿强调色。聚焦精度，最小认知负载。"
+      },
+      "endfield": {
+        "label": "Endfield Tactical",
+        "subtitle": "深色预设",
+        "description": "HUD 式数据密集技术界面。深板岩基底配 Endfield 绿高亮，精确操作对比。"
+      },
+      "wuling": {
+        "label": "武陵城 Wuling City",
+        "subtitle": "明日方舟终末地",
+        "description": "灵感来自明日方舟终末地武陵城的暖琥珀色调。古城遇赛博朋克 — 金色强调对深赭暗色。"
+      }
+    }
+  },
+  "registry": {
+    "title": "MODULE_REGISTRY",
+    "subtitle": "SYS.COMPONENTS.AVAILABLE // 选择以部署到工作区",
+    "searchPlaceholder": "搜索模块...",
+    "filter": "筛选",
+    "all": "全部",
+    "deploy": "部署",
+    "version": "版本",
+    "category": "分类",
+    "categories": {
+      "UTILITY": "工具",
+      "STATE": "状态",
+      "PROCESS": "流程",
+      "SYSTEM": "系统",
+      "ORGANIZE": "组织",
+      "META": "元数据",
+      "INPUT": "输入",
+      "OUTPUT": "输出",
+      "FILES": "文件",
+      "NETWORK": "网络",
+      "MEDIA": "媒体",
+      "TEXT": "文本",
+      "OTHER": "其他"
+    }
+  },
+  "overlay": {
+    "registry": "模块库",
+    "settings": "主题设置",
+    "deployment": "部署中心"
+  },
+  "view": {
+    "cards": {
+      "empty": "// 画布为空",
+      "emptyHint": "从模块库部署模块以填充此工作区。",
+      "openRegistry": "打开模块库",
+      "exitFullscreen": "ESC · 退出全屏"
+    },
+    "flow": {
+      "empty": "// 流程画布为空",
+      "openRegistry": "打开模块库"
+    },
+    "lane": {
+      "empty": "// 暂无泳道 — 创建一个开始",
+      "addLane": "添加泳道",
+      "emptyLane": "// 空泳道",
+      "defaultName": "默认泳道",
+      "laneN": "泳道 {{n}}"
+    },
+    "floating": {
+      "title": "组件",
+      "missingModule": "缺失模块",
+      "loadingState": "加载持久化的组件状态",
+      "missingTarget": "// 缺失浮动组件目标"
+    },
+    "dockview": {
+      "empty": "// dock 为空",
+      "openRegistry": "打开模块库"
+    },
+    "deployment": {
+      "title": "部署中心",
+      "subtitle": "当前生产环境与沙箱",
+      "systemOnline": "SYSTEM.ONLINE",
+      "filter": "筛选",
+      "newDeployment": "新建部署",
+      "uptime": "运行: {{uptime}}",
+      "type": {
+        "production": "PRODUCTION",
+        "sandbox": "SANDBOX",
+        "concept_01": "CONCEPT_01",
+        "data_core": "DATA_CORE"
+      },
+      "status": {
+        "synced": "已同步",
+        "unsaved": "未保存",
+        "offline": "离线"
+      },
+      "deployments": {
+        "alpha": {
+          "name": "Alpha 核心系统",
+          "description": "Alpha 计划的主部署环境。需要严格的访问协议。"
+        },
+        "beta": {
+          "name": "Beta 功能测试",
+          "description": "Q3 版本的实验性 UI 组件与布局变体。"
+        },
+        "atmospheric": {
+          "name": "氛围城市 UI",
+          "description": "新设计系统更新的视觉探索，聚焦色调深度与材质对比。"
+        },
+        "logistics": {
+          "name": "全球物流模型",
+          "nodes": "节点",
+          "edges": "边"
+        }
+      }
+    },
+    "database": {
+      "empty": "// 暂无组件",
+      "emptyHint": "请先部署一些模块。",
+      "addTag": "+ 标签",
+      "visibleIn": "可见性",
+      "moduleName": "模块",
+      "category": "分类",
+      "state": "状态",
+      "tags": "标签",
+      "created": "创建时间",
+      "data": "数据",
+      "actions": "",
+      "showInCards": "在卡片中显示",
+      "hideInCards": "在卡片中隐藏",
+      "viewModes": {
+        "cards": "卡片",
+        "dockview": "Dockview",
+        "flow": "流程",
+        "lane": "泳道"
+      },
+      "tabs": {
+        "table": "表格",
+        "list": "列表",
+        "gallery": "画廊",
+        "board": "看板"
+      }
+    }
+  },
+  "module": {
+    "unknown": "// 未知模块: {{id}}",
+    "scratch": {
+      "name": "SCRATCH",
+      "description": "临时文本缓冲区。用于快速笔记、变量或复制粘贴操作的临时存储。",
+      "placeholder": "// 临时缓冲 — 输入任何内容...",
+      "chars": "{{count}} 字符"
+    },
+    "counter": {
+      "name": "计数器",
+      "description": "增量跟踪节点。带广播能力的有状态整数跟踪。",
+      "defaultLabel": "计数",
+      "step": "步长",
+      "stepValue": "步长: {{step}}"
+    },
+    "acidMixer": {
+      "name": "ACID MIXER",
+      "description": "复合合成器逻辑板。组合不同数据流以生成新输出。",
+      "synthesize": "合成",
+      "operation": "操作"
+    },
+    "terminal": {
+      "name": "终端",
+      "description": "命令行界面节点。直接执行核心系统服务。",
+      "motd1": "WULING_CITY_OS v4.0.0 — 终端接口已激活",
+      "motd2": "输入 'help' 查看可用命令。",
+      "notFound": "未找到命令: {{cmd}}",
+      "help": {
+        "available": "可用命令:",
+        "help": "  help          — 显示此消息",
+        "echo": "  echo <文本>   — 打印文本",
+        "clear": "  clear         — 清空终端",
+        "date": "  date          — 显示当前日期/时间",
+        "whoami": "  whoami        — 显示操作员身份",
+        "status": "  status        — 显示系统状态",
+        "ls": "  ls            — 列出工作区模块"
+      },
+      "whoami": "OPERATOR_01 // SYS_VER_4.0_STABLE",
+      "status": ["系统: 在线", "网络: 正常", "数据库: 已同步", "运行时间: 99.9%"]
+    },
+    "tasks": {
+      "name": "任务",
+      "description": "线性目标跟踪器。用于操作员工作流的顺序列表管理。",
+      "complete": "{{done}}/{{total}} 已完成",
+      "empty": "// 暂无任务 — 在下方添加",
+      "placeholder": "新任务...",
+      "defaults": {
+        "task1": "初始化工作区配置",
+        "task2": "部署核心模块到活动画布",
+        "task3": "审查系统内核诊断"
+      }
+    },
+    "clock": {
+      "name": "时钟",
+      "description": "全球/本地时间参考。与中央服务器时间高精度同步。",
+      "local": "本地",
+      "sync": "同步"
+    },
+    "calculator": {
+      "name": "计算器",
+      "description": "算术处理单元。本地化计算与转换工具。",
+      "error": "错误"
+    },
+    "kanban": {
+      "name": "看板",
+      "description": "敏捷工作流可视化。拖放状态管理复杂操作。",
+      "backlog": "待办",
+      "active": "进行中",
+      "done": "已完成",
+      "addPlaceholder": "添加...",
+      "defaultCards": {
+        "initScope": "初始化项目范围",
+        "defineRoles": "定义操作员角色",
+        "deployGrid": "部署分析网格",
+        "kernelBoot": "系统内核启动"
+      }
+    },
+    "database": {
+      "name": "数据库",
+      "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。"
+    },
+    "blocknote": {
+      "name": "BLOCKNOTE",
+      "description": "基于 shadcn 的 BlockNote 富文本编辑器。块级文档编辑、拖拽重排、斜杠菜单，样式自动跟随项目主题。"
+    },
+    "enginev": {
+      "backendLoading": "// 后端加载中…",
+      "backendFailed": "// 后端失败",
+      "pathPlaceholder": "/path/to/workshop",
+      "scan": "扫描",
+      "renameDry": "重命名 (预演)",
+      "export": "导出",
+      "clear": "清空",
+      "stats": {
+        "total": "总数",
+        "types": "类型",
+        "ratings": "评级"
+      },
+      "tableHeaders": {
+        "id": "ID",
+        "title": "标题",
+        "type": "类型",
+        "size": "大小"
+      },
+      "log": {
+        "scan": "扫描: {{path}}",
+        "scannedOk": "✓ 已扫描 {{count}} 项",
+        "renameStart": "重命名 (预演): {{count}} 项",
+        "renameOk": "✓ 计划成功 {{success}}, 失败 {{failed}}",
+        "exportOk": "✓ 已导出 → {{path}}",
+        "fail": "✗ {{message}}"
+      }
+    }
+  }
+}

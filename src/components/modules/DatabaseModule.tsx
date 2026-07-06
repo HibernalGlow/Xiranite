@@ -19,6 +19,8 @@
  * 数据流：store.components → visibleComponents → computeRows() → queryFn → ocean TableView
  */
 import * as React from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 import { useInfiniteController } from "@hibernalglow/ocean-dataview/hooks"
 import { DataViewProvider } from "@hibernalglow/ocean-dataview/providers"
@@ -106,6 +108,7 @@ function toDatabaseRow(comp: ComponentInstance): DatabaseRow {
 
 // ── Tags cell：行内编辑 ─────────────────────────────────────────────────────
 function TagsCell({ item }: { item: DatabaseRow }) {
+  const { t } = useTranslation()
   const dispatch = useWSDispatch()
   const comp = item._comp
   const tags = comp.tags ?? []
@@ -116,17 +119,17 @@ function TagsCell({ item }: { item: DatabaseRow }) {
 
   return (
     <div className="flex flex-wrap items-center gap-1 py-0.5">
-      {tags.map(t => (
+      {tags.map(tag => (
         <span
-          key={t}
+          key={tag}
           className="inline-flex items-center gap-0.5 text-[9px] py-0 px-1 rounded bg-badge-gray-subtle text-badge-gray-subtle-foreground"
         >
           <Tag className="h-2.5 w-2.5" />
-          {t}
+          {tag}
           <button
-            onClick={() => commit(tags.filter(x => x !== t))}
+            onClick={() => commit(tags.filter(x => x !== tag))}
             className="hover:text-destructive ml-0.5"
-            aria-label={`Remove ${t}`}
+            aria-label={`${t("common:remove")} ${tag}`}
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -151,7 +154,7 @@ function TagsCell({ item }: { item: DatabaseRow }) {
             commit(tags.slice(0, -1))
           }
         }}
-        placeholder="+ tag"
+        placeholder={t("view:database.addTag")}
         className="bg-transparent text-[10px] outline-none w-16 placeholder:text-muted-foreground/60 focus:bg-background focus:px-1 focus:rounded focus:border focus:border-border/60"
       />
     </div>
@@ -160,6 +163,7 @@ function TagsCell({ item }: { item: DatabaseRow }) {
 
 // ── Visibility cell：4 个 viewMode 切换按钮 ─────────────────────────────────
 function VisibilityCell({ item }: { item: DatabaseRow }) {
+  const { t } = useTranslation()
   const dispatch = useWSDispatch()
   const comp = item._comp
   return (
@@ -170,7 +174,7 @@ function VisibilityCell({ item }: { item: DatabaseRow }) {
           <button
             key={m}
             onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, m))}
-            title={`${m}: ${visible ? "visible" : "hidden"}`}
+            title={`${t(`view:database.viewModes.${m}`)}: ${visible ? t("common:expand") : t("common:collapse")}`}
             className={cn(
               "h-5 w-5 grid place-items-center rounded border text-[8px] uppercase",
               visible
@@ -193,6 +197,7 @@ function VisibilityCell({ item }: { item: DatabaseRow }) {
 // hidden backing text/number property 为 sort 提供后端字段（sortBy 指向其 id）。
 function buildProperties(
   dispatch: ReturnType<typeof useWSDispatch>,
+  t: TFunction,
 ): readonly DataViewProperty<DatabaseRow>[] {
   return [
     // hidden backing properties — 为 sort/search 提供字段
@@ -239,7 +244,7 @@ function buildProperties(
     {
       id: "moduleDisplay",
       type: "formula" as const,
-      name: "Module",
+      name: t("view:database.moduleName"),
       size: 220,
       sortBy: "moduleName",
       enableFilter: false,
@@ -256,7 +261,7 @@ function buildProperties(
       id: "category",
       type: "select" as const,
       key: "category",
-      name: "Category",
+      name: t("view:database.category"),
       size: 120,
       enableSearch: true,
       config: {
@@ -271,7 +276,7 @@ function buildProperties(
       id: "state",
       type: "select" as const,
       key: "state",
-      name: "State",
+      name: t("view:database.state"),
       size: 120,
       enableSearch: true,
       config: {
@@ -285,7 +290,7 @@ function buildProperties(
     {
       id: "visibility",
       type: "formula" as const,
-      name: "Visible In",
+      name: t("view:database.visibleIn"),
       size: 180,
       enableFilter: false,
       enableSort: false,
@@ -296,7 +301,7 @@ function buildProperties(
     {
       id: "tags",
       type: "formula" as const,
-      name: "Tags",
+      name: t("view:database.tags"),
       size: 200,
       enableFilter: false,
       enableSort: false,
@@ -307,7 +312,7 @@ function buildProperties(
     {
       id: "createdAtDisplay",
       type: "formula" as const,
-      name: "Created",
+      name: t("view:database.created"),
       size: 140,
       enableFilter: false,
       enableGroup: false,
@@ -323,7 +328,7 @@ function buildProperties(
       id: "dataKeys",
       type: "number" as const,
       key: "dataKeys",
-      name: "Data",
+      name: t("view:database.data"),
       size: 80,
       enableFilter: false,
       enableGroup: false,
@@ -332,14 +337,14 @@ function buildProperties(
     {
       id: "actions",
       type: "button" as const,
-      name: "",
+      name: t("view:database.actions"),
       size: 50,
       enableFilter: false,
       enableSort: false,
       enableGroup: false,
       enableSearch: false,
       value: (item: DatabaseRow) => VIEW_MODES.map(m => ({
-        label: `Toggle ${m}`,
+        label: `${t("view:database.viewModes." + m)}`,
         onClick: () => dispatch(actions.toggleComponentVisibility(item._comp.id, m)),
       })),
     },
@@ -448,6 +453,7 @@ type DataViewMode = "table" | "list" | "gallery" | "board"
 
 export default function DatabaseModule({ compId }: ModuleProps) {
   void compId // 模块本身不维护本地状态——数据源同 store.components
+  const { t } = useTranslation()
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const [viewMode, setViewMode] = React.useState<DataViewMode>("table")
@@ -459,8 +465,8 @@ export default function DatabaseModule({ compId }: ModuleProps) {
 
   // properties 数组 — dispatch 引用稳定，所以 properties 也稳定
   const properties = React.useMemo(
-    () => buildProperties(dispatch),
-    [dispatch],
+    () => buildProperties(dispatch, t),
+    [dispatch, t],
   )
 
   // dataQuery 工厂 — 把 store 数据包装成 infinite query options
@@ -540,7 +546,7 @@ export default function DatabaseModule({ compId }: ModuleProps) {
   // bulkActions — 启用行选择 + 浮动操作栏
   const bulkActions = React.useMemo<BulkAction<DatabaseRow>[]>(() => [
     {
-      label: "Show in cards",
+      label: t("view:database.showInCards"),
       onClick: (items) => {
         items.forEach(r => {
           if (!r.visibilityIn.cards) {
@@ -550,7 +556,7 @@ export default function DatabaseModule({ compId }: ModuleProps) {
       },
     },
     {
-      label: "Hide in cards",
+      label: t("view:database.hideInCards"),
       onClick: (items) => {
         items.forEach(r => {
           if (r.visibilityIn.cards) {
@@ -559,17 +565,17 @@ export default function DatabaseModule({ compId }: ModuleProps) {
         })
       },
     },
-  ], [dispatch])
+  ], [dispatch, t])
 
   if (visibleComponents.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-8">
         <div className="text-center space-y-2">
           <p className="text-sm font-mono text-muted-foreground">
-            // no components to display
+            {t("view:database.empty")}
           </p>
           <p className="text-[10px] font-mono text-muted-foreground/60">
-            Deploy some modules first.
+            {t("view:database.emptyHint")}
           </p>
         </div>
       </div>
@@ -594,10 +600,10 @@ export default function DatabaseModule({ compId }: ModuleProps) {
             value={viewMode}
             onChange={setViewMode}
             tabs={[
-              { value: "table", label: "Table" },
-              { value: "list", label: "List" },
-              { value: "gallery", label: "Gallery" },
-              { value: "board", label: "Board" },
+              { value: "table", label: t("view:database.tabs.table") },
+              { value: "list", label: t("view:database.tabs.list") },
+              { value: "gallery", label: t("view:database.tabs.gallery") },
+              { value: "board", label: t("view:database.tabs.board") },
             ]}
           />
         </NotionToolbar>

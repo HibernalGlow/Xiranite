@@ -1,8 +1,10 @@
 import type {
+  MainWindowDragInput,
   MainWindowAction,
   OpenComponentWindowInput,
   WindowCapabilities,
   WindowCommandResult,
+  WindowFrame,
 } from "../runtime/runtime"
 import type { Service, ServiceContext } from "./index"
 
@@ -44,6 +46,18 @@ export class WindowService implements Service<"windows"> {
     }
   }
 
+  async restoreMainForDrag(input: MainWindowDragInput): Promise<WindowCommandResult> {
+    try {
+      return await this.ctx.runtime.windows.restoreMainForDrag(input)
+    } catch (error) {
+      return {
+        success: false,
+        supported: false,
+        message: errorMessage(error),
+      }
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     try {
       return await this.ctx.runtime.windows.openComponent(input)
@@ -72,6 +86,27 @@ export class WindowService implements Service<"windows"> {
   async close(id: string): Promise<WindowCommandResult> {
     try {
       return await this.ctx.runtime.windows.close(id)
+    } catch (error) {
+      return {
+        success: false,
+        supported: false,
+        id,
+        message: errorMessage(error),
+      }
+    }
+  }
+
+  async getFrame(id?: string): Promise<WindowFrame | null> {
+    try {
+      return await this.ctx.runtime.windows.getFrame(id)
+    } catch {
+      return null
+    }
+  }
+
+  async setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult> {
+    try {
+      return await this.ctx.runtime.windows.setFrame(frame, id)
     } catch (error) {
       return {
         success: false,
