@@ -32,7 +32,8 @@
 | 拖拽排序 | @dnd-kit | 立即做 lane/kanban | 当前手写 HTML5 DnD 是跨容器 bug 的高风险源 |
 | URL 状态 | nuqs 优先，TanStack Router 暂缓 | 近期做 | 当前是单壳桌面应用，先把 viewMode/floatingComponent/search params 类型化 |
 | 表单 | 短期 React Hook Form + zod，长期再评估 TanStack Form | 选择性做 | shadcn form 已绑定 RHF；不要同时维护两套表单体系 |
-| 本地持久化 | Go 后端 SQLite + migration + DTO 校验 | 中期做 | Wails WebView 不能自然使用 better-sqlite3；Go SQLite 更稳 |
+| 本地持久化 | Dexie.js (IndexedDB) + zod DTO 校验 | 中期做 | TS 直接用、零 IPC、不走 WASM；与 React Query 分工清晰 |
+| Runtime 抽象 | `RuntimeInterface` + NodeRuntime + 显式注入 | 中期做 | dev 摆脱 Wails、core 可单测、切换桌面壳零成本 |
 | IPC | Wails codegen 或自生成 typed facade + zod 边界校验 | 中期做 | 消除 `Call.ByName` 字符串和 DTO 隐式信任 |
 | 模块注册 | 代码生成 registry | 中期做 | 比 `import.meta.glob` 更适合 workspace 外部 npm 包集成 |
 | Node Runner | Wails Events 流式事件 + operationId | 中期做 | 长任务需要实时进度和取消能力 |
@@ -64,7 +65,7 @@
 - 使用 `devtools` 追踪动作。
 - `immer` 可作为新增依赖引入，但第一阶段也可以用显式 immutable update，避免迁移时同时改变太多。
 
-不推荐第一阶段启用 `persist` 保存 workspace 数据。原因是当前 Wails 后端已有存储源，Zustand `persist` 默认走 localStorage，会造成双写和恢复顺序不确定。`persist` 可以只用于纯 UI 偏好，或者等 SQLite/存储层收敛后再接入。
+不推荐第一阶段启用 `persist` 保存 workspace 数据。原因是当前 Wails 后端已有存储源，Zustand `persist` 默认走 localStorage，会造成双写和恢复顺序不确定。`persist` 只用于纯 UI 偏好（theme/viewMode/cardLayout），业务数据持久化交给 Dexie（见 P1 第 4 节）。
 
 迁移步骤：
 
@@ -129,36 +130,215 @@
 
 ## P1: 架构收敛
 
-### 4. 存储层迁移到 SQLite，但不推荐在 Wails WebView 里直接用 better-sqlite3
+### 4. 存储层迁移到 Dexie.js (IndexedDB)
 
-原清单里提到 `Drizzle ORM + better-sqlite3`，这个方向如果未来切到 Bun/Electrobun 很好，但当前 Wails 架构下不是最优第一选择。
+原清单提到 `Drizzle ORM + better-sqlite3`，后又评估过 Go 层 SQLite。在当前 Wails WebView 架构下，二者都有明显代价：
 
-原因：
+- `better-sqlite3` / `bun:sqlite` / `node:sqlite` 是 native binding，WebView 加载不了。
+- Go 层 SQLite 需要走 IPC 往返，且切换桌面架构时要重写 adapter。
+- WASM SQLite (`wa-sqlite` / `sql.js`) 性能比 native 慢 2-5 倍，OPFS 兼容性参差不齐。
 
-- 前端运行在 WebView，不是 Node 渲染进程，不能自然加载 `better-sqlite3` native binding。
-- Go 后端已经拥有文件系统和桌面权限，SQLite 放在 Go 层更稳定。
-- 当前数据正确性问题来自全量 JSON 重写和并发 save，而不是 ORM 本身。
+推荐方案：**Dexie.js（IndexedDB 封装）**。IndexedDB 在 WebView2 中是 native 实现（不走 WASM），TS 直接用、零 IPC、切换桌面壳时零成本。
 
-推荐方案：
+核心策略：**Dexie 只当持久层，不接触 React。响应式由 React Query 接管，UI 状态由 Zustand 管理。三个库分工清晰，零角色重叠。**
 
-- Go 后端新增 SQLite storage service。
-- 使用 `database/sql` + SQLite driver。
-- 加 migrations，表包括：
-  - `workspaces`
-  - `lanes`
-  - `components`
-  - `component_tags`
-  - `settings`
-- 每个写操作使用事务。
-- workspace/lane/component 改为增量 upsert。
-- TS DTO 用 zod 做入口和出口校验。
+```
+┌─────────────────────────────────────────────────────┐
+│  Zustand — client state                              │
+│  viewMode / theme / focusedId / overlay / 临时编辑态 │
+│  persist 只存 UI 偏好到 localStorage                │
+├─────────────────────────────────────────────────────┤
+│  React Query — server state 缓存层                   │
+│  useQuery({ queryKey: ['components'],               │
+│             queryFn: () => db.components.toArray() })│
+│  useMutation + invalidateQueries 触发刷新           │
+├─────────────────────────────────────────────────────┤
+│  Dexie — 持久层（IndexedDB CRUD）                    │
+│  替代 storage.json / WorkspaceService 全量重写      │
+│  不用 useLiveQuery，不接触 React                     │
+└─────────────────────────────────────────────────────┘
+```
 
-备选方案：
+为什么不用 `dexie-react-hooks` 的 `useLiveQuery`：
 
-- 如果未来确定改成 Bun/Electrobun 主进程，可重新评估 `Drizzle + bun:sqlite` 或 `Drizzle + better-sqlite3`。
-- 如果要做浏览器纯 Web 版，可评估 `wa-sqlite` 或 SQLite WASM + OPFS，但这不是当前桌面最短路径。
+- 它与 React Query 在职责上重叠（都做"订阅数据变化 + 自动刷新 UI"）。
+- 同时用会出现两套缓存、两套 loading/error 状态机、invalidation 时序混乱。
+- 原则：响应式 UI 只能有一个真相源。既然选了 RQ，就让 Dexie 退居幕后当数据库。
 
-### 5. IPC 从字符串调用收敛到类型安全 facade
+Schema 定义：
+
+```ts
+// src/db/index.ts
+import Dexie, { Table } from 'dexie'
+
+class XiraniteDB extends Dexie {
+  workspaces!: Table<WorkspaceRow, string>
+  components!: Table<ComponentRow, string>
+  lanes!: Table<LaneRow, string>
+
+  constructor() {
+    super('xiranite')
+    this.version(1).stores({
+      workspaces: 'id, createdAt',
+      components: 'id, workspaceId, moduleId, *tags, updatedAt',
+      //                                              ^^^ * 前缀 = MultiEntry 索引，按 tag 查询
+      lanes: 'id, workspaceId, order',
+    })
+  }
+}
+
+export const db = new XiraniteDB()
+```
+
+React Query 在中间做缓存：
+
+```ts
+// src/hooks/queries/useComponents.ts
+export function useComponents(workspaceId: string) {
+  return useQuery({
+    queryKey: ['components', workspaceId],
+    queryFn: () => db.components.where('workspaceId').equals(workspaceId).toArray(),
+  })
+}
+
+// src/hooks/mutations/usePatchComponent.ts
+export function usePatchComponent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ComponentRow> }) =>
+      db.components.update(id, { ...patch, updatedAt: Date.now() }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['components'] })
+      qc.invalidateQueries({ queryKey: ['component', id] })
+    },
+  })
+}
+```
+
+这个组合修复的问题：
+
+| 原问题 | 新方案如何修复 |
+| --- | --- |
+| `storage.json` 全量重写 | Dexie `update(id, patch)` 增量 |
+| `createdAt: Date.now()` 覆盖 bug | `update` 只改指定字段，不动 `createdAt` |
+| 并发 save 丢更新 | Dexie 事务 + React Query 串行 mutation |
+| 全员重渲染 | RQ 选择性订阅 `useQuery(['components', wsId])` |
+| 无缓存去重 | RQ 默认 staleTime 去重 |
+| 持久化无 invalidation | mutation `onSuccess` 主动 invalidate |
+
+跨窗口同步：Dexie 跨 origin 不共享，但通过 `BroadcastChannel` 通知 + RQ `invalidateQueries` 可解决（10 行代码）。
+
+切换架构时的迁移路径：
+
+| 目标架构 | Dexie 是否可用 | 说明 |
+| --- | --- | --- |
+| Bun / Electrobun | ✅ | WebView 仍有 IndexedDB |
+| Tauri | ✅ | WebView 仍有 IndexedDB |
+| Electron | ✅ | WebView 仍有 IndexedDB |
+| 纯 Web | ✅ | IndexedDB 是浏览器标准 API |
+
+何时回头选 Go SQLite：只有当 Go 后端需要直接读业务数据（如 NodeRunner 根据 components 配置决定执行策略）时才考虑。当前架构无此需求。
+
+### 5. Runtime 抽象：补齐 NodeRuntime + 显式注入
+
+当前 `src/backend/runtime/runtime.ts` 已定义 `RuntimeInterface`（fs / subprocess / storage / events / nodeRunner / windows），并有 `WailsRuntime` 和 `WebRuntime` 两个实现。这已经是 Port & Adapter 模式，但有两个缺口：
+
+1. **缺 NodeRuntime**：`vite dev` 时只能用 `WebRuntime`（假 fs + NoSubprocess），开发体验差。
+2. **core 函数隐式依赖**：节点包 `platform.ts` 是模块级单例，core 函数无法独立测试。
+
+补齐方案：
+
+**缺口 1：新增 NodeRuntime adapter**
+
+```ts
+// src/backend/adapters/node.ts
+export function createNodeRuntime(): RuntimeInterface {
+  return {
+    kind: 'node',
+    fs: createNodeFS(),              // node:fs/promises 包装
+    subprocess: createNodeSubprocess(),  // node:child_process 包装
+    storage: createNodeStorage(),    // Dexie（通过 fake-indexeddb）或 node:sqlite
+    events: new MemoryEventBus(),
+    nodeRunner: createLocalNodeRunner(),  // 直接 import 节点 core，不走 bun 子进程
+    windows: createNoopWindows(),
+  }
+}
+
+// client.ts 注册
+const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
+  { kind: 'wails', detect: detectWails, factory: createWailsRuntime },
+  { kind: 'node',  detect: detectNode,  factory: createNodeRuntime },  // 新增
+  { kind: 'web',   detect: () => true,  factory: createWebRuntime },
+]
+```
+
+收益：
+
+- `vite dev` 直接用真实 fs + 真实 subprocess，不再需要 `wails dev` 起两层。
+- 节点包开发时可以单步调试 core.ts（不用启动整个 Wails）。
+- CI 测试可在纯 Node 环境跑。
+
+**缺口 2：core 函数显式接收 runtime 参数**
+
+改造前（隐式）：
+
+```ts
+// packages/nodes/repacku/src/platform.ts
+import { createNodeRepackuRuntime } from './runtime'
+const runtime = createNodeRepackuRuntime()  // 模块级单例，硬绑定
+
+// packages/nodes/repacku/src/core.ts
+import { runtime } from './platform'  // 隐式依赖
+export async function compress(input) {
+  return runtime.fs.readFile(input.path)
+}
+```
+
+改造后（显式注入）：
+
+```ts
+// packages/nodes/repacku/src/core.ts
+export interface RepackuRuntime {
+  fs: { readFile: (p: string) => Promise<Buffer> }
+  shell: { exec: (cmd: string) => Promise<string> }
+}
+
+export async function compress(input: CompressInput, rt: RepackuRuntime) {
+  const buf = await rt.fs.readFile(input.path)
+  // 业务逻辑纯函数，rt 是参数
+}
+
+// packages/nodes/repacku/src/platform.ts
+import type { RuntimeInterface } from '@xiranite/contract'
+import { compress } from './core'
+
+export function createRepackuPlatform(runtime: RuntimeInterface) {
+  return {
+    compress: (input: CompressInput) => compress(input, {
+      fs: { readFile: (p) => runtime.fs.readFile(p) },
+      shell: { exec: (cmd) => runtime.subprocess.spawn('sh', ['-c', cmd]) },
+    }),
+  }
+}
+```
+
+收益：
+
+- `compress(input, mockRuntime)` 可单测，不需要起 Wails/Node。
+- core.ts 真正变成纯函数，符合 hexagonal architecture 的 domain 层。
+- 每个节点包声明自己需要的 runtime 切片（`RepackuRuntime`），不依赖整个 `RuntimeInterface`。
+
+与存储层的关系：storage 是 `RuntimeInterface` 的一个字段，正交决策。不同 adapter 可以用不同实现：
+
+| Adapter | storage 实现 |
+| --- | --- |
+| WailsRuntime | Dexie (IndexedDB) 或 Go SQLite |
+| NodeRuntime | Dexie + fake-indexeddb 或 node:sqlite |
+| BrowserRuntime | Dexie (IndexedDB) |
+
+所以存储方案不需要在 Runtime 抽象之前敲定——先把 Runtime Provider 跑起来，storage 字段先用现有 `storage.json` 兼容，后续按 adapter 逐个优化。
+
+### 6. IPC 从字符串调用收敛到类型安全 facade
 
 当前问题：
 
@@ -180,7 +360,7 @@
 
 不推荐现在引入本地 HTTP RPC。Hono RPC 或 tRPC 风格很漂亮，但会额外引入本地端口、生命周期、安全边界和打包复杂度。除非未来要支持 Web/远程同步，否则 Wails bindings 更贴合当前架构。
 
-### 6. 模块注册改为代码生成
+### 7. 模块注册改为代码生成
 
 当前新增节点需要同步多个位置：
 
@@ -206,7 +386,7 @@
 - `import.meta.glob` 对 workspace 内源码很方便，但对包名、发布产物和 CLI 聚合不够完整。
 - 代码生成可以同时服务前端 registry、CLI 聚合和依赖校验。
 
-### 7. Node Runner 改成流式事件
+### 8. Node Runner 改成流式事件
 
 当前问题：
 
@@ -227,7 +407,7 @@
 
 ## P2: 体验和清理
 
-### 8. 表单策略
+### 9. 表单策略
 
 短期推荐：
 
@@ -245,7 +425,7 @@
 - 如果后续大量表单需要字段级订阅、异步校验、复杂派生状态，可在新模块试点 TanStack Form。
 - 一旦选 TanStack Form，应删除 RHF/shadcn form 依赖或限定 RHF 只服务 vendor，不要两套业务表单长期并存。
 
-### 9. URL 状态和路由
+### 10. URL 状态和路由
 
 当前只有 `App.tsx` 读取 `floatingComponent` query param，viewMode 等状态不进 URL。
 
@@ -267,7 +447,7 @@
 
 - 如果出现真实多页面结构，例如 workspace 列表页、设置页、插件市场页、日志页，再引入 TanStack Router。
 
-### 10. 死代码和依赖清理
+### 11. 死代码和依赖清理
 
 建议立即处理：
 
@@ -279,7 +459,7 @@
 
 ## P3: 长期方向
 
-### 11. React Compiler
+### 12. React Compiler
 
 React 19 已经在用，但 React Compiler 不应早于 Zustand selector 和 DnD 收敛。
 
@@ -290,7 +470,7 @@ React 19 已经在用，但 React Compiler 不应早于 Zustand selector 和 DnD
 - 没有大量手写对象突变。
 - 构建链支持明确，回归测试覆盖主要视图。
 
-### 12. Effect-TS
+### 13. Effect-TS
 
 不建议全项目引入 Effect-TS。它很强，但会显著提高团队理解成本。
 
@@ -320,18 +500,26 @@ React 19 已经在用，但 React Compiler 不应早于 Zustand selector 和 DnD
 2. `nuqs` 接管 viewMode、workspace、floating window 参数。
 3. 复杂表单迁移到 RHF + zod。
 
-第三阶段：后端正确性
+第三阶段：存储层与 Runtime 抽象
 
-1. Go SQLite storage service。
-2. zod DTO 校验。
-3. Wails typed facade/codegen。
-4. 代码生成节点 registry。
+1. 引入 Dexie.js (IndexedDB) 替代 `storage.json` + `WorkspaceService` 全量重写。
+2. React Query 作为 Dexie 与 React 之间的唯一响应式层（不用 `useLiveQuery`）。
+3. 新增 `NodeRuntime` adapter，让 `vite dev` 摆脱 Wails 依赖。
+4. 选 1-2 个节点包（repacku / encodeb）试点 core 函数显式 runtime 注入。
+5. zod DTO 校验接入 IPC 出入口。
 
-第四阶段：长任务和插件化
+第四阶段：IPC 类型化与模块注册
 
-1. Node Runner 流式事件和取消。
-2. CLI 和节点迁移规则固化。
-3. 外部节点包安装和发现流程。
+1. Wails typed facade / codegen。
+2. 代码生成节点 registry（替代 5 处手动同步）。
+3. NodeRunner 流式事件和取消（基于 `operationId` + Wails Events）。
+4. 逐步推广显式 runtime 注入到全部 26 个节点包。
+
+第五阶段：长任务和插件化
+
+1. CLI 和节点迁移规则固化。
+2. 外部节点包安装和发现流程。
+3. 多窗口 BroadcastChannel 同步 Dexie 数据。
 
 ## 验收门槛
 
@@ -352,12 +540,18 @@ bun scripts/validate-node-architecture.ts
 - lane 跨列拖拽后刷新仍保持顺序。
 - floating component query param 可恢复窗口。
 - 长任务有实时进度，取消后不会留下僵尸进程。
+- `vite dev` 纯浏览器模式下 fs/subprocess 可用（NodeRuntime 生效）。
+- 节点包 core.ts 可在纯 Node 环境 `bun test` 单测，不需要起 Wails。
 
 ## 明确不做
 
 - 不因为依赖已经安装就强行使用。
-- 不在 Wails WebView 里硬上 Node native sqlite。
+- 不在 Wails WebView 里硬上 Node native sqlite（`better-sqlite3` / `bun:sqlite` / `node:sqlite`）。
+- 不在 WebView 里跑 WASM SQLite（`wa-sqlite` / `sql.js`）——性能不如 IndexedDB，OPFS 兼容性差。
+- 不用 `dexie-react-hooks` 的 `useLiveQuery`——与 React Query 职责重叠，会造成双缓存。
 - 不把节点包 `Component.tsx` 变成后端调用器。
 - 不让 CLI 导入节点 React Component 或 Xiranite app 内部路径。
 - 不让 `lata` 成为其他节点 guided CLI 的默认依赖。
 - 不把所有状态都塞进 Query，也不把所有后端数据都塞进 Zustand。
+- 不在节点包 core.ts 里 import 整个 `RuntimeInterface`——只声明自己需要的 runtime 切片（如 `RepackuRuntime`）。
+- 不让 `platform.ts` 继续做模块级单例——改为 `createRepackuPlatform(runtime)` 工厂函数，由调用方注入。

@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react"
+import { useEffect, useMemo, type Dispatch, type ReactNode } from "react"
+import { create } from "zustand"
+import { devtools } from "zustand/middleware"
 import type {
   AppTheme,
   CardLayout,
@@ -12,34 +14,32 @@ import type {
 import { getBackend } from "@/backend/client"
 import type { WorkspaceDTO, LaneDTO, ComponentDTO } from "@/backend/shared/types"
 
-// ── State ───────────────────────────────────────────────────────────────────
-
 interface WSState {
   theme: AppTheme
-  /** 顶栏切换的四种主形态之一 — 四种形态共享同一份数据 */
   viewMode: ViewMode
-  /** 仅 viewMode === "cards" 时生效的子布局 */
   cardLayout: CardLayout
   workspaces: WorkspaceItem[]
   activeWorkspaceId: string
   components: ComponentInstance[]
-  /** lanes — 仅 viewMode=lane 时使用，每个 workspace 维护自己的 lane 列表 */
   lanes: Lane[]
   focusedComponentId: string | null
   fullscreenComponentId: string | null
   zCounter: number
-  /** 取代被删除的侧栏：当前弹出的视图（registry/settings/deployment） */
   overlay: OverlayKind
   grainEnabled: boolean
   vignetteDepth: number
   grainIntensity: number
   actionGlow: boolean
   cardElevation: boolean
-  /** 后端是否就绪 */
   backendReady: boolean
 }
 
-// ── Actions ──────────────────────────────────────────────────────────────────
+type ComponentPatch = {
+  data?: Record<string, unknown>
+  tags?: string[]
+  state?: ComponentState
+  hiddenIn?: Partial<Record<ViewMode, boolean>>
+}
 
 type Action =
   | { type: "SET_THEME"; theme: AppTheme }
@@ -58,6 +58,7 @@ type Action =
   | { type: "SET_COMPONENT_FLOW_SIZE"; id: string; width: number; height: number }
   | { type: "SET_COMPONENT_DATA"; id: string; data: Record<string, unknown> }
   | { type: "PATCH_COMPONENT_DATA"; id: string; patch: Record<string, unknown> }
+  | { type: "UPDATE_COMPONENT"; id: string; patch: ComponentPatch }
   | { type: "SET_COMPONENT_DOCK_PANEL"; id: string; panelId: string }
   | { type: "SET_COMPONENT_VISIBILITY"; id: string; viewMode: ViewMode; visible: boolean }
   | { type: "TOGGLE_COMPONENT_VISIBILITY"; id: string; viewMode: ViewMode }
@@ -74,7 +75,6 @@ type Action =
   | { type: "SET_CARD_ELEVATION"; enabled: boolean }
   | { type: "BACKEND_READY"; ready: boolean }
   | { type: "HYDRATE"; workspaces: WorkspaceDTO[]; lanes: LaneDTO[]; components: ComponentDTO[] }
-  // ── Lane actions ──
   | { type: "ADD_LANE"; workspaceId?: string; label?: string }
   | { type: "REMOVE_LANE"; id: string }
   | { type: "RENAME_LANE"; id: string; label: string }
@@ -85,7 +85,18 @@ type Action =
   | { type: "SET_LANE_CARD_ORDER"; id: string; cardOrder: string[] }
   | { type: "MOVE_COMPONENT_TO_LANE"; componentId: string; toLaneId: string; targetCardId?: string | null; insertAfter?: boolean }
 
-// ── Defaults ────────────────────────────────────────────────────────────────
+interface WSContextValue {
+  state: WSState
+  dispatch: Dispatch<Action>
+  activeWorkspace: WorkspaceItem | undefined
+  visibleComponents: ComponentInstance[]
+}
+
+type WSStore = WSState & {
+  dispatch: Dispatch<Action>
+}
+
+const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 
 const INITIAL_STATE: WSState = {
   theme: "spatial",
@@ -93,10 +104,10 @@ const INITIAL_STATE: WSState = {
   cardLayout: "grid",
   workspaces: [
     { id: "ws-alpha", label: "topbar:workspace.defaults.alpha" },
-    { id: "ws-grid",  label: "topbar:workspace.defaults.grid" },
-    { id: "ws-kern",  label: "topbar:workspace.defaults.kern" },
-    { id: "ws-net",   label: "topbar:workspace.defaults.net" },
-    { id: "ws-arch",  label: "topbar:workspace.defaults.arch" },
+    { id: "ws-grid", label: "topbar:workspace.defaults.grid" },
+    { id: "ws-kern", label: "topbar:workspace.defaults.kern" },
+    { id: "ws-net", label: "topbar:workspace.defaults.net" },
+    { id: "ws-arch", label: "topbar:workspace.defaults.arch" },
   ],
   activeWorkspaceId: "ws-alpha",
   components: [],
@@ -113,166 +124,210 @@ const INITIAL_STATE: WSState = {
   backendReady: false,
 }
 
-// ── Reducer ──────────────────────────────────────────────────────────────────
-
 let instanceCounter = 0
 let laneCounter = 0
 
+const useWorkspaceStore = create<WSStore>()(
+  devtools(
+    (set) => ({
+      ...INITIAL_STATE,
+      dispatch: (action) => {
+        set((state) => reducer(state, action), false, action.type)
+      },
+    }),
+    { name: "xiranite-workspace" },
+  ),
+)
+
 function reducer(state: WSState, action: Action): WSState {
   switch (action.type) {
-    case "SET_THEME": return { ...state, theme: action.theme }
-    case "SET_VIEW_MODE": return { ...state, viewMode: action.mode }
-    case "SET_CARD_LAYOUT": return { ...state, cardLayout: action.layout }
-    case "SET_ACTIVE_WORKSPACE": return { ...state, activeWorkspaceId: action.id }
+    case "SET_THEME":
+      return { ...state, theme: action.theme }
+    case "SET_VIEW_MODE":
+      return { ...state, viewMode: action.mode }
+    case "SET_CARD_LAYOUT":
+      return { ...state, cardLayout: action.layout }
+    case "SET_ACTIVE_WORKSPACE":
+      return { ...state, activeWorkspaceId: action.id }
     case "ADD_WORKSPACE": {
-      const id = `ws-${Date.now()}`
+      const now = Date.now()
+      const id = `ws-${now}`
       return {
         ...state,
-        workspaces: [...state.workspaces, { id, label: `common:workspaceN:${state.workspaces.length + 1}` }],
+        workspaces: [...state.workspaces, { id, label: `common:workspaceN:${state.workspaces.length + 1}`, createdAt: now, updatedAt: now }],
         activeWorkspaceId: id,
       }
     }
     case "REMOVE_WORKSPACE": {
       if (state.workspaces.length <= 1) return state
-      const rest = state.workspaces.filter(w => w.id !== action.id)
+      const rest = state.workspaces.filter((workspace) => workspace.id !== action.id)
       return {
         ...state,
         workspaces: rest,
         activeWorkspaceId: state.activeWorkspaceId === action.id ? rest[0].id : state.activeWorkspaceId,
-        components: state.components.filter(c => c.workspaceId !== action.id),
-        lanes: state.lanes.filter(l => l.workspaceId !== action.id),
+        components: state.components.filter((component) => component.workspaceId !== action.id),
+        lanes: state.lanes.filter((lane) => lane.workspaceId !== action.id),
       }
     }
     case "RENAME_WORKSPACE":
-      return { ...state, workspaces: state.workspaces.map(w => w.id === action.id ? { ...w, label: action.label } : w) }
+      return {
+        ...state,
+        workspaces: state.workspaces.map((workspace) =>
+          workspace.id === action.id ? { ...workspace, label: action.label, updatedAt: Date.now() } : workspace,
+        ),
+      }
     case "DEPLOY_COMPONENT": {
-      const ws = state.workspaces.find(w => w.id === state.activeWorkspaceId)
-      if (!ws) return state
-      instanceCounter++
+      const workspace = state.workspaces.find((item) => item.id === state.activeWorkspaceId)
+      if (!workspace) return state
+
+      instanceCounter += 1
+      const now = Date.now()
       const zCounter = state.zCounter + 1
-      // 部署到 lane 模式时，自动归到当前 workspace 的第一个 lane（若没有则不归属，由 LaneView 兜底到默认 lane）
-      let laneId: string | undefined
-      const wsLanes = state.lanes.filter(l => l.workspaceId === ws.id && !l.hidden)
-      if (wsLanes.length > 0) laneId = wsLanes[0].id
-      const newComp: ComponentInstance = {
-        id: `comp-${instanceCounter}-${Date.now()}`,
+      const visibleLanes = state.lanes.filter((lane) => lane.workspaceId === workspace.id && !lane.hidden)
+      const laneId = visibleLanes[0]?.id
+      const newComponent: ComponentInstance = {
+        id: `comp-${instanceCounter}-${now}`,
         moduleId: action.moduleId,
         state: "docked",
         position: { x: 20 + (instanceCounter % 5) * 20, y: 20 + (instanceCounter % 4) * 20 },
         size: { w: 340, h: 280 },
         z: zCounter,
         collapsed: false,
-        workspaceId: ws.id,
+        workspaceId: workspace.id,
         laneId,
         flowPosition: { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
         flowSize: { width: 384, height: 320 },
         dockPanel: "default",
-        // 若指定了 viewMode，则只在当前 viewMode 可见，其他视图自动隐藏
         hiddenIn: action.viewMode
-          ? Object.fromEntries(
-              (["cards", "dockview", "flow", "lane"] as ViewMode[])
-                .map(m => [m, m !== action.viewMode])
-            ) as Record<ViewMode, boolean>
+          ? Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== action.viewMode])) as Record<ViewMode, boolean>
           : undefined,
+        createdAt: now,
+        updatedAt: now,
       }
+
       let lanes = state.lanes
-      // 若当前 workspace 还没有任何 lane，自动建一个默认 lane 容纳新组件
-      if (wsLanes.length === 0) {
-        laneCounter++
+      if (visibleLanes.length === 0) {
+        laneCounter += 1
         const defaultLane: Lane = {
-          id: `lane-${laneCounter}-${Date.now()}`,
+          id: `lane-${laneCounter}-${now}`,
           label: "view:lane.defaultName",
-          workspaceId: ws.id,
+          workspaceId: workspace.id,
           widthRatio: 1,
           collapsed: false,
           hidden: false,
-          cardOrder: [newComp.id],
+          cardOrder: [newComponent.id],
+          createdAt: now,
+          updatedAt: now,
         }
-        newComp.laneId = defaultLane.id
+        newComponent.laneId = defaultLane.id
         lanes = [...state.lanes, defaultLane]
       } else if (laneId) {
-        // 把新组件追加到目标 lane 的 cardOrder 末尾
-        lanes = state.lanes.map(l => l.id === laneId ? { ...l, cardOrder: [...(l.cardOrder ?? []), newComp.id] } : l)
+        lanes = state.lanes.map((lane) =>
+          lane.id === laneId ? { ...lane, cardOrder: [...(lane.cardOrder ?? []), newComponent.id], updatedAt: now } : lane,
+        )
       }
-      return { ...state, components: [...state.components, newComp], lanes, zCounter }
+
+      return { ...state, components: [...state.components, newComponent], lanes, zCounter }
     }
     case "REMOVE_COMPONENT":
       return {
         ...state,
-        components: state.components.filter(c => c.id !== action.id),
-        lanes: state.lanes.map(l => ({
-          ...l,
-          cardOrder: l.cardOrder?.filter(id => id !== action.id),
+        components: state.components.filter((component) => component.id !== action.id),
+        lanes: state.lanes.map((lane) => ({
+          ...lane,
+          cardOrder: lane.cardOrder?.filter((id) => id !== action.id),
+          updatedAt: lane.cardOrder?.includes(action.id) ? Date.now() : lane.updatedAt,
         })),
         focusedComponentId: state.focusedComponentId === action.id ? null : state.focusedComponentId,
         fullscreenComponentId: state.fullscreenComponentId === action.id ? null : state.fullscreenComponentId,
       }
     case "SET_COMPONENT_STATE": {
-      const comp = state.components.find(c => c.id === action.id)
-      if (!comp) return state
-      const wasFullscreen = comp.state === "fullscreen"
+      const component = state.components.find((item) => item.id === action.id)
+      if (!component) return state
+      const wasFullscreen = component.state === "fullscreen"
       return {
         ...state,
-        components: state.components.map(c => c.id === action.id ? { ...c, state: action.state } : c),
-        focusedComponentId: action.state === "focused" ? action.id : (wasFullscreen ? null : state.focusedComponentId),
-        fullscreenComponentId: action.state === "fullscreen" ? action.id : (wasFullscreen ? null : state.fullscreenComponentId),
+        components: state.components.map((item) =>
+          item.id === action.id ? { ...item, state: action.state, updatedAt: Date.now() } : item,
+        ),
+        focusedComponentId: action.state === "focused" ? action.id : wasFullscreen ? null : state.focusedComponentId,
+        fullscreenComponentId: action.state === "fullscreen" ? action.id : wasFullscreen ? null : state.fullscreenComponentId,
       }
     }
     case "SET_COMPONENT_POSITION":
     case "MOVE_COMPONENT":
-      return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, position: { x: action.x, y: action.y } } : c) }
-    case "SET_COMPONENT_FLOW_POS":
-      return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, flowPosition: { x: action.x, y: action.y } } : c) }
-    case "SET_COMPONENT_FLOW_SIZE":
-      return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, flowSize: { width: action.width, height: action.height } } : c) }
-    case "SET_COMPONENT_DATA":
-      return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, data: action.data } : c) }
-    case "PATCH_COMPONENT_DATA":
-      // 浅合并：模块用 setField(key, value) 写入，不会覆盖其他字段。
-      // 这样切换 viewMode 时模块状态保留在 store，重新挂载后能恢复。
       return {
         ...state,
-        components: state.components.map(c =>
-          c.id === action.id ? { ...c, data: { ...c.data, ...action.patch } } : c
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, position: { x: action.x, y: action.y }, updatedAt: Date.now() } : component,
         ),
       }
+    case "SET_COMPONENT_FLOW_POS":
+      return {
+        ...state,
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, flowPosition: { x: action.x, y: action.y }, updatedAt: Date.now() } : component,
+        ),
+      }
+    case "SET_COMPONENT_FLOW_SIZE":
+      return {
+        ...state,
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, flowSize: { width: action.width, height: action.height }, updatedAt: Date.now() } : component,
+        ),
+      }
+    case "SET_COMPONENT_DATA":
+      return {
+        ...state,
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, data: action.data, updatedAt: Date.now() } : component,
+        ),
+      }
+    case "PATCH_COMPONENT_DATA":
+      return {
+        ...state,
+        components: state.components.map((component) =>
+          component.id === action.id
+            ? { ...component, data: { ...component.data, ...action.patch }, updatedAt: Date.now() }
+            : component,
+        ),
+      }
+    case "UPDATE_COMPONENT":
+      return updateComponent(state, action.id, action.patch)
     case "SET_COMPONENT_DOCK_PANEL":
-      return { ...state, components: state.components.map(c => c.id === action.id ? { ...c, dockPanel: action.panelId } : c) }
+      return {
+        ...state,
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, dockPanel: action.panelId, updatedAt: Date.now() } : component,
+        ),
+      }
     case "SET_COMPONENT_VISIBILITY": {
       let changed = false
-      const components = state.components.map(c => {
-        if (c.id !== action.id) return c
-        const cur = c.hiddenIn ?? {}
+      const components = state.components.map((component) => {
+        if (component.id !== action.id) return component
+        const current = component.hiddenIn ?? {}
         const nextHidden = !action.visible
-        if (action.viewMode === "flow") {
-          if (cur.flow === nextHidden) return c
-        } else if (!!cur[action.viewMode] === nextHidden) return c
+        if (current[action.viewMode] === nextHidden) return component
         changed = true
-        return { ...c, hiddenIn: { ...cur, [action.viewMode]: nextHidden } }
+        return { ...component, hiddenIn: { ...current, [action.viewMode]: nextHidden }, updatedAt: Date.now() }
       })
       return changed ? { ...state, components } : state
     }
     case "TOGGLE_COMPONENT_VISIBILITY":
       return {
         ...state,
-        components: state.components.map(c => {
-          if (c.id !== action.id) return c
-          const cur = c.hiddenIn ?? {}
-          const currentlyVisible = action.viewMode === "flow"
-            ? cur.flow === false
-            : cur[action.viewMode] !== true
-          const next = currentlyVisible
-          // 关闭时记录 hiddenIn[viewMode]=true；重新打开时设为 false（不删 key，保持对象形状稳定）
-          return { ...c, hiddenIn: { ...cur, [action.viewMode]: next } }
+        components: state.components.map((component) => {
+          if (component.id !== action.id) return component
+          const current = component.hiddenIn ?? {}
+          const currentlyVisible = current[action.viewMode] !== true
+          return { ...component, hiddenIn: { ...current, [action.viewMode]: currentlyVisible }, updatedAt: Date.now() }
         }),
       }
     case "SET_COMPONENT_TAGS":
-      // Database 模块维护的标签 — 直接挂到 ComponentInstance 上，
-      // 与所有 viewMode 共享同一份数据源（不存到 comp.data，避免冗余映射）。
       return {
         ...state,
-        components: state.components.map(c =>
-          c.id === action.id ? { ...c, tags: action.tags } : c
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, tags: action.tags, updatedAt: Date.now() } : component,
         ),
       }
     case "FOCUS_COMPONENT":
@@ -280,9 +335,12 @@ function reducer(state: WSState, action: Action): WSState {
     case "SET_FULLSCREEN":
       return {
         ...state,
-        components: state.components.map(c => {
-          if (action.id === null) return c.state === "fullscreen" ? { ...c, state: "docked" as ComponentState } : c
-          return c.id === action.id ? { ...c, state: "fullscreen" as ComponentState } : c.state === "fullscreen" ? { ...c, state: "docked" as ComponentState } : c
+        components: state.components.map((component) => {
+          if (action.id === null) {
+            return component.state === "fullscreen" ? { ...component, state: "docked" as ComponentState, updatedAt: Date.now() } : component
+          }
+          if (component.id === action.id) return { ...component, state: "fullscreen" as ComponentState, updatedAt: Date.now() }
+          return component.state === "fullscreen" ? { ...component, state: "docked" as ComponentState, updatedAt: Date.now() } : component
         }),
         fullscreenComponentId: action.id,
       }
@@ -291,250 +349,352 @@ function reducer(state: WSState, action: Action): WSState {
       return {
         ...state,
         zCounter,
-        components: state.components.map(c => c.id === action.id ? { ...c, z: zCounter } : c),
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, z: zCounter, updatedAt: Date.now() } : component,
+        ),
       }
     }
     case "TOGGLE_COLLAPSE":
       return {
         ...state,
-        components: state.components.map(c => c.id === action.id ? { ...c, collapsed: !c.collapsed } : c),
+        components: state.components.map((component) =>
+          component.id === action.id ? { ...component, collapsed: !component.collapsed, updatedAt: Date.now() } : component,
+        ),
       }
     case "SET_OVERLAY":
       return { ...state, overlay: action.overlay }
-    case "SET_GRAIN": return { ...state, grainEnabled: action.enabled }
-    case "SET_VIGNETTE": return { ...state, vignetteDepth: action.depth }
-    case "SET_GRAIN_INTENSITY": return { ...state, grainIntensity: action.intensity }
-    case "SET_ACTION_GLOW": return { ...state, actionGlow: action.enabled }
-    case "SET_CARD_ELEVATION": return { ...state, cardElevation: action.enabled }
-    case "BACKEND_READY": return { ...state, backendReady: action.ready }
-    case "HYDRATE": {
-      const workspaces: WorkspaceItem[] = action.workspaces.length
-        ? action.workspaces.map(w => ({ id: w.id, label: w.label, icon: w.icon }))
-        : INITIAL_STATE.workspaces
-      const components: ComponentInstance[] = action.components.map(c => ({
-        id: c.id,
-        moduleId: c.moduleId,
-        state: "docked",
-        workspaceId: c.workspaceId,
-        data: c.data,
-        flowPosition: c.flowPosition,
-        flowSize: c.flowSize,
-        dockPanel: c.dockPanel,
-        laneId: c.laneId,
-        hiddenIn: c.hiddenIn,
-        tags: c.tags,
-        z: c.z,
-        collapsed: c.collapsed,
-        position: { x: 20, y: 20 },
-        size: { w: 340, h: 280 },
-      }))
-      const lanes: Lane[] = action.lanes.map(l => ({
-        id: l.id,
-        label: l.label,
-        workspaceId: l.workspaceId,
-        widthRatio: l.widthRatio,
-        collapsed: l.collapsed,
-        hidden: l.hidden,
-        cardOrder: l.cardOrder,
-      }))
-      return {
-        ...state,
-        workspaces,
-        lanes,
-        components,
-        activeWorkspaceId: workspaces[0]?.id ?? state.activeWorkspaceId,
-      }
-    }
-    // ── Lane actions ──
+    case "SET_GRAIN":
+      return { ...state, grainEnabled: action.enabled }
+    case "SET_VIGNETTE":
+      return { ...state, vignetteDepth: action.depth }
+    case "SET_GRAIN_INTENSITY":
+      return { ...state, grainIntensity: action.intensity }
+    case "SET_ACTION_GLOW":
+      return { ...state, actionGlow: action.enabled }
+    case "SET_CARD_ELEVATION":
+      return { ...state, cardElevation: action.enabled }
+    case "BACKEND_READY":
+      return { ...state, backendReady: action.ready }
+    case "HYDRATE":
+      return hydrateState(state, action.workspaces, action.lanes, action.components)
     case "ADD_LANE": {
-      const wsId = action.workspaceId ?? state.activeWorkspaceId
-      laneCounter++
-      const newLane: Lane = {
-        id: `lane-${laneCounter}-${Date.now()}`,
-        label: action.label ?? `LANE ${state.lanes.filter(l => l.workspaceId === wsId).length + 1}`,
-        workspaceId: wsId,
+      const now = Date.now()
+      const workspaceId = action.workspaceId ?? state.activeWorkspaceId
+      laneCounter += 1
+      const lane: Lane = {
+        id: `lane-${laneCounter}-${now}`,
+        label: action.label ?? `LANE ${state.lanes.filter((item) => item.workspaceId === workspaceId).length + 1}`,
+        workspaceId,
         widthRatio: 1,
         collapsed: false,
         hidden: false,
         cardOrder: [],
+        createdAt: now,
+        updatedAt: now,
       }
-      return { ...state, lanes: [...state.lanes, newLane] }
+      return { ...state, lanes: [...state.lanes, lane] }
     }
     case "REMOVE_LANE":
       return {
         ...state,
-        lanes: state.lanes.filter(l => l.id !== action.id),
-        // 级联：把该 lane 下组件的 laneId 清空（会落到默认 lane）
-        components: state.components.map(c => c.laneId === action.id ? { ...c, laneId: undefined } : c),
+        lanes: state.lanes.filter((lane) => lane.id !== action.id),
+        components: state.components.map((component) =>
+          component.laneId === action.id ? { ...component, laneId: undefined, updatedAt: Date.now() } : component,
+        ),
       }
     case "RENAME_LANE":
-      return { ...state, lanes: state.lanes.map(l => l.id === action.id ? { ...l, label: action.label } : l) }
+      return {
+        ...state,
+        lanes: state.lanes.map((lane) => lane.id === action.id ? { ...lane, label: action.label, updatedAt: Date.now() } : lane),
+      }
     case "SET_LANE_WIDTH_RATIO":
-      return { ...state, lanes: state.lanes.map(l => l.id === action.id ? { ...l, widthRatio: Math.max(0.25, Math.min(4, action.ratio)) } : l) }
+      return {
+        ...state,
+        lanes: state.lanes.map((lane) =>
+          lane.id === action.id ? { ...lane, widthRatio: Math.max(0.25, Math.min(4, action.ratio)), updatedAt: Date.now() } : lane,
+        ),
+      }
     case "TOGGLE_LANE_COLLAPSE":
-      return { ...state, lanes: state.lanes.map(l => l.id === action.id ? { ...l, collapsed: !l.collapsed } : l) }
+      return {
+        ...state,
+        lanes: state.lanes.map((lane) => lane.id === action.id ? { ...lane, collapsed: !lane.collapsed, updatedAt: Date.now() } : lane),
+      }
     case "TOGGLE_LANE_VISIBILITY":
-      return { ...state, lanes: state.lanes.map(l => l.id === action.id ? { ...l, hidden: !l.hidden } : l) }
+      return {
+        ...state,
+        lanes: state.lanes.map((lane) => lane.id === action.id ? { ...lane, hidden: !lane.hidden, updatedAt: Date.now() } : lane),
+      }
     case "REORDER_LANE": {
-      const idx = state.lanes.findIndex(l => l.id === action.fromId)
-      const toIdx = state.lanes.findIndex(l => l.id === action.toId)
-      if (idx < 0 || toIdx < 0 || idx === toIdx) return state
+      const fromIndex = state.lanes.findIndex((lane) => lane.id === action.fromId)
+      const toIndex = state.lanes.findIndex((lane) => lane.id === action.toId)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return state
       const next = [...state.lanes]
-      const [moved] = next.splice(idx, 1)
-      next.splice(toIdx, 0, moved)
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, { ...moved, updatedAt: Date.now() })
       return { ...state, lanes: next }
     }
     case "SET_LANE_CARD_ORDER":
-      return { ...state, lanes: state.lanes.map(l => l.id === action.id ? { ...l, cardOrder: action.cardOrder } : l) }
-    case "MOVE_COMPONENT_TO_LANE": {
-      const comp = state.components.find(c => c.id === action.componentId)
-      if (!comp) return state
-      const fromLaneId = comp.laneId
-      const toLaneId = action.toLaneId
-      if (fromLaneId === toLaneId && !action.targetCardId) return state
-      // 1. 更新 component.laneId
-      const components = state.components.map(c =>
-        c.id === action.componentId ? { ...c, laneId: toLaneId } : c
-      )
-      // 2. 从源 lane 的 cardOrder 中移除
-      let lanes = state.lanes.map(l => {
-        if (l.id !== fromLaneId) return l
-        return { ...l, cardOrder: l.cardOrder?.filter(id => id !== action.componentId) }
-      })
-      // 3. 在目标 lane 的 cardOrder 中插入
-      lanes = lanes.map(l => {
-        if (l.id !== toLaneId) return l
-        const order = [...(l.cardOrder ?? [])]
-        if (!action.targetCardId) {
-          order.push(action.componentId)
-        } else {
-          const idx = order.indexOf(action.targetCardId)
-          if (idx < 0) order.push(action.componentId)
-          else order.splice(action.insertAfter ? idx + 1 : idx, 0, action.componentId)
-        }
-        return { ...l, cardOrder: order }
-      })
-      return { ...state, components, lanes }
-    }
-    default: return state
+      return {
+        ...state,
+        lanes: state.lanes.map((lane) => lane.id === action.id ? { ...lane, cardOrder: action.cardOrder, updatedAt: Date.now() } : lane),
+      }
+    case "MOVE_COMPONENT_TO_LANE":
+      return moveComponentToLane(state, action)
+    default:
+      return state
   }
 }
 
-// ── Context ──────────────────────────────────────────────────────────────────
+function hydrateState(state: WSState, workspaces: WorkspaceDTO[], lanes: LaneDTO[], components: ComponentDTO[]): WSState {
+  const nextWorkspaces: WorkspaceItem[] = workspaces.length
+    ? workspaces.map((workspace) => ({
+      id: workspace.id,
+      label: workspace.label,
+      icon: workspace.icon,
+      createdAt: workspace.createdAt,
+      updatedAt: workspace.updatedAt,
+    }))
+    : INITIAL_STATE.workspaces
 
-interface WSContextValue {
-  state: WSState
-  dispatch: React.Dispatch<Action>
-  activeWorkspace: WorkspaceItem | undefined
-  visibleComponents: ComponentInstance[]
+  const nextComponents: ComponentInstance[] = components.map((component) => ({
+    id: component.id,
+    moduleId: component.moduleId,
+    state: "docked",
+    workspaceId: component.workspaceId,
+    data: component.data,
+    flowPosition: component.flowPosition,
+    flowSize: component.flowSize,
+    dockPanel: component.dockPanel,
+    laneId: component.laneId,
+    hiddenIn: component.hiddenIn,
+    tags: component.tags,
+    z: component.z,
+    collapsed: component.collapsed,
+    position: { x: 20, y: 20 },
+    size: { w: 340, h: 280 },
+    createdAt: component.createdAt,
+    updatedAt: component.updatedAt,
+  }))
+
+  const nextLanes: Lane[] = lanes.map((lane) => ({
+    id: lane.id,
+    label: lane.label,
+    workspaceId: lane.workspaceId,
+    widthRatio: lane.widthRatio,
+    collapsed: lane.collapsed,
+    hidden: lane.hidden,
+    cardOrder: lane.cardOrder,
+    createdAt: lane.createdAt,
+    updatedAt: lane.updatedAt,
+  }))
+
+  return {
+    ...state,
+    workspaces: nextWorkspaces,
+    lanes: nextLanes,
+    components: nextComponents,
+    activeWorkspaceId: nextWorkspaces[0]?.id ?? state.activeWorkspaceId,
+    zCounter: Math.max(state.zCounter, ...nextComponents.map((component) => component.z ?? 0)),
+  }
 }
 
-const WSContext = createContext<WSContextValue | undefined>(undefined)
+function updateComponent(state: WSState, id: string, patch: ComponentPatch): WSState {
+  let focusedComponentId = state.focusedComponentId
+  let fullscreenComponentId = state.fullscreenComponentId
+  let changed = false
 
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, INITIAL_STATE)
+  const components = state.components.map((component) => {
+    if (component.id !== id) return component
+    let next = component
+    const now = Date.now()
 
-  const activeWorkspace = useMemo(
-    () => state.workspaces.find(w => w.id === state.activeWorkspaceId),
-    [state.workspaces, state.activeWorkspaceId]
+    if (patch.data) {
+      next = { ...next, data: { ...next.data, ...patch.data } }
+      changed = true
+    }
+    if (patch.tags) {
+      next = { ...next, tags: patch.tags }
+      changed = true
+    }
+    if (patch.hiddenIn) {
+      next = { ...next, hiddenIn: { ...next.hiddenIn, ...patch.hiddenIn } }
+      changed = true
+    }
+    if (patch.state) {
+      const wasFullscreen = next.state === "fullscreen"
+      next = { ...next, state: patch.state }
+      focusedComponentId = patch.state === "focused" ? id : wasFullscreen ? null : focusedComponentId
+      fullscreenComponentId = patch.state === "fullscreen" ? id : wasFullscreen ? null : fullscreenComponentId
+      changed = true
+    }
+
+    return changed ? { ...next, updatedAt: now } : component
+  })
+
+  return changed ? { ...state, components, focusedComponentId, fullscreenComponentId } : state
+}
+
+function moveComponentToLane(
+  state: WSState,
+  action: Extract<Action, { type: "MOVE_COMPONENT_TO_LANE" }>,
+): WSState {
+  const component = state.components.find((item) => item.id === action.componentId)
+  if (!component) return state
+
+  const fromLaneId = component.laneId
+  const toLaneId = action.toLaneId
+  if (fromLaneId === toLaneId && !action.targetCardId) return state
+
+  const now = Date.now()
+  const components = state.components.map((item) =>
+    item.id === action.componentId ? { ...item, laneId: toLaneId, updatedAt: now } : item,
   )
 
-  const visibleComponents = useMemo(
-    () => state.components.filter(c => c.workspaceId === state.activeWorkspaceId),
-    [state.components, state.activeWorkspaceId]
-  )
+  let lanes = state.lanes.map((lane) => {
+    if (lane.id !== fromLaneId) return lane
+    return {
+      ...lane,
+      cardOrder: lane.cardOrder?.filter((id) => id !== action.componentId),
+      updatedAt: now,
+    }
+  })
 
-  // 启动时拉取后端持久化数据 — 四种 viewMode 共享这同一份数据
+  lanes = lanes.map((lane) => {
+    if (lane.id !== toLaneId) return lane
+    const order = (lane.cardOrder ?? []).filter((id) => id !== action.componentId)
+    if (!action.targetCardId) {
+      order.push(action.componentId)
+    } else {
+      const index = order.indexOf(action.targetCardId)
+      if (index < 0) order.push(action.componentId)
+      else order.splice(action.insertAfter ? index + 1 : index, 0, action.componentId)
+    }
+    return { ...lane, cardOrder: order, updatedAt: now }
+  })
+
+  return { ...state, components, lanes }
+}
+
+function toWorkspaceDTO(workspace: WorkspaceItem, now: number): WorkspaceDTO {
+  return {
+    id: workspace.id,
+    label: workspace.label,
+    icon: workspace.icon,
+    createdAt: workspace.createdAt ?? now,
+    updatedAt: workspace.updatedAt ?? now,
+  }
+}
+
+function toLaneDTO(lane: Lane, now: number): LaneDTO {
+  return {
+    id: lane.id,
+    label: lane.label,
+    workspaceId: lane.workspaceId,
+    widthRatio: lane.widthRatio,
+    collapsed: lane.collapsed,
+    hidden: lane.hidden,
+    cardOrder: lane.cardOrder,
+    createdAt: lane.createdAt ?? now,
+    updatedAt: lane.updatedAt ?? now,
+  }
+}
+
+function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO {
+  return {
+    id: component.id,
+    moduleId: component.moduleId,
+    workspaceId: component.workspaceId,
+    data: component.data,
+    flowPosition: component.flowPosition,
+    flowSize: component.flowSize,
+    dockPanel: component.dockPanel,
+    laneId: component.laneId,
+    hiddenIn: component.hiddenIn,
+    tags: component.tags,
+    z: component.z,
+    collapsed: component.collapsed,
+    createdAt: component.createdAt ?? now,
+    updatedAt: component.updatedAt ?? now,
+  }
+}
+
+export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const dispatch = useWorkspaceStore((state) => state.dispatch)
+  const backendReady = useWorkspaceStore((state) => state.backendReady)
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+  const lanes = useWorkspaceStore((state) => state.lanes)
+  const components = useWorkspaceStore((state) => state.components)
+
   useEffect(() => {
     let cancelled = false
-    getBackend().then(async backend => {
+
+    getBackend().then(async (backend) => {
       if (cancelled) return
       try {
-        const [workspaces, lanes, components] = await Promise.all([
+        const [nextWorkspaces, nextLanes, nextComponents] = await Promise.all([
           backend.workspace.listWorkspaces(),
           backend.workspace.listLanes(),
           backend.workspace.listComponents(),
         ])
-        dispatch({ type: "HYDRATE", workspaces, lanes, components })
+        dispatch({ type: "HYDRATE", workspaces: nextWorkspaces, lanes: nextLanes, components: nextComponents })
         dispatch({ type: "BACKEND_READY", ready: true })
-      } catch (e) {
-        console.error("[backend] hydrate failed:", e)
+      } catch (error) {
+        console.error("[backend] hydrate failed:", error)
         dispatch({ type: "BACKEND_READY", ready: true })
       }
     })
-    return () => { cancelled = true }
-  }, [])
 
-  // 自动落盘：workspaces / lanes / components 变化后 debounce 写回后端。
-  // 这是"后端落盘"的核心：在 web runtime 下走 localStorage，
-  // 在 Electbun runtime 下走真实文件系统（userData/storage.json）。
+    return () => {
+      cancelled = true
+    }
+  }, [dispatch])
+
   useEffect(() => {
-    if (!state.backendReady) return
-    let timer: ReturnType<typeof setTimeout> | null = null
-    timer = setTimeout(async () => {
+    if (!backendReady) return undefined
+
+    const timer = setTimeout(async () => {
       try {
         const backend = await getBackend()
+        const now = Date.now()
         await Promise.all([
-          Promise.all(state.workspaces.map(w => backend.workspace.saveWorkspace({
-            id: w.id,
-            label: w.label,
-            icon: w.icon,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }))),
-          Promise.all(state.lanes.map(l => backend.workspace.saveLane({
-            id: l.id,
-            label: l.label,
-            workspaceId: l.workspaceId,
-            widthRatio: l.widthRatio,
-            collapsed: l.collapsed,
-            hidden: l.hidden,
-            cardOrder: l.cardOrder,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }))),
-          Promise.all(state.components.map(c => backend.workspace.saveComponent({
-            id: c.id,
-            moduleId: c.moduleId,
-            workspaceId: c.workspaceId,
-            data: c.data,
-            flowPosition: c.flowPosition,
-            flowSize: c.flowSize,
-            dockPanel: c.dockPanel,
-            laneId: c.laneId,
-            hiddenIn: c.hiddenIn,
-            tags: c.tags,
-            z: c.z,
-            collapsed: c.collapsed,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }))),
+          Promise.all(workspaces.map((workspace) => backend.workspace.saveWorkspace(toWorkspaceDTO(workspace, now)))),
+          Promise.all(lanes.map((lane) => backend.workspace.saveLane(toLaneDTO(lane, now)))),
+          Promise.all(components.map((component) => backend.workspace.saveComponent(toComponentDTO(component, now)))),
         ])
-      } catch (e) {
-        console.error("[backend] persist failed:", e)
+      } catch (error) {
+        console.error("[backend] persist failed:", error)
       }
     }, 500)
-    return () => { if (timer) clearTimeout(timer) }
-  }, [state.workspaces, state.lanes, state.components, state.backendReady])
 
-  const value = useMemo(() => ({ state, dispatch, activeWorkspace, visibleComponents }), [
-    state, dispatch, activeWorkspace, visibleComponents,
-  ])
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [workspaces, lanes, components, backendReady])
 
-  return <WSContext.Provider value={value}>{children}</WSContext.Provider>
+  return <>{children}</>
 }
 
-export function useWorkspace() {
-  const ctx = useContext(WSContext)
-  if (!ctx) throw new Error("useWorkspace must be used within WorkspaceProvider")
-  return ctx
+export function useWorkspace(): WSContextValue {
+  const store = useWorkspaceStore()
+  const { dispatch, ...state } = store
+
+  const activeWorkspace = useMemo(
+    () => state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId),
+    [state.workspaces, state.activeWorkspaceId],
+  )
+
+  const visibleComponents = useMemo(
+    () => state.components.filter((component) => component.workspaceId === state.activeWorkspaceId),
+    [state.components, state.activeWorkspaceId],
+  )
+
+  return { state, dispatch, activeWorkspace, visibleComponents }
 }
 
 export function useWSDispatch() {
-  return useWorkspace().dispatch
+  return useWorkspaceStore((state) => state.dispatch)
 }
 
-// Convenience action creators
 export const actions = {
   setTheme: (theme: AppTheme): Action => ({ type: "SET_THEME", theme }),
   setViewMode: (mode: ViewMode): Action => ({ type: "SET_VIEW_MODE", mode }),
@@ -552,6 +712,7 @@ export const actions = {
   setComponentFlowSize: (id: string, width: number, height: number): Action => ({ type: "SET_COMPONENT_FLOW_SIZE", id, width, height }),
   setComponentData: (id: string, data: Record<string, unknown>): Action => ({ type: "SET_COMPONENT_DATA", id, data }),
   patchComponentData: (id: string, patch: Record<string, unknown>): Action => ({ type: "PATCH_COMPONENT_DATA", id, patch }),
+  updateComponent: (id: string, patch: ComponentPatch): Action => ({ type: "UPDATE_COMPONENT", id, patch }),
   setComponentDockPanel: (id: string, panelId: string): Action => ({ type: "SET_COMPONENT_DOCK_PANEL", id, panelId }),
   setComponentVisibility: (id: string, viewMode: ViewMode, visible: boolean): Action => ({ type: "SET_COMPONENT_VISIBILITY", id, viewMode, visible }),
   toggleComponentVisibility: (id: string, viewMode: ViewMode): Action => ({ type: "TOGGLE_COMPONENT_VISIBILITY", id, viewMode }),
@@ -566,7 +727,6 @@ export const actions = {
   setGrainIntensity: (intensity: number): Action => ({ type: "SET_GRAIN_INTENSITY", intensity }),
   setActionGlow: (enabled: boolean): Action => ({ type: "SET_ACTION_GLOW", enabled }),
   setCardElevation: (enabled: boolean): Action => ({ type: "SET_CARD_ELEVATION", enabled }),
-  // ── Lane ──
   addLane: (workspaceId?: string, label?: string): Action => ({ type: "ADD_LANE", workspaceId, label }),
   removeLane: (id: string): Action => ({ type: "REMOVE_LANE", id }),
   renameLane: (id: string, label: string): Action => ({ type: "RENAME_LANE", id, label }),

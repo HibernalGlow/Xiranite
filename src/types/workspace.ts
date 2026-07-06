@@ -11,12 +11,16 @@ export interface WorkspaceItem {
   id: string
   label: string
   icon?: string
+  createdAt?: number
+  updatedAt?: number
 }
 
 export interface Lane {
   id: string
   label: string
   workspaceId: string
+  createdAt?: number
+  updatedAt?: number
   /** Flex-grow width ratio. */
   widthRatio: number
   /** When collapsed, only the lane header is shown. */
@@ -31,6 +35,8 @@ export interface ComponentInstance {
   id: string
   moduleId: string
   state: ComponentState
+  createdAt?: number
+  updatedAt?: number
   /** Legacy free-layout position retained for persisted data compatibility. */
   position?: { x: number; y: number }
   /** Legacy free-layout size retained for persisted data compatibility. */

@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import type { HostComponentRef, NodeHostApi } from "@xiranite/contract"
 import { getBackend } from "@/backend/client"
+import { useTheme } from "@/components/theme-provider"
 import { actions, useWorkspace, useWSDispatch } from "@/store/workspaceContext"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
@@ -10,6 +11,14 @@ const viewModes = new Set<ViewMode>(["cards", "dockview", "flow", "lane"])
 export function useNodeHostApi(): NodeHostApi {
   const { state, visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
+  const { theme } = useTheme()
+  const hostTheme = theme === "dark"
+    ? "dark"
+    : theme === "light"
+      ? "light"
+      : document.documentElement.classList.contains("dark")
+        ? "dark"
+        : "light"
 
   return useMemo(() => ({
     getData: <T,>(compId: string) => state.components.find((component) => component.id === compId)?.data as T | undefined,
@@ -18,22 +27,22 @@ export function useNodeHostApi(): NodeHostApi {
     },
     listComponents: () => visibleComponents.map(toHostRef),
     updateComponent: (id: string, patch: Partial<HostComponentRef>) => {
-      if (patch.data) {
-        dispatch(actions.patchComponentData(id, patch.data))
-      }
-      if (patch.tags) {
-        dispatch(actions.setComponentTags(id, patch.tags))
-      }
-      if (patch.state && componentStates.has(patch.state as ComponentState)) {
-        dispatch(actions.setComponentState(id, patch.state as ComponentState))
-      }
+      const nextHiddenIn: Partial<Record<ViewMode, boolean>> = {}
       if (patch.hiddenIn) {
         for (const [mode, hidden] of Object.entries(patch.hiddenIn)) {
           if (viewModes.has(mode as ViewMode)) {
-            dispatch(actions.setComponentVisibility(id, mode as ViewMode, !hidden))
+            nextHiddenIn[mode as ViewMode] = hidden
           }
         }
       }
+      dispatch(actions.updateComponent(id, {
+        data: patch.data,
+        tags: patch.tags,
+        state: patch.state && componentStates.has(patch.state as ComponentState)
+          ? patch.state as ComponentState
+          : undefined,
+        hiddenIn: Object.keys(nextHiddenIn).length ? nextHiddenIn : undefined,
+      }))
     },
     actions: {
       run: async (nodeId, input, onEvent) => {
@@ -57,10 +66,10 @@ export function useNodeHostApi(): NodeHostApi {
       URL.revokeObjectURL(url)
     },
     env: {
-      theme: "light",
+      theme: hostTheme,
       platform: "web",
     },
-  }), [dispatch, state.components, visibleComponents])
+  }), [dispatch, hostTheme, state.components, visibleComponents])
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {
