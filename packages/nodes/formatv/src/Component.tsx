@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Minus, Plus, RefreshCw, RotateCcw, Search, Video } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { FormatvData, FormatvInput, FormatvResult } from "./core.js"
 
 interface FormatvCardState {
@@ -39,10 +39,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: FormatvInput["action"]) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-formatv CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-formatv CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action })
-    const response = await runNode<FormatvInput, FormatvData>("formatv", {
+    const response = await runNativeAction<FormatvInput, FormatvData>("formatv", {
       action,
       paths,
       recursive,

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, FolderInput, FolderOpen, History, Play, RotateCcw, Undo2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { DissolvefData, DissolvefInput, DissolvefResult } from "./core.js"
 
 interface DissolvefCardState {
@@ -54,10 +54,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: DissolvefInput["action"]) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-dissolvef CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-dissolvef CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: "running" })
-    const response = await runNode<DissolvefInput, DissolvefData>("dissolvef", {
+    const response = await runNativeAction<DissolvefInput, DissolvefData>("dissolvef", {
       action,
       path: data.pathText,
       historyPath: data.historyPath,

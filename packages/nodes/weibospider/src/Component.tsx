@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, FileDown, FileUp, Play, RefreshCw, RotateCcw, ShieldCheck, Square, UploadCloud } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { WeiboSpiderAction, WeiboSpiderData, WeiboSpiderInput, WeiboSpiderResult } from "./core.js"
 import { parseCookieInput, validateCookieFields } from "./core.js"
 
@@ -70,13 +70,13 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: WeiboSpiderAction) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-weibospider CLI for network and filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-weibospider CLI for network and filesystem actions.")
     const input = buildInput(action, data)
     if (action === "crawl" && !input.userIds && !data.configPath) return
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting" })
-    const response = await runNode<WeiboSpiderInput, WeiboSpiderData>("weibospider", input, (event) => {
+    const response = await runNativeAction<WeiboSpiderInput, WeiboSpiderData>("weibospider", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as WeiboSpiderResult

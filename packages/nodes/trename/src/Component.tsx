@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FilePenLine, FolderOpen, Play, RefreshCw, RotateCcw, Search, Undo2, Upload } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { TrenameAction, TrenameData, TrenameInput, TrenameJson, TrenameNode, TrenameResult } from "./core.js"
 
 interface TrenameCardState {
@@ -60,14 +60,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: TrenameAction) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-trename CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-trename CLI for filesystem actions.")
     const input = buildInput(action, data, jsonText)
     if (action === "scan" && !input.paths) return
     if ((action === "import" || action === "validate" || action === "rename") && !input.jsonContent) return
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting" })
-    const response = await runNode<TrenameInput, TrenameData>("trename", input, (event) => {
+    const response = await runNativeAction<TrenameInput, TrenameData>("trename", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as TrenameResult

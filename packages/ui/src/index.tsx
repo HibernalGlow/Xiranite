@@ -125,13 +125,13 @@ export function ResultView({ children, className }: { children: ReactNode; class
   return <div className={cx("min-h-0 overflow-auto border-t border-border/40 pt-1 text-[11px]", className)}>{children}</div>
 }
 
-export type ComponentNodeRunner = <TInput = unknown, TData = unknown>(
+export type UnavailableNativeAction = <TInput = unknown, TData = unknown>(
   nodeId: string,
   input: TInput,
   onEvent?: (event: NodeRunEvent) => void,
 ) => Promise<NodeRunResult<TData>>
 
-export function createUnavailableNodeRunner(message: string): ComponentNodeRunner {
+export function createUnavailableNativeAction(message: string): UnavailableNativeAction {
   return async (_nodeId, _input, _onEvent) => {
     return { success: false, message }
   }

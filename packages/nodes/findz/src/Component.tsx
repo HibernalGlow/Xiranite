@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { FindzAction, FindzData, FindzInput, FindzResult } from "./core.js"
 import { formatFoundPath } from "./core.js"
 
@@ -54,11 +54,11 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-findz CLI for filesystem search.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-findz CLI for filesystem search.")
 
     setRunning(true)
     patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
-    const response = await runNode<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
+    const response = await runNativeAction<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as FindzResult

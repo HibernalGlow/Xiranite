@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderInput, MoveRight, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import { matchMoveaArchiveToFolders } from "./core.js"
 import type { MoveaData, MoveaInput, MoveaResult } from "./core.js"
 
@@ -49,7 +49,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       log(`Matched ${matchedFolders.length} folder(s).`)
       return
     }
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-movea CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-movea CLI for filesystem actions.")
 
     setRunning(true)
     patch({ phase: "running" })
@@ -60,7 +60,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       level1Name: data.level1Name,
       movePlan: parseMovePlan(data.movePlanText),
     }
-    const response = await runNode<MoveaInput, MoveaData>("movea", input, (event) => {
+    const response = await runNativeAction<MoveaInput, MoveaData>("movea", input, (event) => {
       if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
       else log(event.message)
     }) as MoveaResult

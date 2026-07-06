@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileSearch, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { KavvkaAction, KavvkaData, KavvkaInput, KavvkaResult } from "./core.js"
 import { DEFAULT_KAVVKA_KEYWORDS, parseKavvkaKeywords, parseKavvkaPaths } from "./core.js"
 
@@ -45,7 +45,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: KavvkaAction) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-kavvka CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-kavvka CLI for filesystem actions.")
 
     const input = buildInput(action, data)
     if (action === "scan" && !scanRoots.length) return
@@ -53,7 +53,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting", result: null })
-    const response = await runNode<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
+    const response = await runNativeAction<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as KavvkaResult

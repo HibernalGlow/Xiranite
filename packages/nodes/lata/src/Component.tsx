@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, ListTodo, Play, RefreshCw, RotateCcw, Rocket } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { LataData, LataInput, LataResult } from "./core.js"
 
 interface LataCardState {
@@ -35,10 +35,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: LataInput["action"]) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-lata CLI for Taskfile actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-lata CLI for Taskfile actions.")
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "loading" })
-    const response = await runNode<LataInput, LataData>("lata", {
+    const response = await runNativeAction<LataInput, LataData>("lata", {
       action,
       taskfilePath: data.taskfilePath,
       taskName: selectedTask,

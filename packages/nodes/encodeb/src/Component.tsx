@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileText, RotateCcw, Search, Zap } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { EncodebData, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths } from "./core.js"
 
@@ -49,11 +49,11 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EncodebInput["action"]) {
     if (!paths.length || running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-encodeb CLI to scan, preview, or recover filenames.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-encodeb CLI to scan, preview, or recover filenames.")
 
     setRunning(true)
     patch({ phase: action ?? "preview", mappings: [], matches: [] })
-    const response = await runNode<EncodebInput, EncodebData>("encodeb", {
+    const response = await runNativeAction<EncodebInput, EncodebData>("encodeb", {
       action,
       paths,
       srcEncoding,

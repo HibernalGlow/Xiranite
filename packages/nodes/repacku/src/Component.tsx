@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, Package, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { RepackuAction, RepackuData, RepackuFolderNode, RepackuInput, RepackuResult } from "./core.js"
 
 interface RepackuCardState {
@@ -41,7 +41,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RepackuAction) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-repacku CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-repacku CLI for filesystem actions.")
 
     const input = buildInput(action, data)
     if (action !== "compress" && !input.path && !input.paths?.length) return
@@ -49,7 +49,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting", result: null })
-    const response = await runNode<RepackuInput, RepackuData>("repacku", input, (event) => {
+    const response = await runNativeAction<RepackuInput, RepackuData>("repacku", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as RepackuResult

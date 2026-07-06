@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, Filter, Image, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { EngineVAction, EngineVData, EngineVInput, EngineVResult, EngineVWallpaper } from "./core.js"
 
 interface EngineVCardState {
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EngineVAction, forceWrite = false) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-enginev CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-enginev CLI for filesystem actions.")
     const input = buildInput(action, data, forceWrite)
     if (!input.path && !input.wallpapers?.length) return
     if (action === "delete" && !selectedIds.length) return
@@ -56,7 +56,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting" })
-    const response = await runNode<EngineVInput, EngineVData>("enginev", input, (event) => {
+    const response = await runNativeAction<EngineVInput, EngineVData>("enginev", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
     }) as EngineVResult

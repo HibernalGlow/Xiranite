@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Eye, MousePointerClick, RotateCcw, ShieldMinus, ShieldPlus } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { OwithuAction, OwithuData, OwithuInput, OwithuResult, RegistryHive } from "./core.js"
 import { buildOwithuPlan, parseOwithuConfig } from "./core.js"
 
@@ -55,7 +55,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the xiranite-owithu CLI for registry changes.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the xiranite-owithu CLI for registry changes.")
 
     setRunning(true)
     patch({ phase: "running", action })
@@ -66,7 +66,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       hive,
       onlyKey: data.onlyKey,
     }
-    const response = await runNode<OwithuInput, OwithuData>("owithu", input, (event) => {
+    const response = await runNativeAction<OwithuInput, OwithuData>("owithu", input, (event) => {
       if (event.type === "log") log(event.message)
     }) as OwithuResult
     patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })

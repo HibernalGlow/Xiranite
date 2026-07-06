@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, PackageCheck, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { ReinstallpData, ReinstallpInput, ReinstallpResult } from "./core.js"
 
 interface ReinstallpCardState {
@@ -36,10 +36,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(input: ReinstallpInput) {
     if (running) return
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-reinstallp CLI to scan or install packages.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-reinstallp CLI to scan or install packages.")
     setRunning(true)
     patch({ phase: "running" })
-    const response = await runNode<ReinstallpInput, ReinstallpData>("reinstallp", input) as ReinstallpResult
+    const response = await runNativeAction<ReinstallpInput, ReinstallpData>("reinstallp", input) as ReinstallpResult
     patch({
       phase: response.success ? "completed" : "error",
       result: response.data ?? null,

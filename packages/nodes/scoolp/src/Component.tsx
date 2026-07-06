@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSearch, Package, Play, RotateCcw, Trash2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { ScoolpAction, ScoolpData, ScoolpInput, ScoolpResult } from "./core.js"
 import { formatSize, parseScoolpSyncConfig, planScoolpSyncCommands } from "./core.js"
 
@@ -64,7 +64,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the xiranite-scoolp CLI for system actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the xiranite-scoolp CLI for system actions.")
 
     setRunning(true)
     patch({ phase: "running", action: nextAction })
@@ -76,7 +76,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       packages: splitPackages(data.packages),
       dryRun,
     }
-    const response = await runNode<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
+    const response = await runNativeAction<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
       if (event.type === "log") log(event.message)
     }) as ScoolpResult
     patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
