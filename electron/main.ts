@@ -1,154 +1,211 @@
-/**
- * Electbun 主进程入口 — 骨架。
- *
- * 设计说明：
- * - 用户原话："后端架构采用 Electbun"，"后端语言也主要是 TS"。
- * - Electbun 用 Bun runtime（不是 Node）跑主进程，渲染进程是系统 webview。
- * - 这里我们提供一个**与具体框架 API 解耦的骨架**：实际 Electbun API
- *   仍在演化，我们用一个最小可跑的实现 —— 借助 `bun --bun` 直接启动，
- *   用 Node 的 child_process 起一个 webview 进程的占位方案。
- *   一旦 Electbun 1.0 稳定，把 createWindow() 替换为官方 API 即可，
- *   IPC handler 协议不动。
- *
- * 验证策略：
- * - 本骨架在 `bun run electron:dev` 下启动：
- *   1. 启动 vite dev server（端口 5173）
- *   2. 主进程启动后注入 preload 脚本到 webview
- *   3. preload 注入 `window.__ELECTBUN__`，runtime-electbun adapter 自动接管
- *   4. 所有 storage/fs 调用走真实文件系统（持久化到 ./userData/）
- * - 在纯 `bun run dev`（仅 vite）下：web runtime 接管，localStorage + mock fs
- *
- * 主进程侧 IPC handlers 是事实之源：channel 名 + 参数 与
- * src/backend/adapters/electbun.ts 完全对齐。
- */
-
 import { serve } from "bun"
-import { access, mkdir, readFile, writeFile, readdir, stat, rename, rm } from "node:fs/promises"
-import { join, dirname, resolve } from "node:path"
 import { spawn } from "node:child_process"
+import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
+import { dirname, join, resolve } from "node:path"
+import { runNodeFromMain } from "./nodeRunner.ts"
 
 const USER_DATA_DIR = resolve(homedir(), ".xiranite")
 const STORAGE_FILE = join(USER_DATA_DIR, "storage.json")
+const PORT = 9117
 
-// ── 启动时确保 userData 目录存在 ──────────────────────────────────────────
+type IpcHandler = (payload: unknown) => Promise<unknown>
+
+const eventBusSubscribers = new Map<string, Set<(event: unknown) => void>>()
+const subprocesses = new Map<number, Promise<{ exitCode: number; stdout: string; stderr: string }>>()
+
 await mkdir(USER_DATA_DIR, { recursive: true })
-try { await access(STORAGE_FILE) } catch { await writeFile(STORAGE_FILE, "{}", "utf-8") }
+try {
+  await access(STORAGE_FILE)
+} catch {
+  await writeFile(STORAGE_FILE, "{}", "utf-8")
+}
 
-// ── Storage 实现（落盘到 JSON 文件） ──────────────────────────────────────
 async function loadStorage(): Promise<Record<string, string>> {
   try {
-    return JSON.parse(await readFile(STORAGE_FILE, "utf-8"))
+    return JSON.parse(await readFile(STORAGE_FILE, "utf-8")) as Record<string, string>
   } catch {
     return {}
   }
 }
+
 async function saveStorage(map: Record<string, string>): Promise<void> {
   await writeFile(STORAGE_FILE, JSON.stringify(map, null, 2), "utf-8")
 }
 
-async function pathExists(p: string): Promise<boolean> {
-  try { await access(p); return true } catch { return false }
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
-// ── IPC handler 注册表 ─────────────────────────────────────────────────────
-// 每个 channel 对应一个 handler。channel 名与 src/backend/adapters/electbun.ts
-// 里的 invoke("channel", payload) 完全对齐。
-type IpcHandler = (payload: any) => Promise<any>
+function recordPayload(payload: unknown): Record<string, unknown> {
+  return payload && typeof payload === "object" ? payload as Record<string, unknown> : {}
+}
+
+function stringValue(payload: Record<string, unknown>, key: string, fallback = ""): string {
+  const value = payload[key]
+  return typeof value === "string" ? value : fallback
+}
+
+function stringArrayValue(payload: Record<string, unknown>, key: string): string[] {
+  const value = payload[key]
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+function envValue(payload: Record<string, unknown>): Record<string, string> | undefined {
+  const value = payload.env
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+
+  const out: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string") out[key] = entry
+  }
+  return out
+}
+
+function decodeFileContent(value: unknown): string | Uint8Array {
+  if (typeof value === "string") return value
+  if (value instanceof Uint8Array) return value
+  if (Array.isArray(value)) return Uint8Array.from(value)
+  if (value && typeof value === "object") {
+    return Uint8Array.from(Object.values(value as Record<string, number>))
+  }
+  return new Uint8Array(0)
+}
+
 const handlers: Record<string, IpcHandler> = {
-  // ── Storage ──
-  "storage.get": async ({ key }: { key: string }) => {
+  "storage.get": async (payload) => {
+    const key = stringValue(recordPayload(payload), "key")
     const map = await loadStorage()
     return map[key] ?? null
   },
-  "storage.set": async ({ key, value }: { key: string; value: string }) => {
+  "storage.set": async (payload) => {
+    const body = recordPayload(payload)
+    const key = stringValue(body, "key")
+    const value = stringValue(body, "value")
     const map = await loadStorage()
     map[key] = value
     await saveStorage(map)
   },
-  "storage.delete": async ({ key }: { key: string }) => {
+  "storage.delete": async (payload) => {
+    const key = stringValue(recordPayload(payload), "key")
     const map = await loadStorage()
     delete map[key]
     await saveStorage(map)
   },
-  "storage.keys": async ({ prefix }: { prefix: string }) => {
+  "storage.keys": async (payload) => {
+    const prefix = stringValue(recordPayload(payload), "prefix")
     const map = await loadStorage()
-    return Object.keys(map).filter(k => k.startsWith(prefix))
+    return Object.keys(map).filter((key) => key.startsWith(prefix))
   },
 
-  // ── FileSystem ──
-  "fs.exists": async ({ path }: { path: string }) => pathExists(path),
-  "fs.listDir": async ({ path }: { path: string }) => {
+  "fs.exists": async (payload) => pathExists(stringValue(recordPayload(payload), "path")),
+  "fs.listDir": async (payload) => {
+    const path = stringValue(recordPayload(payload), "path")
     const entries = await readdir(path, { withFileTypes: true })
     const out = []
-    for (const e of entries) {
+    for (const entry of entries) {
       try {
-        const s = await stat(join(path, e.name))
+        const entryPath = join(path, entry.name)
+        const entryStat = await stat(entryPath)
         out.push({
-          name: e.name,
-          path: join(path, e.name),
-          isDirectory: e.isDirectory(),
-          sizeBytes: s.size,
-          lastModified: s.mtimeMs,
+          name: entry.name,
+          path: entryPath,
+          isDirectory: entry.isDirectory(),
+          sizeBytes: entryStat.size,
+          lastModified: entryStat.mtimeMs,
         })
       } catch {
-        // skip
+        // Skip entries that disappear during listing.
       }
     }
     return out
   },
-  "fs.readFileText": async ({ path }: { path: string }) => readFile(path, "utf-8"),
-  "fs.readFileBytes": async ({ path }: { path: string }) => {
-    const buf = await readFile(path)
-    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
-  },
-  "fs.writeFile": async ({ path, content }: { path: string; content: Uint8Array }) => {
+  "fs.readFileText": async (payload) => readFile(stringValue(recordPayload(payload), "path"), "utf-8"),
+  "fs.readFileBytes": async (payload) => Array.from(await readFile(stringValue(recordPayload(payload), "path"))),
+  "fs.writeFile": async (payload) => {
+    const body = recordPayload(payload)
+    const path = stringValue(body, "path")
     await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, content)
+    await writeFile(path, decodeFileContent(body.content))
   },
-  "fs.remove": async ({ path }: { path: string; permanent?: boolean }) => {
+  "fs.remove": async (payload) => {
+    const path = stringValue(recordPayload(payload), "path")
     await rm(path, { recursive: true, force: true })
   },
-  "fs.rename": async ({ oldPath, newPath }: { oldPath: string; newPath: string }) => {
+  "fs.rename": async (payload) => {
+    const body = recordPayload(payload)
+    const oldPath = stringValue(body, "oldPath")
+    const newPath = stringValue(body, "newPath")
     await mkdir(dirname(newPath), { recursive: true })
     await rename(oldPath, newPath)
   },
-  "fs.stat": async ({ path }: { path: string }) => {
-    const s = await stat(path)
-    return { path, isDirectory: s.isDirectory(), sizeBytes: s.size, lastModified: s.mtimeMs }
+  "fs.stat": async (payload) => {
+    const path = stringValue(recordPayload(payload), "path")
+    const fileStat = await stat(path)
+    return {
+      path,
+      isDirectory: fileStat.isDirectory(),
+      sizeBytes: fileStat.size,
+      lastModified: fileStat.mtimeMs,
+    }
   },
 
-  // ── Subprocess ──
-  "subprocess.spawn": async ({ cmd, args, cwd, env, stdin }: {
-    cmd: string; args: string[]; cwd?: string; env?: Record<string, string>; stdin?: string
-  }) => {
-    const p = spawn(cmd, args, { cwd, env: env ? { ...process.env, ...env } : undefined })
-    if (stdin) p.stdin?.end(stdin)
-    return { pid: p.pid ?? 0 }
+  "subprocess.spawn": async (payload) => {
+    const body = recordPayload(payload)
+    const cmd = stringValue(body, "cmd")
+    const args = stringArrayValue(body, "args")
+    const cwd = stringValue(body, "cwd") || undefined
+    const stdin = stringValue(body, "stdin") || undefined
+    const env = envValue(body)
+    const child = spawn(cmd, args, { cwd, env: env ? { ...process.env, ...env } : undefined })
+
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk))
+    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk))
+    if (stdin) child.stdin?.end(stdin)
+
+    const pid = child.pid ?? 0
+    subprocesses.set(pid, new Promise((resolveWait) => {
+      child.on("close", (code) => {
+        resolveWait({
+          exitCode: code ?? 0,
+          stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
+          stderr: Buffer.concat(stderrChunks).toString("utf-8"),
+        })
+      })
+    }))
+    return { pid }
   },
-  "subprocess.wait": async (_payload: unknown) => {
-    // 简化：占位实现
-    return { exitCode: 0, stdout: "", stderr: "" }
+  "subprocess.wait": async (payload) => {
+    const pid = Number(recordPayload(payload).pid ?? 0)
+    const result = await subprocesses.get(pid)
+    subprocesses.delete(pid)
+    return result ?? { exitCode: 0, stdout: "", stderr: "" }
   },
-  "subprocess.kill": async ({ pid }: { pid: number }) => {
-    try { process.kill(pid) } catch {}
+  "subprocess.kill": async (payload) => {
+    const pid = Number(recordPayload(payload).pid ?? 0)
+    try {
+      process.kill(pid)
+    } catch {
+      // Treat already-exited processes as killed.
+    }
   },
 
-  // ── EventBus ──
-  "events.publish": async ({ topic, event }: { topic: string; event: any }) => {
-    // 简化：单进程内事件总线（Electbun 真实 API 接入时替换）
-    eventBusSubscribers.get(topic)?.forEach(h => h(event))
+  "events.publish": async (payload) => {
+    const body = recordPayload(payload)
+    const topic = stringValue(body, "topic")
+    eventBusSubscribers.get(topic)?.forEach((handler) => handler(body.event))
   },
+
+  "node.run": runNodeFromMain,
 }
 
-// 事件总线订阅者（同进程内）
-const eventBusSubscribers = new Map<string, Set<(e: any) => void>>()
-
-// ── HTTP 桥接 ─────────────────────────────────────────────────────────────
-// 因为 Electbun 的官方 API 尚未稳定，这里用一个本地 HTTP server 桥接：
-// preload 通过 fetch 调用 http://127.0.0.1:9117/ipc/<channel>
-// 当 Electbun 真实 IPC 接入后，把 fetch 换成 electbun.ipc.invoke 即可。
-const PORT = 9117
 const server = serve({
   port: PORT,
   async fetch(req: Request): Promise<Response> {
@@ -158,20 +215,20 @@ const server = serve({
       const payload = req.method === "POST" ? await req.json() : {}
       const handler = handlers[channel]
       if (!handler) {
-        return new Response(JSON.stringify({ error: `unknown channel: ${channel}` }), { status: 404 })
+        return Response.json({ error: `unknown channel: ${channel}` }, { status: 404 })
       }
+
       try {
-        const result = await handler(payload)
-        return new Response(JSON.stringify(result), {
-          headers: { "content-type": "application/json" },
-        })
-      } catch (e) {
-        return new Response(JSON.stringify({ error: String(e) }), { status: 500 })
+        return Response.json(await handler(payload))
+      } catch (error) {
+        return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
       }
     }
+
     if (url.pathname === "/__electbun_detect__") {
       return new Response("ok")
     }
+
     return new Response("not found", { status: 404 })
   },
 })
@@ -180,17 +237,9 @@ console.log(`[electbun:main] IPC bridge listening on http://127.0.0.1:${PORT}/ip
 console.log(`[electbun:main] userData dir: ${USER_DATA_DIR}`)
 console.log(`[electbun:main] storage file: ${STORAGE_FILE}`)
 
-// ── 打开 webview（占位实现） ────────────────────────────────────────────────
-// 实际接入 Electbun 时替换为：
-//   const win = new ElectbunWindow({ url: "http://localhost:5173" })
-//   win.attachPreload("./preload.js")
-//   win.show()
-//
-// 这里：用系统默认浏览器打开 vite dev server 作为占位（开发期可用）。
-// 真实桌面应用接入时，把这段替换为 ElectbunWindow API。
 const VITE_URL = process.env.VITE_URL ?? "http://localhost:5173"
 
-async function openWebview() {
+async function openWebview(): Promise<void> {
   const platform = process.platform
   let cmd = "start"
   if (platform === "darwin") cmd = "open"
@@ -201,16 +250,15 @@ async function openWebview() {
   console.log(`[electbun:main] opened ${url}`)
 }
 
-// 在开发模式下自动打开窗口
 if (process.env.ELECTBUN_AUTO_OPEN !== "0") {
-  setTimeout(openWebview, 800) // 等 vite 起来
+  setTimeout(openWebview, 800)
 }
 
-// 优雅退出
 process.on("SIGINT", () => {
   server.stop?.()
   process.exit(0)
 })
+
 process.on("SIGTERM", () => {
   server.stop?.()
   process.exit(0)
