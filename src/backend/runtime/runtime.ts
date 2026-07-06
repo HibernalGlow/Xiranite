@@ -72,6 +72,39 @@ export interface NodeRunnerRuntime {
   ) => Promise<NodeRunResult<TData>>
 }
 
+export type MainWindowAction = "minimize" | "maximize" | "restore" | "close"
+
+export interface WindowCapabilities {
+  supported: boolean
+  nativeWindowControls: boolean
+  frameless: boolean
+  componentWindows: "native" | "browser-fallback" | "browser-popup" | "unsupported"
+  message?: string
+}
+
+export interface WindowCommandResult {
+  success: boolean
+  supported: boolean
+  id?: string
+  message: string
+}
+
+export interface OpenComponentWindowInput {
+  componentId: string
+  moduleId: string
+  title?: string
+  width?: number
+  height?: number
+}
+
+export interface WindowRuntime {
+  getCapabilities(): Promise<WindowCapabilities>
+  controlMain(action: MainWindowAction): Promise<WindowCommandResult>
+  openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult>
+  focus(id: string): Promise<WindowCommandResult>
+  close(id: string): Promise<WindowCommandResult>
+}
+
 export interface RuntimeInterface {
   readonly kind: "web" | "electbun" | "tauri" | "electron"
   storage: StorageRuntime
@@ -79,6 +112,7 @@ export interface RuntimeInterface {
   subprocess: SubprocessRuntime
   events: EventBusRuntime
   nodeRunner: NodeRunnerRuntime
+  windows: WindowRuntime
 }
 
 export type RuntimeAdapterFactory = () => RuntimeInterface | Promise<RuntimeInterface>

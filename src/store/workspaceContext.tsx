@@ -244,7 +244,9 @@ function reducer(state: WSState, action: Action): WSState {
         if (c.id !== action.id) return c
         const cur = c.hiddenIn ?? {}
         const nextHidden = !action.visible
-        if (!!cur[action.viewMode] === nextHidden) return c
+        if (action.viewMode === "flow") {
+          if (cur.flow === nextHidden) return c
+        } else if (!!cur[action.viewMode] === nextHidden) return c
         changed = true
         return { ...c, hiddenIn: { ...cur, [action.viewMode]: nextHidden } }
       })
@@ -256,7 +258,10 @@ function reducer(state: WSState, action: Action): WSState {
         components: state.components.map(c => {
           if (c.id !== action.id) return c
           const cur = c.hiddenIn ?? {}
-          const next = !cur[action.viewMode]
+          const currentlyVisible = action.viewMode === "flow"
+            ? cur.flow === false
+            : cur[action.viewMode] !== true
+          const next = currentlyVisible
           // 关闭时记录 hiddenIn[viewMode]=true；重新打开时设为 false（不删 key，保持对象形状稳定）
           return { ...c, hiddenIn: { ...cur, [action.viewMode]: next } }
         }),

@@ -4,12 +4,17 @@ import type {
   FileSystemRuntime,
   FsEntry,
   FsStat,
+  MainWindowAction,
   NodeRunnerRuntime,
+  OpenComponentWindowInput,
   RuntimeInterface,
   StorageRuntime,
   SubprocessResult,
   SubprocessRuntime,
   SubprocessSpawnOpts,
+  WindowCapabilities,
+  WindowCommandResult,
+  WindowRuntime,
 } from "../runtime/runtime"
 import type { ProgressEvent } from "../shared/types"
 
@@ -64,6 +69,19 @@ function errorMessage(error: unknown): string {
 
 function isNodeRunBridgeResponse<TData>(value: unknown): value is NodeRunBridgeResponse<TData> {
   return !!value && typeof value === "object" && "result" in value
+}
+
+function electbunRuntimePort(): number | null {
+  if (typeof window === "undefined") return null
+
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash
+  const hashParams = new URLSearchParams(hash)
+  const searchParams = new URLSearchParams(window.location.search)
+  const raw = searchParams.get("electbun-runtime") ?? hashParams.get("electbun-runtime")
+  if (!raw) return null
+
+  const port = Number(raw)
+  return Number.isFinite(port) && port > 0 ? port : null
 }
 
 class ElectbunStorage implements StorageRuntime {
@@ -212,9 +230,37 @@ class ElectbunNodeRunner implements NodeRunnerRuntime {
   }
 }
 
+class ElectbunWindowRuntime implements WindowRuntime {
+  private readonly invoke: (channel: string, payload?: unknown) => Promise<unknown>
+
+  constructor(invoke: (channel: string, payload?: unknown) => Promise<unknown>) {
+    this.invoke = invoke
+  }
+
+  async getCapabilities(): Promise<WindowCapabilities> {
+    return (await this.invoke("window.capabilities")) as WindowCapabilities
+  }
+
+  async controlMain(action: MainWindowAction): Promise<WindowCommandResult> {
+    return (await this.invoke("window.main", { action })) as WindowCommandResult
+  }
+
+  async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
+    return (await this.invoke("window.openComponent", input)) as WindowCommandResult
+  }
+
+  async focus(id: string): Promise<WindowCommandResult> {
+    return (await this.invoke("window.focus", { id })) as WindowCommandResult
+  }
+
+  async close(id: string): Promise<WindowCommandResult> {
+    return (await this.invoke("window.close", { id })) as WindowCommandResult
+  }
+}
+
 export function createElectbunRuntime(): RuntimeInterface {
   const bridge = typeof window !== "undefined" ? window.__ELECTBUN__ : undefined
-  const port = bridge?.port ?? 9117
+  const port = bridge?.port ?? electbunRuntimePort() ?? 9117
 
   const invoke = async (channel: string, payload?: unknown): Promise<unknown> => {
     if (bridge?.invoke) return bridge.invoke(channel, payload)
@@ -228,9 +274,10 @@ export function createElectbunRuntime(): RuntimeInterface {
     subprocess: new ElectbunSubprocess(invoke),
     events: new ElectbunEventBus(invoke),
     nodeRunner: new ElectbunNodeRunner(invoke),
+    windows: new ElectbunWindowRuntime(invoke),
   }
 }
 
 export function detectElectbun(): boolean {
-  return typeof window !== "undefined" && !!window.__ELECTBUN__
+  return typeof window !== "undefined" && (!!window.__ELECTBUN__ || electbunRuntimePort() !== null)
 }

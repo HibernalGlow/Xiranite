@@ -13,6 +13,13 @@ type IpcHandler = (payload: unknown) => Promise<unknown>
 
 const eventBusSubscribers = new Map<string, Set<(event: unknown) => void>>()
 const subprocesses = new Map<number, Promise<{ exitCode: number; stdout: string; stderr: string }>>()
+const componentWindows = new Map<string, {
+  id: string
+  componentId: string
+  moduleId: string
+  title?: string
+  url: string
+}>()
 
 await mkdir(USER_DATA_DIR, { recursive: true })
 try {
@@ -56,6 +63,11 @@ function stringArrayValue(payload: Record<string, unknown>, key: string): string
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 }
 
+function numberValue(payload: Record<string, unknown>, key: string, fallback: number): number {
+  const value = payload[key]
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback
+}
+
 function envValue(payload: Record<string, unknown>): Record<string, string> | undefined {
   const value = payload.env
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
@@ -75,6 +87,29 @@ function decodeFileContent(value: unknown): string | Uint8Array {
     return Uint8Array.from(Object.values(value as Record<string, number>))
   }
   return new Uint8Array(0)
+}
+
+const VITE_URL = process.env.VITE_URL ?? "http://localhost:5173"
+
+function buildAppUrl(params?: Record<string, string>): string {
+  const url = new URL(VITE_URL)
+  for (const [key, value] of Object.entries(params ?? {})) {
+    url.searchParams.set(key, value)
+  }
+  url.hash = `electbun-runtime=${PORT}`
+  return url.toString()
+}
+
+function openExternalUrl(url: string): void {
+  const platform = process.platform
+  if (platform === "win32") {
+    spawn("cmd", ["/c", "start", "", url], { windowsHide: true })
+    return
+  }
+
+  const cmd = platform === "darwin" ? "open" : "xdg-open"
+  const child = spawn(cmd, [url], { detached: true, stdio: "ignore" })
+  child.unref()
 }
 
 const handlers: Record<string, IpcHandler> = {
@@ -204,6 +239,64 @@ const handlers: Record<string, IpcHandler> = {
   },
 
   "node.run": runNodeFromMain,
+
+  "window.capabilities": async () => ({
+    supported: true,
+    nativeWindowControls: false,
+    frameless: false,
+    componentWindows: "browser-fallback",
+    message: "Bun IPC bridge is running in browser-fallback mode. Real native controls require an Electrobun window host.",
+  }),
+  "window.main": async (payload) => {
+    const action = stringValue(recordPayload(payload), "action")
+    return {
+      success: false,
+      supported: false,
+      message: `Main window action "${action}" is not available in browser-fallback mode.`,
+    }
+  },
+  "window.openComponent": async (payload) => {
+    const body = recordPayload(payload)
+    const componentId = stringValue(body, "componentId")
+    const moduleId = stringValue(body, "moduleId")
+    if (!componentId || !moduleId) {
+      return { success: false, supported: true, message: "componentId and moduleId are required." }
+    }
+
+    const title = stringValue(body, "title") || moduleId
+    const id = `component-${Date.now()}-${Math.round(Math.random() * 1000)}`
+    const url = buildAppUrl({
+      floatingComponent: componentId,
+      moduleId,
+      title,
+      windowId: id,
+      width: String(numberValue(body, "width", 460)),
+      height: String(numberValue(body, "height", 380)),
+    })
+    componentWindows.set(id, { id, componentId, moduleId, title, url })
+    openExternalUrl(url)
+    return {
+      success: true,
+      supported: true,
+      id,
+      message: `Opened ${moduleId} component window in browser-fallback mode.`,
+    }
+  },
+  "window.focus": async (payload) => {
+    const id = stringValue(recordPayload(payload), "id")
+    const record = componentWindows.get(id)
+    if (record) openExternalUrl(record.url)
+    return record
+      ? { success: true, supported: true, id, message: "Re-opened tracked component window URL." }
+      : { success: false, supported: false, id, message: "Component window is not tracked." }
+  },
+  "window.close": async (payload) => {
+    const id = stringValue(recordPayload(payload), "id")
+    const existed = componentWindows.delete(id)
+    return existed
+      ? { success: true, supported: false, id, message: "Component window record removed. Browser-fallback mode cannot close external windows." }
+      : { success: false, supported: false, id, message: "Component window is not tracked." }
+  },
 }
 
 const server = serve({
@@ -237,16 +330,9 @@ console.log(`[electbun:main] IPC bridge listening on http://127.0.0.1:${PORT}/ip
 console.log(`[electbun:main] userData dir: ${USER_DATA_DIR}`)
 console.log(`[electbun:main] storage file: ${STORAGE_FILE}`)
 
-const VITE_URL = process.env.VITE_URL ?? "http://localhost:5173"
-
 async function openWebview(): Promise<void> {
-  const platform = process.platform
-  let cmd = "start"
-  if (platform === "darwin") cmd = "open"
-  else if (platform === "linux") cmd = "xdg-open"
-
-  const url = `${VITE_URL}#electbun-runtime=${PORT}`
-  spawn(cmd, [url], { shell: platform === "win32" })
+  const url = buildAppUrl()
+  openExternalUrl(url)
   console.log(`[electbun:main] opened ${url}`)
 }
 

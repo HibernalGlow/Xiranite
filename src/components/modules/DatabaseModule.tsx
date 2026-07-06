@@ -44,6 +44,7 @@ import type { ComponentInstance, ViewMode } from "@/types/workspace"
 
 import { Eye, EyeOff, Tag, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isComponentVisibleInView } from "@/lib/componentVisibility"
 
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 
@@ -92,9 +93,9 @@ function toDatabaseRow(comp: ComponentInstance): DatabaseRow {
     moduleName: mod?.name ?? comp.moduleId,
     category: mod?.category ?? "—",
     state: comp.state,
-    visibilityCount: VIEW_MODES.filter(m => !comp.hiddenIn?.[m]).length,
+    visibilityCount: VIEW_MODES.filter(m => isComponentVisibleInView(comp, m)).length,
     visibilityIn: Object.fromEntries(
-      VIEW_MODES.map(m => [m, !comp.hiddenIn?.[m]])
+      VIEW_MODES.map(m => [m, isComponentVisibleInView(comp, m)])
     ) as Record<ViewMode, boolean>,
     tags: comp.tags ?? [],
     createdAt: parseCreatedAt(comp.id),
@@ -164,7 +165,7 @@ function VisibilityCell({ item }: { item: DatabaseRow }) {
   return (
     <div className="flex items-center gap-1">
       {VIEW_MODES.map(m => {
-        const visible = !comp.hiddenIn?.[m]
+        const visible = isComponentVisibleInView(comp, m)
         return (
           <button
             key={m}

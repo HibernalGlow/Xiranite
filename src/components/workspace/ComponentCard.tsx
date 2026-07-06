@@ -1,5 +1,6 @@
 import { memo } from "react"
 import { motion } from "motion/react"
+import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { useWSDispatch, actions } from "@/store/workspaceContext"
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
@@ -11,6 +12,7 @@ import {
   X,
   Minus,
   Expand,
+  ExternalLink,
 } from "lucide-react"
 
 interface Props {
@@ -55,6 +57,22 @@ function ComponentCardInner({ comp, layout }: Props) {
   function exitFocus() {
     dispatch(actions.setCardLayout("grid"))
     dispatch(actions.focusComponent(null))
+  }
+
+  async function openFloatingWindow() {
+    const backend = await getBackend()
+    const result = await backend.windows.openComponent({
+      componentId: comp.id,
+      moduleId: comp.moduleId,
+      title: mod?.name ?? comp.moduleId,
+      width: Math.round(layout.w),
+      height: Math.round(layout.h),
+    })
+    if (result.success) {
+      dispatch(actions.setComponentState(comp.id, "floating"))
+    } else {
+      console.info(`[window] ${result.message}`)
+    }
   }
 
   return (
@@ -120,6 +138,10 @@ function ComponentCardInner({ comp, layout }: Props) {
             onClick={toggleFullscreen}
           >
             {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+          </HeaderBtn>
+
+          <HeaderBtn label="Open floating window" onClick={openFloatingWindow}>
+            <ExternalLink className="h-3 w-3" />
           </HeaderBtn>
 
           <HeaderBtn label="Hide in Cards" danger onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}>

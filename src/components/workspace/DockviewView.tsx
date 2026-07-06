@@ -4,6 +4,7 @@ import "dockview-react/dist/styles/dockview.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Plus, X, LayoutPanelTop } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -33,7 +34,7 @@ export function DockviewView() {
 
   // 仅渲染未在 dockview 模式下隐藏的组件
   const dockComponents = useMemo(
-    () => visibleComponents.filter(c => !c.hiddenIn?.dockview),
+    () => visibleComponents.filter(c => isComponentVisibleInView(c, "dockview")),
     [visibleComponents],
   )
 

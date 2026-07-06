@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
+import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
 
@@ -21,7 +22,7 @@ export function CardView() {
 
   // 仅渲染未在 cards 模式下隐藏的组件
   const cardComponents = useMemo(
-    () => visibleComponents.filter(c => !c.hiddenIn?.cards),
+    () => visibleComponents.filter(c => isComponentVisibleInView(c, "cards")),
     [visibleComponents],
   )
 

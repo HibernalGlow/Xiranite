@@ -20,6 +20,7 @@ import { useMemo, useCallback } from "react"
 import { Plus, Columns3 } from "lucide-react"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { getDragMode, getDragState, clearDrag } from "@/store/dragState"
+import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Button } from "@/components/ui/button"
 import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
@@ -36,7 +37,7 @@ export function LaneView() {
 
   // 在 lane 模式下未隐藏的组件
   const laneComponents = useMemo(
-    () => visibleComponents.filter(c => !c.hiddenIn?.lane),
+    () => visibleComponents.filter(c => isComponentVisibleInView(c, "lane")),
     [visibleComponents],
   )
 

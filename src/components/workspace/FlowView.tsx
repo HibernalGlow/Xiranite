@@ -21,12 +21,13 @@ import {
 import "tldraw/tldraw.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
+import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Plus, Workflow, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { ComponentInstance } from "@/types/workspace"
 
 function isFlowCanvasVisible(component: ComponentInstance) {
-  return component.hiddenIn?.flow === false
+  return isComponentVisibleInView(component, "flow")
 }
 
 // ── 自定义 shape 类型（通过 module augmentation 注册到 TLShape union） ────────

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
@@ -6,7 +7,7 @@ import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
-  Sun, Moon, Monitor, Palette,
+  Sun, Moon, Monitor, Palette, Minus, Square, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -75,6 +76,12 @@ export function TopBar() {
   function selectPreset(key: AppTheme) {
     dispatch(actions.setTheme(key))
     setColorMode(PRESET_DEFAULT_MODE[key])
+  }
+
+  async function controlMainWindow(action: "minimize" | "maximize" | "close") {
+    const backend = await getBackend()
+    const result = await backend.windows.controlMain(action)
+    if (!result.success) console.info(`[window] ${result.message}`)
   }
 
   return (
@@ -296,6 +303,33 @@ export function TopBar() {
             </>
           )}
         </div>
+      </div>
+
+      <div className="flex items-center gap-0.5 border-l border-border/60 pl-2">
+        <button
+          title="Minimize"
+          aria-label="Minimize"
+          onClick={() => controlMainWindow("minimize")}
+          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          title="Maximize"
+          aria-label="Maximize"
+          onClick={() => controlMainWindow("maximize")}
+          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          <Square className="h-3 w-3" />
+        </button>
+        <button
+          title="Close"
+          aria-label="Close"
+          onClick={() => controlMainWindow("close")}
+          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Avatar */}

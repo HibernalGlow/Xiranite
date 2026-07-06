@@ -4,10 +4,14 @@ import type {
   FsEntry,
   FsStat,
   NodeRunnerRuntime,
+  OpenComponentWindowInput,
   RuntimeInterface,
   StorageRuntime,
   SubprocessResult,
   SubprocessRuntime,
+  WindowCapabilities,
+  WindowCommandResult,
+  WindowRuntime,
 } from "../runtime/runtime"
 import type { ProgressEvent } from "../shared/types"
 
@@ -149,6 +153,71 @@ class WebNodeRunner implements NodeRunnerRuntime {
   }
 }
 
+class WebWindowRuntime implements WindowRuntime {
+  async getCapabilities(): Promise<WindowCapabilities> {
+    return {
+      supported: true,
+      nativeWindowControls: false,
+      frameless: false,
+      componentWindows: "browser-popup",
+      message: "Browser runtime can open component popups, but cannot control native windows.",
+    }
+  }
+
+  async controlMain(): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      message: "Native main-window controls are not available in web runtime.",
+    }
+  }
+
+  async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
+    const url = new URL(window.location.href)
+    url.searchParams.set("floatingComponent", input.componentId)
+    url.searchParams.set("moduleId", input.moduleId)
+    url.searchParams.set("windowId", input.componentId)
+    if (input.title) url.searchParams.set("title", input.title)
+
+    const popup = window.open(
+      url.toString(),
+      `xiranite-component-${input.componentId}`,
+      `popup,width=${input.width ?? 460},height=${input.height ?? 380}`,
+    )
+
+    return popup
+      ? {
+          success: true,
+          supported: true,
+          id: input.componentId,
+          message: "Opened component in a browser popup.",
+        }
+      : {
+          success: false,
+          supported: true,
+          message: "Browser blocked the component popup.",
+        }
+  }
+
+  async focus(id: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Browser runtime does not track component popup focus.",
+    }
+  }
+
+  async close(id: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Browser runtime does not track component popup close.",
+    }
+  }
+}
+
 export function createWebRuntime(): RuntimeInterface {
   return {
     kind: "web",
@@ -157,5 +226,6 @@ export function createWebRuntime(): RuntimeInterface {
     subprocess: new NoSubprocess(),
     events: new MemoryEventBus(),
     nodeRunner: new WebNodeRunner(),
+    windows: new WebWindowRuntime(),
   }
 }
