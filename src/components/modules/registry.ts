@@ -130,6 +130,14 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
     icon: "TableProperties",
   },
+  {
+    id: "blocknote",
+    name: "BLOCKNOTE",
+    version: "v1.0.0",
+    category: "UTILITY",
+    description: "基于 shadcn 的 BlockNote 富文本编辑器。块级文档编辑、拖拽重排、斜杠菜单，样式自动跟随项目主题。",
+    icon: "FileText",
+  },
 ]
 
 export function getModule(id: string): ModuleDef | undefined {
