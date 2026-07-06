@@ -1,17 +1,5 @@
-/**
- * WorkspaceService — workspace/components 持久化。
- *
- * 这是端到端示例的第一站：前端 store 改动会通过此 service 写到 storage，
- * 刷新页面后从 storage 还原。三种 viewMode（cards/dockview/flow）共享同一份数据。
- */
-
-import type { Service } from "."
-import type {
-  WorkspaceDTO,
-  LaneDTO,
-  ComponentDTO,
-} from "../shared/types"
-import type { ServiceContext } from "."
+import type { Service, ServiceContext } from "."
+import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "../shared/types"
 import type { RuntimeInterface } from "../runtime/runtime"
 
 const KEY_WORKSPACES = "xiranite:workspaces"
@@ -19,25 +7,23 @@ const KEY_LANES = "xiranite:lanes"
 const KEY_COMPONENTS = "xiranite:components"
 
 export interface WorkspaceServiceAPI {
-  // Workspaces
   listWorkspaces(): Promise<WorkspaceDTO[]>
-  saveWorkspace(ws: WorkspaceDTO): Promise<void>
+  saveWorkspace(workspace: WorkspaceDTO): Promise<void>
   deleteWorkspace(id: string): Promise<void>
-  // Lanes
   listLanes(): Promise<LaneDTO[]>
   listLanesByWorkspace(workspaceId: string): Promise<LaneDTO[]>
   saveLane(lane: LaneDTO): Promise<void>
   deleteLane(id: string): Promise<void>
-  // Components
   listComponents(): Promise<ComponentDTO[]>
   listComponentsByWorkspace(workspaceId: string): Promise<ComponentDTO[]>
-  saveComponent(comp: ComponentDTO): Promise<void>
+  saveComponent(component: ComponentDTO): Promise<void>
   deleteComponent(id: string): Promise<void>
 }
 
 export class WorkspaceService implements Service<"workspace">, WorkspaceServiceAPI {
   readonly name = "workspace"
-  private ctx: ServiceContext
+
+  private readonly ctx: ServiceContext
   private cache: {
     workspaces?: WorkspaceDTO[]
     lanes?: LaneDTO[]
@@ -48,100 +34,94 @@ export class WorkspaceService implements Service<"workspace">, WorkspaceServiceA
     this.ctx = ctx
   }
 
-  private get runtime(): RuntimeInterface { return this.ctx.runtime }
-
-  // ── Workspaces ──
-  async listWorkspaces(): Promise<WorkspaceDTO[]> {
-    if (!this.cache.workspaces) {
-      const raw = await this.runtime.storage.get(KEY_WORKSPACES)
-      this.cache.workspaces = raw ? JSON.parse(raw) : []
-    }
-    return this.cache.workspaces!
+  private get runtime(): RuntimeInterface {
+    return this.ctx.runtime
   }
 
-  async saveWorkspace(ws: WorkspaceDTO): Promise<void> {
-    const list = await this.listWorkspaces()
-    const idx = list.findIndex(w => w.id === ws.id)
-    if (idx >= 0) list[idx] = { ...ws, updatedAt: Date.now() }
-    else list.push({ ...ws, createdAt: Date.now(), updatedAt: Date.now() })
-    await this.persistWorkspaces(list)
+  async listWorkspaces(): Promise<WorkspaceDTO[]> {
+    if (!this.cache.workspaces) {
+      this.cache.workspaces = await this.readList<WorkspaceDTO>(KEY_WORKSPACES)
+    }
+    return this.cache.workspaces
+  }
+
+  async saveWorkspace(workspace: WorkspaceDTO): Promise<void> {
+    const next = upsertById(await this.listWorkspaces(), workspace)
+    await this.persistWorkspaces(next)
   }
 
   async deleteWorkspace(id: string): Promise<void> {
-    const list = (await this.listWorkspaces()).filter(w => w.id !== id)
-    await this.persistWorkspaces(list)
-    // 级联删除 lane 和 component
-    const lanes = (await this.listLanes()).filter(l => l.workspaceId !== id)
-    await this.persistLanes(lanes)
-    const comps = (await this.listComponents()).filter(c => c.workspaceId !== id)
-    await this.persistComponents(comps)
+    await this.persistWorkspaces((await this.listWorkspaces()).filter((workspace) => workspace.id !== id))
+    await this.persistLanes((await this.listLanes()).filter((lane) => lane.workspaceId !== id))
+    await this.persistComponents((await this.listComponents()).filter((component) => component.workspaceId !== id))
   }
 
-  // ── Lanes ──
   async listLanes(): Promise<LaneDTO[]> {
     if (!this.cache.lanes) {
-      const raw = await this.runtime.storage.get(KEY_LANES)
-      this.cache.lanes = raw ? JSON.parse(raw) : []
+      this.cache.lanes = await this.readList<LaneDTO>(KEY_LANES)
     }
-    return this.cache.lanes!
+    return this.cache.lanes
   }
 
   async listLanesByWorkspace(workspaceId: string): Promise<LaneDTO[]> {
-    return (await this.listLanes()).filter(l => l.workspaceId === workspaceId)
+    return (await this.listLanes()).filter((lane) => lane.workspaceId === workspaceId)
   }
 
   async saveLane(lane: LaneDTO): Promise<void> {
-    const list = await this.listLanes()
-    const idx = list.findIndex(l => l.id === lane.id)
-    if (idx >= 0) list[idx] = { ...lane, updatedAt: Date.now() }
-    else list.push({ ...lane, createdAt: Date.now(), updatedAt: Date.now() })
-    await this.persistLanes(list)
+    const next = upsertById(await this.listLanes(), lane)
+    await this.persistLanes(next)
   }
 
   async deleteLane(id: string): Promise<void> {
-    const list = (await this.listLanes()).filter(l => l.id !== id)
-    await this.persistLanes(list)
+    await this.persistLanes((await this.listLanes()).filter((lane) => lane.id !== id))
   }
 
-  // ── Components ──
   async listComponents(): Promise<ComponentDTO[]> {
     if (!this.cache.components) {
-      const raw = await this.runtime.storage.get(KEY_COMPONENTS)
-      this.cache.components = raw ? JSON.parse(raw) : []
+      this.cache.components = await this.readList<ComponentDTO>(KEY_COMPONENTS)
     }
-    return this.cache.components!
+    return this.cache.components
   }
 
   async listComponentsByWorkspace(workspaceId: string): Promise<ComponentDTO[]> {
-    return (await this.listComponents()).filter(c => c.workspaceId === workspaceId)
+    return (await this.listComponents()).filter((component) => component.workspaceId === workspaceId)
   }
 
-  async saveComponent(comp: ComponentDTO): Promise<void> {
-    const list = await this.listComponents()
-    const idx = list.findIndex(c => c.id === comp.id)
-    if (idx >= 0) list[idx] = { ...comp, updatedAt: Date.now() }
-    else list.push({ ...comp, createdAt: Date.now(), updatedAt: Date.now() })
-    await this.persistComponents(list)
+  async saveComponent(component: ComponentDTO): Promise<void> {
+    const next = upsertById(await this.listComponents(), component)
+    await this.persistComponents(next)
   }
 
   async deleteComponent(id: string): Promise<void> {
-    const list = (await this.listComponents()).filter(c => c.id !== id)
-    await this.persistComponents(list)
+    await this.persistComponents((await this.listComponents()).filter((component) => component.id !== id))
   }
 
-  // ── internals ──
-  private async persistWorkspaces(list: WorkspaceDTO[]): Promise<void> {
-    this.cache.workspaces = list
-    await this.runtime.storage.set(KEY_WORKSPACES, JSON.stringify(list))
+  private async readList<T>(key: string): Promise<T[]> {
+    const raw = await this.runtime.storage.get(key)
+    return raw ? JSON.parse(raw) as T[] : []
   }
 
-  private async persistLanes(list: LaneDTO[]): Promise<void> {
-    this.cache.lanes = list
-    await this.runtime.storage.set(KEY_LANES, JSON.stringify(list))
+  private async persistWorkspaces(workspaces: WorkspaceDTO[]): Promise<void> {
+    this.cache.workspaces = workspaces
+    await this.runtime.storage.set(KEY_WORKSPACES, JSON.stringify(workspaces))
   }
 
-  private async persistComponents(list: ComponentDTO[]): Promise<void> {
-    this.cache.components = list
-    await this.runtime.storage.set(KEY_COMPONENTS, JSON.stringify(list))
+  private async persistLanes(lanes: LaneDTO[]): Promise<void> {
+    this.cache.lanes = lanes
+    await this.runtime.storage.set(KEY_LANES, JSON.stringify(lanes))
   }
+
+  private async persistComponents(components: ComponentDTO[]): Promise<void> {
+    this.cache.components = components
+    await this.runtime.storage.set(KEY_COMPONENTS, JSON.stringify(components))
+  }
+}
+
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
+  const index = items.findIndex((current) => current.id === item.id)
+  if (index < 0) return [...items, item]
+
+  const next = [...items]
+  next[index] = item
+  return next
 }

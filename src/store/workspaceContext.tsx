@@ -1,4 +1,5 @@
 import { useEffect, useMemo, type Dispatch, type ReactNode } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type {
@@ -96,7 +97,14 @@ type WSStore = WSState & {
   dispatch: Dispatch<Action>
 }
 
+interface WorkspaceSnapshot {
+  workspaces: WorkspaceDTO[]
+  lanes: LaneDTO[]
+  components: ComponentDTO[]
+}
+
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
+const WORKSPACE_SNAPSHOT_QUERY_KEY = ["workspace", "snapshot"] as const
 
 const INITIAL_STATE: WSState = {
   theme: "spatial",
@@ -618,58 +626,88 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
   }
 }
 
+async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
+  const backend = await getBackend()
+  const [workspaces, lanes, components] = await Promise.all([
+    backend.workspace.listWorkspaces(),
+    backend.workspace.listLanes(),
+    backend.workspace.listComponents(),
+  ])
+
+  return { workspaces, lanes, components }
+}
+
+async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<void> {
+  const backend = await getBackend()
+
+  await Promise.all([
+    Promise.all(snapshot.workspaces.map((workspace) => backend.workspace.saveWorkspace(workspace))),
+    Promise.all(snapshot.lanes.map((lane) => backend.workspace.saveLane(lane))),
+    Promise.all(snapshot.components.map((component) => backend.workspace.saveComponent(component))),
+  ])
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   const dispatch = useWorkspaceStore((state) => state.dispatch)
   const backendReady = useWorkspaceStore((state) => state.backendReady)
   const workspaces = useWorkspaceStore((state) => state.workspaces)
   const lanes = useWorkspaceStore((state) => state.lanes)
   const components = useWorkspaceStore((state) => state.components)
 
+  const workspaceQuery = useQuery({
+    queryKey: WORKSPACE_SNAPSHOT_QUERY_KEY,
+    queryFn: loadWorkspaceSnapshot,
+    staleTime: 5_000,
+    retry: 1,
+  })
+
+  const { mutate: persistWorkspace } = useMutation({
+    mutationFn: persistWorkspaceSnapshot,
+    scope: { id: "workspace-persist" },
+    onSuccess: (_result, snapshot) => {
+      queryClient.setQueryData(WORKSPACE_SNAPSHOT_QUERY_KEY, snapshot)
+    },
+    onError: (error) => {
+      console.error("[backend] persist failed:", error)
+    },
+  })
+
   useEffect(() => {
-    let cancelled = false
+    if (!workspaceQuery.data) return
 
-    getBackend().then(async (backend) => {
-      if (cancelled) return
-      try {
-        const [nextWorkspaces, nextLanes, nextComponents] = await Promise.all([
-          backend.workspace.listWorkspaces(),
-          backend.workspace.listLanes(),
-          backend.workspace.listComponents(),
-        ])
-        dispatch({ type: "HYDRATE", workspaces: nextWorkspaces, lanes: nextLanes, components: nextComponents })
-        dispatch({ type: "BACKEND_READY", ready: true })
-      } catch (error) {
-        console.error("[backend] hydrate failed:", error)
-        dispatch({ type: "BACKEND_READY", ready: true })
-      }
+    dispatch({
+      type: "HYDRATE",
+      workspaces: workspaceQuery.data.workspaces,
+      lanes: workspaceQuery.data.lanes,
+      components: workspaceQuery.data.components,
     })
+    dispatch({ type: "BACKEND_READY", ready: true })
+  }, [dispatch, workspaceQuery.data])
 
-    return () => {
-      cancelled = true
-    }
-  }, [dispatch])
+  useEffect(() => {
+    if (!workspaceQuery.error) return
+
+    console.error("[backend] hydrate failed:", workspaceQuery.error)
+    dispatch({ type: "BACKEND_READY", ready: true })
+  }, [dispatch, workspaceQuery.error])
 
   useEffect(() => {
     if (!backendReady) return undefined
 
-    const timer = setTimeout(async () => {
-      try {
-        const backend = await getBackend()
-        const now = Date.now()
-        await Promise.all([
-          Promise.all(workspaces.map((workspace) => backend.workspace.saveWorkspace(toWorkspaceDTO(workspace, now)))),
-          Promise.all(lanes.map((lane) => backend.workspace.saveLane(toLaneDTO(lane, now)))),
-          Promise.all(components.map((component) => backend.workspace.saveComponent(toComponentDTO(component, now)))),
-        ])
-      } catch (error) {
-        console.error("[backend] persist failed:", error)
-      }
+    const timer = setTimeout(() => {
+      const now = Date.now()
+      persistWorkspace({
+        workspaces: workspaces.map((workspace) => toWorkspaceDTO(workspace, now)),
+        lanes: lanes.map((lane) => toLaneDTO(lane, now)),
+        components: components.map((component) => toComponentDTO(component, now)),
+      })
     }, 500)
 
     return () => {
       clearTimeout(timer)
     }
-  }, [workspaces, lanes, components, backendReady])
+  }, [workspaces, lanes, components, backendReady, persistWorkspace])
 
   return <>{children}</>
 }

@@ -1,0 +1,30 @@
+{
+  "name": "@xiranite/api",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Typed HTTP/RPC API surface for the Xiranite local backend.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "bun run build"
+  },
+  "dependencies": {
+    "@xiranite/services": "workspace:*",
+    "@xiranite/shared": "workspace:*",
+    "@elysiajs/eden": "^1.4.9",
+    "elysia": "^1.4.29"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

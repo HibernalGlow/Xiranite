@@ -1,23 +1,22 @@
-import { useEffect, useRef, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { getBackend } from "@/backend/client"
 import type { Backend } from "@/backend/client"
 
 /**
- * useBackend — React hook，等 backend 就绪后返回 Backend 实例。
- * 三种 viewMode 下共用同一个 backend 实例，数据互通。
+ * 等待 backend runtime 初始化完成，并返回同一个 Backend 实例。
+ * 生命周期、缓存和错误状态交给 TanStack Query 管理。
  */
 export function useBackend() {
-  const [backend, setBackend] = useState<Backend | null>(null)
-  const [error, setError] = useState<Error | null>(null)
-  const mountedRef = useRef(true)
+  const query = useQuery<Backend, Error>({
+    queryKey: ["backend"],
+    queryFn: getBackend,
+    staleTime: Infinity,
+    retry: false,
+  })
 
-  useEffect(() => {
-    mountedRef.current = true
-    getBackend()
-      .then(b => { if (mountedRef.current) setBackend(b) })
-      .catch(e => { if (mountedRef.current) setError(e) })
-    return () => { mountedRef.current = false }
-  }, [])
-
-  return { backend, error, ready: backend != null }
+  return {
+    backend: query.data ?? null,
+    error: query.error,
+    ready: query.isSuccess,
+  }
 }
