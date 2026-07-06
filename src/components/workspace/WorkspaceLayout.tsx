@@ -11,9 +11,19 @@ import { cn } from "@/lib/utils"
 export function WorkspaceLayout() {
   const { state } = useWorkspace()
   const themeClass = state.theme === "endfield" ? "theme-endfield" : state.theme === "wuling" ? "theme-wuling" : ""
+  const bgClass = `theme-bg-${state.bgMode || "dot-grid"}`
+
+  const bgStyles = {
+    "--ws-bg-image-url": state.bgImageUrl ? `url(${JSON.stringify(state.bgImageUrl)})` : "none",
+    "--ws-bg-opacity": String((state.bgOpacity ?? 30) / 100),
+    "--ws-bg-blur": `${state.bgBlur ?? 5}px`,
+  } as React.CSSProperties
 
   return (
-    <div className={cn("flex flex-col h-screen overflow-hidden bg-background text-foreground", themeClass)}>
+    <div
+      className={cn("flex flex-col h-screen overflow-hidden bg-background text-foreground", themeClass, bgClass)}
+      style={bgStyles}
+    >
       <TopBar />
 
       {/* 主面板：四种形态共享同一份 store 数据，互不隔离。

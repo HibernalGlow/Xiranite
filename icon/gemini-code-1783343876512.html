@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyber UI Component</title>
+<style>
+  :root {
+    --bg-color: #e3f2ec;
+    --grid-color: #d0e8dd;
+    --armor-black: #2a2d2a;
+    --glass-green: rgba(117, 232, 165, 0.45);
+    --glass-border: rgba(94, 232, 150, 0.6);
+    --accent-yellow: #c4eb73;
+    --accent-gray: #777777;
+    --bracket-green: #8ab396;
+    --shadow-heavy: 0 12px 24px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: var(--bg-color);
+    background-image:
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 50px 50px;
+    font-family: sans-serif;
+  }
+
+  .ui-canvas {
+    position: relative;
+    width: 800px;
+    height: 800px;
+    user-select: none;
+  }
+
+  /* === 四角 L 型定位标 === */
+  .corner-bracket {
+    position: absolute;
+    z-index: 50;
+  }
+  .bracket-outer {
+    border-color: var(--bracket-green);
+    border-style: solid;
+  }
+  .bracket-inner {
+    border-color: var(--accent-yellow);
+    border-style: solid;
+  }
+
+  .corner-tl { top: 40px; left: 40px; width: 50px; height: 50px; border-width: 4px 0 0 4px; }
+  .corner-tl-i { top: 55px; left: 55px; width: 50px; height: 50px; border-width: 2px 0 0 2px; }
+  .corner-tr { top: 40px; right: 40px; width: 50px; height: 50px; border-width: 4px 4px 0 0; }
+  .corner-tr-i { top: 55px; right: 55px; width: 50px; height: 50px; border-width: 2px 2px 0 0; }
+  .corner-bl { bottom: 40px; left: 40px; width: 50px; height: 50px; border-width: 0 0 4px 4px; }
+  .corner-bl-i { bottom: 55px; left: 55px; width: 50px; height: 50px; border-width: 0 0 2px 2px; }
+  .corner-br { bottom: 40px; right: 40px; width: 50px; height: 50px; border-width: 0 4px 4px 0; }
+  .corner-br-i { bottom: 55px; right: 55px; width: 50px; height: 50px; border-width: 0 2px 2px 0; }
+
+  /* === 底层淡绿色装饰 === */
+  .glass-bg {
+    position: absolute;
+    border-radius: 4px;
+    z-index: 1;
+  }
+  .glass-bg-1 {
+    top: 180px; left: 180px;
+    width: 440px; height: 440px;
+    background: rgba(117, 232, 165, 0.08);
+    border: 1px solid rgba(94, 232, 150, 0.2);
+  }
+
+  /* === 黑色装甲主体 === */
+  .armor-block {
+    position: absolute;
+    background-color: var(--armor-black);
+    border-radius: 4px;
+    box-shadow: var(--shadow-heavy);
+    z-index: 5;
+  }
+  .armor-block::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 15px 15px;
+    pointer-events: none;
+  }
+
+  .armor-top-h { top: 160px; left: 250px; width: 350px; height: 65px; }
+  .armor-mid-h { top: 340px; left: 180px; width: 420px; height: 50px; }
+  .armor-bot-h { top: 520px; left: 60px; width: 640px; height: 70px; }
+  .armor-left-v { top: 120px; left: 250px; width: 80px; height: 580px; }
+  .armor-right-v { top: 220px; left: 600px; width: 80px; height: 530px; }
+  .armor-side-l { top: 520px; left: 10px; width: 50px; height: 50px; z-index: 5; }
+  .armor-ext-bl { top: 700px; left: 250px; width: 80px; height: 40px; z-index: 4; }
+  .armor-ext-br { top: 750px; left: 600px; width: 80px; height: 50px; z-index: 4; }
+  .armor-ext-bot { top: 590px; left: 600px; width: 80px; height: 40px; z-index: 4; }
+
+  /* === 左侧竖条亮色网格覆盖 === */
+  .light-grid-overlay {
+    position: absolute;
+    top: 280px; left: 250px;
+    width: 80px; height: 220px;
+    background-image:
+      linear-gradient(rgba(140, 240, 164, 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140, 240, 164, 0.5) 1px, transparent 1px);
+    background-size: 12px 12px;
+    border-radius: 4px;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* 顶部横条网格覆盖 */
+  .top-grid-overlay {
+    position: absolute;
+    top: 160px; left: 250px;
+    width: 350px; height: 65px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 15px 15px;
+    border-radius: 4px;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* === 白色切角与缺口 === */
+  .cut-highlight {
+    position: absolute;
+    z-index: 10;
+  }
+  .cut-bl-1 {
+    top: 670px; left: 250px; width: 30px; height: 30px;
+    clip-path: polygon(0 0, 100% 100%, 0 100%);
+    background: #fff;
+  }
+  .cut-bl-2 {
+    top: 690px; left: 250px; width: 20px; height: 20px;
+    clip-path: polygon(0 0, 100% 100%, 0 100%);
+    background: #fff;
+    opacity: 0.5;
+  }
+  .cut-rt {
+    top: 220px; left: 655px; width: 25px; height: 25px;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+    background: #fff;
+  }
+  .cut-rb {
+    top: 725px; left: 655px; width: 25px; height: 25px;
+    clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    background: #fff;
+  }
+
+  /* 右侧半圆形装饰 */
+  .notch {
+    position: absolute;
+    background: #fff;
+    z-index: 10;
+    border-radius: 50%;
+  }
+  .notch-1 { top: 410px; left: 660px; width: 22px; height: 22px; }
+  .notch-2 { top: 510px; left: 660px; width: 22px; height: 22px; }
+  .notch-3 { top: 610px; left: 660px; width: 22px; height: 22px; }
+
+  /* === 绿色玻璃层（覆盖在黑色块上方） === */
+  .glass-overlay {
+    position: absolute;
+    border-radius: 4px;
+    z-index: 15;
+    backdrop-filter: blur(4px);
+  }
+  .glass-top {
+    top: 140px; left: 230px;
+    width: 380px; height: 50px;
+    background: var(--glass-green);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-left {
+    top: 240px; left: 80px;
+    width: 300px; height: 60px;
+    background: rgba(117, 232, 165, 0.5);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-right-v {
+    top: 120px; left: 660px;
+    width: 50px; height: 240px;
+    background: rgba(117, 232, 165, 0.35);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-right-h {
+    top: 480px; left: 620px;
+    width: 120px; height: 50px;
+    background: rgba(117, 232, 165, 0.3);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-mid-v {
+    top: 300px; left: 510px;
+    width: 60px; height: 180px;
+    background: rgba(117, 232, 165, 0.3);
+    border: 1px solid var(--glass-border);
+  }
+  .glass-front-2 {
+    top: 460px; left: 660px;
+    width: 80px; height: 60px;
+    background: rgba(117, 232, 165, 0.3);
+  }
+  .glass-front-3 {
+    top: 580px; left: 510px;
+    width: 80px; height: 45px;
+    background: rgba(117, 232, 165, 0.35);
+  }
+
+  /* === 黄绿色点缀 === */
+  .accent-dot {
+    position: absolute;
+    background-color: var(--accent-yellow);
+    z-index: 30;
+  }
+  .dot-bl-1 { top: 535px; left: 60px; width: 12px; height: 12px; border-radius: 2px; }
+  .dot-bl-2 { top: 535px; left: 165px; width: 8px; height: 8px; }
+  .dot-bl-3 { top: 535px; left: 180px; width: 8px; height: 8px; }
+  .dot-bl-4 { top: 550px; left: 165px; width: 8px; height: 8px; }
+  .dot-bl-5 { top: 550px; left: 180px; width: 8px; height: 8px; }
+  .dot-bl-6 { top: 565px; left: 165px; width: 8px; height: 8px; }
+  .dot-bl-7 { top: 565px; left: 180px; width: 8px; height: 8px; }
+  .dot-side-1 { top: 535px; left: 25px; width: 8px; height: 8px; }
+  .dot-side-2 { top: 550px; left: 25px; width: 8px; height: 8px; }
+
+  /* 顶部小黄点准星 */
+  .dot-rt-group {
+    position: absolute;
+    top: 175px; right: 180px;
+    z-index: 30;
+  }
+  .dot-rt {
+    position: absolute;
+    width: 6px; height: 6px;
+    background: var(--accent-yellow);
+    border-radius: 1px;
+  }
+  .dot-rt.a { top: 0; left: 0; }
+  .dot-rt.b { top: 0; left: 12px; }
+  .dot-rt.c { top: 12px; left: 0; }
+  .dot-rt.d { top: 12px; left: 12px; }
+
+  /* 准星框 */
+  .crosshair-sq {
+    position: absolute;
+    top: 560px; right: 140px;
+    width: 30px; height: 30px;
+    border: 2px solid var(--accent-yellow);
+    background: rgba(100, 120, 100, 0.5);
+    z-index: 30;
+  }
+  .crosshair-sq::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px; height: 10px;
+    background: var(--accent-yellow);
+  }
+
+  /* 中央十字线 */
+  .crosshair-v {
+    position: absolute;
+    top: 510px; left: 310px;
+    width: 2px; height: 120px;
+    background: var(--accent-yellow);
+    z-index: 30;
+  }
+  .crosshair-h {
+    position: absolute;
+    top: 630px; left: 290px;
+    width: 40px; height: 2px;
+    background: var(--accent-yellow);
+    z-index: 30;
+  }
+
+  /* 底部刻度线 */
+  .scale-lines {
+    position: absolute;
+    top: 640px; left: 370px;
+    display: flex; gap: 15px;
+    z-index: 30;
+  }
+  .scale-lines div {
+    width: 2px; height: 35px;
+    background-color: var(--accent-gray);
+  }
+
+  /* 右侧边缘指示 */
+  .edge-v {
+    position: absolute;
+    top: 480px; right: 100px;
+    width: 2px; height: 25px;
+    background: var(--accent-yellow);
+    z-index: 30;
+  }
+  .edge-h {
+    position: absolute;
+    top: 490px; right: 120px;
+    width: 40px; height: 2px;
+    background: var(--accent-yellow);
+    z-index: 30;
+  }
+  .edge-dot {
+    position: absolute;
+    top: 485px; right: 105px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-yellow);
+    z-index: 30;
+  }
+
+  /* 黄线 */
+  .right-yellow-line {
+    position: absolute;
+    top: 250px; left: 630px;
+    width: 2px; height: 200px;
+    background: var(--accent-yellow);
+    z-index: 30;
+    opacity: 0.8;
+  }
+  .left-yellow-line {
+    position: absolute;
+    top: 400px; left: 290px;
+    width: 2px; height: 150px;
+    background: var(--accent-yellow);
+    z-index: 30;
+    opacity: 0.8;
+  }
+  .mid-yellow-line {
+    position: absolute;
+    top: 360px; left: 200px;
+    width: 340px; height: 2px;
+    background: var(--accent-yellow);
+    z-index: 30;
+    opacity: 0.6;
+  }
+  .bot-yellow-line {
+    position: absolute;
+    top: 555px; left: 80px;
+    width: 200px; height: 2px;
+    background: var(--accent-yellow);
+    z-index: 30;
+    opacity: 0.6;
+  }
+  .right-bot-line {
+    position: absolute;
+    bottom: 120px; right: 60px;
+    width: 100px; height: 2px;
+    background: var(--accent-yellow);
+    z-index: 30;
+    opacity: 0.5;
+  }
+
+  /* 小角标 */
+  .corner-small {
+    position: absolute;
+    bottom: 100px; right: 100px;
+    width: 20px; height: 20px;
+    border: 2px solid var(--accent-yellow);
+    border-width: 0 0 2px 2px;
+    z-index: 30;
+  }
+
+  /* 右侧灰色刻度 */
+  .right-scale {
+    position: absolute;
+    top: 400px; left: 625px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 30;
+  }
+  .right-scale div {
+    width: 8px; height: 8px;
+    background: var(--accent-gray);
+    border-radius: 1px;
+  }
+
+  /* 左侧绿色条上的白方块 */
+  .left-glass-dots {
+    position: absolute;
+    top: 255px; left: 100px;
+    display: flex;
+    gap: 12px;
+    z-index: 16;
+  }
+  .left-glass-dots div {
+    width: 8px; height: 12px;
+    background: rgba(255,255,255,0.7);
+    border-radius: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="ui-canvas">
+  <!-- 四角 L 型定位标 -->
+  <div class="corner-bracket bracket-outer corner-tl"></div>
+  <div class="corner-bracket bracket-inner corner-tl-i"></div>
+  <div class="corner-bracket bracket-outer corner-tr"></div>
+  <div class="corner-bracket bracket-inner corner-tr-i"></div>
+  <div class="corner-bracket bracket-outer corner-bl"></div>
+  <div class="corner-bracket bracket-inner corner-bl-i"></div>
+  <div class="corner-bracket bracket-outer corner-br"></div>
+  <div class="corner-bracket bracket-inner corner-br-i"></div>
+
+  <!-- 底层淡绿框 -->
+  <div class="glass-bg glass-bg-1"></div>
+
+  <!-- 黑色装甲主体 -->
+  <div class="armor-block armor-left-v"></div>
+  <div class="armor-block armor-right-v"></div>
+  <div class="armor-block armor-top-h"></div>
+  <div class="armor-block armor-mid-h"></div>
+  <div class="armor-block armor-bot-h"></div>
+  <div class="armor-block armor-side-l"></div>
+  <div class="armor-block armor-ext-bl"></div>
+  <div class="armor-block armor-ext-br"></div>
+  <div class="armor-block armor-ext-bot"></div>
+
+  <!-- 左侧竖条亮色网格 -->
+  <div class="light-grid-overlay"></div>
+
+  <!-- 顶部横条网格 -->
+  <div class="top-grid-overlay"></div>
+
+  <!-- 白色切角 -->
+  <div class="cut-highlight cut-bl-1"></div>
+  <div class="cut-highlight cut-bl-2"></div>
+  <div class="cut-highlight cut-rt"></div>
+  <div class="cut-highlight cut-rb"></div>
+
+  <!-- 右侧半圆形装饰 -->
+  <div class="notch notch-1"></div>
+  <div class="notch notch-2"></div>
+  <div class="notch notch-3"></div>
+
+  <!-- 绿色玻璃覆盖层（在黑色块上方） -->
+  <div class="glass-overlay glass-top"></div>
+  <div class="glass-overlay glass-left"></div>
+  <div class="glass-overlay glass-right-v"></div>
+  <div class="glass-overlay glass-right-h"></div>
+  <div class="glass-overlay glass-mid-v"></div>
+  <div class="glass-overlay glass-front-1"></div>
+  <div class="glass-overlay glass-front-2"></div>
+  <div class="glass-overlay glass-front-3"></div>
+
+  <!-- 左侧绿色条上的白方块 -->
+  <div class="left-glass-dots">
+    <div></div><div></div><div></div><div></div>
+  </div>
+
+  <!-- 黄绿点缀 -->
+  <div class="accent-dot dot-bl-1"></div>
+  <div class="accent-dot dot-bl-2"></div>
+  <div class="accent-dot dot-bl-3"></div>
+  <div class="accent-dot dot-bl-4"></div>
+  <div class="accent-dot dot-bl-5"></div>
+  <div class="accent-dot dot-bl-6"></div>
+  <div class="accent-dot dot-bl-7"></div>
+  <div class="accent-dot dot-side-1"></div>
+  <div class="accent-dot dot-side-2"></div>
+  <div class="dot-rt-group">
+    <div class="dot-rt a"></div>
+    <div class="dot-rt b"></div>
+    <div class="dot-rt c"></div>
+    <div class="dot-rt d"></div>
+  </div>
+
+  <!-- 准星 -->
+  <div class="crosshair-sq"></div>
+  <div class="crosshair-v"></div>
+  <div class="crosshair-h"></div>
+
+  <!-- 刻度排线 -->
+  <div class="scale-lines">
+    <div></div><div></div><div></div><div></div>
+  </div>
+
+  <!-- 黄线 -->
+  <div class="right-yellow-line"></div>
+  <div class="left-yellow-line"></div>
+  <div class="mid-yellow-line"></div>
+  <div class="bot-yellow-line"></div>
+  <div class="right-bot-line"></div>
+
+  <!-- 边缘指示 -->
+  <div class="edge-v"></div>
+  <div class="edge-h"></div>
+  <div class="edge-dot"></div>
+
+  <!-- 小角标 -->
+  <div class="corner-small"></div>
+
+  <!-- 右侧灰色刻度 -->
+  <div class="right-scale">
+    <div></div><div></div><div></div>
+  </div>
+</div>
+
+</body>
+</html>

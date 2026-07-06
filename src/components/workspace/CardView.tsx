@@ -7,6 +7,7 @@ import { computeLayout } from "@/lib/workspaceLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 /**
  * CardView — 卡片形态渲染器。
@@ -18,7 +19,11 @@ export function CardView() {
   const dispatch = useWSDispatch()
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLDivElement>(null)
+  const resizeFrameRef = useRef<number | null>(null)
+  const resizeIdleTimerRef = useRef<number | null>(null)
+  const sizeRef = useRef({ w: 1200, h: 800 })
   const [size, setSize] = useState({ w: 1200, h: 800 })
+  const [isResizing, setIsResizing] = useState(false)
 
   const { cardLayout, focusedComponentId, fullscreenComponentId } = state
 
@@ -31,12 +36,53 @@ export function CardView() {
   useEffect(() => {
     const el = canvasRef.current
     if (!el) return
+
+    const scheduleSizeUpdate = (rawWidth: number, rawHeight: number) => {
+      const next = {
+        w: Math.round(rawWidth),
+        h: Math.round(rawHeight),
+      }
+
+      if (next.w <= 0 || next.h <= 0) return
+      if (next.w === sizeRef.current.w && next.h === sizeRef.current.h) return
+
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current)
+      }
+
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        resizeFrameRef.current = null
+        sizeRef.current = next
+        setSize(next)
+        setIsResizing(true)
+
+        if (resizeIdleTimerRef.current !== null) {
+          window.clearTimeout(resizeIdleTimerRef.current)
+        }
+
+        resizeIdleTimerRef.current = window.setTimeout(() => {
+          resizeIdleTimerRef.current = null
+          setIsResizing(false)
+        }, 140)
+      })
+    }
+
+    scheduleSizeUpdate(el.clientWidth, el.clientHeight)
+
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
-      setSize({ w: width, h: height })
+      scheduleSizeUpdate(width, height)
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current)
+      }
+      if (resizeIdleTimerRef.current !== null) {
+        window.clearTimeout(resizeIdleTimerRef.current)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -50,14 +96,18 @@ export function CardView() {
     return () => window.removeEventListener("keydown", onKey)
   }, [fullscreenComponentId, focusedComponentId, dispatch])
 
-  const layouts = computeLayout({
-    components: cardComponents,
-    layout: cardLayout,
-    focusedId: focusedComponentId,
-    fullscreenId: fullscreenComponentId,
-    W: size.w,
-    H: size.h,
-  })
+  const layouts = useMemo(
+    () =>
+      computeLayout({
+        components: cardComponents,
+        layout: cardLayout,
+        focusedId: focusedComponentId,
+        fullscreenId: fullscreenComponentId,
+        W: size.w,
+        H: size.h,
+      }),
+    [cardComponents, cardLayout, focusedComponentId, fullscreenComponentId, size.h, size.w],
+  )
 
   if (cardComponents.length === 0) {
     return (
@@ -87,7 +137,10 @@ export function CardView() {
   }
 
   return (
-    <div className="flex-1 ws-canvas-bg overflow-hidden relative" ref={canvasRef}>
+    <div
+      className={cn("flex-1 ws-canvas-bg overflow-hidden relative", isResizing && "ws-canvas-bg--resizing")}
+      ref={canvasRef}
+    >
       {cardComponents.map(comp => (
         <ComponentCard
           key={comp.id}
@@ -97,6 +150,7 @@ export function CardView() {
           isFocused={focusedComponentId === comp.id}
           hasFocused={focusedComponentId !== null}
           cardLayout={cardLayout}
+          isLayoutResizing={isResizing}
         />
       ))}
 

@@ -53,7 +53,7 @@ export * from "./core.js"
 export default entry
 ```
 
-不要从 `src/index.ts` 导出 `CardShell`、`demo`、`platform` 或 CLI 符号。包可以在 `package.json` 中暴露 `./cli` 和 `./core` 子路径，但 Xiranite 集成必须使用默认的 `NodeEntry`。
+不要从 `src/index.ts` 导出 `CardShell`、`demo`、`platform` 或 CLI 符号。包可以在 `package.json` 中暴露 `./cli`、`./core` 和供 Xiranite host runtime 使用的 `./platform` 子路径，但 Xiranite UI 集成必须使用默认的 `NodeEntry`。
 
 ## package.json
 
@@ -80,6 +80,10 @@ export default entry
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
     }
   },
   "files": ["dist"],
@@ -150,6 +154,7 @@ export default entry
 - 显式命令使用 citty 风格的标志和子命令。
 - CLI 显示名称应使用 `nodeCliName("<node-id>")`；包 `bin` 字段由 `bun run sync:cli-bins` 生成。
 - CLI 通过 `platform.ts` 读取/写入文件、执行 Shell 命令、发起网络请求和与原生系统交互，然后调用 `core.ts`。
+- Xiranite Local Backend 可通过包的 `./platform` 子路径复用同一份 Node/Bun runtime；这不是 UI 集成入口，也不得从 `src/index.ts` 再导出。
 - 在需要时，应为自动化提供 JSON 输出。
 - 二进制文件在 `bun --filter @xiranite/node-<id> build` 后必须可执行。
 

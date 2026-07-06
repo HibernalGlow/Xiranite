@@ -336,7 +336,8 @@
   }
 }
 
-.xiranite-app-region-drag {
+.xiranite-app-region-drag,
+.xiranite-app-region-drag * {
   --wails-draggable: drag;
 }
 
@@ -345,13 +346,76 @@
   --wails-draggable: no-drag;
 }
 
+.xiranite-floating-window,
+.xiranite-floating-window * {
+  --wails-draggable: no-drag;
+}
+
+.xiranite-floating-window .xiranite-app-region-drag,
+.xiranite-floating-window .xiranite-app-region-drag * {
+  --wails-draggable: drag;
+}
+
+.xiranite-floating-window .xiranite-app-region-no-drag,
+.xiranite-floating-window .xiranite-app-region-no-drag * {
+  --wails-draggable: no-drag;
+}
+
 /* ── Workspace canvas dot/grid background ── */
 .ws-canvas-bg {
+  position: relative;
   background-color: var(--ws-canvas);
+  isolation: isolate; /* Create stacking context for ::before and ::after */
+}
+
+/* Base pattern layer */
+.ws-canvas-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: background-image 0.2s ease;
+}
+
+/* Grid mode */
+.theme-bg-grid .ws-canvas-bg::before {
   background-image:
     linear-gradient(var(--ws-grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--ws-grid-color) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Dot grid mode */
+.theme-bg-dot-grid .ws-canvas-bg::before {
+  background-image: radial-gradient(var(--ws-grid-color) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
+}
+
+/* None mode */
+.theme-bg-none .ws-canvas-bg::before {
+  background-image: none;
+}
+
+/* Image mode - Xlchemy-style background image overlay */
+.theme-bg-image .ws-canvas-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image: var(--ws-bg-image-url, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--ws-bg-opacity, 0.3);
+  filter: blur(var(--ws-bg-blur, 5px));
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+.theme-bg-image .ws-canvas-bg--resizing::after {
+  filter: none;
+  transition: none;
 }
 
 /* ── Dockview 主题桥接 ──
@@ -473,7 +537,7 @@
    Motion (motion/react) drives x/y/width/height/scale/opacity transitions,
    so CSS only handles decorative styling — no transform/opacity here to
    avoid fighting the spring animation. */
-.comp-card {
+.comp-card--animated {
   will-change: transform;
 }
 

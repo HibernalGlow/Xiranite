@@ -33,6 +33,10 @@ interface WSState {
   actionGlow: boolean
   cardElevation: boolean
   backendReady: boolean
+  bgMode: "grid" | "dot-grid" | "image" | "none"
+  bgImageUrl: string
+  bgOpacity: number
+  bgBlur: number
 }
 
 type ComponentPatch = {
@@ -51,6 +55,7 @@ type Action =
   | { type: "REMOVE_WORKSPACE"; id: string }
   | { type: "RENAME_WORKSPACE"; id: string; label: string }
   | { type: "DEPLOY_COMPONENT"; moduleId: string; viewMode?: ViewMode }
+  | { type: "ENSURE_COMPONENT"; component: ComponentInstance }
   | { type: "REMOVE_COMPONENT"; id: string }
   | { type: "SET_COMPONENT_STATE"; id: string; state: ComponentState }
   | { type: "SET_COMPONENT_POSITION"; id: string; x: number; y: number }
@@ -74,6 +79,10 @@ type Action =
   | { type: "SET_GRAIN_INTENSITY"; intensity: number }
   | { type: "SET_ACTION_GLOW"; enabled: boolean }
   | { type: "SET_CARD_ELEVATION"; enabled: boolean }
+  | { type: "SET_BG_MODE"; mode: "grid" | "dot-grid" | "image" | "none" }
+  | { type: "SET_BG_IMAGE_URL"; url: string }
+  | { type: "SET_BG_OPACITY"; opacity: number }
+  | { type: "SET_BG_BLUR"; blur: number }
   | { type: "BACKEND_READY"; ready: boolean }
   | { type: "HYDRATE"; workspaces: WorkspaceDTO[]; lanes: LaneDTO[]; components: ComponentDTO[] }
   | { type: "ADD_LANE"; workspaceId?: string; label?: string }
@@ -102,6 +111,11 @@ type WorkspaceSnapshot = WorkspaceSnapshotDTO
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 const WORKSPACE_SNAPSHOT_QUERY_KEY = ["workspace", "snapshot"] as const
 
+const storedBgMode = typeof localStorage !== "undefined" ? localStorage.getItem("xiranite-bg-mode") : null
+const storedBgImageUrl = typeof localStorage !== "undefined" ? localStorage.getItem("xiranite-bg-image-url") : null
+const storedBgOpacity = typeof localStorage !== "undefined" ? localStorage.getItem("xiranite-bg-opacity") : null
+const storedBgBlur = typeof localStorage !== "undefined" ? localStorage.getItem("xiranite-bg-blur") : null
+
 const INITIAL_STATE: WSState = {
   theme: "spatial",
   viewMode: "cards",
@@ -126,6 +140,10 @@ const INITIAL_STATE: WSState = {
   actionGlow: true,
   cardElevation: false,
   backendReady: false,
+  bgMode: (storedBgMode as any) || "dot-grid",
+  bgImageUrl: storedBgImageUrl || "",
+  bgOpacity: storedBgOpacity ? parseInt(storedBgOpacity, 10) : 30,
+  bgBlur: storedBgBlur ? parseInt(storedBgBlur, 10) : 5,
 }
 
 let instanceCounter = 0
@@ -233,6 +251,13 @@ function reducer(state: WSState, action: Action): WSState {
 
       return { ...state, components: [...state.components, newComponent], lanes, zCounter }
     }
+    case "ENSURE_COMPONENT":
+      if (state.components.some((component) => component.id === action.component.id)) return state
+      return {
+        ...state,
+        components: [...state.components, action.component],
+        zCounter: Math.max(state.zCounter, action.component.z ?? 0),
+      }
     case "REMOVE_COMPONENT":
       return {
         ...state,
@@ -377,6 +402,18 @@ function reducer(state: WSState, action: Action): WSState {
       return { ...state, actionGlow: action.enabled }
     case "SET_CARD_ELEVATION":
       return { ...state, cardElevation: action.enabled }
+    case "SET_BG_MODE":
+      if (typeof localStorage !== "undefined") localStorage.setItem("xiranite-bg-mode", action.mode)
+      return { ...state, bgMode: action.mode }
+    case "SET_BG_IMAGE_URL":
+      if (typeof localStorage !== "undefined") localStorage.setItem("xiranite-bg-image-url", action.url)
+      return { ...state, bgImageUrl: action.url }
+    case "SET_BG_OPACITY":
+      if (typeof localStorage !== "undefined") localStorage.setItem("xiranite-bg-opacity", String(action.opacity))
+      return { ...state, bgOpacity: action.opacity }
+    case "SET_BG_BLUR":
+      if (typeof localStorage !== "undefined") localStorage.setItem("xiranite-bg-blur", String(action.blur))
+      return { ...state, bgBlur: action.blur }
     case "BACKEND_READY":
       return { ...state, backendReady: action.ready }
     case "HYDRATE":
@@ -725,6 +762,7 @@ export const actions = {
   removeWorkspace: (id: string): Action => ({ type: "REMOVE_WORKSPACE", id }),
   renameWorkspace: (id: string, label: string): Action => ({ type: "RENAME_WORKSPACE", id, label }),
   deployComponent: (moduleId: string, viewMode?: ViewMode): Action => ({ type: "DEPLOY_COMPONENT", moduleId, viewMode }),
+  ensureComponent: (component: ComponentInstance): Action => ({ type: "ENSURE_COMPONENT", component }),
   removeComponent: (id: string): Action => ({ type: "REMOVE_COMPONENT", id }),
   setComponentState: (id: string, state: ComponentState): Action => ({ type: "SET_COMPONENT_STATE", id, state }),
   setComponentPosition: (id: string, x: number, y: number): Action => ({ type: "SET_COMPONENT_POSITION", id, x, y }),
@@ -748,6 +786,10 @@ export const actions = {
   setGrainIntensity: (intensity: number): Action => ({ type: "SET_GRAIN_INTENSITY", intensity }),
   setActionGlow: (enabled: boolean): Action => ({ type: "SET_ACTION_GLOW", enabled }),
   setCardElevation: (enabled: boolean): Action => ({ type: "SET_CARD_ELEVATION", enabled }),
+  setBgMode: (mode: "grid" | "dot-grid" | "image" | "none"): Action => ({ type: "SET_BG_MODE", mode }),
+  setBgImageUrl: (url: string): Action => ({ type: "SET_BG_IMAGE_URL", url }),
+  setBgOpacity: (opacity: number): Action => ({ type: "SET_BG_OPACITY", opacity }),
+  setBgBlur: (blur: number): Action => ({ type: "SET_BG_BLUR", blur }),
   addLane: (workspaceId?: string, label?: string): Action => ({ type: "ADD_LANE", workspaceId, label }),
   removeLane: (id: string): Action => ({ type: "REMOVE_LANE", id }),
   renameLane: (id: string, label: string): Action => ({ type: "RENAME_LANE", id, label }),

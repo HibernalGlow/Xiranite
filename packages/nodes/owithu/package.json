@@ -20,6 +20,10 @@
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
     }
   },
   "files": [

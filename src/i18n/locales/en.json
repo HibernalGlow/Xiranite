@@ -129,6 +129,21 @@
       "zh": "中文（简体）",
       "restartHint": "Changes apply instantly."
     },
+    "background": {
+      "title": "Background Canvas",
+      "mode": "BACKGROUND MODE",
+      "modes": {
+        "grid": "Grid Lines",
+        "dot-grid": "Dotted Grid",
+        "image": "Custom Image",
+        "none": "Solid Color"
+      },
+      "uploadImage": "UPLOAD IMAGE",
+      "chooseFile": "Choose File",
+      "imageUrl": "OR IMAGE URL",
+      "opacity": "Opacity",
+      "blur": "Blur"
+    },
     "atmospheric": {
       "title": "Atmospheric Effects",
       "vignette": "Vignette Depth",

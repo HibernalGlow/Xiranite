@@ -10,6 +10,7 @@ import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
+  CircleDot, Image,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -312,6 +313,39 @@ export function TopBar() {
                         >
                           <Icon className="h-3.5 w-3.5" />
                           <span className="text-[10px] font-mono">{t(m.labelKey)}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 背景模式 */}
+                <div className="border-t border-border/60 p-2">
+                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("settings:background.mode")}</p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[
+                      { key: "grid", icon: Grid },
+                      { key: "dot-grid", icon: CircleDot },
+                      { key: "image", icon: Image },
+                      { key: "none", icon: Palette },
+                    ].map(m => {
+                      const Icon = m.icon
+                      const isActive = state.bgMode === m.key
+                      return (
+                        <button
+                          key={m.key}
+                          onClick={() => dispatch(actions.setBgMode(m.key as any))}
+                          className={cn(
+                            "flex flex-col items-center gap-1 py-1.5 rounded-sm border transition-all cursor-pointer",
+                            isActive
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border/40 hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span className="text-[8px] font-mono text-center truncate max-w-full px-0.5">
+                            {t(`settings:background.modes.${m.key}`)}
+                          </span>
                         </button>
                       )
                     })}

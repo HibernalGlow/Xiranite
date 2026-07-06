@@ -57,9 +57,135 @@ export const workspaceSnapshotSchema = z.object({
   components: z.array(componentSchema),
 })
 
+export const nodeRunEventSchema = z.object({
+  type: z.enum(["progress", "log"]),
+  progress: z.number().optional(),
+  message: z.string(),
+})
+
+export const nodeRunResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.unknown().optional(),
+  stats: z.record(z.string(), z.number()).optional(),
+  outputPath: z.string().optional(),
+})
+
+export const nodeRunRequestSchema = z.object({
+  input: z.unknown().optional(),
+})
+
+export const nodeRunResponseSchema = z.object({
+  result: nodeRunResultSchema,
+  events: z.array(nodeRunEventSchema),
+})
+
+export const nodeOperationPhaseSchema = z.enum(["queued", "running", "completed", "error", "cancelled"])
+
+export const nodeOperationSchema = z.object({
+  operationId: z.string().min(1),
+  nodeId: z.string().min(1),
+  phase: nodeOperationPhaseSchema,
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+  startedAt: z.number().int().nonnegative().optional(),
+  cancelledAt: z.number().int().nonnegative().optional(),
+  finishedAt: z.number().int().nonnegative().optional(),
+  eventCount: z.number().int().nonnegative(),
+  result: nodeRunResultSchema.optional(),
+})
+
+export const nodeOperationEventSchema = z.object({
+  index: z.number().int().nonnegative(),
+  event: nodeRunEventSchema,
+})
+
+export const nodeOperationStartResponseSchema = z.object({
+  operation: nodeOperationSchema,
+})
+
+export const nodeOperationEventsResponseSchema = z.object({
+  operation: nodeOperationSchema,
+  events: z.array(nodeOperationEventSchema),
+  from: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  next: z.number().int().nonnegative().optional(),
+  total: z.number().int().nonnegative(),
+})
+
+export const nodeOperationCleanupResponseSchema = z.object({
+  removedCount: z.number().int().nonnegative(),
+  remainingCount: z.number().int().nonnegative(),
+})
+
+export const nodeOperationStreamMessageSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("operation"),
+    operation: nodeOperationSchema,
+  }),
+  z.object({
+    type: z.literal("event"),
+    index: z.number().int().nonnegative(),
+    event: nodeRunEventSchema,
+  }),
+  z.object({
+    type: z.literal("result"),
+    operation: nodeOperationSchema,
+    result: nodeRunResultSchema,
+  }),
+])
+
 export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>
 export type RenameWorkspaceInput = z.infer<typeof renameWorkspaceInputSchema>
 export type WorkspaceSnapshotDTO = z.infer<typeof workspaceSnapshotSchema>
+export type NodeRunEventDTO = z.infer<typeof nodeRunEventSchema>
+export type NodeOperationPhaseDTO = z.infer<typeof nodeOperationPhaseSchema>
+export interface NodeRunResultDTO<TData = unknown> {
+  success: boolean
+  message: string
+  data?: TData
+  stats?: Record<string, number>
+  outputPath?: string
+}
+export interface NodeRunResponseDTO<TData = unknown> {
+  result: NodeRunResultDTO<TData>
+  events: NodeRunEventDTO[]
+}
+export interface NodeOperationDTO<TData = unknown> {
+  operationId: string
+  nodeId: string
+  phase: NodeOperationPhaseDTO
+  createdAt: number
+  updatedAt: number
+  startedAt?: number
+  cancelledAt?: number
+  finishedAt?: number
+  eventCount: number
+  result?: NodeRunResultDTO<TData>
+}
+export interface NodeOperationEventDTO {
+  index: number
+  event: NodeRunEventDTO
+}
+export interface NodeOperationStartResponseDTO<TData = unknown> {
+  operation: NodeOperationDTO<TData>
+}
+export interface NodeOperationEventsResponseDTO<TData = unknown> {
+  operation: NodeOperationDTO<TData>
+  events: NodeOperationEventDTO[]
+  from: number
+  limit: number
+  next?: number
+  total: number
+}
+export interface NodeOperationCleanupResponseDTO {
+  removedCount: number
+  remainingCount: number
+}
+export type NodeOperationStreamMessageDTO<TData = unknown> =
+  | { type: "operation"; operation: NodeOperationDTO<TData> }
+  | { type: "event"; index: number; event: NodeRunEventDTO }
+  | { type: "result"; operation: NodeOperationDTO<TData>; result: NodeRunResultDTO<TData> }

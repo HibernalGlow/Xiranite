@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./libsql": {
+      "types": "./dist/libsql.d.ts",
+      "default": "./dist/libsql.js"
     }
   },
   "files": [
@@ -16,10 +20,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "bun run build"
+    "test": "bun test src/**/*.test.ts && bun run build"
   },
   "dependencies": {
-    "@xiranite/shared": "workspace:*"
+    "@libsql/client": "^0.15.15",
+    "@xiranite/shared": "workspace:*",
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
     "typescript": "~5.9.3"

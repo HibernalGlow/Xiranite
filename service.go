@@ -397,7 +397,7 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		},
 		Windows: application.WindowsWindow{
 			Theme:            application.SystemDefault,
-			ResizeDebounceMS: 16,
+			ResizeDebounceMS: 0,
 		},
 		BackgroundColour: application.NewRGB(20, 20, 20),
 		URL:              "/?" + query.Encode(),

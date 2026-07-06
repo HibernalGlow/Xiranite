@@ -1,11 +1,12 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { getModule } from "@/components/modules/registry"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
-import { useWorkspace } from "@/store/workspaceContext"
-import { X } from "lucide-react"
+import { actions, useWorkspace, useWSDispatch } from "@/store/workspaceContext"
+import type { ComponentInstance } from "@/types/workspace"
+import { Minus, Minimize2, Square, X } from "lucide-react"
 
 interface Props {
   compId: string
@@ -17,6 +18,8 @@ interface Props {
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
   const { t, i18n } = useTranslation()
   const { state } = useWorkspace()
+  const dispatch = useWSDispatch()
+  const [isMaximized, setIsMaximized] = useState(false)
   const comp = state.components.find((item) => item.id === compId)
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const mod = getModule(moduleId)
@@ -33,19 +36,63 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
     return `${comp.workspaceId} / ${comp.id}`
   }, [comp, moduleId, t])
 
-  async function closeWindow() {
+  useEffect(() => {
+    if (!moduleId || comp) return
+
+    const now = Date.now()
+    const fallbackComponent: ComponentInstance = {
+      id: compId,
+      moduleId,
+      state: "floating",
+      position: { x: 20, y: 20 },
+      size: { w: 460, h: 380 },
+      z: state.zCounter + 1,
+      collapsed: false,
+      workspaceId: state.activeWorkspaceId,
+      flowPosition: { x: 100, y: 100 },
+      flowSize: { width: 384, height: 320 },
+      dockPanel: "default",
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    dispatch(actions.ensureComponent(fallbackComponent))
+  }, [comp, compId, dispatch, moduleId, state.activeWorkspaceId, state.zCounter])
+
+  async function controlWindow(action: "minimize" | "maximize" | "close") {
     try {
       const backend = await getBackend()
-      await backend.windows.close(windowId ?? compId)
+      const result = await backend.windows.controlMain(action)
+      if (result.success && result.state) {
+        setIsMaximized(result.state === "maximized")
+      }
+      if (result.success) return
+
+      if (action === "close") {
+        await backend.windows.close(windowId ?? compId)
+      }
     } catch {
       // Browser fallback windows may not be tracked by the backend.
     }
-    window.close()
+
+    if (action === "close") {
+      window.close()
+    }
+  }
+
+  function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
+    if (event.target instanceof Element && event.target.closest(".xiranite-app-region-no-drag")) return
+
+    event.preventDefault()
+    void controlWindow("maximize")
   }
 
   return (
-    <div className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
-      <header className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3">
+    <div className={cn("xiranite-floating-window flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
+      <header
+        onDoubleClick={handleTitleBarDoubleClick}
+        className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3"
+      >
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
@@ -53,16 +100,34 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
         </div>
         <button
           type="button"
+          title={t("common:minimize")}
+          aria-label={t("common:minimize")}
+          onClick={() => controlWindow("minimize")}
+          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          title={t("common:maximize")}
+          aria-label={t("common:maximize")}
+          onClick={() => controlWindow("maximize")}
+          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
+        </button>
+        <button
+          type="button"
           title={t("common:closeWindow")}
           aria-label={t("common:closeWindow")}
-          onClick={closeWindow}
+          onClick={() => controlWindow("close")}
           className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-hidden p-2">
+      <main className="xiranite-app-region-no-drag min-h-0 flex-1 overflow-hidden p-2">
         {moduleId ? (
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         ) : (

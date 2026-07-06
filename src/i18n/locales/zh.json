@@ -129,6 +129,21 @@
       "zh": "中文（简体）",
       "restartHint": "更改立即生效。"
     },
+    "background": {
+      "title": "背景画布",
+      "mode": "背景模式",
+      "modes": {
+        "grid": "网格线",
+        "dot-grid": "圆点网格",
+        "image": "自定义图片",
+        "none": "纯色"
+      },
+      "uploadImage": "上传图片",
+      "chooseFile": "选择文件",
+      "imageUrl": "或输入图片 URL",
+      "opacity": "不透明度",
+      "blur": "模糊度"
+    },
     "atmospheric": {
       "title": "氛围效果",
       "vignette": "晕影深度",

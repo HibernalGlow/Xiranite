@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -280,6 +280,127 @@ export function ThemeSettings() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Background settings card */}
+            <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+              <h3 className="text-lg font-semibold text-foreground">{t("settings:background.title")}</h3>
+
+              {/* Background Mode Selector */}
+              <div className="space-y-2">
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:background.mode")}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { key: "grid", label: t("settings:background.modes.grid"), icon: Grid },
+                    { key: "dot-grid", label: t("settings:background.modes.dot-grid"), icon: CircleDot },
+                    { key: "image", label: t("settings:background.modes.image"), icon: Image },
+                    { key: "none", label: t("settings:background.modes.none"), icon: Palette },
+                  ].map(({ key, label, icon: Icon }) => {
+                    const isActive = state.bgMode === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => dispatch(actions.setBgMode(key as any))}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 p-3 rounded-sm border transition-all cursor-pointer",
+                          isActive
+                            ? "border-primary/50 bg-primary/8 text-primary"
+                            : "border-border/40 hover:border-border hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="text-[10px] font-mono text-center leading-tight">{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Image mode config */}
+              {state.bgMode === "image" && (
+                <div className="space-y-4 pt-2 border-t border-border/40">
+                  {/* Upload row */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:background.uploadImage")}</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id="bg-file-upload"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const reader = new FileReader()
+                          reader.onload = (event) => {
+                            const dataUrl = event.target?.result as string
+                            dispatch(actions.setBgImageUrl(dataUrl))
+                          }
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="font-mono text-xs cursor-pointer"
+                        onClick={() => document.getElementById("bg-file-upload")?.click()}
+                      >
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        {t("settings:background.chooseFile")}
+                      </Button>
+                      {state.bgImageUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="font-mono text-xs cursor-pointer hover:text-destructive"
+                          onClick={() => dispatch(actions.setBgImageUrl(""))}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1.5" />
+                          {t("common:clear")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Image URL input */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:background.imageUrl")}</p>
+                    <input
+                      type="text"
+                      value={state.bgImageUrl}
+                      onChange={(e) => dispatch(actions.setBgImageUrl(e.target.value))}
+                      placeholder="https://example.com/bg.jpg"
+                      className="w-full px-3 py-1.5 text-xs font-mono rounded border border-border bg-muted/20 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50"
+                    />
+                  </div>
+
+                  {/* Opacity slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-foreground font-mono">{t("settings:background.opacity")}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{state.bgOpacity}%</span>
+                    </div>
+                    <Slider
+                      value={[state.bgOpacity]}
+                      onValueChange={([v]) => dispatch(actions.setBgOpacity(v))}
+                      min={0} max={100} step={5}
+                    />
+                  </div>
+
+                  {/* Blur slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-foreground font-mono">{t("settings:background.blur")}</span>
+                      <span className="text-xs font-mono text-muted-foreground">{state.bgBlur}px</span>
+                    </div>
+                    <Slider
+                      value={[state.bgBlur]}
+                      onValueChange={([v]) => dispatch(actions.setBgBlur(v))}
+                      min={0} max={30} step={1}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Texture canvas preview */}

@@ -23,6 +23,7 @@ interface Props {
   isFocused: boolean
   hasFocused: boolean
   cardLayout: CardLayout
+  isLayoutResizing: boolean
 }
 
 const stateLabelKey: Record<ComputedLayout["state"], string> = {
@@ -33,7 +34,7 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
   fullscreen: "common:full",
 }
 
-function ComponentCardInner({ comp, layout }: Props) {
+function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
   const dispatch = useWSDispatch()
   const { t, i18n } = useTranslation()
   const mod = getModule(comp.moduleId)
@@ -90,7 +91,7 @@ function ComponentCardInner({ comp, layout }: Props) {
         opacity: layout.opacity,
         scale: layout.scale,
       }}
-      transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.7 }}
+      transition={isLayoutResizing ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 34, mass: 0.7 }}
       onPointerDown={() => dispatch(actions.raiseComponent(comp.id))}
       style={{
         position: "absolute",
@@ -98,7 +99,8 @@ function ComponentCardInner({ comp, layout }: Props) {
         pointerEvents: layout.interactive ? "auto" : "none",
       }}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-md border bg-card backdrop-blur-sm",
+        "group flex flex-col overflow-hidden rounded-md border bg-card",
+        !isLayoutResizing && "comp-card--animated backdrop-blur-sm",
         isFullscreen && "comp-card--fullscreen",
         (isFocusedState || isFullscreen)
           ? "border-primary/60 shadow-[0_0_0_1px_var(--ws-accent-glow),0_24px_60px_-20px_var(--ws-accent-glow)]"

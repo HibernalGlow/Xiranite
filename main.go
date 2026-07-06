@@ -23,6 +23,18 @@ func init() {
 
 func main() {
 	service := NewXiraniteService()
+	localBackend, err := StartLocalBackend()
+	if err != nil {
+		log.Printf("Xiranite local backend is unavailable: %v", err)
+	} else {
+		defer localBackend.Stop()
+		log.Printf("Xiranite local backend ready: %s", localBackend.Config.BaseURL)
+	}
+
+	var backendConfig *LocalBackendConfig
+	if localBackend != nil {
+		backendConfig = &localBackend.Config
+	}
 
 	App = application.New(application.Options{
 		Name:        "Xiranite",
@@ -31,7 +43,8 @@ func main() {
 			application.NewService(service),
 		},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
+			Handler:    application.AssetFileServerFS(assets),
+			Middleware: backendConfigMiddleware(backendConfig),
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
@@ -48,7 +61,7 @@ func main() {
 		},
 		Windows: application.WindowsWindow{
 			Theme:            application.SystemDefault,
-			ResizeDebounceMS: 16,
+			ResizeDebounceMS: 0,
 		},
 		BackgroundColour: application.NewRGB(20, 20, 20),
 		URL:              "/",

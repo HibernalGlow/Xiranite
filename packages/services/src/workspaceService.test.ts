@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
-import { WorkspaceService } from "./index.js"
+import { NodeRunnerService, WorkspaceService } from "./index.js"
 
 describe("WorkspaceService", () => {
   test("creates and renames workspaces through the repository contract", async () => {
@@ -62,6 +62,79 @@ describe("WorkspaceService", () => {
     const nextSnapshot = { workspaces: [], lanes: [], components: [] }
     expect(await service.saveSnapshot(nextSnapshot)).toEqual(nextSnapshot)
     expect(await service.getSnapshot()).toEqual(nextSnapshot)
+  })
+})
+
+describe("NodeRunnerService", () => {
+  test("cancels an operation and ignores late runner completion", async () => {
+    let releaseRunner!: () => void
+    const runnerGate = new Promise<void>((resolve) => {
+      releaseRunner = resolve
+    })
+    const service = new NodeRunnerService({
+      now: fixedClock([100, 110, 120, 130, 140, 150, 160]),
+      createOperationId: () => "op-cancel",
+      runner: {
+        async runNode(_nodeId, _input, onEvent) {
+          onEvent?.({ type: "log", message: "started" })
+          await runnerGate
+          onEvent?.({ type: "log", message: "late event" })
+          return { success: true, message: "late success" }
+        },
+      },
+    })
+
+    const started = service.startOperation("slow", { value: 1 })
+    await Bun.sleep(1)
+    const cancelled = service.cancelOperation(started.operationId, "Stop requested.")
+    const result = await service.waitForOperation(started.operationId)
+
+    releaseRunner()
+    await Bun.sleep(1)
+
+    const final = service.getOperation(started.operationId)
+    const events = service.getOperationEvents(started.operationId)
+
+    expect(cancelled?.phase).toBe("cancelled")
+    expect(result).toEqual({ success: false, message: "Stop requested." })
+    expect(final?.phase).toBe("cancelled")
+    expect(final?.result).toEqual({ success: false, message: "Stop requested." })
+    expect(events?.events.map((entry) => entry.event.message)).toEqual(["started", "Stop requested."])
+  })
+
+  test("paginates operation events and cleans up expired terminal operations", async () => {
+    let now = 100
+    let id = 0
+    const service = new NodeRunnerService({
+      now: () => now,
+      createOperationId: () => `op-${id += 1}`,
+      runner: {
+        async runNode(_nodeId, _input, onEvent) {
+          onEvent?.({ type: "log", message: "one" })
+          onEvent?.({ type: "log", message: "two" })
+          onEvent?.({ type: "log", message: "three" })
+          return { success: true, message: "done" }
+        },
+      },
+    })
+
+    const operation = service.startOperation("logs", {})
+    const result = await service.waitForOperation(operation.operationId)
+    const page = service.getOperationEvents(operation.operationId, { fromEventIndex: 1, limit: 1 })
+
+    now = 10_000
+    const cleanup = service.cleanupOperations({ maxAgeMs: 0 })
+
+    expect(result).toEqual({ success: true, message: "done" })
+    expect(page).toMatchObject({
+      from: 1,
+      limit: 1,
+      next: 2,
+      total: 3,
+    })
+    expect(page?.events.map((entry) => [entry.index, entry.event.message])).toEqual([[1, "two"]])
+    expect(cleanup).toEqual({ removedCount: 1, remainingCount: 0 })
+    expect(service.getOperation(operation.operationId)).toBeUndefined()
   })
 })
 
