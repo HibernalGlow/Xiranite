@@ -12,8 +12,8 @@ import type {
   ViewMode,
   WorkspaceItem,
 } from "@/types/workspace"
-import { getBackend } from "@/backend/client"
-import type { WorkspaceDTO, LaneDTO, ComponentDTO } from "@/backend/shared/types"
+import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnapshot as persistWorkspaceSnapshotRpc } from "@/backend/workspaceRpcClient"
+import type { WorkspaceDTO, LaneDTO, ComponentDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 
 interface WSState {
   theme: AppTheme
@@ -97,11 +97,7 @@ type WSStore = WSState & {
   dispatch: Dispatch<Action>
 }
 
-interface WorkspaceSnapshot {
-  workspaces: WorkspaceDTO[]
-  lanes: LaneDTO[]
-  components: ComponentDTO[]
-}
+type WorkspaceSnapshot = WorkspaceSnapshotDTO
 
 const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
 const WORKSPACE_SNAPSHOT_QUERY_KEY = ["workspace", "snapshot"] as const
@@ -627,24 +623,11 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
 }
 
 async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  const backend = await getBackend()
-  const [workspaces, lanes, components] = await Promise.all([
-    backend.workspace.listWorkspaces(),
-    backend.workspace.listLanes(),
-    backend.workspace.listComponents(),
-  ])
-
-  return { workspaces, lanes, components }
+  return loadWorkspaceSnapshotRpc()
 }
 
 async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<void> {
-  const backend = await getBackend()
-
-  await Promise.all([
-    Promise.all(snapshot.workspaces.map((workspace) => backend.workspace.saveWorkspace(workspace))),
-    Promise.all(snapshot.lanes.map((lane) => backend.workspace.saveLane(lane))),
-    Promise.all(snapshot.components.map((component) => backend.workspace.saveComponent(component))),
-  ])
+  await persistWorkspaceSnapshotRpc(snapshot)
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -689,7 +672,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!workspaceQuery.error) return
 
     console.error("[backend] hydrate failed:", workspaceQuery.error)
-    dispatch({ type: "BACKEND_READY", ready: true })
+    dispatch({ type: "BACKEND_READY", ready: false })
   }, [dispatch, workspaceQuery.error])
 
   useEffect(() => {

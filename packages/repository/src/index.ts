@@ -1,4 +1,4 @@
-import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
+import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 
 export interface WorkspaceRepository {
   listWorkspaces(): Promise<WorkspaceDTO[]>
@@ -7,6 +7,7 @@ export interface WorkspaceRepository {
   deleteWorkspace(id: string): Promise<void>
   listLanes(): Promise<LaneDTO[]>
   listComponents(): Promise<ComponentDTO[]>
+  saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
 }
 
 export interface MemoryWorkspaceRepositoryOptions {
@@ -46,6 +47,12 @@ export function createMemoryWorkspaceRepository(options: MemoryWorkspaceReposito
     },
     async listComponents() {
       return clone(components)
+    },
+    async saveSnapshot(snapshot) {
+      workspaces = clone(snapshot.workspaces)
+      lanes = clone(snapshot.lanes)
+      components = clone(snapshot.components)
+      return clone(snapshot)
     },
   }
 }

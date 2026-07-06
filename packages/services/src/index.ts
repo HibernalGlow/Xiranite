@@ -4,7 +4,9 @@ import {
   renameWorkspaceInputSchema,
   type CreateWorkspaceInput,
   type RenameWorkspaceInput,
+  type WorkspaceSnapshotDTO,
   type WorkspaceDTO,
+  workspaceSnapshotSchema,
 } from "@xiranite/shared"
 
 export interface WorkspaceServiceOptions {
@@ -47,6 +49,21 @@ export class WorkspaceService {
 
   async deleteWorkspace(id: string): Promise<void> {
     await this.repository.deleteWorkspace(id)
+  }
+
+  async getSnapshot(): Promise<WorkspaceSnapshotDTO> {
+    const [workspaces, lanes, components] = await Promise.all([
+      this.repository.listWorkspaces(),
+      this.repository.listLanes(),
+      this.repository.listComponents(),
+    ])
+
+    return { workspaces, lanes, components }
+  }
+
+  async saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO> {
+    const parsed = workspaceSnapshotSchema.parse(snapshot)
+    return this.repository.saveSnapshot(parsed)
   }
 }
 

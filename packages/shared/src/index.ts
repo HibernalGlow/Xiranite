@@ -51,8 +51,15 @@ export const renameWorkspaceInputSchema = z.object({
   label: z.string().trim().min(1),
 })
 
+export const workspaceSnapshotSchema = z.object({
+  workspaces: z.array(workspaceSchema),
+  lanes: z.array(laneSchema),
+  components: z.array(componentSchema),
+})
+
 export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>
 export type RenameWorkspaceInput = z.infer<typeof renameWorkspaceInputSchema>
+export type WorkspaceSnapshotDTO = z.infer<typeof workspaceSnapshotSchema>

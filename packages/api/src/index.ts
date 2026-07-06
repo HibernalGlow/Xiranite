@@ -1,7 +1,6 @@
-import { treaty, type Treaty } from "@elysiajs/eden"
 import { Elysia } from "elysia"
 import type { XiraniteServices } from "@xiranite/services"
-import { createWorkspaceInputSchema, renameWorkspaceInputSchema } from "@xiranite/shared"
+import { createWorkspaceInputSchema, renameWorkspaceInputSchema, workspaceSnapshotSchema } from "@xiranite/shared"
 
 export function createXiraniteApp(services: XiraniteServices) {
   return new Elysia({ name: "xiranite-api" })
@@ -10,26 +9,28 @@ export function createXiraniteApp(services: XiraniteServices) {
       const workspaces = await services.workspace.listWorkspaces()
       return { workspaces }
     })
+    .get("/workspace/snapshot", async () => {
+      const snapshot = await services.workspace.getSnapshot()
+      return { snapshot }
+    })
+    .put("/workspace/snapshot", async ({ body }) => {
+      const snapshot = await services.workspace.saveSnapshot(body)
+      return { snapshot }
+    }, {
+      body: workspaceSnapshotSchema,
+    })
     .post("/workspace", async ({ body, set }) => {
-      const parsed = createWorkspaceInputSchema.safeParse(body)
-      if (!parsed.success) {
-        set.status = 400
-        return { error: parsed.error.flatten() }
-      }
-
-      const workspace = await services.workspace.createWorkspace(parsed.data)
+      const workspace = await services.workspace.createWorkspace(body)
       set.status = 201
       return { workspace }
+    }, {
+      body: createWorkspaceInputSchema,
     })
-    .post("/workspace/:id/rename", async ({ body, params, set }) => {
-      const parsed = renameWorkspaceInputSchema.safeParse(body)
-      if (!parsed.success) {
-        set.status = 400
-        return { error: parsed.error.flatten() }
-      }
-
-      const workspace = await services.workspace.renameWorkspace(params.id, parsed.data)
+    .post("/workspace/:id/rename", async ({ body, params }) => {
+      const workspace = await services.workspace.renameWorkspace(params.id, body)
       return { workspace }
+    }, {
+      body: renameWorkspaceInputSchema,
     })
     .delete("/workspace/:id", async ({ params }) => {
       await services.workspace.deleteWorkspace(params.id)
@@ -38,7 +39,3 @@ export function createXiraniteApp(services: XiraniteServices) {
 }
 
 export type XiraniteApp = ReturnType<typeof createXiraniteApp>
-
-export function createXiraniteClient(baseUrl: string): Treaty.Create<XiraniteApp> {
-  return treaty<XiraniteApp>(baseUrl)
-}

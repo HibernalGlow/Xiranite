@@ -1,5 +1,42 @@
 # Xiranite 现代化优化决策
 
+## 实时状态
+
+更新时间：2026-07-06
+
+当前阶段：P1 Local Service 最小闭环已通过，下一步是 P3 桌面壳启动/注入 local backend 与 P2 SQLite repository。
+
+已完成：
+
+- [x] 架构主线改为 Local-First + Service-Oriented。
+- [x] 明确节点包 CLI 仍然独立运行，不依赖 Xiranite Local Backend。
+- [x] RPC 框架决策从 Hono 改为 Elysia + Eden Treaty。
+- [x] 新增 `@xiranite/shared`，放置 workspace/lane/component DTO 与 zod schema。
+- [x] 新增 `@xiranite/repository`，放置 WorkspaceRepository interface 与 memory adapter。
+- [x] 新增 `@xiranite/services`，放置 WorkspaceService 最小业务闭环。
+- [x] 新增 `@xiranite/api`，放置 Elysia app 与 Eden client helper。
+- [x] 新增 `@xiranite/backend`，放置 Bun local backend server 入口。
+- [x] workspace snapshot DTO、Elysia route 与 Eden client 已建立。
+- [x] 根应用 workspace hydrate/persist 已从内嵌 backend façade 切到 Elysia RPC client。
+- [x] Elysia 写入路由改为 zod body schema 驱动，Eden client 不再需要手动 body cast。
+- [x] `@xiranite/services` 单测通过。
+- [x] `@xiranite/backend` Elysia app 与 token 保护单测通过。
+- [x] `bun run typecheck` 通过。
+- [x] `bun run test:packages` 通过。
+- [x] `bun run build:packages` 通过。
+- [x] `bun run build` 通过。
+
+进行中：
+
+- [ ] 抽离 desktop/dev 启动 local backend 的流程，并向 React 注入 `window.__XIRANITE_BACKEND__`。
+
+待办：
+
+- [ ] 建立 SQLite/libSQL + Drizzle repository adapter。
+- [ ] 将 window/fs/nodeRunner 等剩余 `getBackend()` 能力迁到 Local Service 或桌面壳边界。
+- [ ] NodeRunnerService 改为 Local Service 内流式事件 + operationId。
+- [ ] 保持节点包架构扫描，确保 CLI 独立入口不被平台 backend 污染。
+
 本文定义 Xiranite 的长期技术路线。新的核心判断是：Xiranite 不应继续按传统“桌面壳 + 框架专属 IPC + 前端直连存储”的模式演进，而应转向 **Local-First + Service-Oriented**。
 
 目标是把产品当成一个本地运行的 TypeScript 服务平台：
@@ -69,9 +106,9 @@ xrepacku
 
 - 当前主应用仍在仓库根目录，桌面壳是 Wails v3 alpha。
 - 当前 `src/backend/*` 其实已经是前端工程里的 service façade，但运行在 WebView 侧，底层再通过 Wails IPC/Mock runtime 调能力。
-- `RuntimeInterface` 已存在，包含 fs、subprocess、storage、events、nodeRunner、windows，但 `kind` 还没有 `node`，也没有真正的 Bun/Node local service。
+- `RuntimeInterface` 已存在，包含 fs、subprocess、storage、events、nodeRunner、windows，但 `kind` 还没有 `node`；`packages/backend` 已有 Bun/Elysia 最小服务，尚未由 Wails/dev shell 托管。
 - Workspace 状态已经开始从 `useReducer + Context` 收敛到 Zustand。
-- TanStack Query 已在主入口存在，workspace hydrate/persist 已开始改为 Query/Mutation。
+- TanStack Query 已在主入口存在，workspace hydrate/persist 已切到 Elysia RPC client；没有注入 local backend 配置时 UI 会保留初始状态，但不会持久化。
 - 节点包结构已经基本正确：`core.ts` 注入 runtime，`cli.ts` 直接调用本包 `core + platform`，`Component.tsx` 作为无壳内容。
 - CLI 后续计划单独见 [cli-modernization-plan.md](cli-modernization-plan.md)。
 
@@ -211,14 +248,14 @@ Runtime 管原生能力，不管业务：
 
 状态：
 
-- 已开始把 workspace hydrate/persist 改为 query/mutation。
-- `useBackend` 应统一由 `useQuery(["backend"])` 管初始化。
+- workspace hydrate/persist 已由 TanStack Query/Mutation 调用 `@xiranite/api/client`。
+- 下一步是把 backend 初始化、错误提示、重试和 dev backend lifecycle 纳入 Query。
 
 原则：
 
 - React Query 管服务数据、RPC 请求、loading/error/mutation。
 - Zustand 不直接承担远端数据缓存。
-- 后续 RPC client 接入后，Query 的 `queryFn` 从 `getBackend()` 改为 typed RPC client。
+- Query 的 `queryFn`/`mutationFn` 默认调用 typed RPC client；禁止新代码回到 `getBackend().workspace.*`。
 
 ### 3. 删除手写基础设施
 
@@ -264,6 +301,12 @@ Memory/JSON adapter
 - `bun --filter @xiranite/backend build`
 - `bun --filter @xiranite/backend test`
 - 本地 service 能返回 workspace list。
+
+当前状态：
+
+- 上述 package build/test 已通过。
+- 根应用 `bun run typecheck`、`bun run test:packages`、`bun run build` 已通过。
+- 当前 repository 仍是 memory adapter，仅用于打通服务边界；持久化正确性要在 P2 SQLite 阶段解决。
 
 ## P2: SQLite 主存储
 
@@ -370,8 +413,8 @@ NodeRunnerService
 
 第三阶段：前端改走 RPC
 
-1. 建立 typed RPC client。
-2. React Query queryFn 从 `getBackend()` 切到 RPC client。
+1. 建立 typed RPC client。已完成 workspace snapshot。
+2. React Query queryFn 从 `getBackend()` 切到 RPC client。已完成 workspace hydrate/persist。
 3. 保留 Wails runtime 只处理窗口和启动器。
 4. 移除前端内嵌 business service。
 

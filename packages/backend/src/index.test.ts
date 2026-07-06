@@ -13,6 +13,25 @@ describe("backend", () => {
     expect(body.workspaces).toEqual([{ id: "ws-default", label: "Default", createdAt: 100, updatedAt: 100 }])
   })
 
+  test("serves and persists workspace snapshots", async () => {
+    const app = createDefaultBackendApp({ now: 100 })
+    const load = await app.handle(new Request("http://localhost/workspace/snapshot"))
+    const snapshot = await load.json() as { snapshot: { workspaces: unknown[]; lanes: unknown[]; components: unknown[] } }
+
+    expect(load.status).toBe(200)
+    expect(snapshot.snapshot.workspaces).toHaveLength(1)
+
+    const save = await app.handle(new Request("http://localhost/workspace/snapshot", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspaces: [], lanes: [], components: [] }),
+    }))
+    const saved = await save.json() as { snapshot: { workspaces: unknown[]; lanes: unknown[]; components: unknown[] } }
+
+    expect(save.status).toBe(200)
+    expect(saved.snapshot.workspaces).toHaveLength(0)
+  })
+
   test("protects local service routes with a token", async () => {
     const backend = startBackend({ token: "test-token" })
     try {
