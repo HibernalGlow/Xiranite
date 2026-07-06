@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { FindzAction, FindzData, FindzInput, FindzResult } from "./core.js"
 import { formatFoundPath } from "./core.js"
 
@@ -54,11 +54,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-findz CLI for filesystem search.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-findz CLI for filesystem search.")
 
     setRunning(true)
     patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
@@ -78,13 +74,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   async function showHelp() {
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Filter help is available from `xiranite-findz help-filter`.")
-      return
-    }
-    const response = await runNode<FindzInput, FindzData>("findz", { action: "help" }) as FindzResult
-    patch({ result: response.data ?? null })
+    log("Filter help is available from `xiranite-findz help-filter`.")
   }
 
   async function copyResults() {

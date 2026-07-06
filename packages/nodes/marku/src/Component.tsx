@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileCode, History, Play, RotateCcw, Undo2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { MarkuData, MarkuInput, MarkuModuleId, MarkuResult } from "./core.js"
 import { MARKU_MODULES } from "./core.js"
 
@@ -50,11 +50,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: MarkuInput["action"] = "run") {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-marku CLI for Markdown actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-marku CLI for Markdown actions.")
     setRunning(true)
     patch({ phase: action })
     const response = await runNode<MarkuInput, MarkuData>("marku", {

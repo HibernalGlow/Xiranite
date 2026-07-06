@@ -66,10 +66,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
 
     try {
-      const runNode = host.runner?.runNode
-      const result = runNode
-        ? await runNode<SleeptInput, unknown>("sleept", input, onEvent)
-        : await runSleept({ ...input, dryrun: true }, createBrowserRuntime(), onEvent)
+      const result = await runSleept({ ...input, dryrun: true }, createBrowserRuntime(), onEvent)
 
       setPhase(result.success ? "completed" : "error")
       log(result.message)

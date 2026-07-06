@@ -53,20 +53,11 @@ export interface NodeRunResult<TData = unknown> {
   outputPath?: string
 }
 
-export interface NodeRunnerApi {
-  runNode: <TInput = unknown, TData = unknown>(
-    nodeId: string,
-    input: TInput,
-    onEvent?: (event: NodeRunEvent) => void,
-  ) => Promise<NodeRunResult<TData>>
-}
-
 export interface NodeHostApi {
   getData: <T = Record<string, unknown>>(compId: string) => T | undefined
   patchData: (compId: string, patch: Record<string, unknown>) => void
   listComponents: () => HostComponentRef[]
   updateComponent: (id: string, patch: Partial<HostComponentRef>) => void
-  runner?: NodeRunnerApi
   clipboard?: {
     readText?: () => Promise<string>
     writeText?: (text: string) => Promise<void>

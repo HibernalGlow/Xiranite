@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { RawfilterData, RawfilterInput, RawfilterResult } from "./core.js"
 
 interface RawfilterCardState {
@@ -40,11 +40,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RawfilterInput["action"]) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-rawfilter CLI for filesystem actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-rawfilter CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "planning" })
     const response = await runNode<RawfilterInput, RawfilterData>("rawfilter", {

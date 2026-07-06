@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Brush, Clipboard, Copy, Eye, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { CleanfData, CleanfInput, CleanfPresetId, CleanfResult } from "./core.js"
 import { CLEANING_PRESETS, parseCleanfPaths } from "./core.js"
 
@@ -51,11 +51,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(preview = previewMode) {
     if (!paths.length || running) return
     const input: CleanfInput = { paths, presets: selectedPresets, exclude: data.excludeKeywords, preview }
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-cleanf CLI to scan or remove files.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-cleanf CLI to scan or remove files.")
 
     setRunning(true)
     patch({ phase: "running", progress: 0, progressText: preview ? "Previewing..." : "Cleaning...", result: null })

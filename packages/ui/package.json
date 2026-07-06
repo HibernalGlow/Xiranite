@@ -18,6 +18,9 @@
     "build": "tsc -p tsconfig.json",
     "test": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@xiranite/contract": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0"
   },

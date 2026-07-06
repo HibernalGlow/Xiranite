@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, ExternalLink, FileArchive, Package, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { BandiaAction, BandiaArchiveFormat, BandiaData, BandiaExtractMode, BandiaInput, BandiaResult, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
 import { mappingsToText, parseBandiaPaths, parsePathMappings } from "./core.js"
 
@@ -55,11 +55,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(action: BandiaAction = mode) {
     if (running) return
     const input = buildInput(action, data, paths, mappings)
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-bandia CLI for Bandizip filesystem actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-bandia CLI for Bandizip filesystem actions.")
 
     setRunning(true)
     patch({ phase: action, progress: 0, progressText: "starting", result: null })

@@ -1,4 +1,5 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react"
+import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export function cx(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(" ")
@@ -122,4 +123,16 @@ export function LogView({ lines, empty = "No logs", className }: { lines?: strin
 
 export function ResultView({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cx("min-h-0 overflow-auto border-t border-border/40 pt-1 text-[11px]", className)}>{children}</div>
+}
+
+export type ComponentNodeRunner = <TInput = unknown, TData = unknown>(
+  nodeId: string,
+  input: TInput,
+  onEvent?: (event: NodeRunEvent) => void,
+) => Promise<NodeRunResult<TData>>
+
+export function createUnavailableNodeRunner(message: string): ComponentNodeRunner {
+  return async (_nodeId, _input, _onEvent) => {
+    return { success: false, message }
+  }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Link, List, MoveRight, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { LinkRecord, LinkuData, LinkuInput, LinkuResult } from "./core.js"
 
 interface LinkuCardState {
@@ -35,11 +35,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: LinkuInput["action"]) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-linku CLI for symlink actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-linku CLI for symlink actions.")
     setRunning(true)
     patch({ phase: "running", action })
     const response = await runNode<LinkuInput, LinkuData>("linku", {

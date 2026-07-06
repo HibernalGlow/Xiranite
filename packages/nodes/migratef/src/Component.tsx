@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSync, History, MoveRight, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { MigratefData, MigratefInput, MigratefMode, MigratefResult } from "./core.js"
 
 interface MigratefCardState {
@@ -37,11 +37,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: MigratefInput["action"], dryRun = false) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-migratef CLI for filesystem actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-migratef CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: "running" })
     const response = await runNode<MigratefInput, MigratefData>("migratef", {

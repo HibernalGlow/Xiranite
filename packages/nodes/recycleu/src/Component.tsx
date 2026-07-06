@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clock, Copy, Play, RotateCcw, Trash2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { RecycleuData, RecycleuInput, RecycleuResult } from "./core.js"
 
 interface RecycleuCardState {
@@ -35,11 +35,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(input: RecycleuInput) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-recycleu CLI for system actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-recycleu CLI for system actions.")
 
     setRunning(true)
     patch({ phase: "running", progress: 0, progressText: "Starting..." })

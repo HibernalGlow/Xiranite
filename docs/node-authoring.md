@@ -124,14 +124,14 @@ Put Node/Bun filesystem, shell, registry, browser, and network adapters in `plat
 Rules:
 
 - Accept only `NodeComponentProps` from `@xiranite/contract`.
-- Use `host.getData`, `host.patchData`, `host.clipboard`, `host.downloadText`, and optional `host.runner?.runNode`.
-- Never call `host.runNode`.
+- Use `host.getData`, `host.patchData`, `host.clipboard`, and `host.downloadText`.
+- Never call `host.runNode`, `host.runner?.runNode`, or any backend runner from `Component.tsx`.
 - Never import from `@/store`, `@/components`, `@/lib`, or any Xiranite app path.
 - Use `@xiranite/ui` primitives (`NodeContent`, `NodeHeader`, `NodeBody`, `NodeFooter`, `Field`, `TextArea`, `ActionButton`, `IconButton`, `SegmentButton`, `StatPill`, `ResultView`, `LogView`).
 - Do not define local `Panel`, local card shells, nested card layouts, or shadcn `Card` wrappers in the node component.
 - Do not hard-code card-sized layout constraints such as `min-h-[320px]`, `min-h-[330px]`, or fixed multi-column grids such as `grid-cols-[1.1fr_1fr_130px]`.
 
-If `host.runner` is missing, keep the UI usable for local state, pasted input, previews that can run in `core.ts`, and logs that explain the CLI fallback.
+Native filesystem, registry, shell, browser, and network execution belongs to the package CLI or the Xiranite backend service. Keep the component usable for local state, pasted input, previews that can run in `core.ts`, and logs that explain the CLI/backend fallback.
 
 ## Demo Shell
 
@@ -177,7 +177,7 @@ Run architecture scans from the repo root:
 
 ```powershell
 rg -n "NodeCardSchema|NodeCardProps|card:\s*NodeCard" packages src
-rg -n "host\.runNode" packages src
+rg -n "host\.runNode|host\.runner|runner\?:" packages src
 rg -n "<Panel|function Panel|const Panel" packages/nodes -g Component.tsx
 rg -n "min-h-\[3|grid-cols-\[1\.1fr|grid-cols-\[.*130px" packages/nodes -g Component.tsx
 rg -n "CliHost|CliCommand|cli\?:" packages/contract/src/index.ts

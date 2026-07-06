@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Copy, FolderTree, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea, createUnavailableNodeRunner } from "@xiranite/ui"
 import type { SeriexData, SeriexInput, SeriexResult } from "./core.js"
 
 interface SeriexCardState {
@@ -31,11 +31,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: SeriexInput["action"], dryRun = false) {
     if (running) return
-    const runNode = host.runner?.runNode
-    if (!runNode) {
-      log("Host runner unavailable. Use the xiranite-seriex CLI for filesystem actions.")
-      return
-    }
+    const runNode = createUnavailableNodeRunner("Native action is unavailable in the shell-less Component. Use the xiranite-seriex CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: "running" })
     const response = await runNode<SeriexInput, SeriexData>("seriex", {

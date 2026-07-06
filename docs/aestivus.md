@@ -66,8 +66,8 @@
 每个模块必须实现：
 - `meta: ModuleDef` — 元数据
 - `Component: React.FC<ModuleProps>` — UI 组件
-- `cli?: CLICommand` — CLI 命令定义（可选）
-- `core?: CoreAPI` — 纯逻辑 API（可选）
+- CLI entry is exposed only through package.json `./cli` subpath / `bin`; it must not be part of `NodeEntry`.
+- `core: CoreAPI` is the shared pure logic API for UI, CLI, and tests.
 
 ### CLI 运行时
 - 统一的命令注册机制
@@ -204,8 +204,6 @@ export interface ComponentRef {
 export interface ModuleEntry {
   def: ModuleDef
   Component: ComponentType<{ compId: string; host: HostApi }>
-  /** 可选 CLI 子命令；不提供则该模块无 CLI */
-  cli?: (args: string[], host: CliHost) => Promise<void> | void
   /** 可选纯逻辑 API（供其他模块 / 测试 / CLI 复用） */
   core?: Record<string, unknown>
 }
