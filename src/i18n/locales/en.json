@@ -983,6 +983,9 @@
       "failed": "failed",
       "readyToAnalyze": "Ready to analyze or repack folders.",
       "starting": "starting",
+      "pathRequired": "Folder path is required.",
+      "configOrPathRequired": "Config JSON or folder path is required.",
+      "nativeUnavailable": "Native node runner is unavailable in this host.",
       "allFiles": "all files",
       "write": "write",
       "dryRunMode": "dry-run"

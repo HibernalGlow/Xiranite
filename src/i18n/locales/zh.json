@@ -983,6 +983,9 @@
       "failed": "失败",
       "readyToAnalyze": "准备分析或重新打包文件夹。",
       "starting": "启动中",
+      "pathRequired": "需要文件夹路径。",
+      "configOrPathRequired": "需要配置 JSON 或文件夹路径。",
+      "nativeUnavailable": "当前宿主没有提供原生节点执行能力。",
       "allFiles": "所有文件",
       "write": "写入",
       "dryRunMode": "试运行"

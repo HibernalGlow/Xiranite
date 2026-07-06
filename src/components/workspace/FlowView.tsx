@@ -134,7 +134,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
           <X className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden pointer-events-none">
+      <div className="flex-1 min-h-0 overflow-hidden pointer-events-auto">
         {moduleId && compId && (
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         )}
