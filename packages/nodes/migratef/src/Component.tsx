@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSync, History, MoveRight, Play, RotateCcw } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { MigratefData, MigratefInput, MigratefMode, MigratefResult } from "./core.js"
@@ -14,7 +14,7 @@ interface MigratefCardState {
   phase?: string
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<MigratefCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []

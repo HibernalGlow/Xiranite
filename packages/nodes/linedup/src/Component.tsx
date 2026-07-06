@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, RotateCcw, Zap } from "lucide-react"
 import { ActionButton, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea } from "@xiranite/ui"
 import { createDiffRows, filterLines, splitLines } from "./core.js"
@@ -9,7 +9,7 @@ interface LinedupCardState {
   filterText?: string
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<LinedupCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<string[]>([])

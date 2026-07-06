@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Link, List, MoveRight, Play, RotateCcw } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill } from "@xiranite/ui"
 import type { LinkRecord, LinkuData, LinkuInput, LinkuResult } from "./core.js"
@@ -14,7 +14,7 @@ interface LinkuCardState {
   phase?: string
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<LinkuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []

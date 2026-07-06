@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileCode, History, Play, RotateCcw, Undo2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { MarkuData, MarkuInput, MarkuModuleId, MarkuResult } from "./core.js"
@@ -18,7 +18,7 @@ interface MarkuCardState {
   phase?: string
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<MarkuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []

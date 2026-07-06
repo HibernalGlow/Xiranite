@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { FindzAction, FindzData, FindzInput, FindzResult } from "./core.js"
@@ -30,7 +30,7 @@ const ACTIONS: Array<{ value: FindzAction; label: string; icon: typeof Search }>
   { value: "nested", label: "Nested", icon: Layers },
 ]
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<FindzCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const action = data.action ?? "search"

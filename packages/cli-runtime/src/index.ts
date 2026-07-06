@@ -1,6 +1,19 @@
-import type { CliCommand, CliHost } from "@xiranite/contract"
 import type { ReactNode } from "react"
 export { defineCommand, runMain } from "citty"
+
+export interface CliHost {
+  cwd: string
+  env: Record<string, string | undefined>
+  stdin: { isTTY?: boolean }
+  stdout: { write: (chunk: string) => unknown }
+  stderr: { write: (chunk: string) => unknown }
+}
+
+export interface CliCommand {
+  name: string
+  description: string
+  run: (args: string[], host: CliHost) => Promise<void> | void
+}
 
 export interface ParsedArgs {
   positionals: string[]

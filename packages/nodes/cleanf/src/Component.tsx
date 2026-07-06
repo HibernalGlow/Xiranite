@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Brush, Clipboard, Copy, Eye, Play, RotateCcw } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { CleanfData, CleanfInput, CleanfPresetId, CleanfResult } from "./core.js"
@@ -17,7 +17,7 @@ interface CleanfCardState {
   progressText?: string
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<CleanfCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const pathText = data.pathText ?? ""

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clock, Copy, Play, RotateCcw, Trash2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
 import type { RecycleuData, RecycleuInput, RecycleuResult } from "./core.js"
@@ -15,7 +15,7 @@ interface RecycleuCardState {
   remainingSeconds?: number
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<RecycleuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const interval = data.interval ?? 10

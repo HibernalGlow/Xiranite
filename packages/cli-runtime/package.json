@@ -19,7 +19,6 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@xiranite/contract": "workspace:*",
     "citty": "^0.1.6",
     "ink": "^6.5.1",
     "react": "^19.2.4"

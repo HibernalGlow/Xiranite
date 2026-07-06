@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import type { NodeCardProps, NodeRunEvent } from "@xiranite/contract"
+import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import { Activity, Calendar, Cpu, Moon, Play, Power, RotateCcw, Square, Timer, Wifi } from "lucide-react"
 import { ActionButton, Field, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
 import type { NetCounters, PowerMode, SleeptInput, SleeptRuntime } from "./core.js"
@@ -23,7 +23,7 @@ interface SleeptCardState {
 
 type ResolvedSleeptCardState = Required<SleeptCardState>
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<SleeptCardState>(compId) ?? {}
   const [phase, setPhase] = useState<"idle" | "running" | "completed" | "error" | "cancelled">("idle")
   const [progress, setProgress] = useState(0)

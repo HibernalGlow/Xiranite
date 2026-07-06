@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NodeCardProps } from "@xiranite/contract"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FilePenLine, FolderOpen, Play, RefreshCw, RotateCcw, Search, Undo2, Upload } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea } from "@xiranite/ui"
 import type { TrenameAction, TrenameData, TrenameInput, TrenameJson, TrenameNode, TrenameResult } from "./core.js"
@@ -24,7 +24,7 @@ interface TrenameCardState {
   logs?: string[]
 }
 
-export function Component({ compId, host }: NodeCardProps) {
+export function Component({ compId, host }: NodeComponentProps) {
   const data = host.getData<TrenameCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const result = data.result ?? null

@@ -78,28 +78,13 @@ export interface NodeHostApi {
   }
 }
 
-export interface NodeCardProps {
+export interface NodeComponentProps {
   compId: string
   host: NodeHostApi
 }
 
-export interface CliHost {
-  cwd: string
-  env: Record<string, string | undefined>
-  stdin: { isTTY?: boolean }
-  stdout: { write: (chunk: string) => unknown }
-  stderr: { write: (chunk: string) => unknown }
-}
-
-export interface CliCommand {
-  name: string
-  description: string
-  run: (args: string[], host: CliHost) => Promise<void> | void
-}
-
 export interface NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> {
   def: NodeDef
-  Component: ComponentType<NodeCardProps>
-  cli?: CliCommand
+  Component: ComponentType<NodeComponentProps>
   core: TCore
 }
