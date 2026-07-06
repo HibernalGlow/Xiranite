@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-import { dirname, join } from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { pathToFileURL } from "node:url"
 import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
   defineCommand,
   nodeCliName,
+  padVisibleEnd,
+  promptRich,
   renderProgressBar,
   rich,
   runMain,
@@ -16,8 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { runLataTaskSelector } from "@xiranite/node-lata/cli"
-import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult } from "./core.js"
+import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { runRepacku } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
 
@@ -42,42 +45,43 @@ interface RepackuCliOptions {
   single?: boolean
 }
 
-
-function createRepackuTaskfile(): string {
-  return `# Taskfile for repacku
-version: '3'
-
-vars:
-  PYTHON_CMD: ${CLI_NAME}
-
-tasks:
-  default:
-    desc: 显示所有任务
-    cmds:
-      - task --list
-    silent: true
-
-  image-only:
-    desc: "仅针对图片类型(默认示例) 从剪贴板读取路径"
-    cmds:
-      - "{{.PYTHON_CMD}} compress --clipboard --types image --delete-after {{.CLI_ARGS}}"
-
-  gallery-pack:
-    desc: "画集模式 (.画集 目录批量处理)"
-    cmds:
-      - "{{.PYTHON_CMD}} compress --clipboard --gallery --delete-after {{.CLI_ARGS}}"
-
-  gallery-and-single:
-    desc: "先画集再单层 (可并用)"
-    cmds:
-      - "{{.PYTHON_CMD}} compress --clipboard --gallery --single --delete-after {{.CLI_ARGS}}"
-
-  single-pack:
-    desc: "单层打包 (子目录+散图)"
-    cmds:
-      - "{{.PYTHON_CMD}} compress --clipboard --single --delete-after {{.CLI_ARGS}}"
-`
+interface GuidedTask {
+  name: string
+  description: string
+  inputs: Array<Omit<RepackuInput, "path" | "paths">>
 }
+
+type ResolvedGuidedChoice =
+  | { kind: "exit" }
+  | { kind: "invalid"; value: string }
+  | { kind: "path"; path: string; task: GuidedTask }
+  | { kind: "task"; task: GuidedTask }
+
+const GUIDED_TASKS: GuidedTask[] = [
+  {
+    name: "image-only",
+    description: "图片规则压缩，默认读取剪贴板路径，成功后删除源文件",
+    inputs: [{ action: "compress", types: "image", deleteAfter: true }],
+  },
+  {
+    name: "gallery-pack",
+    description: "查找画集目录并批量执行单层打包",
+    inputs: [{ action: "gallery-pack", deleteAfter: true }],
+  },
+  {
+    name: "gallery-and-single",
+    description: "先处理画集目录，再处理当前目录单层打包",
+    inputs: [
+      { action: "gallery-pack", deleteAfter: true },
+      { action: "single-pack", deleteAfter: true },
+    ],
+  },
+  {
+    name: "single-pack",
+    description: "对子目录和散图执行单层打包",
+    inputs: [{ action: "single-pack", deleteAfter: true }],
+  },
+]
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -109,7 +113,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: CLI_NAME, description: "Folder repacking workflow with rich guided Taskfile mode." },
+    meta: { name: CLI_NAME, description: "Folder repacking workflow with built-in guided mode." },
     subCommands: {
       analyze: defineCommand({
         meta: { name: "analyze", description: "Analyze a folder and write a repacku config JSON." },
@@ -147,7 +151,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         },
       }),
       guided: defineCommand({
-        meta: { name: "guided", description: "Open the rich Taskfile selector." },
+        meta: { name: "guided", description: "Open the guided repacku workflow." },
         async run() {
           await runGuided(host)
         },
@@ -177,13 +181,117 @@ function commonArgs() {
 }
 
 async function runGuided(host: CliHost): Promise<void> {
-  const packageDir = dirname(fileURLToPath(import.meta.url))
-  await runLataTaskSelector(host, {
-    cwd: packageDir,
-    taskfilePath: join(packageDir, "Taskfile.yml"),
-    taskfileContent: createRepackuTaskfile(),
-    title: "Xiranite Repacku",
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, "Guided mode requires an interactive terminal. Use `xrepacku compress --path <folder>` for scripted use.")
+    process.exitCode = 2
+    return
+  }
+
+  const runtime = createNodeRepackuRuntime()
+  const defaultTask = GUIDED_TASKS[0]!
+  let firstRender = true
+  try {
+    while (true) {
+      renderGuidedSelector(host, firstRender)
+      firstRender = false
+
+      const rawChoice = await promptRich(host, `选择任务、输入任务名，或粘贴路径 ${rich(host, "[0/1/2/3/4]", "magenta")}`, "1")
+      const choice = await resolveGuidedChoice(rawChoice, defaultTask, runtime)
+      if (choice.kind === "exit") {
+        writeLine(host, rich(host, "已退出。", "yellow"))
+        return
+      }
+      if (choice.kind === "invalid") {
+        writeRichPanel(host, "Input", `无法识别: ${choice.value}`, { color: "red", minWidth: 48 })
+        continue
+      }
+
+      const paths = choice.kind === "path" ? [choice.path] : await resolveGuidedPaths(host, runtime)
+      if (!paths.length) {
+        writeRichPanel(host, "Path", "未提供有效文件夹路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
+        continue
+      }
+
+      writeRichPanel(host, "Run", [
+        `task: ${choice.task.name}`,
+        `path: ${paths.join("; ")}`,
+        "mode: direct core call, no Taskfile shell hop",
+      ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
+
+      const ok = await runGuidedTask(choice.task, paths, host)
+      if (!ok) process.exitCode = 1
+      if (!await confirmRich(host, "继续选择其他任务?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
+      return
+    }
+    throw error
+  }
+}
+
+function renderGuidedSelector(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Xiranite Repacku", [
+    `${rich(host, "入口", "cyan")}  内置 TypeScript guided flow`,
+    `${rich(host, "执行", "cyan")}  直接调用 repacku core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+  writeLine(host, rich(host, "可执行任务", "white", "bold"))
+  GUIDED_TASKS.forEach((task, index) => {
+    writeLine(host, renderGuidedTaskRow(host, task, index + 1, index === 0))
   })
+  writeLine(host, renderGuidedTaskRow(host, { name: "exit", description: "离开引导模式", inputs: [] }, 0, false))
+  writeLine(host)
+  writeLine(host, rich(host, "提示: guided 默认保持原 repacku 习惯，成功后删除源文件；需要预演请用 `xrepacku compress --dry-run`。", "grey"))
+}
+
+function renderGuidedTaskRow(host: CliHost, task: GuidedTask, index: number, isDefault: boolean): string {
+  const columns = terminalColumns(host)
+  const number = padVisibleEnd(rich(host, String(index).padStart(2), "cyan"), 4)
+  const name = padVisibleEnd(rich(host, task.name, isDefault ? "green" : "white"), 26)
+  const badge = isDefault ? rich(host, "default", "yellow") : ""
+  const badgeCell = padVisibleEnd(badge, 9)
+  const prefix = `  ${number}${name}${badgeCell}`
+  const descWidth = Math.max(0, columns - visibleWidth(prefix) - 1)
+  return `${prefix}${rich(host, truncateVisible(task.description, descWidth), index === 0 ? "grey" : "white")}`
+}
+
+async function resolveGuidedChoice(rawChoice: string, defaultTask: GuidedTask, runtime: RepackuRuntime): Promise<ResolvedGuidedChoice> {
+  const text = cleanPath(rawChoice)
+  if (!text) return { kind: "task", task: defaultTask }
+  if (/^\d+$/.test(text)) {
+    const index = Number(text)
+    if (index === 0) return { kind: "exit" }
+    const task = GUIDED_TASKS[index - 1]
+    return task ? { kind: "task", task } : { kind: "invalid", value: rawChoice }
+  }
+
+  const namedTask = GUIDED_TASKS.find((task) => task.name.toLowerCase() === text.toLowerCase())
+  if (namedTask) return { kind: "task", task: namedTask }
+
+  const info = await runtime.pathInfo(text)
+  if (info.exists && info.isDirectory) return { kind: "path", path: info.path, task: defaultTask }
+  return { kind: "invalid", value: rawChoice }
+}
+
+async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime): Promise<string[]> {
+  const clipboardPaths = await pathsFromClipboard(runtime)
+  if (clipboardPaths.length) {
+    writeLine(host, rich(host, `已从剪贴板读取 ${clipboardPaths.length} 个路径。`, "yellow"))
+    return clipboardPaths
+  }
+
+  const answer = await promptRich(host, "输入文件夹路径", "")
+  return await validDirectoryPaths(splitPaths(answer), runtime)
+}
+
+async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost): Promise<boolean> {
+  const inputs = task.inputs.flatMap((input) => paths.map((path) => ({ ...input, paths: [path] })))
+  return await runActions(inputs, false, host)
 }
 
 async function runSingleAction(action: RepackuAction, args: RepackuCliOptions, host: CliHost): Promise<boolean> {
@@ -271,22 +379,29 @@ async function runAction(input: RepackuInput, json: boolean, host: CliHost): Pro
   return result
 }
 
-async function pathsFromClipboard(): Promise<string[]> {
+async function pathsFromClipboard(runtime: RepackuRuntime = createNodeRepackuRuntime()): Promise<string[]> {
   const text = await readClipboardText()
   if (!text) return []
-  const runtime = createNodeRepackuRuntime()
+  return await validDirectoryPaths(splitPaths(text), runtime)
+}
+
+async function validDirectoryPaths(candidates: string[], runtime: RepackuRuntime): Promise<string[]> {
   const paths: string[] = []
-  for (const candidate of splitPaths(text)) {
+  for (const candidate of candidates) {
     const info = await runtime.pathInfo(candidate)
-    if (info.exists) paths.push(info.path)
+    if (info.exists && info.isDirectory) paths.push(info.path)
   }
   return paths
 }
 
 function splitPaths(value?: string, seed: string[] = []): string[] {
   return [...seed, ...(value ?? "").split(/[,;\r\n]/)]
-    .map((item) => item.trim().replace(/^["']|["']$/g, ""))
+    .map(cleanPath)
     .filter(Boolean)
+}
+
+function cleanPath(value = ""): string {
+  return value.trim().replace(/^["']|["']$/g, "")
 }
 
 function numberArg(value?: number | string): number | undefined {

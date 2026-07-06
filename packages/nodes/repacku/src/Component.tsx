@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, Package, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill } from "@xiranite/ui"
 import type { RepackuAction, RepackuData, RepackuFolderNode, RepackuInput, RepackuResult } from "./core.js"
 
 interface RepackuCardState {
@@ -43,28 +43,55 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RepackuAction) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
-
     const input = buildInput(action, data)
-    if (action !== "compress" && !input.path && !input.paths?.length) return
-    if (action === "compress" && !input.configPath && !input.path && !input.paths?.length) return
+    if (action !== "compress" && !input.path && !input.paths?.length) {
+      log(t("module:repacku.pathRequired"))
+      patch({ progressText: t("module:repacku.pathRequired") })
+      return
+    }
+    if (action === "compress" && !input.configPath && !input.path && !input.paths?.length) {
+      log(t("module:repacku.configOrPathRequired"))
+      patch({ progressText: t("module:repacku.configOrPathRequired") })
+      return
+    }
+
+    const runAction = host.actions?.run
+    if (!runAction) {
+      const message = t("module:repacku.nativeUnavailable")
+      log(message)
+      patch({ phase: "error", progress: 0, progressText: message })
+      return
+    }
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: t("module:repacku.starting"), result: null })
-    const response = await runNativeAction<RepackuInput, RepackuData>("repacku", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as RepackuResult
+    let nextLogs = [...logs]
+    const pushLog = (message: string) => {
+      nextLogs = [...nextLogs.slice(-40), message]
+      patch({ logs: nextLogs })
+    }
 
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: response.data ?? null,
-      configPath: response.data?.configPath || data.configPath,
-    })
-    log(response.message)
-    setRunning(false)
+    patch({ phase: action, progress: 0, progressText: t("module:repacku.starting"), result: null, logs: nextLogs })
+    try {
+      const response = await runAction<RepackuInput, RepackuData>("repacku", input, (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else pushLog(event.message)
+      }) as RepackuResult
+
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+        configPath: response.data?.configPath || data.configPath,
+      })
+      pushLog(response.message)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error", progress: 0, progressText: message })
+      pushLog(message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {

@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import type { HostComponentRef, NodeHostApi } from "@xiranite/contract"
+import { getBackend } from "@/backend/client"
 import { actions, useWorkspace, useWSDispatch } from "@/store/workspaceContext"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
@@ -33,6 +34,12 @@ export function useNodeHostApi(): NodeHostApi {
           }
         }
       }
+    },
+    actions: {
+      run: async (nodeId, input, onEvent) => {
+        const backend = await getBackend()
+        return await backend.nodes.runNode(nodeId, input, onEvent)
+      },
     },
     clipboard: {
       readText: () => navigator.clipboard.readText(),

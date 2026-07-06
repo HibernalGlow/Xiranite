@@ -31,3 +31,5 @@ artifacts
 *.sln
 *.sw?
 ref/*
+repacku-direct*/*
+tmp/*

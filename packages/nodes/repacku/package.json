@@ -32,7 +32,6 @@
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/contract": "workspace:*",
-    "@xiranite/node-lata": "workspace:*",
     "@xiranite/ui": "workspace:*"
   },
   "peerDependencies": {

@@ -58,6 +58,13 @@ export interface NodeHostApi {
   patchData: (compId: string, patch: Record<string, unknown>) => void
   listComponents: () => HostComponentRef[]
   updateComponent: (id: string, patch: Partial<HostComponentRef>) => void
+  actions?: {
+    run?: <TInput = unknown, TData = unknown>(
+      nodeId: string,
+      input: TInput,
+      onEvent?: (event: NodeRunEvent) => void,
+    ) => Promise<NodeRunResult<TData>>
+  }
   clipboard?: {
     readText?: () => Promise<string>
     writeText?: (text: string) => Promise<void>
