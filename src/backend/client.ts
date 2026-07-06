@@ -1,10 +1,10 @@
-import { createElectbunRuntime, detectElectbun } from "./adapters/electbun"
+import { createWailsRuntime, detectWails } from "./adapters/wails"
 import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
 
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
-  { kind: "electbun", detect: detectElectbun, factory: createElectbunRuntime },
+  { kind: "wails", detect: detectWails, factory: createWailsRuntime },
   { kind: "web", detect: () => true, factory: createWebRuntime },
 ]
 

@@ -1,0 +1,15 @@
+{
+  "fixed": {
+    "file_version": "v0.0.1"
+  },
+  "info": {
+    "0000": {
+      "ProductVersion": "v0.0.1",
+      "CompanyName": "Xiranite",
+      "FileDescription": "Xiranite desktop host",
+      "LegalCopyright": "Copyright Xiranite contributors",
+      "ProductName": "Xiranite",
+      "Comments": "Built with Wails v3"
+    }
+  }
+}

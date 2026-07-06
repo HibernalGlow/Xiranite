@@ -127,7 +127,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     name: "DATABASE",
     version: "v0.1.0",
     category: "META",
-    description: "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
+    description: "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
     icon: "TableProperties",
   },
   {
@@ -135,7 +135,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     name: "BLOCKNOTE",
     version: "v1.0.0",
     category: "UTILITY",
-    description: "基于 shadcn 的 BlockNote 富文本编辑器。块级文档编辑、拖拽重排、斜杠菜单，样式自动跟随项目主题。",
+    description: "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically.",
     icon: "FileText",
   },
 ]

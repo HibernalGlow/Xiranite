@@ -15,12 +15,15 @@ interface Props {
 }
 
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { state } = useWorkspace()
   const comp = state.components.find((item) => item.id === compId)
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const mod = getModule(moduleId)
-  const title = titleFallback || mod?.name || moduleId || t("view:floating.title")
+  const title = titleFallback
+    || (mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : mod?.name)
+    || moduleId
+    || t("view:floating.title")
 
   const themeClass = state.theme === "endfield" ? "theme-endfield" : state.theme === "wuling" ? "theme-wuling" : ""
 
@@ -42,7 +45,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
 
   return (
     <div className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
-      <header className="electrobun-webkit-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3">
+      <header className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
@@ -53,7 +56,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
           title={t("common:closeWindow")}
           aria-label={t("common:closeWindow")}
           onClick={closeWindow}
-          className="electrobun-webkit-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >
           <X className="h-3.5 w-3.5" />
         </button>

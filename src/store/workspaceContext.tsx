@@ -128,7 +128,7 @@ function reducer(state: WSState, action: Action): WSState {
       const id = `ws-${Date.now()}`
       return {
         ...state,
-        workspaces: [...state.workspaces, { id, label: `WORKSPACE ${state.workspaces.length + 1}` }],
+        workspaces: [...state.workspaces, { id, label: `common:workspaceN:${state.workspaces.length + 1}` }],
         activeWorkspaceId: id,
       }
     }

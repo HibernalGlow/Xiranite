@@ -16,8 +16,8 @@ const STREAM_COLORS = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "
 export default function AcidMixerModule() {
   const { t } = useTranslation()
   const [streams, setStreams] = useState<Stream[]>([
-    { id: `s-${++sid}`, label: "STREAM_A", value: 42, color: COLORS[0] },
-    { id: `s-${++sid}`, label: "STREAM_B", value: 17, color: COLORS[1] },
+    { id: `s-${++sid}`, label: t("module:acidMixer.streamA"), value: 42, color: COLORS[0] },
+    { id: `s-${++sid}`, label: t("module:acidMixer.streamB"), value: 17, color: COLORS[1] },
   ])
   const [operation, setOperation] = useState<"+" | "*" | "max" | "mix">("+")
   const [output, setOutput] = useState<number | null>(null)
@@ -25,7 +25,7 @@ export default function AcidMixerModule() {
   function addStream() {
     if (streams.length >= 5) return
     const idx = streams.length
-    setStreams(ss => [...ss, { id: `s-${++sid}`, label: `STREAM_${String.fromCharCode(65 + idx)}`, value: Math.floor(Math.random() * 100), color: COLORS[idx] }])
+    setStreams(ss => [...ss, { id: `s-${++sid}`, label: t("module:acidMixer.streamN", { letter: String.fromCharCode(65 + idx) }), value: Math.floor(Math.random() * 100), color: COLORS[idx] }])
   }
 
   function removeStream(id: string) {

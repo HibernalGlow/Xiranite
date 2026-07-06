@@ -3,7 +3,6 @@ import type {
   FileSystemRuntime,
   FsEntry,
   FsStat,
-  MainWindowDragInput,
   NodeRunnerRuntime,
   OpenComponentWindowInput,
   RuntimeInterface,
@@ -171,14 +170,6 @@ class WebWindowRuntime implements WindowRuntime {
       success: false,
       supported: false,
       message: "Native main-window controls are not available in web runtime.",
-    }
-  }
-
-  async restoreMainForDrag(_input: MainWindowDragInput): Promise<WindowCommandResult> {
-    return {
-      success: false,
-      supported: false,
-      message: "Browser runtime cannot restore native windows for title-bar drag.",
     }
   }
 

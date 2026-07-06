@@ -5,32 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title data-default>XIRANITE</title>
-    <script>
-      // Electbun preload — 注入 window.__ELECTBUN__ 桥接对象。
-      // 仅在 URL hash 带 electbun-runtime=<port> 时注入（即从 Electbun 主进程打开时）。
-      // 纯 vite dev 模式下不注入，自动回退到 web runtime。
-      ;(function () {
-        if (typeof window === "undefined" || window.__ELECTBUN__) return
-        var hash = window.location.hash || ""
-        var match = hash.match(/electbun-runtime=(\d+)/)
-        if (!match) return
-        var port = parseInt(match[1], 10)
-        window.__ELECTBUN__ = {
-          port: port,
-          invoke: function (channel, payload) {
-            return fetch("http://127.0.0.1:" + port + "/ipc/" + encodeURIComponent(channel), {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify(payload || {}),
-            }).then(function (res) {
-              if (!res.ok) return res.text().then(function (t) { throw new Error("IPC " + channel + " failed: " + res.status + " " + t) })
-              return res.json()
-            })
-          },
-        }
-        console.info("[electbun:preload] bridge injected, port=" + port)
-      })()
-    </script>
   </head>
   <body>
     <div id="root"></div>

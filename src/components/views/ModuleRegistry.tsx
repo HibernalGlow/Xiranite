@@ -102,7 +102,7 @@ export function ModuleRegistry() {
                   <div className="w-8 h-8 rounded-sm bg-primary/10 border border-primary/20 flex items-center justify-center">
                     <Icon className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="font-mono text-sm font-bold text-foreground">{mod.name}</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{i18n.exists(`module:${mod.id}.name`) ? t(`module:${mod.id}.name`) : mod.name}</span>
                 </div>
 
                 <p className="text-xs text-muted-foreground leading-relaxed mb-4 line-clamp-3">

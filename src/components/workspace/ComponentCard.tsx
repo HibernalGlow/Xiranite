@@ -35,8 +35,10 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
 
 function ComponentCardInner({ comp, layout }: Props) {
   const dispatch = useWSDispatch()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const mod = getModule(comp.moduleId)
+  const moduleId = comp.moduleId
+  const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? comp.moduleId)
 
   const isFullscreen = layout.state === "fullscreen"
   const isCompact = layout.state === "compact"
@@ -66,7 +68,7 @@ function ComponentCardInner({ comp, layout }: Props) {
     const result = await backend.windows.openComponent({
       componentId: comp.id,
       moduleId: comp.moduleId,
-      title: mod?.name ?? comp.moduleId,
+      title: moduleName,
       width: Math.round(layout.w),
       height: Math.round(layout.h),
     })
@@ -108,7 +110,7 @@ function ComponentCardInner({ comp, layout }: Props) {
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-3 select-none">
         <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
         <span className="truncate text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase">
-          {mod?.name ?? comp.moduleId}
+          {moduleName}
         </span>
         {mod && (
           <span className="text-[9px] font-mono text-muted-foreground/50 flex-shrink-0">
@@ -158,7 +160,7 @@ function ComponentCardInner({ comp, layout }: Props) {
           {isTiny ? (
             <div className="grid h-full place-items-center text-center text-[10px] font-mono text-muted-foreground">
               <span>
-                {mod?.name ?? comp.moduleId}
+                {moduleName}
                 <br />
                 {t("common:live")}
               </span>

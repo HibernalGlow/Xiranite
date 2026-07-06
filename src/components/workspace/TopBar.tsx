@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from "react"
+import { useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
@@ -9,21 +9,11 @@ import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import {
   Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
-  Sun, Moon, Monitor, Palette, Minus, Square, X,
+  Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-declare global {
-  interface Window {
-    __electrobunWindowId?: number
-    __electrobunInternalBridge?: {
-      postMessage(message: string): void
-    }
-  }
-}
-
 const TITLEBAR_NO_DRAG_SELECTOR = [
-  ".electrobun-webkit-app-region-no-drag",
   ".xiranite-app-region-no-drag",
   "button",
   "input",
@@ -35,27 +25,6 @@ const TITLEBAR_NO_DRAG_SELECTOR = [
 
 function isNoDragTarget(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest(TITLEBAR_NO_DRAG_SELECTOR)
-}
-
-function postElectrobunInternalMessage(id: string, payload: unknown): boolean {
-  if (typeof window === "undefined") return false
-  const windowId = window.__electrobunWindowId
-  const bridge = window.__electrobunInternalBridge
-  if (typeof windowId !== "number" || !bridge) return false
-
-  bridge.postMessage(JSON.stringify([
-    JSON.stringify({ type: "message", id, payload }),
-  ]))
-  return true
-}
-
-function startElectrobunWindowMove(): void {
-  if (!postElectrobunInternalMessage("startWindowMove", { id: window.__electrobunWindowId })) return
-
-  const stopMove = () => {
-    postElectrobunInternalMessage("stopWindowMove", {})
-  }
-  window.addEventListener("mouseup", stopMove, { once: true })
 }
 
 /** 泳道模式图标 — 与 Lane 内部用同一个 SVG，画泳道外框 + lane 矩形。 */
@@ -120,7 +89,6 @@ export function TopBar() {
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
-  const restoredFromDragAt = useRef(0)
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -135,38 +103,8 @@ export function TopBar() {
     if (result.success && result.state) setIsMaximized(result.state === "maximized")
   }
 
-  async function restoreMainForTitlebarDrag(event: MouseEvent<HTMLElement>) {
-    const input = {
-      screenX: event.screenX,
-      screenY: event.screenY,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      windowWidth: window.innerWidth,
-    }
-
-    const backend = await getBackend()
-    const result = await backend.windows.restoreMainForDrag(input)
-    if (!result.success) {
-      console.info(`[window] ${result.message}`)
-      return
-    }
-
-    restoredFromDragAt.current = Date.now()
-    setIsMaximized(false)
-    startElectrobunWindowMove()
-  }
-
-  function handleTitleBarMouseDown(event: MouseEvent<HTMLElement>) {
-    if (event.button !== 0 || isNoDragTarget(event.target)) return
-    if (!isMaximized) return
-
-    event.preventDefault()
-    void restoreMainForTitlebarDrag(event)
-  }
-
   function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
     if (isNoDragTarget(event.target)) return
-    if (Date.now() - restoredFromDragAt.current < 450) return
 
     event.preventDefault()
     void controlMainWindow("maximize")
@@ -174,11 +112,9 @@ export function TopBar() {
 
   return (
     <header
-      onMouseDown={handleTitleBarMouseDown}
       onDoubleClick={handleTitleBarDoubleClick}
       className={cn(
         "xiranite-app-region-drag",
-        !isMaximized && "electrobun-webkit-app-region-drag",
         "flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-background px-4",
       )}
     >
@@ -189,7 +125,7 @@ export function TopBar() {
       </div>
 
       {/* ── ViewMode 切换：cards / dockview / flow 三种主形态 ── */}
-      <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
+      <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
         {VIEW_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
           <button
             key={key}
@@ -210,7 +146,7 @@ export function TopBar() {
 
       {/* ── Cards 子布局：仅 viewMode === "cards" 时显示 ── */}
       {state.viewMode === "cards" && (
-        <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
+        <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
           {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
             <button
               key={key}
@@ -231,7 +167,7 @@ export function TopBar() {
       )}
 
       {/* ── Workspace 选择器（顶栏中部） ── */}
-      <div className="electrobun-webkit-app-region-no-drag relative">
+      <div className="xiranite-app-region-no-drag relative">
         <button
           onClick={() => setWsMenuOpen(o => !o)}
           className="flex h-8 w-[clamp(9rem,18vw,11.25rem)] items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono hover:bg-muted/60"
@@ -284,14 +220,14 @@ export function TopBar() {
       <div className="flex-1" />
 
       {/* Search (装饰) */}
-      <button className="electrobun-webkit-app-region-no-drag hidden h-8 w-48 items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono text-muted-foreground transition-colors hover:border-border hover:text-foreground xl:flex">
+      <button className="xiranite-app-region-no-drag hidden h-8 w-48 items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono text-muted-foreground transition-colors hover:border-border hover:text-foreground xl:flex">
         <Search className="h-3.5 w-3.5" />
         <span>{t("topbar:search")}</span>
         <kbd className="ml-auto text-[9px] bg-muted px-1 rounded">⌘K</kbd>
       </button>
 
       {/* ── 弹出层入口（取代侧栏）── */}
-      <div className="electrobun-webkit-app-region-no-drag flex items-center gap-1">
+      <div className="xiranite-app-region-no-drag flex items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
@@ -401,7 +337,7 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="electrobun-webkit-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-2">
+      <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-2">
         <button
           title={t("common:minimize")}
           aria-label={t("common:minimize")}
@@ -416,7 +352,7 @@ export function TopBar() {
           onClick={() => controlMainWindow("maximize")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
-          <Square className="h-3 w-3" />
+          {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
         </button>
         <button
           title={t("common:close")}

@@ -18,7 +18,7 @@
  *   import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
  *   changeLanguage("zh")
  */
-import i18n from "i18next"
+import i18n, { type Resource } from "i18next"
 import { initReactI18next } from "react-i18next"
 import en from "./locales/en.json"
 import zh from "./locales/zh.json"
@@ -31,6 +31,31 @@ export const LANGUAGES: { key: Language; label: string; nativeLabel: string }[] 
 ]
 
 const STORAGE_KEY = "i18n.lang"
+
+// 资源文件的顶层 key 即为 namespace（common / topbar / settings / registry / overlay / view / module）
+// 这样组件可以用 t("common:close")、t("topbar:workspace.label") 跨 namespace 取键
+const NS_KEYS = ["common", "topbar", "settings", "registry", "overlay", "view", "module"] as const
+
+const resources = {
+  en: {
+    common: en.common,
+    topbar: en.topbar,
+    settings: en.settings,
+    registry: en.registry,
+    overlay: en.overlay,
+    view: en.view,
+    module: en.module,
+  },
+  zh: {
+    common: zh.common,
+    topbar: zh.topbar,
+    settings: zh.settings,
+    registry: zh.registry,
+    overlay: zh.overlay,
+    view: zh.view,
+    module: zh.module,
+  },
+} as unknown as Resource
 
 function detectInitialLanguage(): Language {
   // 1. localStorage 优先
@@ -45,12 +70,11 @@ function detectInitialLanguage(): Language {
 
 function init() {
   i18n.use(initReactI18next).init({
-    resources: {
-      en: { translation: en },
-      zh: { translation: zh },
-    },
+    resources,
     lng: detectInitialLanguage(),
     fallbackLng: "en",
+    defaultNS: "common",
+    ns: NS_KEYS as unknown as string[],
     interpolation: {
       // React 已 escape，关闭 i18next 自带 escape 避免双重转义
       escapeValue: false,

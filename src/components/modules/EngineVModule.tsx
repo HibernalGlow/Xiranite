@@ -30,7 +30,7 @@ interface EngineVState {
  * 1. 三种 viewMode（cards / dockview / flow）下挂载同一个 EngineVModule 实例，
  *    访问同一份 backend.enginev —— 数据完全共享。
  * 2. 切换 viewMode 不丢失当前扫描结果（状态持久到 comp.data，不在 useState）。
- * 3. backend 在 web runtime 下走 mock 数据；切到 electbun 时自动走真实文件系统。
+ * 3. backend 在 web runtime 下走 mock 数据；切到 wails 时自动走真实文件系统。
  */
 export default function EngineVModule({ compId }: ModuleProps) {
   const { t } = useTranslation()

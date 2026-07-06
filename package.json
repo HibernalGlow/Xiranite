@@ -15,10 +15,10 @@
     "test:packages": "bun --filter './packages/*' test && bun --filter './packages/nodes/*' test",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "electbun:dev": "concurrently -k -n VITE,ELECTROBUN -c green,cyan \"vite --host 127.0.0.1 --port 5173\" \"electrobun dev --watch\"",
-    "electbun:build": "bun run build && electrobun build",
-    "electbun:fallback": "bun run electron/main.ts",
-    "electbun:start": "electrobun dev"
+    "wails:dev": "bun run build && go run -mod=mod .",
+    "wails:syso": "go run -mod=mod github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso",
+    "wails:build": "bun run build && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
+    "wails:start": "go run -mod=mod ."
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
@@ -34,6 +34,7 @@
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.90.16",
     "@tanstack/react-table": "^8.21.3",
+    "@wailsio/runtime": "latest",
     "@xiranite/contract": "workspace:*",
     "@xiranite/node-bandia": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
@@ -100,9 +101,6 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "^5.2.0",
-    "concurrently": "^10.0.3",
-    "electrobun": "1.18.1",
-    "rcedit": "^4.0.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
   }

@@ -28,7 +28,7 @@ interface Props {
 }
 
 export function LaneCard({ compId, moduleId, laneId }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const dispatch = useWSDispatch()
   const mod = getModule(moduleId)
   const [isDragging, setIsDragging] = useState(false)
@@ -74,7 +74,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
           <GripVertical className="h-3.5 w-3.5 rotate-90" />
         </span>
         <span className="text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase truncate flex-1">
-          {mod?.name ?? moduleId}
+          {mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)}
         </span>
         <button
           onClick={(e) => {

@@ -266,7 +266,7 @@ function buildProperties(
       enableSearch: true,
       config: {
         options: Array.from(new Set(MODULE_REGISTRY.map(m => m.category))).map(c => ({
-          label: c,
+          label: t(`registry:categories.${c}`),
           value: c,
           color: "gray" as BadgeColor,
         })),
@@ -281,7 +281,7 @@ function buildProperties(
       enableSearch: true,
       config: {
         options: ["docked", "floating", "focused", "fullscreen", "compact"].map(s => ({
-          label: s,
+          label: t(`common:state.${s}`),
           value: s,
           color: "blue" as BadgeColor,
         })),

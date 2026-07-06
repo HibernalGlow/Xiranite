@@ -19,7 +19,7 @@ import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
  * 持久化链路：
  * - 模块 setData → dispatch PATCH_COMPONENT_DATA → store 更新 comp.data
  * - store 的 useEffect 监听 components 变化 → debounce 写回 backend
- * - web runtime → localStorage；electbun runtime → ~/.xiranite/storage.json
+ * - web runtime → localStorage；wails runtime → ~/.xiranite/storage.json
  *
  * 这样模块状态在三种 viewMode 间完全共享，且跨会话持久化。
  */

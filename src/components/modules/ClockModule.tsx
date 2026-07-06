@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 
 export default function ClockModule() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [now, setNow] = useState(() => new Date())
   const rafRef = useRef<number>(0)
 
@@ -25,7 +25,8 @@ export default function ClockModule() {
   const ss = now.getSeconds().toString().padStart(2, "0")
   const ms = now.getMilliseconds().toString().padStart(3, "0").slice(0, 2)
 
-  const dateStr = now.toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "2-digit" })
+  const locale = i18n.language === "zh" ? "zh-CN" : "en-US"
+  const dateStr = now.toLocaleDateString(locale, { weekday: "short", year: "numeric", month: "short", day: "2-digit" })
   const utcOffset = -(now.getTimezoneOffset() / 60)
   const tzStr = `UTC${utcOffset >= 0 ? "+" : ""}${utcOffset}`
 

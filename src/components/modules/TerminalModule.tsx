@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import type { i18n as I18nInstance } from "i18next"
 import { cn } from "@/lib/utils"
+import { MODULE_REGISTRY } from "@/components/modules/registry"
 
 interface TerminalLine {
   type: "cmd" | "out" | "err" | "sys"
@@ -8,7 +10,7 @@ interface TerminalLine {
   time: string
 }
 
-function useTerminalCommands(t: ReturnType<typeof useTranslation>["t"]) {
+function useTerminalCommands(t: ReturnType<typeof useTranslation>["t"], i18n: I18nInstance) {
   return {
     motd: [
       { type: "sys" as const, text: t("module:terminal.motd1") },
@@ -29,23 +31,28 @@ function useTerminalCommands(t: ReturnType<typeof useTranslation>["t"]) {
       date: () => [new Date().toString()],
       whoami: () => [t("module:terminal.whoami")],
       status: () => t("module:terminal.status", { returnObjects: true }) as string[],
-      ls: () => [
-        "scratch    counter    acid-mixer    terminal",
-        "tasks      clock      calculator    kanban",
-      ],
+      ls: () => {
+        const names = MODULE_REGISTRY.map(m => i18n.exists(`module:${m.id}.name`) ? t(`module:${m.id}.name`) : m.name)
+        const half = Math.ceil(names.length / 2)
+        return [
+          names.slice(0, half).join("    "),
+          names.slice(half).join("    "),
+        ]
+      },
     } as Record<string, (args: string[]) => string[]>,
   }
 }
 
-function timestamp() {
-  return new Date().toLocaleTimeString("en-US", { hour12: false })
+function timestamp(locale: string) {
+  return new Date().toLocaleTimeString(locale, { hour12: false })
 }
 
 export default function TerminalModule() {
-  const { t } = useTranslation()
-  const { motd, commands: COMMANDS } = useTerminalCommands(t)
+  const { t, i18n } = useTranslation()
+  const { motd, commands: COMMANDS } = useTerminalCommands(t, i18n)
+  const locale = i18n.language === "zh" ? "zh-CN" : "en-US"
   const [lines, setLines] = useState<TerminalLine[]>(
-    motd.map(l => ({ ...l, time: timestamp() }))
+    motd.map(l => ({ ...l, time: timestamp(locale) }))
   )
   const [input, setInput] = useState("")
   const [history, setHistory] = useState<string[]>([])
@@ -62,7 +69,7 @@ export default function TerminalModule() {
     if (!trimmed) return
     const [cmd, ...args] = trimmed.split(/\s+/)
 
-    setLines(ls => [...ls, { type: "cmd", text: `$ ${trimmed}`, time: timestamp() }])
+    setLines(ls => [...ls, { type: "cmd", text: `$ ${trimmed}`, time: timestamp(locale) }])
     setHistory(h => [trimmed, ...h.slice(0, 49)])
     setHistIdx(-1)
 
@@ -74,9 +81,9 @@ export default function TerminalModule() {
     const handler = COMMANDS[cmd.toLowerCase()]
     if (handler) {
       const out = handler(args)
-      setLines(ls => [...ls, ...out.map(t => ({ type: "out" as const, text: t, time: timestamp() }))])
+      setLines(ls => [...ls, ...out.map(t => ({ type: "out" as const, text: t, time: timestamp(locale) }))])
     } else {
-      setLines(ls => [...ls, { type: "err", text: t("module:terminal.notFound", { cmd }), time: timestamp() }])
+      setLines(ls => [...ls, { type: "err", text: t("module:terminal.notFound", { cmd }), time: timestamp(locale) }])
     }
   }
 

@@ -46,7 +46,15 @@
     "widthRatio": "WIDTH RATIO",
     "moreActions": "More actions",
     "dragReorder": "Drag to reorder",
-    "dragToOtherLane": "Drag to other lane"
+    "dragToOtherLane": "Drag to other lane",
+    "workspaceN": "WORKSPACE {{n}}",
+    "state": {
+      "docked": "Docked",
+      "floating": "Floating",
+      "focused": "Focused",
+      "fullscreen": "Fullscreen",
+      "compact": "Compact"
+    }
   },
   "topbar": {
     "viewMode": {
@@ -126,6 +134,9 @@
       "vignette": "Vignette Depth",
       "vignetteDesc": "Controls the peripheral darkness of the workspace canvas.",
       "grain": "Grain Texture Intensity",
+      "silkFinish": "SILK-FINISH NOISE",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
       "ambient": "AMBIENT LIGHTING",
       "actionGlow": "Action Glow",
       "actionGlowDesc": "Soft colored aura behind primary buttons",
@@ -134,7 +145,21 @@
     },
     "texture": {
       "title": "Texture Canvas",
-      "basePalette": "BASE PALETTE"
+      "basePalette": "BASE PALETTE",
+      "resetDefaults": "RESET DEFAULTS",
+      "applyChanges": "APPLY CHANGES",
+      "paletteLabels": {
+        "bg": "BG",
+        "primary": "Primary",
+        "border": "Border",
+        "text": "Text",
+        "void": "Void",
+        "card": "Card",
+        "green": "Green",
+        "deep": "Deep",
+        "surface": "Surface",
+        "gold": "Gold"
+      }
     },
     "themes": {
       "spatial": {
@@ -297,7 +322,10 @@
       "name": "ACID MIXER",
       "description": "Compound synthesizer logic board. Combine distinct data streams to generate new outputs.",
       "synthesize": "SYNTHESIZE",
-      "operation": "OP"
+      "operation": "OP",
+      "streamA": "STREAM_A",
+      "streamB": "STREAM_B",
+      "streamN": "STREAM_{{letter}}"
     },
     "terminal": {
       "name": "TERMINAL",

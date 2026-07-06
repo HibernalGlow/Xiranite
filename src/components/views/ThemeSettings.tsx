@@ -17,7 +17,7 @@ interface ThemeOption {
   subtitleKey: string
   descriptionKey: string
   palette: string[]
-  paletteLabels: string[]
+  paletteLabelKeys: string[]
   icon: React.ComponentType<{ className?: string }>
 }
 
@@ -28,7 +28,7 @@ const THEMES: ThemeOption[] = [
     subtitleKey: "settings:themes.spatial.subtitle",
     descriptionKey: "settings:themes.spatial.description",
     palette: ["oklch(0.97 0.005 148)", "oklch(0.40 0.12 148)", "oklch(0.88 0.02 148)", "oklch(0.12 0.01 148)"],
-    paletteLabels: ["BG", "Primary", "Border", "Text"],
+    paletteLabelKeys: ["settings:texture.paletteLabels.bg", "settings:texture.paletteLabels.primary", "settings:texture.paletteLabels.border", "settings:texture.paletteLabels.text"],
     icon: Sun,
   },
   {
@@ -37,7 +37,7 @@ const THEMES: ThemeOption[] = [
     subtitleKey: "settings:themes.endfield.subtitle",
     descriptionKey: "settings:themes.endfield.description",
     palette: ["oklch(0.13 0.025 216)", "oklch(0.17 0.025 216)", "oklch(0.62 0.18 152)", "oklch(0.90 0.04 148)"],
-    paletteLabels: ["Void", "Card", "Green", "Text"],
+    paletteLabelKeys: ["settings:texture.paletteLabels.void", "settings:texture.paletteLabels.card", "settings:texture.paletteLabels.green", "settings:texture.paletteLabels.text"],
     icon: Terminal,
   },
   {
@@ -46,7 +46,7 @@ const THEMES: ThemeOption[] = [
     subtitleKey: "settings:themes.wuling.subtitle",
     descriptionKey: "settings:themes.wuling.description",
     palette: ["oklch(0.12 0.03 55)", "oklch(0.16 0.04 55)", "oklch(0.70 0.16 68)", "oklch(0.93 0.04 80)"],
-    paletteLabels: ["Deep", "Surface", "Gold", "Text"],
+    paletteLabelKeys: ["settings:texture.paletteLabels.deep", "settings:texture.paletteLabels.surface", "settings:texture.paletteLabels.gold", "settings:texture.paletteLabels.text"],
     icon: Paintbrush,
   },
 ]
@@ -111,7 +111,7 @@ export function ThemeSettings() {
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 pb-2 pt-3" style={{ background: color }}>
                     <div className="w-full h-8" />
                     <span className="text-[9px] font-mono" style={{ color: i < 2 ? "oklch(0.7 0 0)" : "oklch(0.2 0 0)" }}>
-                      {active.paletteLabels[i]}
+                      {t(active.paletteLabelKeys[i])}
                     </span>
                   </div>
                 ))}
@@ -295,9 +295,9 @@ export function ThemeSettings() {
                 </div>
               </div>
               <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] font-mono text-muted-foreground tracking-widest">SILK-FINISH NOISE</span>
+                <span className="text-[10px] font-mono text-muted-foreground tracking-widest">{t("settings:atmospheric.silkFinish")}</span>
                 <Badge variant={state.grainEnabled ? "default" : "outline"} className="text-[9px] font-mono cursor-pointer" onClick={() => dispatch(actions.setGrain(!state.grainEnabled))}>
-                  {state.grainEnabled ? "Enabled" : "Disabled"}
+                  {t(state.grainEnabled ? "settings:atmospheric.enabled" : "settings:atmospheric.disabled")}
                 </Badge>
               </div>
             </div>
@@ -305,8 +305,8 @@ export function ThemeSettings() {
         </div>
 
         <div className="px-6 pb-6 flex items-center justify-end gap-3">
-          <Button variant="outline" className="font-mono text-xs">RESET DEFAULTS</Button>
-          <Button className="font-mono text-xs btn-primary-glow">APPLY CHANGES</Button>
+          <Button variant="outline" className="font-mono text-xs">{t("settings:texture.resetDefaults")}</Button>
+          <Button className="font-mono text-xs btn-primary-glow">{t("settings:texture.applyChanges")}</Button>
         </div>
       </div>
     </div>

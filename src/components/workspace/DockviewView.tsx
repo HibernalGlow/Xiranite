@@ -8,6 +8,7 @@ import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Plus, X, LayoutPanelTop } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { ComponentInstance } from "@/types/workspace"
 
 /**
  * DockviewView — 真实接入 dockview-react。
@@ -27,7 +28,7 @@ import { Button } from "@/components/ui/button"
  * 选择器覆盖 abyss 变量，让其读取项目的 --card / --muted / --border。
  */
 export function DockviewView() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { visibleComponents } = useWorkspace()
   const dispatch = useWSDispatch()
   const apiRef = useRef<DockviewApi | null>(null)
@@ -40,16 +41,20 @@ export function DockviewView() {
     [visibleComponents],
   )
 
+  const moduleName = (comp: ComponentInstance) => {
+    const m = getModule(comp.moduleId)
+    return i18n.exists(`module:${comp.moduleId}.name`) ? t(`module:${comp.moduleId}.name`) : (m?.name ?? comp.moduleId)
+  }
+
   const onReady = useCallback((event: DockviewReadyEvent) => {
     const api: DockviewApi = event.api
     apiRef.current = api
     removeDisposableRef.current?.dispose()
     api.clear()
     dockComponents.forEach((comp, i) => {
-      const mod = getModule(comp.moduleId)
       api.addPanel({
         id: comp.id,
-        title: mod?.name ?? comp.moduleId,
+        title: moduleName(comp),
         component: "module",
         tabComponent: "moduleTab",
         params: { moduleId: comp.moduleId, compId: comp.id },
@@ -96,10 +101,9 @@ export function DockviewView() {
     // 加：dockComponents 有但 api 没有（新 deploy 的）
     dockComponents.forEach(comp => {
       if (!existingIds.has(comp.id)) {
-        const mod = getModule(comp.moduleId)
         api.addPanel({
           id: comp.id,
-          title: mod?.name ?? comp.moduleId,
+          title: moduleName(comp),
           component: "module",
           tabComponent: "moduleTab",
           params: { moduleId: comp.moduleId, compId: comp.id },

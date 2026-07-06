@@ -97,14 +97,6 @@ export interface WindowFrame {
   height: number
 }
 
-export interface MainWindowDragInput {
-  screenX: number
-  screenY: number
-  clientX: number
-  clientY: number
-  windowWidth: number
-}
-
 export interface OpenComponentWindowInput {
   componentId: string
   moduleId: string
@@ -116,7 +108,6 @@ export interface OpenComponentWindowInput {
 export interface WindowRuntime {
   getCapabilities(): Promise<WindowCapabilities>
   controlMain(action: MainWindowAction): Promise<WindowCommandResult>
-  restoreMainForDrag(input: MainWindowDragInput): Promise<WindowCommandResult>
   openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult>
   focus(id: string): Promise<WindowCommandResult>
   close(id: string): Promise<WindowCommandResult>
@@ -125,7 +116,7 @@ export interface WindowRuntime {
 }
 
 export interface RuntimeInterface {
-  readonly kind: "web" | "electbun" | "tauri" | "electron"
+  readonly kind: "web" | "wails" | "tauri" | "electron"
   storage: StorageRuntime
   fs: FileSystemRuntime
   subprocess: SubprocessRuntime

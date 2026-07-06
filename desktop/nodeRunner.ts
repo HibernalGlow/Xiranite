@@ -91,10 +91,7 @@ async function loadModule(modulePath: string): Promise<NodeModule> {
   return moduleCache.get(modulePath)!
 }
 
-function getFunction<TFunction>(
-  module: NodeModule,
-  exportName: string,
-): TFunction {
+function getFunction<TFunction>(module: NodeModule, exportName: string): TFunction {
   const value = module[exportName]
   if (typeof value !== "function") {
     throw new Error(`Missing function export "${exportName}".`)

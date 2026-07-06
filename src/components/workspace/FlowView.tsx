@@ -22,6 +22,7 @@ import {
 import "tldraw/tldraw.css"
 import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
+import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Plus, Workflow, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -83,8 +84,10 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
 // ── Shape 内部组件（用 hook 拿 dispatch） ────────────────────────────────────
 function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const dispatch = useWSDispatch()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
+  const mod = getModule(moduleId)
+  const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -101,7 +104,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       <div className="flex h-8 items-center gap-2 border-b border-border/60 bg-muted/30 px-2 flex-shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-primary" />
         <span className="text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase truncate flex-1">
-          {moduleId}
+          {moduleName}
         </span>
         <button
           onPointerDown={(e) => e.stopPropagation()}

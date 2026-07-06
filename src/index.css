@@ -336,16 +336,13 @@
   }
 }
 
-.xiranite-app-region-drag,
-.electrobun-webkit-app-region-drag {
-  app-region: drag;
-  -webkit-app-region: drag;
+.xiranite-app-region-drag {
+  --wails-draggable: drag;
 }
 
 .xiranite-app-region-no-drag,
-.electrobun-webkit-app-region-no-drag {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
+.xiranite-app-region-no-drag * {
+  --wails-draggable: no-drag;
 }
 
 /* ── Workspace canvas dot/grid background ── */

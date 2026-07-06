@@ -46,7 +46,15 @@
     "widthRatio": "宽度比例",
     "moreActions": "更多操作",
     "dragReorder": "拖动重排",
-    "dragToOtherLane": "拖到其他泳道"
+    "dragToOtherLane": "拖到其他泳道",
+    "workspaceN": "工作区 {{n}}",
+    "state": {
+      "docked": "已停靠",
+      "floating": "浮动",
+      "focused": "已聚焦",
+      "fullscreen": "全屏",
+      "compact": "紧凑"
+    }
   },
   "topbar": {
     "viewMode": {
@@ -126,6 +134,9 @@
       "vignette": "晕影深度",
       "vignetteDesc": "控制工作区画布的边缘暗度。",
       "grain": "颗粒纹理强度",
+      "silkFinish": "丝绸噪点",
+      "enabled": "已启用",
+      "disabled": "已禁用",
       "ambient": "环境光",
       "actionGlow": "动作光晕",
       "actionGlowDesc": "主按钮背后的柔和彩色光晕",
@@ -134,7 +145,21 @@
     },
     "texture": {
       "title": "纹理画布",
-      "basePalette": "基础调色板"
+      "basePalette": "基础调色板",
+      "resetDefaults": "恢复默认",
+      "applyChanges": "应用更改",
+      "paletteLabels": {
+        "bg": "背景",
+        "primary": "主色",
+        "border": "边框",
+        "text": "文本",
+        "void": "深邃",
+        "card": "卡片",
+        "green": "绿色",
+        "deep": "深沉",
+        "surface": "表面",
+        "gold": "金色"
+      }
     },
     "themes": {
       "spatial": {
@@ -297,7 +322,10 @@
       "name": "ACID MIXER",
       "description": "复合合成器逻辑板。组合不同数据流以生成新输出。",
       "synthesize": "合成",
-      "operation": "操作"
+      "operation": "操作",
+      "streamA": "流_A",
+      "streamB": "流_B",
+      "streamN": "流_{{letter}}"
     },
     "terminal": {
       "name": "终端",

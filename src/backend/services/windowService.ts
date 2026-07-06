@@ -1,5 +1,4 @@
 import type {
-  MainWindowDragInput,
   MainWindowAction,
   OpenComponentWindowInput,
   WindowCapabilities,
@@ -37,18 +36,6 @@ export class WindowService implements Service<"windows"> {
   async controlMain(action: MainWindowAction): Promise<WindowCommandResult> {
     try {
       return await this.ctx.runtime.windows.controlMain(action)
-    } catch (error) {
-      return {
-        success: false,
-        supported: false,
-        message: errorMessage(error),
-      }
-    }
-  }
-
-  async restoreMainForDrag(input: MainWindowDragInput): Promise<WindowCommandResult> {
-    try {
-      return await this.ctx.runtime.windows.restoreMainForDrag(input)
     } catch (error) {
       return {
         success: false,
