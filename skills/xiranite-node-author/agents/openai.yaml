@@ -1,0 +1,4 @@
+interface:
+  display_name: "Xiranite Node Author"
+  short_description: "Create adapter-free Xiranite node packages."
+  default_prompt: "Use $xiranite-node-author to implement or review an adapter-free Xiranite node package."
