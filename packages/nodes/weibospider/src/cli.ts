@@ -3,11 +3,15 @@ import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { WeiboSpiderAction, WeiboSpiderBrowser, WeiboSpiderInput } from "./core.js"
 import { runWeiboSpider } from "./core.js"
 import { createNodeWeiboSpiderRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("weibospider")
 
 interface WeiboSpiderCliOptions {
   users?: string
@@ -45,7 +49,7 @@ interface WeiboSpiderCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-weibospider",
+  name: CLI_NAME,
   description: "Weibo.cn crawler with config, cookie, guided, and crawl commands.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -68,7 +72,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-weibospider", description: "Weibo.cn crawler workflow with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Weibo.cn crawler workflow with guided terminal mode." },
     subCommands: {
       status: defineCommand({
         meta: { name: "status", description: "Show config status." },

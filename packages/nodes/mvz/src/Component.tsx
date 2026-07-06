@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, MoveRight, PencilLine, Play, RotateCcw, Trash2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -23,14 +24,15 @@ interface MvzCardState {
   progressText?: string
 }
 
-const ACTIONS: Array<{ value: MvzAction; label: string; icon: typeof FileArchive }> = [
-  { value: "extract", label: "Extract", icon: FolderOpen },
-  { value: "move", label: "Move", icon: MoveRight },
-  { value: "delete", label: "Delete", icon: Trash2 },
-  { value: "rename", label: "Rename", icon: PencilLine },
+const ACTIONS: Array<{ value: MvzAction; labelKey: string; icon: typeof FileArchive }> = [
+  { value: "extract", labelKey: "module:mvz.extract", icon: FolderOpen },
+  { value: "move", labelKey: "module:mvz.move", icon: MoveRight },
+  { value: "delete", labelKey: "module:mvz.delete", icon: Trash2 },
+  { value: "rename", labelKey: "module:mvz.rename", icon: PencilLine },
 ]
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<MvzCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const action = data.action ?? "extract"
@@ -94,15 +96,15 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="mvz"
-        meta={`${action} / ${dryRun ? "dry-run" : "live"} / ${entries.length} file(s) / ${archives} archive(s)`}
+        title={t("module:mvz.title")}
+        meta={t("module:mvz.meta", { action: t(`module:mvz.${action}`), mode: dryRun ? t("module:mvz.dryRun") : t("module:mvz.live"), files: entries.length, archives })}
         actions={
           <>
-            <IconButton title="Paste findz entries" disabled={running} onClick={pasteEntries}><Clipboard size={14} /></IconButton>
-            <ActionButton variant={action === "delete" && !dryRun ? "danger" : "primary"} disabled={running || !canRun(action, entries.length, data)} onClick={() => execute()}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><FileArchive size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:mvz.pasteFindzEntries")} disabled={running} onClick={pasteEntries}><Clipboard size={14} /></IconButton>
+            <ActionButton variant={action === "delete" && !dryRun ? "danger" : "primary"} disabled={running || !canRun(action, entries.length, data)} onClick={() => execute()}><Play size={14} /> {t("module:mvz.run")}</ActionButton>
+            <IconButton title={t("module:mvz.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:mvz.copyLogs")} onClick={copyLogs}><FileArchive size={14} /></IconButton>
+            <IconButton title={t("module:mvz.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -113,54 +115,54 @@ export function Component({ compId, host }: NodeComponentProps) {
             const Icon = item.icon
             return (
               <SegmentButton key={item.value} active={action === item.value} disabled={running} onClick={() => patch({ action: item.value })}>
-                <Icon size={14} /> {item.label}
+                <Icon size={14} /> {t(item.labelKey)}
               </SegmentButton>
             )
           })}
-          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>dry-run</SegmentButton>
-          <SegmentButton active={data.near ?? true} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ near: !(data.near ?? true) })}>near</SegmentButton>
-          <SegmentButton active={data.autoDir ?? true} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ autoDir: !(data.autoDir ?? true) })}>auto dir</SegmentButton>
-          <SegmentButton active={data.flatten ?? false} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ flatten: !(data.flatten ?? false) })}>flatten</SegmentButton>
+          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>{t("module:mvz.dryRun")}</SegmentButton>
+          <SegmentButton active={data.near ?? true} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ near: !(data.near ?? true) })}>{t("module:mvz.near")}</SegmentButton>
+          <SegmentButton active={data.autoDir ?? true} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ autoDir: !(data.autoDir ?? true) })}>{t("module:mvz.autoDir")}</SegmentButton>
+          <SegmentButton active={data.flatten ?? false} disabled={running || action === "delete" || action === "rename"} onClick={() => patch({ flatten: !(data.flatten ?? false) })}>{t("module:mvz.flatten")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="output" value={data.output ?? ""} disabled={running || action === "delete" || action === "rename" || (data.near ?? true)} onChange={(event) => patch({ output: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <Field label="separator" value={separator} disabled={running} onChange={(event) => patch({ separator: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:mvz.outputLabel")} value={data.output ?? ""} disabled={running || action === "delete" || action === "rename" || (data.near ?? true)} onChange={(event) => patch({ output: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:mvz.separatorLabel")} value={separator} disabled={running} onChange={(event) => patch({ separator: event.currentTarget.value })} className="min-w-0 flex-1" />
           {action === "rename" ? (
             <>
-              <Field label="pattern" value={data.pattern ?? ""} disabled={running} onChange={(event) => patch({ pattern: event.currentTarget.value })} className="min-w-0 flex-1" />
-              <Field label="replacement" value={data.replacement ?? ""} disabled={running} onChange={(event) => patch({ replacement: event.currentTarget.value })} className="min-w-0 flex-1" />
+              <Field label={t("module:mvz.patternLabel")} value={data.pattern ?? ""} disabled={running} onChange={(event) => patch({ pattern: event.currentTarget.value })} className="min-w-0 flex-1" />
+              <Field label={t("module:mvz.replacementLabel")} value={data.replacement ?? ""} disabled={running} onChange={(event) => patch({ replacement: event.currentTarget.value })} className="min-w-0 flex-1" />
             </>
           ) : null}
         </div>
 
         <TextArea
-          label="archive entries"
+          label={t("module:mvz.archiveEntriesLabel")}
           value={data.entryText ?? ""}
           disabled={running}
           onChange={(event) => patch({ entryText: event.currentTarget.value })}
-          placeholder="C:/packs/book.zip//chapter/page.jpg"
+          placeholder={t("module:mvz.archiveEntriesPlaceholder")}
         />
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="success" value={result?.successCount ?? 0} tone="good" />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
-          <StatPill label="archives" value={result?.totalArchives ?? archives} tone="accent" />
-          <StatPill label="files" value={result?.totalFiles ?? entries.length} />
-          <StatPill label="progress" value={`${data.progress ?? 0}%`} />
+          <StatPill label={t("module:mvz.successLabel")} value={result?.successCount ?? 0} tone="good" />
+          <StatPill label={t("module:mvz.failedLabel")} value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:mvz.archivesLabel")} value={result?.totalArchives ?? archives} tone="accent" />
+          <StatPill label={t("module:mvz.filesLabel")} value={result?.totalFiles ?? entries.length} />
+          <StatPill label={t("module:mvz.progressLabel")} value={`${data.progress ?? 0}%`} />
         </div>
 
         <ResultView className="h-24 shrink-0 text-muted-foreground">
           {result?.preview.length ? result.preview.slice(0, 80).map((item) => (
             <div key={`${item.action}:${item.archive}:${item.command ?? ""}`} className="mb-1 truncate">
-              plan {item.action} {item.count} / {item.command}
+              {t("module:mvz.planLabel")} {item.action} {item.count} / {item.command}
             </div>
           )) : result?.results.length ? result.results.slice(0, 80).map((item) => (
             <div key={`${item.action}:${item.archive}:${item.message}`} className={item.success ? "mb-1 truncate" : "mb-1 truncate text-red-500"}>
-              {item.success ? "ok" : "fail"} {item.action} {item.archive} / {item.message}
+              {item.success ? t("module:mvz.okLabel") : t("module:mvz.failLabel")} {item.action} {item.archive} / {item.message}
             </div>
           )) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || "No operation yet"}</div>
+            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || t("module:mvz.noOperation")}</div>
           )}
         </ResultView>
       </NodeBody>

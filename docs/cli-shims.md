@@ -5,7 +5,7 @@ Use `scripts/install-cli-shims.ts` to expose the migrated TypeScript CLIs as sys
 The script writes managed shim files into a target directory:
 
 - `xiranite.cmd`
-- `xiranite-<node>.cmd` for every migrated node package
+- `x<node>.cmd` for every migrated node package under the current CLI naming policy
 - optional legacy aliases: `anode.cmd`, `aestiv.cmd`, `aestiva.cmd`
 
 Default target:

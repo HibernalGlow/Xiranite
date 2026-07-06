@@ -1,4 +1,6 @@
 import { useState } from "react"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSearch, Package, Play, RotateCcw, Trash2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -17,14 +19,23 @@ interface ScoolpCardState {
   dryRun?: boolean
 }
 
-const actions: Array<{ id: ScoolpAction; label: string }> = [
-  { id: "status", label: "status" },
-  { id: "list_packages", label: "list" },
-  { id: "sync", label: "sync" },
-  { id: "cache_list", label: "cache" },
-]
+const actionIds: ScoolpAction[] = ["status", "list_packages", "sync", "cache_list"]
+
+const actionLabelKey: Record<ScoolpAction, string> = {
+  status: "module:scoolp.actionStatus",
+  init: "module:scoolp.actionStatus",
+  list_packages: "module:scoolp.actionList",
+  package_info: "module:scoolp.actionList",
+  install: "module:scoolp.actionList",
+  show_config: "module:scoolp.actionStatus",
+  sync: "module:scoolp.actionSync",
+  cache_list: "module:scoolp.actionCache",
+  cache_backup: "module:scoolp.actionCache",
+  cache_delete: "module:scoolp.actionCache",
+}
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<ScoolpCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -64,7 +75,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the xiranite-scoolp CLI for system actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the package CLI for system actions.")
 
     setRunning(true)
     patch({ phase: "running", action: nextAction })
@@ -95,49 +106,53 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="scoolp"
-        meta={`${data.phase ?? "idle"} / ${action} / ${dryRun ? "dry-run" : "execute"}`}
+        title={t("module:scoolp.title")}
+        meta={t("module:scoolp.meta", {
+          phase: data.phase ?? t("module:scoolp.idle"),
+          action: t(actionLabelKey[action]),
+          mode: dryRun ? t("module:scoolp.dryRun") : t("module:scoolp.execute"),
+        })}
         actions={
           <>
-            <IconButton title="Paste config" onClick={pasteConfig}><Clipboard size={14} /></IconButton>
-            <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:scoolp.pasteConfig")} onClick={pasteConfig}><Clipboard size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> {t("module:scoolp.run")}</ActionButton>
+            <IconButton title={t("module:scoolp.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:scoolp.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-1">
-          {actions.map((item) => (
-            <SegmentButton key={item.id} active={action === item.id} disabled={running} onClick={() => patch({ action: item.id })}>{item.label}</SegmentButton>
+          {actionIds.map((id) => (
+            <SegmentButton key={id} active={action === id} disabled={running} onClick={() => patch({ action: id })}>{t(actionLabelKey[id])}</SegmentButton>
           ))}
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="path" value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
-          <Field label="package" value={data.packageName ?? ""} disabled={running} onChange={(event) => patch({ packageName: event.currentTarget.value })} />
-          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>{dryRun ? "dry-run" : "execute"}</SegmentButton>
+          <Field label={t("module:scoolp.path")} value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
+          <Field label={t("module:scoolp.package")} value={data.packageName ?? ""} disabled={running} onChange={(event) => patch({ packageName: event.currentTarget.value })} />
+          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>{dryRun ? t("module:scoolp.dryRun") : t("module:scoolp.execute")}</SegmentButton>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="sync toml / package list"
+            label={t("module:scoolp.syncToml")}
             value={action === "install" ? data.packages ?? "" : data.configText ?? ""}
             disabled={running}
             onChange={(event) => action === "install" ? patch({ packages: event.currentTarget.value }) : patch({ configText: event.currentTarget.value })}
-            placeholder="paste scoop.toml for local sync preview"
+            placeholder={t("module:scoolp.syncTomlPlaceholder")}
           />
           <ResultView className="text-muted-foreground">
-            <Result result={result} />
+            <Result result={result} t={t} />
           </ResultView>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="packages" value={result?.installedPackages.length || result?.availablePackages.length || 0} tone="accent" />
-          <StatPill label="buckets" value={result?.buckets.length ?? result?.syncConfig?.buckets.length ?? 0} />
-          <StatPill label="cache" value={result?.cache?.obsoleteCount ?? 0} />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={result?.failedCount ? "bad" : "neutral"} />
+          <StatPill label={t("module:scoolp.statPackages")} value={result?.installedPackages.length || result?.availablePackages.length || 0} tone="accent" />
+          <StatPill label={t("module:scoolp.statBuckets")} value={result?.buckets.length ?? result?.syncConfig?.buckets.length ?? 0} />
+          <StatPill label={t("module:scoolp.statCache")} value={result?.cache?.obsoleteCount ?? 0} />
+          <StatPill label={t("module:scoolp.statFailed")} value={result?.failedCount ?? 0} tone={result?.failedCount ? "bad" : "neutral"} />
         </div>
       </NodeBody>
 
@@ -148,8 +163,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   )
 }
 
-function Result({ result }: { result: ScoolpData | null }) {
-  if (!result) return <div className="flex h-full items-center justify-center">No result</div>
+function Result({ result, t }: { result: ScoolpData | null; t: TFunction }) {
+  if (!result) return <div className="flex h-full items-center justify-center">{t("module:scoolp.noResult")}</div>
   if (result.syncPlan.length) {
     return result.syncPlan.slice(0, 80).map((item) => (
       <div key={`${item.label}:${item.args.join(" ")}`} className="mb-1">
@@ -169,14 +184,14 @@ function Result({ result }: { result: ScoolpData | null }) {
   if (result.cache) {
     return (
       <div>
-        <div className="mb-2 text-primary"><Trash2 size={11} className="mr-1 inline" />{result.cache.obsoleteCount} obsolete / {formatSize(result.cache.obsoleteSize)}</div>
+        <div className="mb-2 text-primary"><Trash2 size={11} className="mr-1 inline" />{result.cache.obsoleteCount} {t("module:scoolp.obsolete")} / {formatSize(result.cache.obsoleteSize)}</div>
         {result.cache.obsoletePackages.slice(0, 80).map((item) => (
           <div key={item.path} className="truncate">{item.name} {item.version} / {formatSize(item.size)}</div>
         ))}
       </div>
     )
   }
-  return <div className="flex h-full items-center justify-center">Scoop installed: {String(result.scoopInstalled)}</div>
+  return <div className="flex h-full items-center justify-center">{t("module:scoolp.scoopInstalled", { installed: String(result.scoopInstalled) })}</div>
 }
 
 function splitPackages(value?: string): string[] {

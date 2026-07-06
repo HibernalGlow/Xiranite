@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { KavvkaInput } from "./core.js"
 import { parseKavvkaKeywords, parseKavvkaPaths, runKavvka } from "./core.js"
 import { createNodeKavvkaRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("kavvka")
 
 interface KavvkaCliOptions {
   path?: string
@@ -23,7 +27,7 @@ interface KavvkaCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-kavvka",
+  name: CLI_NAME,
   description: "Prepare Czkawka include paths from gallery folders.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -52,7 +56,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-kavvka", description: "Czkawka path helper with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Czkawka path helper with guided terminal mode." },
     subCommands: {
       process: defineCommand({
         meta: { name: "process", description: "Move sibling folders into #compare and print Czkawka paths." },

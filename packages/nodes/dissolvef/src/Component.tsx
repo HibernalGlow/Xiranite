@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, FolderInput, FolderOpen, History, Play, RotateCcw, Undo2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -25,6 +26,7 @@ interface DissolvefCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<DissolvefCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -54,7 +56,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: DissolvefInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-dissolvef CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: "running" })
     const response = await runNativeAction<DissolvefInput, DissolvefData>("dissolvef", {
@@ -99,55 +101,65 @@ export function Component({ compId, host }: NodeComponentProps) {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
 
+  const modeParts = [
+    nested ? t("module:dissolvef.nested") : "",
+    media ? t("module:dissolvef.media") : "",
+    archive ? t("module:dissolvef.archive") : "",
+  ].filter(Boolean)
+  const modeText = direct ? t("module:dissolvef.direct") : (modeParts.length ? modeParts.join("+") : t("module:dissolvef.none"))
+
   return (
     <NodeContent>
       <NodeHeader
-        title="dissolvef"
-        meta={`${data.phase ?? "idle"} / ${direct ? "direct" : selectedModes(nested, media, archive)}`}
+        title={t("module:dissolvef.title")}
+        meta={t("module:dissolvef.meta", {
+          phase: t(`module:dissolvef.phases.${data.phase ?? "idle"}`),
+          mode: modeText,
+        })}
         actions={
           <>
-            <ActionButton disabled={running} onClick={() => execute("plan")}><Play size={14} /> Plan</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute(direct ? "direct" : "dissolve")}><FolderInput size={14} /> Run</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> History</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute("undo")}><Undo2 size={14} /> Undo</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Clipboard size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <ActionButton disabled={running} onClick={() => execute("plan")}><Play size={14} /> {t("module:dissolvef.plan")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute(direct ? "direct" : "dissolve")}><FolderInput size={14} /> {t("module:dissolvef.run")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> {t("module:dissolvef.history")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute("undo")}><Undo2 size={14} /> {t("module:dissolvef.undo")}</ActionButton>
+            <IconButton title={t("module:dissolvef.copyLogs")} onClick={copyLogs}><Clipboard size={14} /></IconButton>
+            <IconButton title={t("module:dissolvef.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <IconButton title="Paste folder" onClick={() => paste("pathText")} disabled={running}><FolderOpen size={13} /></IconButton>
-          <Field label="history" value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:dissolvef.folder")} value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <IconButton title={t("module:dissolvef.pasteFolder")} onClick={() => paste("pathText")} disabled={running}><FolderOpen size={13} /></IconButton>
+          <Field label={t("module:dissolvef.historyPath")} value={data.historyPath ?? ""} disabled={running} onChange={(event) => patch({ historyPath: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={!direct} disabled={running} onClick={() => setMode("bundle")}>bundle</SegmentButton>
-          <SegmentButton active={direct} disabled={running} onClick={() => setMode("direct")}>direct</SegmentButton>
-          <SegmentButton active={nested && !direct} disabled={running || direct} onClick={() => toggleMode("nested")}>nested</SegmentButton>
-          <SegmentButton active={media && !direct} disabled={running || direct} onClick={() => toggleMode("media")}>media</SegmentButton>
-          <SegmentButton active={archive && !direct} disabled={running || direct} onClick={() => toggleMode("archive")}>archive</SegmentButton>
-          <SegmentButton active={preview} disabled={running} onClick={() => patch({ preview: !preview })}>preview</SegmentButton>
-          <SegmentButton active={protectFirstLevel} disabled={running || direct} onClick={() => patch({ protectFirstLevel: !protectFirstLevel })}>protect</SegmentButton>
-          <SegmentButton active={enableSimilarity} disabled={running || direct} onClick={() => patch({ enableSimilarity: !enableSimilarity })}>similarity</SegmentButton>
+          <SegmentButton active={!direct} disabled={running} onClick={() => setMode("bundle")}>{t("module:dissolvef.bundle")}</SegmentButton>
+          <SegmentButton active={direct} disabled={running} onClick={() => setMode("direct")}>{t("module:dissolvef.direct")}</SegmentButton>
+          <SegmentButton active={nested && !direct} disabled={running || direct} onClick={() => toggleMode("nested")}>{t("module:dissolvef.nested")}</SegmentButton>
+          <SegmentButton active={media && !direct} disabled={running || direct} onClick={() => toggleMode("media")}>{t("module:dissolvef.media")}</SegmentButton>
+          <SegmentButton active={archive && !direct} disabled={running || direct} onClick={() => toggleMode("archive")}>{t("module:dissolvef.archive")}</SegmentButton>
+          <SegmentButton active={preview} disabled={running} onClick={() => patch({ preview: !preview })}>{t("module:dissolvef.preview")}</SegmentButton>
+          <SegmentButton active={protectFirstLevel} disabled={running || direct} onClick={() => patch({ protectFirstLevel: !protectFirstLevel })}>{t("module:dissolvef.protect")}</SegmentButton>
+          <SegmentButton active={enableSimilarity} disabled={running || direct} onClick={() => patch({ enableSimilarity: !enableSimilarity })}>{t("module:dissolvef.similarity")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="exclude" value={data.excludeText ?? ""} disabled={running} onChange={(event) => patch({ excludeText: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running || direct || !enableSimilarity} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
-          <Field label="file conflict" value={data.fileConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ fileConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <Field label="dir conflict" value={data.dirConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ dirConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:dissolvef.exclude")} value={data.excludeText ?? ""} disabled={running} onChange={(event) => patch({ excludeText: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:dissolvef.threshold")} type="number" min={0} max={1} step={0.05} value={threshold} disabled={running || direct || !enableSimilarity} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label={t("module:dissolvef.fileConflict")} value={data.fileConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ fileConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <Field label={t("module:dissolvef.dirConflict")} value={data.dirConflict ?? "auto"} disabled={running || !direct} onChange={(event) => patch({ dirConflict: event.currentTarget.value })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="nested" value={data.result?.nestedCount ?? 0} tone="good" />
-          <StatPill label="media" value={data.result?.mediaCount ?? 0} tone="good" />
-          <StatPill label="archive" value={data.result?.archiveCount ?? 0} tone="good" />
-          <StatPill label="direct" value={`${data.result?.directFiles ?? 0}/${data.result?.directDirs ?? 0}`} tone="accent" />
-          <StatPill label="skipped" value={data.result?.skippedCount ?? 0} />
-          <StatPill label="errors" value={data.result?.errorCount ?? data.result?.failedCount ?? 0} tone={(data.result?.errorCount || data.result?.failedCount) ? "bad" : "neutral"} />
+          <StatPill label={t("module:dissolvef.nested")} value={data.result?.nestedCount ?? 0} tone="good" />
+          <StatPill label={t("module:dissolvef.media")} value={data.result?.mediaCount ?? 0} tone="good" />
+          <StatPill label={t("module:dissolvef.archive")} value={data.result?.archiveCount ?? 0} tone="good" />
+          <StatPill label={t("module:dissolvef.direct")} value={`${data.result?.directFiles ?? 0}/${data.result?.directDirs ?? 0}`} tone="accent" />
+          <StatPill label={t("module:dissolvef.skipped")} value={data.result?.skippedCount ?? 0} />
+          <StatPill label={t("module:dissolvef.errors")} value={data.result?.errorCount ?? data.result?.failedCount ?? 0} tone={(data.result?.errorCount || data.result?.failedCount) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -157,9 +169,9 @@ export function Component({ compId, host }: NodeComponentProps) {
             </div>
           )) : history.length ? history.slice(0, 20).map((item) => (
             <div key={item.id} className="mb-1 truncate">
-              {item.id} / {item.mode} / {item.count} operation(s) {item.undone ? "/ undone" : ""}
+              {item.id} / {item.mode} / {item.count} {t("module:dissolvef.operations")}{item.undone ? ` / ${t("module:dissolvef.undone")}` : ""}
             </div>
-          )) : "No result"}
+          )) : t("module:dissolvef.noResult")}
         </ResultView>
       </NodeBody>
 
@@ -168,9 +180,4 @@ export function Component({ compId, host }: NodeComponentProps) {
       </NodeFooter>
     </NodeContent>
   )
-}
-
-function selectedModes(nested: boolean, media: boolean, archive: boolean): string {
-  const modes = [nested ? "nested" : "", media ? "media" : "", archive ? "archive" : ""].filter(Boolean)
-  return modes.length ? modes.join("+") : "none"
 }

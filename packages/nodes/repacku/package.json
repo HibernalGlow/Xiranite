@@ -6,7 +6,7 @@
   "description": "Folder analysis and repacking node migrated from aestivus/repacku.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-repacku": "./dist/cli.js"
+    "xrepacku": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -32,10 +32,12 @@
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "@xiranite/node-lata": "workspace:*",
     "@xiranite/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0",
+    "react-i18next": "^17.0.0",
     "lucide-react": "^1.0.0"
   },
   "devDependencies": {

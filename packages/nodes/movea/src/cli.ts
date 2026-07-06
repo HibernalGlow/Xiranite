@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { MoveaInput } from "./core.js"
 import { runMovea } from "./core.js"
 import { createNodeMoveaRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("movea")
 
 interface MoveaCliOptions {
   path?: string
@@ -21,7 +25,7 @@ interface MoveaCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-movea",
+  name: CLI_NAME,
   description: "Scan and move archives or folders into numbered target folders.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -50,7 +54,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-movea", description: "Archive classifier mover with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Archive classifier mover with guided terminal mode." },
     subCommands: {
       scan: defineCommand({
         meta: { name: "scan", description: "Scan a root path for movable archives and folders." },

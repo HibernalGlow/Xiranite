@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileText, RotateCcw, Search, Zap } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -18,6 +19,7 @@ interface EncodebCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<EncodebCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const pathText = data.pathText ?? ""
@@ -49,7 +51,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EncodebInput["action"]) {
     if (!paths.length || running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-encodeb CLI to scan, preview, or recover filenames.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan, preview, or recover filenames.")
 
     setRunning(true)
     patch({ phase: action ?? "preview", mappings: [], matches: [] })
@@ -85,16 +87,21 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="encodeb"
-        meta={`${paths.length} path(s) / ${srcEncoding} -> ${dstEncoding} / ${strategy}`}
+        title={t("module:encodeb.title")}
+        meta={t("module:encodeb.meta", {
+          paths: paths.length,
+          src: srcEncoding,
+          dst: dstEncoding,
+          strategy: t(`module:encodeb.strategies.${strategy}`),
+        })}
         actions={
           <>
-            <IconButton title="Paste paths" onClick={pastePaths}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={!paths.length || running} onClick={() => execute("find")}><Search size={14} /> Find</ActionButton>
-            <ActionButton disabled={!paths.length || running} onClick={() => execute("preview")}><FileText size={14} /> Preview</ActionButton>
-            <ActionButton variant="primary" disabled={!paths.length || running} onClick={() => execute("recover")}><Zap size={14} /> Recover</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:encodeb.pastePaths")} onClick={pastePaths}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={!paths.length || running} onClick={() => execute("find")}><Search size={14} /> {t("module:encodeb.find")}</ActionButton>
+            <ActionButton disabled={!paths.length || running} onClick={() => execute("preview")}><FileText size={14} /> {t("module:encodeb.preview")}</ActionButton>
+            <ActionButton variant="primary" disabled={!paths.length || running} onClick={() => execute("recover")}><Zap size={14} /> {t("module:encodeb.recover")}</ActionButton>
+            <IconButton title={t("module:encodeb.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:encodeb.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -102,29 +109,29 @@ export function Component({ compId, host }: NodeComponentProps) {
       <NodeBody className="flex flex-col gap-2">
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="paths"
+            label={t("module:encodeb.paths")}
             value={pathText}
             onChange={(event) => patch({ pathText: event.currentTarget.value })}
             disabled={running}
-            placeholder="one file or folder path per line"
+            placeholder={t("module:encodeb.placeholderPaths")}
           />
           <div className="flex min-h-0 flex-col gap-2">
             <div className="flex shrink-0 flex-wrap gap-1">
               {(["cn", "jp", "kr", "custom"] as const).map((key) => (
                 <SegmentButton key={key} active={preset === key} disabled={running} onClick={() => selectPreset(key)}>
-                  {key}
+                  {t(`module:encodeb.presets.${key}`)}
                 </SegmentButton>
               ))}
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <Field label="src" value={srcEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ srcEncoding: event.currentTarget.value })} />
-              <Field label="dst" value={dstEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ dstEncoding: event.currentTarget.value })} />
+              <Field label={t("module:encodeb.src")} value={srcEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ srcEncoding: event.currentTarget.value })} />
+              <Field label={t("module:encodeb.dst")} value={dstEncoding} disabled={running || preset !== "custom"} onChange={(event) => patch({ dstEncoding: event.currentTarget.value })} />
             </div>
             <div className="flex shrink-0 flex-wrap gap-1">
-              <SegmentButton active={strategy === "replace"} disabled={running} onClick={() => patch({ strategy: "replace" })}>replace</SegmentButton>
-              <SegmentButton active={strategy === "copy"} disabled={running} onClick={() => patch({ strategy: "copy" })}>copy</SegmentButton>
-              <StatPill label="preview" value={data.mappings?.length ?? 0} tone="accent" />
-              <StatPill label="matches" value={data.matches?.length ?? 0} />
+              <SegmentButton active={strategy === "replace"} disabled={running} onClick={() => patch({ strategy: "replace" })}>{t("module:encodeb.strategies.replace")}</SegmentButton>
+              <SegmentButton active={strategy === "copy"} disabled={running} onClick={() => patch({ strategy: "copy" })}>{t("module:encodeb.strategies.copy")}</SegmentButton>
+              <StatPill label={t("module:encodeb.preview")} value={data.mappings?.length ?? 0} tone="accent" />
+              <StatPill label={t("module:encodeb.matches")} value={data.matches?.length ?? 0} />
             </div>
             <ResultView className="flex-1 text-muted-foreground">
               {previewRows.length ? previewRows.slice(0, 80).map((row) => (
@@ -132,14 +139,14 @@ export function Component({ compId, host }: NodeComponentProps) {
                   <div className="truncate">{row.src}</div>
                   {row.dst ? <div className="truncate text-primary">-&gt; {row.dst}</div> : null}
                 </div>
-              )) : <div className="flex h-full items-center justify-center">No preview rows</div>}
+              )) : <div className="flex h-full items-center justify-center">{t("module:encodeb.noPreviewRows")}</div>}
             </ResultView>
           </div>
         </div>
       </NodeBody>
 
       <NodeFooter>
-        <LogView lines={running ? ["running...", ...logs] : logs} className="h-14" />
+        <LogView lines={running ? [t("module:encodeb.running"), ...logs] : logs} className="h-14" />
       </NodeFooter>
     </NodeContent>
   )

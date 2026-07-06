@@ -6,7 +6,7 @@
   "description": "Editable Python package reinstall node migrated from aestivus/reinstallp.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-reinstallp": "./dist/cli.js"
+    "xreinstallp": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -36,6 +36,7 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
+    "react-i18next": "^17.0.0",
     "lucide-react": "^1.0.0"
   },
   "devDependencies": {

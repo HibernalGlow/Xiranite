@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { FormatvAction, FormatvInput } from "./core.js"
 import { runFormatv } from "./core.js"
 import { createNodeFormatvRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("formatv")
 
 interface FormatvCliOptions {
   path?: string
@@ -20,7 +24,7 @@ interface FormatvCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-formatv",
+  name: CLI_NAME,
   description: "Scan video folders, add/remove .nov suffixes, and check prefixed duplicates.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -49,7 +53,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-formatv", description: "Video .nov suffix and duplicate checker with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Video .nov suffix and duplicate checker with guided terminal mode." },
     subCommands: {
       scan: defineCommand({
         meta: { name: "scan", description: "Scan video files." },

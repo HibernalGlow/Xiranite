@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { OwithuInput, RegistryHive } from "./core.js"
 import { runOwithu } from "./core.js"
 import { createNodeOwithuRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("owithu")
 
 interface OwithuCliOptions {
   config?: string
@@ -16,7 +20,7 @@ interface OwithuCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-owithu",
+  name: CLI_NAME,
   description: "Manage Windows Open-with context menu entries from TOML.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -45,7 +49,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-owithu", description: "Windows context-menu registry helper." },
+    meta: { name: CLI_NAME, description: "Windows context-menu registry helper." },
     subCommands: {
       preview: defineCommand({
         meta: { name: "preview", description: "Preview registry operations from TOML." },

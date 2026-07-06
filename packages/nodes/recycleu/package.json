@@ -6,7 +6,7 @@
   "description": "Recycle bin auto-clean node migrated from aestivus/recycleu.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-recycleu": "./dist/cli.js"
+    "xrecycleu": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -36,6 +36,7 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
+    "react-i18next": "^17.0.0",
     "lucide-react": "^1.0.0"
   },
   "devDependencies": {

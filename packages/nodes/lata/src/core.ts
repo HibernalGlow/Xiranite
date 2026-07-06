@@ -125,16 +125,17 @@ export async function loadTaskfile(input: NormalizedLataInput, runtime: LataRunt
 export function parseTaskfile(content: string): LataTaskInfo[] {
   const doc = parseYaml(content) as unknown
   if (!doc || typeof doc !== "object") throw new Error("Taskfile YAML must be an object.")
-  const tasksObject = (doc as { tasks?: unknown }).tasks
+  const document = doc as { tasks?: unknown; vars?: unknown }
+  const globalVars = recordValue(document.vars)
+  const tasksObject = document.tasks
   if (!tasksObject || typeof tasksObject !== "object") return []
 
   const tasks: LataTaskInfo[] = []
   for (const [name, raw] of Object.entries(tasksObject as Record<string, unknown>)) {
-    if (name === "default") continue
-    const task = normalizeTask(name, raw)
+    const task = normalizeTask(name, raw, globalVars)
     tasks.push(task)
   }
-  return tasks.sort((a, b) => a.name.localeCompare(b.name))
+  return tasks
 }
 
 export function buildLataCommandPlan(tasks: LataTaskInfo[], taskName: string, taskArgs = ""): LataCommandPlanItem[] {
@@ -208,18 +209,19 @@ async function findTaskfile(cwd: string, runtime: LataRuntime): Promise<string> 
   return ""
 }
 
-function normalizeTask(name: string, raw: unknown): LataTaskInfo {
+function normalizeTask(name: string, raw: unknown, globalVars: Record<string, unknown> = {}): LataTaskInfo {
   if (typeof raw === "string") {
-    return taskInfo(name, { cmds: [raw] })
+    return taskInfo(name, { cmds: [raw], vars: globalVars })
   }
-  if (!raw || typeof raw !== "object") return taskInfo(name, {})
+  if (!raw || typeof raw !== "object") return taskInfo(name, { vars: globalVars })
   const value = raw as Record<string, unknown>
+  const taskVars = recordValue(value.vars)
   return taskInfo(name, {
     desc: stringValue(value.desc),
     prompt: nullableString(value.prompt),
     cmds: parseCommands(value.cmds),
     silent: Boolean(value.silent),
-    vars: recordValue(value.vars),
+    vars: { ...globalVars, ...taskVars },
     deps: parseDeps(value.deps),
     sources: parseStringList(value.sources),
     generates: parseStringList(value.generates),

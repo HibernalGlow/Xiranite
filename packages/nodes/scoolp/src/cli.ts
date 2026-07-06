@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { ScoolpAction, ScoolpInput } from "./core.js"
 import { formatSize, runScoolp } from "./core.js"
 import { createNodeScoolpRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("scoolp")
 
 interface ScoolpCliOptions {
   path?: string
@@ -22,7 +26,7 @@ interface ScoolpCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-scoolp",
+  name: CLI_NAME,
   description: "Scoop status, package, sync, and cache management.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -51,7 +55,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-scoolp", description: "Scoop management helper." },
+    meta: { name: CLI_NAME, description: "Scoop management helper." },
     subCommands: {
       status: defineCommand({
         meta: { name: "status", description: "Check scoop installation, installed packages, and buckets." },

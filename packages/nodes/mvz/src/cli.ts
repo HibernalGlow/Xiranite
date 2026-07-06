@@ -3,11 +3,15 @@ import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { MvzAction, MvzInput } from "./core.js"
 import { parseMvzEntries, runMvz } from "./core.js"
 import { createNodeMvzRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("mvz")
 
 interface MvzCliOptions {
   entry?: string
@@ -25,7 +29,7 @@ interface MvzCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-mvz",
+  name: CLI_NAME,
   description: "Delete, extract, move, or rename archive-internal files from archive//path lines.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -54,7 +58,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-mvz", description: "7-Zip archive member workflow with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "7-Zip archive member workflow with guided terminal mode." },
     subCommands: {
       extract: defineCommand({
         meta: { name: "extract", description: "Extract matching archive-internal files." },

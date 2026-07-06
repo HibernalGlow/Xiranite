@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, PackageCheck, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -14,6 +15,7 @@ interface ReinstallpCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<ReinstallpCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -36,7 +38,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(input: ReinstallpInput) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-reinstallp CLI to scan or install packages.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan or install packages.")
     setRunning(true)
     patch({ phase: "running" })
     const response = await runNativeAction<ReinstallpInput, ReinstallpData>("reinstallp", input) as ReinstallpResult
@@ -64,25 +66,25 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="reinstallp"
-        meta={`${projects.length} project(s) / ${selected.length} selected / ${useSystem ? "--system" : "local"}`}
+        title={t("module:reinstallp.title")}
+        meta={t("module:reinstallp.meta", { projects: projects.length, selected: selected.length, mode: useSystem ? t("module:reinstallp.system") : t("module:reinstallp.local") })}
         actions={
           <>
-            <IconButton title="Paste root" onClick={pasteRoot}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={running || !data.rootPath} onClick={() => execute({ action: "scan", path: data.rootPath })}><Search size={14} /> Scan</ActionButton>
-            <ActionButton variant="primary" disabled={running || !selected.length} onClick={() => execute({ action: "install", projects: selected, useSystem })}><PackageCheck size={14} /> Install</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:reinstallp.pasteRoot")} onClick={pasteRoot}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={running || !data.rootPath} onClick={() => execute({ action: "scan", path: data.rootPath })}><Search size={14} /> {t("module:reinstallp.scan")}</ActionButton>
+            <ActionButton variant="primary" disabled={running || !selected.length} onClick={() => execute({ action: "install", projects: selected, useSystem })}><PackageCheck size={14} /> {t("module:reinstallp.install")}</ActionButton>
+            <IconButton title={t("module:reinstallp.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:reinstallp.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 items-end gap-2">
-          <Field label="root path" value={data.rootPath ?? ""} disabled={running} onChange={(event) => patch({ rootPath: event.currentTarget.value })} className="flex-1" />
-          <SegmentButton active={useSystem} onClick={() => patch({ useSystem: !useSystem })}>{useSystem ? "--system" : "local"}</SegmentButton>
-          <StatPill label="ok" value={data.result?.installedCount ?? 0} tone="good" />
-          <StatPill label="fail" value={data.result?.failedCount ?? 0} tone={data.result?.failedCount ? "bad" : "neutral"} />
+          <Field label={t("module:reinstallp.rootPath")} value={data.rootPath ?? ""} disabled={running} onChange={(event) => patch({ rootPath: event.currentTarget.value })} className="flex-1" />
+          <SegmentButton active={useSystem} onClick={() => patch({ useSystem: !useSystem })}>{useSystem ? t("module:reinstallp.system") : t("module:reinstallp.local")}</SegmentButton>
+          <StatPill label={t("module:reinstallp.ok")} value={data.result?.installedCount ?? 0} tone="good" />
+          <StatPill label={t("module:reinstallp.fail")} value={data.result?.failedCount ?? 0} tone={data.result?.failedCount ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="min-h-0 flex-1">
@@ -91,7 +93,7 @@ export function Component({ compId, host }: NodeComponentProps) {
               <div className="truncate font-semibold">{project.name}</div>
               <div className="truncate text-[10px]">{project.path}</div>
             </button>
-          )) : <div className="flex h-full items-center justify-center text-muted-foreground">No scan result</div>}
+          )) : <div className="flex h-full items-center justify-center text-muted-foreground">{t("module:reinstallp.noScanResult")}</div>}
         </ResultView>
       </NodeBody>
 

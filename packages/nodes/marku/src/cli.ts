@@ -3,11 +3,15 @@ import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
 import { MARKU_MODULES, runMarku } from "./core.js"
 import { createNodeMarkuRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("marku")
 
 interface MarkuCliOptions {
   module?: string
@@ -27,7 +31,7 @@ interface MarkuCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-marku",
+  name: CLI_NAME,
   description: "Markdown module toolbox with text, file, diff, and undo modes.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -56,7 +60,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-marku", description: "Markdown processing toolbox with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Markdown processing toolbox with guided terminal mode." },
     subCommands: {
       text: defineCommand({
         meta: { name: "text", description: "Process inline text or an input file." },

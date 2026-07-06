@@ -6,7 +6,7 @@
   "description": "Windows context-menu registry node migrated from aestivus/owithu.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-owithu": "./dist/cli.js"
+    "xowithu": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -37,6 +37,7 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
+    "react-i18next": "^17.0.0",
     "lucide-react": "^1.0.0"
   },
   "devDependencies": {

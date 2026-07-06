@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, RotateCcw, Zap } from "lucide-react"
 import { ActionButton, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea } from "@xiranite/ui"
@@ -10,6 +11,7 @@ interface LinedupCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<LinedupCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
@@ -55,14 +57,14 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="linedup"
-        meta={`${sourceLines.length} source / ${filterTokens.length} filters`}
+        title={t("module:linedup.title")}
+        meta={t("module:linedup.meta", { source: sourceLines.length, filters: filterTokens.length })}
         actions={
           <>
-            <IconButton title="Paste source" onClick={() => paste("source")}><Clipboard size={14} /></IconButton>
-            <IconButton title="Paste filters" onClick={() => paste("filter")}><Clipboard size={14} /></IconButton>
-            <ActionButton variant="primary" disabled={!sourceLines.length || running} onClick={execute}><Zap size={14} /> Filter</ActionButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:linedup.pasteSource")} onClick={() => paste("source")}><Clipboard size={14} /></IconButton>
+            <IconButton title={t("module:linedup.pasteFilters")} onClick={() => paste("filter")}><Clipboard size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={!sourceLines.length || running} onClick={execute}><Zap size={14} /> {t("module:linedup.filter")}</ActionButton>
+            <IconButton title={t("module:linedup.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -70,35 +72,35 @@ export function Component({ compId, host }: NodeComponentProps) {
       <NodeBody className="flex flex-col gap-2">
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="source"
+            label={t("module:linedup.sourceLabel")}
             value={sourceText}
             onChange={(event) => patch({ sourceText: event.currentTarget.value })}
             disabled={running}
-            placeholder="one item per line"
+            placeholder={t("module:linedup.sourcePlaceholder")}
           />
           <TextArea
-            label="filters"
+            label={t("module:linedup.filtersLabel")}
             value={filterText}
             onChange={(event) => patch({ filterText: event.currentTarget.value })}
             disabled={running}
-            placeholder="remove source lines containing these tokens"
+            placeholder={t("module:linedup.filtersPlaceholder")}
           />
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <div className="flex shrink-0 flex-wrap gap-1">
-            <StatPill label="kept" value={result?.keptCount ?? 0} tone="good" />
-            <StatPill label="removed" value={result?.removedCount ?? 0} tone="bad" />
-            <ActionButton disabled={!result} onClick={() => copy(result?.filteredLines.join("\n") ?? "")}><Copy size={14} /> Kept</ActionButton>
-            <ActionButton disabled={!result} onClick={() => copy(result?.removedLines.join("\n") ?? "")}><Copy size={14} /> Removed</ActionButton>
-            <ActionButton disabled={!result} onClick={() => host.downloadText?.("linedup-output.txt", result?.filteredLines.join("\n") ?? "")}><Download size={14} /> Save</ActionButton>
+            <StatPill label={t("module:linedup.statKept")} value={result?.keptCount ?? 0} tone="good" />
+            <StatPill label={t("module:linedup.statRemoved")} value={result?.removedCount ?? 0} tone="bad" />
+            <ActionButton disabled={!result} onClick={() => copy(result?.filteredLines.join("\n") ?? "")}><Copy size={14} /> {t("module:linedup.kept")}</ActionButton>
+            <ActionButton disabled={!result} onClick={() => copy(result?.removedLines.join("\n") ?? "")}><Copy size={14} /> {t("module:linedup.removed")}</ActionButton>
+            <ActionButton disabled={!result} onClick={() => host.downloadText?.("linedup-output.txt", result?.filteredLines.join("\n") ?? "")}><Download size={14} /> {t("module:linedup.save")}</ActionButton>
           </div>
           <ResultView>
             {diffRows.length ? diffRows.map((row) => (
               <div key={`${row.status}:${row.line}`} className={row.status === "removed" ? "truncate text-red-500 line-through" : "truncate text-muted-foreground"}>
                 <span className="mr-2 opacity-60">{row.status === "removed" ? "-" : " "}</span>{row.line}
               </div>
-            )) : <div className="flex h-full items-center justify-center text-muted-foreground">Run filter to preview removed lines.</div>}
+            )) : <div className="flex h-full items-center justify-center text-muted-foreground">{t("module:linedup.runToPreview")}</div>}
           </ResultView>
         </div>
       </NodeBody>

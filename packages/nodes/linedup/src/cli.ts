@@ -3,9 +3,13 @@ import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import { filterLines, splitLines } from "./core.js"
+
+const CLI_NAME = nodeCliName("linedup")
 
 interface FilterOptions {
   source?: string
@@ -19,7 +23,7 @@ interface FilterOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-linedup",
+  name: CLI_NAME,
   description: "Filter source lines by removing any line containing a filter token.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -50,7 +54,7 @@ function createDefaultHost(): CliHost {
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
-      name: "xiranite-linedup",
+      name: CLI_NAME,
       description: "Line filter with Typer-style commands and an Ink guided mode.",
     },
     subCommands: {

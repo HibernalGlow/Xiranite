@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { FindzAction, FindzInput, FindzOutputFormat } from "./core.js"
 import { runFindz } from "./core.js"
 import { createNodeFindzRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("findz")
 
 interface FindzCliOptions {
   where?: string
@@ -30,7 +34,7 @@ interface FindzCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-findz",
+  name: CLI_NAME,
   description: "Search files and archive members with SQL-like filters.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -59,7 +63,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-findz", description: "SQL-like file and archive search with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "SQL-like file and archive search with guided terminal mode." },
     subCommands: {
       search: defineCommand({
         meta: { name: "search", description: "Search files and optional archive members." },

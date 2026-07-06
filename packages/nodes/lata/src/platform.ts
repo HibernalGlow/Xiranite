@@ -49,12 +49,12 @@ async function runCommand(
     let stdout = ""
     let stderr = ""
     child.stdout?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString()
+      const text = decodeProcessOutput(chunk)
       stdout += text
       onOutput(text.trimEnd(), "stdout")
     })
     child.stderr?.on("data", (chunk: Buffer) => {
-      const text = chunk.toString()
+      const text = decodeProcessOutput(chunk)
       stderr += text
       onOutput(text.trimEnd(), "stderr")
     })
@@ -66,4 +66,14 @@ async function runCommand(
       resolvePromise({ exitCode: code ?? 0, stdout, stderr })
     })
   })
+}
+
+function decodeProcessOutput(chunk: Buffer): string {
+  const utf8 = chunk.toString("utf8")
+  if (process.platform !== "win32" || !utf8.includes("\uFFFD")) return utf8
+  try {
+    return new TextDecoder("gbk").decode(chunk)
+  } catch {
+    return utf8
+  }
 }

@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { ReinstallpInput } from "./core.js"
 import { runReinstallp } from "./core.js"
 import { createNodeReinstallpRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("reinstallp")
 
 interface ReinstallpCliOptions {
   path?: string
@@ -16,7 +20,7 @@ interface ReinstallpCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-reinstallp",
+  name: CLI_NAME,
   description: "Scan and reinstall Python editable packages with uv.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -45,7 +49,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-reinstallp", description: "Python editable package reinstall helper." },
+    meta: { name: CLI_NAME, description: "Python editable package reinstall helper." },
     subCommands: {
       scan: defineCommand({
         meta: { name: "scan", description: "Find pyproject.toml projects." },

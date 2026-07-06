@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Brush, Clipboard, Copy, Eye, Play, RotateCcw } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -18,6 +19,7 @@ interface CleanfCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<CleanfCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const pathText = data.pathText ?? ""
@@ -51,10 +53,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(preview = previewMode) {
     if (!paths.length || running) return
     const input: CleanfInput = { paths, presets: selectedPresets, exclude: data.excludeKeywords, preview }
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-cleanf CLI to scan or remove files.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan or remove files.")
 
     setRunning(true)
-    patch({ phase: "running", progress: 0, progressText: preview ? "Previewing..." : "Cleaning...", result: null })
+    patch({ phase: "running", progress: 0, progressText: preview ? t("module:cleanf.previewing") : t("module:cleanf.cleaning"), result: null })
     const response = await runNativeAction<CleanfInput, CleanfData>("cleanf", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -81,14 +83,18 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="cleanf"
-        meta={`${paths.length} path(s) / ${selectedPresets.length} preset(s) / ${previewMode ? "preview" : "delete"}`}
+        title={t("module:cleanf.title")}
+        meta={t("module:cleanf.meta", {
+          paths: paths.length,
+          presets: selectedPresets.length,
+          state: previewMode ? t("module:cleanf.preview") : t("module:cleanf.delete"),
+        })}
         actions={
           <>
-            <IconButton title="Paste paths" onClick={pastePaths}><Clipboard size={14} /></IconButton>
-            <ActionButton variant="primary" disabled={!paths.length || running} onClick={() => execute()}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:cleanf.pastePaths")} onClick={pastePaths}><Clipboard size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={!paths.length || running} onClick={() => execute()}><Play size={14} /> {t("module:cleanf.run")}</ActionButton>
+            <IconButton title={t("module:cleanf.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:cleanf.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -96,19 +102,19 @@ export function Component({ compId, host }: NodeComponentProps) {
       <NodeBody className="flex flex-col gap-2">
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="paths"
+            label={t("module:cleanf.paths")}
             value={pathText}
             onChange={(event) => patch({ pathText: event.currentTarget.value })}
             disabled={running}
-            placeholder="one folder path per line"
+            placeholder={t("module:cleanf.placeholderPaths")}
           />
           <div className="flex min-h-0 flex-col gap-2">
             <div className="flex shrink-0 flex-wrap gap-1">
-              <SegmentButton active={previewMode} onClick={() => patch({ previewMode: !previewMode })}><Eye size={14} /> Preview</SegmentButton>
-              <StatPill label="found" value={result?.totalRemoved ?? 0} tone="good" />
-              <StatPill label="skipped" value={result?.skipped ?? 0} />
+              <SegmentButton active={previewMode} onClick={() => patch({ previewMode: !previewMode })}><Eye size={14} /> {t("module:cleanf.preview")}</SegmentButton>
+              <StatPill label={t("module:cleanf.found")} value={result?.totalRemoved ?? 0} tone="good" />
+              <StatPill label={t("module:cleanf.skipped")} value={result?.skipped ?? 0} />
             </div>
-            <Field label="exclude keywords" value={data.excludeKeywords ?? ""} disabled={running} onChange={(event) => patch({ excludeKeywords: event.currentTarget.value })} />
+            <Field label={t("module:cleanf.excludeKeywords")} value={data.excludeKeywords ?? ""} disabled={running} onChange={(event) => patch({ excludeKeywords: event.currentTarget.value })} />
             <div className="min-h-0 flex-1 overflow-auto border-t border-border/40 pt-1">
               {Object.values(CLEANING_PRESETS).map((preset) => (
                 <button
@@ -128,7 +134,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           {result?.previewFiles?.length
             ? result.previewFiles.slice(0, 40).map((path) => <div key={path} className="truncate">{path}</div>)
             : Object.entries(result?.removedDetails ?? {}).map(([key, value]) => <div key={key}>{key}: {value}</div>)}
-          {!result ? "No result" : null}
+          {!result ? t("module:cleanf.noResult") : null}
         </ResultView>
       </NodeBody>
 

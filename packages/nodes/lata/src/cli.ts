@@ -1,12 +1,31 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  padVisibleEnd,
+  promptRich,
+  rich,
+  runMain,
+  shellQuote,
+  terminalColumns,
+  truncateVisible,
+  visibleWidth,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import type { LataInput } from "./core.js"
+import type { LataInput, LataRuntime, LataTaskInfo } from "./core.js"
 import { runLata } from "./core.js"
 import { createNodeLataRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("lata")
+
 
 interface LataCliOptions {
   path?: string
@@ -17,8 +36,16 @@ interface LataCliOptions {
   json?: boolean
 }
 
+
+export interface LataTaskSelectorOptions {
+  cwd?: string
+  taskfileContent?: string
+  taskfilePath?: string
+  title?: string
+}
+
 export const cli: CliCommand = {
-  name: "xiranite-lata",
+  name: CLI_NAME,
   description: "Taskfile launcher with list, plan, execute, and guided modes.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -47,7 +74,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-lata", description: "Taskfile launcher with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Taskfile launcher with guided terminal mode." },
     subCommands: {
       list: defineCommand({
         meta: { name: "list", description: "List tasks from a Taskfile." },
@@ -122,73 +149,240 @@ async function runAction(input: LataInput, json: boolean, host: CliHost): Promis
 }
 
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
+  await runLataTaskSelector(host)
+}
+
+export async function runLataTaskSelector(host: CliHost, options: LataTaskSelectorOptions = {}): Promise<void> {
+  if (!canRunInteractiveCli(host)) {
     writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `list --path Taskfile.yml --json` for scripted use.")
     process.exitCode = 2
     return
   }
-  await runInkApp(h(GuidedLataApp, { host }))
-}
 
-function GuidedLataApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"taskfile" | "task" | "running" | "done">("taskfile")
-  const [taskfile, setTaskfile] = useState("")
-  const [message, setMessage] = useState("Taskfile path, or blank to use cwd.")
-  const [lines, setLines] = useState<string[]>([])
-
-  async function submit(value: string) {
-    if (step === "taskfile") {
-      setTaskfile(value)
-      const result = await runLata({ action: "list", taskfilePath: value }, createNodeLataRuntime())
-      setLines(result.data?.tasks.map((task) => `${task.name} (${task.cmdCount})`) ?? [result.message])
-      setMessage("Task name to execute.")
-      setStep("task")
-      return
-    }
-    await execute(value)
+  const runtime = createSelectorRuntime(host, options)
+  const cwd = options.cwd || host.cwd
+  const taskfilePath = options.taskfilePath || (options.taskfileContent ? runtime.resolve(cwd, "Taskfile.yml") : "")
+  const listResult = await runLata({ action: "list", taskfilePath, cwd }, runtime)
+  if (!listResult.success || !listResult.data) {
+    writeRichPanel(host, "Error", listResult.message, { color: "red", minWidth: 72 })
+    process.exitCode = 2
+    return
   }
 
-  async function execute(taskName: string) {
-    setStep("running")
-    setMessage("Running...")
-    const result = await runLata({ action: "execute", taskfilePath: taskfile, taskName }, createNodeLataRuntime(), (event) => {
-      setLines((current) => [...current.slice(-8), event.message])
-    })
-    setLines((current) => [...current.slice(-8), result.message])
-    writeLine(host, result.message)
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
+  const taskfile = listResult.data.taskfilePath
+  const tasks = listResult.data.tasks
+  const selectableTasks = tasks.filter((task) => task.name !== "default")
+  if (!selectableTasks.length) {
+    writeRichPanel(host, "Error", "No executable tasks found in Taskfile.", { color: "red", minWidth: 72 })
+    process.exitCode = 2
+    return
   }
 
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) app.exit()
-  })
+  const defaultTask = selectableTasks.find((task) => task.name === "image-only") ?? selectableTasks[0]
+  const defaultChoice = selectableTasks.indexOf(defaultTask) + 1
+  let firstRender = true
+  try {
+    while (true) {
+      renderTaskSelector(host, {
+        defaultTaskName: defaultTask.name,
+        taskfile,
+        title: options.title ?? "Xiranite Lata",
+        selectableTasks,
+      }, firstRender)
+      firstRender = false
 
-  return h(
-    Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "lata guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
-  )
-}
-
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
+      const choices = ["0", ...selectableTasks.map((_, index) => String(index + 1))]
+      const rawChoice = await promptRich(
+        host,
+        `选择任务、输入任务名，或粘贴路径 ${rich(host, `[${choices.join("/")}]`, "magenta")}`,
+        String(defaultChoice),
+      )
+      const resolvedChoice = await resolveTaskChoice(rawChoice, defaultTask, selectableTasks, runtime)
+      const shouldContinue = await handleResolvedChoice(host, runtime, {
+        choice: resolvedChoice,
+        cwd,
+        defaultTask,
+        rawChoice,
+        selectableTasks,
+        taskfile,
+      })
+      if (!shouldContinue) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
       return
     }
-    if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
-    else if (!key.ctrl && input) setValue((current) => current + input)
+    throw error
+  }
+}
+
+type ResolvedTaskChoice =
+  | { kind: "index"; index: number }
+  | { kind: "path"; path: string }
+  | { kind: "task"; task: LataTaskInfo }
+
+async function handleResolvedChoice(
+  host: CliHost,
+  runtime: LataRuntime,
+  input: {
+    choice: ResolvedTaskChoice
+    cwd: string
+    defaultTask: LataTaskInfo
+    rawChoice: string
+    selectableTasks: LataTaskInfo[]
+    taskfile: string
+  },
+): Promise<boolean> {
+  if (input.choice.kind === "path") {
+    writeLine(host, rich(host, `路径已接入，使用默认任务: ${input.defaultTask.name}`, "yellow"))
+    const result = await executeSelectedTask(host, runtime, input.taskfile, input.defaultTask.name, input.cwd, `--path ${shellQuote(input.choice.path)}`)
+    if (!result) process.exitCode = 1
+    return await confirmRich(host, "继续选择其他任务?", false)
+  }
+
+  if (input.choice.kind === "task") {
+    const result = await executeSelectedTask(host, runtime, input.taskfile, input.choice.task.name, input.cwd)
+    if (!result) process.exitCode = 1
+    return await confirmRich(host, "继续选择其他任务?", false)
+  }
+
+  if (input.choice.index === 0) {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return false
+  }
+
+  const task = Number.isInteger(input.choice.index) ? input.selectableTasks[input.choice.index - 1] : undefined
+  if (!task) {
+    writeRichPanel(host, "Input", `无法识别: ${input.rawChoice}`, { color: "red", minWidth: 48 })
+    return true
+  }
+
+  const result = await executeSelectedTask(host, runtime, input.taskfile, task.name, input.cwd)
+  if (!result) process.exitCode = 1
+  return await confirmRich(host, "继续选择其他任务?", false)
+}
+
+async function resolveTaskChoice(
+  value: string,
+  defaultTask: LataTaskInfo,
+  selectableTasks: LataTaskInfo[],
+  runtime: LataRuntime,
+): Promise<ResolvedTaskChoice> {
+  const text = value.trim()
+  if (/^\d+$/.test(text)) return { kind: "index", index: Number(text) }
+  const namedTask = selectableTasks.find((task) => task.name.toLowerCase() === text.toLowerCase())
+  if (namedTask) return { kind: "task", task: namedTask }
+  if (text && await runtime.exists(text.replace(/^["']|["']$/g, ""))) return { kind: "path", path: text.replace(/^["']|["']$/g, "") }
+  if (!text) return { kind: "task", task: defaultTask }
+  return { kind: "index", index: Number.NaN }
+}
+
+function createSelectorRuntime(host: CliHost, options: LataTaskSelectorOptions): LataRuntime {
+  const runtime = createNodeLataRuntime()
+  const columns = String(terminalColumns(host))
+  const withTerminalEnv: LataRuntime = {
+    ...runtime,
+    async runCommand(command, commandOptions, onOutput) {
+      return await runtime.runCommand(command, {
+        ...commandOptions,
+        env: {
+          ...commandOptions.env,
+          COLUMNS: columns,
+          XIRANITE_CLI_COLUMNS: columns,
+        },
+      }, onOutput)
+    },
+  }
+
+  if (!options.taskfileContent) return withTerminalEnv
+  const virtualPath = runtime.resolve(options.taskfilePath || runtime.resolve(options.cwd || host.cwd, "Taskfile.yml"))
+  return {
+    ...withTerminalEnv,
+    async exists(path) {
+      return runtime.resolve(path) === virtualPath || await runtime.exists(path)
+    },
+    async readText(path) {
+      if (runtime.resolve(path) === virtualPath) return options.taskfileContent ?? ""
+      return await runtime.readText(path)
+    },
+  }
+}
+
+function renderTaskSelector(
+  host: CliHost,
+  input: { defaultTaskName: string; title: string; taskfile: string; selectableTasks: LataTaskInfo[] },
+  includeHeader: boolean,
+): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, input.title, [
+    `${rich(host, "Taskfile", "cyan")}  ${truncateVisible(input.taskfile, Math.max(16, columns - 18))}`,
+    `${rich(host, "默认任务", "cyan")}  ${input.defaultTaskName}`,
+    `${rich(host, "输入方式", "cyan")}  编号 / 任务名 / 文件夹路径`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+
+  writeLine(host, rich(host, "可执行任务", "white", "bold"))
+  input.selectableTasks.forEach((task, index) => {
+    writeLine(host, renderTaskRow(host, {
+      desc: task.desc,
+      index: index + 1,
+      isDefault: task.name === input.defaultTaskName,
+      name: task.name,
+    }))
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  writeLine(host, renderTaskRow(host, { desc: "离开引导模式", index: 0, isDefault: false, name: "exit" }))
+  writeLine(host)
+  writeLine(host, rich(host, "提示: 粘贴一个存在的文件夹路径会用默认任务执行；Ctrl+C 可退出。", "grey"))
+}
+
+function renderTaskRow(host: CliHost, task: { desc: string; index: number; isDefault: boolean; name: string }): string {
+  const columns = terminalColumns(host)
+  const number = padVisibleEnd(rich(host, String(task.index).padStart(2), "cyan"), 4)
+  const name = padVisibleEnd(rich(host, task.name, task.isDefault ? "green" : "white"), 26)
+  const badge = task.isDefault ? rich(host, "default", "yellow") : ""
+  const badgeCell = padVisibleEnd(badge, 9)
+  const prefix = `  ${number}${name}${badgeCell}`
+  const descWidth = Math.max(0, columns - visibleWidth(prefix) - 1)
+  return `${prefix}${rich(host, truncateVisible(task.desc || "-", descWidth), task.index === 0 ? "grey" : "white")}`
+}
+
+async function executeSelectedTask(host: CliHost, runtime: LataRuntime, taskfilePath: string, taskName: string, cwd: string, taskArgs = ""): Promise<boolean> {
+  const plan = await runLata({ action: "plan", taskfilePath, taskName, taskArgs, cwd }, runtime)
+  writeRichPanel(host, "Run", [
+    `${rich(host, "task", "cyan")}     ${taskName}`,
+    ...(plan.data?.commandPlan ?? []).map((item) => `${rich(host, item.taskName, "green")}  ${truncateVisible(item.command, terminalColumns(host) - 18)}`),
+  ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
+
+  const result = await runLata({ action: "execute", taskfilePath, taskName, taskArgs, cwd }, runtime, (event) => {
+    if (event.type === "log" && event.message.trim()) {
+      writeLine(host, event.message)
+    }
+  })
+
+  if (result.success) {
+    writeLine(host, rich(host, `完成: ${taskName}`, "green"))
+    return true
+  }
+
+  const exitCode = result.data?.exitCode || 1
+  const errors = [
+    ...(result.data?.errors ?? []),
+    ...(result.data?.commandResults ?? []).flatMap((item) => [item.stderr, item.stdout]).filter(Boolean),
+  ]
+  const detail = errors.join("\n").trim() || result.message
+  writeRichPanel(host, "Error", detail, { color: "red", minWidth: 72 })
+  writeLine(host, rich(host, `task: Failed to run task "${taskName}": exit status ${exitCode}`, "red"))
+  writeLine(host, rich(host, `任务 '${taskName}' 执行失败 (退出码: ${exitCode})`, "red"))
+  return false
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

@@ -163,6 +163,7 @@ function renderCmdShim(shim: ShimSpec): string {
     `REM command: ${shim.name}`,
     `REM target: ${shim.target}`,
     shim.legacy ? "REM legacy-alias: true" : "REM legacy-alias: false",
+    "chcp 65001 >nul",
     `bun "${shim.target}"${args ? ` ${args}` : ""} %*`,
     "",
   ].join("\r\n")

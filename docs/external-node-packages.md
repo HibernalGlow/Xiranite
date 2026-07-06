@@ -71,7 +71,7 @@ Use this shape for local workspace development:
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "xiranite-example": "./dist/cli.js"
+    "xexample": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -151,7 +151,7 @@ This split keeps UI, CLI, tests, and future backend execution using the same log
 
 Use `citty` through `@xiranite/cli-runtime`.
 
-- `xiranite-example` should be directly executable.
+- `xexample` should be directly executable under the current Xiranite CLI naming policy.
 - `xiranite example ...` can call the same CLI through the aggregate registry.
 - No-arg TTY may enter Ink guided mode.
 - No-arg non-TTY should return usage/error code for automation.

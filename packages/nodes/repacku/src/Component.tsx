@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, Package, Play, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -19,6 +20,7 @@ interface RepackuCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<RepackuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const result = data.result ?? null
@@ -41,14 +43,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RepackuAction) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-repacku CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
 
     const input = buildInput(action, data)
     if (action !== "compress" && !input.path && !input.paths?.length) return
     if (action === "compress" && !input.configPath && !input.path && !input.paths?.length) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: "starting", result: null })
+    patch({ phase: action, progress: 0, progressText: t("module:repacku.starting"), result: null })
     const response = await runNativeAction<RepackuInput, RepackuData>("repacku", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -86,45 +88,45 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="repacku"
-        meta={`${types.length ? types.join(", ") : "all files"} / min ${data.minCount ?? 2} / ${data.dryRun ? "dry-run" : "write"}`}
+        title={t("module:repacku.title")}
+        meta={t("module:repacku.meta", { types: types.length ? types.join(", ") : t("module:repacku.allFiles"), minCount: data.minCount ?? 2, mode: data.dryRun ? t("module:repacku.dryRunMode") : t("module:repacku.write") })}
         actions={
           <>
-            <IconButton title="Paste path" disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={running || !data.path} onClick={() => execute("analyze")}><Search size={14} /> Analyze</ActionButton>
-            <ActionButton variant="primary" disabled={running || !data.path} onClick={() => execute("full")}><Play size={14} /> Full</ActionButton>
-            <ActionButton disabled={running || (!data.configPath && !data.path)} onClick={() => execute("compress")}><FileArchive size={14} /> Compress</ActionButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><FolderOpen size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:repacku.pastePath")} disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={running || !data.path} onClick={() => execute("analyze")}><Search size={14} /> {t("module:repacku.analyze")}</ActionButton>
+            <ActionButton variant="primary" disabled={running || !data.path} onClick={() => execute("full")}><Play size={14} /> {t("module:repacku.full")}</ActionButton>
+            <ActionButton disabled={running || (!data.configPath && !data.path)} onClick={() => execute("compress")}><FileArchive size={14} /> {t("module:repacku.compress")}</ActionButton>
+            <IconButton title={t("module:repacku.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:repacku.copyLogs")} onClick={copyLogs}><FolderOpen size={14} /></IconButton>
+            <IconButton title={t("module:repacku.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="folder path" value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
-          <Field label="config json" value={data.configPath ?? ""} disabled={running} onChange={(event) => patch({ configPath: event.currentTarget.value })} />
+          <Field label={t("module:repacku.folderPath")} value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
+          <Field label={t("module:repacku.configJson")} value={data.configPath ?? ""} disabled={running} onChange={(event) => patch({ configPath: event.currentTarget.value })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="types" value={data.typesText ?? ""} disabled={running} placeholder="image,document" onChange={(event) => patch({ typesText: event.currentTarget.value })} />
-          <Field label="min files" type="number" min={1} value={data.minCount ?? 2} disabled={running} onChange={(event) => patch({ minCount: Number(event.currentTarget.value) })} />
+          <Field label={t("module:repacku.types")} value={data.typesText ?? ""} disabled={running} placeholder="image,document" onChange={(event) => patch({ typesText: event.currentTarget.value })} />
+          <Field label={t("module:repacku.minFiles")} type="number" min={1} value={data.minCount ?? 2} disabled={running} onChange={(event) => patch({ minCount: Number(event.currentTarget.value) })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>dry run</SegmentButton>
-          <SegmentButton active={data.deleteAfter ?? false} disabled={running} onClick={() => patch({ deleteAfter: !(data.deleteAfter ?? false) })}>delete after</SegmentButton>
-          <ActionButton disabled={running || !data.path} onClick={() => execute("single-pack")}><Package size={14} /> Single</ActionButton>
-          <ActionButton disabled={running || !data.path} onClick={() => execute("gallery-pack")}><FolderOpen size={14} /> Gallery</ActionButton>
+          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>{t("module:repacku.dryRun")}</SegmentButton>
+          <SegmentButton active={data.deleteAfter ?? false} disabled={running} onClick={() => patch({ deleteAfter: !(data.deleteAfter ?? false) })}>{t("module:repacku.deleteAfter")}</SegmentButton>
+          <ActionButton disabled={running || !data.path} onClick={() => execute("single-pack")}><Package size={14} /> {t("module:repacku.single")}</ActionButton>
+          <ActionButton disabled={running || !data.path} onClick={() => execute("gallery-pack")}><FolderOpen size={14} /> {t("module:repacku.gallery")}</ActionButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="folders" value={result?.totalFolders ?? 0} tone="accent" />
-          <StatPill label="entire" value={result?.entireCount ?? 0} tone="good" />
-          <StatPill label="selective" value={result?.selectiveCount ?? 0} />
-          <StatPill label="ops" value={result?.totalOperations ?? 0} />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:repacku.folders")} value={result?.totalFolders ?? 0} tone="accent" />
+          <StatPill label={t("module:repacku.entire")} value={result?.entireCount ?? 0} tone="good" />
+          <StatPill label={t("module:repacku.selective")} value={result?.selectiveCount ?? 0} />
+          <StatPill label={t("module:repacku.ops")} value={result?.totalOperations ?? 0} />
+          <StatPill label={t("module:repacku.failed")} value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -139,7 +141,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           ) : treeLines.length ? (
             treeLines.map((line) => <div key={line} className="truncate">{line}</div>)
           ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || "Ready to analyze or repack folders."}</div>
+            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || t("module:repacku.readyToAnalyze")}</div>
           )}
         </ResultView>
       </NodeBody>

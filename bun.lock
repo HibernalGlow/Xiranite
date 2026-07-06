@@ -133,9 +133,13 @@
       "name": "@xiranite/cli-runtime",
       "version": "0.1.0",
       "dependencies": {
+        "@clack/prompts": "^1.7.0",
+        "boxen": "^8.0.1",
+        "chalk": "^5.6.2",
         "citty": "^0.1.6",
         "ink": "^6.5.1",
         "react": "^19.2.4",
+        "string-width": "^8.1.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -156,7 +160,7 @@
       "name": "@xiranite/node-bandia",
       "version": "0.1.0",
       "bin": {
-        "xiranite-bandia": "./dist/cli.js",
+        "xbandia": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -171,13 +175,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/cleanf": {
       "name": "@xiranite/node-cleanf",
       "version": "0.1.0",
       "bin": {
-        "xiranite-cleanf": "./dist/cli.js",
+        "xcleanf": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -192,13 +197,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/crashu": {
       "name": "@xiranite/node-crashu",
       "version": "0.1.0",
       "bin": {
-        "xiranite-crashu": "./dist/cli.js",
+        "xcrashu": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -213,13 +219,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/dissolvef": {
       "name": "@xiranite/node-dissolvef",
       "version": "0.1.0",
       "bin": {
-        "xiranite-dissolvef": "./dist/cli.js",
+        "xdissolvef": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -234,13 +241,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/encodeb": {
       "name": "@xiranite/node-encodeb",
       "version": "0.1.0",
       "bin": {
-        "xiranite-encodeb": "./dist/cli.js",
+        "xencodeb": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -256,13 +264,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/enginev": {
       "name": "@xiranite/node-enginev",
       "version": "0.1.0",
       "bin": {
-        "xiranite-enginev": "./dist/cli.js",
+        "xenginev": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -277,13 +286,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/findz": {
       "name": "@xiranite/node-findz",
       "version": "0.1.0",
       "bin": {
-        "xiranite-findz": "./dist/cli.js",
+        "xfindz": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -298,13 +308,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/formatv": {
       "name": "@xiranite/node-formatv",
       "version": "0.1.0",
       "bin": {
-        "xiranite-formatv": "./dist/cli.js",
+        "xformatv": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -319,13 +330,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/kavvka": {
       "name": "@xiranite/node-kavvka",
       "version": "0.1.0",
       "bin": {
-        "xiranite-kavvka": "./dist/cli.js",
+        "xkavvka": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -340,13 +352,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/lata": {
       "name": "@xiranite/node-lata",
       "version": "0.1.0",
       "bin": {
-        "xiranite-lata": "./dist/cli.js",
+        "xlata": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -362,13 +375,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/linedup": {
       "name": "@xiranite/node-linedup",
       "version": "0.1.0",
       "bin": {
-        "xiranite-linedup": "./dist/cli.js",
+        "xlinedup": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -383,13 +397,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/linku": {
       "name": "@xiranite/node-linku",
       "version": "0.1.0",
       "bin": {
-        "xiranite-linku": "./dist/cli.js",
+        "xlinku": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -404,13 +419,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/marku": {
       "name": "@xiranite/node-marku",
       "version": "0.1.0",
       "bin": {
-        "xiranite-marku": "./dist/cli.js",
+        "xmarku": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -425,13 +441,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/migratef": {
       "name": "@xiranite/node-migratef",
       "version": "0.1.0",
       "bin": {
-        "xiranite-migratef": "./dist/cli.js",
+        "xmigratef": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -446,13 +463,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/movea": {
       "name": "@xiranite/node-movea",
       "version": "0.1.0",
       "bin": {
-        "xiranite-movea": "./dist/cli.js",
+        "xmovea": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -467,13 +485,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/mvz": {
       "name": "@xiranite/node-mvz",
       "version": "0.1.0",
       "bin": {
-        "xiranite-mvz": "./dist/cli.js",
+        "xmvz": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -488,13 +507,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/owithu": {
       "name": "@xiranite/node-owithu",
       "version": "0.1.0",
       "bin": {
-        "xiranite-owithu": "./dist/cli.js",
+        "xowithu": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -510,13 +530,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/rawfilter": {
       "name": "@xiranite/node-rawfilter",
       "version": "0.1.0",
       "bin": {
-        "xiranite-rawfilter": "./dist/cli.js",
+        "xrawfilter": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -531,13 +552,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/recycleu": {
       "name": "@xiranite/node-recycleu",
       "version": "0.1.0",
       "bin": {
-        "xiranite-recycleu": "./dist/cli.js",
+        "xrecycleu": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -552,13 +574,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/reinstallp": {
       "name": "@xiranite/node-reinstallp",
       "version": "0.1.0",
       "bin": {
-        "xiranite-reinstallp": "./dist/cli.js",
+        "xreinstallp": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -573,17 +596,19 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/repacku": {
       "name": "@xiranite/node-repacku",
       "version": "0.1.0",
       "bin": {
-        "xiranite-repacku": "./dist/cli.js",
+        "xrepacku": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/node-lata": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
@@ -594,13 +619,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/scoolp": {
       "name": "@xiranite/node-scoolp",
       "version": "0.1.0",
       "bin": {
-        "xiranite-scoolp": "./dist/cli.js",
+        "xscoolp": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -616,13 +642,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/seriex": {
       "name": "@xiranite/node-seriex",
       "version": "0.1.0",
       "bin": {
-        "xiranite-seriex": "./dist/cli.js",
+        "xseriex": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -637,13 +664,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/sleept": {
       "name": "@xiranite/node-sleept",
       "version": "0.1.0",
       "bin": {
-        "xiranite-sleept": "./dist/cli.js",
+        "xsleept": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -658,13 +686,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/trename": {
       "name": "@xiranite/node-trename",
       "version": "0.1.0",
       "bin": {
-        "xiranite-trename": "./dist/cli.js",
+        "xtrename": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -679,13 +708,14 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/weibospider": {
       "name": "@xiranite/node-weibospider",
       "version": "0.1.0",
       "bin": {
-        "xiranite-weibospider": "./dist/cli.js",
+        "xweibospider": "./dist/cli.js",
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
@@ -700,6 +730,7 @@
       "peerDependencies": {
         "lucide-react": "^1.0.0",
         "react": "^19.0.0",
+        "react-i18next": "^17.0.0",
       },
     },
     "packages/ui": {
@@ -771,6 +802,10 @@
     "@blocknote/react": ["@blocknote/react@0.51.4", "https://registry.npmmirror.com/@blocknote/react/-/react-0.51.4.tgz", { "dependencies": { "@blocknote/core": "0.51.4", "@emoji-mart/data": "^1.2.1", "@floating-ui/react": "^0.27.18", "@floating-ui/utils": "^0.2.10", "@tanstack/react-store": "0.7.7", "@tiptap/core": "^3.13.0", "@tiptap/pm": "^3.13.0", "@tiptap/react": "^3.13.0", "@types/use-sync-external-store": "1.5.0", "emoji-mart": "^5.6.0", "fast-deep-equal": "^3.1.3", "lodash.merge": "^4.6.2", "react-icons": "^5.5.0", "use-sync-external-store": "1.6.0" }, "peerDependencies": { "react": "^18.0 || ^19.0 || >= 19.0.0-rc", "react-dom": "^18.0 || ^19.0 || >= 19.0.0-rc" } }, "sha512-tWe039t/Gkj9YDoEXruclXQvI+toI0ctcyikbHa8dm3Q6zTgy24+T/P1t1fYSNPBkSnhq+ILz2fLLnCK994qkA=="],
 
     "@blocknote/shadcn": ["@blocknote/shadcn@0.51.4", "https://registry.npmmirror.com/@blocknote/shadcn/-/shadcn-0.51.4.tgz", { "dependencies": { "@blocknote/core": "0.51.4", "@blocknote/react": "0.51.4", "@radix-ui/react-avatar": "^1.1.10", "@radix-ui/react-dropdown-menu": "^2.1.16", "@radix-ui/react-label": "^2.1.7", "@radix-ui/react-popover": "^1.1.15", "@radix-ui/react-select": "^2.2.6", "@radix-ui/react-slot": "^1.2.3", "@radix-ui/react-tabs": "^1.1.13", "@radix-ui/react-toggle": "^1.1.10", "@radix-ui/react-tooltip": "^1.2.8", "autoprefixer": "^10.4.21", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "lucide-react": "^0.525.0", "react-hook-form": "^7.65.0", "tailwind-merge": "^2.6.0" }, "peerDependencies": { "react": "^18.0 || ^19.0 || >= 19.0.0-rc", "react-dom": "^18.0 || ^19.0 || >= 19.0.0-rc", "tailwindcss": "^4.1.12" } }, "sha512-hIX351wkpFxNk6KA+qK/PChOF+s1Ff5X7B/9WhqE0+v1ZV8bAs9KElA91l2OFX9U3ANmya5nX5gGWmfb6+iUpw=="],
+
+    "@clack/core": ["@clack/core@1.4.3", "https://registry.npmmirror.com/@clack/core/-/core-1.4.3.tgz", { "dependencies": { "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-/kr3UWNtdJfxZtPgDqUOmG2pvwlmcLGheex5yiZKdwbzZJxhV+HMNR9QNmyY5cGwTNV6LrR7Jtp+KjhUAP1qBQ=="],
+
+    "@clack/prompts": ["@clack/prompts@1.7.0", "https://registry.npmmirror.com/@clack/prompts/-/prompts-1.7.0.tgz", { "dependencies": { "@clack/core": "1.4.3", "fast-string-width": "^3.0.2", "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A=="],
 
     "@date-fns/tz": ["@date-fns/tz@1.4.1", "https://registry.npmmirror.com/@date-fns/tz/-/tz-1.4.1.tgz", {}, "sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA=="],
 
@@ -1248,6 +1283,8 @@
 
     "@xyflow/system": ["@xyflow/system@0.0.78", "https://registry.npmmirror.com/@xyflow/system/-/system-0.0.78.tgz", { "dependencies": { "@types/d3-drag": "^3.0.7", "@types/d3-interpolate": "^3.0.4", "@types/d3-selection": "^3.0.10", "@types/d3-transition": "^3.0.8", "@types/d3-zoom": "^3.0.8", "d3-drag": "^3.0.0", "d3-interpolate": "^3.0.1", "d3-selection": "^3.0.0", "d3-zoom": "^3.0.0" } }, "sha512-lY0z2qP33fUhTva9Vaxrk0lqZta2pkbxB1trHAx1omnJqRtPvDlAQYV2r5fhS6AdpkulYmbNW0svy+A4/t4B/g=="],
 
+    "ansi-align": ["ansi-align@3.0.1", "https://registry.npmmirror.com/ansi-align/-/ansi-align-3.0.1.tgz", { "dependencies": { "string-width": "^4.1.0" } }, "sha512-IOfwwBF5iczOjp/WeY4YxyjqAFMQoZufdQWDd19SEExbVLNXqvpzSJ/M7Za4/sCPmQ0+GRquoA7bGcINcxew6w=="],
+
     "ansi-escapes": ["ansi-escapes@7.3.0", "https://registry.npmmirror.com/ansi-escapes/-/ansi-escapes-7.3.0.tgz", { "dependencies": { "environment": "^1.0.0" } }, "sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg=="],
 
     "ansi-regex": ["ansi-regex@6.2.2", "https://registry.npmmirror.com/ansi-regex/-/ansi-regex-6.2.2.tgz", {}, "sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg=="],
@@ -1262,9 +1299,13 @@
 
     "baseline-browser-mapping": ["baseline-browser-mapping@2.10.42", "https://registry.npmmirror.com/baseline-browser-mapping/-/baseline-browser-mapping-2.10.42.tgz", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-c/jurFrDLyui7o1J86yLkRu4LMsTYcBohveus7/I2Hzdn9KIP2bdJPTue/lR1KH46enoPbD77GKeSYNdyPoD3Q=="],
 
+    "boxen": ["boxen@8.0.1", "https://registry.npmmirror.com/boxen/-/boxen-8.0.1.tgz", { "dependencies": { "ansi-align": "^3.0.1", "camelcase": "^8.0.0", "chalk": "^5.3.0", "cli-boxes": "^3.0.0", "string-width": "^7.2.0", "type-fest": "^4.21.0", "widest-line": "^5.0.0", "wrap-ansi": "^9.0.0" } }, "sha512-F3PH5k5juxom4xktynS7MoFY+NUWH5LC4CnH11YB8NPew+HLpmBLCybSAEyb2F+4pRXhuhWqFesoQd6DAyc2hw=="],
+
     "browserslist": ["browserslist@4.28.4", "https://registry.npmmirror.com/browserslist/-/browserslist-4.28.4.tgz", { "dependencies": { "baseline-browser-mapping": "^2.10.38", "caniuse-lite": "^1.0.30001799", "electron-to-chromium": "^1.5.376", "node-releases": "^2.0.48", "update-browserslist-db": "^1.2.3" }, "bin": { "browserslist": "cli.js" } }, "sha512-MTc8i/x9jBQd1iMw2CFGS+rwMa07eYjLR0CCTLDACl9xhxy+nIs3KeML/biicXtk9JrZ6dnnTatmc7ErPXIxqw=="],
 
     "bun-types": ["bun-types@1.3.14", "https://registry.npmmirror.com/bun-types/-/bun-types-1.3.14.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
+
+    "camelcase": ["camelcase@8.0.0", "https://registry.npmmirror.com/camelcase/-/camelcase-8.0.0.tgz", {}, "sha512-8WB3Jcas3swSvjIeA2yvCJ+Miyz5l1ZmB6HFb9R1317dt9LCQoswg/BGrmAmkWVEszSrrg4RwmO46qIm2OEnSA=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001800", "https://registry.npmmirror.com/caniuse-lite/-/caniuse-lite-1.0.30001800.tgz", {}, "sha512-MMHtuAz9Ys840zAY5F4k6fV5GaivZ9sPk+nz0mY+GYVzRBnYkN0mpqkSR92oWRQ19yQWo4HvBV/FnC16AJX8MA=="],
 
@@ -1377,6 +1418,12 @@
     "fast-deep-equal": ["fast-deep-equal@3.1.3", "https://registry.npmmirror.com/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz", {}, "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="],
 
     "fast-equals": ["fast-equals@5.4.0", "https://registry.npmmirror.com/fast-equals/-/fast-equals-5.4.0.tgz", {}, "sha512-jt2DW/aNFNwke7AUd+Z+e6pz39KO5rzdbbFCg2sGafS4mk13MI7Z8O5z9cADNn5lhGODIgLwug6TZO2ctf7kcw=="],
+
+    "fast-string-truncated-width": ["fast-string-truncated-width@3.0.3", "https://registry.npmmirror.com/fast-string-truncated-width/-/fast-string-truncated-width-3.0.3.tgz", {}, "sha512-0jjjIEL6+0jag3l2XWWizO64/aZVtpiGE3t0Zgqxv0DPuxiMjvB3M24fCyhZUO4KomJQPj3LTSUnDP3GpdwC0g=="],
+
+    "fast-string-width": ["fast-string-width@3.0.2", "https://registry.npmmirror.com/fast-string-width/-/fast-string-width-3.0.2.tgz", { "dependencies": { "fast-string-truncated-width": "^3.0.2" } }, "sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg=="],
+
+    "fast-wrap-ansi": ["fast-wrap-ansi@0.2.2", "https://registry.npmmirror.com/fast-wrap-ansi/-/fast-wrap-ansi-0.2.2.tgz", { "dependencies": { "fast-string-width": "^3.0.2" } }, "sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q=="],
 
     "fdir": ["fdir@6.5.0", "https://registry.npmmirror.com/fdir/-/fdir-6.5.0.tgz", { "peerDependencies": { "picomatch": "^3 || ^4" } }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
@@ -1576,6 +1623,8 @@
 
     "signal-exit": ["signal-exit@3.0.7", "https://registry.npmmirror.com/signal-exit/-/signal-exit-3.0.7.tgz", {}, "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="],
 
+    "sisteransi": ["sisteransi@1.0.5", "https://registry.npmmirror.com/sisteransi/-/sisteransi-1.0.5.tgz", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
+
     "slice-ansi": ["slice-ansi@8.0.0", "https://registry.npmmirror.com/slice-ansi/-/slice-ansi-8.0.0.tgz", { "dependencies": { "ansi-styles": "^6.2.3", "is-fullwidth-code-point": "^5.1.0" } }, "sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg=="],
 
     "smol-toml": ["smol-toml@1.7.0", "https://registry.npmmirror.com/smol-toml/-/smol-toml-1.7.0.tgz", {}, "sha512-aqVvWoyO21L23mb+drl4RmMXbf6N7FdHjAhTRA9ZBL7apWBgfWC16KjrASI+1p9GAroljyMHj6fK67i0UiTNvQ=="],
@@ -1610,7 +1659,7 @@
 
     "tw-animate-css": ["tw-animate-css@1.4.0", "https://registry.npmmirror.com/tw-animate-css/-/tw-animate-css-1.4.0.tgz", {}, "sha512-7bziOlRqH0hJx80h/3mbicLW7o8qLsH5+RaLR2t+OHM3D0JlWGODQKQ4cxbK7WlvmUxpcj6Kgu6EKqjrGFe3QQ=="],
 
-    "type-fest": ["type-fest@5.8.0", "https://registry.npmmirror.com/type-fest/-/type-fest-5.8.0.tgz", { "dependencies": { "tagged-tag": "^1.0.0" } }, "sha512-YGYEVz3Fm5iy/AybuA0oyNFq7H4CgQNfRp/qfe8nurE1kuCeNm3/vfm9X4Mtl+qLyaKJUh5xrFZwogr41SMjYA=="],
+    "type-fest": ["type-fest@4.41.0", "https://registry.npmmirror.com/type-fest/-/type-fest-4.41.0.tgz", {}, "sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA=="],
 
     "typescript": ["typescript@5.9.3", "https://registry.npmmirror.com/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
@@ -1636,7 +1685,7 @@
 
     "w3c-keyname": ["w3c-keyname@2.2.8", "https://registry.npmmirror.com/w3c-keyname/-/w3c-keyname-2.2.8.tgz", {}, "sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ=="],
 
-    "widest-line": ["widest-line@6.0.0", "https://registry.npmmirror.com/widest-line/-/widest-line-6.0.0.tgz", { "dependencies": { "string-width": "^8.1.0" } }, "sha512-U89AsyEeAsyoF0zVJBkG9zBgekjgjK7yk9sje3F4IQpXBJ10TF6ByLlIfjMhcmHMJgHZI4KHt4rdNfktzxIAMA=="],
+    "widest-line": ["widest-line@5.0.0", "https://registry.npmmirror.com/widest-line/-/widest-line-5.0.0.tgz", { "dependencies": { "string-width": "^7.0.0" } }, "sha512-c9bZp7b5YtRj2wOe6dlj32MK+Bx/M/d+9VB2SHM1OtsUHR0aV0tdP6DWh/iMt0kWi1t5g1Iudu6hQRNd1A4PVA=="],
 
     "wrap-ansi": ["wrap-ansi@9.0.2", "https://registry.npmmirror.com/wrap-ansi/-/wrap-ansi-9.0.2.tgz", { "dependencies": { "ansi-styles": "^6.2.1", "string-width": "^7.0.0", "strip-ansi": "^7.1.0" } }, "sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww=="],
 
@@ -1848,6 +1897,14 @@
 
     "@xyflow/react/zustand": ["zustand@4.5.7", "https://registry.npmmirror.com/zustand/-/zustand-4.5.7.tgz", { "dependencies": { "use-sync-external-store": "^1.2.2" }, "peerDependencies": { "@types/react": ">=16.8", "immer": ">=9.0.6", "react": ">=16.8" }, "optionalPeers": ["@types/react", "immer", "react"] }, "sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw=="],
 
+    "ansi-align/string-width": ["string-width@4.2.3", "https://registry.npmmirror.com/string-width/-/string-width-4.2.3.tgz", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
+
+    "boxen/string-width": ["string-width@7.2.0", "https://registry.npmmirror.com/string-width/-/string-width-7.2.0.tgz", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
+
+    "ink/type-fest": ["type-fest@5.8.0", "https://registry.npmmirror.com/type-fest/-/type-fest-5.8.0.tgz", { "dependencies": { "tagged-tag": "^1.0.0" } }, "sha512-YGYEVz3Fm5iy/AybuA0oyNFq7H4CgQNfRp/qfe8nurE1kuCeNm3/vfm9X4Mtl+qLyaKJUh5xrFZwogr41SMjYA=="],
+
+    "ink/widest-line": ["widest-line@6.0.0", "https://registry.npmmirror.com/widest-line/-/widest-line-6.0.0.tgz", { "dependencies": { "string-width": "^8.1.0" } }, "sha512-U89AsyEeAsyoF0zVJBkG9zBgekjgjK7yk9sje3F4IQpXBJ10TF6ByLlIfjMhcmHMJgHZI4KHt4rdNfktzxIAMA=="],
+
     "radix-ui/@radix-ui/react-avatar": ["@radix-ui/react-avatar@1.1.10", "https://registry.npmmirror.com/@radix-ui/react-avatar/-/react-avatar-1.1.10.tgz", { "dependencies": { "@radix-ui/react-context": "1.1.2", "@radix-ui/react-primitive": "2.1.3", "@radix-ui/react-use-callback-ref": "1.1.1", "@radix-ui/react-use-is-hydrated": "0.1.0", "@radix-ui/react-use-layout-effect": "1.1.1" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" } }, "sha512-V8piFfWapM5OmNCXTzVQY+E1rDa53zY+MQ4Y7356v4fFz6vqCyUtIz2rUD44ZEdwg78/jKmMJHj07+C/Z/rcog=="],
 
     "radix-ui/@radix-ui/react-dropdown-menu": ["@radix-ui/react-dropdown-menu@2.1.16", "https://registry.npmmirror.com/@radix-ui/react-dropdown-menu/-/react-dropdown-menu-2.1.16.tgz", { "dependencies": { "@radix-ui/primitive": "1.1.3", "@radix-ui/react-compose-refs": "1.1.2", "@radix-ui/react-context": "1.1.2", "@radix-ui/react-id": "1.1.1", "@radix-ui/react-menu": "2.1.16", "@radix-ui/react-primitive": "2.1.3", "@radix-ui/react-use-controllable-state": "1.2.2" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" } }, "sha512-1PLGQEynI/3OX/ftV54COn+3Sud/Mn8vALg2rWnBLnRaGtJDduNW/22XjlGgPdpcIbiQxjKtb7BkcjP00nqfJw=="],
@@ -1867,6 +1924,8 @@
     "radix-ui/@radix-ui/react-tooltip": ["@radix-ui/react-tooltip@1.2.8", "https://registry.npmmirror.com/@radix-ui/react-tooltip/-/react-tooltip-1.2.8.tgz", { "dependencies": { "@radix-ui/primitive": "1.1.3", "@radix-ui/react-compose-refs": "1.1.2", "@radix-ui/react-context": "1.1.2", "@radix-ui/react-dismissable-layer": "1.1.11", "@radix-ui/react-id": "1.1.1", "@radix-ui/react-popper": "1.2.8", "@radix-ui/react-portal": "1.1.9", "@radix-ui/react-presence": "1.1.5", "@radix-ui/react-primitive": "2.1.3", "@radix-ui/react-slot": "1.2.3", "@radix-ui/react-use-controllable-state": "1.2.2", "@radix-ui/react-visually-hidden": "1.2.3" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" } }, "sha512-tY7sVt1yL9ozIxvmbtN5qtmH2krXcBCfjEiCgKGLqunJHvgvZG2Pcl2oQ3kbcZARb1BGEHdkLzcYGO8ynVlieg=="],
 
     "react-redux/@types/use-sync-external-store": ["@types/use-sync-external-store@0.0.6", "https://registry.npmmirror.com/@types/use-sync-external-store/-/use-sync-external-store-0.0.6.tgz", {}, "sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg=="],
+
+    "widest-line/string-width": ["string-width@7.2.0", "https://registry.npmmirror.com/string-width/-/string-width-7.2.0.tgz", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
 
     "wrap-ansi/string-width": ["string-width@7.2.0", "https://registry.npmmirror.com/string-width/-/string-width-7.2.0.tgz", { "dependencies": { "emoji-regex": "^10.3.0", "get-east-asian-width": "^1.0.0", "strip-ansi": "^7.1.0" } }, "sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ=="],
 
@@ -2110,6 +2169,12 @@
 
     "@tailwindcss/postcss/postcss/nanoid": ["nanoid@3.3.15", "https://registry.npmmirror.com/nanoid/-/nanoid-3.3.15.tgz", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-y7Wygv/7mEOvxTuEQDB8StXdMRBWf1kR/tlhAzBRUFkB2jfcLOAxO/SHmOO2zgz1pVgK29/kyupn059/bCHdjA=="],
 
+    "ansi-align/string-width/emoji-regex": ["emoji-regex@8.0.0", "https://registry.npmmirror.com/emoji-regex/-/emoji-regex-8.0.0.tgz", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
+
+    "ansi-align/string-width/is-fullwidth-code-point": ["is-fullwidth-code-point@3.0.0", "https://registry.npmmirror.com/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz", {}, "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg=="],
+
+    "ansi-align/string-width/strip-ansi": ["strip-ansi@6.0.1", "https://registry.npmmirror.com/strip-ansi/-/strip-ansi-6.0.1.tgz", { "dependencies": { "ansi-regex": "^5.0.1" } }, "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A=="],
+
     "radix-ui/@radix-ui/react-select/@radix-ui/number": ["@radix-ui/number@1.1.1", "https://registry.npmmirror.com/@radix-ui/number/-/number-1.1.1.tgz", {}, "sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g=="],
 
     "radix-ui/@radix-ui/react-select/@radix-ui/react-use-previous": ["@radix-ui/react-use-previous@1.1.1", "https://registry.npmmirror.com/@radix-ui/react-use-previous/-/react-use-previous-1.1.1.tgz", { "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" } }, "sha512-2dHfToCj/pzca2Ck724OZ5L0EVrr3eHRNsG/b3xQJLA2hZpVCS99bLAX+hm1IHXDEnzU6by5z/5MIY794/a8NQ=="],
@@ -2169,6 +2234,8 @@
     "@tailwindcss/postcss/@tailwindcss/oxide/@tailwindcss/oxide-wasm32-wasi/@tybys/wasm-util": ["@tybys/wasm-util@0.10.3", "https://registry.npmmirror.com/@tybys/wasm-util/-/wasm-util-0.10.3.tgz", { "dependencies": { "tslib": "^2.4.0" }, "bundled": true }, "sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg=="],
 
     "@tailwindcss/postcss/@tailwindcss/oxide/@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "https://registry.npmmirror.com/tslib/-/tslib-2.8.1.tgz", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
+
+    "ansi-align/string-width/strip-ansi/ansi-regex": ["ansi-regex@5.0.1", "https://registry.npmmirror.com/ansi-regex/-/ansi-regex-5.0.1.tgz", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 
     "@radix-ui/react-dropdown-menu/@radix-ui/react-menu/@radix-ui/react-dismissable-layer/@radix-ui/react-use-effect-event/@radix-ui/react-use-layout-effect": ["@radix-ui/react-use-layout-effect@1.1.2", "https://registry.npmmirror.com/@radix-ui/react-use-layout-effect/-/react-use-layout-effect-1.1.2.tgz", { "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-jrBWOxZITuGcnjRCM2t2U5ZPkCLxD+Ym6DjfssS5haTj2iiak/DOb64JeN6OdLfLgptb6/e2kKR+ZuTrGoZTPA=="],
   }

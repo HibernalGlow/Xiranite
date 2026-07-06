@@ -2,14 +2,18 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { PowerMode, SleeptAction, SleeptInput } from "./core.js"
 import { runSleept } from "./core.js"
 import { createNodeSleeptRuntime } from "./platform.js"
 
+const CLI_NAME = nodeCliName("sleept")
+
 export const cli: CliCommand = {
-  name: "xiranite-sleept",
+  name: CLI_NAME,
   description: "System timer with countdown, scheduled time, network, and CPU triggers.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -40,7 +44,7 @@ function createDefaultHost(): CliHost {
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
-      name: "xiranite-sleept",
+      name: CLI_NAME,
       description: "Timer CLI with Typer-style commands and an Ink guided mode.",
     },
     subCommands: {

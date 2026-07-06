@@ -2,14 +2,18 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { RecycleuInput } from "./core.js"
 import { runRecycleu } from "./core.js"
 import { createNodeRecycleuRuntime } from "./platform.js"
 
+const CLI_NAME = nodeCliName("recycleu")
+
 export const cli: CliCommand = {
-  name: "xiranite-recycleu",
+  name: CLI_NAME,
   description: "Empty the Windows recycle bin immediately or on a timer.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -40,7 +44,7 @@ function createDefaultHost(): CliHost {
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
-      name: "xiranite-recycleu",
+      name: CLI_NAME,
       description: "Recycle bin cleaner with Typer-style commands and an Ink guided mode.",
     },
     subCommands: {

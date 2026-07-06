@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clock, Copy, Play, RotateCcw, Trash2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -16,6 +17,7 @@ interface RecycleuCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<RecycleuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const interval = data.interval ?? 10
@@ -35,10 +37,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(input: RecycleuInput) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-recycleu CLI for system actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for system actions.")
 
     setRunning(true)
-    patch({ phase: "running", progress: 0, progressText: "Starting..." })
+    patch({ phase: "running", progress: 0, progressText: t("module:recycleu.starting") })
     const result = await runNativeAction<RecycleuInput, RecycleuData>("recycleu", input, (event) => {
       const seconds = event.message.match(/(\d+)s/)?.[1]
       if (event.type === "progress") {
@@ -75,21 +77,21 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="recycleu"
-        meta={`${phase} / ${interval}s interval`}
+        title={t("module:recycleu.title")}
+        meta={t("module:recycleu.meta", { phase, interval })}
         actions={
           <>
-            <ActionButton variant="primary" disabled={running} onClick={() => execute({ action: "start", interval })}><Play size={14} /> Start</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute({ action: "clean_now" })}><Trash2 size={14} /> Clean</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={running} onClick={() => execute({ action: "start", interval })}><Play size={14} /> {t("module:recycleu.start")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute({ action: "clean_now" })}><Trash2 size={14} /> {t("module:recycleu.clean")}</ActionButton>
+            <IconButton title={t("module:recycleu.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:recycleu.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 items-end gap-2">
-          <Field label="interval seconds" type="number" min={5} max={3600} value={interval} disabled={running} onChange={(event) => patch({ interval: Number(event.currentTarget.value) || 10 })} className="flex-1" />
+          <Field label={t("module:recycleu.intervalSeconds")} type="number" min={5} max={3600} value={interval} disabled={running} onChange={(event) => patch({ interval: Number(event.currentTarget.value) || 10 })} className="flex-1" />
           {[5, 10, 30, 60].map((value) => (
             <SegmentButton key={value} active={interval === value} disabled={running} onClick={() => patch({ interval: value })}>
               {value < 60 ? `${value}s` : "1m"}
@@ -115,17 +117,17 @@ export function Component({ compId, host }: NodeComponentProps) {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               {running ? <span className="text-lg font-bold">{remainingSeconds}s</span> : <Trash2 size={28} className="text-muted-foreground" />}
-              <span className="text-[10px] text-muted-foreground">{cleanCount} runs</span>
+              <span className="text-[10px] text-muted-foreground">{t("module:recycleu.runs", { count: cleanCount })}</span>
             </div>
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap gap-1">
-              <StatPill label="phase" value={phase} tone={phase === "error" ? "bad" : phase === "completed" ? "good" : "neutral"} />
-              <StatPill label="last" value={data.lastCleanTime ?? "-"} />
-              <StatPill label="progress" value={`${data.progress ?? 0}%`} tone="accent" />
+              <StatPill label={t("module:recycleu.phase")} value={phase} tone={phase === "error" ? "bad" : phase === "completed" ? "good" : "neutral"} />
+              <StatPill label={t("module:recycleu.last")} value={data.lastCleanTime ?? "-"} />
+              <StatPill label={t("module:recycleu.progress")} value={`${data.progress ?? 0}%`} tone="accent" />
             </div>
-            <div className="truncate text-[11px] text-muted-foreground">{data.progressText || "waiting"}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{data.progressText || t("module:recycleu.waiting")}</div>
           </div>
         </div>
       </NodeBody>

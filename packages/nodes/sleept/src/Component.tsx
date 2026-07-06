@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import { Activity, Calendar, Cpu, Moon, Play, Power, RotateCcw, Square, Timer, Wifi } from "lucide-react"
 import { ActionButton, Field, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
@@ -24,6 +26,7 @@ interface SleeptCardState {
 type ResolvedSleeptCardState = Required<SleeptCardState>
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<SleeptCardState>(compId) ?? {}
   const [phase, setPhase] = useState<"idle" | "running" | "completed" | "error" | "cancelled">("idle")
   const [progress, setProgress] = useState(0)
@@ -58,7 +61,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function start() {
     setPhase("running")
     setProgress(0)
-    setProgressText("starting")
+    setProgressText(t("module:sleept.starting"))
     const input = buildInput(state)
     const onEvent = (event: NodeRunEvent) => {
       setProgress(event.progress ?? 0)
@@ -91,47 +94,63 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   const durationSeconds = state.hours * 3600 + state.minutes * 60 + state.seconds
 
+  const timerLabel: Record<typeof state.timerMode, string> = {
+    countdown: t("module:sleept.timerCountdown"),
+    specific_time: t("module:sleept.timerAt"),
+    netspeed: t("module:sleept.timerNet"),
+    cpu: t("module:sleept.timerCpu"),
+  }
+  const powerLabel: Record<PowerMode, string> = {
+    sleep: t("module:sleept.powerSleep"),
+    shutdown: t("module:sleept.powerOff"),
+    restart: t("module:sleept.powerReboot"),
+  }
+
   return (
     <NodeContent>
       <NodeHeader
-        title="sleept"
-        meta={`${state.timerMode} / ${state.powerMode} / ${state.dryrun ? "dry-run" : "live"}`}
+        title={t("module:sleept.title")}
+        meta={t("module:sleept.meta", {
+          timerMode: timerLabel[state.timerMode],
+          powerMode: powerLabel[state.powerMode],
+          mode: state.dryrun ? t("module:sleept.dryRun") : t("module:sleept.live"),
+        })}
         actions={
           <>
-            <ActionButton variant="primary" disabled={phase === "running"} onClick={start}><Play size={14} /> Start</ActionButton>
-            <ActionButton onClick={refreshStats}><Activity size={14} /> Stats</ActionButton>
-            <ActionButton onClick={reset}><Square size={14} /> Reset</ActionButton>
+            <ActionButton variant="primary" disabled={phase === "running"} onClick={start}><Play size={14} /> {t("module:sleept.start")}</ActionButton>
+            <ActionButton onClick={refreshStats}><Activity size={14} /> {t("module:sleept.stats")}</ActionButton>
+            <ActionButton onClick={reset}><Square size={14} /> {t("module:sleept.reset")}</ActionButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={state.timerMode === "countdown"} onClick={() => patch({ timerMode: "countdown" })}><Timer size={14} /> Countdown</SegmentButton>
-          <SegmentButton active={state.timerMode === "specific_time"} onClick={() => patch({ timerMode: "specific_time" })}><Calendar size={14} /> At</SegmentButton>
-          <SegmentButton active={state.timerMode === "netspeed"} onClick={() => patch({ timerMode: "netspeed" })}><Wifi size={14} /> Net</SegmentButton>
-          <SegmentButton active={state.timerMode === "cpu"} onClick={() => patch({ timerMode: "cpu" })}><Cpu size={14} /> CPU</SegmentButton>
+          <SegmentButton active={state.timerMode === "countdown"} onClick={() => patch({ timerMode: "countdown" })}><Timer size={14} /> {t("module:sleept.timerCountdown")}</SegmentButton>
+          <SegmentButton active={state.timerMode === "specific_time"} onClick={() => patch({ timerMode: "specific_time" })}><Calendar size={14} /> {t("module:sleept.timerAt")}</SegmentButton>
+          <SegmentButton active={state.timerMode === "netspeed"} onClick={() => patch({ timerMode: "netspeed" })}><Wifi size={14} /> {t("module:sleept.timerNet")}</SegmentButton>
+          <SegmentButton active={state.timerMode === "cpu"} onClick={() => patch({ timerMode: "cpu" })}><Cpu size={14} /> {t("module:sleept.timerCpu")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={state.powerMode === "sleep"} onClick={() => patch({ powerMode: "sleep" })}><Moon size={14} /> Sleep</SegmentButton>
-          <SegmentButton active={state.powerMode === "shutdown"} onClick={() => patch({ powerMode: "shutdown" })}><Power size={14} /> Off</SegmentButton>
-          <SegmentButton active={state.powerMode === "restart"} onClick={() => patch({ powerMode: "restart" })}><RotateCcw size={14} /> Reboot</SegmentButton>
-          <SegmentButton active={state.dryrun} onClick={() => patch({ dryrun: !state.dryrun })}>Dry</SegmentButton>
+          <SegmentButton active={state.powerMode === "sleep"} onClick={() => patch({ powerMode: "sleep" })}><Moon size={14} /> {t("module:sleept.powerSleep")}</SegmentButton>
+          <SegmentButton active={state.powerMode === "shutdown"} onClick={() => patch({ powerMode: "shutdown" })}><Power size={14} /> {t("module:sleept.powerOff")}</SegmentButton>
+          <SegmentButton active={state.powerMode === "restart"} onClick={() => patch({ powerMode: "restart" })}><RotateCcw size={14} /> {t("module:sleept.powerReboot")}</SegmentButton>
+          <SegmentButton active={state.dryrun} onClick={() => patch({ dryrun: !state.dryrun })}>{t("module:sleept.dry")}</SegmentButton>
         </div>
 
         <div className="min-h-0 flex flex-1 flex-col gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <TimerSettings state={state} patch={patch} />
+            <TimerSettings state={state} patch={patch} t={t} />
             <div className="flex flex-wrap gap-1">
-              <StatPill label="duration" value={formatDuration(durationSeconds)} tone="accent" />
-              <StatPill label="cpu" value={`${stats.cpu.toFixed(1)}%`} />
-              <StatPill label="up" value={stats.upload.toFixed(1)} />
-              <StatPill label="down" value={stats.download.toFixed(1)} />
+              <StatPill label={t("module:sleept.statDuration")} value={formatDuration(durationSeconds)} tone="accent" />
+              <StatPill label={t("module:sleept.statCpu")} value={`${stats.cpu.toFixed(1)}%`} />
+              <StatPill label={t("module:sleept.statUp")} value={stats.upload.toFixed(1)} />
+              <StatPill label={t("module:sleept.statDown")} value={stats.download.toFixed(1)} />
             </div>
-            <div className="truncate text-[11px] text-muted-foreground">{progressText || "waiting"}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{progressText || t("module:sleept.waiting")}</div>
           </div>
-          <ProgressRing progress={progress} phase={phase} />
+          <ProgressRing progress={progress} phase={phase} t={t} />
         </div>
       </NodeBody>
 
@@ -142,17 +161,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   )
 }
 
-function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch: (patchData: Partial<SleeptCardState>) => void }) {
+function TimerSettings({ state, patch, t }: { state: ResolvedSleeptCardState; patch: (patchData: Partial<SleeptCardState>) => void; t: TFunction }) {
   if (state.timerMode === "specific_time") {
-    return <Field label="target datetime" value={state.targetDatetime} onChange={(event) => patch({ targetDatetime: event.currentTarget.value })} />
+    return <Field label={t("module:sleept.targetDatetime")} value={state.targetDatetime} onChange={(event) => patch({ targetDatetime: event.currentTarget.value })} />
   }
 
   if (state.timerMode === "netspeed") {
     return (
       <div className="flex flex-wrap gap-1">
-        <Field label="upload" value={state.uploadThreshold} onChange={(event) => patch({ uploadThreshold: Number(event.currentTarget.value) })} />
-        <Field label="download" value={state.downloadThreshold} onChange={(event) => patch({ downloadThreshold: Number(event.currentTarget.value) })} />
-        <Field label="minutes" value={state.netDuration} onChange={(event) => patch({ netDuration: Number(event.currentTarget.value) })} />
+        <Field label={t("module:sleept.upload")} value={state.uploadThreshold} onChange={(event) => patch({ uploadThreshold: Number(event.currentTarget.value) })} />
+        <Field label={t("module:sleept.download")} value={state.downloadThreshold} onChange={(event) => patch({ downloadThreshold: Number(event.currentTarget.value) })} />
+        <Field label={t("module:sleept.minutes")} value={state.netDuration} onChange={(event) => patch({ netDuration: Number(event.currentTarget.value) })} />
         <SegmentButton active={state.netTriggerMode === "any"} onClick={() => patch({ netTriggerMode: state.netTriggerMode === "any" ? "both" : "any" })}>{state.netTriggerMode}</SegmentButton>
       </div>
     )
@@ -161,22 +180,29 @@ function TimerSettings({ state, patch }: { state: ResolvedSleeptCardState; patch
   if (state.timerMode === "cpu") {
     return (
       <div className="flex flex-wrap gap-1">
-        <Field label="threshold %" value={state.cpuThreshold} onChange={(event) => patch({ cpuThreshold: Number(event.currentTarget.value) })} />
-        <Field label="minutes" value={state.cpuDuration} onChange={(event) => patch({ cpuDuration: Number(event.currentTarget.value) })} />
+        <Field label={t("module:sleept.thresholdPct")} value={state.cpuThreshold} onChange={(event) => patch({ cpuThreshold: Number(event.currentTarget.value) })} />
+        <Field label={t("module:sleept.minutes")} value={state.cpuDuration} onChange={(event) => patch({ cpuDuration: Number(event.currentTarget.value) })} />
       </div>
     )
   }
 
   return (
     <div className="flex flex-wrap gap-1">
-      <Field label="hours" value={state.hours} onChange={(event) => patch({ hours: Number(event.currentTarget.value) })} />
-      <Field label="minutes" value={state.minutes} onChange={(event) => patch({ minutes: Number(event.currentTarget.value) })} />
-      <Field label="seconds" value={state.seconds} onChange={(event) => patch({ seconds: Number(event.currentTarget.value) })} />
+      <Field label={t("module:sleept.hours")} value={state.hours} onChange={(event) => patch({ hours: Number(event.currentTarget.value) })} />
+      <Field label={t("module:sleept.minutes")} value={state.minutes} onChange={(event) => patch({ minutes: Number(event.currentTarget.value) })} />
+      <Field label={t("module:sleept.seconds")} value={state.seconds} onChange={(event) => patch({ seconds: Number(event.currentTarget.value) })} />
     </div>
   )
 }
 
-function ProgressRing({ progress, phase }: { progress: number; phase: string }) {
+function ProgressRing({ progress, phase, t }: { progress: number; phase: string; t: TFunction }) {
+  const phaseLabel: Record<string, string> = {
+    idle: t("module:sleept.phaseIdle"),
+    running: t("module:sleept.phaseRunning"),
+    completed: t("module:sleept.phaseCompleted"),
+    error: t("module:sleept.phaseError"),
+    cancelled: t("module:sleept.phaseCancelled"),
+  }
   return (
     <div className="relative h-24 w-24 shrink-0 self-center">
       <svg viewBox="0 0 100 100" className="-rotate-90">
@@ -185,7 +211,7 @@ function ProgressRing({ progress, phase }: { progress: number; phase: string }) 
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-semibold">{progress}%</span>
-        <span className="text-[10px] text-muted-foreground">{phase}</span>
+        <span className="text-[10px] text-muted-foreground">{phaseLabel[phase] ?? phase}</span>
       </div>
     </div>
   )

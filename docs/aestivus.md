@@ -244,7 +244,7 @@ export * from "./core"
   "version": "1.2.0",
   "type": "module",
   "bin": {
-    "xiranite-scratch": "./dist/cli.js"
+    "xscratch": "./dist/cli.js"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -266,10 +266,10 @@ export * from "./core"
 
 ```bash
 # 直接运行某个模块的 CLI（不进入 Xiranite UI）
-xiranite-scratch --file note.txt "hello"
-xiranite-calculator "1 + 2 * 3"
-xiranite-tasks add "buy milk" --priority high
-xiranite-database list --filter "state=docked"
+xscratch --file note.txt "hello"
+xcalculator "1 + 2 * 3"
+xtasks add "buy milk" --priority high
+xdatabase list --filter "state=docked"
 ```
 
 每个 `bin` 是一个薄壳，仅调用模块的 `cli()`：
@@ -418,7 +418,7 @@ function DatabaseModule({ compId, host }: { compId: string; host: HostApi }) {
 | 阶段 | 工作 | 验证 |
 |---|---|---|
 | **P1** | 建 `packages/contract`，定义 `ModuleEntry` / `HostApi` | 类型通过 |
-| **P2** | 建 `packages/cli-runtime`，跑通 scratch 一个模块的 CLI | `xiranite-scratch cat` 可用 |
+| **P2** | 建 `packages/cli-runtime`，跑通 scratch 一个模块的 CLI | `xscratch cat` 可用 |
 | **P3** | 逐个把 `Xiranite/src/components/modules/*Module.tsx` 搬到 `packages/modules/*`，剥离 `@/store` 依赖改为 `host` prop | 每搬一个，Xiranite dev 仍正常 |
 | **P4** | 改造 `ModuleRenderer` 用 `import.meta.glob` 自动注册 | UI 无回归 |
 | **P5** | Xiranite 实现 `useHostApi`，把 store 适配成 HostApi | DatabaseModule 通过 host 工作 |

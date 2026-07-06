@@ -6,7 +6,7 @@
   "description": "Batch rename JSON workflow node migrated from aestivus/trename.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-trename": "./dist/cli.js"
+    "xtrename": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -36,7 +36,8 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
-    "lucide-react": "^1.0.0"
+    "lucide-react": "^1.0.0",
+    "react-i18next": "^17.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

@@ -9,18 +9,19 @@ describe("@xiranite/cli registry", () => {
   })
 
   test("normalizes direct bin names to node ids", () => {
+    expect(normalizeNodeId("xcleanf")).toBe("cleanf")
     expect(normalizeNodeId("xiranite-cleanf")).toBe("cleanf")
     expect(normalizeNodeId("CleanF")).toBe("cleanf")
   })
 
   test("finds nodes by id or package-local bin name", () => {
     expect(findNodeCli("linedup")?.packageName).toBe("@xiranite/node-linedup")
-    expect(findNodeCli("xiranite-linedup")?.id).toBe("linedup")
+    expect(findNodeCli("xlinedup")?.id).toBe("linedup")
     expect(findNodeCli("missing")).toBeUndefined()
   })
 
   test("formats useful command discovery output", () => {
     expect(formatHelp()).toContain("xiranite <node> [args]")
-    expect(formatNodeList()).toContain("xiranite-cleanf")
+    expect(formatNodeList()).toContain("xcleanf")
   })
 })

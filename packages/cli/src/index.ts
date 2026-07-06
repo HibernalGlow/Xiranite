@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { createCliHost, writeError, writeLine } from "@xiranite/cli-runtime"
+import { createCliHost, nodeCliName, normalizeNodeCliName, writeError, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 export interface NodeCliRegistration {
@@ -44,12 +44,12 @@ export const NODE_CLI_REGISTRY: NodeCliRegistration[] = [
 ]
 
 export function normalizeNodeId(value: string): string {
-  return value.trim().toLowerCase().replace(/^xiranite-/, "")
+  return normalizeNodeCliName(value)
 }
 
 export function findNodeCli(value: string): NodeCliRegistration | undefined {
   const id = normalizeNodeId(value)
-  return NODE_CLI_REGISTRY.find((entry) => entry.id === id || entry.bin === value)
+  return NODE_CLI_REGISTRY.find((entry) => entry.id === id || entry.bin === value.trim().toLowerCase())
 }
 
 export function formatHelp(): string {
@@ -122,7 +122,7 @@ function node(id: string, description: string): NodeCliRegistration {
   return {
     id,
     packageName: `@xiranite/node-${id}`,
-    bin: `xiranite-${id}`,
+    bin: nodeCliName(id),
     description,
   }
 }

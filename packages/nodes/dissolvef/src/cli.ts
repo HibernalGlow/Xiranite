@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { DissolvefAction, DissolvefConflictMode, DissolvefInput, DissolvefMediaType } from "./core.js"
 import { runDissolvef } from "./core.js"
 import { createNodeDissolvefRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("dissolvef")
 
 interface DissolvefCliOptions {
   path?: string
@@ -31,7 +35,7 @@ interface DissolvefCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-dissolvef",
+  name: CLI_NAME,
   description: "Dissolve nested, single-media, single-archive, or direct folders.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -60,7 +64,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-dissolvef", description: "Folder dissolve utility with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Folder dissolve utility with guided terminal mode." },
     subCommands: {
       plan: defineCommand({
         meta: { name: "plan", description: "Preview the operations without changing files." },

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Play, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -16,6 +17,7 @@ interface RawfilterCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<RawfilterCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -40,7 +42,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RawfilterInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-rawfilter CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "planning" })
     const response = await runNativeAction<RawfilterInput, RawfilterData>("rawfilter", {
@@ -75,38 +77,38 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="rawfilter"
-        meta={`${data.phase ?? "idle"} / ${data.result?.archiveCount ?? 0} archive(s)`}
+        title={t("module:rawfilter.title")}
+        meta={t("module:rawfilter.meta", { phase: data.phase ?? "idle", count: data.result?.archiveCount ?? 0 })}
         actions={
           <>
-            <ActionButton disabled={running} onClick={() => execute("plan")}><Search size={14} /> Plan</ActionButton>
-            <ActionButton variant="primary" disabled={running} onClick={() => execute("execute")}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Copy plan" onClick={copyPlan}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Clipboard size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <ActionButton disabled={running} onClick={() => execute("plan")}><Search size={14} /> {t("module:rawfilter.plan")}</ActionButton>
+            <ActionButton variant="primary" disabled={running} onClick={() => execute("execute")}><Play size={14} /> {t("module:rawfilter.run")}</ActionButton>
+            <IconButton title={t("module:rawfilter.copyPlan")} onClick={copyPlan}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:rawfilter.copyLogs")} onClick={copyLogs}><Clipboard size={14} /></IconButton>
+            <IconButton title={t("module:rawfilter.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="folder" value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <IconButton title="Paste folder" disabled={running} onClick={pastePath}><FolderOpen size={14} /></IconButton>
-          <Field label="similarity" type="number" min={0} max={1} step={0.01} value={minSimilarity} disabled={running || nameOnlyMode} onChange={(event) => patch({ minSimilarity: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label={t("module:rawfilter.folder")} value={data.pathText ?? ""} disabled={running} onChange={(event) => patch({ pathText: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <IconButton title={t("module:rawfilter.pasteFolder")} disabled={running} onClick={pastePath}><FolderOpen size={14} /></IconButton>
+          <Field label={t("module:rawfilter.similarity")} type="number" min={0} max={1} step={0.01} value={minSimilarity} disabled={running || nameOnlyMode} onChange={(event) => patch({ minSimilarity: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={nameOnlyMode} disabled={running} onClick={() => patch({ nameOnlyMode: !nameOnlyMode })}>name only</SegmentButton>
-          <SegmentButton active={createShortcuts} disabled={running || trashOnly} onClick={() => patch({ createShortcuts: !createShortcuts })}>shortcuts</SegmentButton>
-          <SegmentButton active={trashOnly} disabled={running} onClick={() => patch({ trashOnly: !trashOnly, createShortcuts: trashOnly ? createShortcuts : false })}>trash only</SegmentButton>
+          <SegmentButton active={nameOnlyMode} disabled={running} onClick={() => patch({ nameOnlyMode: !nameOnlyMode })}>{t("module:rawfilter.nameOnly")}</SegmentButton>
+          <SegmentButton active={createShortcuts} disabled={running || trashOnly} onClick={() => patch({ createShortcuts: !createShortcuts })}>{t("module:rawfilter.shortcuts")}</SegmentButton>
+          <SegmentButton active={trashOnly} disabled={running} onClick={() => patch({ trashOnly: !trashOnly, createShortcuts: trashOnly ? createShortcuts : false })}>{t("module:rawfilter.trashOnly")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="groups" value={`${data.result?.duplicateGroups ?? 0}/${data.result?.totalGroups ?? 0}`} tone="accent" />
-          <StatPill label="trash" value={statusCount(plan, "trash", data.result?.movedToTrash)} tone="bad" />
-          <StatPill label="multi" value={statusCount(plan, "multi", data.result?.movedToMulti)} tone="good" />
-          <StatPill label="links" value={statusCount(plan, "shortcut", data.result?.createdShortcuts)} tone="good" />
-          <StatPill label="errors" value={data.result?.errorCount ?? 0} tone={(data.result?.errorCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:rawfilter.groups")} value={`${data.result?.duplicateGroups ?? 0}/${data.result?.totalGroups ?? 0}`} tone="accent" />
+          <StatPill label={t("module:rawfilter.trash")} value={statusCount(plan, "trash", data.result?.movedToTrash)} tone="bad" />
+          <StatPill label={t("module:rawfilter.multi")} value={statusCount(plan, "multi", data.result?.movedToMulti)} tone="good" />
+          <StatPill label={t("module:rawfilter.links")} value={statusCount(plan, "shortcut", data.result?.createdShortcuts)} tone="good" />
+          <StatPill label={t("module:rawfilter.errors")} value={data.result?.errorCount ?? 0} tone={(data.result?.errorCount ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -114,7 +116,7 @@ export function Component({ compId, host }: NodeComponentProps) {
             <div key={`${item.sourcePath}:${item.targetPath}:${item.destination}`} className={item.status === "error" ? "mb-1 truncate text-red-500" : "mb-1 truncate"}>
               {item.status} {item.destination} {item.fileName}{item.targetPath ? ` -> ${item.targetPath}` : ` / ${item.reason}`}
             </div>
-          )) : "No plan yet"}
+          )) : t("module:rawfilter.noPlanYet")}
         </ResultView>
       </NodeBody>
 

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Eye, MousePointerClick, RotateCcw, ShieldMinus, ShieldPlus } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -17,6 +18,7 @@ interface OwithuCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<OwithuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -55,7 +57,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the xiranite-owithu CLI for registry changes.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the package CLI for registry changes.")
 
     setRunning(true)
     patch({ phase: "running", action })
@@ -85,28 +87,28 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="owithu"
-        meta={`${data.phase ?? "idle"} / ${result?.entries.length ?? 0} entries / ${result?.plan.length ?? 0} ops`}
+        title={t("module:owithu.title")}
+        meta={t("module:owithu.meta", { phase: data.phase ?? "idle", entries: result?.entries.length ?? 0, ops: result?.plan.length ?? 0 })}
         actions={
           <>
-            <IconButton title="Paste TOML" onClick={pasteConfig}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={running} onClick={() => execute("preview")}><Eye size={14} /> Preview</ActionButton>
-            <ActionButton variant="primary" disabled={running} onClick={() => execute("register")}><ShieldPlus size={14} /> Register</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute("unregister")}><ShieldMinus size={14} /> Remove</ActionButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Copy size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:owithu.pasteToml")} onClick={pasteConfig}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={running} onClick={() => execute("preview")}><Eye size={14} /> {t("module:owithu.preview")}</ActionButton>
+            <ActionButton variant="primary" disabled={running} onClick={() => execute("register")}><ShieldPlus size={14} /> {t("module:owithu.register")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute("unregister")}><ShieldMinus size={14} /> {t("module:owithu.remove")}</ActionButton>
+            <IconButton title={t("module:owithu.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:owithu.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="config path" value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
-          <Field label="only key" value={data.onlyKey ?? ""} disabled={running} onChange={(event) => patch({ onlyKey: event.currentTarget.value })} />
+          <Field label={t("module:owithu.configPath")} value={data.path ?? ""} disabled={running} onChange={(event) => patch({ path: event.currentTarget.value })} />
+          <Field label={t("module:owithu.onlyKey")} value={data.onlyKey ?? ""} disabled={running} onChange={(event) => patch({ onlyKey: event.currentTarget.value })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={!hive} disabled={running} onClick={() => patch({ hive: "" })}>config</SegmentButton>
+          <SegmentButton active={!hive} disabled={running} onClick={() => patch({ hive: "" })}>{t("module:owithu.config")}</SegmentButton>
           {(["HKCU", "HKCR", "HKLM"] as const).map((item) => (
             <SegmentButton key={item} active={hive === item} disabled={running} onClick={() => patch({ hive: item })}>{item}</SegmentButton>
           ))}
@@ -114,11 +116,11 @@ export function Component({ compId, host }: NodeComponentProps) {
 
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="toml"
+            label={t("module:owithu.toml")}
             value={data.configText ?? ""}
             disabled={running}
             onChange={(event) => patch({ configText: event.currentTarget.value })}
-            placeholder="paste owithu.toml for local preview"
+            placeholder={t("module:owithu.placeholderToml")}
           />
           <ResultView className="text-muted-foreground">
             {result?.plan.length ? result.plan.slice(0, 80).map((item) => (
@@ -126,15 +128,15 @@ export function Component({ compId, host }: NodeComponentProps) {
                 <div className="truncate text-primary"><MousePointerClick size={11} className="mr-1 inline" />{item.entryKey} / {item.hive} / {item.scope}</div>
                 <div className="truncate">{item.command}</div>
               </div>
-            )) : <div className="flex h-full items-center justify-center">No registry plan</div>}
+            )) : <div className="flex h-full items-center justify-center">{t("module:owithu.noRegistryPlan")}</div>}
           </ResultView>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="entries" value={result?.entries.length ?? 0} />
-          <StatPill label="ops" value={result?.plan.length ?? 0} tone="accent" />
-          <StatPill label="registered" value={result?.registeredCount ?? 0} tone="good" />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={result?.failedCount ? "bad" : "neutral"} />
+          <StatPill label={t("module:owithu.entries")} value={result?.entries.length ?? 0} />
+          <StatPill label={t("module:owithu.ops")} value={result?.plan.length ?? 0} tone="accent" />
+          <StatPill label={t("module:owithu.registered")} value={result?.registeredCount ?? 0} tone="good" />
+          <StatPill label={t("module:owithu.failed")} value={result?.failedCount ?? 0} tone={result?.failedCount ? "bad" : "neutral"} />
         </div>
       </NodeBody>
 

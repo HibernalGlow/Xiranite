@@ -12,6 +12,7 @@
     "dev": "bun run build:packages && vite",
     "build": "bun run build:packages && tsc -b && vite build",
     "build:packages": "bun --filter './packages/*' build && bun --filter './packages/nodes/*' build",
+    "sync:cli-bins": "bun scripts/sync-cli-bin-names.ts",
     "test:packages": "bun --filter './packages/*' test && bun --filter './packages/nodes/*' test",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",

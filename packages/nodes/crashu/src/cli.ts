@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { CrashuAction, CrashuConflictPolicy, CrashuInput, CrashuMoveDirection } from "./core.js"
 import { runCrashu } from "./core.js"
 import { createNodeCrashuRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("crashu")
 
 interface CrashuCliOptions {
   source?: string
@@ -25,7 +29,7 @@ interface CrashuCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-crashu",
+  name: CLI_NAME,
   description: "Match similar folder names and optionally move matched folders.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -54,7 +58,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-crashu", description: "Folder similarity matcher with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Folder similarity matcher with guided terminal mode." },
     subCommands: {
       scan: defineCommand({
         meta: { name: "scan", description: "Find similar folders." },

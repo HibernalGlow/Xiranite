@@ -3,11 +3,15 @@ import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { BandiaAction, BandiaArchiveFormat, BandiaExtractMode, BandiaInput, BandiaOverwriteMode } from "./core.js"
 import { parsePathMappings, runBandia } from "./core.js"
 import { createNodeBandiaRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("bandia")
 
 interface BandiaCliOptions {
   path?: string
@@ -35,7 +39,7 @@ interface BandiaCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-bandia",
+  name: CLI_NAME,
   description: "Batch extract, compress, repack, and export archive paths with Bandizip.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -64,7 +68,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-bandia", description: "Bandizip batch archive workflow with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Bandizip batch archive workflow with guided terminal mode." },
     subCommands: {
       extract: defineCommand({
         meta: { name: "extract", description: "Extract archive paths." },

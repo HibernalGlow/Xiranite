@@ -6,7 +6,7 @@
   "description": "Filename encoding recovery node migrated from aestivus/encodeb.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-encodeb": "./dist/cli.js"
+    "xencodeb": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -37,7 +37,8 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
-    "lucide-react": "^1.0.0"
+    "lucide-react": "^1.0.0",
+    "react-i18next": "^17.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

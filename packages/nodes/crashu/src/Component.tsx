@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, MoveRight, RotateCcw, Search, Zap } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -19,6 +20,7 @@ interface CrashuCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<CrashuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -47,7 +49,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: CrashuInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-crashu CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action === "move" || action === "execute" ? "moving" : action })
     const response = await runNativeAction<CrashuInput, CrashuData>("crashu", {
@@ -85,50 +87,53 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="crashu"
-        meta={`${data.phase ?? "idle"} / ${matches.length} match(es)`}
+        title={t("module:crashu.title")}
+        meta={t("module:crashu.meta", {
+          phase: t(`module:crashu.phases.${data.phase ?? "idle"}`),
+          matches: matches.length,
+        })}
         actions={
           <>
-            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("scan")}><Search size={14} /> Scan</ActionButton>
-            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("plan")}><Zap size={14} /> Plan</ActionButton>
-            <ActionButton variant="primary" disabled={running || !sourcePaths.length || !data.destinationPath} onClick={() => execute("move")}><MoveRight size={14} /> Move</ActionButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Clipboard size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("scan")}><Search size={14} /> {t("module:crashu.scan")}</ActionButton>
+            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("plan")}><Zap size={14} /> {t("module:crashu.plan")}</ActionButton>
+            <ActionButton variant="primary" disabled={running || !sourcePaths.length || !data.destinationPath} onClick={() => execute("move")}><MoveRight size={14} /> {t("module:crashu.move")}</ActionButton>
+            <IconButton title={t("module:crashu.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:crashu.copyLogs")} onClick={copyLogs}><Clipboard size={14} /></IconButton>
+            <IconButton title={t("module:crashu.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <TextArea label="sources" value={data.sourcePathsText ?? ""} disabled={running} onChange={(event) => patch({ sourcePathsText: event.currentTarget.value })} placeholder="one source folder per line" />
-          <TextArea label="targets" value={data.targetNamesText ?? ""} disabled={running || Boolean(data.targetPath?.trim())} onChange={(event) => patch({ targetNamesText: event.currentTarget.value })} placeholder="manual target names, one per line" />
+          <TextArea label={t("module:crashu.sources")} value={data.sourcePathsText ?? ""} disabled={running} onChange={(event) => patch({ sourcePathsText: event.currentTarget.value })} placeholder={t("module:crashu.placeholderSources")} />
+          <TextArea label={t("module:crashu.targets")} value={data.targetNamesText ?? ""} disabled={running || Boolean(data.targetPath?.trim())} onChange={(event) => patch({ targetNamesText: event.currentTarget.value })} placeholder={t("module:crashu.placeholderTargets")} />
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="target folder" value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <IconButton title="Paste target folder" disabled={running} onClick={() => paste("targetPath")}><FolderOpen size={13} /></IconButton>
-          <Field label="destination" value={data.destinationPath ?? ""} disabled={running} onChange={(event) => patch({ destinationPath: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <IconButton title="Paste destination" disabled={running} onClick={() => paste("destinationPath")}><FolderOpen size={13} /></IconButton>
+          <Field label={t("module:crashu.targetFolder")} value={data.targetPath ?? ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <IconButton title={t("module:crashu.pasteTargetFolder")} disabled={running} onClick={() => paste("targetPath")}><FolderOpen size={13} /></IconButton>
+          <Field label={t("module:crashu.destination")} value={data.destinationPath ?? ""} disabled={running} onChange={(event) => patch({ destinationPath: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <IconButton title={t("module:crashu.pasteDestination")} disabled={running} onClick={() => paste("destinationPath")}><FolderOpen size={13} /></IconButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="threshold" type="number" min={0} max={1} step={0.05} value={threshold} disabled={running} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
-          <SegmentButton active={autoMove} disabled={running} onClick={() => patch({ autoMove: !autoMove })}>auto move</SegmentButton>
-          <SegmentButton active={direction === "to_target"} disabled={running} onClick={() => patch({ moveDirection: "to_target" })}>to target</SegmentButton>
-          <SegmentButton active={direction === "to_source"} disabled={running} onClick={() => patch({ moveDirection: "to_source" })}>to source</SegmentButton>
-          <SegmentButton active={conflict === "skip"} disabled={running} onClick={() => patch({ conflictPolicy: "skip" })}>skip</SegmentButton>
-          <SegmentButton active={conflict === "rename"} disabled={running} onClick={() => patch({ conflictPolicy: "rename" })}>rename</SegmentButton>
-          <SegmentButton active={conflict === "overwrite"} disabled={running} onClick={() => patch({ conflictPolicy: "overwrite" })}>overwrite</SegmentButton>
+          <Field label={t("module:crashu.threshold")} type="number" min={0} max={1} step={0.05} value={threshold} disabled={running} onChange={(event) => patch({ similarityThreshold: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <SegmentButton active={autoMove} disabled={running} onClick={() => patch({ autoMove: !autoMove })}>{t("module:crashu.autoMove")}</SegmentButton>
+          <SegmentButton active={direction === "to_target"} disabled={running} onClick={() => patch({ moveDirection: "to_target" })}>{t("module:crashu.toTarget")}</SegmentButton>
+          <SegmentButton active={direction === "to_source"} disabled={running} onClick={() => patch({ moveDirection: "to_source" })}>{t("module:crashu.toSource")}</SegmentButton>
+          <SegmentButton active={conflict === "skip"} disabled={running} onClick={() => patch({ conflictPolicy: "skip" })}>{t("module:crashu.skip")}</SegmentButton>
+          <SegmentButton active={conflict === "rename"} disabled={running} onClick={() => patch({ conflictPolicy: "rename" })}>{t("module:crashu.rename")}</SegmentButton>
+          <SegmentButton active={conflict === "overwrite"} disabled={running} onClick={() => patch({ conflictPolicy: "overwrite" })}>{t("module:crashu.overwrite")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="sources" value={data.result?.sourceCount ?? sourcePaths.length} tone="accent" />
-          <StatPill label="targets" value={data.result?.targetCount ?? targetNames.length} tone="accent" />
-          <StatPill label="matches" value={data.result?.similarFound ?? 0} tone="good" />
-          <StatPill label="moved" value={data.result?.movedCount ?? 0} tone="good" />
-          <StatPill label="skipped" value={data.result?.skippedCount ?? 0} />
-          <StatPill label="errors" value={data.result?.errorCount ?? 0} tone={(data.result?.errorCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:crashu.sources")} value={data.result?.sourceCount ?? sourcePaths.length} tone="accent" />
+          <StatPill label={t("module:crashu.targets")} value={data.result?.targetCount ?? targetNames.length} tone="accent" />
+          <StatPill label={t("module:crashu.matches")} value={data.result?.similarFound ?? 0} tone="good" />
+          <StatPill label={t("module:crashu.moved")} value={data.result?.movedCount ?? 0} tone="good" />
+          <StatPill label={t("module:crashu.skipped")} value={data.result?.skippedCount ?? 0} />
+          <StatPill label={t("module:crashu.errors")} value={data.result?.errorCount ?? 0} tone={(data.result?.errorCount ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -140,7 +145,7 @@ export function Component({ compId, host }: NodeComponentProps) {
             <div key={`${item.path}:${item.target}`} className="mb-1 truncate">
               {Math.round(item.similarity * 100)}% {item.name}{" -> "}{item.target}
             </div>
-          )) : "No matches yet"}
+          )) : t("module:crashu.noMatches")}
         </ResultView>
       </NodeBody>
 

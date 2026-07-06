@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, ExternalLink, FileArchive, Package, Play, RotateCcw } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -28,6 +29,7 @@ interface BandiaCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<BandiaCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const mode = data.mode ?? "extract"
@@ -55,10 +57,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(action: BandiaAction = mode) {
     if (running) return
     const input = buildInput(action, data, paths, mappings)
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-bandia CLI for Bandizip filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for Bandizip filesystem actions.")
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: "starting", result: null })
+    patch({ phase: action, progress: 0, progressText: t("module:bandia.starting"), result: null })
     const response = await runNativeAction<BandiaInput, BandiaData>("bandia", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -99,35 +101,40 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="bandia"
-        meta={`${mode} / ${dryRun ? "dry-run" : "live"} / ${paths.length} archive(s) / ${mappings.length} mapping(s)`}
+        title={t("module:bandia.title")}
+        meta={t("module:bandia.meta", {
+          mode: t(`module:bandia.modes.${mode}`),
+          state: dryRun ? t("module:bandia.dryRun") : t("module:bandia.live"),
+          archives: paths.length,
+          mappings: mappings.length,
+        })}
         actions={
           <>
-            <IconButton title="Paste input" disabled={running} onClick={pasteInput}><Clipboard size={14} /></IconButton>
-            <ActionButton variant="primary" disabled={running || !canRun(mode, paths, mappings)} onClick={() => execute()}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Export EFU" disabled={running || (!paths.length && !mappings.length)} onClick={exportEfu}><ExternalLink size={14} /></IconButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Archive size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:bandia.pasteInput")} disabled={running} onClick={pasteInput}><Clipboard size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={running || !canRun(mode, paths, mappings)} onClick={() => execute()}><Play size={14} /> {t("module:bandia.run")}</ActionButton>
+            <IconButton title={t("module:bandia.exportEfu")} disabled={running || (!paths.length && !mappings.length)} onClick={exportEfu}><ExternalLink size={14} /></IconButton>
+            <IconButton title={t("module:bandia.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:bandia.copyLogs")} onClick={copyLogs}><Archive size={14} /></IconButton>
+            <IconButton title={t("module:bandia.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={mode === "extract"} disabled={running} onClick={() => patch({ mode: "extract" })}><FileArchive size={14} /> Extract</SegmentButton>
-          <SegmentButton active={mode === "compress"} disabled={running} onClick={() => patch({ mode: "compress" })}><Package size={14} /> Compress</SegmentButton>
-          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>dry-run</SegmentButton>
+          <SegmentButton active={mode === "extract"} disabled={running} onClick={() => patch({ mode: "extract" })}><FileArchive size={14} /> {t("module:bandia.extract")}</SegmentButton>
+          <SegmentButton active={mode === "compress"} disabled={running} onClick={() => patch({ mode: "compress" })}><Package size={14} /> {t("module:bandia.compress")}</SegmentButton>
+          <SegmentButton active={dryRun} disabled={running} onClick={() => patch({ dryRun: !dryRun })}>{t("module:bandia.dryRun")}</SegmentButton>
           {mode === "extract" ? (
             <>
-              <SegmentButton active={data.deleteAfter ?? true} disabled={running} onClick={() => patch({ deleteAfter: !(data.deleteAfter ?? true) })}>delete</SegmentButton>
-              <SegmentButton active={data.useTrash ?? true} disabled={running} onClick={() => patch({ useTrash: !(data.useTrash ?? true) })}>trash</SegmentButton>
-              <SegmentButton active={(data.extractMode ?? "auto") === "auto"} disabled={running} onClick={() => patch({ extractMode: (data.extractMode ?? "auto") === "auto" ? "normal" : "auto" })}>{data.extractMode ?? "auto"}</SegmentButton>
-              <SegmentButton active={data.parallel ?? false} disabled={running} onClick={() => patch({ parallel: !(data.parallel ?? false) })}>parallel</SegmentButton>
+              <SegmentButton active={data.deleteAfter ?? true} disabled={running} onClick={() => patch({ deleteAfter: !(data.deleteAfter ?? true) })}>{t("module:bandia.delete")}</SegmentButton>
+              <SegmentButton active={data.useTrash ?? true} disabled={running} onClick={() => patch({ useTrash: !(data.useTrash ?? true) })}>{t("module:bandia.trash")}</SegmentButton>
+              <SegmentButton active={(data.extractMode ?? "auto") === "auto"} disabled={running} onClick={() => patch({ extractMode: (data.extractMode ?? "auto") === "auto" ? "normal" : "auto" })}>{t(`module:bandia.extractModes.${data.extractMode ?? "auto"}`)}</SegmentButton>
+              <SegmentButton active={data.parallel ?? false} disabled={running} onClick={() => patch({ parallel: !(data.parallel ?? false) })}>{t("module:bandia.parallel")}</SegmentButton>
             </>
           ) : (
             <>
-              <SegmentButton active={data.deleteSource ?? true} disabled={running} onClick={() => patch({ deleteSource: !(data.deleteSource ?? true) })}>delete source</SegmentButton>
+              <SegmentButton active={data.deleteSource ?? true} disabled={running} onClick={() => patch({ deleteSource: !(data.deleteSource ?? true) })}>{t("module:bandia.deleteSource")}</SegmentButton>
               <SegmentButton active={(data.compressFormat ?? "zip") === "7z"} disabled={running} onClick={() => patch({ compressFormat: (data.compressFormat ?? "zip") === "zip" ? "7z" : "zip" })}>{data.compressFormat ?? "zip"}</SegmentButton>
             </>
           )}
@@ -136,26 +143,26 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="flex shrink-0 flex-wrap gap-1">
           {mode === "extract" ? (
             <>
-              <Field label="workers" type="number" value={data.workers ?? 2} disabled={running || !(data.parallel ?? false)} onChange={(event) => patch({ workers: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
-              <Field label="prefix" value={data.outputPrefix ?? "[extract] "} disabled={running || (data.extractMode ?? "auto") === "auto"} onChange={(event) => patch({ outputPrefix: event.currentTarget.value })} className="min-w-0 flex-1" />
-              <Field label="overwrite" value={data.overwriteMode ?? "overwrite"} disabled={running} onChange={(event) => patch({ overwriteMode: event.currentTarget.value as BandiaOverwriteMode })} className="min-w-0 flex-1" />
+              <Field label={t("module:bandia.workers")} type="number" value={data.workers ?? 2} disabled={running || !(data.parallel ?? false)} onChange={(event) => patch({ workers: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+              <Field label={t("module:bandia.prefix")} value={data.outputPrefix ?? "[extract] "} disabled={running || (data.extractMode ?? "auto") === "auto"} onChange={(event) => patch({ outputPrefix: event.currentTarget.value })} className="min-w-0 flex-1" />
+              <Field label={t("module:bandia.overwrite")} value={data.overwriteMode ?? "overwrite"} disabled={running} onChange={(event) => patch({ overwriteMode: event.currentTarget.value as BandiaOverwriteMode })} className="min-w-0 flex-1" />
             </>
           ) : (
-            <Field label="output dir" value={data.outputDir ?? ""} disabled={running || mappings.length > 0} onChange={(event) => patch({ outputDir: event.currentTarget.value })} className="min-w-0 flex-1" />
+            <Field label={t("module:bandia.outputDir")} value={data.outputDir ?? ""} disabled={running || mappings.length > 0} onChange={(event) => patch({ outputDir: event.currentTarget.value })} className="min-w-0 flex-1" />
           )}
         </div>
 
         <div className="min-h-0 flex flex-1 flex-col gap-2">
           <TextArea
-            label={mode === "extract" ? "archive paths" : "source paths"}
+            label={mode === "extract" ? t("module:bandia.archivePaths") : t("module:bandia.sourcePaths")}
             value={data.pathText ?? ""}
             disabled={running}
             onChange={(event) => patch({ pathText: event.currentTarget.value })}
-            placeholder={mode === "extract" ? "one .zip/.7z/.rar path per line" : "folders/files to compress, one per line"}
+            placeholder={mode === "extract" ? t("module:bandia.placeholderArchivePaths") : t("module:bandia.placeholderSourcePaths")}
           />
           {mode === "compress" ? (
             <TextArea
-              label="mappings"
+              label={t("module:bandia.mappings")}
               value={data.mappingText ?? ""}
               disabled={running}
               onChange={(event) => patch({ mappingText: event.currentTarget.value })}
@@ -165,19 +172,19 @@ export function Component({ compId, host }: NodeComponentProps) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="done" value={(result?.extractedCount ?? 0) + (result?.compressedCount ?? 0)} tone="good" />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
-          <StatPill label="mappings" value={result?.pathMappings.length ?? mappings.length} tone="accent" />
-          <StatPill label="efu" value={result?.exportedCount ?? 0} />
-          <StatPill label="progress" value={`${data.progress ?? 0}%`} />
+          <StatPill label={t("module:bandia.done")} value={(result?.extractedCount ?? 0) + (result?.compressedCount ?? 0)} tone="good" />
+          <StatPill label={t("module:bandia.failed")} value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:bandia.mappings")} value={result?.pathMappings.length ?? mappings.length} tone="accent" />
+          <StatPill label={t("module:bandia.efu")} value={result?.exportedCount ?? 0} />
+          <StatPill label={t("module:bandia.progress")} value={`${data.progress ?? 0}%`} />
         </div>
 
         <ResultView className="h-20 shrink-0 text-muted-foreground">
           {result?.results.length ? result.results.slice(0, 80).map((item) => (
             <div key={`${item.kind}:${item.sourcePath}:${item.outputPath ?? ""}`} className={item.success ? "truncate" : "truncate text-red-500"}>
-              {item.success ? "ok" : "fail"} {item.sourcePath}{item.outputPath ? ` -> ${item.outputPath}` : ""}{item.error ? ` / ${item.error}` : ""}
+              {item.success ? t("module:bandia.ok") : t("module:bandia.fail")} {item.sourcePath}{item.outputPath ? ` -> ${item.outputPath}` : ""}{item.error ? ` / ${item.error}` : ""}
             </div>
-          )) : <div className="flex h-full items-center justify-center">{data.progressText || "No result"}</div>}
+          )) : <div className="flex h-full items-center justify-center">{data.progressText || t("module:bandia.noResult")}</div>}
         </ResultView>
       </NodeBody>
 

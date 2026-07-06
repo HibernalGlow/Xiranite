@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -24,13 +25,14 @@ interface FindzCardState {
   progressText?: string
 }
 
-const ACTIONS: Array<{ value: FindzAction; label: string; icon: typeof Search }> = [
-  { value: "search", label: "Search", icon: Search },
-  { value: "archives_only", label: "Archives", icon: Archive },
-  { value: "nested", label: "Nested", icon: Layers },
+const ACTIONS: Array<{ value: FindzAction; icon: typeof Search }> = [
+  { value: "search", icon: Search },
+  { value: "archives_only", icon: Archive },
+  { value: "nested", icon: Layers },
 ]
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<FindzCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const action = data.action ?? "search"
@@ -38,6 +40,12 @@ export function Component({ compId, host }: NodeComponentProps) {
   const where = data.where?.trim() || "1"
   const logs = data.logs ?? []
   const result = data.result ?? null
+
+  function actionLabelFor(v: FindzAction): string {
+    return v === "search" ? t("module:findz.actionSearch")
+      : v === "archives_only" ? t("module:findz.actionArchives")
+      : t("module:findz.actionNested")
+  }
 
   function patch(patchData: Partial<FindzCardState>) {
     host.patchData(compId, patchData)
@@ -54,10 +62,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-findz CLI for filesystem search.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem search.")
 
     setRunning(true)
-    patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
+    patch({ phase: nextAction, progress: 0, progressText: t("module:findz.starting"), result: null })
     const response = await runNativeAction<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -74,7 +82,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   async function showHelp() {
-    log("Filter help is available from `xiranite-findz help-filter`.")
+    log("Filter help is available from the CLI `help-filter` command.")
   }
 
   async function copyResults() {
@@ -93,16 +101,16 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="findz"
-        meta={`${action} / ${paths.length || 1} path(s) / ${where}`}
+        title={t("module:findz.title")}
+        meta={t("module:findz.meta", { action: actionLabelFor(action), count: paths.length || 1, where })}
         actions={
           <>
-            <IconButton title="Paste paths" disabled={running} onClick={pastePaths}><Clipboard size={14} /></IconButton>
-            <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> Run</ActionButton>
-            <IconButton title="Filter help" disabled={running} onClick={showHelp}><HelpCircle size={14} /></IconButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><FileSearch size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:findz.pastePaths")} disabled={running} onClick={pastePaths}><Clipboard size={14} /></IconButton>
+            <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> {t("module:findz.run")}</ActionButton>
+            <IconButton title={t("module:findz.filterHelp")} disabled={running} onClick={showHelp}><HelpCircle size={14} /></IconButton>
+            <IconButton title={t("module:findz.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:findz.copyLogs")} onClick={copyLogs}><FileSearch size={14} /></IconButton>
+            <IconButton title={t("module:findz.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -113,32 +121,32 @@ export function Component({ compId, host }: NodeComponentProps) {
             const Icon = item.icon
             return (
               <SegmentButton key={item.value} active={action === item.value} disabled={running} onClick={() => patch({ action: item.value })}>
-                <Icon size={14} /> {item.label}
+                <Icon size={14} /> {actionLabelFor(item.value)}
               </SegmentButton>
             )
           })}
-          <SegmentButton active={data.noArchive ?? false} disabled={running || action !== "search"} onClick={() => patch({ noArchive: !(data.noArchive ?? false) })}>no archive</SegmentButton>
-          <SegmentButton active={data.followSymlinks ?? false} disabled={running} onClick={() => patch({ followSymlinks: !(data.followSymlinks ?? false) })}>links</SegmentButton>
-          <SegmentButton active={data.withImageMeta ?? false} disabled={running} onClick={() => patch({ withImageMeta: !(data.withImageMeta ?? false) })}>image meta</SegmentButton>
+          <SegmentButton active={data.noArchive ?? false} disabled={running || action !== "search"} onClick={() => patch({ noArchive: !(data.noArchive ?? false) })}>{t("module:findz.noArchive")}</SegmentButton>
+          <SegmentButton active={data.followSymlinks ?? false} disabled={running} onClick={() => patch({ followSymlinks: !(data.followSymlinks ?? false) })}>{t("module:findz.links")}</SegmentButton>
+          <SegmentButton active={data.withImageMeta ?? false} disabled={running} onClick={() => patch({ withImageMeta: !(data.withImageMeta ?? false) })}>{t("module:findz.imageMeta")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="max" type="number" value={data.maxResults ?? 0} disabled={running} onChange={(event) => patch({ maxResults: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
-          <Field label="return" type="number" value={data.maxReturnFiles ?? 5000} disabled={running} onChange={(event) => patch({ maxReturnFiles: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
-          <Field label="group" value={data.groupBy ?? ""} disabled={running} onChange={(event) => patch({ groupBy: event.currentTarget.value })} placeholder="archive/ext/dir" className="min-w-0 flex-1" />
-          <Field label="refine" value={data.refine ?? ""} disabled={running} onChange={(event) => patch({ refine: event.currentTarget.value })} placeholder="count > 10" className="min-w-0 flex-1" />
+          <Field label={t("module:findz.fieldMax")} type="number" value={data.maxResults ?? 0} disabled={running} onChange={(event) => patch({ maxResults: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label={t("module:findz.fieldReturn")} type="number" value={data.maxReturnFiles ?? 5000} disabled={running} onChange={(event) => patch({ maxReturnFiles: Number(event.currentTarget.value) })} className="min-w-0 flex-1" />
+          <Field label={t("module:findz.fieldGroup")} value={data.groupBy ?? ""} disabled={running} onChange={(event) => patch({ groupBy: event.currentTarget.value })} placeholder="archive/ext/dir" className="min-w-0 flex-1" />
+          <Field label={t("module:findz.fieldRefine")} value={data.refine ?? ""} disabled={running} onChange={(event) => patch({ refine: event.currentTarget.value })} placeholder="count > 10" className="min-w-0 flex-1" />
         </div>
 
         <div className="min-h-0 flex flex-1 flex-col gap-2">
           <TextArea
-            label="paths"
+            label={t("module:findz.pathsLabel")}
             value={data.pathText ?? ""}
             disabled={running}
             onChange={(event) => patch({ pathText: event.currentTarget.value })}
-            placeholder="one folder or file per line"
+            placeholder={t("module:findz.pathsPlaceholder")}
           />
           <TextArea
-            label="where"
+            label={t("module:findz.whereLabel")}
             value={data.where ?? "1"}
             disabled={running}
             onChange={(event) => patch({ where: event.currentTarget.value })}
@@ -147,12 +155,12 @@ export function Component({ compId, host }: NodeComponentProps) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="total" value={result?.totalCount ?? 0} tone="accent" />
-          <StatPill label="files" value={result?.fileCount ?? 0} tone="good" />
-          <StatPill label="dirs" value={result?.dirCount ?? 0} />
-          <StatPill label="archive" value={result?.archiveCount ?? 0} tone="accent" />
-          <StatPill label="errors" value={result?.errors.length ?? 0} tone={(result?.errors.length ?? 0) ? "bad" : "neutral"} />
-          <StatPill label="progress" value={`${data.progress ?? 0}%`} />
+          <StatPill label={t("module:findz.statTotal")} value={result?.totalCount ?? 0} tone="accent" />
+          <StatPill label={t("module:findz.statFiles")} value={result?.fileCount ?? 0} tone="good" />
+          <StatPill label={t("module:findz.statDirs")} value={result?.dirCount ?? 0} />
+          <StatPill label={t("module:findz.statArchive")} value={result?.archiveCount ?? 0} tone="accent" />
+          <StatPill label={t("module:findz.statErrors")} value={result?.errors.length ?? 0} tone={(result?.errors.length ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:findz.statProgress")} value={`${data.progress ?? 0}%`} />
         </div>
 
         <ResultView className="h-24 shrink-0 text-muted-foreground">
@@ -165,7 +173,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           )) : result?.groups.length ? result.groups.slice(0, 50).map((group) => (
             <div key={group.key} className="mb-1 truncate">{group.count} {group.name} / {group.avgSizeFormatted}</div>
           )) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground"><FolderOpen size={14} className="mr-2" />{data.progressText || "No search yet"}</div>
+            <div className="flex h-full items-center justify-center text-muted-foreground"><FolderOpen size={14} className="mr-2" />{data.progressText || t("module:findz.noResult")}</div>
           )}
         </ResultView>
       </NodeBody>

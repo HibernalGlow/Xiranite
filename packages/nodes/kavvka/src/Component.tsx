@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileSearch, Play, RotateCcw, Search } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -21,6 +22,7 @@ interface KavvkaCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<KavvkaCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const sourcePaths = parseKavvkaPaths(data.sourceText)
@@ -45,14 +47,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: KavvkaAction) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-kavvka CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
 
     const input = buildInput(action, data)
     if (action === "scan" && !scanRoots.length) return
     if (action !== "scan" && !sourcePaths.length) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: "starting", result: null })
+    patch({ phase: action, progress: 0, progressText: t("module:kavvka.starting"), result: null })
     const response = await runNativeAction<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -86,17 +88,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="kavvka"
-        meta={`${sourcePaths.length} source / ${scanRoots.length} scan root / depth ${data.scanDepth ?? 3}`}
+        title={t("module:kavvka.title")}
+        meta={t("module:kavvka.meta", { sourceCount: sourcePaths.length, scanCount: scanRoots.length, depth: data.scanDepth ?? 3 })}
         actions={
           <>
-            <IconButton title="Paste sources" disabled={running} onClick={() => paste("source")}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={running || !scanRoots.length} onClick={() => execute("scan")}><Search size={14} /> Scan</ActionButton>
-            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("plan")}><FileSearch size={14} /> Plan</ActionButton>
-            <ActionButton variant="primary" disabled={running || !sourcePaths.length} onClick={() => execute("process")}><Play size={14} /> Process</ActionButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><FileSearch size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:kavvka.pasteSources")} disabled={running} onClick={() => paste("source")}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={running || !scanRoots.length} onClick={() => execute("scan")}><Search size={14} /> {t("module:kavvka.scan")}</ActionButton>
+            <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("plan")}><FileSearch size={14} /> {t("module:kavvka.plan")}</ActionButton>
+            <ActionButton variant="primary" disabled={running || !sourcePaths.length} onClick={() => execute("process")}><Play size={14} /> {t("module:kavvka.process")}</ActionButton>
+            <IconButton title={t("module:kavvka.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:kavvka.copyLogs")} onClick={copyLogs}><FileSearch size={14} /></IconButton>
+            <IconButton title={t("module:kavvka.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -104,34 +106,34 @@ export function Component({ compId, host }: NodeComponentProps) {
       <NodeBody className="flex flex-col gap-2">
         <div className="flex min-h-0 flex-1 flex-col gap-2">
           <TextArea
-            label="source folders"
+            label={t("module:kavvka.sourceFoldersLabel")}
             value={data.sourceText ?? ""}
             onChange={(event) => patch({ sourceText: event.currentTarget.value })}
             disabled={running}
-            placeholder="one folder per line, usually a gallery folder under an [artist] folder"
+            placeholder={t("module:kavvka.sourceFoldersPlaceholder")}
           />
           <TextArea
-            label="scan roots"
+            label={t("module:kavvka.scanRootsLabel")}
             value={data.scanRootText ?? ""}
             onChange={(event) => patch({ scanRootText: event.currentTarget.value })}
             disabled={running}
-            placeholder="one root folder per line"
+            placeholder={t("module:kavvka.scanRootsPlaceholder")}
           />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="keywords" value={data.keywordText ?? DEFAULT_KAVVKA_KEYWORDS.join(", ")} disabled={running} onChange={(event) => patch({ keywordText: event.currentTarget.value })} />
-          <Field label="depth" type="number" min={0} max={10} value={data.scanDepth ?? 3} disabled={running} onChange={(event) => patch({ scanDepth: Number(event.currentTarget.value) })} />
+          <Field label={t("module:kavvka.keywordsLabel")} value={data.keywordText ?? DEFAULT_KAVVKA_KEYWORDS.join(", ")} disabled={running} onChange={(event) => patch({ keywordText: event.currentTarget.value })} />
+          <Field label={t("module:kavvka.depthLabel")} type="number" min={0} max={10} value={data.scanDepth ?? 3} disabled={running} onChange={(event) => patch({ scanDepth: Number(event.currentTarget.value) })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={data.force ?? true} disabled={running} onClick={() => patch({ force: !(data.force ?? true) })}>force move</SegmentButton>
-          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>dry run</SegmentButton>
-          <SegmentButton active={data.strictArtist ?? false} disabled={running} onClick={() => patch({ strictArtist: !(data.strictArtist ?? false) })}>strict []</SegmentButton>
-          <StatPill label="matched" value={result?.matchedPaths.length ?? 0} tone="accent" />
-          <StatPill label="paths" value={result?.allCombinedPaths.length ?? 0} tone="good" />
-          <StatPill label="moved" value={result?.movedCount ?? 0} />
-          <StatPill label="errors" value={result?.errorCount ?? 0} tone={(result?.errorCount ?? 0) ? "bad" : "neutral"} />
+          <SegmentButton active={data.force ?? true} disabled={running} onClick={() => patch({ force: !(data.force ?? true) })}>{t("module:kavvka.forceMove")}</SegmentButton>
+          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>{t("module:kavvka.dryRun")}</SegmentButton>
+          <SegmentButton active={data.strictArtist ?? false} disabled={running} onClick={() => patch({ strictArtist: !(data.strictArtist ?? false) })}>{t("module:kavvka.strictArtist")}</SegmentButton>
+          <StatPill label={t("module:kavvka.statMatched")} value={result?.matchedPaths.length ?? 0} tone="accent" />
+          <StatPill label={t("module:kavvka.statPaths")} value={result?.allCombinedPaths.length ?? 0} tone="good" />
+          <StatPill label={t("module:kavvka.statMoved")} value={result?.movedCount ?? 0} />
+          <StatPill label={t("module:kavvka.statErrors")} value={result?.errorCount ?? 0} tone={(result?.errorCount ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="h-24 shrink-0 text-muted-foreground">
@@ -140,7 +142,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           )) : result?.matchedPaths.length ? result.matchedPaths.slice(0, 60).map((path) => (
             <div key={path} className="truncate">{path}</div>
           )) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || `keywords: ${keywords.slice(0, 4).join(", ")}`}</div>
+            <div className="flex h-full items-center justify-center text-muted-foreground">{data.progressText || `${t("module:kavvka.keywordsLabel")}: ${keywords.slice(0, 4).join(", ")}`}</div>
           )}
         </ResultView>
       </NodeBody>

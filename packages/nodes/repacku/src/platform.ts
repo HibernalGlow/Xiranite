@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process"
 import { constants } from "node:fs"
-import { access, mkdir, readdir, rm, stat, unlink } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readdir, rm, stat, unlink, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
 import type { RepackuCompressionResult, RepackuDirEntry, RepackuPathInfo, RepackuRuntime } from "./core.js"
 
@@ -33,6 +34,24 @@ export function createNodeRepackuRuntime(): RepackuRuntime {
     resolve,
     now: () => new Date(),
   }
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-Command", "Get-Clipboard -Raw"])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0], command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+  return ""
 }
 
 async function pathInfo(path: string): Promise<RepackuPathInfo> {
@@ -79,7 +98,7 @@ async function compressWholeFolder(sourcePath: string, targetPath: string, optio
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." }
 
   const result = compressor.kind === "7z"
-    ? await run7z(compressor.command, ["a", "-tzip", resolvedTarget, basename(resolvedSource), "-r", `-mx=${compressionLevel()}`, "-mmt=on", "-aou"], { cwd: dirname(resolvedSource) })
+    ? await run7zWithList(compressor.command, resolvedTarget, [basename(resolvedSource)], { cwd: dirname(resolvedSource), recursive: true })
     : await runPowerShellCompressArchive(compressor.command, [resolvedSource], resolvedTarget)
 
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: formatCommand(compressor.command, resultCommandArgs(result)) }
@@ -109,7 +128,7 @@ async function compressFiles(sourcePath: string, targetPath: string, extensions:
   if (!compressor) return { success: false, originalSize, compressedSize: 0, error: "No compressor found. Install 7-Zip or use Windows PowerShell Compress-Archive." }
 
   const result = compressor.kind === "7z"
-    ? await run7z(compressor.command, ["a", "-tzip", resolvedTarget, ...files.map((file) => basename(file.path)), `-mx=${compressionLevel()}`, "-mmt=on", "-aou"], { cwd: resolvedSource })
+    ? await run7zWithList(compressor.command, resolvedTarget, files.map((file) => basename(file.path)), { cwd: resolvedSource })
     : await runPowerShellCompressArchive(compressor.command, files.map((file) => file.path), resolvedTarget)
 
   if (result.code !== 0) return { success: false, originalSize, compressedSize: 0, error: shortError(result), command: compressor.kind }
@@ -182,7 +201,27 @@ async function findOnPath(command: string): Promise<string | null> {
 }
 
 async function run7z(command: string, args: string[], options?: { cwd?: string }): Promise<CommandResult> {
-  return runCommand(command, args, options)
+  return runCommand(command, ["-sccUTF-8", "-scsUTF-8", ...args], options)
+}
+
+async function run7zWithList(command: string, targetPath: string, entries: string[], options: { cwd: string; recursive?: boolean }): Promise<CommandResult> {
+  const dir = await mkdtemp(join(tmpdir(), "xiranite-repacku-"))
+  const listPath = join(dir, "files.txt")
+  try {
+    await writeFile(listPath, `\uFEFF${entries.join("\n")}\n`, "utf8")
+    return await run7z(command, [
+      "a",
+      "-tzip",
+      targetPath,
+      `@${listPath}`,
+      options.recursive ? "-r" : "",
+      `-mx=${compressionLevel()}`,
+      "-mmt=on",
+      "-aou",
+    ].filter(Boolean), { cwd: options.cwd })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 }
 
 async function runPowerShellCompressArchive(command: string, literalPaths: string[], targetPath: string): Promise<CommandResult> {
@@ -197,12 +236,12 @@ async function runPowerShellCompressArchive(command: string, literalPaths: strin
 
 async function runCommand(command: string, args: string[], options?: { cwd?: string }): Promise<CommandResult> {
   return new Promise((resolveResult) => {
-    execFile(command, args, { cwd: options?.cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 32 }, (error, stdout, stderr) => {
+    execFile(command, args, { cwd: options?.cwd, windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "buffer" }, (error, stdout, stderr) => {
       const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
       resolveResult({
         code,
-        stdout: String(stdout ?? ""),
-        stderr: String(stderr ?? (error instanceof Error ? error.message : "")),
+        stdout: decodeProcessOutput(stdout),
+        stderr: decodeProcessOutput(stderr) || (error instanceof Error ? error.message : ""),
       })
     })
   })
@@ -254,4 +293,16 @@ function formatCommand(command: string, args: string[]): string {
 
 function quotePowerShell(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
+}
+
+function decodeProcessOutput(value: Buffer | string | null | undefined): string {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(value)
+  if (process.platform !== "win32" || !utf8.includes("\uFFFD")) return utf8
+  try {
+    return new TextDecoder("gbk").decode(value)
+  } catch {
+    return utf8
+  }
 }

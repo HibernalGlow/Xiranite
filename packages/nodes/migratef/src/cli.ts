@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { MigratefInput, MigratefMode } from "./core.js"
 import { runMigratef } from "./core.js"
 import { createNodeMigratefRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("migratef")
 
 interface MigratefCliOptions {
   path?: string
@@ -20,7 +24,7 @@ interface MigratefCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-migratef",
+  name: CLI_NAME,
   description: "Copy or move files with preserve, flat, direct, and undo modes.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -49,7 +53,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-migratef", description: "File migrator with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "File migrator with guided terminal mode." },
     subCommands: {
       plan: defineCommand({
         meta: { name: "plan", description: "Preview a migration plan." },

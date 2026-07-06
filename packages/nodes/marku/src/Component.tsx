@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileCode, History, Play, RotateCcw, Undo2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
@@ -19,6 +20,7 @@ interface MarkuCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<MarkuCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
@@ -87,16 +89,16 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="marku"
-        meta={`${data.phase ?? "idle"} / ${selectedModule} / ${dryRun ? "dry-run" : "write"}`}
+        title={t("module:marku.title")}
+        meta={t("module:marku.meta", { phase: data.phase ?? "idle", module: selectedModule, mode: dryRun ? t("module:marku.dryRun") : t("module:marku.writeMode") })}
         actions={
           <>
-            <ActionButton disabled={running || (!hasText && !paths.length)} onClick={() => execute(hasText ? "text" : "run")}><Play size={14} /> Run</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> History</ActionButton>
-            <ActionButton disabled={running} onClick={() => execute("undo")}><Undo2 size={14} /> Undo</ActionButton>
-            <IconButton title="Copy output" onClick={copyOutput}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Clipboard size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <ActionButton disabled={running || (!hasText && !paths.length)} onClick={() => execute(hasText ? "text" : "run")}><Play size={14} /> {t("module:marku.run")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> {t("module:marku.history")}</ActionButton>
+            <ActionButton disabled={running} onClick={() => execute("undo")}><Undo2 size={14} /> {t("module:marku.undo")}</ActionButton>
+            <IconButton title={t("module:marku.copyOutput")} onClick={copyOutput}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:marku.copyLogs")} onClick={copyLogs}><Clipboard size={14} /></IconButton>
+            <IconButton title={t("module:marku.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
@@ -111,25 +113,25 @@ export function Component({ compId, host }: NodeComponentProps) {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <TextArea label="text input" value={data.inputText ?? ""} disabled={running} onChange={(event) => patch({ inputText: event.currentTarget.value })} placeholder="paste markdown text, or leave empty to use paths" />
-          <TextArea label="paths / config" value={data.pathText ?? ""} disabled={running || hasText} onChange={(event) => patch({ pathText: event.currentTarget.value })} placeholder="one file or folder per line" />
+          <TextArea label={t("module:marku.textInputLabel")} value={data.inputText ?? ""} disabled={running} onChange={(event) => patch({ inputText: event.currentTarget.value })} placeholder={t("module:marku.textInputPlaceholder")} />
+          <TextArea label={t("module:marku.pathsConfigLabel")} value={data.pathText ?? ""} disabled={running || hasText} onChange={(event) => patch({ pathText: event.currentTarget.value })} placeholder={t("module:marku.pathsConfigPlaceholder")} />
         </div>
 
         <div className="flex shrink-0 flex-wrap items-end gap-2">
-          <Field label="config json" value={data.configText ?? ""} disabled={running} onChange={(event) => patch({ configText: event.currentTarget.value })} className="min-w-0 flex-1" />
-          <IconButton title="Paste text" disabled={running} onClick={pasteText}><FileCode size={13} /></IconButton>
-          <IconButton title="Paste path" disabled={running} onClick={pastePath}><Clipboard size={13} /></IconButton>
-          <SegmentButton active={recursive} disabled={running || hasText} onClick={() => patch({ recursive: !recursive })}>recursive</SegmentButton>
-          <SegmentButton active={dryRun} disabled={running || hasText} onClick={() => patch({ dryRun: !dryRun })}>dry-run</SegmentButton>
-          <SegmentButton active={enableUndo} disabled={running || dryRun || hasText} onClick={() => patch({ enableUndo: !enableUndo })}>undo</SegmentButton>
+          <Field label={t("module:marku.configJsonLabel")} value={data.configText ?? ""} disabled={running} onChange={(event) => patch({ configText: event.currentTarget.value })} className="min-w-0 flex-1" />
+          <IconButton title={t("module:marku.pasteText")} disabled={running} onClick={pasteText}><FileCode size={13} /></IconButton>
+          <IconButton title={t("module:marku.pastePath")} disabled={running} onClick={pastePath}><Clipboard size={13} /></IconButton>
+          <SegmentButton active={recursive} disabled={running || hasText} onClick={() => patch({ recursive: !recursive })}>{t("module:marku.recursive")}</SegmentButton>
+          <SegmentButton active={dryRun} disabled={running || hasText} onClick={() => patch({ dryRun: !dryRun })}>{t("module:marku.dryRun")}</SegmentButton>
+          <SegmentButton active={enableUndo} disabled={running || dryRun || hasText} onClick={() => patch({ enableUndo: !enableUndo })}>{t("module:marku.undoToggle")}</SegmentButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="processed" value={result?.filesProcessed ?? 0} tone="accent" />
-          <StatPill label="changed" value={result?.filesChanged ?? 0} tone="good" />
-          <StatPill label="diffs" value={result?.diffs.filter((item) => item.changed).length ?? 0} />
-          <StatPill label="history" value={result?.history.length ?? 0} />
-          <StatPill label="errors" value={result?.errors.length ?? 0} tone={(result?.errors.length ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:marku.processedLabel")} value={result?.filesProcessed ?? 0} tone="accent" />
+          <StatPill label={t("module:marku.changed")} value={result?.filesChanged ?? 0} tone="good" />
+          <StatPill label={t("module:marku.diffsLabel")} value={result?.diffs.filter((item) => item.changed).length ?? 0} />
+          <StatPill label={t("module:marku.history")} value={result?.history.length ?? 0} />
+          <StatPill label={t("module:marku.errorsLabel")} value={result?.errors.length ?? 0} tone={(result?.errors.length ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -139,12 +141,12 @@ export function Component({ compId, host }: NodeComponentProps) {
             <pre className="whitespace-pre-wrap break-words">{result.diffText}</pre>
           ) : result?.diffs.length ? result.diffs.slice(0, 20).map((item) => (
             <div key={item.file} className="mb-2">
-              <div className={item.changed ? "truncate text-primary" : "truncate"}>{item.changed ? "changed" : "same"} {item.file}</div>
+              <div className={item.changed ? "truncate text-primary" : "truncate"}>{item.changed ? t("module:marku.changed") : t("module:marku.same")} {item.file}</div>
               {item.diff ? <pre className="max-h-24 overflow-hidden whitespace-pre-wrap break-words opacity-80">{item.diff}</pre> : null}
             </div>
           )) : result?.history.length ? result.history.map((item) => (
-            <div key={item.id} className="mb-1 truncate">{item.id} {item.module} {item.files.length} file(s) {item.undone ? "/ undone" : ""}</div>
-          )) : "No result"}
+            <div key={item.id} className="mb-1 truncate">{t("module:marku.historyItem", { id: item.id, module: item.module, count: item.files.length })} {item.undone ? t("module:marku.undoneLabel") : ""}</div>
+          )) : t("module:marku.noResult")}
         </ResultView>
       </NodeBody>
 

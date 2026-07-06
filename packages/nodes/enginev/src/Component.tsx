@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, Filter, Image, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react"
 import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
@@ -25,6 +26,7 @@ interface EngineVCardState {
 }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useTranslation()
   const data = host.getData<EngineVCardState>(compId) ?? {}
   const [running, setRunning] = useState(false)
   const result = data.result ?? null
@@ -48,14 +50,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EngineVAction, forceWrite = false) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-enginev CLI for filesystem actions.")
+    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     const input = buildInput(action, data, forceWrite)
     if (!input.path && !input.wallpapers?.length) return
     if (action === "delete" && !selectedIds.length) return
     if (action === "export" && !input.exportPath) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: "starting" })
+    patch({ phase: action, progress: 0, progressText: t("module:enginev.starting") })
     const response = await runNativeAction<EngineVInput, EngineVData>("enginev", input, (event) => {
       if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       else log(event.message)
@@ -90,51 +92,55 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <NodeContent>
       <NodeHeader
-        title="enginev"
-        meta={`${wallpapers.length} scanned / ${filtered.length} visible / ${selectedIds.length} selected`}
+        title={t("module:enginev.title")}
+        meta={t("module:enginev.meta", {
+          scanned: wallpapers.length,
+          visible: filtered.length,
+          selected: selectedIds.length,
+        })}
         actions={
           <>
-            <IconButton title="Paste workshop path" disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
-            <ActionButton disabled={running || !data.workshopPath} onClick={() => execute("scan")}><RefreshCw size={14} /> Scan</ActionButton>
-            <ActionButton disabled={running || (!wallpapers.length && !data.workshopPath)} onClick={() => execute("filter")}><Filter size={14} /> Filter</ActionButton>
-            <ActionButton variant="primary" disabled={running || (!wallpapers.length && !data.workshopPath)} onClick={() => execute("rename")}><Play size={14} /> Rename</ActionButton>
-            <IconButton title="Copy results" onClick={copyResults}><Copy size={14} /></IconButton>
-            <IconButton title="Copy logs" onClick={copyLogs}><Download size={14} /></IconButton>
-            <IconButton title="Reset" onClick={reset}><RotateCcw size={14} /></IconButton>
+            <IconButton title={t("module:enginev.pasteWorkshopPath")} disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
+            <ActionButton disabled={running || !data.workshopPath} onClick={() => execute("scan")}><RefreshCw size={14} /> {t("module:enginev.scan")}</ActionButton>
+            <ActionButton disabled={running || (!wallpapers.length && !data.workshopPath)} onClick={() => execute("filter")}><Filter size={14} /> {t("module:enginev.filter")}</ActionButton>
+            <ActionButton variant="primary" disabled={running || (!wallpapers.length && !data.workshopPath)} onClick={() => execute("rename")}><Play size={14} /> {t("module:enginev.rename")}</ActionButton>
+            <IconButton title={t("module:enginev.copyResults")} onClick={copyResults}><Copy size={14} /></IconButton>
+            <IconButton title={t("module:enginev.copyLogs")} onClick={copyLogs}><Download size={14} /></IconButton>
+            <IconButton title={t("module:enginev.reset")} onClick={reset}><RotateCcw size={14} /></IconButton>
           </>
         }
       />
 
       <NodeBody className="flex flex-col gap-2">
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="workshop path" value={data.workshopPath ?? ""} disabled={running} onChange={(event) => patch({ workshopPath: event.currentTarget.value })} />
-          <Field label="ids" value={data.idsText ?? ""} disabled={running} placeholder="123,456" onChange={(event) => patch({ idsText: event.currentTarget.value })} />
+          <Field label={t("module:enginev.workshopPath")} value={data.workshopPath ?? ""} disabled={running} onChange={(event) => patch({ workshopPath: event.currentTarget.value })} />
+          <Field label={t("module:enginev.ids")} value={data.idsText ?? ""} disabled={running} placeholder="123,456" onChange={(event) => patch({ idsText: event.currentTarget.value })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="title filter" value={data.titleFilter ?? ""} disabled={running} onChange={(event) => patch({ titleFilter: event.currentTarget.value })} />
-          <Field label="rating" value={data.ratingFilter ?? ""} disabled={running} placeholder="Everyone" onChange={(event) => patch({ ratingFilter: event.currentTarget.value })} />
-          <Field label="type" value={data.typeFilter ?? ""} disabled={running} placeholder="Video" onChange={(event) => patch({ typeFilter: event.currentTarget.value })} />
+          <Field label={t("module:enginev.titleFilter")} value={data.titleFilter ?? ""} disabled={running} onChange={(event) => patch({ titleFilter: event.currentTarget.value })} />
+          <Field label={t("module:enginev.rating")} value={data.ratingFilter ?? ""} disabled={running} placeholder="Everyone" onChange={(event) => patch({ ratingFilter: event.currentTarget.value })} />
+          <Field label={t("module:enginev.type")} value={data.typeFilter ?? ""} disabled={running} placeholder="Video" onChange={(event) => patch({ typeFilter: event.currentTarget.value })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Field label="rename template" value={data.template ?? "[#{id}]{original_name}+{title}"} disabled={running} onChange={(event) => patch({ template: event.currentTarget.value })} />
-          <Field label="target/export path" value={data.targetPath || data.outputPath || ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value, outputPath: event.currentTarget.value })} />
+          <Field label={t("module:enginev.renameTemplate")} value={data.template ?? "[#{id}]{original_name}+{title}"} disabled={running} onChange={(event) => patch({ template: event.currentTarget.value })} />
+          <Field label={t("module:enginev.targetExportPath")} value={data.targetPath || data.outputPath || ""} disabled={running} onChange={(event) => patch({ targetPath: event.currentTarget.value, outputPath: event.currentTarget.value })} />
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>dry run</SegmentButton>
-          <SegmentButton active={data.copyMode ?? false} disabled={running} onClick={() => patch({ copyMode: !(data.copyMode ?? false) })}>copy mode</SegmentButton>
-          <ActionButton disabled={running || !selectedIds.length} onClick={() => execute("delete")}><Trash2 size={14} /> Delete</ActionButton>
-          <ActionButton disabled={running || (!filtered.length && !wallpapers.length)} onClick={() => execute("export")}><Download size={14} /> Export</ActionButton>
+          <SegmentButton active={data.dryRun ?? true} disabled={running} onClick={() => patch({ dryRun: !(data.dryRun ?? true) })}>{t("module:enginev.dryRun")}</SegmentButton>
+          <SegmentButton active={data.copyMode ?? false} disabled={running} onClick={() => patch({ copyMode: !(data.copyMode ?? false) })}>{t("module:enginev.copyMode")}</SegmentButton>
+          <ActionButton disabled={running || !selectedIds.length} onClick={() => execute("delete")}><Trash2 size={14} /> {t("module:enginev.delete")}</ActionButton>
+          <ActionButton disabled={running || (!filtered.length && !wallpapers.length)} onClick={() => execute("export")}><Download size={14} /> {t("module:enginev.export")}</ActionButton>
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1">
-          <StatPill label="total" value={result?.totalCount ?? wallpapers.length} tone="accent" />
-          <StatPill label="filtered" value={result?.filteredCount ?? filtered.length} tone="good" />
-          <StatPill label="types" value={Object.keys(result?.typeStats ?? {}).length} />
-          <StatPill label="ok" value={result?.successCount ?? 0} />
-          <StatPill label="failed" value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
+          <StatPill label={t("module:enginev.stats.total")} value={result?.totalCount ?? wallpapers.length} tone="accent" />
+          <StatPill label={t("module:enginev.stats.filtered")} value={result?.filteredCount ?? filtered.length} tone="good" />
+          <StatPill label={t("module:enginev.stats.types")} value={Object.keys(result?.typeStats ?? {}).length} />
+          <StatPill label={t("module:enginev.stats.ok")} value={result?.successCount ?? 0} />
+          <StatPill label={t("module:enginev.stats.failed")} value={result?.failedCount ?? 0} tone={(result?.failedCount ?? 0) ? "bad" : "neutral"} />
         </div>
 
         <ResultView className="flex-1 text-muted-foreground">
@@ -150,10 +156,10 @@ export function Component({ compId, host }: NodeComponentProps) {
             ))
           ) : filtered.length ? (
             filtered.slice(0, 80).map((item) => (
-              <div key={item.workshopId} className="truncate">{item.workshopId} / {item.wallpaperType || "unknown"} / {item.contentRating || "unrated"} / {item.title || item.folderName}</div>
+              <div key={item.workshopId} className="truncate">{t("module:enginev.wallpaperLine", { id: item.workshopId, type: item.wallpaperType || t("module:enginev.unknown"), rating: item.contentRating || t("module:enginev.unrated"), title: item.title || item.folderName })}</div>
             ))
           ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground"><Image size={16} className="mr-1" /> Ready to scan Wallpaper Engine workshop folders.</div>
+            <div className="flex h-full items-center justify-center text-muted-foreground"><Image size={16} className="mr-1" /> {t("module:enginev.readyToScan")}</div>
           )}
         </ResultView>
       </NodeBody>

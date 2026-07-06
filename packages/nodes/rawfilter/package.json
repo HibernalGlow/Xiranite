@@ -6,7 +6,7 @@
   "description": "Archive similarity filter node migrated from aestivus/rawfilter.",
   "license": "UNLICENSED",
   "bin": {
-    "xiranite-rawfilter": "./dist/cli.js"
+    "xrawfilter": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -36,6 +36,7 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
+    "react-i18next": "^17.0.0",
     "lucide-react": "^1.0.0"
   },
   "devDependencies": {

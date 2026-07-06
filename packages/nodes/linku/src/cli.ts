@@ -2,11 +2,15 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { LinkuInput } from "./core.js"
 import { runLinku } from "./core.js"
 import { createNodeLinkuRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("linku")
 
 interface LinkuCliOptions {
   path?: string
@@ -16,7 +20,7 @@ interface LinkuCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-linku",
+  name: CLI_NAME,
   description: "Create, move, list, and recover symlink records.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -45,7 +49,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-linku", description: "Symlink manager with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Symlink manager with guided terminal mode." },
     subCommands: {
       info: defineCommand({
         meta: { name: "info", description: "Show file, directory, or symlink information." },

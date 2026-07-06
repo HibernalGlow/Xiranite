@@ -3,11 +3,15 @@ import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+
+
 import type { TrenameAction, TrenameInput } from "./core.js"
 import { runTrename } from "./core.js"
 import { createNodeTrenameRuntime } from "./platform.js"
+
+const CLI_NAME = nodeCliName("trename")
 
 interface TrenameCliOptions {
   path?: string
@@ -38,7 +42,7 @@ interface TrenameCliOptions {
 }
 
 export const cli: CliCommand = {
-  name: "xiranite-trename",
+  name: CLI_NAME,
   description: "Batch rename JSON workflow for scan, validate, rename, and undo.",
   async run(args: string[], host: CliHost) {
     await runProgram(args, host)
@@ -61,7 +65,7 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: "xiranite-trename", description: "Batch rename JSON workflow with guided terminal mode." },
+    meta: { name: CLI_NAME, description: "Batch rename JSON workflow with guided terminal mode." },
     subCommands: {
       scan: defineCommand({
         meta: { name: "scan", description: "Scan folders into rename JSON." },
