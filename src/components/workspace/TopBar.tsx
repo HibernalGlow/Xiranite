@@ -100,6 +100,7 @@ export function TopBar() {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const runtimeInfo = getRuntimeConnectionInfo()
+  const showWindowControls = runtimeInfo.hostRuntime === "wails"
   const activeOperations = useNodeOperations((store) => activeNodeOperationCount(store.operations))
   const { controlMain, controlMainPending } = useWindowControls()
 
@@ -116,6 +117,7 @@ export function TopBar() {
   }
 
   function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
+    if (!showWindowControls) return
     if (isNoDragTarget(event.target)) return
 
     event.preventDefault()
@@ -410,35 +412,37 @@ export function TopBar() {
         </div>
       </div>
 
-      <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-2">
-        <button
-          title={t("common:minimize")}
-          aria-label={t("common:minimize")}
-          disabled={controlMainPending}
-          onClick={() => controlMainWindow("minimize")}
-          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </button>
-        <button
-          title={t("common:maximize")}
-          aria-label={t("common:maximize")}
-          disabled={controlMainPending}
-          onClick={() => controlMainWindow("maximize")}
-          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-        >
-          {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
-        </button>
-        <button
-          title={t("common:close")}
-          aria-label={t("common:close")}
-          disabled={controlMainPending}
-          onClick={() => controlMainWindow("close")}
-          className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {showWindowControls && (
+        <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-2">
+          <button
+            title={t("common:minimize")}
+            aria-label={t("common:minimize")}
+            disabled={controlMainPending}
+            onClick={() => controlMainWindow("minimize")}
+            className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            title={t("common:maximize")}
+            aria-label={t("common:maximize")}
+            disabled={controlMainPending}
+            onClick={() => controlMainWindow("maximize")}
+            className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          >
+            {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
+          </button>
+          <button
+            title={t("common:close")}
+            aria-label={t("common:close")}
+            disabled={controlMainPending}
+            onClick={() => controlMainWindow("close")}
+            className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
     </header>
   )

@@ -50,6 +50,7 @@ interface FindzCliOptions {
 }
 
 type GuidedAction = "search" | "archives-only" | "nested" | "refine" | "help-filter" | "exit"
+type CoreGuidedAction = Exclude<GuidedAction, "exit" | "help-filter">
 type PathSource = "clipboard" | "current-dir" | "manual" | "exit"
 type FilterType = "size" | "name" | "date" | "ext" | "type" | "archive" | "custom" | "all"
 type OutputFormatChoice = "text" | "csv" | "efu" | "json"
@@ -657,9 +658,8 @@ function writeResultSummary(host: CliHost, data: FindzData | undefined, query: G
   writeRichPanel(host, "Result Summary", lines, { color: data.errors.length ? "yellow" : "green", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
 }
 
-function guidedActionToCore(action: GuidedAction): FindzAction {
+function guidedActionToCore(action: CoreGuidedAction): FindzAction {
   if (action === "archives-only") return "archives_only"
-  if (action === "help-filter") return "help"
   return action
 }
 

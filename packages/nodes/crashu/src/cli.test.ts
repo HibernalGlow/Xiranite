@@ -27,7 +27,8 @@ describe("crashu CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("scan --source")
+    expect(host.stderrText()).toContain("xcrashu scan")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON plan for real unicode source and target folders", async () => {
