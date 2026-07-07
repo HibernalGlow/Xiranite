@@ -55,10 +55,13 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
   const repository = options.repository ?? await createDefaultRepository(options)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
 
+  const services = createXiraniteServices(repository, {
+    nodeRunner: options.nodeRunner ?? createBackendNodeRunner(),
+  })
+  await services.config.ensureConfigFile()
+
   return {
-    app: createXiraniteApp(createXiraniteServices(repository, {
-      nodeRunner: options.nodeRunner ?? createBackendNodeRunner(),
-    })),
+    app: createXiraniteApp(services),
     repository,
     database: options.repository ? undefined : resolveBackendDatabaseConfig(options),
     close() {

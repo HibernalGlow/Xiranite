@@ -107,6 +107,9 @@ export function createXiraniteApp(services: XiraniteServices) {
     .get("/config/path", () => {
       return { path: services.config.getConfigPath() }
     })
+    .post("/config/open", async () => {
+      return await services.config.openConfigFile()
+    })
     .get("/config/nodes/:nodeId", async ({ params }) => {
       return await services.config.getNodeConfig(params.nodeId)
     })
