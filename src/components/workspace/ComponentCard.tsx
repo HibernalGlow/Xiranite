@@ -157,17 +157,7 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
       {/* ── Body — always mounted so component state survives every layout morph ── */}
       {!comp.collapsed && (
         <div className={cn("min-h-0 flex-1 overflow-hidden", isTiny ? "p-1.5" : "p-2")}>
-          {isTiny ? (
-            <div className="grid h-full place-items-center text-center text-[10px] font-mono text-muted-foreground">
-              <span>
-                {moduleName}
-                <br />
-                {t("common:live")}
-              </span>
-            </div>
-          ) : (
-            <ModuleRenderer moduleId={comp.moduleId} compId={comp.id} />
-          )}
+          <ModuleRenderer moduleId={comp.moduleId} compId={comp.id} />
         </div>
       )}
     </div>

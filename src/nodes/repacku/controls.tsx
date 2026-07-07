@@ -1,13 +1,16 @@
-import { Clipboard, FolderOpen, SlidersHorizontal } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { Clipboard, Eye, FileText, FolderOpen, Info, SlidersHorizontal, Trash2 } from "lucide-react"
 import type { RepackuAction } from "@xiranite/node-repacku/core"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ACTIONS } from "./constants"
 import type { RepackuCardState, RepackuStatusMeta } from "./types"
@@ -74,6 +77,7 @@ export function CompactOptionsPanel({ data, disabled, onPatch }: CommonControlPr
       <CompactSwitch
         checked={data.dryRun ?? true}
         disabled={disabled}
+        icon={Eye}
         label="预演"
         ariaLabel="预演模式"
         description="不写归档"
@@ -82,6 +86,7 @@ export function CompactOptionsPanel({ data, disabled, onPatch }: CommonControlPr
       <CompactSwitch
         checked={data.deleteAfter ?? false}
         disabled={disabled}
+        icon={Trash2}
         label="删源"
         ariaLabel="删除源文件"
         description="成功后"
@@ -125,6 +130,7 @@ export function OptionsPanel({ data, disabled, onPatch }: CommonControlProps) {
         <SwitchField
           checked={data.dryRun ?? true}
           disabled={disabled}
+          icon={Eye}
           label="预演模式"
           description="只生成计划，不写归档。"
           onCheckedChange={(value) => onPatch({ dryRun: value })}
@@ -132,6 +138,7 @@ export function OptionsPanel({ data, disabled, onPatch }: CommonControlProps) {
         <SwitchField
           checked={data.deleteAfter ?? false}
           disabled={disabled}
+          icon={Trash2}
           label="删除源文件"
           description="仅在压缩成功后执行。"
           onCheckedChange={(value) => onPatch({ deleteAfter: value })}
@@ -164,9 +171,11 @@ export function StatusStrip({ compact = false, progress, status, text }: {
 export function ConfigFilePanel(props: {
   compact?: boolean
   configDirty: boolean
+  configFilePath?: string
   data: RepackuCardState
+  defaults?: Partial<RepackuCardState>
   disabled: boolean
-  onOpenConfigFile?: () => void
+  onOpenConfigFile?: () => Promise<void> | void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
   onRestoreDefault: () => void
@@ -193,10 +202,25 @@ export function ConfigFilePanel(props: {
         />
         {!props.compact && <FieldDescription>按配置压缩会使用它；分析完成后也会回填。</FieldDescription>}
       </Field>
-      <div className="grid grid-cols-2 gap-2 @md/repacku:grid-cols-4">
-        <Button disabled={!props.onOpenConfigFile} size={props.compact ? "sm" : "default"} variant="outline" onClick={props.onOpenConfigFile}>
+      <div className="grid grid-cols-2 gap-2 @md/repacku:grid-cols-5">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button disabled={!props.configFilePath} size={props.compact ? "sm" : "default"} variant="outline">
+              <FileText data-icon="inline-start" />
+              查看
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Repacku 配置</DialogTitle>
+              <DialogDescription>网页端可直接查看当前明文配置位置和 nodes.repacku 默认值。</DialogDescription>
+            </DialogHeader>
+            <ConfigPreview config={props.defaults} nodeId="repacku" path={props.configFilePath} />
+          </DialogContent>
+        </Dialog>
+        <Button disabled={!props.onOpenConfigFile} size={props.compact ? "sm" : "default"} variant="outline" onClick={() => void props.onOpenConfigFile?.()}>
           <FolderOpen data-icon="inline-start" />
-          打开配置
+          打开
         </Button>
         <Button disabled={props.disabled} size={props.compact ? "sm" : "default"} variant="outline" onClick={props.onSaveDefault}>保存默认</Button>
         <Button disabled={props.disabled} size={props.compact ? "sm" : "default"} variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
@@ -209,45 +233,93 @@ export function ConfigFilePanel(props: {
   )
 }
 
+function ConfigPreview(props: {
+  config?: Partial<RepackuCardState>
+  nodeId: string
+  path?: string
+}) {
+  const content = props.config === undefined
+    ? `# nodes.${props.nodeId} 暂无默认配置\n`
+    : JSON.stringify(props.config, null, 2)
+  return (
+    <div className="grid gap-3">
+      <div className="rounded-md border bg-muted/30 px-3 py-2">
+        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+      </div>
+      <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
+        {content}
+      </pre>
+    </div>
+  )
+}
+
 function CompactSwitch(props: {
   checked: boolean
   description: string
   disabled: boolean
+  icon: LucideIcon
   label: string
   ariaLabel: string
   onCheckedChange: (value: boolean) => void
 }) {
+  const Icon = props.icon
   return (
-    <label className={cn("flex min-w-0 items-center gap-2 rounded-md bg-muted/30 px-2 py-1.5", props.disabled && "opacity-60")}>
-      <Switch
-        aria-label={props.ariaLabel}
-        checked={props.checked}
-        disabled={props.disabled}
-        size="sm"
-        onCheckedChange={props.onCheckedChange}
-      />
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-medium">{props.label}</span>
-        <span className="block truncate text-[11px] text-muted-foreground">{props.description}</span>
-      </span>
-    </label>
+    <div className={cn("flex min-w-0 items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5", props.disabled && "opacity-60")}>
+      <label className="flex min-w-0 flex-1 items-center gap-2">
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate text-xs font-medium">{props.label}</span>
+        <Switch
+          aria-label={props.ariaLabel}
+          checked={props.checked}
+          className="ml-auto"
+          disabled={props.disabled}
+          size="sm"
+          onCheckedChange={props.onCheckedChange}
+        />
+      </label>
+      <InfoHint label={props.label} description={props.description} />
+    </div>
   )
 }
 
-function SwitchField({ checked, description, disabled, label, onCheckedChange }: {
+function SwitchField({ checked, description, disabled, icon: Icon, label, onCheckedChange }: {
   checked: boolean
   description: string
   disabled: boolean
+  icon: LucideIcon
   label: string
   onCheckedChange: (value: boolean) => void
 }) {
   return (
     <Field orientation="horizontal" className="min-w-44 flex-1 rounded-md bg-muted/30 p-2">
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
       <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
       <FieldContent>
-        <FieldTitle>{label}</FieldTitle>
-        <FieldDescription className="text-xs">{description}</FieldDescription>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <FieldTitle className="truncate">{label}</FieldTitle>
+          <InfoHint label={label} description={description} />
+        </div>
+        <FieldDescription className="sr-only">{description}</FieldDescription>
       </FieldContent>
     </Field>
+  )
+}
+
+function InfoHint({ description, label }: { description: string; label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-label={`${label}说明`}
+          className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          role="img"
+          tabIndex={0}
+        >
+          <Info className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{description}</TooltipContent>
+    </Tooltip>
   )
 }

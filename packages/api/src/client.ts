@@ -53,6 +53,7 @@ export interface XiraniteConfigClient {
   getConfigPath(): Promise<string>
   getNodeConfig<T = unknown>(nodeId: string): Promise<{ config: T | undefined; path: string }>
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
+  openConfigFile(): Promise<{ opened: boolean; path: string }>
   importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
 }
 
@@ -84,6 +85,14 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`Node config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
+    },
+    async openConfigFile() {
+      const response = await fetch(apiUrl(baseUrl, "/config/open"), {
+        method: "POST",
+        headers,
+      })
+      if (!response.ok) throw new Error(`Config open failed: ${response.status}`)
+      return await response.json() as { opened: boolean; path: string }
     },
     async importLegacy(legacyPath: string, nodeId: string) {
       const response = await fetch(apiUrl(baseUrl, "/config/import-legacy"), {

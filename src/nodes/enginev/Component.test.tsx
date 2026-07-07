@@ -1,28 +1,64 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, test } from "vitest"
-import React from "react"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import i18next from "i18next"
-import { I18nextProvider, initReactI18next } from "react-i18next"
 import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
-import { Component } from "./Component.js"
-import type { EngineVData, EngineVInput, EngineVWallpaper } from "./core.js"
+import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
+import type { EngineVData, EngineVInput, EngineVWallpaper } from "@xiranite/node-enginev/core"
+import { Component } from "./Component"
 
-afterEach(() => cleanup())
+const surfaceState = vi.hoisted(() => ({
+  mode: "regular" as NodeSurfaceMode,
+}))
 
-describe("enginev Component", () => {
-  test("pastes the workshop path from the clipboard", async () => {
-    const host = createHost({})
-    renderComponent(host)
-    const user = userEvent.setup()
+vi.mock("@/nodes/shared/useNodeSurface", () => ({
+  useNodeSurface: () => ({
+    ref: { current: null },
+    width: widthForMode(surfaceState.mode),
+    height: heightForMode(surfaceState.mode),
+    mode: surfaceState.mode,
+    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" ? "tight" : "roomy",
+  }),
+}))
 
-    await user.click(screen.getByTitle("Paste workshop path"))
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  surfaceState.mode = "regular"
+})
 
-    expect(host.state.workshopPath).toBe("D:/workshop")
-  })
+describe("app-owned enginev Component", () => {
+  test.each(["collapsed", "compact", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
+    "renders the %s surface with EngineV-specific UI",
+    (mode) => {
+      surfaceState.mode = mode
+      render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+
+      expect(screen.getByText("EngineV")).toBeTruthy()
+      if (mode === "collapsed") {
+        expect(screen.queryByLabelText("Wallpaper Engine 工坊路径")).toBeNull()
+        expect(screen.getByText(/1 可见/)).toBeTruthy()
+        return
+      }
+
+      expect(screen.getByLabelText("Wallpaper Engine 工坊路径")).toBeTruthy()
+      if (mode === "compact") {
+        expect(screen.getByText("预演")).toBeTruthy()
+        expect(screen.getByText("复制")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "筛选和选择" })).toBeTruthy()
+        return
+      }
+
+      expect(screen.getByText("输入")).toBeTruthy()
+      expect(screen.getByText("筛选")).toBeTruthy()
+      expect(screen.getByText("写入选项")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "画廊" })).toBeTruthy()
+      expect(screen.getByTestId("enginev-header-toolbar")).toBeTruthy()
+    },
+  )
 
   test("runs scan through host.actions.run and renders local preview images", async () => {
+    surfaceState.mode = "regular"
     const host = createHost({
       workshopPath: "D:/workshop",
       titleFilter: "Ocean",
@@ -30,10 +66,10 @@ describe("enginev Component", () => {
       typeFilter: "Video",
       logs: [],
     })
-    renderComponent(host)
+    render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByText("Scan"))
+    await user.click(screen.getByRole("button", { name: "扫描工坊" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -49,6 +85,7 @@ describe("enginev Component", () => {
         ids: undefined,
         template: undefined,
         dryRun: true,
+        permanent: false,
         copyMode: false,
         targetPath: undefined,
         exportPath: undefined,
@@ -64,21 +101,24 @@ describe("enginev Component", () => {
     const image = screen.getByAltText("Ocean Loop") as HTMLImageElement
     expect(image.dataset.enginevPreview).toBe("true")
     expect(image.getAttribute("src")).toBe("http://local.test/local-files?path=D%3A%2Fworkshop%2F111%2Fpreview.png")
+  })
 
-    await user.click(screen.getByTitle("Copy results"))
-    expect(host.copiedText).toBe("111\tOcean Loop\tD:/workshop/111")
+  test("selects gallery items and copies their paths without text-only rows", async () => {
+    surfaceState.mode = "expanded"
+    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })
+    render(<Component compId="comp-enginev" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
+    expect(host.state.idsText).toBe("111")
+
+    await user.click(screen.getByRole("button", { name: "复制 Ocean Loop 路径" }))
+    expect(host.copiedText).toBe("D:/workshop/111")
   })
 })
 
-function renderComponent(host: TestHost) {
-  return render(
-    <I18nextProvider i18n={i18n}>
-      <Component compId="comp-enginev" host={host} />
-    </I18nextProvider>,
-  )
-}
-
 interface EngineVCardState {
+  action?: EngineVInput["action"]
   workshopPath?: string
   titleFilter?: string
   ratingFilter?: string
@@ -86,8 +126,10 @@ interface EngineVCardState {
   idsText?: string
   template?: string
   outputPath?: string
+  exportFormat?: EngineVInput["exportFormat"]
   dryRun?: boolean
   copyMode?: boolean
+  permanent?: boolean
   targetPath?: string
   phase?: string
   progress?: number
@@ -142,8 +184,10 @@ function createHost(initial: EngineVCardState): TestHost {
     },
     env: {
       theme: "light",
-      platform: "node",
+      platform: "web",
     },
+    getNodeConfig: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
+    saveNodeConfig: async () => undefined,
   }
   return host
 }
@@ -163,7 +207,7 @@ const wallpaper: EngineVWallpaper = {
   wallpaperType: "Video",
   createdTime: "2026-01-01T00:00:00.000Z",
   modifiedTime: "2026-01-01T00:00:00.000Z",
-  size: 100,
+  size: 1024,
   projectData: {},
 }
 
@@ -182,48 +226,14 @@ const enginevData: EngineVData = {
   errors: [],
 }
 
-const i18n = i18next.createInstance()
-await i18n.use(initReactI18next).init({
-  lng: "en",
-  fallbackLng: "en",
-  ns: ["module"],
-  defaultNS: "module",
-  interpolation: { escapeValue: false },
-  resources: {
-    en: {
-      module: {
-        enginev: {
-          title: "enginev",
-          meta: "{{scanned}} scanned / {{visible}} visible / {{selected}} selected",
-          starting: "starting",
-          pasteWorkshopPath: "Paste workshop path",
-          scan: "Scan",
-          filter: "Filter",
-          rename: "Rename",
-          copyResults: "Copy results",
-          copyLogs: "Copy logs",
-          reset: "Reset",
-          workshopPath: "workshop path",
-          ids: "ids",
-          titleFilter: "title filter",
-          rating: "rating",
-          type: "type",
-          renameTemplate: "rename template",
-          targetExportPath: "target/export path",
-          dryRun: "dry run",
-          copyMode: "copy mode",
-          delete: "Delete",
-          export: "Export",
-          stats: {
-            total: "total",
-            filtered: "filtered",
-            types: "types",
-            ok: "ok",
-            failed: "failed",
-          },
-          readyToScan: "Ready to scan Wallpaper Engine workshop folders.",
-        },
-      },
-    },
-  },
-})
+function widthForMode(mode: NodeSurfaceMode): number {
+  if (mode === "collapsed") return 240
+  if (mode === "compact") return 420
+  if (mode === "regular") return 720
+  if (mode === "expanded") return 920
+  return 1120
+}
+
+function heightForMode(mode: NodeSurfaceMode): number {
+  return mode === "workspace" ? 720 : 420
+}

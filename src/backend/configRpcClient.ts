@@ -28,3 +28,8 @@ export async function saveNodeConfigToBackend<T = unknown>(
 export async function getConfigFilePath(): Promise<string> {
   return getConfigClient().getConfigPath()
 }
+
+export async function openConfigFileWithBackend(): Promise<string> {
+  const result = await getConfigClient().openConfigFile()
+  return result.path
+}

@@ -394,4 +394,4 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
 }
 
 export { ConfigService } from "./configService.js"
-export type { GetConfigResult, GetNodeConfigResult, UpdateNodeConfigResult, ImportLegacyResult } from "./configService.js"
+export type { EnsureConfigFileResult, GetConfigResult, GetNodeConfigResult, ImportLegacyResult, OpenConfigFileResult, UpdateNodeConfigResult } from "./configService.js"

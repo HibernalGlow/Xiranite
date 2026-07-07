@@ -35,6 +35,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<RepackuCardState> | undefined>(undefined)
+  const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
   const result = data.result ?? null
@@ -48,7 +49,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   useEffect(() => {
     host.getNodeConfig?.<Partial<RepackuCardState>>()
-      .then((response) => setDefaults(response.config))
+      .then((response) => {
+        setDefaults(response.config)
+        setConfigFilePath(response.path)
+      })
       .catch(() => undefined)
   }, [host])
 
@@ -162,7 +166,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   const commonProps = {
     action,
     configDirty,
+    configFilePath,
     data,
+    defaults,
     running,
     onActionChange: (value: RepackuAction) => patch({ action: value }),
     onExecute: (value?: RepackuAction) => execute(value),
@@ -257,7 +263,9 @@ function CollapsedView(props: {
 function CompactView(props: {
   action: RepackuAction
   configDirty: boolean
+  configFilePath?: string
   data: RepackuCardState
+  defaults?: Partial<RepackuCardState>
   modeIcon: typeof Play
   modeDescription: string
   progress: number
@@ -265,7 +273,7 @@ function CompactView(props: {
   status: RepackuStatusMeta
   onActionChange: (value: RepackuAction) => void
   onExecute: (action?: RepackuAction) => void
-  onOpenConfigFile?: () => void
+  onOpenConfigFile?: () => Promise<void> | void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
@@ -310,7 +318,9 @@ function CompactView(props: {
 function FullView(props: {
   action: RepackuAction
   configDirty: boolean
+  configFilePath?: string
   data: RepackuCardState
+  defaults?: Partial<RepackuCardState>
   logs: string[]
   operationPreview: RepackuData["operations"]
   progress: number
@@ -322,7 +332,7 @@ function FullView(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: RepackuAction) => void
-  onOpenConfigFile?: () => void
+  onOpenConfigFile?: () => Promise<void> | void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
@@ -332,34 +342,37 @@ function FullView(props: {
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="grid shrink-0 gap-3 @4xl/repacku:grid-cols-[minmax(180px,1fr)_auto] @4xl/repacku:items-center">
-        <HeaderLine
-          status={props.status}
-          subtitle={props.data.progressText || `${props.types.length ? props.types.join(", ") : "全部文件"} | 至少 ${props.data.minCount ?? 2} 个 | ${props.data.dryRun ?? true ? "预演" : "写入"}`}
-        />
-        <div data-testid="repacku-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2 @4xl/repacku:justify-end">
-          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/repacku:w-44" onActionChange={props.onActionChange} />
-          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-            <Play data-icon="inline-start" />
-            启动
-          </Button>
-          <Button disabled={props.running || !props.data.path} variant="outline" onClick={() => props.onExecute("analyze")}>
-            <Search data-icon="inline-start" />
-            分析
-          </Button>
-          <Button disabled={props.running || (!props.data.configPath && !props.data.path)} variant="outline" onClick={() => props.onExecute("compress")}>
-            <FileArchive data-icon="inline-start" />
-            压缩
-          </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon-sm" variant="ghost" onClick={props.onReset}>
-                <RotateCcw />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>清空运行状态</TooltipContent>
-          </Tooltip>
+      <div className="flex shrink-0 flex-col gap-3 @4xl/repacku:flex-row @4xl/repacku:items-center @4xl/repacku:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @4xl/repacku:flex-row @4xl/repacku:items-center">
+          <HeaderLine
+            status={props.status}
+            subtitle={props.data.progressText || `${props.types.length ? props.types.join(", ") : "全部文件"} | 至少 ${props.data.minCount ?? 2} 个 | ${props.data.dryRun ?? true ? "预演" : "写入"}`}
+          />
+          <div data-testid="repacku-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+            <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/repacku:w-40" onActionChange={props.onActionChange} />
+            <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
+              <Play data-icon="inline-start" />
+              启动
+            </Button>
+            <Button disabled={props.running || !props.data.path} variant="outline" onClick={() => props.onExecute("analyze")}>
+              <Search data-icon="inline-start" />
+              分析
+            </Button>
+            <Button disabled={props.running || (!props.data.configPath && !props.data.path)} variant="outline" onClick={() => props.onExecute("compress")}>
+              <FileArchive data-icon="inline-start" />
+              压缩
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon-sm" variant="ghost" onClick={props.onReset}>
+                  <RotateCcw />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>清空运行状态</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
+        <HeaderStats result={props.result} />
       </div>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-2">
@@ -375,8 +388,10 @@ function FullView(props: {
 
             <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
             <ConfigFilePanel
+              configFilePath={props.configFilePath}
               configDirty={props.configDirty}
               data={props.data}
+              defaults={props.defaults}
               disabled={props.running}
               onOpenConfigFile={props.onOpenConfigFile}
               onPatch={props.onPatch}
@@ -386,7 +401,6 @@ function FullView(props: {
               onResetOverride={props.onResetOverride}
             />
             <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-            <StatsPanel result={props.result} />
           </div>
         </ScrollArea>
 
@@ -436,20 +450,18 @@ function HeaderLine({ status, subtitle }: { status: RepackuStatusMeta; subtitle:
   )
 }
 
-function StatsPanel({ result }: { result: RepackuData | null }) {
-  const stats = [
+function HeaderStats({ result }: { result: RepackuData | null }) {
+  const items = [
     ["文件夹", result?.totalFolders ?? 0],
-    ["整包", result?.entireCount ?? 0],
-    ["筛选", result?.selectiveCount ?? 0],
     ["操作", result?.totalOperations ?? 0],
     ["失败", result?.failedCount ?? 0],
   ] as const
   return (
-    <div className="grid shrink-0 grid-cols-5 gap-1">
-      {stats.map(([label, value]) => (
-        <div key={label} className="min-w-0 rounded-md bg-muted/30 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className="text-sm font-semibold tabular-nums">{value}</div>
+    <div className="grid shrink-0 grid-cols-3 gap-1 @4xl/repacku:min-w-56">
+      {items.map(([label, value]) => (
+        <div key={label} className="min-w-0 rounded-md bg-muted/30 px-2 py-1 text-center">
+          <div className="truncate text-[10px] text-muted-foreground">{label}</div>
+          <div className="text-xs font-semibold tabular-nums">{value}</div>
         </div>
       ))}
     </div>

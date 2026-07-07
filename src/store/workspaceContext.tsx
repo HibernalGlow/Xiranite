@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
 import { useShallow } from "zustand/react/shallow"
-import type { ComponentInstance, Lane, WorkspaceItem } from "@/types/workspace"
+import type { CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
 import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnapshot as persistWorkspaceSnapshotRpc } from "@/backend/workspaceRpcClient"
 import type { LocalBackendConfig } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
@@ -16,6 +16,8 @@ type WorkspaceSnapshot = WorkspaceSnapshotDTO
 
 const WORKSPACE_SNAPSHOT_QUERY_KEY = ["workspace", "snapshot"] as const
 const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
+const QA_VIEW_MODES = new Set<ViewMode>(["cards", "dockview", "flow", "lane", "bento"])
+const QA_CARD_LAYOUTS = new Set<CardLayout>(["grid", "stack", "split", "focus"])
 
 function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
   if (!config) return [...WORKSPACE_SNAPSHOT_QUERY_KEY, "unconfigured"] as const
@@ -125,6 +127,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const lanes = useWorkspaceStore((state) => state.lanes)
   const components = useWorkspaceStore((state) => state.components)
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined
+    return installWorkspaceQaController()
+  }, [])
+
   const workspaceQuery = useQuery({
     queryKey: workspaceQueryKey,
     queryFn: loadWorkspaceSnapshot,
@@ -182,6 +189,167 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [workspaces, lanes, components, backendReady, localBackendReady, persistWorkspace])
 
   return <>{children}</>
+}
+
+interface XiraniteQaController {
+  state: () => ReturnType<typeof summarizeWorkspaceState>
+  components: () => ReturnType<typeof summarizeWorkspaceComponents>
+  find: (query: string) => ComponentInstance | undefined
+  view: (mode: ViewMode) => ReturnType<typeof summarizeWorkspaceState>
+  cardLayout: (layout: CardLayout) => ReturnType<typeof summarizeWorkspaceState>
+  focus: (query: string) => ReturnType<typeof summarizeWorkspaceState>
+  fullscreen: (query: string) => ReturnType<typeof summarizeWorkspaceState>
+  dock: (query?: string) => ReturnType<typeof summarizeWorkspaceState>
+  bento: (query: string, layout: Partial<{ x: number; y: number; w: number; h: number }>) => ReturnType<typeof summarizeWorkspaceState>
+  flowSize: (query: string, size: Partial<{ width: number; height: number }>) => ReturnType<typeof summarizeWorkspaceState>
+  show: (query: string, mode?: ViewMode) => ReturnType<typeof summarizeWorkspaceState>
+  deploy: (moduleId: string, mode?: ViewMode) => ReturnType<typeof summarizeWorkspaceState>
+}
+
+declare global {
+  interface Window {
+    __xiraniteQA?: XiraniteQaController
+  }
+}
+
+function installWorkspaceQaController(): () => void {
+  const controller: XiraniteQaController = {
+    state: () => summarizeWorkspaceState(useWorkspaceStore.getState()),
+    components: () => summarizeWorkspaceComponents(useWorkspaceStore.getState()),
+    find: (query) => findQaComponent(useWorkspaceStore.getState(), query),
+    view: (mode) => {
+      assertQaViewMode(mode)
+      useWorkspaceStore.getState().setViewMode(mode)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    cardLayout: (layout) => {
+      assertQaCardLayout(layout)
+      const store = useWorkspaceStore.getState()
+      store.setViewMode("cards")
+      store.setCardLayout(layout)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    focus: (query) => {
+      const component = requireQaComponent(query)
+      const store = useWorkspaceStore.getState()
+      store.setViewMode("cards")
+      store.setCardLayout("focus")
+      store.setFullscreen(null)
+      store.focusComponent(component.id)
+      store.setComponentVisibility(component.id, "cards", true)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    fullscreen: (query) => {
+      const component = requireQaComponent(query)
+      const store = useWorkspaceStore.getState()
+      store.setViewMode("cards")
+      store.setComponentVisibility(component.id, "cards", true)
+      store.setFullscreen(component.id)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    dock: (query) => {
+      const store = useWorkspaceStore.getState()
+      if (query) {
+        const component = requireQaComponent(query)
+        store.setComponentState(component.id, "docked")
+      }
+      store.setFullscreen(null)
+      store.focusComponent(null)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    bento: (query, layout) => {
+      const component = requireQaComponent(query)
+      const current = component.bentoLayout ?? { x: 0, y: 0, w: 4, h: 4 }
+      const store = useWorkspaceStore.getState()
+      store.setViewMode("bento")
+      store.setComponentVisibility(component.id, "bento", true)
+      store.setComponentBentoLayout(component.id, { ...current, ...layout })
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    flowSize: (query, size) => {
+      const component = requireQaComponent(query)
+      const current = component.flowSize ?? { width: 384, height: 320 }
+      const store = useWorkspaceStore.getState()
+      store.setViewMode("flow")
+      store.setComponentVisibility(component.id, "flow", true)
+      store.setComponentFlowSize(component.id, size.width ?? current.width, size.height ?? current.height)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    show: (query, mode) => {
+      const component = requireQaComponent(query)
+      const targetMode = mode ?? useWorkspaceStore.getState().viewMode
+      assertQaViewMode(targetMode)
+      const store = useWorkspaceStore.getState()
+      store.setComponentVisibility(component.id, targetMode, true)
+      store.setViewMode(targetMode)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    deploy: (moduleId, mode = useWorkspaceStore.getState().viewMode) => {
+      assertQaViewMode(mode)
+      const store = useWorkspaceStore.getState()
+      store.deployComponent(moduleId, { viewMode: mode })
+      store.setViewMode(mode)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+  }
+
+  window.__xiraniteQA = controller
+  console.info("[xiranite qa] window.__xiraniteQA ready", controller.state())
+
+  return () => {
+    if (window.__xiraniteQA === controller) delete window.__xiraniteQA
+  }
+}
+
+function summarizeWorkspaceState(store: WSStore) {
+  return {
+    viewMode: store.viewMode,
+    cardLayout: store.cardLayout,
+    activeWorkspaceId: store.activeWorkspaceId,
+    focusedComponentId: store.focusedComponentId,
+    fullscreenComponentId: store.fullscreenComponentId,
+    components: summarizeWorkspaceComponents(store),
+  }
+}
+
+function summarizeWorkspaceComponents(store: WSStore) {
+  return store.components
+    .filter((component) => component.workspaceId === store.activeWorkspaceId)
+    .map((component) => ({
+      id: component.id,
+      moduleId: component.moduleId,
+      state: component.state,
+      hiddenIn: component.hiddenIn,
+      flowSize: component.flowSize,
+      bentoLayout: component.bentoLayout,
+    }))
+}
+
+function requireQaComponent(query: string): ComponentInstance {
+  const component = findQaComponent(useWorkspaceStore.getState(), query)
+  if (!component) throw new Error(`Xiranite QA component not found: ${query}`)
+  return component
+}
+
+function findQaComponent(store: WSStore, query: string): ComponentInstance | undefined {
+  const normalized = query.trim().toLowerCase()
+  return store.components.find((component) =>
+    component.workspaceId === store.activeWorkspaceId
+    && (
+      component.id.toLowerCase() === normalized
+      || component.moduleId.toLowerCase() === normalized
+      || component.id.toLowerCase().includes(normalized)
+      || component.moduleId.toLowerCase().includes(normalized)
+    ),
+  )
+}
+
+function assertQaViewMode(mode: ViewMode): void {
+  if (!QA_VIEW_MODES.has(mode)) throw new Error(`Invalid Xiranite view mode: ${mode}`)
+}
+
+function assertQaCardLayout(layout: CardLayout): void {
+  if (!QA_CARD_LAYOUTS.has(layout)) throw new Error(`Invalid Xiranite card layout: ${layout}`)
 }
 
 export function useWorkspaceSelector<T>(selector: (state: WSState) => T): T {

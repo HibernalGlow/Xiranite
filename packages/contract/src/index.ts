@@ -79,8 +79,8 @@ export interface NodeHostApi {
   getNodeConfig?: <T = unknown>() => Promise<{ config: T | undefined; path: string }>
   /** Save node defaults to xiranite.config.toml. */
   saveNodeConfig?: <T = unknown>(config: T) => Promise<void>
-  /** Open the config file in the system default editor. */
-  openConfigFile?: () => void
+  /** Open the config file in the system default editor through the local backend when available. */
+  openConfigFile?: () => Promise<void> | void
 }
 
 export interface NodeComponentProps {

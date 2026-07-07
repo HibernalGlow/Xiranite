@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
-import { NodeRunnerService, WorkspaceService } from "./index.js"
+import { ConfigService, NodeRunnerService, WorkspaceService } from "./index.js"
 
 describe("WorkspaceService", () => {
   test("creates and renames workspaces through the repository contract", async () => {
@@ -135,6 +138,31 @@ describe("NodeRunnerService", () => {
     expect(page?.events.map((entry) => [entry.index, entry.event.message])).toEqual([[1, "two"]])
     expect(cleanup).toEqual({ removedCount: 1, remainingCount: 0 })
     expect(service.getOperation(operation.operationId)).toBeUndefined()
+  })
+})
+
+describe("ConfigService", () => {
+  test("creates the明文 config file before opening it through the injected opener", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-"))
+    const configPath = join(tempDir, "xiranite.config.toml")
+    const openedPaths: string[] = []
+    const service = new ConfigService({
+      configPath,
+      openPath: (path) => {
+        openedPaths.push(path)
+      },
+    })
+
+    try {
+      const result = await service.openConfigFile()
+      const content = await readFile(configPath, "utf8")
+
+      expect(result).toEqual({ opened: true, path: configPath })
+      expect(openedPaths).toEqual([configPath])
+      expect(content.trim()).toBe("")
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
   })
 })
 
