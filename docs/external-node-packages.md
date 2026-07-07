@@ -149,13 +149,14 @@ export default entry
 
 ## CLI 规则
 
-通过 `@xiranite/cli-runtime` 使用 `citty`。
+通过 `@xiranite/cli-runtime` 使用 `citty` 和 Clack。Ink 仅用于确实需要常驻布局或复杂键盘导航的 TUI。
 
 - `xexample` 在当前 Xiranite CLI 命名策略下应可直接执行。
 - `xiranite example ...` 可通过聚合注册表调用相同的 CLI。
-- 无参数 TTY 可进入 Ink 引导模式。
+- 无参数 TTY 可进入按原工具体验设计的 guided mode；不要套通用 `Entry / Run / Script` 说明模板。
 - 无参数非 TTY 应返回用法/错误代码以供自动化使用。
 - CLI 不得导入 `Component.tsx` 或 `@xiranite/ui`。
+- guided mode 应优先使用当前目录、剪贴板、默认文件名、预设任务、select/multiselect/confirm/spinner，尽量减少手动输入。
 - 在需要时，应为脚本提供 JSON 输出。
 
 ## 集成到 Xiranite

@@ -149,34 +149,31 @@ export function DockviewView() {
     },
   }), [workspaceActions])
 
-  if (dockComponents.length === 0) {
-    return (
-      <div className="flex-1 ws-canvas-bg dv-theme-bridge flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <LayoutPanelTop className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-          <p className="text-sm font-mono text-muted-foreground">{t("view:dockview.empty")}</p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="font-mono text-xs"
-            onClick={() => workspaceActions.setOverlay("registry")}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            {t("view:dockview.openRegistry")}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex-1 ws-canvas-bg dv-theme-bridge flex flex-col overflow-hidden">
+    <div className="flex-1 ws-canvas-bg dv-theme-bridge flex flex-col overflow-hidden relative">
       <DockviewReact
         components={components}
         tabComponents={tabComponents}
         onReady={onReady}
         className="flex-1"
       />
+      {dockComponents.length === 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center ws-canvas-bg">
+          <div className="text-center space-y-4">
+            <LayoutPanelTop className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+            <p className="text-sm font-mono text-muted-foreground">{t("view:dockview.empty")}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-mono text-xs"
+              onClick={() => workspaceActions.setOverlay("registry")}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              {t("view:dockview.openRegistry")}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

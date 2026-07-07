@@ -2,6 +2,19 @@
 
 本文专门记录 Xiranite 节点 CLI 尚未完成的工作、工具选择、迁移规则和验收方式。全局应用现代化路线见 [modernization-strategy.md](modernization-strategy.md)。
 
+## 本轮交接重点
+
+CLI guided mode 的目标不是给所有命令套同一个 `Entry / Run / Script` 模板。后续实现必须以原始 Python/Taskfile/Rich/Typer 源码体验为基准，先复刻原工具的操作节奏，再用 TypeScript、Clack 和现有 runtime 做体验优化。
+
+核心要求：
+
+- 每个节点迁移前必须先阅读 `docs/aestivus.md` 中的来源映射，并查看对应源项目的 CLI、Taskfile、README、adapter 和前端节点交互。
+- guided mode 必须按工具个性设计：`repacku` 是任务选择 + 剪贴板路径，`linedup` 是约定文件/剪贴板/文本过滤，`rawfilter` 是目录扫描与 plan/execute，`marku` 是 Markdown 模块选择，不能做成同一套三行说明外壳。
+- 减少手动输入是 guided 的第一目标。优先使用当前目录、剪贴板、默认文件名、配置自动发现、历史/预设、select/multiselect/confirm/spinner；路径或长文本手动输入只能作为 fallback。
+- 保持美观，但美观服务于操作。Clack 是普通 guided 默认选择；rich panel 只用于工具状态、结果 summary、错误和少量上下文，不放通用架构说明；Ink 只用于确实需要常驻布局、实时刷新或复杂键盘导航的 TUI。
+- 显式子命令仍使用 `citty`，面向脚本化和 JSON 输出；无参数 TTY 才进入 guided。
+- 不得破坏原本架构：`core.ts` 纯逻辑，`platform.ts` 承担原生能力，`cli.ts` 不导入 React UI 或 `@xiranite/ui`，`Component.tsx` 仍是无壳内容并通过 `host.actions.run` 请求宿主执行。
+
 ## 实时 ToDo
 
 更新时间：2026-07-07
@@ -31,8 +44,8 @@
 - [x] `repacku` guided 首屏已建立真实 pseudo-tty 视觉测试：Vitest 通过 `node-pty`/Windows ConPTY 系统调用 Bun CLI，捕获 ANSI 到 `artifacts/cli/repacku/guided-entry.ansi`，再用 `@xterm/headless` + `@xterm/addon-serialize` 渲染 HTML，并由 Playwright 输出 `guided-entry.png`；测试断言无 raw control-code 泄漏。
 - [x] CLI 视觉捕获已抽成 `scripts/cli-visual-testing.ts`，并新增 `scripts/capture-cli-ui.ts` 手动捕获入口；手动入口必须用 Node 父进程运行 `node --experimental-strip-types scripts/capture-cli-ui.ts ...`，再由 helper 启动 Bun CLI，避免 Bun 父进程 + `node-pty` 在 Windows ConPTY 下残留句柄。
 - [x] CLI 引导框架规则已纠偏：普通 guided 默认使用 Clack，Ink 只保留给需要常驻布局/实时刷新/复杂键盘导航的 TUI；`cli-runtime` 不再新增共享 Ink 组件。
-- [x] `linedup` guided 首屏已从 Ink 迁回 Clack + runtime rich panel，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/linedup/guided-entry.png`。
-- [ ] `rawfilter`、`marku` 与 `cleanf` 当前已有 pseudo-tty 截图，但仍是过渡 Ink 实现；后续必须迁到 Clack 后再标记为最终 guided 标准。
+- [ ] `linedup` 现有 Clack 版本只是纠偏后的过渡实现，不能作为通用模板；后续仍需按原版 `source.txt/filter.txt/output.txt` 习惯和少输入原则重新评审完整 guided 流程。
+- [ ] `rawfilter`、`marku` 与 `cleanf` 当前已有 pseudo-tty 截图，但仍是过渡 Ink 实现；后续必须按各自源代码体验迁到 Clack，不得套统一三行说明模板。
 - [x] 当前测试矩阵为 24/24 complete；严格审计、包测试、构建与 Chromium desktop Playwright 真实点击回归均已通过；当前全仓 Vitest 为 91/91 files、270/270 tests。
 - [ ] 每个新增 CLI 测试必须通过 `runProgram()` 或等价导出入口走真实 CLI 解析，真实文件 fixture 放在 `artifacts/test-runs/<node>` 并清理。
 - [ ] 每个新增 Component 测试必须用 React Testing Library + happy-dom 渲染无壳 Component，验证输入、按钮、`host.actions.run`、进度/日志/result 写回。
@@ -41,7 +54,8 @@
 
 - 每个节点包都可以作为独立 npm 包安装。
 - 命令名可统一改前缀，不在源码和 Taskfile 中散落硬编码命令名。
-- 无参数 TTY 启动进入富文本引导式体验。
+- 无参数 TTY 启动进入按原工具体验设计的富文本引导式流程。
+- guided mode 应尽量让用户用方向键、回车、确认、剪贴板和默认值完成操作，少打路径和长参数。
 - 显式子命令保持普通 CLI 体验，适合脚本化。
 - CLI 不渲染 Xiranite React UI，不导入 `Component.tsx`。
 - `core.ts` 是 UI 和 CLI 共享的纯逻辑。
@@ -77,13 +91,16 @@
 
 ## 仍未完成的问题
 
-### 1. 富文本终端 UI 还没有形成统一标准
+### 1. guided CLI 体验需要按源代码重做
 
-之前部分 CLI 只是“能交互”，但视觉上不像 Python Rich/Typer 的体验：
+之前部分 CLI 只是“能交互”，甚至出现了所有命令共用 `Entry / Run / Script` 说明模板的问题。这不是目标。目标是复刻并优化原工具体验：
 
-- 面板、标题、提示、错误和 summary 不统一。
-- 进度条仍有手写痕迹。
-- 部分输出在 PowerShell 编码环境里容易被误判为乱码。
+- 先读原始 Python CLI、Taskfile、README、adapter 和旧前端节点，确认用户原本怎么操作。
+- 保留原本高频路径：剪贴板路径、当前目录约定文件、预设任务、默认确认、dry-run/preview 安全路径。
+- 用 Clack 的 `select`、`multiselect`、`confirm`、`text`、`spinner` 改善体验，减少手动输入。
+- 面板、标题、提示、错误和 summary 可以统一基础风格，但不能统一成同一个通用说明壳。
+- 进度条和日志应走成熟组件或 runtime event formatter，避免手写 `[xx%]`。
+- 部分输出在 PowerShell 编码环境里容易被误判为乱码，必须用真实 pseudo-tty 截图和 PNG 判断效果。
 - 除 `repacku` 与 `linedup` guided 首屏外，还没有把自动 ANSI snapshot/截图验证推广到全部 CLI 的 Clack 最终形态。
 
 决策：
@@ -94,6 +111,7 @@
 - `Inquirer.js` 作为复杂 prompt 备选，但默认优先 Clack。
 - `Ink` 只用于需要常驻终端布局的 CLI，不作为所有节点的默认方案。
 - 不再手写 prompt loop、错误框、选择器和 spinner，除非库能力确实覆盖不了。
+- 不再新增通用 `Entry / Run / Script` 模板；如果需要首屏说明，也必须是该工具自己的任务状态、默认来源和安全提示。
 
 ### 2. CLI runtime 需要瘦身
 
@@ -285,23 +303,17 @@ src/
   index.ts         NodeEntry + public exports
 ```
 
-`cli.ts` 内部推荐：
+结构统一，交互不统一。`cli.ts` 内部必须有 `const CLI_NAME = nodeCliName("<node-id>")`，但 guided flow 要按源工具设计：
 
-```ts
-const CLI_NAME = nodeCliName("<node-id>")
-
-const GUIDED_TASKS = [
-  {
-    name: "default",
-    description: "...",
-    input: { action: "...", ... },
-  },
-]
-```
+- 任务型工具可以有 `GUIDED_TASKS`，例如 `repacku` 把原 Taskfile 的常用任务内置成 TS task table。
+- 文件过滤/清理工具应优先自动发现当前目录、剪贴板、默认文件名、dry-run/preview 状态。
+- 模块型工具应优先让用户用 select/multiselect 选择模块和预设，而不是手打模块名。
+- 长任务应使用 spinner/progress/log summary，而不是把用户带进多行手写输入循环。
+- 只有当自动发现和选择都不足时，才用 `text` prompt 请求路径、token 或长文本。
 
 无参数行为：
 
-- TTY: 进入 guided mode。
+- TTY: 进入按该工具源代码体验设计的 guided mode。
 - 非 TTY: 退出码 2，并输出明确用法。
 
 显式命令行为：
@@ -398,16 +410,16 @@ const GUIDED_TASKS = [
 - 已完成：`core.test.ts` 覆盖去重、过滤、diff row。
 - 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、inline JSON 输出、真实文件输入输出。
 - 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、过滤、复制和下载。
-- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Clack prompt、runtime rich panel 和 artifacts 输出。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Clack prompt 与 artifacts 输出。
 - 已完成：`bun --filter @xiranite/node-linedup test`、`build`、`validate-node-architecture` 均通过。
-- 待补：路径输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展，并继续复用同一套 ANSI/PNG snapshot。
+- 待补：当前 guided 只是过渡版本；需要按原版 `source.txt/filter.txt/output.txt`、剪贴板和少输入原则重新确认流程，并补路径输入、成功 summary、错误输入、`--help` 的截图级用例。
 
 ## rawfilter 当前状态
 
 - 已完成：Component 修复为调用 `host.actions?.run`，不再固定返回 unavailable native action。
 - 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、中文路径 fixture、JSON plan 输出。
 - 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、进度日志、result 写回和复制计划。
-- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 过渡状态：`cli.visual.test.ts` 已能捕获无参数 guided 首屏，但当前仍是 Ink 版本；后续需按 rawfilter 源码的目录扫描、plan/execute 和 dry-run/确认体验迁到 Clack。
 - 已完成：`bun --filter @xiranite/node-rawfilter test`、`build`、`validate-node-architecture` 均通过。
 - 待补：路径输入、plan summary、错误输入、`--help` 的截图级用例仍需扩展；执行模式的破坏性移动需要更完整的 dry-run/确认策略测试。
 
@@ -416,7 +428,7 @@ const GUIDED_TASKS = [
 - 已完成：Component 修复为调用 `host.actions?.run`，不再固定返回 unavailable native action；旧 `xiranite-marku` 文案已移除。
 - 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、inline JSON、真实文件输入输出。
 - 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、进度日志、result 写回和复制输出。
-- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 过渡状态：`cli.visual.test.ts` 已能捕获无参数 guided 首屏，但当前仍是 Ink 版本；后续需按 marku 源码的 Markdown 模块选择、文件/文本输入和 undo/history 体验迁到 Clack。
 - 已完成：`bun --filter @xiranite/node-marku test`、`build`、`validate-node-architecture` 均通过。
 - 待补：模块输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展；文件写入和 undo 的真实目录端到端用例还需扩大。
 
@@ -435,7 +447,7 @@ const GUIDED_TASKS = [
 - 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、中文路径 fixture、preview JSON。
 - 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、预览结果写回和日志复制。
 - 已完成：backend 集成测试通过真实中文/空格路径 fixture 验证 `cleanf` 可经本地 HTTP backend 与 operation stream 返回真实 preview 结果。
-- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 过渡状态：`cli.visual.test.ts` 已能捕获无参数 guided 首屏，但当前仍是 Ink 版本；后续需按 cleanf 源码的 preset、preview、exclude 和删除确认体验迁到 Clack。
 - 已完成：`bun --filter @xiranite/node-cleanf test`、`build`、`validate-node-architecture` 均通过。
 - 待补：路径输入、preview summary、错误输入、`--help` 的截图级用例仍需扩展；删除模式需要扩大 dry-run 与确认策略测试，自动测试不得删除 fixture 根外路径。
 

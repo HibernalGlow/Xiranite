@@ -462,5 +462,5 @@ core.ts 是纯逻辑 —— UI 和 CLI 共用同一份逻辑（如 scratch 的 b
 
 集成到 Xiranite
 独立调试 → 模块自带可选外壳，也能看到卡片样式
-CLI → 无 UI，纯命令行；citty + ink 复刻原版 Python 的 rich 富文本引导式命令行 + typer 一般命令行的双重体验
+CLI → 无 UI，纯命令行；citty 负责显式子命令，Clack 默认负责 guided mode，Ink 仅用于确实需要常驻布局的复杂 TUI；目标是复刻并优化原版 Python Rich/Typer 体验
 CLI 无参数启动时进入 guided mode

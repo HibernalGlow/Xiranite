@@ -145,13 +145,14 @@ export default entry
 
 ## CLI
 
-`cli.ts` 仅限命令行。它可以使用 `citty`、`ink` 和 `@xiranite/cli-runtime`，但不得渲染或导入包的 React UI 组件。
+`cli.ts` 仅限命令行。它可以使用 `citty`、Clack 和 `@xiranite/cli-runtime`；Ink 仅用于确实需要常驻布局或复杂键盘导航的 TUI。CLI 不得渲染或导入包的 React UI 组件。
 
 规则：
 
-- 在 TTY 中无参数时进入 Ink 引导模式。
+- 在 TTY 中无参数时进入按原工具源码体验设计的 Clack guided mode；不要套通用 `Entry / Run / Script` 说明模板。
 - 在非 TTY 中无参数时以退出码 `2` 退出并显示用法错误。
 - 显式命令使用 citty 风格的标志和子命令。
+- guided mode 应优先使用当前目录、剪贴板、默认文件名、预设任务、select/multiselect/confirm/spinner，尽量减少手动输入。
 - CLI 显示名称应使用 `nodeCliName("<node-id>")`；包 `bin` 字段由 `bun run sync:cli-bins` 生成。
 - CLI 通过 `platform.ts` 读取/写入文件、执行 Shell 命令、发起网络请求和与原生系统交互，然后调用 `core.ts`。
 - Xiranite Local Backend 可通过包的 `./platform` 子路径复用同一份 Node/Bun runtime；这不是 UI 集成入口，也不得从 `src/index.ts` 再导出。
