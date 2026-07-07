@@ -116,6 +116,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
 
   return (
     <HTMLContainer
+      data-component-id={compId}
       className="relative flex flex-col overflow-hidden rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)]"
       style={{ width: w, height: h }}
       onPointerDown={(event) => event.stopPropagation()}

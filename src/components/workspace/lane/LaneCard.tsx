@@ -46,6 +46,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
     <div
       ref={setNodeRef}
       data-card-id={compId}
+      data-component-id={compId}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,

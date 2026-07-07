@@ -201,7 +201,10 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
   }
 
   return (
-    <section className="group flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/70 bg-card/95 shadow-[0_18px_45px_-24px_oklch(0_0_0/0.45)] backdrop-blur-sm">
+    <section
+      data-component-id={component.id}
+      className="group flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/70 bg-card/95 shadow-[0_18px_45px_-24px_oklch(0_0_0/0.45)] backdrop-blur-sm"
+    >
       <header className="xiranite-bento-drag-handle flex h-9 shrink-0 cursor-grab items-center gap-2 border-b border-border/60 bg-muted/25 px-2 active:cursor-grabbing">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
         <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" />
