@@ -204,6 +204,7 @@ interface XiraniteQaController {
   bento: (query: string, layout: Partial<{ x: number; y: number; w: number; h: number }>) => ReturnType<typeof summarizeWorkspaceState>
   flowSize: (query: string, size: Partial<{ width: number; height: number }>) => ReturnType<typeof summarizeWorkspaceState>
   show: (query: string, mode?: ViewMode) => ReturnType<typeof summarizeWorkspaceState>
+  hideView: (mode: ViewMode, keepIds?: string[]) => ReturnType<typeof summarizeWorkspaceState>
   deploy: (moduleId: string, mode?: ViewMode) => ReturnType<typeof summarizeWorkspaceState>
   resize: (
     query: string,
@@ -302,6 +303,7 @@ function installWorkspaceQaController(): () => void {
       "window.xqa.resize('repacku', 'compact', 'flow')",
       "window.xqa.bento('repacku', { x: 0, y: 0, w: 8, h: 6 })",
       "window.xqa.flowSize('repacku', { width: 720, height: 520 })",
+      "window.xqa.hideView('bento', ['comp-id-to-keep'])",
       "window.xqa.fullscreen('repacku') / window.xqa.focus('repacku')",
     ],
     state: () => summarizeWorkspaceState(useWorkspaceStore.getState()),
@@ -372,6 +374,18 @@ function installWorkspaceQaController(): () => void {
       const store = useWorkspaceStore.getState()
       store.setComponentVisibility(component.id, targetMode, true)
       store.setViewMode(targetMode)
+      return summarizeWorkspaceState(useWorkspaceStore.getState())
+    },
+    hideView: (mode, keepIds = []) => {
+      assertQaViewMode(mode)
+      const store = useWorkspaceStore.getState()
+      const keep = new Set(keepIds)
+      for (const component of store.components) {
+        if (component.workspaceId === store.activeWorkspaceId && !keep.has(component.id)) {
+          store.setComponentVisibility(component.id, mode, false)
+        }
+      }
+      store.setViewMode(mode)
       return summarizeWorkspaceState(useWorkspaceStore.getState())
     },
     deploy: (moduleId, mode = useWorkspaceStore.getState().viewMode) => {

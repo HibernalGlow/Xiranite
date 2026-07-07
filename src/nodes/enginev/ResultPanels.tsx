@@ -32,6 +32,7 @@ export function StatsPanel({ result, total, visible, selected }: {
 }
 
 export function ResultTabs(props: {
+  compact?: boolean
   logs: string[]
   result: EngineVData | null
   onCopyLogs: () => void
@@ -50,26 +51,28 @@ export function ResultTabs(props: {
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
         <TextPanel
+          compact={props.compact}
           emptyText="运行重命名、删除或导出后，这里会显示计划和错误明细。"
           lines={hasResults ? [...renameLines, ...deleteLines, ...errorLines.map((item) => `error ${item}`)] : []}
           onCopy={props.onCopyResults}
         />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <TextPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
+        <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
   )
 }
 
 function TextPanel(props: {
+  compact?: boolean
   emptyText: string
   lines: string[]
   onCopy: () => void
 }) {
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
-      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <ListChecks className="size-3.5" />
           <span>{props.lines.length ? `${props.lines.length} 项` : "等待运行"}</span>
@@ -82,11 +85,11 @@ function TextPanel(props: {
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
         {props.lines.length ? (
-          <pre className="p-3 text-xs leading-5 text-muted-foreground">
+          <pre className={props.compact ? "p-2 text-xs leading-5 text-muted-foreground" : "p-3 text-xs leading-5 text-muted-foreground"}>
             {props.lines.join("\n")}
           </pre>
         ) : (
-          <div className="flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
             {props.emptyText}
           </div>
         )}

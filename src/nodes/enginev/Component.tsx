@@ -65,6 +65,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasFilters, wallpapers])
   const status = statusFromState(data, running)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
+  const forceCollapsedSurface = surface.mode === "compact" && surface.height > 0 && surface.height < 160
+  const portraitCompact = surface.mode === "compact" && surface.width < 560 && surface.height >= 300
 
   useEffect(() => {
     host.getNodeConfig?.<Partial<EngineVCardState>>()
@@ -250,10 +252,10 @@ export function Component({ compId, host }: NodeComponentProps) {
       <div ref={surface.ref} className="@container/enginev relative flex h-full min-h-0 w-full overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_18%_0%,hsl(var(--primary)/0.16),transparent_36%),radial-gradient(circle_at_84%_8%,hsl(var(--chart-2)/0.16),transparent_34%)]" />
         <div className="relative flex min-h-0 w-full flex-col">
-          {surface.mode === "collapsed" ? (
+          {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
           ) : surface.mode === "compact" ? (
-            <CompactView {...commonProps} />
+            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
           ) : (
             <FullView {...commonProps} />
           )}
@@ -375,6 +377,75 @@ function CompactView(props: ViewProps) {
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+function PortraitCompactView(props: ViewProps) {
+  const ActionIcon = props.actionMeta.icon
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.actionMeta.description} />
+        <div className="flex shrink-0 items-center gap-1">
+          <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <Button aria-label={`执行${props.actionMeta.shortLabel}`} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+            <ActionIcon />
+            <span className="sr-only">执行{props.actionMeta.shortLabel}</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid shrink-0 gap-2">
+        <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
+          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
+            <Play data-icon="inline-start" />
+            运行
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label="预演" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label="复制" onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
+        </div>
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <ToolbarActions compact {...props} />
+          <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        </div>
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+      </div>
+
+      {props.galleryWallpapers.length ? (
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(96px,1fr)_minmax(128px,0.85fr)] gap-2">
+          <section className="flex min-h-0 flex-col gap-1.5">
+            <div className="flex shrink-0 items-center justify-between gap-2">
+              <div className="truncate text-xs font-medium text-muted-foreground">{props.galleryWallpapers.length} 个可见项目</div>
+            </div>
+            <div className="min-h-0 flex-1">
+              <WallpaperGallery
+                columns={props.data.galleryColumns}
+                compact={props.data.galleryCompact}
+                host={props.host}
+                showMeta={props.data.galleryShowMeta}
+                showPath={props.data.galleryShowPath}
+                selectedIds={props.selectedIds}
+                wallpapers={props.galleryWallpapers}
+                onCopyPath={props.onCopyPath}
+                onToggle={props.onToggleWallpaper}
+              />
+            </div>
+          </section>
+          <ResultTabs compact result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <ResultTabs compact result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
+      )}
     </div>
   )
 }

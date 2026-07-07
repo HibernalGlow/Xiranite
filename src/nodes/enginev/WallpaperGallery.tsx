@@ -26,10 +26,10 @@ export function WallpaperGallery(props: {
 
   if (!visible.length) {
     return (
-      <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background/50 p-6 text-center text-muted-foreground">
-        <Image className="size-8" />
+      <div className={cn("flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background/50 text-center text-muted-foreground", props.compact ? "min-h-16 p-2" : "min-h-48 p-6")}>
+        <Image className={props.compact ? "size-6" : "size-8"} />
         <div className="text-sm font-medium text-foreground">还没有画廊数据</div>
-        <p className="max-w-sm text-xs">选择 Wallpaper Engine 工坊目录后运行扫描，图片预览会直接使用本地文件 URL 显示。</p>
+        <p className={cn("max-w-sm text-xs", props.compact && "hidden")}>选择 Wallpaper Engine 工坊目录后运行扫描，图片预览会直接使用本地文件 URL 显示。</p>
       </div>
     )
   }

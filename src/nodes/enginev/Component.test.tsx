@@ -9,13 +9,14 @@ import { Component } from "./Component"
 
 const surfaceState = vi.hoisted(() => ({
   mode: "regular" as NodeSurfaceMode,
+  height: undefined as number | undefined,
 }))
 
 vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({
     ref: { current: null },
     width: widthForMode(surfaceState.mode),
-    height: heightForMode(surfaceState.mode),
+    height: surfaceState.height ?? heightForMode(surfaceState.mode),
     mode: surfaceState.mode,
     density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" ? "tight" : "roomy",
   }),
@@ -25,6 +26,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   surfaceState.mode = "regular"
+  surfaceState.height = undefined
 })
 
 describe("app-owned enginev Component", () => {
@@ -56,6 +58,30 @@ describe("app-owned enginev Component", () => {
       expect(screen.getByTestId("enginev-header-toolbar")).toBeTruthy()
     },
   )
+
+  test("falls back to a collapsed summary when compact height is extremely short", () => {
+    surfaceState.mode = "compact"
+    surfaceState.height = 140
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+
+    expect(screen.getByText("EngineV")).toBeTruthy()
+    expect(screen.getByText(/1 可见/)).toBeTruthy()
+    expect(screen.queryByLabelText("Wallpaper Engine 工坊路径")).toBeNull()
+    expect(screen.getByRole("button", { name: "快速扫描" })).toBeTruthy()
+  })
+
+  test("moves result and log tabs below the gallery in tall compact portrait cards", () => {
+    surfaceState.mode = "compact"
+    surfaceState.height = 340
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper], logs: ["ready"] })} />)
+
+    expect(screen.getByLabelText("Wallpaper Engine 工坊路径")).toBeTruthy()
+    expect(screen.getByText("预演")).toBeTruthy()
+    expect(screen.getAllByText("复制").length).toBeGreaterThan(0)
+    expect(screen.getByText("1 个可见项目")).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+  })
 
   test("runs scan through host.actions.run and renders local preview images", async () => {
     surfaceState.mode = "regular"
@@ -235,5 +261,9 @@ function widthForMode(mode: NodeSurfaceMode): number {
 }
 
 function heightForMode(mode: NodeSurfaceMode): number {
-  return mode === "workspace" ? 720 : 420
+  if (mode === "collapsed") return 120
+  if (mode === "compact") return 260
+  if (mode === "expanded") return 560
+  if (mode === "workspace") return 720
+  return 420
 }

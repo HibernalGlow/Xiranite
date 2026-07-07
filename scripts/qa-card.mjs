@@ -14,8 +14,8 @@ const BENTO_MATRIX_LAYOUTS = {
   collapsed: { x: 0, y: 0, w: 3, h: 2 },
   compact: { x: 3, y: 0, w: 4, h: 3 },
   regular: { x: 7, y: 0, w: 5, h: 4 },
-  portrait: { x: 7, y: 0, w: 4, h: 7 },
-  expanded: { x: 0, y: 7, w: 8, h: 8 },
+  portrait: { x: 7, y: 0, w: 3, h: 9 },
+  expanded: { x: 0, y: 9, w: 8, h: 8 },
   workspace: { x: 0, y: 12, w: 12, h: 9 },
 }
 
@@ -30,7 +30,7 @@ async function main() {
     headless: !options.headed && !options.keepOpen,
   })
   const page = await browser.newPage({
-    viewport: options.viewport ?? (options.command === "matrix" ? { width: 1600, height: 1100 } : { width: 1440, height: 900 }),
+    viewport: options.viewport ?? (options.command === "matrix" ? { width: 1600, height: 1500 } : { width: 1440, height: 900 }),
     deviceScaleFactor: 1,
   })
   const consoleIssues = []
@@ -49,6 +49,7 @@ async function main() {
       await waitForStagedRender(page, result, options)
       const screenshotPath = options.output ?? defaultScreenshotPath(options)
       await mkdir(path.dirname(screenshotPath), { recursive: true })
+      process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
       await page.screenshot({ path: screenshotPath, fullPage: false })
       console.log(`screenshot: ${screenshotPath}`)
     }
@@ -216,10 +217,11 @@ async function runQaCommand(page, options) {
       ({ moduleId, surfaces, layouts }) => {
         const qa = window.__xiraniteQA
         if (!qa) throw new Error("window.__xiraniteQA is not available. Run the app in dev mode.")
+        qa.hideView("bento")
         const created = []
         for (const [index, surface] of surfaces.entries()) {
           const bento = layouts[surface]
-          const stageSurface = surface === "portrait" ? "regular" : surface
+          const stageSurface = surface === "portrait" ? "compact" : surface
           let selected
           if (index === 0) {
             selected = qa.stage(moduleId, { view: "bento", surface: stageSurface, bento, collapsed: false, fresh: true }).selected
@@ -321,9 +323,11 @@ async function waitForStagedRender(page, result, options) {
   if (Array.isArray(result?.matrix) && result.matrix.length) {
     const renderWaitMs = Math.min(options.timeoutMs, 10_000)
     try {
-      for (const item of result.matrix) {
-        await page.locator(`[data-component-id="${cssEscape(item.id)}"]`).first().waitFor({ state: "visible", timeout: renderWaitMs })
-      }
+      await page.waitForFunction(
+        (expectedCount) => document.querySelectorAll('[data-component-id]').length >= expectedCount,
+        result.matrix.length,
+        { timeout: renderWaitMs },
+      )
       await page.waitForTimeout(250)
     } catch {
       console.warn(`staged matrix was not fully rendered after ${renderWaitMs}ms; screenshot may show a partial layout`)
@@ -457,7 +461,7 @@ Options:
   --view MODE            cards | dockview | flow | lane | bento
   --surface NAME         collapsed | compact | regular | expanded | workspace
   --layout NAME          grid | stack | split | focus
-  --matrix               Stage collapsed/compact/regular/expanded in bento and screenshot once
+  --matrix               Stage collapsed/compact/portrait/expanded in bento and screenshot once
   --matrix-surfaces CSV  Matrix surfaces. Default: ${DEFAULT_MATRIX_SURFACES.join(",")}
   --viewport WxH         Browser viewport size, for example 720x520
   --flow WxH             Flow card size in pixels

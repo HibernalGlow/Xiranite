@@ -181,7 +181,7 @@ export function OptionsFields({ data, disabled, onPatch }: PatchProps) {
         placeholder="复制目标目录或导出文件路径"
         onChange={(value) => onPatch({ targetPath: value, outputPath: value })}
       />
-      <div className="grid gap-2 @3xl/enginev:col-span-2 @3xl/enginev:grid-cols-[1fr_1fr_auto]">
+      <div className="grid gap-2 @3xl/enginev:col-span-2 @6xl/enginev:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <SwitchRow
           checked={data.dryRun ?? true}
           disabled={disabled}
