@@ -84,6 +84,14 @@ async function main() {
     for (const rule of rules) {
       await collectFindings(join(nodeDir.path, rule.file), rule, findings)
     }
+    if (!hasComponent && await pathExists(join(nodeDir.path, "src", "demo"))) {
+      findings.push({
+        file: join(nodeDir.path, "src", "demo"),
+        line: 1,
+        label: "headless node package must not keep React demo shells",
+        text: "remove src/demo after moving UI into the app surface",
+      })
+    }
     if (hasComponent) {
       await collectMissingRequired(
         join(nodeDir.path, "src", "Component.tsx"),
@@ -152,6 +160,15 @@ async function readTextIfExists(file: string): Promise<string | null> {
     return await readFile(file, "utf8")
   } catch {
     return null
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
   }
 }
 
