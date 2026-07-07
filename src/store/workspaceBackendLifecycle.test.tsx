@@ -45,6 +45,25 @@ describe("WorkspaceProvider backend lifecycle", () => {
     expect(loadSnapshotMock).not.toHaveBeenCalled()
   })
 
+  test("checks local backend health without forwarding the TanStack Query context as an argument", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39103", token: "workspace-token" }
+    healthMock.mockResolvedValueOnce({ ok: true })
+    loadSnapshotMock.mockResolvedValueOnce({
+      workspaces: [{ id: "ws-backend-ready", label: "Backend Ready", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+      components: [],
+    })
+
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-ready").textContent).toBe("ready"))
+    expect(healthMock).toHaveBeenCalledWith()
+  })
+
   test("loads and hydrates the workspace only after the local backend health check is ready", async () => {
     window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39101", token: "workspace-token" }
     healthMock.mockResolvedValueOnce({ ok: true })

@@ -6,7 +6,7 @@ export const LOCAL_BACKEND_STATUS_QUERY_KEY = ["local-backend", "status"] as con
 export function useLocalBackendStatus() {
   return useQuery({
     queryKey: LOCAL_BACKEND_STATUS_QUERY_KEY,
-    queryFn: checkLocalBackendStatus,
+    queryFn: () => checkLocalBackendStatus(),
     staleTime: 5_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
