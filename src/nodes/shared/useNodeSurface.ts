@@ -35,9 +35,9 @@ export function useNodeSurface(): NodeSurface {
 
   const mode = useMemo<NodeSurfaceMode>(() => {
     if (size.width >= 1040 && size.height >= 680) return "workspace"
-    if (size.width >= 860) return "expanded"
-    if (size.width >= 520) return "regular"
-    if (size.width >= 280) return "compact"
+    if (size.width >= 860 && size.height >= 520) return "expanded"
+    if (size.width >= 520 && size.height >= 360) return "regular"
+    if (size.width >= 220 && size.height >= 96) return "compact"
     return "collapsed"
   }, [size.height, size.width])
 

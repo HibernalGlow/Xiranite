@@ -3,72 +3,29 @@ import type { NodeComponentProps } from "@xiranite/contract"
 import type {
   RepackuAction,
   RepackuData,
-  RepackuFolderNode,
   RepackuInput,
   RepackuResult,
 } from "@xiranite/node-repacku/core"
-import {
-  Clipboard,
-  Copy,
-  FileArchive,
-  FolderOpen,
-  Package,
-  Play,
-  RotateCcw,
-  Search,
-  Settings2,
-  SlidersHorizontal,
-  Sparkles,
-} from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Copy, FileArchive, Package, Play, RotateCcw, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
-import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-
-interface RepackuCardState {
-  path?: string
-  configPath?: string
-  typesText?: string
-  minCount?: number
-  deleteAfter?: boolean
-  dryRun?: boolean
-  action?: RepackuAction
-  phase?: "idle" | "running" | "completed" | "error" | RepackuAction | string
-  progress?: number
-  progressText?: string
-  result?: RepackuData | null
-  logs?: string[]
-}
-
-const CONFIG_FIELDS: (keyof RepackuCardState)[] = ["path", "configPath", "typesText", "minCount", "deleteAfter", "dryRun", "action"]
-
-const ACTIONS: Array<{ value: RepackuAction; label: string; description: string; icon: typeof Search }> = [
-  { value: "analyze", label: "分析", description: "扫描文件夹并写出配置计划。", icon: Search },
-  { value: "full", label: "完整流程", description: "先分析，再按计划执行重打包。", icon: Sparkles },
-  { value: "compress", label: "按配置压缩", description: "从已有配置或当前路径执行压缩。", icon: FileArchive },
-  { value: "single-pack", label: "单层打包", description: "打包一级子目录和散图。", icon: Package },
-  { value: "gallery-pack", label: "画集打包", description: "查找画集目录并逐个单层打包。", icon: FolderOpen },
-]
+import { ACTIONS, CONFIG_FIELDS } from "./constants"
+import {
+  ActionSelect,
+  ConfigFilePanel,
+  CompactOptionsPanel,
+  OptionsPanel,
+  PathInput,
+  StatusStrip,
+} from "./controls"
+import { FileTreePreview } from "./FileTreePreview"
+import type { RepackuCardState, RepackuStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
@@ -87,7 +44,6 @@ export function Component({ compId, host }: NodeComponentProps) {
   const modeMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]!
   const types = useMemo(() => parseTypes(data.typesText), [data.typesText])
   const status = statusFromState(data, running)
-  const treeLines = useMemo(() => result?.folderTree ? flattenTree(result.folderTree).slice(0, 80) : [], [result?.folderTree])
   const operationPreview = result?.operations.slice(0, 120) ?? []
 
   useEffect(() => {
@@ -203,91 +159,97 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
   }
 
-  const content = surface.mode === "collapsed"
-    ? (
-      <CollapsedView
-        actionLabel={modeMeta.label}
-        progress={progress}
-        status={status}
-        text={data.progressText || summarize(data, result)}
-      />
-    )
-    : surface.mode === "compact"
-      ? (
-        <CompactView
-          action={action}
-          configDirty={configDirty}
-          data={data}
-          modeMeta={modeMeta}
-          progress={progress}
-          running={running}
-          status={status}
-          onActionChange={(value) => patch({ action: value })}
-          onExecute={() => execute()}
-          onPaste={pastePath}
-          onPatch={patch}
-          onReset={reset}
-          onRestoreDefault={restoreDefault}
-          onSaveDefault={saveAsDefault}
-          onResetOverride={resetOverride}
-          onOpenConfigFile={host.openConfigFile}
-        />
-      )
-      : (
-        <FullView
-          action={action}
-          configDirty={configDirty}
-          data={data}
-          logs={logs}
-          operationPreview={operationPreview}
-          progress={progress}
-          result={result}
-          running={running}
-          status={status}
-          surfaceMode={surface.mode}
-          treeLines={treeLines}
-          types={types}
-          onActionChange={(value) => patch({ action: value })}
-          onCopyLogs={copyLogs}
-          onCopyResults={copyResults}
-          onExecute={(value) => execute(value)}
-          onPaste={pastePath}
-          onPatch={patch}
-          onReset={reset}
-          onRestoreDefault={restoreDefault}
-          onSaveDefault={saveAsDefault}
-          onResetOverride={resetOverride}
-          onOpenConfigFile={host.openConfigFile}
-        />
-      )
+  const commonProps = {
+    action,
+    configDirty,
+    data,
+    running,
+    onActionChange: (value: RepackuAction) => patch({ action: value }),
+    onExecute: (value?: RepackuAction) => execute(value),
+    onPaste: pastePath,
+    onPatch: patch,
+    onReset: reset,
+    onRestoreDefault: restoreDefault,
+    onSaveDefault: saveAsDefault,
+    onResetOverride: resetOverride,
+    onOpenConfigFile: host.openConfigFile,
+  }
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="relative flex h-full min-h-0 w-full overflow-hidden">
+      <div ref={surface.ref} className="@container/repacku relative flex h-full min-h-0 w-full overflow-hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_20%_0%,hsl(var(--primary)/0.16),transparent_34%),radial-gradient(circle_at_80%_10%,hsl(var(--accent)/0.42),transparent_30%)]" />
         <div className="relative flex min-h-0 w-full flex-col">
-          {content}
+          {surface.mode === "collapsed" ? (
+            <CollapsedView
+              {...commonProps}
+              actionLabel={modeMeta.label}
+              modeIcon={modeMeta.icon}
+              progress={progress}
+              result={result}
+              status={status}
+            />
+          ) : surface.mode === "compact" ? (
+            <CompactView
+              {...commonProps}
+              modeIcon={modeMeta.icon}
+              modeDescription={modeMeta.description}
+              progress={progress}
+              status={status}
+            />
+          ) : (
+            <FullView
+              {...commonProps}
+              logs={logs}
+              operationPreview={operationPreview}
+              progress={progress}
+              result={result}
+              status={status}
+              types={types}
+              onCopyLogs={copyLogs}
+              onCopyResults={copyResults}
+            />
+          )}
         </div>
       </div>
     </TooltipProvider>
   )
 }
 
-function CollapsedView({ actionLabel, progress, status, text }: { actionLabel: string; progress: number; status: StatusMeta; text: string }) {
+function CollapsedView(props: {
+  action: RepackuAction
+  actionLabel: string
+  data: RepackuCardState
+  modeIcon: typeof Play
+  progress: number
+  result: RepackuData | null
+  running: boolean
+  status: RepackuStatusMeta
+  onExecute: (action?: RepackuAction) => void
+}) {
+  const text = summarize(props.data, props.result)
+  const ModeIcon = props.modeIcon
   return (
-    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-full border bg-background/80 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-60 transition-opacity", status.tone === "running" && "animate-pulse bg-primary/10", status.tone === "error" && "bg-destructive/10", status.tone === "success" && "bg-primary/10")} />
-      <div className="relative grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/80 px-3 py-2 shadow-sm">
+      <div className={cn("absolute inset-0 opacity-60 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
+      <div className="relative grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
         <Package />
       </div>
       <div className="relative min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
           <span>Repacku</span>
-          <Badge variant={status.badgeVariant}>{actionLabel}</Badge>
+          <Badge variant={props.status.badgeVariant}>{props.actionLabel}</Badge>
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{text}</div>
+        <div className="mt-1 truncate text-[11px] text-muted-foreground">{compactOptionSummary(props.data)}</div>
       </div>
-      {status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{progress}%</div>}
+      <div className="relative flex shrink-0 items-center gap-1">
+        <Button disabled={props.running} size="icon-xs" onClick={() => props.onExecute(props.action)}>
+          <ModeIcon />
+          <span className="sr-only">快速启动</span>
+        </Button>
+      </div>
+      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
     </div>
   )
 }
@@ -296,34 +258,51 @@ function CompactView(props: {
   action: RepackuAction
   configDirty: boolean
   data: RepackuCardState
-  modeMeta: { label: string; description: string; icon: typeof Search }
+  modeIcon: typeof Play
+  modeDescription: string
   progress: number
   running: boolean
-  status: StatusMeta
+  status: RepackuStatusMeta
   onActionChange: (value: RepackuAction) => void
-  onExecute: () => void
+  onExecute: (action?: RepackuAction) => void
+  onOpenConfigFile?: () => void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onResetOverride: () => void
-  onOpenConfigFile?: () => void
 }) {
-  const ModeIcon = props.modeMeta.icon
+  const ModeIcon = props.modeIcon
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <HeaderLine status={props.status} subtitle={props.data.progressText || props.modeMeta.description} />
-      <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-      <div className="flex min-w-0 items-center gap-2">
-        <ActionSelect action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <Button className="flex-1" disabled={props.running} onClick={props.onExecute}>
-          <ModeIcon data-icon="inline-start" />
-          启动
-        </Button>
-        <AdvancedSheet {...props} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.modeDescription} />
+        <div className="flex shrink-0 items-center gap-1">
+          <Button disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+            <ModeIcon />
+            <span className="sr-only">快速启动</span>
+          </Button>
+        </div>
       </div>
-      <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-col gap-2 px-3 pb-3">
+          <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <ActionSelect action={props.action} disabled={props.running} triggerClassName="min-w-0" onActionChange={props.onActionChange} />
+            <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
+              <ModeIcon data-icon="inline-start" />
+              启动
+            </Button>
+          </div>
+          {(props.status.tone === "running" || props.status.tone === "error") && (
+            <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+          )}
+        </div>
+      </ScrollArea>
+      <div className="shrink-0 border-t bg-background/80 p-2">
+        <CompactOptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      </div>
     </div>
   )
 }
@@ -337,31 +316,41 @@ function FullView(props: {
   progress: number
   result: RepackuData | null
   running: boolean
-  status: StatusMeta
-  surfaceMode: "regular" | "expanded" | "workspace"
-  treeLines: string[]
+  status: RepackuStatusMeta
   types: string[]
   onActionChange: (value: RepackuAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: RepackuAction) => void
+  onOpenConfigFile?: () => void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onResetOverride: () => void
-  onOpenConfigFile?: () => void
 }) {
-  const isWide = props.surfaceMode === "expanded" || props.surfaceMode === "workspace"
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 items-start justify-between gap-3">
+      <div className="grid shrink-0 gap-3 @4xl/repacku:grid-cols-[minmax(180px,1fr)_auto] @4xl/repacku:items-center">
         <HeaderLine
           status={props.status}
           subtitle={props.data.progressText || `${props.types.length ? props.types.join(", ") : "全部文件"} | 至少 ${props.data.minCount ?? 2} 个 | ${props.data.dryRun ?? true ? "预演" : "写入"}`}
         />
-        <div className="flex shrink-0 items-center gap-1">
+        <div data-testid="repacku-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2 @4xl/repacku:justify-end">
+          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/repacku:w-44" onActionChange={props.onActionChange} />
+          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
+            <Play data-icon="inline-start" />
+            启动
+          </Button>
+          <Button disabled={props.running || !props.data.path} variant="outline" onClick={() => props.onExecute("analyze")}>
+            <Search data-icon="inline-start" />
+            分析
+          </Button>
+          <Button disabled={props.running || (!props.data.configPath && !props.data.path)} variant="outline" onClick={() => props.onExecute("compress")}>
+            <FileArchive data-icon="inline-start" />
+            压缩
+          </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="icon-sm" variant="ghost" onClick={props.onReset}>
@@ -370,41 +359,34 @@ function FullView(props: {
             </TooltipTrigger>
             <TooltipContent>清空运行状态</TooltipContent>
           </Tooltip>
-          <AdvancedSheet {...props} modeMeta={ACTIONS.find((item) => item.value === props.action) ?? ACTIONS[1]!} />
         </div>
       </div>
 
-      <div className={cn("grid min-h-0 flex-1 gap-3", isWide ? "grid-cols-[minmax(280px,0.86fr)_minmax(360px,1.4fr)]" : "grid-cols-1")}>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-2">
         <ScrollArea className="min-h-0">
           <div className="flex min-h-0 flex-col gap-3 pr-1">
-          <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
               <div>
                 <div className="text-sm font-semibold">输入</div>
-                <div className="text-xs text-muted-foreground">选择路径、模式和执行策略。</div>
+                <div className="text-xs text-muted-foreground">选择文件夹路径；执行模式和任务按钮固定在顶部工具栏。</div>
               </div>
-              <ActionSelect action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-            </div>
-            <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-            <div className="flex items-center gap-2">
-              <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-                <Play data-icon="inline-start" />
-                启动
-              </Button>
-              <Button disabled={props.running || !props.data.path} variant="outline" onClick={() => props.onExecute("analyze")}>
-                <Search data-icon="inline-start" />
-                分析
-              </Button>
-              <Button disabled={props.running || (!props.data.configPath && !props.data.path)} variant="outline" onClick={() => props.onExecute("compress")}>
-                <FileArchive data-icon="inline-start" />
-                压缩
-              </Button>
-            </div>
-          </section>
+              <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+            </section>
 
-          <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-          <StatsPanel result={props.result} />
+            <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <ConfigFilePanel
+              configDirty={props.configDirty}
+              data={props.data}
+              disabled={props.running}
+              onOpenConfigFile={props.onOpenConfigFile}
+              onPatch={props.onPatch}
+              onReset={props.onReset}
+              onRestoreDefault={props.onRestoreDefault}
+              onSaveDefault={props.onSaveDefault}
+              onResetOverride={props.onResetOverride}
+            />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+            <StatsPanel result={props.result} />
           </div>
         </ScrollArea>
 
@@ -422,7 +404,9 @@ function FullView(props: {
             />
           </TabsContent>
           <TabsContent value="tree" className="min-h-0">
-            <PreviewPanel emptyText="分析完成后会显示目录树。" lines={props.treeLines} />
+            <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+              <FileTreePreview root={props.result?.folderTree ?? null} />
+            </section>
           </TabsContent>
           <TabsContent value="logs" className="min-h-0">
             <PreviewPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
@@ -433,7 +417,7 @@ function FullView(props: {
   )
 }
 
-function HeaderLine({ status, subtitle }: { status: StatusMeta; subtitle: string }) {
+function HeaderLine({ status, subtitle }: { status: RepackuStatusMeta; subtitle: string }) {
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -449,123 +433,6 @@ function HeaderLine({ status, subtitle }: { status: StatusMeta; subtitle: string
         </div>
       </div>
     </div>
-  )
-}
-
-function PathInput({ data, disabled, onPaste, onPatch }: {
-  data: RepackuCardState
-  disabled: boolean
-  onPaste: () => void
-  onPatch: (patch: Partial<RepackuCardState>) => void
-}) {
-  return (
-    <FieldGroup className="gap-3">
-      <Field className="gap-1.5">
-        <FieldLabel htmlFor="repacku-path">文件夹路径</FieldLabel>
-        <InputGroup>
-          <FolderOpen />
-          <InputGroupInput
-            id="repacku-path"
-            disabled={disabled}
-            placeholder="D:\\archive\\source"
-            value={data.path ?? ""}
-            onChange={(event) => onPatch({ path: event.currentTarget.value })}
-          />
-          <InputGroupButton disabled={disabled} onClick={onPaste} variant="ghost">
-            <Clipboard data-icon="inline-start" />
-            粘贴
-          </InputGroupButton>
-        </InputGroup>
-      </Field>
-    </FieldGroup>
-  )
-}
-
-function ActionSelect({ action, disabled, onActionChange }: { action: RepackuAction; disabled: boolean; onActionChange: (value: RepackuAction) => void }) {
-  return (
-    <Select disabled={disabled} value={action} onValueChange={(value) => onActionChange(value as RepackuAction)}>
-      <SelectTrigger className="min-w-32">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {ACTIONS.map((item) => (
-            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  )
-}
-
-function OptionsPanel({ data, disabled, onPatch }: { data: RepackuCardState; disabled: boolean; onPatch: (patch: Partial<RepackuCardState>) => void }) {
-  return (
-    <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-      <div>
-        <div className="text-sm font-semibold">选项</div>
-        <div className="text-xs text-muted-foreground">常用项留在卡片内，低频配置放进侧栏。</div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field>
-          <FieldLabel htmlFor="repacku-types">目标文件类型</FieldLabel>
-          <Input
-            id="repacku-types"
-            disabled={disabled}
-            placeholder="image, document"
-            value={data.typesText ?? ""}
-            onChange={(event) => onPatch({ typesText: event.currentTarget.value })}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="repacku-min-count">最少文件数</FieldLabel>
-          <Input
-            id="repacku-min-count"
-            disabled={disabled}
-            min={1}
-            type="number"
-            value={data.minCount ?? 2}
-            onChange={(event) => onPatch({ minCount: Number(event.currentTarget.value) })}
-          />
-        </Field>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <SwitchField checked={data.dryRun ?? true} disabled={disabled} label="预演模式" description="只生成计划，不写归档。" onCheckedChange={(value) => onPatch({ dryRun: value })} />
-        <SwitchField checked={data.deleteAfter ?? false} disabled={disabled} label="删除源文件" description="仅在压缩成功后执行。" onCheckedChange={(value) => onPatch({ deleteAfter: value })} />
-      </div>
-    </section>
-  )
-}
-
-function SwitchField({ checked, description, disabled, label, onCheckedChange }: {
-  checked: boolean
-  description: string
-  disabled: boolean
-  label: string
-  onCheckedChange: (value: boolean) => void
-}) {
-  return (
-    <Field orientation="horizontal" className="min-w-44 flex-1 rounded-md bg-muted/30 p-2">
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
-      <FieldContent>
-        <FieldTitle>{label}</FieldTitle>
-        <FieldDescription className="text-xs">{description}</FieldDescription>
-      </FieldContent>
-    </Field>
-  )
-}
-
-function StatusStrip({ progress, status, text }: { progress: number; status: StatusMeta; text?: string }) {
-  return (
-    <Alert className="shrink-0 bg-background/70">
-      <SlidersHorizontal />
-      <AlertTitle>{status.label}</AlertTitle>
-      <AlertDescription>
-        <div className="flex w-full min-w-0 flex-col gap-2">
-          <span className="truncate">{text || status.description}</span>
-          {status.tone === "running" && <Progress value={progress} />}
-        </div>
-      </AlertDescription>
-    </Alert>
   )
 }
 
@@ -615,75 +482,7 @@ function PreviewPanel({ emptyText, lines, onCopy }: { emptyText: string; lines: 
   )
 }
 
-function AdvancedSheet(props: {
-  configDirty: boolean
-  data: RepackuCardState
-  modeMeta?: { label: string; description: string; icon: typeof Search }
-  running: boolean
-  onOpenConfigFile?: () => void
-  onPatch: (patch: Partial<RepackuCardState>) => void
-  onReset: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-  onResetOverride: () => void
-}) {
-  return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
-          <Settings2 />
-          <span className="sr-only">高级设置</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent className="w-[380px] sm:max-w-[420px]">
-        <SheetHeader>
-          <SheetTitle>Repacku 设置</SheetTitle>
-          <SheetDescription>默认值来自 Xiranite 配置；本次运行状态保存在当前组件。</SheetDescription>
-        </SheetHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-4 pb-4">
-          <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <FieldSet>
-            <Field>
-              <FieldLabel htmlFor="repacku-config-path">配置 JSON 路径</FieldLabel>
-              <Input
-                id="repacku-config-path"
-                disabled={props.running}
-                placeholder="可选的已有配置路径"
-                value={props.data.configPath ?? ""}
-                onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
-              />
-              <FieldDescription>按配置压缩会使用它；分析完成后也会回填。</FieldDescription>
-            </Field>
-          </FieldSet>
-          <div className="grid gap-2">
-            <Button disabled={!props.onOpenConfigFile} variant="outline" onClick={props.onOpenConfigFile}>
-              <FolderOpen data-icon="inline-start" />
-              打开配置文件
-            </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button disabled={props.running} variant="outline" onClick={props.onSaveDefault}>保存默认值</Button>
-              <Button disabled={props.running} variant="outline" onClick={props.onRestoreDefault}>恢复默认值</Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button disabled={props.running} variant="ghost" onClick={props.onResetOverride}>清除覆盖</Button>
-              <Button disabled={props.running} variant="ghost" onClick={props.onReset}>清空输出</Button>
-            </div>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
-}
-
-interface StatusMeta {
-  label: string
-  description: string
-  tone: "idle" | "running" | "success" | "error"
-  badgeVariant: "default" | "secondary" | "destructive" | "outline"
-  iconClass: string
-}
-
-function statusFromState(data: RepackuCardState, running: boolean): StatusMeta {
+function statusFromState(data: RepackuCardState, running: boolean): RepackuStatusMeta {
   if (running || data.phase === "running") {
     return {
       label: "运行中",
@@ -739,6 +538,14 @@ function summarize(data: RepackuCardState, result: RepackuData | null): string {
   return "选择文件夹"
 }
 
+function compactOptionSummary(data: RepackuCardState): string {
+  const writeMode = data.dryRun ?? true ? "预演" : "写入"
+  const sourceMode = data.deleteAfter ? "成功后删源" : "保留源文件"
+  const types = parseTypes(data.typesText)
+  const typeText = types.length ? types.join(", ") : "全部文件"
+  return `${writeMode} · ${sourceMode} · ${typeText} · 至少 ${data.minCount ?? 2}`
+}
+
 function compactPath(value: string): string {
   const normalized = value.replace(/\\/g, "/")
   const parts = normalized.split("/").filter(Boolean)
@@ -747,14 +554,4 @@ function compactPath(value: string): string {
 
 function parseTypes(value = ""): string[] {
   return value.split(/[,;\s]+/).map((item) => item.trim()).filter(Boolean)
-}
-
-function flattenTree(root: RepackuFolderNode): string[] {
-  const lines: string[] = []
-  function walk(node: RepackuFolderNode, depth: number) {
-    lines.push(`${"  ".repeat(depth)}${node.compressMode.padEnd(9)} ${node.name} (${node.totalFiles})`)
-    for (const child of node.children) walk(child, depth + 1)
-  }
-  walk(root, 0)
-  return lines
 }

@@ -123,6 +123,53 @@ Component
 
 Component 只负责输入、预览、交互、展示和状态编排。
 
+### 5. 组件化是默认原则
+
+节点 UI 不允许长期堆在一个巨型 `Component.tsx` 里。
+
+- 单文件建议不超过 800 行，硬上限 1000 行。
+- `Component.tsx` 只负责状态编排和主布局。
+- 表单控件、结果预览、目录树、日志、统计、运行状态等都应该拆成本节点内的局部组件。
+- 可复用的跨节点组件再上移到 `src/nodes/shared/` 或主应用 UI 层。
+- 不为“拆而拆”，但一旦某块 UI 有独立职责、独立测试价值或未来会复用，就应该拆出去。
+
+推荐结构：
+
+```text
+src/nodes/<id>/
+  Component.tsx
+  entry.ts
+  types.ts
+  constants.ts
+  controls.tsx
+  ResultPreview.tsx
+  FileTreePreview.tsx
+```
+
+### 6. 可视化组件优先，禁止把结构化数据退化成纯文本
+
+节点 UI 的目标是提高可视化程度。目录树、文件列表、表格、时间线、画廊、关系图、运行步骤等结构化数据，应优先使用成熟组件呈现。
+
+查找顺序：
+
+1. 项目已安装的 shadcn 组件。
+2. shadcn registry。
+3. Dice UI registry。
+4. Magic UI registry。
+5. Aceternity、React Bits 等 shadcn-like 组件源。
+6. 最后才写本地小组件。
+
+例如目录树应优先使用 `@magicui/file-tree` 这类现成组件，而不是手写 `pre` 文本树。只有在没有合适组件，或现成组件无法满足功能时，才允许自写。
+
+### 7. 不给每个节点默认加配置侧栏
+
+配置不是每张卡片都必须有的侧栏。尤其在折叠态和极小卡片里，用户主要需要看状态、快速启动、快速判断结果，而不是调整完整配置。
+
+- 常用参数应在卡片内容中按空间自适应展示。
+- 低频参数优先用内联折叠区、Popover 或局部 Disclosure。
+- Sheet/Dialog 只用于确实需要聚焦处理的复杂流程或危险确认。
+- 不要为了“功能可达”给每个节点额外挂一个侧栏，这会增加维护成本，也会破坏卡片的轻量感。
+
 ## 目标体验
 
 ### 1. 灵动岛式卡片状态
@@ -137,6 +184,7 @@ Component 只负责输入、预览、交互、展示和状态编排。
 要求：
 
 - 显示节点图标、核心状态、一条关键信息。
+- 应保留关键信息密度，例如当前模式、路径摘要、运行进度或上次结果摘要。
 - 有动态背景或轻量动效，但不能影响性能。
 - 可表达运行中、成功、失败、等待输入、需要配置等状态。
 - 不展示完整表单，不把内容硬塞进去。
@@ -155,7 +203,8 @@ Repacku
 要求：
 
 - 展示最常用路径。
-- 次要选项折叠到 Popover、Dialog、Sheet 或 Disclosure。
+- 常用参数在卡片内可见或可滚动访问。
+- 次要选项优先折叠到 Popover 或 Disclosure，不默认打开侧栏。
 - 运行日志和结果有清晰层级。
 - 不出现一排十几个按钮。
 
@@ -200,6 +249,12 @@ useNodeSurface()
 
 节点 Component 不再自己猜卡片大小。
 
+实现策略：
+
+- 优先使用 CSS Container Queries 做布局自适应，例如 `@container/repacku` 和 `@4xl/repacku:grid-cols-2`。
+- JS hook 只负责粗粒度模式和极端状态判断，不维护多套重复参数。
+- 同一组字段应该只有一份数据源和一套控件组件，不在不同形态里复制三份表单逻辑。
+
 ### 3. 节点 UI 应该有清晰任务流
 
 每个节点都要根据功能设计自己的流程，而不是套通用模板。
@@ -221,6 +276,10 @@ https://www.remotion.dev/
 https://ui.aceternity.com/
 https://www.reactbits.dev/get-started/index
 https://r3f.docs.pmnd.rs/getting-started/introduction
+https://magicui.design/docs/components
+
+遇到某类组件缺失时，不要只查 shadcn 官方。必须继续查 Dice UI、Magic UI、Aceternity、React Bits 等 shadcn-like 组件库。
+
 ### 首选：主应用 shadcn
 
 shadcn 负责常规 UI：

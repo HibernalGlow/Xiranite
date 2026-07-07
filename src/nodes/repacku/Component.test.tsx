@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { RepackuData, RepackuInput } from "@xiranite/node-repacku/core"
+import type { RepackuData, RepackuFolderNode, RepackuInput } from "@xiranite/node-repacku/core"
 import { Component } from "./Component"
 
 const surfaceState = vi.hoisted(() => ({
@@ -96,6 +96,34 @@ describe("app-owned repacku Component", () => {
     expect(host.state.logs).toContain("Archive command failed.")
     expect(screen.getAllByText("失败").length).toBeGreaterThan(0)
   })
+
+  test("renders analyzed folder tree with the visual file tree component", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost({
+      path: "D:/library",
+      result: createRepackuData({ folderTree: createFolderTree() }),
+    })
+    render(<Component compId="comp-repacku" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "目录树" }))
+
+    expect(screen.getByText(/library · 筛选 · 3 files/)).toBeTruthy()
+    expect(screen.getByText(/book · 整包 · 2 files/)).toBeTruthy()
+    expect(screen.getByText(".jpg x 2")).toBeTruthy()
+  })
+
+  test("keeps primary actions in the expanded header toolbar", () => {
+    surfaceState.mode = "expanded"
+    render(<Component compId="comp-repacku" host={createHost({ path: "D:/library", action: "analyze" })} />)
+
+    const toolbar = screen.getByTestId("repacku-header-toolbar")
+
+    expect(toolbar.textContent).toContain("启动")
+    expect(toolbar.textContent).toContain("分析")
+    expect(toolbar.textContent).toContain("压缩")
+    expect(screen.getByText(/执行模式和任务按钮固定在顶部工具栏/)).toBeTruthy()
+  })
 })
 
 interface RepackuCardState {
@@ -186,6 +214,42 @@ function createRepackuData(patch: Partial<RepackuData>): RepackuData {
     }],
     errors: [],
     ...patch,
+  }
+}
+
+function createFolderTree(): RepackuFolderNode {
+  return {
+    path: "D:/library",
+    name: "library",
+    parentPath: "D:",
+    depth: 0,
+    weight: 0,
+    totalFiles: 3,
+    totalSize: 2048,
+    recursiveSize: 4096,
+    sizeMb: 0.004,
+    compressMode: "selective",
+    recommendation: "Use selective compression.",
+    fileTypes: { image: 2, text: 1 },
+    fileExtensions: { ".txt": 1 },
+    dominantTypes: ["image"],
+    children: [{
+      path: "D:/library/book",
+      name: "book",
+      parentPath: "D:/library",
+      depth: 1,
+      weight: 0,
+      totalFiles: 2,
+      totalSize: 2048,
+      recursiveSize: 2048,
+      sizeMb: 0.002,
+      compressMode: "entire",
+      recommendation: "Compress whole folder.",
+      fileTypes: { image: 2 },
+      fileExtensions: { ".jpg": 2 },
+      dominantTypes: ["image"],
+      children: [],
+    }],
   }
 }
 

@@ -20,6 +20,7 @@
   },
   "registries": {
     "@niko-table": "https://niko-table.com/r/{name}.json",
-    "@diceui": "https://diceui.com/r/{style}/{name}.json"
+    "@diceui": "https://diceui.com/r/{style}/{name}.json",
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }
