@@ -65,7 +65,9 @@
       "flow": "FLOW",
       "flowHint": "React Flow nodes",
       "lane": "LANE",
-      "laneHint": "Swimlane mode"
+      "laneHint": "Swimlane mode",
+      "bento": "BENTO",
+      "bentoHint": "Resizable bento grid"
     },
     "cardLayout": {
       "grid": "GRID",
@@ -322,6 +324,11 @@
       "empty": "// dock is empty",
       "openRegistry": "OPEN MODULE REGISTRY"
     },
+    "bento": {
+      "empty": "// bento view is empty",
+      "emptyHint": "Drop modules into a resizable workspace grid.",
+      "openRegistry": "OPEN MODULE REGISTRY"
+    },
     "deployment": {
       "title": "Deployment Hub",
       "subtitle": "Active production environments and sandboxes",
@@ -403,7 +410,8 @@
         "cards": "Cards",
         "dockview": "Dockview",
         "flow": "Flow",
-        "lane": "Lane"
+        "lane": "Lane",
+        "bento": "Bento"
       },
       "tabs": {
         "table": "Table",

@@ -46,6 +46,7 @@ export function DockviewView() {
     () => visibleComponents.filter(c => isComponentVisibleInView(c, "dockview")),
     [visibleComponents],
   )
+  const isEmpty = dockComponents.length === 0
 
   const moduleName = (comp: ComponentInstance) => {
     const m = getModule(comp.moduleId)
@@ -79,6 +80,13 @@ export function DockviewView() {
       removeDisposableRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (!isEmpty) return
+    removeDisposableRef.current?.dispose()
+    removeDisposableRef.current = null
+    apiRef.current = null
+  }, [isEmpty])
 
   // ⚠️ 关键修复：dockComponents 变化时主动同步 dockview API。
   // onReady 只在挂载时触发一次，关闭 tab 后 api 内部状态不会自动更新；
@@ -165,14 +173,8 @@ export function DockviewView() {
       {...moduleDropHandlers}
     >
       {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
-      <DockviewReact
-        components={components}
-        tabComponents={tabComponents}
-        onReady={onReady}
-        className="flex-1"
-      />
-      {dockComponents.length === 0 && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center ws-canvas-bg">
+      {isEmpty ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center ws-canvas-bg">
           <div className="text-center space-y-4">
             <LayoutPanelTop className="h-10 w-10 text-muted-foreground/40 mx-auto" />
             <p className="text-sm font-mono text-muted-foreground">{t("view:dockview.empty")}</p>
@@ -187,6 +189,13 @@ export function DockviewView() {
             </Button>
           </div>
         </div>
+      ) : (
+        <DockviewReact
+          components={components}
+          tabComponents={tabComponents}
+          onReady={onReady}
+          className="min-h-0 flex-1"
+        />
       )}
     </div>
   )

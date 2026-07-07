@@ -27,7 +27,8 @@ describe("migratef CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("plan --source")
+    expect(host.stderrText()).toContain("xmigratef")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON plan for a real unicode fixture", async () => {

@@ -27,7 +27,8 @@ describe("formatv CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("scan --path . --json")
+    expect(host.stderrText()).toContain("xformatv")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON scan results for real video files", async () => {

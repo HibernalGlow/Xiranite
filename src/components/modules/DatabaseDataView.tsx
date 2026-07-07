@@ -49,7 +49,7 @@ import { Eye, EyeOff, Tag, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 
-const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
+const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
 
 // 从 comp-${counter}-${timestamp} 解析部署时间戳
 function parseCreatedAt(id: string): number {

@@ -74,6 +74,7 @@ export interface WorkspaceComponentActions {
   moveComponent(id: string, x: number, y: number): void
   setComponentFlowPos(id: string, x: number, y: number): void
   setComponentFlowSize(id: string, width: number, height: number): void
+  setComponentBentoLayout(id: string, layout: { x: number; y: number; w: number; h: number }): void
   setComponentData(id: string, data: Record<string, unknown>): void
   patchComponentData(id: string, patch: Record<string, unknown>): void
   updateComponent(id: string, patch: ComponentPatch): void

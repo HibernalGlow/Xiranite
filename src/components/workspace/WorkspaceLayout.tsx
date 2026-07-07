@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
 const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: module.FlowView })))
 const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
+const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
 
 export function WorkspaceLayout() {
   const chrome = useWorkspaceShallowSelector((state) => ({
@@ -48,6 +49,7 @@ export function WorkspaceLayout() {
             {chrome.viewMode === "dockview" && <DockviewView />}
             {chrome.viewMode === "flow" && <FlowView />}
             {chrome.viewMode === "lane" && <LaneView />}
+            {chrome.viewMode === "bento" && <BentoView />}
           </Suspense>
         </div>
         <OverlayHost />

@@ -7,7 +7,7 @@ import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } fro
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
 const componentStates = new Set<ComponentState>(["docked", "floating", "focused", "fullscreen", "compact"])
-const viewModes = new Set<ViewMode>(["cards", "dockview", "flow", "lane"])
+const viewModes = new Set<ViewMode>(["cards", "dockview", "flow", "lane", "bento"])
 
 export function useNodeHostApi(compId: string): NodeHostApi {
   useWorkspaceComponentData(compId)

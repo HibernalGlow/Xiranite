@@ -1,7 +1,7 @@
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
 
-export const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane"]
+export const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
 
 export const INITIAL_STATE: WSState = {
   theme: "spatial",

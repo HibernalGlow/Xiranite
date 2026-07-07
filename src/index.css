@@ -557,6 +557,34 @@
   /* header-only — body hidden via conditional render */
 }
 
+/* Bento view: GridStack supplies geometry; these rules only bridge it into
+   Xiranite's workspace surface and keep widget motion GPU-friendly. */
+.xiranite-bento-grid {
+  min-height: calc(100vh - 7rem);
+}
+
+.xiranite-bento-grid.grid-stack > .grid-stack-item > .grid-stack-item-content {
+  inset: 0;
+  overflow: hidden;
+  border-radius: 0.375rem;
+}
+
+.xiranite-bento-grid .grid-stack-placeholder > .placeholder-content {
+  border: 1px dashed var(--primary);
+  border-radius: 0.375rem;
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+
+.xiranite-bento-grid .grid-stack-item.ui-draggable-dragging,
+.xiranite-bento-grid .grid-stack-item.ui-resizable-resizing {
+  z-index: 30;
+}
+
+.xiranite-bento-grid .grid-stack-item.ui-draggable-dragging > .grid-stack-item-content,
+.xiranite-bento-grid .grid-stack-item.ui-resizable-resizing > .grid-stack-item-content {
+  box-shadow: 0 24px 70px -24px var(--ws-accent-glow);
+}
+
 /* ── Glow effect for primary ── */
 .btn-primary-glow {
   box-shadow: 0 0 18px var(--ws-accent-glow), 0 2px 8px oklch(0 0 0 / 0.22);

@@ -14,6 +14,7 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
     moveComponent: (id, x, y) => update("MOVE_COMPONENT", (state) => setComponentPositionState(state, id, x, y)),
     setComponentFlowPos: (id, x, y) => update("SET_COMPONENT_FLOW_POS", (state) => setComponentFlowPosState(state, id, x, y)),
     setComponentFlowSize: (id, width, height) => update("SET_COMPONENT_FLOW_SIZE", (state) => setComponentFlowSizeState(state, id, width, height)),
+    setComponentBentoLayout: (id, layout) => update("SET_COMPONENT_BENTO_LAYOUT", (state) => setComponentBentoLayoutState(state, id, layout)),
     setComponentData: (id, data) => update("SET_COMPONENT_DATA", (state) => setComponentDataState(state, id, data)),
     patchComponentData: (id, patch) => update("PATCH_COMPONENT_DATA", (state) => patchComponentDataState(state, id, patch)),
     updateComponent: (id, patch) => update("UPDATE_COMPONENT", (state) => updateComponentState(state, id, patch)),
@@ -56,6 +57,7 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
     laneId,
     flowPosition: options.flowPosition ?? { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
     flowSize: { width: 384, height: 320 },
+    bentoLayout: options.bentoLayout ?? defaultBentoLayout(instanceCounter),
     dockPanel: options.dockPanel ?? "default",
     hiddenIn: options.viewMode
       ? (Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== options.viewMode])) as Record<ViewMode, boolean>)
@@ -152,6 +154,31 @@ function setComponentFlowSizeState(state: WSState, id: string, width: number, he
       component.id === id ? { ...component, flowSize: { width, height }, updatedAt: Date.now() } : component,
     ),
   }
+}
+
+function setComponentBentoLayoutState(
+  state: WSState,
+  id: string,
+  layout: { x: number; y: number; w: number; h: number },
+): WSState {
+  const nextLayout = normalizeBentoLayout(layout)
+  let changed = false
+  const components = state.components.map((component) => {
+    if (component.id !== id) return component
+    const current = component.bentoLayout
+    if (
+      current
+      && current.x === nextLayout.x
+      && current.y === nextLayout.y
+      && current.w === nextLayout.w
+      && current.h === nextLayout.h
+    ) {
+      return component
+    }
+    changed = true
+    return { ...component, bentoLayout: nextLayout, updatedAt: Date.now() }
+  })
+  return changed ? { ...state, components } : state
 }
 
 function setComponentDataState(state: WSState, id: string, data: Record<string, unknown>): WSState {
@@ -285,4 +312,26 @@ function toggleCollapseState(state: WSState, id: string): WSState {
       component.id === id ? { ...component, collapsed: !component.collapsed, updatedAt: Date.now() } : component,
     ),
   }
+}
+
+function defaultBentoLayout(instanceCounter: number): { x: number; y: number; w: number; h: number } {
+  const index = Math.max(0, instanceCounter - 1)
+  const wide = index % 5 === 0
+  const tall = index % 7 === 2
+  const w = wide ? 6 : 4
+  const h = tall ? 5 : 4
+  return {
+    x: (index % 3) * 4,
+    y: Math.floor(index / 3) * 4,
+    w,
+    h,
+  }
+}
+
+function normalizeBentoLayout(layout: { x: number; y: number; w: number; h: number }) {
+  const w = Math.max(2, Math.min(12, Math.round(layout.w)))
+  const h = Math.max(2, Math.round(layout.h))
+  const x = Math.max(0, Math.min(12 - w, Math.round(layout.x)))
+  const y = Math.max(0, Math.round(layout.y))
+  return { x, y, w, h }
 }

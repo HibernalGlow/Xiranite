@@ -1,4 +1,4 @@
-export type ViewMode = "cards" | "dockview" | "flow" | "lane"
+export type ViewMode = "cards" | "dockview" | "flow" | "lane" | "bento"
 
 export type CardLayout = "grid" | "stack" | "split" | "focus"
 
@@ -52,6 +52,8 @@ export interface ComponentInstance {
   flowPosition?: { x: number; y: number }
   /** React Flow node size, produced by NodeResizer. */
   flowSize?: { width: number; height: number }
+  /** GridStack-backed Bento layout in 12-column grid units. */
+  bentoLayout?: { x: number; y: number; w: number; h: number }
   /** Dockview tab area. */
   dockPanel?: string
   /** Owning lane id. */
@@ -69,6 +71,7 @@ export interface DeployComponentOptions {
   viewMode?: ViewMode
   laneId?: string
   flowPosition?: { x: number; y: number }
+  bentoLayout?: { x: number; y: number; w: number; h: number }
   position?: { x: number; y: number }
   dockPanel?: string
   tags?: string[]

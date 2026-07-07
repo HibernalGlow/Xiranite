@@ -54,6 +54,7 @@
         "date-fns": "^4.1.0",
         "dockview-react": "^7.0.2",
         "embla-carousel-react": "^8.6.0",
+        "gridstack": "^12.6.0",
         "i18next": "^26.3.4",
         "input-otp": "^1.4.2",
         "lucide-react": "^1.6.0",
@@ -1630,6 +1631,8 @@
     "graceful-fs": ["graceful-fs@4.2.11", "https://registry.npmmirror.com/graceful-fs/-/graceful-fs-4.2.11.tgz", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
 
     "graphql": ["graphql@16.14.2", "https://registry.npmmirror.com/graphql/-/graphql-16.14.2.tgz", {}, "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA=="],
+
+    "gridstack": ["gridstack@12.6.0", "https://registry.npmmirror.com/gridstack/-/gridstack-12.6.0.tgz", {}, "sha512-dUrqsormSybFn/2P4Dz8AgprftKD5e/IiV7UmC0XLQU+G+/WtkAeFiCSNLoAGhPDXoJ/O61Xtj3gljY/Ds83yQ=="],
 
     "happy-dom": ["happy-dom@20.10.6", "https://registry.npmmirror.com/happy-dom/-/happy-dom-20.10.6.tgz", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "buffer-image-size": "^0.6.4", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.21.0" } }, "sha512-6QD0ilzDDt93tX44y8tbmZdAcdTRYDhUP+Asgi6pC8Pp5IA3cvaZGyoVN/EGtlq9ziT65iPuBBn3ASLr6hCgVw=="],
 

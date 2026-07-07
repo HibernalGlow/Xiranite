@@ -12,7 +12,7 @@ import {
   Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
-  CircleDot, Image, Code2,
+  CircleDot, Image, Code2, LayoutTemplate,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -55,6 +55,7 @@ const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: Re
   { key: "dockview", labelKey: "topbar:viewMode.dockview", hintKey: "topbar:viewMode.dockviewHint", icon: Share2 },
   { key: "flow",     labelKey: "topbar:viewMode.flow",     hintKey: "topbar:viewMode.flowHint",     icon: Workflow },
   { key: "lane",     labelKey: "topbar:viewMode.lane",     hintKey: "topbar:viewMode.laneHint",     icon: LaneModeIcon },
+  { key: "bento",    labelKey: "topbar:viewMode.bento",    hintKey: "topbar:viewMode.bentoHint",    icon: LayoutTemplate },
 ]
 
 const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string; icon: React.ComponentType<{ className?: string }> }[] = [

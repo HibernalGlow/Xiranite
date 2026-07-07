@@ -27,6 +27,12 @@ export const componentSchema = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
   flowPosition: z.object({ x: z.number(), y: z.number() }).optional(),
   flowSize: z.object({ width: z.number().positive(), height: z.number().positive() }).optional(),
+  bentoLayout: z.object({
+    x: z.number().int().nonnegative(),
+    y: z.number().int().nonnegative(),
+    w: z.number().int().positive(),
+    h: z.number().int().positive(),
+  }).optional(),
   dockPanel: z.string().optional(),
   laneId: z.string().optional(),
   hiddenIn: z.object({
@@ -34,6 +40,7 @@ export const componentSchema = z.object({
     dockview: z.boolean().optional(),
     flow: z.boolean().optional(),
     lane: z.boolean().optional(),
+    bento: z.boolean().optional(),
   }).optional(),
   tags: z.array(z.string()).optional(),
   z: z.number().optional(),

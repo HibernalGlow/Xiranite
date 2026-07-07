@@ -92,6 +92,7 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
     data: component.data,
     flowPosition: component.flowPosition,
     flowSize: component.flowSize,
+    bentoLayout: component.bentoLayout,
     dockPanel: component.dockPanel,
     laneId: component.laneId,
     hiddenIn: component.hiddenIn,

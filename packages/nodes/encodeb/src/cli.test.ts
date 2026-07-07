@@ -27,7 +27,8 @@ describe("encodeb CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("preview --help")
+    expect(host.stderrText()).toContain("xencodeb")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON find results for a real suspicious filename", async () => {

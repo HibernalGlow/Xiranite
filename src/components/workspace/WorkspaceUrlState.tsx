@@ -3,7 +3,7 @@ import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import type { ViewMode } from "@/types/workspace"
 
-const VIEW_MODES = ["cards", "dockview", "flow", "lane"] as const satisfies readonly ViewMode[]
+const VIEW_MODES = ["cards", "dockview", "flow", "lane", "bento"] as const satisfies readonly ViewMode[]
 
 const workspaceUrlParsers = {
   view: parseAsStringLiteral(VIEW_MODES).withDefault("cards"),

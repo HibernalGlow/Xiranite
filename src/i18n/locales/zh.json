@@ -65,7 +65,9 @@
       "flow": "流程",
       "flowHint": "React Flow 节点",
       "lane": "泳道",
-      "laneHint": "泳道模式"
+      "laneHint": "泳道模式",
+      "bento": "便当",
+      "bentoHint": "可拖拽缩放的便当网格"
     },
     "cardLayout": {
       "grid": "网格",
@@ -322,6 +324,11 @@
       "empty": "// dock 为空",
       "openRegistry": "打开模块库"
     },
+    "bento": {
+      "empty": "// 便当视图为空",
+      "emptyHint": "拖入模块，组合成可调整大小的工作区。",
+      "openRegistry": "打开模块库"
+    },
     "deployment": {
       "title": "部署中心",
       "subtitle": "当前生产环境与沙箱",
@@ -403,7 +410,8 @@
         "cards": "卡片",
         "dockview": "Dockview",
         "flow": "流程",
-        "lane": "泳道"
+        "lane": "泳道",
+        "bento": "便当"
       },
       "tabs": {
         "table": "表格",

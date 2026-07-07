@@ -84,6 +84,7 @@
     "date-fns": "^4.1.0",
     "dockview-react": "^7.0.2",
     "embla-carousel-react": "^8.6.0",
+    "gridstack": "^12.6.0",
     "i18next": "^26.3.4",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.6.0",

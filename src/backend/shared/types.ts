@@ -41,12 +41,14 @@ export interface ComponentDTO {
   flowPosition?: { x: number; y: number }
   /** React-Flow 节点尺寸 */
   flowSize?: { width: number; height: number }
+  /** GridStack 便当视图布局 */
+  bentoLayout?: { x: number; y: number; w: number; h: number }
   /** Dockview 面板 id */
   dockPanel?: string
   /** 归属的 Lane id（仅 viewMode=lane 时用） */
   laneId?: string
   /** 各 viewMode 下独立的可见性开关 */
-  hiddenIn?: { cards?: boolean; dockview?: boolean; flow?: boolean; lane?: boolean }
+  hiddenIn?: { cards?: boolean; dockview?: boolean; flow?: boolean; lane?: boolean; bento?: boolean }
   /** 用户自定义标签 — Database 模块维护，与所有 viewMode 共享 */
   tags?: string[]
   /** Cards 模式层级 */
