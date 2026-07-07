@@ -63,6 +63,54 @@ export function createDiffRows(sourceLines: string[], filteredLines: string[]): 
   }))
 }
 
+export interface LinedupReadStats {
+  totalLines: number
+  uniqueLines: number
+  duplicates: Map<string, number>
+}
+
+export function findDuplicateLines(lines: string[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const raw of lines) {
+    const line = normalizeLine(raw)
+    if (!line) continue
+    counts.set(line, (counts.get(line) ?? 0) + 1)
+  }
+  const duplicates = new Map<string, number>()
+  for (const [line, count] of counts) {
+    if (count > 1) duplicates.set(line, count)
+  }
+  return duplicates
+}
+
+export function analyzeReadLines(lines: string[]): LinedupReadStats {
+  const normalized = lines.map(normalizeLine).filter(Boolean)
+  return {
+    totalLines: normalized.length,
+    uniqueLines: new Set(normalized).size,
+    duplicates: findDuplicateLines(normalized),
+  }
+}
+
+export interface LinedupRemovalDetail {
+  line: string
+  matchedFilter: string
+}
+
+export function explainRemovals(sourceLines: string[], filterLines: string[], caseSensitive = true): LinedupRemovalDetail[] {
+  const source = uniqueNonEmptyLines(sourceLines)
+  const filters = uniqueNonEmptyLines(filterLines)
+  const normalizeCompare = (value: string) => (caseSensitive ? value : value.toLowerCase())
+  const compareFilters = filters.map(normalizeCompare)
+  const details: LinedupRemovalDetail[] = []
+  for (const line of source) {
+    const comparableLine = normalizeCompare(line)
+    const matched = compareFilters.find((filter) => filter.length > 0 && comparableLine.includes(filter))
+    if (matched) details.push({ line, matchedFilter: matched })
+  }
+  return details
+}
+
 function localeSort(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
 }

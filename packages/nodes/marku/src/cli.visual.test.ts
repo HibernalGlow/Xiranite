@@ -9,19 +9,23 @@ afterEach(() => {
 })
 
 describe("marku guided CLI visual capture", () => {
-  test("captures the Ink guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
+  test("captures the Clack guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
     const capture = await captureCliVisual({
       nodeId: "marku",
       cliPath: CLI_PATH,
       args: [],
       artifactName: "guided-entry",
-      waitForText: "Module id.",
+      waitForText: "选择 marku 模块",
     })
 
     expect(capture.plainText).toContain("Xiranite Marku")
-    expect(capture.plainText).toContain("Markdown module transforms")
-    expect(capture.plainText).toContain("xmarku text --module markt")
-    expect(capture.plainText).toContain("Module id.")
+    expect(capture.plainText).toContain("Markdown 模块工具箱")
+    expect(capture.plainText).toContain("选择 marku 模块")
+    expect(capture.plainText).toContain("markt")
+    expect(capture.plainText).toContain("t2list")
+    expect(capture.plainText).not.toContain("Module id.")
+    expect(capture.plainText).not.toContain("Entry")
+    expect(capture.plainText).not.toContain("Script")
     expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
     expect(capture.html).not.toMatch(/\u001b|\?25|DABx/)
     await expectCliVisualArtifacts(capture)

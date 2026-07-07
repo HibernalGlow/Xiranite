@@ -20,6 +20,40 @@ afterEach(() => {
 })
 
 describe("NodeOperationMonitor", () => {
+  test("filters operation rows by phase group", async () => {
+    const now = Date.now()
+    useNodeOperations.getState().upsertOperation({
+      operationId: "op-running",
+      nodeId: "recycleu",
+      phase: "running",
+      createdAt: now,
+      startedAt: now,
+      updatedAt: now,
+      eventCount: 0,
+    })
+    useNodeOperations.getState().upsertOperation({
+      operationId: "op-completed",
+      nodeId: "cleanf",
+      phase: "completed",
+      createdAt: now,
+      startedAt: now,
+      updatedAt: now + 1,
+      finishedAt: now + 1,
+      eventCount: 0,
+    })
+
+    renderMonitor()
+    const user = userEvent.setup()
+
+    expect(screen.getByText("recycleu")).toBeTruthy()
+    expect(screen.getByText("cleanf")).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Finished" }))
+
+    expect(screen.queryByText("recycleu")).toBeNull()
+    expect(screen.getByText("cleanf")).toBeTruthy()
+  })
+
   test("renders active operation progress and cancels through the backend", async () => {
     const now = Date.now()
     useNodeOperations.getState().upsertOperation({
@@ -83,6 +117,7 @@ await i18n.use(initReactI18next).init({
         operations: {
           title: "Node operations",
           subtitle: "Live backend node runs, recent results, and stream events.",
+          all: "All",
           active: "Active",
           recent: "Recent",
           finished: "Finished",

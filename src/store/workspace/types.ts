@@ -3,6 +3,7 @@ import type {
   CardLayout,
   ComponentInstance,
   ComponentState,
+  DeployComponentOptions,
   Lane,
   OverlayKind,
   ViewMode,
@@ -65,7 +66,7 @@ export interface WorkspaceListActions {
 }
 
 export interface WorkspaceComponentActions {
-  deployComponent(moduleId: string, viewMode?: ViewMode): void
+  deployComponent(moduleId: string, viewModeOrOptions?: ViewMode | DeployComponentOptions): void
   ensureComponent(component: ComponentInstance): void
   removeComponent(id: string): void
   setComponentState(id: string, state: ComponentState): void

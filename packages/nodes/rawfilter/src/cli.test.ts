@@ -27,7 +27,8 @@ describe("rawfilter CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("plan --path . --json")
+    expect(host.stderrText()).toContain("plan --path")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("plans duplicate archive operations as JSON without mutating files", async () => {

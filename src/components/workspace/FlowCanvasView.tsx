@@ -143,7 +143,10 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   )
 }
 
-function useSyncShapesFromStore(editor: ReturnType<typeof useEditor> | null) {
+function useSyncShapesFromStore(
+  editor: ReturnType<typeof useEditor> | null,
+  syncingShapeDeletesRef: { current: boolean },
+) {
   const visibleComponents = useWorkspaceVisibleComponents()
   const lastSigRef = useRef<string>("")
 
@@ -173,13 +176,20 @@ function useSyncShapesFromStore(editor: ReturnType<typeof useEditor> | null) {
     const desiredIds = new Set(desired.map((shape) => shape.id))
 
     const toRemove = current.filter((shape) => !desiredIds.has(shape.id)).map((shape) => shape.id)
-    if (toRemove.length) editor.deleteShapes(toRemove)
+    if (toRemove.length) {
+      syncingShapeDeletesRef.current = true
+      try {
+        editor.deleteShapes(toRemove)
+      } finally {
+        syncingShapeDeletesRef.current = false
+      }
+    }
 
     const toCreate = desired.filter((shape) => !currentIds.has(shape.id))
     const toUpdate = desired.filter((shape) => currentIds.has(shape.id))
     if (toCreate.length) editor.createShapes(toCreate)
     if (toUpdate.length) editor.updateShapes(toUpdate)
-  }, [editor, visibleComponents])
+  }, [editor, syncingShapeDeletesRef, visibleComponents])
 }
 
 function useSyncChangesToStore(editor: ReturnType<typeof useEditor> | null) {
@@ -209,13 +219,38 @@ function useSyncChangesToStore(editor: ReturnType<typeof useEditor> | null) {
   }, [editor, workspaceActions])
 }
 
+function useSyncDeletedShapesToStore(
+  editor: ReturnType<typeof useEditor> | null,
+  syncingShapeDeletesRef: { current: boolean },
+) {
+  const workspaceActions = useWorkspaceActions()
+
+  useEffect(() => {
+    if (!editor) return
+    return editor.sideEffects.registerAfterDeleteHandler(
+      "shape",
+      (deleted) => {
+        if (syncingShapeDeletesRef.current) return
+        if (deleted.type !== "module") return
+
+        const compId = (deleted as ModuleShape).props.compId
+        if (!compId) return
+
+        workspaceActions.setComponentVisibility(compId, "flow", false)
+      },
+    )
+  }, [editor, syncingShapeDeletesRef, workspaceActions])
+}
+
 const customShapeUtils = [...defaultShapeUtils, ModuleShapeUtil]
 
 function FlowCanvas() {
   const editor = useEditor()
+  const syncingShapeDeletesRef = useRef(false)
 
-  useSyncShapesFromStore(editor)
+  useSyncShapesFromStore(editor, syncingShapeDeletesRef)
   useSyncChangesToStore(editor)
+  useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
 
   return null
 }

@@ -1,15 +1,29 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  renderProgressBar,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  truncateVisible,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-
 
 import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
 import { MARKU_MODULES, runMarku } from "./core.js"
-import { createNodeMarkuRuntime } from "./platform.js"
+import { createNodeMarkuRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("marku")
 
@@ -29,6 +43,8 @@ interface MarkuCliOptions {
   undoId?: string
   json?: boolean
 }
+
+type GuidedMode = "files" | "text" | "exit"
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -135,92 +151,189 @@ async function inputFromArgs(args: MarkuCliOptions): Promise<MarkuInput> {
 }
 
 async function runAction(input: MarkuInput & { action: MarkuAction }, json: boolean, host: CliHost, options: MarkuCliOptions): Promise<void> {
+  let progressActive = false
   const result = await runMarku(input, createNodeMarkuRuntime(), (event) => {
-    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
+    if (json) return
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
+    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
+  endProgress(host, progressActive)
+
   if (options.outputFile && result.data?.outputText) await writeFile(options.outputFile, result.data.outputText, "utf8")
   if (json) {
     writeJson(host, result)
+    if (!result.success) process.exitCode = 1
     return
   }
-  writeLine(host, result.message)
-  if (result.data?.outputText) writeLine(host, result.data.outputText)
-  if (result.data?.diffText) writeLine(host, result.data.diffText)
-  for (const item of result.data?.diffs?.slice(0, 20) ?? []) writeLine(host, `${item.changed ? "changed" : "same"} ${item.file}`)
-  for (const item of result.data?.history?.slice(0, 20) ?? []) writeLine(host, `${item.id} ${item.module} ${item.files.length}${item.undone ? " undone" : ""}`)
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeMarkuSummary(host, result)
+  if (!result.success) process.exitCode = 1
 }
 
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `text --input '# A' --json` for scripted use.")
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} text --module markt --input "# Title" --json\` for scripted use.`)
     process.exitCode = 2
     return
   }
-  await runInkApp(h(GuidedMarkuApp, { host }))
-}
 
-function GuidedMarkuApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"module" | "text" | "running" | "done">("module")
-  const [module, setModule] = useState<MarkuModuleId>("markt")
-  const [message, setMessage] = useState("Module id.")
-  const [lines, setLines] = useState<string[]>([])
+  const runtime = createNodeMarkuRuntime()
+  let firstRender = true
 
-  async function submit(value: string) {
-    if (step === "module") {
-      setModule(isMarkuModule(value) ? value : "markt")
-      setMessage("Markdown text.")
-      setLines([])
-      setStep("text")
+  try {
+    while (true) {
+      renderGuidedIntro(host, firstRender)
+      firstRender = false
+
+      const module = await selectRich<MarkuModuleId>(
+        host,
+        "选择 marku 模块",
+        MARKU_MODULES.map((item): { value: MarkuModuleId; label: string; hint: string } => ({
+          value: item.id,
+          label: item.id,
+          hint: item.name,
+        })),
+        { initialValue: "markt", maxItems: 9 },
+      )
+
+      const mode = await selectRich<GuidedMode>(
+        host,
+        "选择运行模式",
+        [
+          { value: "files", label: "处理文件/目录", hint: "扫描 .md 文件并应用模块" },
+          { value: "text", label: "内联文本", hint: "粘贴 Markdown 文本，输出结果" },
+          { value: "exit", label: "退出", hint: "不执行任何操作" },
+        ],
+        { initialValue: "files", maxItems: 4 },
+      )
+
+      if (mode === "exit") {
+        writeLine(host, rich(host, "已退出。", "yellow"))
+        return
+      }
+
+      if (mode === "files") {
+        const path = await resolveInputPath(host, runtime)
+        if (!path) continue
+        const recursive = await confirmRich(host, "递归扫描子目录?", false)
+        const dryRun = await confirmRich(host, "以 dry-run 模式运行 (不写文件，只输出 diff)?", true)
+        await runGuidedAction({ action: "run", module, paths: [path], recursive, dryRun, enableUndo: !dryRun }, host)
+      } else {
+        const text = await resolveInputText(host)
+        if (!text) continue
+        await runGuidedAction({ action: "text", module, inputText: text }, host)
+      }
+
+      if (!await confirmRich(host, "继续选择其他模块?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
       return
     }
-    setStep("running")
-    const result = await runMarku({ action: "text", module, inputText: value }, createNodeMarkuRuntime())
-    setLines([result.message, ...(result.data?.outputText ? [result.data.outputText] : [])])
-    writeLine(host, result.message)
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
+    throw error
+  }
+}
+
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  const moduleLines = MARKU_MODULES.map((item) => `${rich(host, item.id, "magenta")}  ${item.name}`)
+  writeRichPanel(host, "Xiranite Marku", [
+    `${rich(host, "入口", "cyan")}  Markdown 模块工具箱，支持标题/列表/表格/去重等转换`,
+    `${rich(host, "模块", "cyan")}  9 个模块，下方列出全部可用模块`,
+    `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；dry-run 默认开启`,
+    rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"),
+    ...moduleLines,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+}
+
+async function resolveInputPath(host: CliHost, runtime: { pathInfo: (path: string) => Promise<{ exists: boolean; isDirectory: boolean; path: string }> }): Promise<string | null> {
+  const clipboard = (await readClipboardText()).trim()
+  if (clipboard) {
+    const info = await runtime.pathInfo(clipboard)
+    if (info.exists && info.isDirectory) {
+      writeLine(host, rich(host, `已从剪贴板读取路径: ${info.path}`, "yellow"))
+      return info.path
+    }
   }
 
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) app.exit()
-  })
-
-  return h(
-    Box,
-    { flexDirection: "column", gap: 1 },
-    h(
-      Box,
-      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 76 },
-      h(Text, { color: "cyan", bold: true }, "Xiranite Marku"),
-      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for Markdown module transforms"),
-      h(Text, null, h(Text, { color: "cyan" }, "Modules "), "markt, consecutive_header, content_dedup"),
-      h(Text, null, "        html2sy_table, title_convert, content_replace"),
-      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} text --module markt --input "# Title" --json`),
-    ),
-    h(
-      Box,
-      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 76 },
-      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
-      h(Text, null, message),
-      step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    ),
-    ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
-  )
+  const answer = (await promptRich(host, "输入文件或目录路径", "")).trim()
+  if (!answer) return null
+  const info = await runtime.pathInfo(answer)
+  if (!info.exists) {
+    writeRichPanel(host, "Path", `路径不存在: ${answer}`, { color: "red", minWidth: 48 })
+    return null
+  }
+  return info.path
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
+async function resolveInputText(host: CliHost): Promise<string | null> {
+  const clipboard = (await readClipboardText()).trim()
+  if (clipboard) {
+    writeLine(host, rich(host, `已从剪贴板读取 ${clipboard.split(/\r?\n/).length} 行文本。`, "yellow"))
+    return clipboard
+  }
+  const text = await promptRich(host, "粘贴 Markdown 文本，用 \\n 表示多行", "")
+  return text || null
+}
+
+async function runGuidedAction(input: MarkuInput, host: CliHost): Promise<void> {
+  let progressActive = false
+  const result = await runMarku(input, createNodeMarkuRuntime(), (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
       return
     }
-    if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
-    else if (!key.ctrl && input) setValue((current) => current + input)
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
-  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
+  endProgress(host, progressActive)
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeMarkuSummary(host, result)
+  if (!result.success) process.exitCode = 1
+}
+
+function writeMarkuSummary(host: CliHost, result: { success: boolean; message: string; data?: { filesProcessed?: number; filesChanged?: number; inputText?: string; outputText?: string; diffText?: string; diffs?: Array<{ file: string; changed: boolean; diff: string }>; history?: Array<{ id: string; module: string; files: Array<{ path: string }>; undone?: boolean }> } }): void {
+  const data = result.data
+  if (!data) return
+
+  if (data.filesProcessed !== undefined) {
+    writeRichPanel(host, "Summary", [
+      `files: ${data.filesProcessed}  changed: ${data.filesChanged ?? 0}`,
+    ], { color: result.success ? "green" : "yellow", minWidth: 48 })
+
+    for (const diff of data.diffs?.slice(0, 20) ?? []) {
+      const status = diff.changed ? rich(host, "changed", "yellow") : rich(host, "same", "grey")
+      writeLine(host, `${status} ${truncateVisible(diff.file, terminalColumns(host) - 16)}`)
+    }
+    if ((data.diffs?.length ?? 0) > 20) writeLine(host, rich(host, `... ${(data.diffs?.length ?? 0) - 20} more file(s)`, "grey"))
+  }
+
+  if (data.outputText && data.outputText !== data.inputText) {
+    writeLine(host)
+    writeRichPanel(host, "Output", truncateVisible(data.outputText, terminalColumns(host) - 6), { color: "green", minWidth: 48 })
+  }
+
+  if (data.history?.length) {
+    writeLine(host)
+    writeLine(host, rich(host, "Undo history:", "cyan"))
+    for (const record of data.history.slice(0, 20)) {
+      const status = record.undone ? rich(host, "undone", "grey") : rich(host, "active", "green")
+      writeLine(host, `${status} ${record.id} ${rich(host, record.module, "magenta")} ${record.files.length} file(s)`)
+    }
+  }
 }
 
 function splitArg(value?: string, seed: string[] = []): string[] {
@@ -241,6 +354,23 @@ function isMarkuModule(value?: string): value is MarkuModuleId {
   return MARKU_MODULES.some((item) => item.id === value)
 }
 
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active = true): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

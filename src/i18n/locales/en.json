@@ -111,9 +111,25 @@
     }
   },
   "settings": {
-    "title": "THEME SETTINGS",
-    "header": "Theme & Aesthetics",
-    "headerSubtitle": "Configure the visual identity and atmospheric depth of your workspace.",
+    "title": "Settings",
+    "header": "Settings",
+    "headerSubtitle": "Appearance, runtime, and local data configuration.",
+    "sections": {
+      "appearance": "Appearance",
+      "runtime": "Runtime",
+      "data": "Data"
+    },
+    "data": {
+      "title": "Local data",
+      "description": "Workspace persistence and database configuration belong to the local backend service.",
+      "backendEndpoint": "BACKEND",
+      "backendStatus": "STATUS",
+      "token": "TOKEN",
+      "databasePath": "DATABASE",
+      "databasePathManaged": "Managed by Local Backend config",
+      "nextTitle": "Database path selector",
+      "nextDescription": "The frontend now has a dedicated data section. A real path picker should be wired after the Elysia backend exposes current database path and update APIs."
+    },
     "activePreset": "ACTIVE PRESET",
     "selectPreset": "SELECT THEME PRESET",
     "colorMode": {
@@ -232,14 +248,23 @@
     }
   },
   "registry": {
-    "title": "MODULE_REGISTRY",
-    "subtitle": "SYS.COMPONENTS.AVAILABLE // Select to deploy into workspace",
+    "title": "Module library",
+    "subtitle": "Drag a module into the current view, or deploy it directly.",
     "searchPlaceholder": "SEARCH_MODULES...",
     "filter": "FILTER",
     "all": "ALL",
     "deploy": "DEPLOY",
+    "module": "Module",
+    "description": "Description",
+    "dragHint": "Drag into the workspace",
+    "deployToCurrent": "Deploy to current view",
+    "dropHint": "Drop to deploy here",
     "version": "VERSION",
     "category": "CATEGORY",
+    "tabs": {
+      "list": "List",
+      "table": "Table"
+    },
     "categories": {
       "UTILITY": "UTILITY",
       "STATE": "STATE",
@@ -258,9 +283,12 @@
   },
   "overlay": {
     "registry": "MODULE REGISTRY",
-    "settings": "THEME SETTINGS",
+    "settings": "SETTINGS",
     "deployment": "DEPLOYMENT HUB",
-    "operations": "NODE OPERATIONS"
+    "operations": "NODE OPERATIONS",
+    "floatingMode": "Use floating overlay",
+    "dockMode": "Dock as fixed panel",
+    "resize": "Drag to resize panel"
   },
   "view": {
     "cards": {
@@ -333,6 +361,7 @@
     "operations": {
       "title": "Node operations",
       "subtitle": "Live backend node runs, recent results, and stream events.",
+      "all": "All",
       "active": "Active",
       "recent": "Recent",
       "finished": "Finished",

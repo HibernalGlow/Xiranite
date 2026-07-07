@@ -27,7 +27,8 @@ describe("cleanf CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("preview --help")
+    expect(host.stderrText()).toContain("preview --paths")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON preview for a real ignored fixture", async () => {

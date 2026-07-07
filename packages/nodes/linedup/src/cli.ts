@@ -2,14 +2,34 @@
 import { readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import { canRunInteractiveCli, CliPromptExitError, defineCommand, nodeCliName, promptRich, rich, runMain, selectRich, writeError, writeLine, writeRichPanel } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  truncateVisible,
+  writeError,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
-
-import { filterLines, splitLines } from "./core.js"
+import {
+  analyzeReadLines,
+  explainRemovals,
+  filterLines,
+  splitLines,
+  type LinedupReadStats,
+} from "./core.js"
 import { readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("linedup")
+const REMOVAL_DETAIL_LIMIT = 20
 type GuidedMode = "preset-files" | "clipboard-source" | "custom-files" | "inline-text" | "exit"
 
 interface FilterOptions {
@@ -44,11 +64,11 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 
 function createDefaultHost(): CliHost {
   return {
-  cwd: process.cwd(),
-  env: process.env,
-  stdin: process.stdin,
-  stdout: process.stdout,
-  stderr: process.stderr,
+    cwd: process.cwd(),
+    env: process.env,
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
   }
 }
 
@@ -93,42 +113,238 @@ function createProgram(host: CliHost = createDefaultHost()) {
 
 async function runGuided(host: CliHost): Promise<void> {
   if (!canRunInteractiveCli(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `filter --help` for scripted use.")
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} filter --help\` for scripted use.`)
     process.exitCode = 2
     return
   }
 
   try {
     const preset = await detectPresetFiles(host.cwd)
-    writeRichPanel(host, "Xiranite Linedup", [
-      "移除 source 中包含 filter 任意 token 的行。",
-      "默认兼容原版习惯：当前目录 source.txt + filter.txt -> output.txt。",
-    ], { color: "blue", minWidth: 72 })
-    writeLine(host)
+    renderGuidedIntro(host, preset)
 
     const mode = await selectRich<GuidedMode>(
       host,
       "选择 linedup 工作流",
       guidedModeOptions(preset),
-      { initialValue: preset.available ? "preset-files" : "clipboard-source", maxItems: 5 },
+      { initialValue: preset.available ? "preset-files" : "clipboard-source", maxItems: 6 },
     )
 
-    if (mode === "exit") return
+    if (mode === "exit") {
+      writeLine(host, rich(host, "已退出。", "yellow"))
+      return
+    }
 
-    const result = await runGuidedMode(mode, preset, host)
-
-    writeRichPanel(host, "Summary", [
-      `kept: ${result.keptCount}`,
-      `removed: ${result.removedCount}`,
-      result.outputFile ? `output: ${result.outputFile}` : "output: stdout",
-    ], { color: "green", minWidth: 48 })
-    if (!result.outputFile) writeLine(host, result.filteredLines.join("\n"))
+    await runGuidedMode(mode, preset, host)
   } catch (error) {
     if (error instanceof CliPromptExitError) {
-      writeLine(host, rich(host, "Prompt cancelled.", "yellow"))
+      writeLine(host, rich(host, "已取消。", "yellow"))
       return
     }
     throw error
+  }
+}
+
+function renderGuidedIntro(host: CliHost, preset: GuidedPresetFiles): void {
+  const columns = terminalColumns(host)
+  const lines = [
+    `${rich(host, "入口", "cyan")}  移除 source 中包含 filter 任意 token 的行`,
+    `${rich(host, "习惯", "cyan")}  当前目录 source.txt + filter.txt -> output.txt`,
+    `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback`,
+  ]
+  if (preset.available) {
+    lines.push(`${rich(host, "检测", "green")}  已发现 source.txt / filter.txt，回车直接执行`)
+  } else if (preset.sourceExists && !preset.filterExists) {
+    lines.push(`${rich(host, "检测", "yellow")}  仅发现 source.txt，缺少 filter.txt`)
+  } else if (!preset.sourceExists && preset.filterExists) {
+    lines.push(`${rich(host, "检测", "yellow")}  仅发现 filter.txt，缺少 source.txt`)
+  } else {
+    lines.push(`${rich(host, "检测", "yellow")}  未发现约定文件，将使用剪贴板或手动输入`)
+  }
+  writeRichPanel(host, "Xiranite Linedup", lines, {
+    color: "blue",
+    minWidth: 72,
+    maxWidth: columns - 2,
+  })
+  writeLine(host)
+}
+
+async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: CliHost): Promise<void> {
+  if (mode === "preset-files") {
+    await runGuidedFilter({
+      host,
+      sourceFile: preset.sourceFile,
+      filterFile: preset.filterFile,
+      outputFile: preset.outputFile,
+      sourceLabel: preset.sourceFile,
+      filterLabel: preset.filterFile,
+    })
+    return
+  }
+
+  if (mode === "custom-files") {
+    const sourceFile = (await promptRich(host, "Source file path", preset.sourceFile)).trim() || preset.sourceFile
+    const filterFile = (await promptRich(host, "Filter file path", preset.filterFile)).trim() || preset.filterFile
+    const outputFile = (await promptRich(host, "Output file path (留空则只输出到终端)", preset.outputFile)).trim() || undefined
+    await runGuidedFilter({ host, sourceFile, filterFile, outputFile, sourceLabel: sourceFile, filterLabel: filterFile })
+    return
+  }
+
+  if (mode === "clipboard-source") {
+    const clipboard = (await readClipboardText()).trim()
+    let sourceText: string
+    if (clipboard) {
+      writeLine(host, rich(host, `已从剪贴板读取 ${splitLines(clipboard).filter(Boolean).length} 行源文本。`, "yellow"))
+      sourceText = clipboard
+    } else {
+      sourceText = await promptRich(host, "剪贴板为空。粘贴源文本，用 \\n 表示多行", "")
+    }
+    const filterText = await promptRich(host, "Filter token(s)，用 \\n 表示多个", "")
+    const outputFile = (await promptRich(host, "可选输出文件路径 (留空只输出到终端)", "")).trim() || undefined
+    await runGuidedText({ host, sourceText, filterText, outputFile })
+    return
+  }
+
+  const sourceText = await promptRich(host, "Source text，用 \\n 表示多行", "")
+  const filterText = await promptRich(host, "Filter token(s)，用 \\n 表示多行", "")
+  const outputFile = (await promptRich(host, "可选输出文件路径 (留空只输出到终端)", "")).trim() || undefined
+  await runGuidedText({ host, sourceText, filterText, outputFile })
+}
+
+interface GuidedFilterInput {
+  host: CliHost
+  sourceFile: string
+  filterFile: string
+  outputFile?: string
+  sourceLabel: string
+  filterLabel: string
+}
+
+async function runGuidedFilter(input: GuidedFilterInput): Promise<void> {
+  const sourceText = await readGuidedFile(input.host, input.sourceFile, "source")
+  if (sourceText === null) return
+  const filterText = await readGuidedFile(input.host, input.filterFile, "filter")
+  if (filterText === null) return
+  await runGuidedText({
+    host: input.host,
+    sourceText,
+    filterText,
+    outputFile: input.outputFile,
+    sourceLabel: input.sourceLabel,
+    filterLabel: input.filterLabel,
+  })
+}
+
+interface GuidedTextInput {
+  host: CliHost
+  sourceText: string
+  filterText: string
+  outputFile?: string
+  sourceLabel?: string
+  filterLabel?: string
+}
+
+async function runGuidedText(input: GuidedTextInput): Promise<void> {
+  const sourceTextLines = splitLines(input.sourceText.replace(/\\n/g, "\n"))
+  const filterTextLines = splitLines(input.filterText.replace(/\\n/g, "\n"))
+
+  const sourceStats = analyzeReadLines(sourceTextLines)
+  if (!sourceStats.totalLines) {
+    writeRichPanel(input.host, "错误", "源文本为空，无法过滤。", { color: "red", minWidth: 48 })
+    process.exitCode = 1
+    return
+  }
+  reportReadStats(input.host, input.sourceLabel ?? "source", sourceStats)
+
+  const filterStats = analyzeReadLines(filterTextLines)
+  if (!filterStats.totalLines) {
+    writeRichPanel(input.host, "错误", "过滤 token 为空，无法过滤。", { color: "red", minWidth: 48 })
+    process.exitCode = 1
+    return
+  }
+  reportReadStats(input.host, input.filterLabel ?? "filter", filterStats)
+
+  writeLine(input.host, rich(input.host, "▸ 开始过滤...", "cyan"))
+
+  const result = filterLines({ sourceLines: sourceTextLines, filterLines: filterTextLines })
+  const details = explainRemovals(sourceTextLines, filterTextLines)
+  reportFilterStats(input.host, sourceStats, filterStats, details)
+
+  const outputFile = input.outputFile?.trim() || undefined
+  if (outputFile) {
+    writeLine(input.host, rich(input.host, `▸ 正在写入输出文件: ${outputFile}...`, "green"))
+    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
+  }
+
+  writeRichPanel(input.host, "Summary", [
+    `kept: ${result.keptCount}`,
+    `removed: ${result.removedCount}`,
+    outputFile ? `output: ${outputFile}` : "output: stdout",
+  ], { color: "green", minWidth: 48 })
+
+  writeLine(input.host, rich(input.host, `处理完成！共过滤出 ${result.keptCount} 个唯一行`, "green", "bold"))
+  if (outputFile) {
+    writeLine(input.host, rich(input.host, `结果已保存到: ${outputFile}`, "green"))
+  } else {
+    writeLine(input.host)
+    writeLine(input.host, result.filteredLines.join("\n"))
+  }
+}
+
+function reportReadStats(host: CliHost, label: string, stats: LinedupReadStats): void {
+  writeLine(host, rich(host, `▸ 正在读取: ${label}...`, "cyan"))
+  writeRichPanel(host, "读取统计", [
+    `从 ${label} 读取到 ${stats.totalLines} 行 (去重后 ${stats.uniqueLines} 行)`,
+  ], { color: "blue", minWidth: 56 })
+
+  if (stats.duplicates.size) {
+    const lines: string[] = []
+    let index = 0
+    for (const [line, count] of stats.duplicates) {
+      if (index >= REMOVAL_DETAIL_LIMIT) {
+        lines.push(`... 以及 ${stats.duplicates.size - index} 个其他重复行`)
+        break
+      }
+      lines.push(`${truncateVisible(line, 60)}  出现 ${count} 次`)
+      index += 1
+    }
+    writeRichPanel(host, "发现重复行", lines, { color: "red", minWidth: 56 })
+  }
+}
+
+function reportFilterStats(
+  host: CliHost,
+  sourceStats: LinedupReadStats,
+  filterStats: LinedupReadStats,
+  details: ReturnType<typeof explainRemovals>,
+): void {
+  writeRichPanel(host, "过滤统计", [
+    `源文件中共有 ${sourceStats.uniqueLines} 个唯一行`,
+    `过滤文件中共有 ${filterStats.uniqueLines} 个唯一行`,
+  ], { color: "cyan", minWidth: 56 })
+
+  if (details.length) {
+    for (let index = 0; index < Math.min(details.length, REMOVAL_DETAIL_LIMIT); index += 1) {
+      const detail = details[index]!
+      writeLine(host, `${rich(host, "移除行: ", "red")}${truncateVisible(detail.line, terminalColumns(host) - 24)}`)
+      writeLine(host, `${rich(host, "  因为包含: ", "yellow")}${truncateVisible(detail.matchedFilter, terminalColumns(host) - 28)}`)
+    }
+    if (details.length > REMOVAL_DETAIL_LIMIT) {
+      writeLine(host, rich(host, `... 以及 ${details.length - REMOVAL_DETAIL_LIMIT} 个其他被移除行`, "grey"))
+    }
+  }
+
+  writeLine(host, rich(host, `被移除的行数: ${details.length}`, "red"))
+  writeLine(host, rich(host, `保留的行数: ${sourceStats.uniqueLines - details.length}`, "green"))
+}
+
+async function readGuidedFile(host: CliHost, filePath: string, kind: "source" | "filter"): Promise<string | null> {
+  try {
+    return await readFile(filePath, "utf8")
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    writeRichPanel(host, "错误", `读取${kind === "source" ? "源" : "过滤"}文件失败: ${filePath}\n${message}`, { color: "red", minWidth: 56 })
+    process.exitCode = 1
+    return null
   }
 }
 
@@ -167,67 +383,12 @@ async function readInput(inline?: string, filePath?: string): Promise<string> {
   return (inline ?? "").replace(/\\n/g, "\n")
 }
 
-async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: CliHost): Promise<Awaited<ReturnType<typeof runGuidedFilter>>> {
-  if (mode === "preset-files") {
-    return await runGuidedFilter({
-      sourceFile: preset.sourceFile,
-      filterFile: preset.filterFile,
-      outputFile: preset.outputFile,
-    })
-  }
-
-  if (mode === "custom-files") {
-    const sourceFile = await promptRich(host, "Source file path", preset.sourceFile)
-    const filterFile = await promptRich(host, "Filter file path", preset.filterFile)
-    const outputFile = await promptRich(host, "Output file path", preset.outputFile)
-    return await runGuidedFilter({ sourceFile, filterFile, outputFile })
-  }
-
-  if (mode === "clipboard-source") {
-    const clipboard = await readClipboardText()
-    const sourceText = clipboard || await promptRich(host, "Clipboard is empty. Paste source text with \\n for new lines", "")
-    const filterText = await promptRich(host, "Filter token(s), use \\n for multiple lines", "")
-    const outputFile = await promptRich(host, "Optional output file path", "")
-    return await runGuidedText({ sourceText, filterText, outputFile })
-  }
-
-  const sourceText = await promptRich(host, "Source text, use \\n for multiple lines", "")
-  const filterText = await promptRich(host, "Filter token(s), use \\n for multiple lines", "")
-  const outputFile = await promptRich(host, "Optional output file path", "")
-  return await runGuidedText({ sourceText, filterText, outputFile })
-}
-
-async function runGuidedFilter(options: { sourceFile: string; filterFile: string; outputFile?: string }) {
-  const sourceText = await readFile(options.sourceFile, "utf8")
-  const filterText = await readFile(options.filterFile, "utf8")
-  const result = filterLines({
-    sourceLines: splitLines(sourceText),
-    filterLines: splitLines(filterText),
-  })
-
-  if (options.outputFile) {
-    await writeFile(options.outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
-  }
-
-  return { ...result, outputFile: options.outputFile }
-}
-
-async function runGuidedText(options: { sourceText: string; filterText: string; outputFile?: string }) {
-  const result = filterLines({
-    sourceLines: splitLines(options.sourceText.replace(/\\n/g, "\n")),
-    filterLines: splitLines(options.filterText.replace(/\\n/g, "\n")),
-  })
-  const outputFile = options.outputFile?.trim() || undefined
-  if (outputFile) {
-    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
-  }
-  return { ...result, outputFile }
-}
-
 interface GuidedPresetFiles {
   sourceFile: string
   filterFile: string
   outputFile: string
+  sourceExists: boolean
+  filterExists: boolean
   available: boolean
 }
 
@@ -248,14 +409,17 @@ function guidedModeOptions(preset: GuidedPresetFiles) {
 }
 
 async function detectPresetFiles(cwd: string): Promise<GuidedPresetFiles> {
-  const preset = {
-    sourceFile: join(cwd, "source.txt"),
-    filterFile: join(cwd, "filter.txt"),
-    outputFile: join(cwd, "output.txt"),
-  }
+  const sourceFile = join(cwd, "source.txt")
+  const filterFile = join(cwd, "filter.txt")
+  const outputFile = join(cwd, "output.txt")
+  const [sourceExists, filterExists] = await Promise.all([isFile(sourceFile), isFile(filterFile)])
   return {
-    ...preset,
-    available: await isFile(preset.sourceFile) && await isFile(preset.filterFile),
+    sourceFile,
+    filterFile,
+    outputFile,
+    sourceExists,
+    filterExists,
+    available: sourceExists && filterExists,
   }
 }
 

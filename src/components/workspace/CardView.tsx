@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -28,6 +29,10 @@ export function CardView() {
   const sizeRef = useRef({ w: 1200, h: 800 })
   const [size, setSize] = useState({ w: 1200, h: 800 })
   const [isResizing, setIsResizing] = useState(false)
+  const handleDropModule = useCallback((moduleId: string) => {
+    workspaceActions.deployComponent(moduleId, { viewMode: "cards" })
+  }, [workspaceActions])
+  const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
 
   // 仅渲染未在 cards 模式下隐藏的组件
   const cardComponents = useMemo(
@@ -113,7 +118,15 @@ export function CardView() {
 
   if (cardComponents.length === 0) {
     return (
-      <div className="flex-1 ws-canvas-bg flex items-center justify-center">
+      <div
+        className={cn(
+          "relative flex flex-1 items-center justify-center ws-canvas-bg transition-colors",
+          isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+        )}
+        data-testid="cards-drop-target"
+        {...moduleDropHandlers}
+      >
+        {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center">
             <div className="w-12 h-12 rounded-sm border-2 border-dashed border-border flex items-center justify-center">
@@ -140,9 +153,16 @@ export function CardView() {
 
   return (
     <div
-      className={cn("flex-1 ws-canvas-bg overflow-hidden relative", isResizing && "ws-canvas-bg--resizing")}
+      className={cn(
+        "flex-1 ws-canvas-bg overflow-hidden relative transition-colors",
+        isResizing && "ws-canvas-bg--resizing",
+        isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+      )}
       ref={canvasRef}
+      data-testid="cards-drop-target"
+      {...moduleDropHandlers}
     >
+      {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
       {cardComponents.map(comp => (
         <ComponentCard
           key={comp.id}
@@ -164,6 +184,14 @@ export function CardView() {
           {t("view:cards.exitFullscreen")}
         </button>
       )}
+    </div>
+  )
+}
+
+function ModuleDropHint({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-4 z-[1002] -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+      {label}
     </div>
   )
 }

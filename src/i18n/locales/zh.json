@@ -111,9 +111,25 @@
     }
   },
   "settings": {
-    "title": "主题设置",
-    "header": "主题与美学",
-    "headerSubtitle": "配置工作区的视觉身份与氛围深度。",
+    "title": "设置",
+    "header": "设置",
+    "headerSubtitle": "统一管理外观、运行时与本地数据配置。",
+    "sections": {
+      "appearance": "外观",
+      "runtime": "运行时",
+      "data": "数据"
+    },
+    "data": {
+      "title": "本地数据",
+      "description": "工作区持久化与数据库配置归属本地后端服务管理。",
+      "backendEndpoint": "后端",
+      "backendStatus": "状态",
+      "token": "令牌",
+      "databasePath": "数据库",
+      "databasePathManaged": "由 Local Backend 配置管理",
+      "nextTitle": "数据库路径选择器",
+      "nextDescription": "前端已经有独立的数据设置区；等 Elysia 后端暴露当前数据库路径和更新 API 后，再接入真正的路径选择器。"
+    },
     "activePreset": "当前预设",
     "selectPreset": "选择主题预设",
     "colorMode": {
@@ -232,14 +248,23 @@
     }
   },
   "registry": {
-    "title": "MODULE_REGISTRY",
-    "subtitle": "SYS.COMPONENTS.AVAILABLE // 选择以部署到工作区",
+    "title": "模块库",
+    "subtitle": "拖入当前视图，或直接部署到工作区。",
     "searchPlaceholder": "搜索模块...",
     "filter": "筛选",
     "all": "全部",
     "deploy": "部署",
+    "module": "模块",
+    "description": "说明",
+    "dragHint": "拖入工作区",
+    "deployToCurrent": "部署到当前视图",
+    "dropHint": "松手部署到这里",
     "version": "版本",
     "category": "分类",
+    "tabs": {
+      "list": "列表",
+      "table": "表格"
+    },
     "categories": {
       "UTILITY": "工具",
       "STATE": "状态",
@@ -258,9 +283,12 @@
   },
   "overlay": {
     "registry": "模块库",
-    "settings": "主题设置",
+    "settings": "设置",
     "deployment": "部署中心",
-    "operations": "节点运行"
+    "operations": "节点运行",
+    "floatingMode": "切换为悬浮遮罩",
+    "dockMode": "固定为推开侧栏",
+    "resize": "拖动调整面板宽度"
   },
   "view": {
     "cards": {
@@ -333,6 +361,7 @@
     "operations": {
       "title": "节点运行",
       "subtitle": "查看本地后端节点任务、最近结果与流式事件。",
+      "all": "全部",
       "active": "运行中",
       "recent": "最近",
       "finished": "已结束",

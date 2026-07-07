@@ -31,31 +31,27 @@ export function WorkspaceLayout() {
 
   return (
     <div
-      className={cn("flex flex-col h-screen overflow-hidden bg-background text-foreground", themeClass, bgClass)}
+      className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass)}
       style={bgStyles}
     >
       <WorkspaceUrlState />
       <TopBar />
       <BackendStatusBanner />
 
-      {/* 主面板：四种形态共享同一份 store 数据，互不隔离。
-          切换 viewMode 只换渲染器，组件实例 + data 不重挂载 */}
-      <main className="flex-1 min-h-0 flex overflow-hidden relative">
+      <main className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           key={chrome.viewMode}
-          className="flex-1 min-h-0 w-full flex animate-in fade-in duration-150"
+          className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
         >
-          <Suspense fallback={<div className="flex-1 min-h-0 ws-canvas-bg" />}>
+          <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
             {chrome.viewMode === "cards" && <CardView />}
             {chrome.viewMode === "dockview" && <DockviewView />}
             {chrome.viewMode === "flow" && <FlowView />}
             {chrome.viewMode === "lane" && <LaneView />}
           </Suspense>
         </div>
+        <OverlayHost />
       </main>
-
-      {/* 弹出层（取代侧栏） */}
-      <OverlayHost />
     </div>
   )
 }

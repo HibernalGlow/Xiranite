@@ -36,9 +36,11 @@ import {
 } from "@dnd-kit/sortable"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
+import { cn } from "@/lib/utils"
 import {
   cardDndId,
   isCardDragData,
@@ -56,6 +58,10 @@ export function LaneView() {
   }))
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
+  const handleDropModule = useCallback((moduleId: string) => {
+    workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
+  }, [workspaceActions])
+  const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -132,7 +138,15 @@ export function LaneView() {
   // 没有任何 lane：显示空态 + 创建默认 lane
   if (wsLanes.length === 0) {
     return (
-      <div className="flex-1 ws-canvas-bg flex items-center justify-center">
+      <div
+        className={cn(
+          "relative flex flex-1 items-center justify-center ws-canvas-bg transition-colors",
+          isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+        )}
+        data-testid="lane-drop-target"
+        {...moduleDropHandlers}
+      >
+        {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
         <div className="text-center space-y-4">
           <Columns3 className="h-10 w-10 text-muted-foreground/40 mx-auto" />
           <p className="text-sm font-mono text-muted-foreground">{t("view:lane.empty")}</p>
@@ -152,7 +166,7 @@ export function LaneView() {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-      <div className="flex-1 ws-canvas-bg flex overflow-x-auto overflow-y-hidden">
+      <div className="flex-1 ws-canvas-bg flex overflow-x-auto overflow-y-hidden" data-testid="lane-drop-target">
         <SortableContext items={wsLanes.map((lane) => laneDndId(lane.id))} strategy={horizontalListSortingStrategy}>
           {wsLanes.map(lane => (
             <Lane
@@ -193,6 +207,14 @@ export function LaneView() {
         </div>
       </div>
     </DndContext>
+  )
+}
+
+function ModuleDropHint({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+      {label}
+    </div>
   )
 }
 

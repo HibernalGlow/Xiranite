@@ -1,14 +1,29 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  renderProgressBar,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  truncateVisible,
+  visibleWidth,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
-
-import type { RawfilterAction, RawfilterInput } from "./core.js"
+import type { RawfilterAction, RawfilterInput, RawfilterPlanItem, RawfilterResult, RawfilterRuntime } from "./core.js"
 import { runRawfilter } from "./core.js"
-import { createNodeRawfilterRuntime } from "./platform.js"
+import { createNodeRawfilterRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("rawfilter")
 
@@ -22,6 +37,47 @@ interface RawfilterCliOptions {
   dryRun?: boolean
   json?: boolean
 }
+
+interface GuidedTask {
+  name: string
+  description: string
+  input: Omit<RawfilterInput, "path">
+}
+
+type GuidedSelection = "exit" | "manual-path" | `task:${string}`
+
+type ResolvedGuidedChoice =
+  | { kind: "exit" }
+  | { kind: "path"; path: string; task: GuidedTask }
+  | { kind: "task"; task: GuidedTask }
+
+const GUIDED_TASKS: GuidedTask[] = [
+  {
+    name: "basic",
+    description: "标准模式：分组重复压缩包，保留翻译版，其余移入 multi",
+    input: { action: "execute" },
+  },
+  {
+    name: "name-only",
+    description: "仅名称模式：仅按文件名分组，不读压缩包内容",
+    input: { action: "execute", nameOnlyMode: true },
+  },
+  {
+    name: "trash-only",
+    description: "裁剪模式：保留翻译版，其余版本移入 trash",
+    input: { action: "execute", nameOnlyMode: true, trashOnly: true },
+  },
+  {
+    name: "shortcuts",
+    description: "快捷方式模式：为重复版本创建快捷方式而不移动",
+    input: { action: "execute", createShortcuts: true },
+  },
+  {
+    name: "plan-only",
+    description: "预览模式：只生成计划，不移动任何文件",
+    input: { action: "plan" },
+  },
+]
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -111,100 +167,216 @@ function inputFromArgs(args: RawfilterCliOptions): RawfilterInput {
 }
 
 async function runAction(input: RawfilterInput & { action: RawfilterAction }, json: boolean, host: CliHost): Promise<void> {
+  let progressActive = false
   const result = await runRawfilter(input, createNodeRawfilterRuntime(), (event) => {
-    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
+    if (json) return
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
+    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
+  endProgress(host, progressActive)
+
   if (json) {
     writeJson(host, result)
+    if (!result.success) process.exitCode = 1
     return
   }
-  writeLine(host, result.message)
-  for (const item of result.data?.plan?.slice(0, 80) ?? []) {
-    writeLine(host, `${item.status} ${item.destination} ${item.fileName}${item.targetPath ? ` -> ${item.targetPath}` : ` / ${item.reason}`}`)
-  }
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writePlanSummary(host, result)
+  if (!result.success) process.exitCode = 1
 }
 
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `plan --path . --json` for scripted use.")
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} plan --path <folder> --json\` for scripted use.`)
     process.exitCode = 2
     return
   }
-  await runInkApp(h(GuidedRawfilterApp, { host }))
-}
 
-function GuidedRawfilterApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"path" | "action" | "running" | "done">("path")
-  const [path, setPath] = useState("")
-  const [message, setMessage] = useState("Directory path.")
-  const [lines, setLines] = useState<string[]>([])
+  const runtime = createNodeRawfilterRuntime()
+  const defaultTask = GUIDED_TASKS[0]!
+  let firstRender = true
 
-  async function submit(value: string) {
-    if (step === "path") {
-      setPath(value)
-      setMessage("Action: plan or execute.")
-      setStep("action")
+  try {
+    while (true) {
+      renderGuidedIntro(host, firstRender)
+      firstRender = false
+
+      const choice = await readGuidedChoice(host, defaultTask, runtime)
+      if (choice.kind === "exit") {
+        writeLine(host, rich(host, "已退出。", "yellow"))
+        return
+      }
+
+      const paths = choice.kind === "path" ? [choice.path] : await resolveGuidedPaths(host, runtime)
+      if (!paths.length) {
+        writeRichPanel(host, "Path", "未提供有效文件夹路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
+        continue
+      }
+
+      writeRichPanel(host, "Run", [
+        `task: ${choice.task.name}`,
+        `path: ${paths.join("; ")}`,
+        `mode: ${choice.task.input.action ?? "execute"}`,
+      ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
+
+      for (const path of paths) {
+        const ok = await runGuidedTask(choice.task, path, host)
+        if (!ok) break
+      }
+
+      if (!await confirmRich(host, "继续选择其他任务?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
       return
     }
-    await execute(normalizeGuidedAction(value))
+    throw error
+  }
+}
+
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Xiranite Rawfilter", [
+    `${rich(host, "入口", "cyan")}  分组重复压缩包，保留翻译版，raw/未知版本移入 trash 或 multi`,
+    `${rich(host, "任务", "cyan")}  basic / name-only / trash-only / shortcuts / plan-only`,
+    `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+  writeLine(host, rich(host, `提示: plan-only 只预览不移动；其他任务会直接移动文件。需要脚本化请用 \`${CLI_NAME} plan --path <folder> --json\`。`, "grey"))
+}
+
+async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: RawfilterRuntime): Promise<ResolvedGuidedChoice> {
+  const directPath = cleanPath(await promptRich(host, "粘贴文件夹路径直接执行默认任务；留空进入任务选择", ""))
+  if (directPath) {
+    const info = await runtime.pathInfo(directPath)
+    if (info.exists && info.isDirectory) return { kind: "path", path: info.path, task: defaultTask }
+    writeRichPanel(host, "Path", `不是有效文件夹: ${directPath}`, { color: "red", minWidth: 48 })
   }
 
-  async function execute(action: RawfilterAction) {
-    setStep("running")
-    setMessage("Running...")
-    const result = await runRawfilter({ action, path }, createNodeRawfilterRuntime(), (event) => {
-      setLines((current) => [...current.slice(-8), event.message])
-    })
-    setLines((current) => [...current.slice(-8), result.message])
-    writeLine(host, result.message)
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
-  }
-
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) app.exit()
-  })
-
-  return h(
-    Box,
-    { flexDirection: "column", gap: 1 },
-    h(
-      Box,
-      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 76 },
-      h(Text, { color: "cyan", bold: true }, "Xiranite Rawfilter"),
-      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for duplicate archive filtering"),
-      h(Text, null, h(Text, { color: "cyan" }, "Run     "), "Direct core/platform call with dry plan before execute"),
-      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} plan --path <archive-folder> --json`),
-    ),
-    h(
-      Box,
-      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 76 },
-      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
-      h(Text, null, message),
-      step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    ),
-    ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
+  const selection = await selectRich<GuidedSelection>(
+    host,
+    "选择 rawfilter 任务",
+    [
+      ...GUIDED_TASKS.map((task): { value: GuidedSelection; label: string; hint: string } => ({
+        value: `task:${task.name}`,
+        label: task.name,
+        hint: task.description,
+      })),
+      { value: "manual-path", label: "paste-path", hint: "手动输入路径，并使用默认 basic 任务" },
+      { value: "exit", label: "exit", hint: "离开引导模式" },
+    ],
+    { initialValue: `task:${defaultTask.name}`, maxItems: 8 },
   )
+
+  if (selection === "exit") return { kind: "exit" }
+  if (selection === "manual-path") {
+    const answer = await promptRich(host, "输入文件夹路径", "")
+    const [path] = await validDirectoryPaths(splitPaths(answer), runtime)
+    if (path) return { kind: "path", path, task: defaultTask }
+    writeRichPanel(host, "Path", "未提供有效文件夹路径。", { color: "yellow", minWidth: 48 })
+    return { kind: "task", task: defaultTask }
+  }
+
+  const taskName = selection.slice("task:".length)
+  return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
+async function resolveGuidedPaths(host: CliHost, runtime: RawfilterRuntime): Promise<string[]> {
+  const clipboardPaths = await pathsFromClipboard(runtime)
+  if (clipboardPaths.length) {
+    writeLine(host, rich(host, `已从剪贴板读取 ${clipboardPaths.length} 个路径。`, "yellow"))
+    return clipboardPaths
+  }
+
+  const answer = await promptRich(host, "输入文件夹路径", "")
+  return await validDirectoryPaths(splitPaths(answer), runtime)
+}
+
+async function runGuidedTask(task: GuidedTask, path: string, host: CliHost): Promise<boolean> {
+  const input: RawfilterInput = { ...task.input, path }
+  let progressActive = false
+  const result = await runRawfilter(input, createNodeRawfilterRuntime(), (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
       return
     }
-    if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
-    else if (!key.ctrl && input) setValue((current) => current + input)
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
-  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
+  endProgress(host, progressActive)
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writePlanSummary(host, result)
+  if (!result.success) {
+    process.exitCode = 1
+    return false
+  }
+  return true
 }
 
-function normalizeGuidedAction(value: string): RawfilterAction {
-  const action = value.trim().toLowerCase()
-  return action === "execute" ? "execute" : "plan"
+function writePlanSummary(host: CliHost, result: RawfilterResult): void {
+  const data = result.data
+  if (!data) return
+  writeRichPanel(host, "Summary", [
+    `archives: ${data.archiveCount}  groups: ${data.totalGroups}  duplicate: ${data.duplicateGroups}`,
+    `kept: ${data.keptCount}  trash: ${data.movedToTrash}  multi: ${data.movedToMulti}  shortcut: ${data.createdShortcuts}`,
+    `errors: ${data.errorCount}  skipped: ${data.skippedFiles}`,
+  ], { color: result.success ? "green" : "yellow", minWidth: 76 })
+
+  for (const item of data.plan.slice(0, 80)) writeLine(host, formatPlanItem(item, host))
+  if (data.plan.length > 80) writeLine(host, rich(host, `... ${data.plan.length - 80} more item(s)`, "grey"))
+  if (data.errors.length) writeRichPanel(host, "Error", data.errors.join("\n"), { color: "red", minWidth: 76 })
+}
+
+function formatPlanItem(item: RawfilterPlanItem, host: CliHost): string {
+  const status = item.status === "success"
+    ? rich(host, "success", "green")
+    : item.status === "error"
+      ? rich(host, "error", "red")
+      : item.status === "skipped"
+        ? rich(host, "skipped", "yellow")
+        : item.status === "kept"
+          ? rich(host, "kept", "blue")
+          : rich(host, "pending", "cyan")
+  const destination = rich(host, item.destination, item.destination === "trash" ? "red" : item.destination === "multi" ? "magenta" : item.destination === "shortcut" ? "cyan" : "blue")
+  const suffix = item.targetPath ? ` -> ${truncateVisible(item.targetPath, 48)}` : ` / ${item.reason}`
+  return `${status} ${destination} ${truncateVisible(item.fileName, terminalColumns(host) - visibleWidth(`${status} ${destination} `) - 24)}${suffix}`
+}
+
+async function pathsFromClipboard(runtime: RawfilterRuntime = createNodeRawfilterRuntime()): Promise<string[]> {
+  const text = await readClipboardText()
+  if (!text) return []
+  return await validDirectoryPaths(splitPaths(text), runtime)
+}
+
+async function validDirectoryPaths(candidates: string[], runtime: RawfilterRuntime): Promise<string[]> {
+  const paths: string[] = []
+  for (const candidate of candidates) {
+    const info = await runtime.pathInfo(candidate)
+    if (info.exists && info.isDirectory) paths.push(info.path)
+  }
+  return paths
+}
+
+function splitPaths(value?: string, seed: string[] = []): string[] {
+  return [...seed, ...(value ?? "").split(/[,;\r\n]/)]
+    .map(cleanPath)
+    .filter(Boolean)
+}
+
+function cleanPath(value = ""): string {
+  return value.trim().replace(/^["']|["']$/g, "")
 }
 
 function numberArg(value?: string | number): number | undefined {
@@ -213,6 +385,23 @@ function numberArg(value?: string | number): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active = true): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

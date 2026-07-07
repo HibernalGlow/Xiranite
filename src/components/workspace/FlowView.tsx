@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useState, type DragEvent as ReactDragEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Workflow } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
+import { cn } from "@/lib/utils"
 import type { ComponentInstance } from "@/types/workspace"
 
 const FlowCanvasView = lazy(() =>
@@ -79,8 +81,23 @@ function FlowCanvasLoading({ label, onActivate }: { label?: string; onActivate()
 export function FlowView() {
   const { t } = useTranslation()
   const visibleComponents = useWorkspaceVisibleComponents()
+  const workspaceActions = useWorkspaceActions()
   const hasFlowComponents = visibleComponents.some(isFlowCanvasVisible)
   const [canvasRequested, setCanvasRequested] = useState(false)
+  const handleDropModule = useCallback((moduleId: string, event: ReactDragEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const clientX = Number.isFinite(event.clientX) ? event.clientX : rect.left + rect.width / 2
+    const clientY = Number.isFinite(event.clientY) ? event.clientY : rect.top + rect.height / 2
+    workspaceActions.deployComponent(moduleId, {
+      viewMode: "flow",
+      flowPosition: {
+        x: Math.max(0, Math.round(clientX - rect.left - 192)),
+        y: Math.max(0, Math.round(clientY - rect.top - 160)),
+      },
+    })
+    setCanvasRequested(true)
+  }, [workspaceActions])
+  const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
 
   useEffect(() => {
     if (!hasFlowComponents) {
@@ -100,7 +117,23 @@ export function FlowView() {
   }, [canvasRequested, hasFlowComponents])
 
   return (
-    <div className="relative flex-1 min-h-0 w-full ws-canvas-bg">
+    <div
+      className={cn(
+        "relative flex-1 min-h-0 w-full ws-canvas-bg transition-colors",
+        isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+      )}
+      data-testid="flow-drop-target"
+      {...moduleDropHandlers}
+    >
+      {isModuleOver && (
+        <div
+          data-testid="flow-drop-shield"
+          className="absolute inset-0 z-20"
+          {...moduleDropHandlers}
+        >
+          <ModuleDropHint label={t("registry:dropHint")} />
+        </div>
+      )}
       {hasFlowComponents ? (
         <Suspense fallback={<FlowCanvasLoading onActivate={() => setCanvasRequested(true)} />}>
           {canvasRequested
@@ -110,6 +143,14 @@ export function FlowView() {
       ) : (
         <FlowEmptyState />
       )}
+    </div>
+  )
+}
+
+function ModuleDropHint({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+      {label}
     </div>
   )
 }

@@ -44,6 +44,7 @@ vi.mock("react-i18next", () => ({
 
 beforeEach(() => {
   overlayState.value = null
+  window.localStorage.clear()
 })
 
 afterEach(() => {
@@ -55,6 +56,7 @@ describe("OverlayHost", () => {
   test("keeps overlay views unloaded while the overlay is closed", () => {
     render(<OverlayHost />)
 
+    expect(screen.queryByTestId("workspace-push-panel")).toBeNull()
     expect(screen.queryByTestId("registry-view")).toBeNull()
     expect(moduleLoadCounts.registry).not.toHaveBeenCalled()
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
@@ -68,9 +70,24 @@ describe("OverlayHost", () => {
     render(<OverlayHost />)
 
     expect(await screen.findByTestId("registry-view")).toBeTruthy()
+    expect(screen.getByTestId("workspace-push-panel")).toBeTruthy()
+    expect(screen.getByTestId("workspace-push-panel").getAttribute("data-overlay-mode")).toBe("docked")
     expect(moduleLoadCounts.registry).toHaveBeenCalledTimes(1)
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
     expect(moduleLoadCounts.deployment).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
+  })
+
+  test("restores floating mode and custom width from local storage", async () => {
+    window.localStorage.setItem("xiranite.overlay.mode", "floating")
+    window.localStorage.setItem("xiranite.overlay.width", "560")
+    overlayState.value = "registry"
+
+    render(<OverlayHost />)
+
+    const panel = await screen.findByTestId("workspace-push-panel")
+    expect(panel.getAttribute("data-overlay-mode")).toBe("floating")
+    expect(panel.style.width).toBe("560px")
+    expect(screen.getByTestId("workspace-overlay-backdrop")).toBeTruthy()
   })
 })

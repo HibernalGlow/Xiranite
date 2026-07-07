@@ -130,8 +130,36 @@ export const CLEANING_PRESETS: Record<string, CleanfPreset> = {
   },
 }
 
+export interface CleanfPresetCombination {
+  id: string
+  name: string
+  description: string
+  presets: CleanfPresetId[]
+}
+
+export const PRESET_COMBINATIONS: CleanfPresetCombination[] = [
+  {
+    id: "advanced",
+    name: "高级清理",
+    description: "标准清理 + [#hb]文本文件",
+    presets: ["empty_folders", "backup_files", "temp_folders", "trash_files", "hb_txt_files"],
+  },
+  {
+    id: "upscale",
+    name: "upscale 环境清理",
+    description: "包含日志与 upscale 缓存清理（谨慎使用）",
+    presets: ["empty_folders", "backup_files", "temp_folders", "trash_files", "hb_txt_files", "log_files", "upscale"],
+  },
+  {
+    id: "complete",
+    name: "完整清理",
+    description: "包含所有清理项目（谨慎使用）",
+    presets: Object.keys(CLEANING_PRESETS),
+  },
+]
+
 export function parseCleanfPaths(textOrPaths: string | string[] | undefined): string[] {
-  const values = Array.isArray(textOrPaths) ? textOrPaths : (textOrPaths ?? "").split(/\r?\n/)
+  const values = Array.isArray(textOrPaths) ? textOrPaths : (textOrPaths ?? "").split(/\r?\n|;/)
   return values.map((path) => path.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
 }
 

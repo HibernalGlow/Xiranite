@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
+import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -63,6 +63,7 @@ const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
 }
 
 type ColorMode = "system" | "light" | "dark"
+type SettingsSection = "appearance" | "runtime" | "data"
 
 const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "settings:colorMode.system", descKey: "settings:colorMode.systemDesc", icon: Monitor },
@@ -75,6 +76,78 @@ function RuntimeRow({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
       <span className="text-[10px] font-mono tracking-widest text-muted-foreground">{label}</span>
       <span className="min-w-0 truncate text-xs font-mono text-foreground" title={value}>{value}</span>
+    </div>
+  )
+}
+
+function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (value: SettingsSection) => void }) {
+  const { t } = useTranslation()
+  const tabs: { key: SettingsSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { key: "appearance", label: t("settings:sections.appearance"), icon: Palette },
+    { key: "runtime", label: t("settings:sections.runtime"), icon: Server },
+    { key: "data", label: t("settings:sections.data"), icon: Database },
+  ]
+
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+      {tabs.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={cn(
+            "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors",
+            value === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+          )}
+        >
+          <Icon className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function DataSettingsPanel({
+  className,
+  runtimeInfo,
+  backendStatusLabel,
+}: {
+  className?: string
+  runtimeInfo: RuntimeConnectionInfo
+  backendStatusLabel: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className={cn("space-y-4", className)}>
+      <div className="rounded-sm border border-border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-sm border border-border/50 bg-muted/35">
+            <HardDrive className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-foreground">{t("settings:data.title")}</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:data.description")}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2">
+          <RuntimeRow label={t("settings:data.backendEndpoint")} value={runtimeInfo.backendUrl ?? t("common:unknown")} />
+          <RuntimeRow label={t("settings:data.backendStatus")} value={backendStatusLabel} />
+          <RuntimeRow label={t("settings:data.token")} value={runtimeInfo.backendTokenConfigured ? t("settings:developerRuntime.configured") : t("settings:developerRuntime.notConfigured")} />
+          <RuntimeRow label={t("settings:data.databasePath")} value={t("settings:data.databasePathManaged")} />
+        </div>
+      </div>
+
+      <div className="rounded-sm border border-border/60 bg-muted/15 p-4">
+        <div className="flex items-start gap-3">
+          <Database className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <h4 className="text-sm font-medium text-foreground">{t("settings:data.nextTitle")}</h4>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:data.nextDescription")}</p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -99,6 +172,7 @@ export function ThemeSettings() {
   const runtimeInfo = getRuntimeConnectionInfo()
   const backendStatus = useLocalBackendStatus()
   const [copiedCommand, setCopiedCommand] = useState<"attach" | "start" | null>(null)
+  const [section, setSection] = useState<SettingsSection>("appearance")
 
   const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
   const backendStatusKind = backendStatus.data?.status ?? (backendStatus.isFetching ? "checking" : "unknown")
@@ -132,15 +206,20 @@ export function ThemeSettings() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-6 pt-6 pb-4 border-b border-border/60 flex-shrink-0">
-        <h1 className="text-3xl font-mono font-black text-foreground tracking-tight">{t("settings:header")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{t("settings:headerSubtitle")}</p>
+      <div className="px-4 py-3 border-b border-border/60 flex-shrink-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold text-foreground">{t("settings:title")}</h1>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:headerSubtitle")}</p>
+          </div>
+        </div>
+        <SettingsTabs value={section} onChange={setSection} />
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 p-4">
           {/* Left column */}
-          <div className="space-y-4">
+          <div className={cn("space-y-4", section !== "appearance" && "hidden")}>
             {/* Active Preset Card */}
             <div className="bg-card border border-border rounded-sm p-5">
               <div className="flex items-start justify-between mb-3">
@@ -261,7 +340,7 @@ export function ThemeSettings() {
 
           {/* Right column */}
           <div className="space-y-4">
-            <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+            <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "runtime" && "hidden")}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-sm border border-border/50 bg-muted/35">
@@ -323,7 +402,7 @@ export function ThemeSettings() {
             </div>
 
             {/* Atmospheric Effects */}
-            <div className="bg-card border border-border rounded-sm p-5">
+            <div className={cn("bg-card border border-border rounded-sm p-4", section !== "appearance" && "hidden")}>
               <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:atmospheric.title")}</h3>
 
               <div className="space-y-5">
@@ -392,7 +471,7 @@ export function ThemeSettings() {
             </div>
 
             {/* Background settings card */}
-            <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+            <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "appearance" && "hidden")}>
               <h3 className="text-lg font-semibold text-foreground">{t("settings:background.title")}</h3>
 
               {/* Background Mode Selector */}
@@ -513,7 +592,7 @@ export function ThemeSettings() {
             </div>
 
             {/* Texture canvas preview */}
-            <div className="bg-card border border-border rounded-sm p-5">
+            <div className={cn("bg-card border border-border rounded-sm p-4", section !== "appearance" && "hidden")}>
               <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:texture.title")}</h3>
               <div className="ws-canvas-bg rounded border border-border/40 h-28 flex items-center justify-center">
                 <div className="bg-card border border-border rounded-sm p-3">
@@ -532,9 +611,15 @@ export function ThemeSettings() {
               </div>
             </div>
           </div>
+
+          <DataSettingsPanel
+            className={section !== "data" ? "hidden" : undefined}
+            runtimeInfo={runtimeInfo}
+            backendStatusLabel={backendStatusLabel}
+          />
         </div>
 
-        <div className="px-6 pb-6 flex items-center justify-end gap-3">
+        <div className={cn("px-4 pb-4 flex items-center justify-end gap-3", section !== "appearance" && "hidden")}>
           <Button variant="outline" className="font-mono text-xs">{t("settings:texture.resetDefaults")}</Button>
           <Button className="font-mono text-xs btn-primary-glow">{t("settings:texture.applyChanges")}</Button>
         </div>

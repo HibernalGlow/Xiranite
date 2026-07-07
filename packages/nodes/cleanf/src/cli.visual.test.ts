@@ -9,19 +9,24 @@ afterEach(() => {
 })
 
 describe("cleanf guided CLI visual capture", () => {
-  test("captures the Ink guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
+  test("captures the Clack guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
     const capture = await captureCliVisual({
       nodeId: "cleanf",
       cliPath: CLI_PATH,
       args: [],
       artifactName: "guided-entry",
-      waitForText: "Enter path(s), separated by semicolon.",
+      waitForText: "选择路径输入方式",
     })
 
     expect(capture.plainText).toContain("Xiranite Cleanf")
-    expect(capture.plainText).toContain("safe cleanup planning")
-    expect(capture.plainText).toContain("xcleanf preview --paths <folder> --json")
-    expect(capture.plainText).toContain("Enter path(s), separated by semicolon.")
+    expect(capture.plainText).toContain("文件清理工具")
+    expect(capture.plainText).toContain("选择路径输入方式")
+    expect(capture.plainText).toContain("empty_folders")
+    expect(capture.plainText).toContain("advanced")
+    expect(capture.plainText).toContain("complete")
+    expect(capture.plainText).not.toContain("Enter path(s)")
+    expect(capture.plainText).not.toContain("Entry")
+    expect(capture.plainText).not.toContain("Script")
     expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
     expect(capture.html).not.toMatch(/\u001b|\?25|DABx/)
     await expectCliVisualArtifacts(capture)

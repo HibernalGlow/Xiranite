@@ -65,6 +65,15 @@ export interface ComponentInstance {
   tags?: string[]
 }
 
+export interface DeployComponentOptions {
+  viewMode?: ViewMode
+  laneId?: string
+  flowPosition?: { x: number; y: number }
+  position?: { x: number; y: number }
+  dockPanel?: string
+  tags?: string[]
+}
+
 export interface ModuleDef {
   id: string
   name: string

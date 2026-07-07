@@ -27,7 +27,9 @@ describe("marku CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("text --input '# A' --json")
+    expect(host.stderrText()).toContain("text --module")
+    expect(host.stderrText()).toContain("--input")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("processes inline markdown text as JSON", async () => {

@@ -23,14 +23,23 @@ const PHASE_CLASS: Record<NodeOperationPhaseDTO, string> = {
   cancelled: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
 }
 
+type OperationFilter = "all" | "active" | "finished"
+
 export function NodeOperationMonitor() {
   const { t } = useTranslation()
   const operations = useNodeOperations((store) => store.operations)
   const clearTerminal = useNodeOperations((store) => store.clearTerminal)
   const upsertOperation = useNodeOperations((store) => store.upsertOperation)
   const activeCount = activeNodeOperationCount(operations)
+  const finishedCount = operations.length - activeCount
   const [busyOperationId, setBusyOperationId] = useState<string | null>(null)
   const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [filter, setFilter] = useState<OperationFilter>("all")
+  const visibleOperations = operations.filter((operation) => {
+    if (filter === "active") return !isTerminalPhase(operation.phase)
+    if (filter === "finished") return isTerminalPhase(operation.phase)
+    return true
+  })
 
   async function cancelOperation(operationId: string) {
     setBusyOperationId(operationId)
@@ -75,14 +84,20 @@ export function NodeOperationMonitor() {
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Metric label={t("view:operations.active")} value={activeCount} />
           <Metric label={t("view:operations.recent")} value={operations.length} />
-          <Metric label={t("view:operations.finished")} value={operations.length - activeCount} />
+          <Metric label={t("view:operations.finished")} value={finishedCount} />
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+          <FilterButton active={filter === "all"} onClick={() => setFilter("all")} label={t("view:operations.all")} />
+          <FilterButton active={filter === "active"} onClick={() => setFilter("active")} label={t("view:operations.active")} />
+          <FilterButton active={filter === "finished"} onClick={() => setFilter("finished")} label={t("view:operations.finished")} />
         </div>
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-4">
-        {operations.length ? (
+        {visibleOperations.length ? (
           <div className="space-y-2">
-            {operations.map((operation) => (
+            {visibleOperations.map((operation) => (
               <OperationRow
                 key={operation.operationId}
                 operation={operation}
@@ -107,6 +122,21 @@ function Metric({ label, value }: { label: string; value: number }) {
       <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</div>
     </div>
+  )
+}
+
+function FilterButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "h-8 rounded-sm px-2 text-[11px] transition-colors",
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -199,4 +229,3 @@ function formatTime(value: number): string {
     second: "2-digit",
   }).format(new Date(value))
 }
-

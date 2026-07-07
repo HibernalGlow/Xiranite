@@ -10,7 +10,7 @@
  * 调宽：dispatch SET_LANE_WIDTH_RATIO（按 ratio 增量累加并 clamp 到 0.25~4）
  * 拖拽 lane：拖动标题栏时由 @dnd-kit 在 LaneView 中重排。
  */
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
@@ -18,6 +18,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
@@ -71,6 +72,10 @@ export function Lane({ lane, components }: Props) {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(translateLabel(lane.label, t))
   const [ratioInput, setRatioInput] = useState(String(lane.widthRatio))
+  const handleDropModule = useCallback((moduleId: string) => {
+    workspaceActions.deployComponent(moduleId, { viewMode: "lane", laneId: lane.id })
+  }, [lane.id, workspaceActions])
+  const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
   const {
     attributes,
     listeners,
@@ -269,12 +274,16 @@ export function Lane({ lane, components }: Props) {
         className={cn(
           "flex-1 overflow-y-auto p-2 space-y-2 min-h-0 transition-colors",
           isOver ? "bg-primary/5" : undefined,
+          isModuleOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : undefined,
         )}
+        {...moduleDropHandlers}
       >
         <SortableContext items={components.map((component) => cardDndId(component.id))} strategy={verticalListSortingStrategy}>
           {components.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <p className="text-[10px] font-mono text-muted-foreground/60">{t("view:lane.emptyLane")}</p>
+              <p className="text-[10px] font-mono text-muted-foreground/60">
+                {isModuleOver ? t("registry:dropHint") : t("view:lane.emptyLane")}
+              </p>
             </div>
           ) : (
             components.map(c => (

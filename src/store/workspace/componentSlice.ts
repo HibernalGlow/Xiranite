@@ -1,11 +1,12 @@
-import type { ComponentInstance, ComponentState, Lane, ViewMode } from "@/types/workspace"
+import type { ComponentInstance, ComponentState, DeployComponentOptions, Lane, ViewMode } from "@/types/workspace"
 import { VIEW_MODES } from "./constants"
 import { nextComponentCounter, nextLaneId } from "./idCounters"
 import type { ComponentPatch, WorkspaceComponentActions, WorkspaceStoreUpdater, WSState } from "./types"
 
 export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceComponentActions {
   return {
-    deployComponent: (moduleId, viewMode) => update("DEPLOY_COMPONENT", (state) => deployComponentState(state, moduleId, viewMode)),
+    deployComponent: (moduleId, viewModeOrOptions) =>
+      update("DEPLOY_COMPONENT", (state) => deployComponentState(state, moduleId, normalizeDeployOptions(viewModeOrOptions))),
     ensureComponent: (component) => update("ENSURE_COMPONENT", (state) => ensureComponentState(state, component)),
     removeComponent: (id) => update("REMOVE_COMPONENT", (state) => removeComponentState(state, id)),
     setComponentState: (id, state) => update("SET_COMPONENT_STATE", (store) => setComponentRuntimeState(store, id, state)),
@@ -29,7 +30,12 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
   }
 }
 
-function deployComponentState(state: WSState, moduleId: string, viewMode?: ViewMode): WSState {
+function normalizeDeployOptions(viewModeOrOptions?: ViewMode | DeployComponentOptions): DeployComponentOptions {
+  if (!viewModeOrOptions) return {}
+  return typeof viewModeOrOptions === "string" ? { viewMode: viewModeOrOptions } : viewModeOrOptions
+}
+
+function deployComponentState(state: WSState, moduleId: string, options: DeployComponentOptions = {}): WSState {
   const workspace = state.workspaces.find((item) => item.id === state.activeWorkspaceId)
   if (!workspace) return state
 
@@ -37,23 +43,24 @@ function deployComponentState(state: WSState, moduleId: string, viewMode?: ViewM
   const now = Date.now()
   const zCounter = state.zCounter + 1
   const visibleLanes = state.lanes.filter((lane) => lane.workspaceId === workspace.id && !lane.hidden)
-  const laneId = visibleLanes[0]?.id
+  const laneId = visibleLanes.some((lane) => lane.id === options.laneId) ? options.laneId : visibleLanes[0]?.id
   const newComponent: ComponentInstance = {
     id: `comp-${instanceCounter}-${now}`,
     moduleId,
     state: "docked",
-    position: { x: 20 + (instanceCounter % 5) * 20, y: 20 + (instanceCounter % 4) * 20 },
+    position: options.position ?? { x: 20 + (instanceCounter % 5) * 20, y: 20 + (instanceCounter % 4) * 20 },
     size: { w: 340, h: 280 },
     z: zCounter,
     collapsed: false,
     workspaceId: workspace.id,
     laneId,
-    flowPosition: { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
+    flowPosition: options.flowPosition ?? { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
     flowSize: { width: 384, height: 320 },
-    dockPanel: "default",
-    hiddenIn: viewMode
-      ? (Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== viewMode])) as Record<ViewMode, boolean>)
+    dockPanel: options.dockPanel ?? "default",
+    hiddenIn: options.viewMode
+      ? (Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== options.viewMode])) as Record<ViewMode, boolean>)
       : undefined,
+    tags: options.tags,
     createdAt: now,
     updatedAt: now,
   }

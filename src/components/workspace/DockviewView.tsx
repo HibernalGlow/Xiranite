@@ -6,6 +6,8 @@ import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/work
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
+import { cn } from "@/lib/utils"
 import { Plus, X, LayoutPanelTop } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { ComponentInstance } from "@/types/workspace"
@@ -34,6 +36,10 @@ export function DockviewView() {
   const apiRef = useRef<DockviewApi | null>(null)
   const removeDisposableRef = useRef<{ dispose(): void } | null>(null)
   const syncingFromStoreRef = useRef(false)
+  const handleDropModule = useCallback((moduleId: string) => {
+    workspaceActions.deployComponent(moduleId, { viewMode: "dockview" })
+  }, [workspaceActions])
+  const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
 
   // 仅渲染未在 dockview 模式下隐藏的组件
   const dockComponents = useMemo(
@@ -150,7 +156,15 @@ export function DockviewView() {
   }), [workspaceActions])
 
   return (
-    <div className="flex-1 ws-canvas-bg dv-theme-bridge flex flex-col overflow-hidden relative">
+    <div
+      className={cn(
+        "flex-1 ws-canvas-bg dv-theme-bridge flex flex-col overflow-hidden relative transition-colors",
+        isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+      )}
+      data-testid="dockview-drop-target"
+      {...moduleDropHandlers}
+    >
+      {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
       <DockviewReact
         components={components}
         tabComponents={tabComponents}
@@ -174,6 +188,14 @@ export function DockviewView() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ModuleDropHint({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+      {label}
     </div>
   )
 }
