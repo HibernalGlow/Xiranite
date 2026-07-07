@@ -8,18 +8,21 @@
  *
  * 折叠：dispatch TOGGLE_LANE_COLLAPSE
  * 调宽：dispatch SET_LANE_WIDTH_RATIO（按 ratio 增量累加并 clamp 到 0.25~4）
- * 拖拽 lane：拖动标题栏 grip 时 setLaneDrag(id)，可在 LaneContainer 中重排
+ * 拖拽 lane：拖动标题栏时由 @dnd-kit 在 LaneView 中重排。
  */
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
+import { useDroppable } from "@dnd-kit/core"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import type { Lane as LaneType } from "@/types/workspace"
-import { useWSDispatch, actions } from "@/store/workspaceContext"
-import { setLaneDrag, clearDrag } from "@/store/dragState"
+import { useWorkspaceActions } from "@/store/workspaceContext"
 import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
 import { cn } from "@/lib/utils"
+import { cardDndId, laneDndId, laneDropDndId } from "./dndIds"
 
 const RATIO_PRESETS = [0.5, 1, 1.5, 2, 3]
 
@@ -63,53 +66,68 @@ interface Props {
 
 export function Lane({ lane, components }: Props) {
   const { t } = useTranslation()
-  const dispatch = useWSDispatch()
+  const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(translateLabel(lane.label, t))
   const [ratioInput, setRatioInput] = useState(String(lane.widthRatio))
-
-  function handleDragStart(e: React.DragEvent) {
-    setLaneDrag(lane.id)
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move"
-      e.dataTransfer.setData("text/x-lane-id", lane.id)
-    }
-  }
-
-  function handleDragEnd() {
-    clearDrag()
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: laneDndId(lane.id),
+    data: { type: "lane", laneId: lane.id },
+    disabled: renaming,
+  })
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
+    id: laneDropDndId(lane.id),
+    data: { type: "lane-drop", laneId: lane.id },
+    disabled: lane.collapsed,
+  })
+  const sortableStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : undefined,
+    zIndex: isDragging ? 20 : undefined,
   }
 
   function commitRename() {
     const trimmed = name.trim()
-    if (trimmed) dispatch(actions.renameLane(lane.id, trimmed))
+    if (trimmed) workspaceActions.renameLane(lane.id, trimmed)
     setRenaming(false)
   }
 
   function commitRatioInput() {
     const val = parseFloat(ratioInput)
-    if (!isNaN(val) && val > 0) dispatch(actions.setLaneWidthRatio(lane.id, val))
+    if (!isNaN(val) && val > 0) workspaceActions.setLaneWidthRatio(lane.id, val)
     setRatioInput(String(lane.widthRatio))
   }
 
   if (lane.collapsed) {
     return (
       <div
+        ref={setNodeRef}
         data-lane-id={lane.id}
-        draggable
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
+        style={sortableStyle}
         className="w-12 flex-shrink-0 flex flex-col items-center gap-2 py-3 px-1 border-r border-border/40 bg-muted/20 hover:bg-muted/40 cursor-grab active:cursor-grabbing"
       >
         <button
-          onClick={() => dispatch(actions.toggleLaneCollapse(lane.id))}
+          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
           className="text-muted-foreground hover:text-foreground"
           title={t("common:expand")}
         >
           <LaneIcon collapsed />
         </button>
         <span
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          data-lane-drag-handle="true"
           className="text-[10px] font-mono tracking-widest text-muted-foreground"
           style={{ writingMode: "vertical-rl" }}
         >
@@ -121,14 +139,15 @@ export function Lane({ lane, components }: Props) {
 
   return (
     <div
+      ref={setNodeRef}
       data-lane-id={lane.id}
-      style={{ flex: lane.widthRatio, minWidth: 240, maxWidth: 720 }}
+      style={{ flex: lane.widthRatio, minWidth: 240, maxWidth: 720, ...sortableStyle }}
       className="relative flex flex-col h-full border-r border-border/40 bg-card/40 last:border-r-0 flex-shrink-0"
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
         <button
-          onClick={() => dispatch(actions.toggleLaneCollapse(lane.id))}
+          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
           className="text-muted-foreground hover:text-foreground"
           title={t("common:collapse")}
         >
@@ -146,9 +165,10 @@ export function Lane({ lane, components }: Props) {
           />
         ) : (
           <span
-            draggable
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            data-lane-drag-handle="true"
             className="flex-1 text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground cursor-grab active:cursor-grabbing truncate select-none"
             title={t("common:dragReorder")}
           >
@@ -184,7 +204,7 @@ export function Lane({ lane, components }: Props) {
               <Pencil className="h-3.5 w-3.5" /> {t("common:rename")}
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.toggleLaneCollapse(lane.id)) }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.toggleLaneCollapse(lane.id) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm"
             >
               <LaneIcon collapsed={false} /> {t("common:collapse")}
@@ -198,7 +218,7 @@ export function Lane({ lane, components }: Props) {
                 {RATIO_PRESETS.map(preset => (
                   <button
                     key={preset}
-                    onClick={(e) => { e.stopPropagation(); dispatch(actions.setLaneWidthRatio(lane.id, preset)) }}
+                    onClick={(e) => { e.stopPropagation(); workspaceActions.setLaneWidthRatio(lane.id, preset) }}
                     className={cn(
                       "py-1 rounded-sm border text-[10px] font-mono",
                       Math.abs(lane.widthRatio - preset) < 0.01
@@ -227,13 +247,13 @@ export function Lane({ lane, components }: Props) {
             </div>
 
             <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.toggleLaneVisibility(lane.id)) }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.toggleLaneVisibility(lane.id) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm border-t border-border/60"
             >
               <EyeOff className="h-3.5 w-3.5" /> {t("common:hide")}
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); dispatch(actions.removeLane(lane.id)) }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.removeLane(lane.id) }}
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-destructive/10 hover:text-destructive rounded-sm"
             >
               <Trash2 className="h-3.5 w-3.5" /> {t("common:delete")}
@@ -244,26 +264,29 @@ export function Lane({ lane, components }: Props) {
 
       {/* 内容区：card 列表 */}
       <div
-        className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0"
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
-        }}
-      >
-        {components.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-[10px] font-mono text-muted-foreground/60">{t("view:lane.emptyLane")}</p>
-          </div>
-        ) : (
-          components.map(c => (
-            <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId={lane.id} />
-          ))
+        ref={setDropNodeRef}
+        data-lane-drop-zone={lane.id}
+        className={cn(
+          "flex-1 overflow-y-auto p-2 space-y-2 min-h-0 transition-colors",
+          isOver ? "bg-primary/5" : undefined,
         )}
+      >
+        <SortableContext items={components.map((component) => cardDndId(component.id))} strategy={verticalListSortingStrategy}>
+          {components.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-[10px] font-mono text-muted-foreground/60">{t("view:lane.emptyLane")}</p>
+            </div>
+          ) : (
+            components.map(c => (
+              <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId={lane.id} />
+            ))
+          )}
+        </SortableContext>
       </div>
 
       <LaneResizer
         onResize={(deltaRatio) => {
-          dispatch(actions.setLaneWidthRatio(lane.id, lane.widthRatio + deltaRatio))
+          workspaceActions.setLaneWidthRatio(lane.id, lane.widthRatio + deltaRatio)
         }}
       />
     </div>

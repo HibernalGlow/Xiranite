@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { SeriexDirEntry, SeriexRuntime } from "./core.js"
 import { findSeriesGroups, parseSeriexConfigText, runSeriex, validateSeriesName } from "./core.js"
 

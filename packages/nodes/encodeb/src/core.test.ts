@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { EncodebEntry } from "./core.js"
 import { createEncodebMappings, findSuspicious, isSuspiciousName, runEncodeb, sortReplaceMappings } from "./core.js"
 

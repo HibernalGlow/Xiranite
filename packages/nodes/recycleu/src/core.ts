@@ -8,6 +8,7 @@ export interface RecycleuInput {
   action?: RecycleuAction
   interval?: number
   maxCycles?: number
+  driveLetter?: string
 }
 
 export interface EmptyRecycleBinResult {
@@ -18,7 +19,7 @@ export interface EmptyRecycleBinResult {
 export interface RecycleuRuntime {
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
-  emptyRecycleBin: () => Promise<EmptyRecycleBinResult>
+  emptyRecycleBin: (driveLetter?: string) => Promise<EmptyRecycleBinResult>
 }
 
 export interface RecycleuState {
@@ -44,7 +45,14 @@ export function normalizeRecycleuInput(input: RecycleuInput): Required<RecycleuI
     action: input.action ?? "status",
     interval: Math.max(1, Math.trunc(input.interval ?? 10)),
     maxCycles: Math.max(1, Math.trunc(input.maxCycles ?? 360)),
+    driveLetter: normalizeDriveLetter(input.driveLetter),
   }
+}
+
+export function normalizeDriveLetter(value?: string): string {
+  const trimmed = value?.trim() ?? ""
+  const match = trimmed.match(/^([a-zA-Z])(?::)?$/)
+  return match ? match[1].toUpperCase() : ""
 }
 
 export function formatClock(date: Date): string {
@@ -70,7 +78,7 @@ export async function runRecycleu(
   }
 
   if (normalized.action === "clean_now") {
-    return cleanOnce(runtime, state, onEvent)
+    return cleanOnce(runtime, state, onEvent, normalized.driveLetter)
   }
 
   if (normalized.interval < 5) {
@@ -85,7 +93,7 @@ export async function runRecycleu(
   onEvent({ type: "log", message: `Start auto-clean, interval ${normalized.interval}s.` })
 
   for (let cycle = 0; cycle < normalized.maxCycles; cycle += 1) {
-    const cleanResult = await cleanOnce(runtime, state, onEvent, false)
+    const cleanResult = await cleanOnce(runtime, state, onEvent, normalized.driveLetter, false)
     if (!cleanResult.success) {
       return cleanResult
     }
@@ -115,9 +123,10 @@ async function cleanOnce(
   runtime: RecycleuRuntime,
   state: RecycleuState,
   onEvent: (event: NodeRunEvent) => void,
+  driveLetter: string,
   setIdle = true,
 ): Promise<RecycleuResult> {
-  const result = await runtime.emptyRecycleBin()
+  const result = await runtime.emptyRecycleBin(driveLetter || undefined)
   const success = result.status === "cleaned" || result.status === "empty"
 
   if (result.status === "cleaned") {

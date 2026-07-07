@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, Package, Play, RotateCcw, Search } from "lucide-react"
@@ -22,17 +22,21 @@ interface RepackuCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<RepackuCardState>(compId) ?? {}
+  const dataRef = useRef<RepackuCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const result = data.result ?? null
   const logs = data.logs ?? []
   const types = parseTypes(data.typesText)
 
   function patch(patchData: Partial<RepackuCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePath() {
@@ -64,7 +68,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
 
     setRunning(true)
-    let nextLogs = [...logs]
+    let nextLogs = [...(dataRef.current.logs ?? [])]
     const pushLog = (message: string) => {
       nextLogs = [...nextLogs.slice(-40), message]
       patch({ logs: nextLogs })

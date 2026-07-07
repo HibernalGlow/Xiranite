@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -112,7 +112,7 @@ function inputFromArgs(args: RawfilterCliOptions): RawfilterInput {
 
 async function runAction(input: RawfilterInput & { action: RawfilterAction }, json: boolean, host: CliHost): Promise<void> {
   const result = await runRawfilter(input, createNodeRawfilterRuntime(), (event) => {
-    if (!json) writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
   })
   if (json) {
     writeJson(host, result)
@@ -168,10 +168,22 @@ function GuidedRawfilterApp({ host }: { host: CliHost }) {
 
   return h(
     Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "rawfilter guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    { flexDirection: "column", gap: 1 },
+    h(
+      Box,
+      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: "cyan", bold: true }, "Xiranite Rawfilter"),
+      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for duplicate archive filtering"),
+      h(Text, null, h(Text, { color: "cyan" }, "Run     "), "Direct core/platform call with dry plan before execute"),
+      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} plan --path <archive-folder> --json`),
+    ),
+    h(
+      Box,
+      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
+      h(Text, null, message),
+      step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    ),
     ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
   )
 }
@@ -187,7 +199,7 @@ function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<v
     if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
     else if (!key.ctrl && input) setValue((current) => current + input)
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
 }
 
 function normalizeGuidedAction(value: string): RawfilterAction {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, Filter, Image, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react"
@@ -28,6 +28,8 @@ interface EngineVCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<EngineVCardState>(compId) ?? {}
+  const dataRef = useRef<EngineVCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const result = data.result ?? null
   const wallpapers = data.wallpapers ?? result?.wallpapers ?? []
@@ -36,11 +38,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const selectedIds = parseIds(data.idsText)
 
   function patch(patchData: Partial<EngineVCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePath() {
@@ -50,30 +54,36 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EngineVAction, forceWrite = false) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     const input = buildInput(action, data, forceWrite)
     if (!input.path && !input.wallpapers?.length) return
     if (action === "delete" && !selectedIds.length) return
     if (action === "export" && !input.exportPath) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: t("module:enginev.starting") })
-    const response = await runNativeAction<EngineVInput, EngineVData>("enginev", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as EngineVResult
-
-    const next = response.data ?? null
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: next,
-      wallpapers: next?.wallpapers ?? wallpapers,
-      filteredWallpapers: next?.filteredWallpapers ?? filtered,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action, progress: 0, progressText: t("module:enginev.starting") })
+      const response = await runNativeAction<EngineVInput, EngineVData>("enginev", input, (event) => {
+        if (event.type === "progress") {
+          patch({ progress: event.progress ?? 0, progressText: event.message })
+          log(`[${event.progress ?? 0}%] ${event.message}`)
+        }
+        else log(event.message)
+      }) as EngineVResult
+  
+      const next = response.data ?? null
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: next,
+        wallpapers: next?.wallpapers ?? wallpapers,
+        filteredWallpapers: next?.filteredWallpapers ?? filtered,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {
@@ -155,9 +165,7 @@ export function Component({ compId, host }: NodeComponentProps) {
               <div key={`${item.workshopId}:${item.status}`} className="truncate">{item.status} {item.workshopId} {item.message}</div>
             ))
           ) : filtered.length ? (
-            filtered.slice(0, 80).map((item) => (
-              <div key={item.workshopId} className="truncate">{t("module:enginev.wallpaperLine", { id: item.workshopId, type: item.wallpaperType || t("module:enginev.unknown"), rating: item.contentRating || t("module:enginev.unrated"), title: item.title || item.folderName })}</div>
-            ))
+            filtered.slice(0, 80).map((item) => <WallpaperRow key={item.workshopId} item={item} host={host} />)
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground"><Image size={16} className="mr-1" /> {t("module:enginev.readyToScan")}</div>
           )}
@@ -193,4 +201,50 @@ function buildInput(action: EngineVAction, data: EngineVCardState, forceWrite: b
 
 function parseIds(value = ""): string[] {
   return value.split(/[,;\s]+/).map((item) => item.trim()).filter(Boolean)
+}
+
+function WallpaperRow({ item, host }: { item: EngineVWallpaper; host: NodeComponentProps["host"] }) {
+  const previewPath = resolvePreviewPath(item)
+  const previewUrl = previewPath
+    ? isRemoteUrl(previewPath) ? previewPath : host.localFiles?.getUrl?.(previewPath)
+    : undefined
+  const title = item.title || item.folderName
+
+  return (
+    <div className="flex min-w-0 gap-2 border-b border-border/40 py-1.5 last:border-b-0">
+      <div className="h-14 w-24 shrink-0 overflow-hidden rounded border border-border/60 bg-muted/40">
+        {previewUrl ? (
+          <img
+            data-enginev-preview="true"
+            src={previewUrl}
+            alt={title}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <Image size={14} />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-foreground">{title}</div>
+        <div className="truncate text-muted-foreground">{item.workshopId} / {item.wallpaperType || "unknown"} / {item.contentRating || "unrated"}</div>
+        <div className="truncate text-muted-foreground/80">{item.path}</div>
+      </div>
+    </div>
+  )
+}
+
+function resolvePreviewPath(item: EngineVWallpaper): string {
+  const preview = item.preview.trim()
+  if (!preview) return ""
+  if (isRemoteUrl(preview)) return preview
+  if (/^[A-Za-z]:[\\/]/.test(preview) || preview.startsWith("/") || preview.startsWith("\\\\")) return preview
+  const separator = item.path.includes("\\") ? "\\" : "/"
+  return `${item.path.replace(/[\\/]+$/, "")}${separator}${preview.replace(/^[\\/]+/, "")}`
+}
+
+function isRemoteUrl(value: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value)
 }

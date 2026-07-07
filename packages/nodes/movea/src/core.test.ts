@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { MoveaDirEntry, MoveaRuntime } from "./core.js"
 import { buildMoveaMoveTargets, isNumberedFolder, matchMoveaArchiveToFolders, runMovea } from "./core.js"
 
@@ -35,6 +35,22 @@ describe("movea core", () => {
     expect(result.data?.totalFolders).toBe(1)
     expect(result.data?.scanResults.artist?.archives).toEqual(["book.zip"])
     expect(result.data?.scanResults.artist?.movableFolders).toEqual(["loose"])
+  })
+
+  test("keeps archive folders even when no target subfolder exists", async () => {
+    const runtime = memoryRuntime({
+      root: [dir("artist", "root/artist")],
+      "root/artist": [
+        dir("loose", "root/artist/loose"),
+        file("book.zip", "root/artist/book.zip"),
+      ],
+    })
+    const result = await runMovea({ action: "scan", rootPath: "root" }, runtime)
+    expect(result.success).toBe(true)
+    expect(result.data?.totalFolders).toBe(1)
+    expect(result.data?.totalArchives).toBe(1)
+    expect(result.data?.scanResults.artist?.subfolders).toEqual([])
+    expect(result.data?.scanResults.artist?.warning).toBe("No target folder matched.")
   })
 
   test("runs dry-run move without touching runtime moves", async () => {

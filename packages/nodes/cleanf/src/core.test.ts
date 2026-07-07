@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { CleanfItem } from "./core.js"
 import { parseExcludeKeywords, planCleanf, runCleanf } from "./core.js"
 

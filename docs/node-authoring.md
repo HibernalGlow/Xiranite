@@ -160,14 +160,15 @@ export default entry
 
 ## Xiranite 集成
 
-当前集成是显式的：
+当前集成通过生成器维护静态 import：
 
 1. 将包添加到根 `package.json` 依赖中。
-2. 在 `src/components/modules/registry.ts` 中导入包默认入口并追加 `entry.def`。
-3. 在 `src/components/modules/ModuleRenderer.tsx` 中导入包默认入口并添加到 `packageModules`。
-4. 不要导入 `cli.ts`、`platform.ts`、`demo/*` 或任何非公开的应用内部模块。
+2. 确认节点包位于 `packages/nodes/<id>`，且 `package.json.name` 使用 `@xiranite/node-<id>`。
+3. 运行 `bun run generate:node-registries`，生成 `packages/runtime/src/node-runner.generated.ts` 与 `src/components/modules/packageModules.generated.ts`。
+4. 不要手改 `src/components/modules/registry.ts`、`src/components/modules/ModuleRenderer.tsx` 或 `packages/runtime/src/node-runner.ts` 的节点清单。
+5. 不要导入 `cli.ts`、`platform.ts`、`demo/*` 或任何非公开的应用内部模块。
 
-未来的插件发现机制可以替代静态导入，但节点包仍必须遵守相同的公开契约。
+未来的插件发现机制可以替代生成的静态 import，但节点包仍必须遵守相同的公开契约。
 
 ## 验证
 
@@ -176,6 +177,7 @@ export default entry
 ```powershell
 bun --filter @xiranite/node-example test
 bun --filter @xiranite/node-example build
+bun run generate:node-registries
 bun scripts/validate-node-architecture.ts --node example
 bun run test:packages
 bun run build:packages

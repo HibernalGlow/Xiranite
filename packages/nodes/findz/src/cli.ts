@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -154,7 +154,7 @@ function inputFromArgs(args: FindzCliOptions): FindzInput {
 
 async function runAction(action: FindzAction, input: FindzInput, host: CliHost): Promise<void> {
   const result = await runFindz({ ...input, action }, createNodeFindzRuntime(), (event) => {
-    if (!input.outputFormat || input.outputFormat === "text") writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!input.outputFormat || input.outputFormat === "text") writeCliEvent(host, event, { label: CLI_NAME })
   })
 
   if (input.outputFormat === "json") {

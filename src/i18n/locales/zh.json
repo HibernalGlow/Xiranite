@@ -102,8 +102,13 @@
     },
     "registry": "模块库",
     "deployment": "部署中心",
+    "operations": "节点运行",
     "search": "搜索...",
-    "searchHint": "搜索"
+    "searchHint": "搜索",
+    "devRuntime": {
+      "vite": "??????",
+      "packaged": "??????"
+    }
   },
   "settings": {
     "title": "主题设置",
@@ -192,6 +197,38 @@
         "subtitle": "明日方舟终末地",
         "description": "灵感来自明日方舟终末地武陵城的暖琥珀色调。古城遇赛博朋克 — 金色强调对深赭暗色。"
       }
+    },
+    "developerRuntime": {
+      "title": "开发运行时",
+      "description": "查看桌面壳当前连接的前端来源与本地后端。Wails dev proxy 在启动时确定，不支持运行中热切换。",
+      "hostRuntime": "宿主",
+      "frontend": "前端",
+      "backend": "后端",
+      "token": "令牌",
+      "status": "状态",
+      "configured": "已配置",
+      "notConfigured": "未配置",
+      "statusReady": "就绪",
+      "statusChecking": "检查中",
+      "statusMissingConfig": "缺少配置",
+      "statusUnreachable": "无法连接",
+      "frontendSource": {
+        "vite-dev": "VITE DEV",
+        "packaged": "PACKAGED"
+      },
+      "hotSwitchHint": "开发时先运行 bun run dev，再运行 bun run dev:desktop:attach，让桌面壳附着到现有 Vite/Elysia 端口。需要一个命令启动全部时使用 bun run dev:desktop。",
+      "reload": "重载 WebView",
+      "refreshStatus": "刷新状态",
+      "copyAttach": "复制附着命令",
+      "copyStart": "复制一键命令",
+      "copied": "已复制",
+      "openFrontend": "打开前端"
+    },
+    "backendBanner": {
+      "missingConfig": "Local Backend 未配置，工作区和节点运行已暂停。",
+      "unreachable": "Local Backend 无法连接：{{url}}。工作区和节点运行已暂停。",
+      "retry": "重试",
+      "openRuntime": "运行时设置"
     }
   },
   "registry": {
@@ -222,7 +259,8 @@
   "overlay": {
     "registry": "模块库",
     "settings": "主题设置",
-    "deployment": "部署中心"
+    "deployment": "部署中心",
+    "operations": "节点运行"
   },
   "view": {
     "cards": {
@@ -233,7 +271,9 @@
     },
     "flow": {
       "empty": "// 流程画布为空",
-      "openRegistry": "打开模块库"
+      "openRegistry": "打开模块库",
+      "loadCanvas": "打开流程画布",
+      "loadingCanvas": "正在加载流程画布"
     },
     "lane": {
       "empty": "// 暂无泳道 — 创建一个开始",
@@ -288,6 +328,30 @@
           "nodes": "节点",
           "edges": "边"
         }
+      }
+    },
+    "operations": {
+      "title": "节点运行",
+      "subtitle": "查看本地后端节点任务、最近结果与流式事件。",
+      "active": "运行中",
+      "recent": "最近",
+      "finished": "已结束",
+      "clearLocal": "清理已结束",
+      "cleanupBackend": "清理后端",
+      "empty": "本会话还没有节点运行记录。",
+      "cancel": "取消",
+      "progress": "进度",
+      "events": "{{count}} 个事件",
+      "started": "开始 {{time}}",
+      "updated": "更新 {{time}}",
+      "noMessage": "暂无消息",
+      "noEvents": "暂无流式事件",
+      "phase": {
+        "queued": "排队",
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "错误",
+        "cancelled": "已取消"
       }
     },
     "database": {
@@ -405,11 +469,15 @@
     },
     "database": {
       "name": "数据库",
-      "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。"
+      "description": "Notion 式表格视图：收集所有组件的元数据（模块/状态/可见性/标签/时间），支持排序、筛选、行内编辑。",
+      "loadView": "打开数据库视图",
+      "loadingView": "正在加载数据库视图"
     },
     "blocknote": {
       "name": "BLOCKNOTE",
-      "description": "基于 shadcn 的 BlockNote 富文本编辑器。块级文档编辑、拖拽重排、斜杠菜单，样式自动跟随项目主题。"
+      "description": "基于 shadcn 的 BlockNote 富文本编辑器。块级文档编辑、拖拽重排、斜杠菜单，样式自动跟随项目主题。",
+      "loadEditor": "打开编辑器",
+      "loading": "正在加载编辑器"
     },
     "enginev": {
       "name": "EngineV",
@@ -418,6 +486,7 @@
       "meta": "已扫描 {{scanned}} / 可见 {{visible}} / 已选 {{selected}}",
       "starting": "启动中",
       "pasteWorkshopPath": "粘贴工坊路径",
+      "scan": "扫描",
       "filter": "筛选",
       "rename": "重命名",
       "copyResults": "复制结果",
@@ -433,8 +502,11 @@
       "dryRun": "预演",
       "copyMode": "复制模式",
       "delete": "删除",
+      "export": "导出",
       "stats": {
+        "total": "总数",
         "filtered": "已筛选",
+        "types": "类型",
         "ok": "成功",
         "failed": "失败"
       },
@@ -947,29 +1019,14 @@
       "copyLogs": "复制日志",
       "reset": "重置",
       "intervalSeconds": "间隔秒数",
+      "cycles": "轮数",
+      "driveLetter": "盘符",
       "runs": "{{count}} 次",
       "phase": "阶段",
       "last": "上次",
       "progress": "进度",
       "waiting": "等待中",
       "starting": "启动中..."
-    },
-    "reinstallp": {
-      "name": "Reinstallp",
-      "description": "使用 uv 扫描并重新安装 Python 可编辑包。",
-      "title": "reinstallp",
-      "meta": "{{projects}} 个项目 / 已选 {{selected}} / {{mode}}",
-      "pasteRoot": "粘贴根目录",
-      "scan": "扫描",
-      "install": "安装",
-      "copyLogs": "复制日志",
-      "reset": "重置",
-      "rootPath": "根路径",
-      "system": "--system",
-      "local": "本地",
-      "ok": "成功",
-      "fail": "失败",
-      "noScanResult": "无扫描结果"
     },
     "repacku": {
       "name": "Repacku",
@@ -1130,57 +1187,6 @@
       "renameJson": "重命名 JSON",
       "progressLine": "[{{progress}}%] {{text}}",
       "readyToScan": "准备将文件夹扫描为重命名 JSON。"
-    },
-    "weibospider": {
-      "name": "WeiboSpider",
-      "description": "抓取 weibo.cn 用户帖子，校验 cookie，并输出 JSON/CSV/TXT 文件。",
-      "title": "weibospider",
-      "meta": "{{users}} 用户 / {{weibos}} 微博 / {{cookie}}",
-      "starting": "启动中",
-      "pasteUsers": "粘贴用户",
-      "load": "加载",
-      "save": "保存",
-      "cookie": "Cookie",
-      "crawl": "抓取",
-      "copySummary": "复制摘要",
-      "reset": "重置",
-      "users": "用户",
-      "since": "起始",
-      "end": "结束",
-      "outputDir": "输出目录",
-      "configPath": "配置路径",
-      "maxPages": "最大页数",
-      "original": "原创",
-      "pictures": "图片",
-      "videos": "视频",
-      "download": "下载",
-      "edge": "edge",
-      "chrome": "chrome",
-      "browser": "浏览器",
-      "writeMode": "写入模式",
-      "importPath": "导入路径",
-      "exportPath": "导出路径",
-      "import": "导入",
-      "export": "导出",
-      "statCookie": "cookie",
-      "statUsers": "用户",
-      "statWeibos": "微博",
-      "statWrites": "写入",
-      "statErrors": "错误",
-      "ready": "就绪",
-      "missing": "缺失",
-      "cookieReadyMeta": "cookie 就绪",
-      "cookiePendingMeta": "cookie 待提供",
-      "cookieLabel": "cookie",
-      "pasteCookie": "粘贴 cookie",
-      "clear": "清空",
-      "copyLogs": "复制日志",
-      "progressLine": "[{{progress}}%] {{text}}",
-      "postLine": "{{time}} / {{type}} / {{content}}",
-      "retweet": "转发",
-      "writePath": "写入 {{path}}",
-      "errorItem": "错误 {{item}}",
-      "readyToCrawl": "准备抓取 weibo.cn 用户。"
     }
   }
 }

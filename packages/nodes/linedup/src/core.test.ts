@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { createDiffRows, filterLines, splitLines, uniqueNonEmptyLines } from "./core.js"
 
 describe("linedup core", () => {

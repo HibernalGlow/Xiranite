@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FilePenLine, FolderOpen, Play, RefreshCw, RotateCcw, Search, Undo2, Upload } from "lucide-react"
@@ -28,6 +28,8 @@ interface TrenameCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<TrenameCardState>(compId) ?? {}
+  const dataRef = useRef<TrenameCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const result = data.result ?? null
   const logs = data.logs ?? []
@@ -35,11 +37,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const summary = summarizeJson(jsonText)
 
   function patch(patchData: Partial<TrenameCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePath() {
@@ -62,30 +66,36 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: TrenameAction) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     const input = buildInput(action, data, jsonText)
     if (action === "scan" && !input.paths) return
     if ((action === "import" || action === "validate" || action === "rename") && !input.jsonContent) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: t("module:trename.starting") })
-    const response = await runNativeAction<TrenameInput, TrenameData>("trename", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as TrenameResult
-
-    const next = response.data ?? null
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: next,
-      jsonText: next?.jsonContent || jsonText,
-      basePath: next?.basePath || data.basePath,
-      batchId: next?.operationId || data.batchId,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action, progress: 0, progressText: t("module:trename.starting") })
+      const response = await runNativeAction<TrenameInput, TrenameData>("trename", input, (event) => {
+        if (event.type === "progress") {
+          patch({ progress: event.progress ?? 0, progressText: event.message })
+          log(`[${event.progress ?? 0}%] ${event.message}`)
+        }
+        else log(event.message)
+      }) as TrenameResult
+  
+      const next = response.data ?? null
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: next,
+        jsonText: next?.jsonContent || jsonText,
+        basePath: next?.basePath || data.basePath,
+        batchId: next?.operationId || data.batchId,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

@@ -102,8 +102,13 @@
     },
     "registry": "REGISTRY",
     "deployment": "Deployment Hub",
+    "operations": "Node operations",
     "search": "SEARCH...",
-    "searchHint": "Search"
+    "searchHint": "Search",
+    "devRuntime": {
+      "vite": "Dev port mode",
+      "packaged": "Packaged asset mode"
+    }
   },
   "settings": {
     "title": "THEME SETTINGS",
@@ -192,6 +197,38 @@
         "subtitle": "Arknights Endfield",
         "description": "Warm amber foundations inspired by 明日方舟终末地 武陵城. Ancient city meeting cyberpunk — gold accents against deep ochre darkness."
       }
+    },
+    "developerRuntime": {
+      "title": "Developer Runtime",
+      "description": "Inspect the frontend source and local backend used by the desktop shell. Wails dev proxy is selected at startup, so it is not a hot runtime toggle.",
+      "hostRuntime": "HOST",
+      "frontend": "FRONTEND",
+      "backend": "BACKEND",
+      "token": "TOKEN",
+      "status": "STATUS",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "statusReady": "READY",
+      "statusChecking": "CHECKING",
+      "statusMissingConfig": "MISSING CONFIG",
+      "statusUnreachable": "UNREACHABLE",
+      "frontendSource": {
+        "vite-dev": "VITE DEV",
+        "packaged": "PACKAGED"
+      },
+      "hotSwitchHint": "During development, run bun run dev first, then bun run dev:desktop:attach to make the desktop shell attach to the existing Vite/Elysia ports. Use bun run dev:desktop when you want one command to start everything.",
+      "reload": "Reload WebView",
+      "refreshStatus": "Refresh status",
+      "copyAttach": "Copy attach command",
+      "copyStart": "Copy one-shot command",
+      "copied": "Copied",
+      "openFrontend": "Open frontend"
+    },
+    "backendBanner": {
+      "missingConfig": "Local Backend is not configured, so workspace and node execution are paused.",
+      "unreachable": "Local Backend is unreachable: {{url}}. Workspace and node execution are paused.",
+      "retry": "Retry",
+      "openRuntime": "Runtime settings"
     }
   },
   "registry": {
@@ -222,7 +259,8 @@
   "overlay": {
     "registry": "MODULE REGISTRY",
     "settings": "THEME SETTINGS",
-    "deployment": "DEPLOYMENT HUB"
+    "deployment": "DEPLOYMENT HUB",
+    "operations": "NODE OPERATIONS"
   },
   "view": {
     "cards": {
@@ -233,7 +271,9 @@
     },
     "flow": {
       "empty": "// flow canvas is empty",
-      "openRegistry": "OPEN MODULE REGISTRY"
+      "openRegistry": "OPEN MODULE REGISTRY",
+      "loadCanvas": "Open flow canvas",
+      "loadingCanvas": "Loading flow canvas"
     },
     "lane": {
       "empty": "// no lanes — create one to start",
@@ -288,6 +328,30 @@
           "nodes": "NODES",
           "edges": "EDGES"
         }
+      }
+    },
+    "operations": {
+      "title": "Node operations",
+      "subtitle": "Live backend node runs, recent results, and stream events.",
+      "active": "Active",
+      "recent": "Recent",
+      "finished": "Finished",
+      "clearLocal": "Clear finished",
+      "cleanupBackend": "Cleanup backend",
+      "empty": "No node operations have run in this session.",
+      "cancel": "Cancel",
+      "progress": "Progress",
+      "events": "{{count}} event(s)",
+      "started": "Started {{time}}",
+      "updated": "Updated {{time}}",
+      "noMessage": "No message yet",
+      "noEvents": "No stream events yet",
+      "phase": {
+        "queued": "queued",
+        "running": "running",
+        "completed": "completed",
+        "error": "error",
+        "cancelled": "cancelled"
       }
     },
     "database": {
@@ -405,11 +469,15 @@
     },
     "database": {
       "name": "DATABASE",
-      "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing."
+      "description": "Notion-style table view: collects metadata of all components (module/state/visibility/tags/time), supports sorting, filtering, inline editing.",
+      "loadView": "Open database view",
+      "loadingView": "Loading database view"
     },
     "blocknote": {
       "name": "BLOCKNOTE",
-      "description": "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically."
+      "description": "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically.",
+      "loadEditor": "Open editor",
+      "loading": "Loading editor"
     },
     "enginev": {
       "name": "EngineV",
@@ -418,6 +486,7 @@
       "meta": "{{scanned}} scanned / {{visible}} visible / {{selected}} selected",
       "starting": "starting",
       "pasteWorkshopPath": "Paste workshop path",
+      "scan": "Scan",
       "filter": "Filter",
       "rename": "Rename",
       "copyResults": "Copy results",
@@ -433,8 +502,11 @@
       "dryRun": "dry run",
       "copyMode": "copy mode",
       "delete": "Delete",
+      "export": "Export",
       "stats": {
+        "total": "total",
         "filtered": "filtered",
+        "types": "types",
         "ok": "ok",
         "failed": "failed"
       },
@@ -947,29 +1019,14 @@
       "copyLogs": "Copy logs",
       "reset": "Reset",
       "intervalSeconds": "interval seconds",
+      "cycles": "cycles",
+      "driveLetter": "drive",
       "runs": "{{count}} runs",
       "phase": "phase",
       "last": "last",
       "progress": "progress",
       "waiting": "waiting",
       "starting": "Starting..."
-    },
-    "reinstallp": {
-      "name": "Reinstallp",
-      "description": "Scan and reinstall Python editable packages with uv.",
-      "title": "reinstallp",
-      "meta": "{{projects}} project(s) / {{selected}} selected / {{mode}}",
-      "pasteRoot": "Paste root",
-      "scan": "Scan",
-      "install": "Install",
-      "copyLogs": "Copy logs",
-      "reset": "Reset",
-      "rootPath": "root path",
-      "system": "--system",
-      "local": "local",
-      "ok": "ok",
-      "fail": "fail",
-      "noScanResult": "No scan result"
     },
     "repacku": {
       "name": "Repacku",
@@ -1130,57 +1187,6 @@
       "renameJson": "rename json",
       "progressLine": "[{{progress}}%] {{text}}",
       "readyToScan": "Ready to scan folders into rename JSON."
-    },
-    "weibospider": {
-      "name": "WeiboSpider",
-      "description": "Crawl weibo.cn user posts, validate cookies, and write JSON/CSV/TXT outputs.",
-      "title": "weibospider",
-      "meta": "{{users}} users / {{weibos}} weibos / {{cookie}}",
-      "starting": "starting",
-      "pasteUsers": "Paste users",
-      "load": "Load",
-      "save": "Save",
-      "cookie": "Cookie",
-      "crawl": "Crawl",
-      "copySummary": "Copy summary",
-      "reset": "Reset",
-      "users": "users",
-      "since": "since",
-      "end": "end",
-      "outputDir": "output dir",
-      "configPath": "config path",
-      "maxPages": "max pages",
-      "original": "original",
-      "pictures": "pictures",
-      "videos": "videos",
-      "download": "download",
-      "edge": "edge",
-      "chrome": "chrome",
-      "browser": "Browser",
-      "writeMode": "write mode",
-      "importPath": "import path",
-      "exportPath": "export path",
-      "import": "Import",
-      "export": "Export",
-      "statCookie": "cookie",
-      "statUsers": "users",
-      "statWeibos": "weibos",
-      "statWrites": "writes",
-      "statErrors": "errors",
-      "ready": "ready",
-      "missing": "missing",
-      "cookieReadyMeta": "cookie ready",
-      "cookiePendingMeta": "cookie pending",
-      "cookieLabel": "cookie",
-      "pasteCookie": "Paste cookie",
-      "clear": "Clear",
-      "copyLogs": "Copy logs",
-      "progressLine": "[{{progress}}%] {{text}}",
-      "postLine": "{{time}} / {{type}} / {{content}}",
-      "retweet": "retweet",
-      "writePath": "write {{path}}",
-      "errorItem": "error {{item}}",
-      "readyToCrawl": "Ready to crawl weibo.cn users."
     }
   }
 }

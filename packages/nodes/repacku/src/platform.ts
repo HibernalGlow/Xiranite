@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { constants } from "node:fs"
-import { access, mkdir, mkdtemp, readdir, rm, stat, unlink, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
 import type { RepackuCompressionResult, RepackuDirEntry, RepackuPathInfo, RepackuRuntime } from "./core.js"
@@ -22,8 +22,8 @@ export function createNodeRepackuRuntime(): RepackuRuntime {
   return {
     pathInfo,
     listDir,
-    readText: (path) => Bun.file(path).text(),
-    writeText: (path, content) => Bun.write(path, content).then(() => undefined),
+    readText: (path) => readFile(path, "utf8"),
+    writeText: (path, content) => writeFile(path, content, "utf8").then(() => undefined),
     ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     compressWholeFolder,
     compressFiles,
@@ -38,7 +38,7 @@ export function createNodeRepackuRuntime(): RepackuRuntime {
 
 export async function readClipboardText(): Promise<string> {
   if (process.platform === "win32") {
-    const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-Command", "Get-Clipboard -Raw"])
+    const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
     return result.code === 0 ? result.stdout.trim() : ""
   }
 
@@ -228,10 +228,11 @@ async function runPowerShellCompressArchive(command: string, literalPaths: strin
   const pathList = literalPaths.map(quotePowerShell).join(", ")
   const script = [
     "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
     `$paths = @(${pathList})`,
     `Compress-Archive -LiteralPath $paths -DestinationPath ${quotePowerShell(targetPath)} -Force`,
   ].join("; ")
-  return runCommand(command, ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+  return runCommand(command, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
 }
 
 async function runCommand(command: string, args: string[], options?: { cwd?: string }): Promise<CommandResult> {

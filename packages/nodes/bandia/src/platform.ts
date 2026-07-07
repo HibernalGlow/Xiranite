@@ -143,10 +143,11 @@ async function isFile(path: string): Promise<boolean> {
 async function recycleOnWindows(path: string, isDirectory: boolean): Promise<boolean> {
   const method = isDirectory ? "DeleteDirectory" : "DeleteFile"
   const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
     "Add-Type -AssemblyName Microsoft.VisualBasic",
     `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
   ].join("; ")
-  const shell = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+  const shell = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
   return shell.code === 0
 }
 

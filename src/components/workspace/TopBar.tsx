@@ -1,14 +1,15 @@
 import { useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { getBackend } from "@/backend/client"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { cn } from "@/lib/utils"
 import { translateLabel } from "@/lib/i18nLabel"
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
 import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import {
-  Bell, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
+  Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
   CircleDot, Image, Code2,
@@ -84,24 +85,32 @@ const COLOR_MODES: { key: ColorMode; labelKey: string; icon: React.ComponentType
 ]
 
 export function TopBar() {
-  const { state } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const state = useWorkspaceShallowSelector((workspace) => ({
+    viewMode: workspace.viewMode,
+    cardLayout: workspace.cardLayout,
+    workspaces: workspace.workspaces,
+    activeWorkspaceId: workspace.activeWorkspaceId,
+    theme: workspace.theme,
+    bgMode: workspace.bgMode,
+  }))
+  const workspaceActions = useWorkspaceActions()
   const { t } = useTranslation()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const runtimeInfo = getRuntimeConnectionInfo()
+  const activeOperations = useNodeOperations((store) => activeNodeOperationCount(store.operations))
+  const { controlMain, controlMainPending } = useWindowControls()
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
-    dispatch(actions.setTheme(key))
+    workspaceActions.setTheme(key)
     setColorMode(PRESET_DEFAULT_MODE[key])
   }
 
   async function controlMainWindow(action: "minimize" | "maximize" | "close") {
-    const backend = await getBackend()
-    const result = await backend.windows.controlMain(action)
+    const result = await controlMain(action)
     if (!result.success) console.info(`[window] ${result.message}`)
     if (result.success && result.state) setIsMaximized(result.state === "maximized")
   }
@@ -132,7 +141,8 @@ export function TopBar() {
         {VIEW_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
           <button
             key={key}
-            onClick={() => dispatch(actions.setViewMode(key))}
+            data-view-mode={key}
+            onClick={() => workspaceActions.setViewMode(key)}
             title={`${t(labelKey)}: ${t(hintKey)}`}
             aria-label={`${t(labelKey)}: ${t(hintKey)}`}
             className={cn(
@@ -153,7 +163,8 @@ export function TopBar() {
           {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => dispatch(actions.setCardLayout(key))}
+              data-card-layout={key}
+              onClick={() => workspaceActions.setCardLayout(key)}
               title={`${t(labelKey)}: ${t(hintKey)}`}
               aria-label={`${t(labelKey)}: ${t(hintKey)}`}
               className={cn(
@@ -172,6 +183,7 @@ export function TopBar() {
       {/* ── Workspace 选择器（顶栏中部） ── */}
       <div className="xiranite-app-region-no-drag relative">
         <button
+          data-active-workspace-id={state.activeWorkspaceId}
           onClick={() => setWsMenuOpen(o => !o)}
           className="flex h-8 w-[clamp(9rem,18vw,11.25rem)] items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono hover:bg-muted/60"
         >
@@ -190,8 +202,9 @@ export function TopBar() {
                 {state.workspaces.map(ws => (
                   <button
                     key={ws.id}
+                    data-workspace-id={ws.id}
                     onClick={() => {
-                      dispatch(actions.setActiveWorkspace(ws.id))
+                      workspaceActions.setActiveWorkspace(ws.id)
                       setWsMenuOpen(false)
                     }}
                     className={cn(
@@ -207,7 +220,7 @@ export function TopBar() {
               </div>
               <div className="border-t border-border/60 p-1">
                 <button
-                  onClick={() => { dispatch(actions.addWorkspace()); setWsMenuOpen(false) }}
+                  onClick={() => { workspaceActions.addWorkspace(); setWsMenuOpen(false) }}
                   className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
                 >
                   <Plus className="h-3 w-3" />
@@ -238,7 +251,7 @@ export function TopBar() {
             "relative hidden h-8 w-8 text-muted-foreground hover:text-foreground sm:inline-flex",
             runtimeInfo.frontendSource === "vite-dev" && "text-primary hover:text-primary",
           )}
-          onClick={() => dispatch(actions.setOverlay("settings"))}
+          onClick={() => workspaceActions.setOverlay("settings")}
           title={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
           aria-label={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
         >
@@ -254,7 +267,7 @@ export function TopBar() {
           variant="ghost"
           size="sm"
           className="h-8 px-2.5 text-xs font-mono text-muted-foreground hover:text-foreground"
-          onClick={() => dispatch(actions.setOverlay("registry"))}
+          onClick={() => workspaceActions.setOverlay("registry")}
           title={t("overlay:registry")}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -263,12 +276,17 @@ export function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => dispatch(actions.setOverlay("deployment"))}
-          title={t("topbar:deployment")}
+          className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={() => workspaceActions.setOverlay("operations")}
+          title={t("topbar:operations")}
+          aria-label={t("topbar:operations")}
         >
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full" />
+          <Activity className="h-4 w-4" />
+          {activeOperations > 0 && (
+            <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-mono leading-none text-destructive-foreground">
+              {activeOperations > 9 ? "9+" : activeOperations}
+            </span>
+          )}
         </Button>
 
         {/* ── 主题快速切换下拉 ── */}
@@ -355,7 +373,7 @@ export function TopBar() {
                       return (
                         <button
                           key={m.key}
-                          onClick={() => dispatch(actions.setBgMode(m.key as any))}
+                          onClick={() => workspaceActions.setBgMode(m.key as any)}
                           className={cn(
                             "flex flex-col items-center gap-1 py-1.5 rounded-sm border transition-all cursor-pointer",
                             isActive
@@ -378,7 +396,7 @@ export function TopBar() {
                   <button
                     onClick={() => {
                       setThemeMenuOpen(false)
-                      dispatch(actions.setOverlay("settings"))
+                      workspaceActions.setOverlay("settings")
                     }}
                     className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
                   >
@@ -396,6 +414,7 @@ export function TopBar() {
         <button
           title={t("common:minimize")}
           aria-label={t("common:minimize")}
+          disabled={controlMainPending}
           onClick={() => controlMainWindow("minimize")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
@@ -404,6 +423,7 @@ export function TopBar() {
         <button
           title={t("common:maximize")}
           aria-label={t("common:maximize")}
+          disabled={controlMainPending}
           onClick={() => controlMainWindow("maximize")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         >
@@ -412,6 +432,7 @@ export function TopBar() {
         <button
           title={t("common:close")}
           aria-label={t("common:close")}
+          disabled={controlMainPending}
           onClick={() => controlMainWindow("close")}
           className="grid h-8 w-8 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >

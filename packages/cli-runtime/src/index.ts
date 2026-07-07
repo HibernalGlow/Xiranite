@@ -1,4 +1,4 @@
-import { confirm as clackConfirm, isCancel as isClackCancel, text as clackText } from "@clack/prompts"
+import { confirm as clackConfirm, isCancel as isClackCancel, select as clackSelect, text as clackText } from "@clack/prompts"
 import boxen from "boxen"
 import { Chalk } from "chalk"
 import stringWidth from "string-width"
@@ -20,6 +20,24 @@ export interface CliCommand {
   run: (args: string[], host: CliHost) => Promise<void> | void
 }
 
+export interface SelectRichOption<Value extends string | number | boolean> {
+  value: Value
+  label?: string
+  hint?: string
+  disabled?: boolean
+}
+
+export interface CliEventLike {
+  type: string
+  progress?: number
+  message: string
+}
+
+export interface CliEventRenderOptions {
+  label?: string
+  progressWidth?: number
+}
+
 export const NODE_CLI_PREFIX = "x"
 export const LEGACY_NODE_CLI_PREFIX = "xiranite-"
 
@@ -34,11 +52,6 @@ export function normalizeNodeCliName(value: string): string {
     return normalized.slice(NODE_CLI_PREFIX.length)
   }
   return normalized
-}
-
-export interface ParsedArgs {
-  positionals: string[]
-  flags: Record<string, string | boolean>
 }
 
 export class CliUsageError extends Error {
@@ -63,67 +76,6 @@ export function createCliHost(): CliHost {
     stdout: process.stdout,
     stderr: process.stderr,
   }
-}
-
-export function parseArgs(args: string[]): ParsedArgs {
-  const positionals: string[] = []
-  const flags: Record<string, string | boolean> = {}
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index]
-    if (arg === "--") {
-      positionals.push(...args.slice(index + 1))
-      break
-    }
-
-    if (!arg.startsWith("--")) {
-      positionals.push(arg)
-      continue
-    }
-
-    const raw = arg.slice(2)
-    if (!raw) {
-      continue
-    }
-
-    const equalIndex = raw.indexOf("=")
-    if (equalIndex >= 0) {
-      flags[toCamelFlag(raw.slice(0, equalIndex))] = raw.slice(equalIndex + 1)
-      continue
-    }
-
-    const name = toCamelFlag(raw)
-    const next = args[index + 1]
-    if (next && !next.startsWith("-")) {
-      flags[name] = next
-      index += 1
-    } else {
-      flags[name] = true
-    }
-  }
-
-  return { positionals, flags }
-}
-
-export function flagString(flags: Record<string, string | boolean>, name: string, fallback = ""): string {
-  const value = flags[name]
-  if (typeof value === "string") return value
-  if (value === true) return "true"
-  return fallback
-}
-
-export function flagNumber(flags: Record<string, string | boolean>, name: string, fallback: number): number {
-  const value = flags[name]
-  if (typeof value !== "string") return fallback
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-export function flagBoolean(flags: Record<string, string | boolean>, name: string, fallback = false): boolean {
-  const value = flags[name]
-  if (typeof value === "boolean") return value
-  if (typeof value !== "string") return fallback
-  return ["1", "true", "yes", "on"].includes(value.toLowerCase())
 }
 
 export function writeJson(host: CliHost, value: unknown): void {
@@ -232,9 +184,23 @@ export function renderProgressBar(
   }
   const filled = Math.round((value / 100) * width)
   const empty = Math.max(0, width - filled)
-  const bar = `${rich(host, "━".repeat(filled), "cyan")}${rich(host, "━".repeat(empty), "grey")}`
+  const bar = `${rich(host, "━".repeat(filled), "cyan")}${rich(host, "─".repeat(empty), "grey")}`
   const prefix = `${label}${bar} ${percent} `
   return `${prefix}${truncateVisible(message, Math.max(0, columns - visibleWidth(prefix)))}`
+}
+
+export function renderCliEvent(host: CliHost, event: CliEventLike, options: CliEventRenderOptions = {}): string {
+  if (event.type === "progress") {
+    return renderProgressBar(host, event.progress ?? 0, event.message, {
+      label: options.label,
+      width: options.progressWidth,
+    })
+  }
+  return truncateVisible(event.message, terminalColumns(host))
+}
+
+export function writeCliEvent(host: CliHost, event: CliEventLike, options: CliEventRenderOptions = {}): void {
+  writeLine(host, renderCliEvent(host, event, options))
 }
 
 export async function promptRich(host: CliHost, prompt: string, defaultValue = ""): Promise<string> {
@@ -259,6 +225,29 @@ export async function confirmRich(host: CliHost, prompt: string, defaultValue = 
       initialValue: defaultValue,
       active: "是",
       inactive: "否",
+      ...clackContext(host),
+    })
+    if (isClackCancel(answer)) throw new CliPromptExitError()
+    return answer
+  } catch (error) {
+    if (isPromptExitError(error)) throw new CliPromptExitError()
+    throw error
+  }
+}
+
+export async function selectRich<Value extends string | number | boolean>(
+  host: CliHost,
+  prompt: string,
+  options: SelectRichOption<Value>[],
+  config: { initialValue?: Value; maxItems?: number } = {},
+): Promise<Value> {
+  try {
+    type ClackSelectOptions = Parameters<typeof clackSelect<Value>>[0]
+    const answer = await clackSelect<Value>({
+      message: prompt,
+      options: options as ClackSelectOptions["options"],
+      initialValue: config.initialValue,
+      maxItems: config.maxItems,
       ...clackContext(host),
     })
     if (isClackCancel(answer)) throw new CliPromptExitError()
@@ -358,8 +347,4 @@ export function truncateVisible(text: string, maxWidth: number): string {
     width += nextWidth
   }
   return `${result}…`
-}
-
-function toCamelFlag(name: string): string {
-  return name.replace(/-([a-z])/g, (_, char: string) => char.toUpperCase())
 }

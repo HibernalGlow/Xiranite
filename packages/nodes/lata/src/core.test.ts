@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { LataRuntime } from "./core.js"
 import { buildLataCommandPlan, parseTaskfile, runLata } from "./core.js"
 

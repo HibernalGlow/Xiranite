@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "bun test src/**/*.test.ts"
+    "test": "vitest run src/**/*.test.ts"
   },
   "dependencies": {
     "@xiranite/repository": "workspace:*",

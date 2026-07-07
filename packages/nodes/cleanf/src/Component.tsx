@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Brush, Clipboard, Copy, Eye, Play, RotateCcw } from "lucide-react"
@@ -21,6 +21,8 @@ interface CleanfCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<CleanfCardState>(compId) ?? {}
+  const dataRef = useRef<CleanfCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const pathText = data.pathText ?? ""
   const selectedPresets = data.selectedPresets ?? ["empty_folders", "backup_files"]
@@ -30,11 +32,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const paths = parseCleanfPaths(pathText)
 
   function patch(patchData: Partial<CleanfCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePaths() {
@@ -53,23 +57,30 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(preview = previewMode) {
     if (!paths.length || running) return
     const input: CleanfInput = { paths, presets: selectedPresets, exclude: data.excludeKeywords, preview }
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan or remove files.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan or remove files.")
 
     setRunning(true)
     patch({ phase: "running", progress: 0, progressText: preview ? t("module:cleanf.previewing") : t("module:cleanf.cleaning"), result: null })
-    const response = await runNativeAction<CleanfInput, CleanfData>("cleanf", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as CleanfResult
+    try {
+      const response = await runNativeAction<CleanfInput, CleanfData>("cleanf", input, (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else log(event.message)
+      }) as CleanfResult
 
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: response.data ?? null,
-    })
-    log(response.message)
-    setRunning(false)
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+      })
+      log(response.message)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error", progress: 0, progressText: message })
+      log(message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

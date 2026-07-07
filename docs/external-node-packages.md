@@ -160,13 +160,12 @@ export default entry
 
 ## 集成到 Xiranite
 
-当前集成是显式的：
+当前集成通过生成器维护静态 import：
 
 1. 将包依赖添加到根 `package.json`。
-2. 在 `src/components/modules/registry.ts` 中导入包默认入口。
-3. 将 `entry.def` 追加到 `MODULE_REGISTRY`。
-4. 在 `src/components/modules/ModuleRenderer.tsx` 中导入包默认入口。
-5. 将其添加到 `packageModules`。
+2. 如果是 workspace 内节点，确认包位于 `packages/nodes/<id>` 且名称为 `@xiranite/node-<id>`。
+3. 运行 `bun run generate:node-registries`，生成前端 package module 清单与 runtime node-runner 清单。
+4. 不要手改 `src/components/modules/registry.ts`、`src/components/modules/ModuleRenderer.tsx` 或 `packages/runtime/src/node-runner.ts` 的节点清单。
 
 仅导入默认包入口。不要导入 `./cli`、`./platform` 或 `./demo`。
 

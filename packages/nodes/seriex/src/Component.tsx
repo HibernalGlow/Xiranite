@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Copy, FolderTree, Play, RotateCcw, Search } from "lucide-react"
@@ -18,38 +18,45 @@ interface SeriexCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<SeriexCardState>(compId) ?? {}
+  const dataRef = useRef<SeriexCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const planItems = data.result?.planItems ?? []
   const moveItems = data.result?.moveItems ?? []
 
   function patch(patchData: Partial<SeriexCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function execute(action: SeriexInput["action"], dryRun = false) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
-    patch({ phase: "running" })
-    const response = await runNativeAction<SeriexInput, SeriexData>("seriex", {
-      action,
-      directoryPath: data.directoryPath,
-      configPath: data.configPath,
-      knownSeriesNames: splitLines(data.knownSeriesText),
-      prefix: data.prefix || "[#s]",
-      dryRun,
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as SeriexResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: "running" })
+      const response = await runNativeAction<SeriexInput, SeriexData>("seriex", {
+        action,
+        directoryPath: data.directoryPath,
+        configPath: data.configPath,
+        knownSeriesNames: splitLines(data.knownSeriesText),
+        prefix: data.prefix || "[#s]",
+        dryRun,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as SeriexResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function paste(field: "directoryPath" | "configPath" | "knownSeriesText") {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, MoveRight, RotateCcw, Search, Zap } from "lucide-react"
@@ -22,6 +22,8 @@ interface CrashuCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<CrashuCardState>(compId) ?? {}
+  const dataRef = useRef<CrashuCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const sourcePaths = splitLines(data.sourcePathsText)
@@ -34,11 +36,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const matches = data.result?.similarFolders ?? []
 
   function patch(patchData: Partial<CrashuCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function paste(field: "sourcePathsText" | "targetPath" | "targetNamesText" | "destinationPath") {
@@ -49,26 +53,33 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: CrashuInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action === "move" || action === "execute" ? "moving" : action })
-    const response = await runNativeAction<CrashuInput, CrashuData>("crashu", {
-      action,
-      sourcePaths,
-      targetPath: data.targetPath,
-      targetNames,
-      destinationPath: data.destinationPath,
-      similarityThreshold: threshold,
-      autoMove: action === "move" || action === "execute" ? true : autoMove,
-      moveDirection: direction,
-      conflictPolicy: conflict,
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as CrashuResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      const response = await runNativeAction<CrashuInput, CrashuData>("crashu", {
+        action,
+        sourcePaths,
+        targetPath: data.targetPath,
+        targetNames,
+        destinationPath: data.destinationPath,
+        similarityThreshold: threshold,
+        autoMove: action === "move" || action === "execute" ? true : autoMove,
+        moveDirection: direction,
+        conflictPolicy: conflict,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as CrashuResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error" })
+      log(message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {

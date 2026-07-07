@@ -43,13 +43,11 @@
     "@xiranite/node-owithu": "workspace:*",
     "@xiranite/node-rawfilter": "workspace:*",
     "@xiranite/node-recycleu": "workspace:*",
-    "@xiranite/node-reinstallp": "workspace:*",
     "@xiranite/node-repacku": "workspace:*",
     "@xiranite/node-scoolp": "workspace:*",
     "@xiranite/node-seriex": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
-    "@xiranite/node-trename": "workspace:*",
-    "@xiranite/node-weibospider": "workspace:*"
+    "@xiranite/node-trename": "workspace:*"
   },
   "devDependencies": {
     "typescript": "~5.9.3"

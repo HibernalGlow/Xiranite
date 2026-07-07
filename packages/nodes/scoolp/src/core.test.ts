@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { findObsoleteCachePackages, parseCacheFilename, parseScoolpSyncConfig, planScoolpSyncCommands, runScoolp } from "./core.js"
 
 describe("scoolp core", () => {

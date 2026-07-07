@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderInput, MoveRight, Play, RotateCcw, Search } from "lucide-react"
@@ -22,16 +22,20 @@ interface MoveaCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<MoveaCardState>(compId) ?? {}
+  const dataRef = useRef<MoveaCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const scanResults = Object.values(data.result?.scanResults ?? {})
 
   function patch(patchData: Partial<MoveaCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function paste(field: "rootPath" | "archiveName" | "subfoldersText" | "level1Name" | "movePlanText") {
@@ -51,24 +55,27 @@ export function Component({ compId, host }: NodeComponentProps) {
       log(`Matched ${matchedFolders.length} folder(s).`)
       return
     }
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-movea CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
 
     setRunning(true)
-    patch({ phase: "running" })
-    const input: MoveaInput = {
-      action,
-      rootPath: data.rootPath,
-      regexPatterns: splitLines(data.regexText),
-      level1Name: data.level1Name,
-      movePlan: parseMovePlan(data.movePlanText),
+    try {
+      patch({ phase: "running" })
+      const input: MoveaInput = {
+        action,
+        rootPath: data.rootPath,
+        regexPatterns: splitLines(data.regexText),
+        level1Name: data.level1Name,
+        movePlan: parseMovePlan(data.movePlanText),
+      }
+      const response = await runNativeAction<MoveaInput, MoveaData>("movea", input, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as MoveaResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
     }
-    const response = await runNativeAction<MoveaInput, MoveaData>("movea", input, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as MoveaResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
   }
 
   function reset() {

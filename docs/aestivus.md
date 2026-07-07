@@ -11,7 +11,6 @@
 | formatv | [PackU\VideoBrake](file:///d:/1VSCODE/Projects/PackU/VideoBrake) |
 | kavvka | [ImageAll\Kavvka](file:///d:/1VSCODE/Projects/ImageAll/Kavvka) |
 | lata | [LazyCommand\LaTa](file:///d:/1VSCODE/Projects/LazyCommand/LaTa) |
-<!-- | weibospider | [ImageAll\weiboSpider](file:///d:/1VSCODE/Projects/ImageAll/weiboSpider) | -->
 | marku | [MarkdownAll\MarkdownWrapper](file:///d:/1VSCODE/Projects/MarkdownAll/MarkdownWrapper) |
 | recycleu | [LazyCommand\OsU](file:///d:/1VSCODE/Projects/LazyCommand/OsU) |
 
@@ -22,7 +21,7 @@
 | [PackU\AutoUnzip](file:///d:/1VSCODE/Projects/PackU/AutoUnzip) | bandia, encodeb, findz, mvz | [src/bandia](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/bandia)、[src/encodeb](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/encodeb)、[src/findz](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/findz)、[src/mvz](file:///d:/1VSCODE/Projects/PackU/AutoUnzip/src/mvz) |
 | [PackU\OrganizeFolder](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder) | cleanf, dissolvef, migratef | [src/cleanf](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/cleanf)、[src/dissolvef](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/dissolvef)、[src/migratef](file:///d:/1VSCODE/Projects/PackU/OrganizeFolder/src/migratef) |
 | [PackU\ArtistPreview](file:///d:/1VSCODE/Projects/PackU/ArtistPreview) | crashu, linedup, movea, seriex | [src/crashu](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/crashu)、[src/linedup](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/linedup)、[src/movea](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/movea)、[src/seriex](file:///d:/1VSCODE/Projects/PackU/ArtistPreview/src/seriex) |
-| [LazyCommand\EnvU](file:///d:/1VSCODE/Projects/LazyCommand/EnvU) | linku, owithu, reinstallp, scoolp | [src/linku](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/linku)、[src/owithu](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/owithu)、[src/reinstallp](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/reinstallp)、[src/scoolp](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/scoolp) |
+| [LazyCommand\EnvU](file:///d:/1VSCODE/Projects/LazyCommand/EnvU) | linku, owithu, scoolp | [src/linku](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/linku)、[src/owithu](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/owithu)、[src/scoolp](file:///d:/1VSCODE/Projects/LazyCommand/EnvU/src/scoolp) |
 
 ### 特殊情况
 
@@ -38,14 +37,18 @@
    - [linedup_adapter.py:58](file:///d:/1VSCODE/Projects/aestivus/src-python/adapters/linedup_adapter.py#L58) → `ImageAll/MangaClassify/ArtistPreview/src`（实际路径已迁到 `PackU/ArtistPreview/src`）
    - [movea_adapter.py:78](file:///d:/1VSCODE/Projects/aestivus/src-python/adapters/movea_adapter.py#L78) → 同上
    - [seriex_adapter.py:65](file:///d:/1VSCODE/Projects/aestivus/src-python/adapters/seriex_adapter.py#L65) → 同上
-   - [weibospider_adapter.py:74](file:///d:/1VSCODE/Projects/aestivus/src-python/adapters/weibospider_adapter.py#L74) → `ImageAll/weiboSpider`
+
+### 已裁剪节点
+
+- **reinstallp**：低频 Python 本地包重装工具，不再迁移为 Xiranite 节点。
+- **weibospider**：低频微博抓取工具，不再迁移为 Xiranite 节点。
 
 1. **当前架构**：
    - Xiranite 是主应用（React + Vite + Electron）
    - `src/components/modules/` 下有 11 个模块文件（AcidMixer、Calculator、Clock、Counter、Database、EngineV、Kanban、Scratch、Tasks、Terminal）
-   - `registry.ts` 静态注册所有模块
+   - `registry.ts` 注册内置模块，并通过生成的 `packageModules.generated.ts` 接入节点包 metadata
    - 模块是 React 组件，通过 `ModuleRenderer` 渲染
-   - `MODULE_REGISTRY` 是硬编码数组
+   - 内置模块仍为显式数组；节点包清单由 `scripts/generate-node-registries.ts` 生成
    - 模块直接 import 在 Xiranite 项目里，没有独立打包
    - `vendor/ocean-dataview` 是通过 git submodule 引入的本地依赖
 
@@ -76,8 +79,8 @@
 
 ### 集成方式
 Xiranite 通过 `import { meta, Component } from "@xiranite/module-scratch"` 引入模块
-- 不需要硬编码 registry.ts
-- 可以通过 `import.meta.glob` 或 vite plugin 自动注册
+   - 不需要手写同步 registry.ts / ModuleRenderer / NodeRunner 清单
+   - 当前采用 `scripts/generate-node-registries.ts` 生成静态 import registry；未来可升级为 vite plugin 或外部插件发现
 - 模块包独立可发布、可测试
 
 ### 防污染策略
@@ -333,15 +336,14 @@ CLI Host 提供文件系统 / localStorage(模拟) 等基础能力，与 UI Host
 }
 ```
 
-### 2. 自动注册（替代硬编码 `registry.ts`）
+### 2. 代码生成注册（替代手写同步 `registry.ts` / `ModuleRenderer` / `node-runner`）
 
 ```typescript
-// apps/xiranite/src/modules/index.ts
-const mods = import.meta.glob("@xiranite/mod-*/src/index.ts", { eager: true })
+// scripts/generate-node-registries.ts 扫描 packages/nodes/*/package.json
 
-export const MODULE_REGISTRY = Object.values(mods)
-  .map((m: any) => m.default)
-  .filter(Boolean)
+// 生成：
+// - packages/runtime/src/node-runner.generated.ts
+// - src/components/modules/packageModules.generated.ts
 ```
 
 ### 3. HostApi 实现（Xiranite 把自己的 store 适配成 HostApi 注入）
@@ -420,7 +422,7 @@ function DatabaseModule({ compId, host }: { compId: string; host: HostApi }) {
 | **P1** | 建 `packages/contract`，定义 `ModuleEntry` / `HostApi` | 类型通过 |
 | **P2** | 建 `packages/cli-runtime`，跑通 scratch 一个模块的 CLI | `xscratch cat` 可用 |
 | **P3** | 逐个把 `Xiranite/src/components/modules/*Module.tsx` 搬到 `packages/modules/*`，剥离 `@/store` 依赖改为 `host` prop | 每搬一个，Xiranite dev 仍正常 |
-| **P4** | 改造 `ModuleRenderer` 用 `import.meta.glob` 自动注册 | UI 无回归 |
+| **P4** | 改造 `ModuleRenderer` 与 runtime NodeRunner 使用生成的节点 registry | UI 无回归 |
 | **P5** | Xiranite 实现 `useHostApi`，把 store 适配成 HostApi | DatabaseModule 通过 host 工作 |
 | **P6** | 每个 module 包加 `bin` + `cli.ts`，全量 CLI 可用 | `xiranite <module>` 子命令可用 |
 | **P7** | ocean-dataview 同样作为独立包 `@xiranite/dataview` 收入 monorepo | BoardView 等仍工作 |
@@ -432,8 +434,8 @@ function DatabaseModule({ compId, host }: { compId: string; host: HostApi }) {
 
 当前的关键耦合点：
 1. `DatabaseModule` 直接 `import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"` — 这是最大的污染源
-2. `ModuleRenderer` 硬编码 lazy import 映射
-3. `MODULE_REGISTRY` 是静态数组
+2. `ModuleRenderer` 的节点包清单已改为 generated package map；内置模块 lazy import 仍保留显式映射
+3. `MODULE_REGISTRY` 中节点包 metadata 已改为 generated；内置模块仍是静态数组
 4. 模块通过 `compId` 拿到自己的数据，但没有标准的"宿主 API"抽象
 
 设计目标：

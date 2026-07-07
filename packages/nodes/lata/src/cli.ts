@@ -14,6 +14,7 @@ import {
   terminalColumns,
   truncateVisible,
   visibleWidth,
+  writeCliEvent,
   writeError,
   writeJson,
   writeLine,
@@ -136,7 +137,7 @@ function inputFromArgs(args: LataCliOptions): LataInput {
 
 async function runAction(input: LataInput, json: boolean, host: CliHost): Promise<void> {
   const result = await runLata(input, createNodeLataRuntime(), (event) => {
-    if (!json) writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
   })
   if (json) {
     writeJson(host, result)

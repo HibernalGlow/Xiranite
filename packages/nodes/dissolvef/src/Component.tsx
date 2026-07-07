@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, FolderInput, FolderOpen, History, Play, RotateCcw, Undo2 } from "lucide-react"
@@ -28,6 +28,8 @@ interface DissolvefCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<DissolvefCardState>(compId) ?? {}
+  const dataRef = useRef<DissolvefCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const nested = data.nested ?? true
@@ -42,11 +44,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const history = data.result?.history ?? []
 
   function patch(patchData: Partial<DissolvefCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function paste(field: "pathText" | "historyPath" | "excludeText") {
@@ -56,32 +60,35 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: DissolvefInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
-    patch({ phase: "running" })
-    const response = await runNativeAction<DissolvefInput, DissolvefData>("dissolvef", {
-      action,
-      path: data.pathText,
-      historyPath: data.historyPath,
-      undoId: data.undoId,
-      exclude: data.excludeText,
-      nested,
-      media,
-      archive,
-      direct,
-      preview: action === "plan" ? true : preview,
-      protectFirstLevel,
-      enableSimilarity,
-      similarityThreshold: threshold,
-      fileConflict: data.fileConflict as DissolvefInput["fileConflict"],
-      dirConflict: data.dirConflict as DissolvefInput["dirConflict"],
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as DissolvefResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: "running" })
+      const response = await runNativeAction<DissolvefInput, DissolvefData>("dissolvef", {
+        action,
+        path: data.pathText,
+        historyPath: data.historyPath,
+        undoId: data.undoId,
+        exclude: data.excludeText,
+        nested,
+        media,
+        archive,
+        direct,
+        preview: action === "plan" ? true : preview,
+        protectFirstLevel,
+        enableSimilarity,
+        similarityThreshold: threshold,
+        fileConflict: data.fileConflict as DissolvefInput["fileConflict"],
+        dirConflict: data.dirConflict as DissolvefInput["dirConflict"],
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as DissolvefResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function setMode(mode: "bundle" | "direct") {

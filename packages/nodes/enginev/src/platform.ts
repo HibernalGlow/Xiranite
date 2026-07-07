@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { constants } from "node:fs"
-import { access, cp, mkdir, readdir, rename, rm, stat } from "node:fs/promises"
+import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import type { EngineVDirEntry, EngineVPathInfo, EngineVRuntime } from "./core.js"
 
@@ -8,8 +8,8 @@ export function createNodeEngineVRuntime(): EngineVRuntime {
   return {
     pathInfo,
     listDir,
-    readJson: async (path) => JSON.parse(await Bun.file(path).text()) as unknown,
-    writeText: (path, content) => Bun.write(path, content).then(() => undefined),
+    readJson: async (path) => JSON.parse(await readFile(path, "utf8")) as unknown,
+    writeText: (path, content) => writeFile(path, content, "utf8").then(() => undefined),
     ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     movePath,
     copyDir: (source, target) => cp(source, target, { recursive: true, force: false, errorOnExist: true }).then(() => undefined),
@@ -79,10 +79,11 @@ async function recycleOnWindows(path: string): Promise<boolean> {
   if (!item) return true
   const method = item.isDirectory() ? "DeleteDirectory" : "DeleteFile"
   const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
     "Add-Type -AssemblyName Microsoft.VisualBasic",
     `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
   ].join("; ")
-  const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+  const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
   return result.code === 0
 }
 

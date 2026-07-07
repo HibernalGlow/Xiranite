@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileSearch, Play, RotateCcw, Search } from "lucide-react"
@@ -24,6 +24,8 @@ interface KavvkaCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<KavvkaCardState>(compId) ?? {}
+  const dataRef = useRef<KavvkaCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const sourcePaths = parseKavvkaPaths(data.sourceText)
   const scanRoots = parseKavvkaPaths(data.scanRootText)
@@ -32,11 +34,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
 
   function patch(patchData: Partial<KavvkaCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function paste(kind: "source" | "scan") {
@@ -47,29 +51,32 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: KavvkaAction) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
 
     const input = buildInput(action, data)
     if (action === "scan" && !scanRoots.length) return
     if (action !== "scan" && !sourcePaths.length) return
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: t("module:kavvka.starting"), result: null })
-    const response = await runNativeAction<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as KavvkaResult
-
-    const nextResult = response.data ?? null
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: nextResult,
-      ...(action === "scan" && nextResult?.matchedPaths.length ? { sourceText: nextResult.matchedPaths.join("\n") } : {}),
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action, progress: 0, progressText: t("module:kavvka.starting"), result: null })
+      const response = await runNativeAction<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else log(event.message)
+      }) as KavvkaResult
+  
+      const nextResult = response.data ?? null
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: nextResult,
+        ...(action === "scan" && nextResult?.matchedPaths.length ? { sourceText: nextResult.matchedPaths.join("\n") } : {}),
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {
@@ -162,7 +169,7 @@ function buildInput(action: KavvkaAction, data: KavvkaCardState): KavvkaInput {
     keywordText: data.keywordText,
     scanDepth: data.scanDepth ?? 3,
     force: data.force ?? true,
-    dryRun: action === "plan" ? true : data.dryRun ?? false,
+    dryRun: action === "plan" ? true : data.dryRun ?? true,
     strictArtist: data.strictArtist ?? false,
   }
 }

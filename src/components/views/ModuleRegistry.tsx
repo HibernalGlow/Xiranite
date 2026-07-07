@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceContext"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,8 +22,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
 }
 
 export function ModuleRegistry() {
-  const dispatch = useWSDispatch()
-  const { state } = useWorkspace()
+  const workspaceActions = useWorkspaceActions()
+  const viewMode = useWorkspaceSelector((state) => state.viewMode)
   const { t, i18n } = useTranslation()
   const [query, setQuery] = useState("")
   const [catFilter, setCatFilter] = useState<string | null>(null)
@@ -91,8 +91,8 @@ export function ModuleRegistry() {
                 key={mod.id}
                 className="group relative bg-card border border-border/60 rounded-sm p-4 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer"
                 onClick={() => {
-                  dispatch(actions.deployComponent(mod.id, state.viewMode))
-                  dispatch(actions.setOverlay(null))
+                  workspaceActions.deployComponent(mod.id, viewMode)
+                  workspaceActions.setOverlay(null)
                 }}
               >
                 {/* Corner indicator */}

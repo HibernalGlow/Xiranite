@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import type { MarkuDirEntry, MarkuPathInfo, MarkuRuntime } from "./core.js"
 import { applyMarkuModule, createUnifiedDiff, runMarku } from "./core.js"
 

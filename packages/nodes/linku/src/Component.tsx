@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Link, List, MoveRight, Play, RotateCcw } from "lucide-react"
@@ -18,16 +18,20 @@ interface LinkuCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<LinkuCardState>(compId) ?? {}
+  const dataRef = useRef<LinkuCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const links = data.result?.links ?? []
 
   function patch(patchData: Partial<LinkuCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function paste(field: "path" | "target" | "configPath") {
@@ -37,18 +41,24 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: LinkuInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for symlink actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for symlink actions.")
     setRunning(true)
-    patch({ phase: "running", action })
-    const response = await runNativeAction<LinkuInput, LinkuData>("linku", {
-      action,
-      path: data.path,
-      target: data.target,
-      configPath: data.configPath,
-    }) as LinkuResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: "running", action })
+      const response = await runNativeAction<LinkuInput, LinkuData>("linku", {
+        action,
+        path: data.path,
+        target: data.target,
+        configPath: data.configPath,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as LinkuResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

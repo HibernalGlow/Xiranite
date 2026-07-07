@@ -220,8 +220,12 @@ export async function scanWorkshop(
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]!
     onEvent({ type: "progress", progress: 10 + Math.round((index / Math.max(entries.length, 1)) * 70), message: `Scanning ${entry.name}` })
-    const wallpaper = await readWallpaperFolder(entry.path, runtime)
-    if (wallpaper) results.push(wallpaper)
+    try {
+      const wallpaper = await readWallpaperFolder(entry.path, runtime)
+      if (wallpaper) results.push(wallpaper)
+    } catch (error) {
+      onEvent({ type: "log", message: `Skipped ${entry.name}: ${error instanceof Error ? error.message : String(error)}` })
+    }
   }
 
   return sortWallpapers(results, "title", "asc")

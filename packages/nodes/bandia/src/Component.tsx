@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, ExternalLink, FileArchive, Package, Play, RotateCcw } from "lucide-react"
@@ -31,20 +31,26 @@ interface BandiaCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<BandiaCardState>(compId) ?? {}
+  const dataRef = useRef<BandiaCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const mode = data.mode ?? "extract"
   const logs = data.logs ?? []
-  const paths = parseBandiaPaths(data.pathText ?? "")
+  const archivePaths = parseBandiaPaths(data.pathText ?? "")
+  const sourcePaths = parseRawPaths(data.pathText ?? "")
+  const paths = mode === "extract" ? archivePaths : sourcePaths
   const mappings = parsePathMappings(data.mappingText ?? "")
   const result = data.result ?? null
   const dryRun = data.dryRun ?? true
 
   function patch(patchData: Partial<BandiaCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pasteInput() {
@@ -57,25 +63,28 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(action: BandiaAction = mode) {
     if (running) return
     const input = buildInput(action, data, paths, mappings)
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for Bandizip filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for Bandizip filesystem actions.")
 
     setRunning(true)
-    patch({ phase: action, progress: 0, progressText: t("module:bandia.starting"), result: null })
-    const response = await runNativeAction<BandiaInput, BandiaData>("bandia", input, (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as BandiaResult
-
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: response.data ?? null,
-      mappingText: response.data?.pathMappings.length ? mappingsToText(response.data.pathMappings) : data.mappingText,
-      mode: response.data?.pathMappings.length ? "compress" : data.mode,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action, progress: 0, progressText: t("module:bandia.starting"), result: null })
+      const response = await runNativeAction<BandiaInput, BandiaData>("bandia", input, (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else log(event.message)
+      }) as BandiaResult
+  
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+        mappingText: response.data?.pathMappings.length ? mappingsToText(response.data.pathMappings) : data.mappingText,
+        mode: response.data?.pathMappings.length ? "compress" : data.mode,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function exportEfu() {
@@ -85,7 +94,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function copyResults() {
     const lines = [
       ...(result?.pathMappings ?? []).map((mapping) => `${mapping.archivePath} => ${mapping.extractedPath}`),
-      ...(result?.results ?? []).map((item) => `${item.success ? "ok" : "fail"} ${item.sourcePath}${item.outputPath ? ` -> ${item.outputPath}` : ""}${item.error ? ` / ${item.error}` : ""}`),
+      ...(result?.results ?? []).map((item) => `${item.success ? "ok" : "fail"} ${item.sourcePath}${resultTarget(item) ? ` -> ${resultTarget(item)}` : ""}${item.error ? ` / ${item.error}` : ""}`),
     ]
     await host.clipboard?.writeText?.(lines.join("\n"))
   }
@@ -181,8 +190,8 @@ export function Component({ compId, host }: NodeComponentProps) {
 
         <ResultView className="h-20 shrink-0 text-muted-foreground">
           {result?.results.length ? result.results.slice(0, 80).map((item) => (
-            <div key={`${item.kind}:${item.sourcePath}:${item.outputPath ?? ""}`} className={item.success ? "truncate" : "truncate text-red-500"}>
-              {item.success ? t("module:bandia.ok") : t("module:bandia.fail")} {item.sourcePath}{item.outputPath ? ` -> ${item.outputPath}` : ""}{item.error ? ` / ${item.error}` : ""}
+            <div key={`${item.kind}:${item.sourcePath}:${resultTarget(item) ?? ""}`} className={item.success ? "truncate" : "truncate text-red-500"}>
+              {item.success ? t("module:bandia.ok") : t("module:bandia.fail")} {item.sourcePath}{resultTarget(item) ? ` -> ${resultTarget(item)}` : ""}{item.error ? ` / ${item.error}` : ""}
             </div>
           )) : <div className="flex h-full items-center justify-center">{data.progressText || t("module:bandia.noResult")}</div>}
         </ResultView>
@@ -197,6 +206,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
 function canRun(mode: "extract" | "compress", paths: string[], mappings: BandiaPathMapping[]): boolean {
   return mode === "extract" ? paths.length > 0 : paths.length > 0 || mappings.length > 0
+}
+
+function resultTarget(item: { outputPath?: string; archivePath?: string }): string | undefined {
+  return item.outputPath ?? item.archivePath
 }
 
 function buildInput(action: BandiaAction, data: BandiaCardState, paths: string[], mappings: BandiaPathMapping[]): BandiaInput {
@@ -218,4 +231,26 @@ function buildInput(action: BandiaAction, data: BandiaCardState, paths: string[]
     dryRun: data.dryRun ?? true,
     openInEverything: action === "export_efu",
   }
+}
+
+function parseRawPaths(text: string): string[] {
+  const seen = new Set<string>()
+  return text
+    .split(/\r?\n|[;]/)
+    .map((item) => stripOuterQuotes(item.trim()))
+    .filter((item) => item && !seen.has(item) && Boolean(seen.add(item)))
+}
+
+function stripOuterQuotes(value: string): string {
+  let result = value.trim()
+  while (result.length >= 2 && isQuote(result[0]!) && isQuote(result[result.length - 1]!)) {
+    result = result.slice(1, -1).trim()
+  }
+  if (result && isQuote(result[0]!)) result = result.slice(1).trim()
+  if (result && isQuote(result[result.length - 1]!)) result = result.slice(0, -1).trim()
+  return result
+}
+
+function isQuote(value: string): boolean {
+  return value === "\"" || value === "'"
 }

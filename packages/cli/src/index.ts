@@ -34,13 +34,11 @@ export const NODE_CLI_REGISTRY: NodeCliRegistration[] = [
   node("owithu", "Apply environment and registry operations from config."),
   node("rawfilter", "Separate raw/translated archive variants."),
   node("recycleu", "Empty the Windows recycle bin once or on a timer."),
-  node("reinstallp", "Scan and reinstall local Python projects."),
   node("repacku", "Analyze and repack folders into archive layouts."),
   node("scoolp", "Manage Scoop package buckets and cache state."),
   node("seriex", "Plan and apply series folder organization."),
   node("sleept", "Run sleep/shutdown timers and system monitors."),
   node("trename", "Plan, validate, rename, and undo ACG file names."),
-  node("weibospider", "Manage config and crawl Weibo media workflows."),
 ]
 
 export function normalizeNodeId(value: string): string {

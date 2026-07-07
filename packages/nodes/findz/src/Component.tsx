@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
@@ -34,6 +34,8 @@ const ACTIONS: Array<{ value: FindzAction; icon: typeof Search }> = [
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<FindzCardState>(compId) ?? {}
+  const dataRef = useRef<FindzCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const action = data.action ?? "search"
   const paths = splitPaths(data.pathText)
@@ -48,11 +50,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function patch(patchData: Partial<FindzCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePaths() {
@@ -62,23 +66,26 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem search.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem search.")
 
     setRunning(true)
-    patch({ phase: nextAction, progress: 0, progressText: t("module:findz.starting"), result: null })
-    const response = await runNativeAction<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as FindzResult
-
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: response.data ?? null,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: nextAction, progress: 0, progressText: t("module:findz.starting"), result: null })
+      const response = await runNativeAction<FindzInput, FindzData>("findz", buildInput(nextAction, data), (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else log(event.message)
+      }) as FindzResult
+  
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function showHelp() {

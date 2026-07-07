@@ -39,7 +39,8 @@ async function runCommand(command: string, args: string[], options?: { cwd?: str
 
 async function runPowerShell(script: string): Promise<CommandResult> {
   const executable = process.platform === "win32" ? "powershell.exe" : "pwsh"
-  return exec(executable, ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+  const wrapped = `$ProgressPreference = 'SilentlyContinue'; ${script}`
+  return exec(executable, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", wrapped])
 }
 
 async function listBucketManifests(bucketPath: string): Promise<ScoolpManifest[]> {

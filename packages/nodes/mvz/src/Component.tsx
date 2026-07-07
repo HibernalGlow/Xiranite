@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, MoveRight, PencilLine, Play, RotateCcw, Trash2 } from "lucide-react"
@@ -34,6 +34,8 @@ const ACTIONS: Array<{ value: MvzAction; labelKey: string; icon: typeof FileArch
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<MvzCardState>(compId) ?? {}
+  const dataRef = useRef<MvzCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const action = data.action ?? "extract"
   const separator = data.separator || "//"
@@ -44,11 +46,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dryRun = data.dryRun ?? true
 
   function patch(patchData: Partial<MvzCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pasteEntries() {
@@ -58,23 +62,26 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction = action) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-mvz CLI for archive filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for archive filesystem actions.")
 
     setRunning(true)
-    patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
-    const response = await runNativeAction<MvzInput, MvzData>("mvz", buildInput(nextAction, data), (event) => {
-      if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
-      else log(event.message)
-    }) as MvzResult
-
-    patch({
-      phase: response.success ? "completed" : "error",
-      progress: response.success ? 100 : 0,
-      progressText: response.message,
-      result: response.data ?? null,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: nextAction, progress: 0, progressText: "starting", result: null })
+      const response = await runNativeAction<MvzInput, MvzData>("mvz", buildInput(nextAction, data), (event) => {
+        if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
+        else log(event.message)
+      }) as MvzResult
+  
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {

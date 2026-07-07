@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Play, RotateCcw, Search } from "lucide-react"
@@ -19,6 +19,8 @@ interface RawfilterCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<RawfilterCardState>(compId) ?? {}
+  const dataRef = useRef<RawfilterCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const nameOnlyMode = data.nameOnlyMode ?? false
@@ -28,11 +30,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const plan = data.result?.plan ?? []
 
   function patch(patchData: Partial<RawfilterCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePath() {
@@ -42,23 +46,30 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: RawfilterInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
     patch({ phase: action === "execute" ? "running" : "planning" })
-    const response = await runNativeAction<RawfilterInput, RawfilterData>("rawfilter", {
-      action,
-      path: data.pathText,
-      nameOnlyMode,
-      createShortcuts,
-      trashOnly,
-      minSimilarity,
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as RawfilterResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      const response = await runNativeAction<RawfilterInput, RawfilterData>("rawfilter", {
+        action,
+        path: data.pathText,
+        nameOnlyMode,
+        createShortcuts,
+        trashOnly,
+        minSimilarity,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as RawfilterResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error" })
+      log(message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

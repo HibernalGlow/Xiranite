@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -152,7 +152,7 @@ function commonArgs() {
 async function runAction(action: TrenameAction, args: TrenameCliOptions, json: boolean, host: CliHost): Promise<void> {
   const input = await inputFromArgs(action, args)
   const result = await runTrename(input, createNodeTrenameRuntime(), (event) => {
-    if (!json) writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
   })
 
   if (args.output && action === "scan" && result.success) await writeSegments(args.output, result.data?.segments ?? [])

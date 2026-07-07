@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileText, RotateCcw, Search, Zap } from "lucide-react"
@@ -21,6 +21,8 @@ interface EncodebCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<EncodebCardState>(compId) ?? {}
+  const dataRef = useRef<EncodebCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const pathText = data.pathText ?? ""
   const preset = data.preset ?? "cn"
@@ -32,11 +34,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
 
   function patch(patchData: Partial<EncodebCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePaths() {
@@ -51,27 +55,30 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EncodebInput["action"]) {
     if (!paths.length || running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan, preview, or recover filenames.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI to scan, preview, or recover filenames.")
 
     setRunning(true)
-    patch({ phase: action ?? "preview", mappings: [], matches: [] })
-    const response = await runNativeAction<EncodebInput, EncodebData>("encodeb", {
-      action,
-      paths,
-      srcEncoding,
-      dstEncoding,
-      strategy,
-    }, (event) => {
-      if (event.type === "log") log(event.message)
-    }) as EncodebResult
-
-    patch({
-      phase: response.success ? "completed" : "error",
-      mappings: response.data?.mappings ?? [],
-      matches: response.data?.matches ?? [],
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action ?? "preview", mappings: [], matches: [] })
+      const response = await runNativeAction<EncodebInput, EncodebData>("encodeb", {
+        action,
+        paths,
+        srcEncoding,
+        dstEncoding,
+        strategy,
+      }, (event) => {
+        if (event.type === "log") log(event.message)
+      }) as EncodebResult
+  
+      patch({
+        phase: response.success ? "completed" : "error",
+        mappings: response.data?.mappings ?? [],
+        matches: response.data?.matches ?? [],
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

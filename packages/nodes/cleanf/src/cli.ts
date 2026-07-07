@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -100,8 +100,8 @@ function inputFromArgs(args: CleanfCliOptions, preview: boolean): CleanfInput {
 }
 
 async function runAction(input: CleanfInput, json: boolean, host: CliHost): Promise<void> {
-  const result = await runCleanf(input, createNodeCleanfRuntime(), (event) => {
-    if (event.type === "progress") writeLine(host, `[${event.progress ?? 0}%] ${event.message}`)
+  const result = await runCleanf(input, createNodeCleanfRuntime(), json ? undefined : (event) => {
+    if (event.type === "progress") writeCliEvent(host, event, { label: CLI_NAME })
     else writeLine(host, event.message)
   })
 
@@ -165,10 +165,23 @@ function GuidedCleanfApp({ host }: { host: CliHost }) {
 
   return h(
     Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "cleanf guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    { flexDirection: "column", gap: 1 },
+    h(
+      Box,
+      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: "cyan", bold: true }, "Xiranite Cleanf"),
+      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for safe cleanup planning"),
+      h(Text, null, h(Text, { color: "cyan" }, "Presets "), "empty_folders, backup_files, temp_folders"),
+      h(Text, null, "        trash_files, hb_txt_files"),
+      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} preview --paths <folder> --json`),
+    ),
+    h(
+      Box,
+      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
+      h(Text, null, message),
+      step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    ),
     ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
   )
 }
@@ -189,7 +202,7 @@ function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<v
       setValue((current) => current + input)
     }
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

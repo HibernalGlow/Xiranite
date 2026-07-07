@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core.js"
 import { buildMigratefPlan, dumpMigratefHistory, parseMigratefHistory, preserveRelativeTarget, runMigratef } from "./core.js"
 

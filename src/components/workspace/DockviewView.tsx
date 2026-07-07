@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelHeaderProps } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
@@ -29,8 +29,8 @@ import type { ComponentInstance } from "@/types/workspace"
  */
 export function DockviewView() {
   const { t, i18n } = useTranslation()
-  const { visibleComponents } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const visibleComponents = useWorkspaceVisibleComponents()
+  const workspaceActions = useWorkspaceActions()
   const apiRef = useRef<DockviewApi | null>(null)
   const removeDisposableRef = useRef<{ dispose(): void } | null>(null)
   const syncingFromStoreRef = useRef(false)
@@ -63,9 +63,9 @@ export function DockviewView() {
     })
     removeDisposableRef.current = api.onDidRemovePanel((panel) => {
       if (syncingFromStoreRef.current) return
-      dispatch(actions.setComponentVisibility(panel.api.id, "dockview", false))
+      workspaceActions.setComponentVisibility(panel.api.id, "dockview", false)
     })
-  }, [dockComponents, dispatch])
+  }, [dockComponents, workspaceActions])
 
   useEffect(() => {
     return () => {
@@ -138,7 +138,7 @@ export function DockviewView() {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              dispatch(actions.setComponentVisibility(props.api.id, "dockview", false))
+              workspaceActions.setComponentVisibility(props.api.id, "dockview", false)
             }}
             className="grid h-4 w-4 place-items-center rounded opacity-0 group-hover/tab:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-opacity"
           >
@@ -147,7 +147,7 @@ export function DockviewView() {
         </div>
       )
     },
-  }), [dispatch])
+  }), [workspaceActions])
 
   if (dockComponents.length === 0) {
     return (
@@ -159,7 +159,7 @@ export function DockviewView() {
             size="sm"
             variant="outline"
             className="font-mono text-xs"
-            onClick={() => dispatch(actions.setOverlay("registry"))}
+            onClick={() => workspaceActions.setOverlay("registry")}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             {t("view:dockview.openRegistry")}

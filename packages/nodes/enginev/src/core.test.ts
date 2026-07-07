@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { EngineVDirEntry, EngineVPathInfo, EngineVRuntime } from "./core.js"
 import { filterWallpapers, generateNewName, runEngineV, scanWorkshop, validateTemplate } from "./core.js"
 

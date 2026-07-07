@@ -325,7 +325,9 @@ async function status(runtime: ScoolpRuntime, onEvent: (event: NodeRunEvent) => 
   const scoopInstalled = await runtime.commandExists("scoop")
   if (!scoopInstalled) return success("Scoop is not installed.", { scoopInstalled: false })
 
+  onEvent({ type: "progress", progress: 45, message: "Loading installed packages." })
   const list = await runtime.runCommand("scoop", ["list"])
+  onEvent({ type: "progress", progress: 75, message: "Loading buckets." })
   const bucketList = await runtime.runCommand("scoop", ["bucket", "list"])
   const installedPackages = list.code === 0 ? parseScoopListOutput(list.stdout) : []
   const buckets = bucketList.code === 0 ? parseBucketListOutput(bucketList.stdout) : []

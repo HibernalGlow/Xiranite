@@ -56,63 +56,6 @@ export interface ComponentDTO {
   updatedAt: number
 }
 
-// ── EngineV (示例服务) ──────────────────────────────────────────────────────
-/** Wallpaper Engine 工坊壁纸 — 由 EngineVService.scan 产出 */
-export interface WallpaperDTO {
-  workshopId: string
-  title: string
-  description?: string
-  type: string
-  contentRating?: string
-  folderName: string
-  sizeBytes: number
-  lastModified: number
-}
-
-export interface EngineVScanResult {
-  wallpapers: WallpaperDTO[]
-  totalCount: number
-  typeStats: Record<string, number>
-  ratingStats: Record<string, number>
-}
-
-export interface EngineVFilterInput {
-  wallpapers: WallpaperDTO[]
-  filters: {
-    type?: string[]
-    contentRating?: string[]
-    titleContains?: string
-    minSize?: number
-    maxSize?: number
-  }
-}
-
-export interface EngineVRenameInput {
-  wallpapers: WallpaperDTO[]
-  template: string
-  dryRun: boolean
-  copyMode?: boolean
-  targetPath?: string
-}
-
-export interface EngineVRenameResult {
-  results: Array<{
-    workshopId: string
-    oldName: string
-    newName: string
-    status: "renamed" | "copied" | "planned" | "error"
-    error?: string
-  }>
-  successCount: number
-  failedCount: number
-}
-
-export interface EngineVExportInput {
-  wallpapers: WallpaperDTO[]
-  format: "json" | "paths"
-  exportPath: string
-}
-
 // ── 通用 Result ─────────────────────────────────────────────────────────────
 export interface Result<T> {
   success: boolean

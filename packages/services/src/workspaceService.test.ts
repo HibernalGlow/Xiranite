@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { NodeRunnerService, WorkspaceService } from "./index.js"
 
@@ -85,12 +85,12 @@ describe("NodeRunnerService", () => {
     })
 
     const started = service.startOperation("slow", { value: 1 })
-    await Bun.sleep(1)
+    await sleep(1)
     const cancelled = service.cancelOperation(started.operationId, "Stop requested.")
     const result = await service.waitForOperation(started.operationId)
 
     releaseRunner()
-    await Bun.sleep(1)
+    await sleep(1)
 
     const final = service.getOperation(started.operationId)
     const events = service.getOperationEvents(started.operationId)
@@ -141,4 +141,8 @@ describe("NodeRunnerService", () => {
 function fixedClock(values: number[]) {
   let index = 0
   return () => values[Math.min(index++, values.length - 1)]!
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

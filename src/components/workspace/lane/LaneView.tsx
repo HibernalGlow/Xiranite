@@ -10,8 +10,8 @@
  *
  * 行为：
  * - lane 水平排列（flex-row），可水平滚动
- * - 拖拽 lane 标题栏重排（REORDER_LANE）
- * - 拖拽 card 跨 lane 移动（MOVE_COMPONENT_TO_LANE）
+ * - @dnd-kit 拖拽 lane 标题栏重排（REORDER_LANE）
+ * - @dnd-kit 拖拽 card 跨 lane 移动（MOVE_COMPONENT_TO_LANE）
  * - 顶栏切换到 lane 时，若当前 workspace 还没 lane，自动建一个默认 lane
  * - "+ ADD LANE" 按钮：dispatch ADD_LANE
  * - 关闭 card：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅 lane 模式下隐藏
@@ -19,22 +19,52 @@
 import { useMemo, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Columns3 } from "lucide-react"
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
-import { getDragMode, getDragState, clearDrag } from "@/store/dragState"
+import {
+  closestCorners,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { Button } from "@/components/ui/button"
 import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
+import {
+  cardDndId,
+  isCardDragData,
+  isLaneDragData,
+  isLaneDropData,
+  laneDndId,
+  type LaneDndData,
+} from "./dndIds"
 
 export function LaneView() {
   const { t } = useTranslation()
-  const { state, visibleComponents } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const { lanes, activeWorkspaceId } = useWorkspaceShallowSelector((state) => ({
+    lanes: state.lanes,
+    activeWorkspaceId: state.activeWorkspaceId,
+  }))
+  const visibleComponents = useWorkspaceVisibleComponents()
+  const workspaceActions = useWorkspaceActions()
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   // 当前 workspace 的 lanes（隐藏的不渲染）
   const wsLanes = useMemo(
-    () => state.lanes.filter(l => l.workspaceId === state.activeWorkspaceId && !l.hidden),
-    [state.lanes, state.activeWorkspaceId],
+    () => lanes.filter(l => l.workspaceId === activeWorkspaceId && !l.hidden),
+    [lanes, activeWorkspaceId],
   )
 
   // 在 lane 模式下未隐藏的组件
@@ -70,72 +100,34 @@ export function LaneView() {
     return laneComponents.filter(c => !c.laneId || !laneIds.has(c.laneId))
   }, [laneComponents, wsLanes])
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    const mode = getDragMode()
-    if (mode === "none") return
-    e.preventDefault()
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
-  }, [])
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const activeData = event.active.data.current as LaneDndData | undefined
+    const overData = event.over?.data.current as LaneDndData | undefined
+    if (!activeData || !overData) return
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    const mode = getDragMode()
-    if (mode === "none") return
-    e.preventDefault()
-    e.stopPropagation()
-
-    // 找到 drop 落点的 lane 元素
-    const target = (e.target as HTMLElement).closest("[data-lane-id]") as HTMLElement | null
-    const toLaneId = target?.dataset?.laneId ?? null
-    if (!toLaneId) {
-      clearDrag()
+    if (isLaneDragData(activeData)) {
+      if ((isLaneDragData(overData) || isLaneDropData(overData)) && activeData.laneId !== overData.laneId) {
+        workspaceActions.reorderLane(activeData.laneId, overData.laneId)
+      }
       return
     }
 
-    if (mode === "lane") {
-      const { laneId: fromId } = getDragState()
-      if (fromId && fromId !== toLaneId) {
-        dispatch(actions.reorderLane(fromId, toLaneId))
-      }
-    } else if (mode === "card") {
-      const { cardId, fromLaneId } = getDragState()
-      if (cardId && fromLaneId) {
-        // 计算 drop 位置：找最近的 card，判断在前还是后插入
-        const targetCardEl = (e.target as HTMLElement).closest("[data-card-id]") as HTMLElement | null
-        let targetCardId: string | null = null
-        let insertAfter = false
-        if (targetCardEl) {
-          targetCardId = targetCardEl.dataset.cardId ?? null
-          const rect = targetCardEl.getBoundingClientRect()
-          insertAfter = e.clientY > rect.top + rect.height / 2
-        } else {
-          // 没落到具体 card 上 — 找最近的一个
-          const cards = target?.querySelectorAll<HTMLElement>("[data-card-id]") ?? []
-          if (cards.length > 0) {
-            let nearest: HTMLElement | null = null
-            let nearestDist = Infinity
-            for (const card of Array.from(cards)) {
-              const rect = card.getBoundingClientRect()
-              const midpoint = rect.top + rect.height / 2
-              const dist = Math.abs(e.clientY - midpoint)
-              if (dist < nearestDist) {
-                nearestDist = dist
-                nearest = card
-                insertAfter = e.clientY > midpoint
-              }
-            }
-            targetCardId = nearest?.dataset?.cardId ?? null
-          }
-        }
-        dispatch(actions.moveComponentToLane(cardId, toLaneId, targetCardId, insertAfter))
-      }
-    }
-    clearDrag()
-  }, [dispatch])
+    if (!isCardDragData(activeData)) return
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    const related = e.relatedTarget as Node | null
-    if (related && (e.currentTarget as Node).contains(related)) return
-  }, [])
+    if (isCardDragData(overData)) {
+      workspaceActions.moveComponentToLane(
+        activeData.cardId,
+        overData.laneId,
+        overData.cardId,
+        shouldInsertAfter(event),
+      )
+      return
+    }
+
+    if (isLaneDropData(overData) || isLaneDragData(overData)) {
+      workspaceActions.moveComponentToLane(activeData.cardId, overData.laneId, null, false)
+    }
+  }, [workspaceActions])
 
   // 没有任何 lane：显示空态 + 创建默认 lane
   if (wsLanes.length === 0) {
@@ -148,7 +140,7 @@ export function LaneView() {
             size="sm"
             variant="outline"
             className="font-mono text-xs"
-            onClick={() => dispatch(actions.addLane())}
+            onClick={() => workspaceActions.addLane()}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             {t("view:lane.addLane")}
@@ -159,46 +151,57 @@ export function LaneView() {
   }
 
   return (
-    <div
-      className="flex-1 ws-canvas-bg flex overflow-x-auto overflow-y-hidden"
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragLeave={handleDragLeave}
-    >
-      {wsLanes.map(lane => (
-        <Lane
-          key={lane.id}
-          lane={lane}
-          components={cardsByLane.get(lane.id) ?? []}
-        />
-      ))}
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+      <div className="flex-1 ws-canvas-bg flex overflow-x-auto overflow-y-hidden">
+        <SortableContext items={wsLanes.map((lane) => laneDndId(lane.id))} strategy={horizontalListSortingStrategy}>
+          {wsLanes.map(lane => (
+            <Lane
+              key={lane.id}
+              lane={lane}
+              components={cardsByLane.get(lane.id) ?? []}
+            />
+          ))}
+        </SortableContext>
 
-      {/* 兜底：没归属任何 lane 的组件也展示（在末尾） */}
-      {orphanComponents.length > 0 && (
-        <div className="flex-shrink-0 w-72 flex flex-col border-l border-border/40 bg-card/40">
-          <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
-            <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
-              {t("common:unfiled")}
-            </span>
+        {/* 兜底：没归属任何 lane 的组件也展示（在末尾） */}
+        {orphanComponents.length > 0 && (
+          <div className="flex-shrink-0 w-72 flex flex-col border-l border-border/40 bg-card/40">
+            <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
+              <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
+                {t("common:unfiled")}
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              <SortableContext items={orphanComponents.map((component) => cardDndId(component.id))} strategy={verticalListSortingStrategy}>
+                {orphanComponents.map(c => (
+                  <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId="" />
+                ))}
+              </SortableContext>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {orphanComponents.map(c => (
-              <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId="" />
-            ))}
-          </div>
+        )}
+
+        {/* Add Lane 按钮 */}
+        <div className="flex-shrink-0 w-12 flex items-center justify-center border-l border-border/40">
+          <button
+            onClick={() => workspaceActions.addLane()}
+            className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            title={t("common:addLane")}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
-      )}
-
-      {/* Add Lane 按钮 */}
-      <div className="flex-shrink-0 w-12 flex items-center justify-center border-l border-border/40">
-        <button
-          onClick={() => dispatch(actions.addLane())}
-          className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          title={t("common:addLane")}
-        >
-          <Plus className="h-4 w-4" />
-        </button>
       </div>
-    </div>
+    </DndContext>
   )
+}
+
+function shouldInsertAfter(event: DragEndEvent): boolean {
+  const activeRect = event.active.rect.current.translated ?? event.active.rect.current.initial
+  const overRect = event.over?.rect
+  if (!activeRect || !overRect) return false
+
+  const activeCenter = activeRect.top + activeRect.height / 2
+  const overCenter = overRect.top + overRect.height / 2
+  return activeCenter > overCenter
 }

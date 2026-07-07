@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { TrenameDirEntry, TrenamePathInfo, TrenameRuntime } from "./core.js"
 import { countPending, countReady, countTotal, parseRenameJson, runTrename, scanTrenamePaths, stringifyRenameJson } from "./core.js"
 

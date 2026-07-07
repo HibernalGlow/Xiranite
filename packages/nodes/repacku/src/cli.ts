@@ -6,11 +6,11 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
-  padVisibleEnd,
   promptRich,
   renderProgressBar,
   rich,
   runMain,
+  selectRich,
   terminalColumns,
   truncateVisible,
   visibleWidth,
@@ -53,9 +53,10 @@ interface GuidedTask {
 
 type ResolvedGuidedChoice =
   | { kind: "exit" }
-  | { kind: "invalid"; value: string }
   | { kind: "path"; path: string; task: GuidedTask }
   | { kind: "task"; task: GuidedTask }
+
+type GuidedSelection = "exit" | "manual-path" | `task:${string}`
 
 const GUIDED_TASKS: GuidedTask[] = [
   {
@@ -182,7 +183,7 @@ function commonArgs() {
 
 async function runGuided(host: CliHost): Promise<void> {
   if (!canRunInteractiveCli(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use `xrepacku compress --path <folder>` for scripted use.")
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} compress --path <folder>\` for scripted use.`)
     process.exitCode = 2
     return
   }
@@ -192,18 +193,13 @@ async function runGuided(host: CliHost): Promise<void> {
   let firstRender = true
   try {
     while (true) {
-      renderGuidedSelector(host, firstRender)
+      renderGuidedIntro(host, firstRender)
       firstRender = false
 
-      const rawChoice = await promptRich(host, `选择任务、输入任务名，或粘贴路径 ${rich(host, "[0/1/2/3/4]", "magenta")}`, "1")
-      const choice = await resolveGuidedChoice(rawChoice, defaultTask, runtime)
+      const choice = await readGuidedChoice(host, defaultTask, runtime)
       if (choice.kind === "exit") {
         writeLine(host, rich(host, "已退出。", "yellow"))
         return
-      }
-      if (choice.kind === "invalid") {
-        writeRichPanel(host, "Input", `无法识别: ${choice.value}`, { color: "red", minWidth: 48 })
-        continue
       }
 
       const paths = choice.kind === "path" ? [choice.path] : await resolveGuidedPaths(host, runtime)
@@ -231,7 +227,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 }
 
-function renderGuidedSelector(host: CliHost, includeHeader: boolean): void {
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   if (!includeHeader) writeLine(host)
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite Repacku", [
@@ -240,42 +236,43 @@ function renderGuidedSelector(host: CliHost, includeHeader: boolean): void {
     `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
-  writeLine(host, rich(host, "可执行任务", "white", "bold"))
-  GUIDED_TASKS.forEach((task, index) => {
-    writeLine(host, renderGuidedTaskRow(host, task, index + 1, index === 0))
-  })
-  writeLine(host, renderGuidedTaskRow(host, { name: "exit", description: "离开引导模式", inputs: [] }, 0, false))
-  writeLine(host)
-  writeLine(host, rich(host, "提示: guided 默认保持原 repacku 习惯，成功后删除源文件；需要预演请用 `xrepacku compress --dry-run`。", "grey"))
+  writeLine(host, rich(host, `提示: guided 默认保持原 repacku 习惯，成功后删除源文件；需要预演请用 \`${CLI_NAME} compress --dry-run\`。`, "grey"))
 }
 
-function renderGuidedTaskRow(host: CliHost, task: GuidedTask, index: number, isDefault: boolean): string {
-  const columns = terminalColumns(host)
-  const number = padVisibleEnd(rich(host, String(index).padStart(2), "cyan"), 4)
-  const name = padVisibleEnd(rich(host, task.name, isDefault ? "green" : "white"), 26)
-  const badge = isDefault ? rich(host, "default", "yellow") : ""
-  const badgeCell = padVisibleEnd(badge, 9)
-  const prefix = `  ${number}${name}${badgeCell}`
-  const descWidth = Math.max(0, columns - visibleWidth(prefix) - 1)
-  return `${prefix}${rich(host, truncateVisible(task.description, descWidth), index === 0 ? "grey" : "white")}`
-}
-
-async function resolveGuidedChoice(rawChoice: string, defaultTask: GuidedTask, runtime: RepackuRuntime): Promise<ResolvedGuidedChoice> {
-  const text = cleanPath(rawChoice)
-  if (!text) return { kind: "task", task: defaultTask }
-  if (/^\d+$/.test(text)) {
-    const index = Number(text)
-    if (index === 0) return { kind: "exit" }
-    const task = GUIDED_TASKS[index - 1]
-    return task ? { kind: "task", task } : { kind: "invalid", value: rawChoice }
+async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: RepackuRuntime): Promise<ResolvedGuidedChoice> {
+  const directPath = cleanPath(await promptRich(host, "粘贴文件夹路径直接执行默认任务；留空进入任务选择", ""))
+  if (directPath) {
+    const info = await runtime.pathInfo(directPath)
+    if (info.exists && info.isDirectory) return { kind: "path", path: info.path, task: defaultTask }
+    writeRichPanel(host, "Path", `不是有效文件夹: ${directPath}`, { color: "red", minWidth: 48 })
   }
 
-  const namedTask = GUIDED_TASKS.find((task) => task.name.toLowerCase() === text.toLowerCase())
-  if (namedTask) return { kind: "task", task: namedTask }
+  const selection = await selectRich<GuidedSelection>(
+    host,
+    "选择 repacku 任务",
+    [
+      ...GUIDED_TASKS.map((task): { value: GuidedSelection; label: string; hint: string } => ({
+        value: `task:${task.name}`,
+        label: task.name,
+        hint: task.description,
+      })),
+      { value: "manual-path", label: "paste-path", hint: "手动输入路径，并使用默认 image-only 任务" },
+      { value: "exit", label: "exit", hint: "离开引导模式" },
+    ],
+    { initialValue: `task:${defaultTask.name}`, maxItems: 8 },
+  )
 
-  const info = await runtime.pathInfo(text)
-  if (info.exists && info.isDirectory) return { kind: "path", path: info.path, task: defaultTask }
-  return { kind: "invalid", value: rawChoice }
+  if (selection === "exit") return { kind: "exit" }
+  if (selection === "manual-path") {
+    const answer = await promptRich(host, "输入文件夹路径", "")
+    const [path] = await validDirectoryPaths(splitPaths(answer), runtime)
+    if (path) return { kind: "path", path, task: defaultTask }
+    writeRichPanel(host, "Path", "未提供有效文件夹路径。", { color: "yellow", minWidth: 48 })
+    return { kind: "task", task: defaultTask }
+  }
+
+  const taskName = selection.slice("task:".length)
+  return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
 }
 
 async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime): Promise<string[]> {

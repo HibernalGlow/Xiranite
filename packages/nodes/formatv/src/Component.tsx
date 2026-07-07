@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Minus, Plus, RefreshCw, RotateCcw, Search, Video } from "lucide-react"
@@ -18,6 +18,8 @@ interface FormatvCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<FormatvCardState>(compId) ?? {}
+  const dataRef = useRef<FormatvCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const paths = splitLines(data.pathText)
@@ -39,11 +41,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function patch(patchData: Partial<FormatvCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pastePath() {
@@ -53,22 +57,25 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: FormatvInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for filesystem actions.")
     setRunning(true)
-    patch({ phase: action })
-    const response = await runNativeAction<FormatvInput, FormatvData>("formatv", {
-      action,
-      paths,
-      recursive,
-      prefixName,
-      dryRun,
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as FormatvResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action })
+      const response = await runNativeAction<FormatvInput, FormatvData>("formatv", {
+        action,
+        paths,
+        recursive,
+        prefixName,
+        dryRun,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as FormatvResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copyResults() {

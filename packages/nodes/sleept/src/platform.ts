@@ -33,8 +33,11 @@ async function getNetCounters(): Promise<NetCounters> {
     try {
       const { stdout } = await execFileAsync("powershell.exe", [
         "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
         "-Command",
-        "Get-NetAdapterStatistics | ConvertTo-Json -Compress",
+        "$ProgressPreference = 'SilentlyContinue'; Get-NetAdapterStatistics | ConvertTo-Json -Compress",
       ])
       const parsed = JSON.parse(stdout.trim() || "[]")
       const rows = Array.isArray(parsed) ? parsed : [parsed]

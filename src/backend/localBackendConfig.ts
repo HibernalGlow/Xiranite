@@ -20,3 +20,11 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
 
   return { baseUrl, token }
 }
+
+export function localBackendFileUrl(path: string): string {
+  const config = resolveLocalBackendConfig()
+  const url = new URL("/local-files", config.baseUrl)
+  url.searchParams.set("path", path)
+  if (config.token) url.searchParams.set("token", config.token)
+  return url.href
+}

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, ListTodo, Play, RefreshCw, RotateCcw, Rocket } from "lucide-react"
@@ -17,6 +17,8 @@ interface LataCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<LataCardState>(compId) ?? {}
+  const dataRef = useRef<LataCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const tasks = data.result?.tasks ?? []
@@ -33,11 +35,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function patch(patchData: Partial<LataCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-50), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-50), message] })
   }
 
   async function pastePath() {
@@ -47,25 +51,28 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: LataInput["action"]) {
     if (running) return
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the xiranite-lata CLI for Taskfile actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Use the package CLI for Taskfile actions.")
     setRunning(true)
-    patch({ phase: action === "execute" ? "running" : "loading" })
-    const response = await runNativeAction<LataInput, LataData>("lata", {
-      action,
-      taskfilePath: data.taskfilePath,
-      taskName: selectedTask,
-      taskArgs: data.taskArgs,
-    }, (event) => {
-      if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
-      else log(event.message)
-    }) as LataResult
-    patch({
-      phase: response.success ? "completed" : "error",
-      result: response.data ?? null,
-      taskName: selectedTask || response.data?.tasks[0]?.name,
-    })
-    log(response.message)
-    setRunning(false)
+    try {
+      patch({ phase: action === "execute" ? "running" : "loading" })
+      const response = await runNativeAction<LataInput, LataData>("lata", {
+        action,
+        taskfilePath: data.taskfilePath,
+        taskName: selectedTask,
+        taskArgs: data.taskArgs,
+      }, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as LataResult
+      patch({
+        phase: response.success ? "completed" : "error",
+        result: response.data ?? null,
+        taskName: selectedTask || response.data?.tasks[0]?.name,
+      })
+      log(response.message)
+    } finally {
+      setRunning(false)
+    }
   }
 
   function reset() {

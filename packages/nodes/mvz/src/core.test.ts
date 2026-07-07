@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { MvzCommandResult, MvzRuntime } from "./core.js"
 import { groupByArchive, parseMvzEntries, parseMvzLine, runMvz } from "./core.js"
 

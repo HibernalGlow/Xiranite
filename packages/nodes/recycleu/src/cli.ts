@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -57,9 +57,12 @@ function createProgram(host: CliHost = createDefaultHost()) {
       }),
       clean: defineCommand({
         meta: { name: "clean", description: "Empty the recycle bin once." },
-        args: { json: { type: "boolean", description: "Print JSON result." } },
+        args: {
+          drive: { type: "string", description: "Limit cleanup to one drive letter, for example C." },
+          json: { type: "boolean", description: "Print JSON result." },
+        },
         async run({ args }) {
-          await runAction({ action: "clean_now" }, Boolean(args.json), host)
+          await runAction({ action: "clean_now", driveLetter: String(args.drive ?? "") }, Boolean(args.json), host)
         },
       }),
       start: defineCommand({
@@ -67,6 +70,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: {
           interval: { type: "string", default: "10", description: "Clean interval in seconds, minimum 5." },
           cycles: { type: "string", default: "360", description: "Maximum clean cycles." },
+          drive: { type: "string", description: "Limit cleanup to one drive letter, for example C." },
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
@@ -74,6 +78,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
             action: "start",
             interval: Number(args.interval),
             maxCycles: Number(args.cycles),
+            driveLetter: String(args.drive ?? ""),
           }, Boolean(args.json), host)
         },
       }),
@@ -89,7 +94,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
 
 async function runAction(input: RecycleuInput, json: boolean, host: CliHost): Promise<void> {
   const result = await runRecycleu(input, createNodeRecycleuRuntime(), (event) => {
-    if (event.type === "progress") writeLine(host, `[${event.progress ?? 0}%] ${event.message}`)
+    if (event.type === "progress") writeCliEvent(host, event, { label: CLI_NAME })
     else writeLine(host, event.message)
   })
 

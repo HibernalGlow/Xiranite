@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Eye, MousePointerClick, RotateCcw, ShieldMinus, ShieldPlus } from "lucide-react"
@@ -20,17 +20,21 @@ interface OwithuCardState {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<OwithuCardState>(compId) ?? {}
+  const dataRef = useRef<OwithuCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const result = data.result ?? null
   const hive = data.hive ?? ""
 
   function patch(patchData: Partial<OwithuCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pasteConfig() {
@@ -50,30 +54,34 @@ export function Component({ compId, host }: NodeComponentProps) {
           action,
           result: { vars: config.vars, defaults: config.defaults, entries: config.entries, plan, registeredCount: 0, unregisteredCount: 0, failedCount: 0, errors: [] },
         })
-        log(`preview: ${config.entries.length} entries / ${plan.length} registry ops`)
+        log(`Found ${config.entries.length} entries and ${plan.length} registry operations.`)
       } catch (error) {
         log(error instanceof Error ? error.message : String(error))
       }
       return
     }
 
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the package CLI for registry changes.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste TOML to preview locally or use the package CLI for registry changes.")
 
     setRunning(true)
-    patch({ phase: "running", action })
-    const input: OwithuInput = {
-      action,
-      path: data.path,
-      configText: data.configText,
-      hive,
-      onlyKey: data.onlyKey,
+    try {
+      patch({ phase: "running", action })
+      const input: OwithuInput = {
+        action,
+        path: data.path,
+        configText: data.configText,
+        hive,
+        onlyKey: data.onlyKey,
+      }
+      const response = await runNativeAction<OwithuInput, OwithuData>("owithu", input, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as OwithuResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
     }
-    const response = await runNativeAction<OwithuInput, OwithuData>("owithu", input, (event) => {
-      if (event.type === "log") log(event.message)
-    }) as OwithuResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
   }
 
   function reset() {

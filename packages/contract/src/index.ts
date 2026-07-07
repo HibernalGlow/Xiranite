@@ -70,6 +70,9 @@ export interface NodeHostApi {
     writeText?: (text: string) => Promise<void>
   }
   downloadText?: (filename: string, content: string) => void
+  localFiles?: {
+    getUrl?: (path: string) => string
+  }
   env: {
     theme: "light" | "dark"
     platform: "web" | "electron" | "node" | string

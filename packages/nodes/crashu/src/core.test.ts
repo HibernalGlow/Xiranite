@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import type { CrashuDirEntry, CrashuPathInfo, CrashuRuntime } from "./core.js"
 import { compareFolderNames, loadTargets, matchSimilarFolders, normalizeFolderName, runCrashu } from "./core.js"
 

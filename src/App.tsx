@@ -1,20 +1,35 @@
+import { lazy, Suspense } from "react"
 import { WorkspaceProvider } from "@/store/workspaceContext"
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout"
-import { FloatingComponentWindow } from "@/components/workspace/FloatingComponentWindow"
+import { parseAsString, useQueryStates } from "nuqs"
+
+const FloatingComponentWindow = lazy(() =>
+  import("@/components/workspace/FloatingComponentWindow").then((module) => ({
+    default: module.FloatingComponentWindow,
+  })),
+)
+
+const floatingWindowParsers = {
+  floatingComponent: parseAsString,
+  windowId: parseAsString,
+  moduleId: parseAsString,
+  title: parseAsString,
+}
 
 export function App() {
-  const params = new URLSearchParams(window.location.search)
-  const floatingComponent = params.get("floatingComponent")
+  const [params] = useQueryStates(floatingWindowParsers)
 
   return (
     <WorkspaceProvider>
-      {floatingComponent ? (
-        <FloatingComponentWindow
-          compId={floatingComponent}
-          windowId={params.get("windowId")}
-          moduleIdFallback={params.get("moduleId")}
-          titleFallback={params.get("title")}
-        />
+      {params.floatingComponent ? (
+        <Suspense fallback={<div className="h-screen bg-background" />}>
+          <FloatingComponentWindow
+            compId={params.floatingComponent}
+            windowId={params.windowId}
+            moduleIdFallback={params.moduleId}
+            titleFallback={params.title}
+          />
+        </Suspense>
       ) : (
         <WorkspaceLayout />
       )}

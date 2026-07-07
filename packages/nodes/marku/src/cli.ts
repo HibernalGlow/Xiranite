@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -136,7 +136,7 @@ async function inputFromArgs(args: MarkuCliOptions): Promise<MarkuInput> {
 
 async function runAction(input: MarkuInput & { action: MarkuAction }, json: boolean, host: CliHost, options: MarkuCliOptions): Promise<void> {
   const result = await runMarku(input, createNodeMarkuRuntime(), (event) => {
-    if (!json) writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
   })
   if (options.outputFile && result.data?.outputText) await writeFile(options.outputFile, result.data.outputText, "utf8")
   if (json) {
@@ -164,7 +164,7 @@ function GuidedMarkuApp({ host }: { host: CliHost }) {
   const [step, setStep] = useState<"module" | "text" | "running" | "done">("module")
   const [module, setModule] = useState<MarkuModuleId>("markt")
   const [message, setMessage] = useState("Module id.")
-  const [lines, setLines] = useState<string[]>(MARKU_MODULES.map((item) => item.id).slice(0, 9))
+  const [lines, setLines] = useState<string[]>([])
 
   async function submit(value: string) {
     if (step === "module") {
@@ -188,10 +188,23 @@ function GuidedMarkuApp({ host }: { host: CliHost }) {
 
   return h(
     Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "marku guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    { flexDirection: "column", gap: 1 },
+    h(
+      Box,
+      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: "cyan", bold: true }, "Xiranite Marku"),
+      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for Markdown module transforms"),
+      h(Text, null, h(Text, { color: "cyan" }, "Modules "), "markt, consecutive_header, content_dedup"),
+      h(Text, null, "        html2sy_table, title_convert, content_replace"),
+      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} text --module markt --input "# Title" --json`),
+    ),
+    h(
+      Box,
+      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 76 },
+      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
+      h(Text, null, message),
+      step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
+    ),
     ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
   )
 }
@@ -207,7 +220,7 @@ function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<v
     if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
     else if (!key.ctrl && input) setValue((current) => current + input)
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
 }
 
 function splitArg(value?: string, seed: string[] = []): string[] {

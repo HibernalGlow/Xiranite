@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
@@ -37,6 +37,8 @@ const actionLabelKey: Record<ScoolpAction, string> = {
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<ScoolpCardState>(compId) ?? {}
+  const dataRef = useRef<ScoolpCardState>(data)
+  dataRef.current = data
   const [running, setRunning] = useState(false)
   const logs = data.logs ?? []
   const result = data.result ?? null
@@ -44,11 +46,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dryRun = data.dryRun ?? true
 
   function patch(patchData: Partial<ScoolpCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
   }
 
   function log(message: string) {
-    patch({ logs: [...logs.slice(-40), message] })
+    const current = dataRef.current.logs ?? []
+    patch({ logs: [...current.slice(-40), message] })
   }
 
   async function pasteConfig() {
@@ -75,24 +79,28 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runNativeAction = createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the package CLI for system actions.")
+    const runNativeAction = host.actions?.run ?? createUnavailableNativeAction("Native action is unavailable in the shell-less Component. Paste sync TOML for local dry-run or use the package CLI for system actions.")
 
     setRunning(true)
-    patch({ phase: "running", action: nextAction })
-    const input: ScoolpInput = {
-      action: nextAction,
-      path: data.path,
-      configText: data.configText,
-      packageName: data.packageName,
-      packages: splitPackages(data.packages),
-      dryRun,
+    try {
+      patch({ phase: "running", action: nextAction })
+      const input: ScoolpInput = {
+        action: nextAction,
+        path: data.path,
+        configText: data.configText,
+        packageName: data.packageName,
+        packages: splitPackages(data.packages),
+        dryRun,
+      }
+      const response = await runNativeAction<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
+        if (event.type === "progress") log(`[${event.progress ?? 0}%] ${event.message}`)
+        else log(event.message)
+      }) as ScoolpResult
+      patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
+      log(response.message)
+    } finally {
+      setRunning(false)
     }
-    const response = await runNativeAction<ScoolpInput, ScoolpData>("scoolp", input, (event) => {
-      if (event.type === "log") log(event.message)
-    }) as ScoolpResult
-    patch({ phase: response.success ? "completed" : "error", result: response.data ?? null })
-    log(response.message)
-    setRunning(false)
   }
 
   function reset() {

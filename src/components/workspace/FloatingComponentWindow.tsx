@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
 import { getModule } from "@/components/modules/registry"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
-import { actions, useWorkspace, useWSDispatch } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import type { ComponentInstance } from "@/types/workspace"
 import { Minus, Minimize2, Square, X } from "lucide-react"
 
@@ -17,10 +17,15 @@ interface Props {
 
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
   const { t, i18n } = useTranslation()
-  const { state } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const comp = useWorkspaceComponent(compId)
+  const { activeWorkspaceId, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
+    activeWorkspaceId: state.activeWorkspaceId,
+    theme: state.theme,
+    zCounter: state.zCounter,
+  }))
+  const workspaceActions = useWorkspaceActions()
   const [isMaximized, setIsMaximized] = useState(false)
-  const comp = state.components.find((item) => item.id === compId)
+  const { controlMain, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const mod = getModule(moduleId)
   const title = titleFallback
@@ -28,7 +33,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
     || moduleId
     || t("view:floating.title")
 
-  const themeClass = state.theme === "endfield" ? "theme-endfield" : state.theme === "wuling" ? "theme-wuling" : ""
+  const themeClass = theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
 
   const detail = useMemo(() => {
     if (!moduleId) return t("view:floating.missingModule")
@@ -46,9 +51,9 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
       state: "floating",
       position: { x: 20, y: 20 },
       size: { w: 460, h: 380 },
-      z: state.zCounter + 1,
+      z: zCounter + 1,
       collapsed: false,
-      workspaceId: state.activeWorkspaceId,
+      workspaceId: activeWorkspaceId,
       flowPosition: { x: 100, y: 100 },
       flowSize: { width: 384, height: 320 },
       dockPanel: "default",
@@ -56,20 +61,19 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
       updatedAt: now,
     }
 
-    dispatch(actions.ensureComponent(fallbackComponent))
-  }, [comp, compId, dispatch, moduleId, state.activeWorkspaceId, state.zCounter])
+    workspaceActions.ensureComponent(fallbackComponent)
+  }, [activeWorkspaceId, comp, compId, moduleId, workspaceActions, zCounter])
 
   async function controlWindow(action: "minimize" | "maximize" | "close") {
     try {
-      const backend = await getBackend()
-      const result = await backend.windows.controlMain(action)
+      const result = await controlMain(action)
       if (result.success && result.state) {
         setIsMaximized(result.state === "maximized")
       }
       if (result.success) return
 
       if (action === "close") {
-        await backend.windows.close(windowId ?? compId)
+        await closeComponent(windowId ?? compId)
       }
     } catch {
       // Browser fallback windows may not be tracked by the backend.

@@ -5,21 +5,19 @@
  * - 标题栏（拖拽手柄 + 模块名 + 关闭按钮）
  * - 内容区（ModuleRenderer）
  *
- * 拖拽：draggable 在最外层 div，拖动时 setCardDrag(id, laneId)。
- * 释放时由 LaneView 的 onDrop 统一 dispatch MOVE_COMPONENT_TO_LANE。
+ * 拖拽：由 @dnd-kit 的 sortable handle 触发，释放时由 LaneView dispatch MOVE_COMPONENT_TO_LANE。
  *
  * 关闭：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅在 lane 模式下隐藏。
  *
- * ⚠️ 不订阅 dragState 全局 store：HTML5 drag 期间 React 重渲染会中断拖拽上下文。
- *    只用本地 useState 跟踪 isDragging 显示视觉反馈。
  */
-import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { GripVertical, X } from "lucide-react"
-import { useWSDispatch, actions } from "@/store/workspaceContext"
-import { setCardDrag, clearDrag } from "@/store/dragState"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { useWorkspaceActions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { cardDndId } from "./dndIds"
 
 interface Props {
   compId: string
@@ -29,36 +27,28 @@ interface Props {
 
 export function LaneCard({ compId, moduleId, laneId }: Props) {
   const { t, i18n } = useTranslation()
-  const dispatch = useWSDispatch()
+  const workspaceActions = useWorkspaceActions()
   const mod = getModule(moduleId)
-  const [isDragging, setIsDragging] = useState(false)
-
-  function handleDragStart(e: React.DragEvent) {
-    e.stopPropagation()  // 阻止冒泡到 Lane 的 dragStart（避免整条 lane 被拖）
-    setCardDrag(compId, laneId)
-    setIsDragging(true)
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move"
-      e.dataTransfer.setData("text/x-card-id", compId)
-    }
-  }
-
-  function handleDragEnd() {
-    clearDrag()
-    setIsDragging(false)
-  }
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: cardDndId(compId),
+    data: { type: "card", cardId: compId, laneId },
+  })
 
   return (
     <div
+      ref={setNodeRef}
       data-card-id={compId}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      // ⚠️ 关键：draggable 元素默认不允许被 drop 到自己上。
-      // 必须 onDragOver + preventDefault 才能让父级 LaneView 的 onDrop 触发。
-      onDragOver={(e) => {
-        e.preventDefault()
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
       }}
       className={[
         "rounded-md border bg-card overflow-hidden flex flex-col",
@@ -68,6 +58,10 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
     >
       <div className="flex items-center gap-1.5 h-7 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
         <span
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          data-lane-card-drag-handle="true"
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
           title={t("common:dragToOtherLane")}
         >
@@ -79,7 +73,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
         <button
           onClick={(e) => {
             e.stopPropagation()
-            dispatch(actions.toggleComponentVisibility(compId, "lane"))
+            workspaceActions.toggleComponentVisibility(compId, "lane")
           }}
           className="grid h-4 w-4 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
         >

@@ -1,10 +1,16 @@
-import { describe, expect, test } from "bun:test"
-import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { describe, expect, test } from "vitest"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import type { NodeRunEventDTO } from "@xiranite/shared"
 import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, resolveBackendDatabaseConfig, resolveBackendDataDir, startBackend } from "./index.js"
+
+const RUN_ROOT = fileURLToPath(new URL("../../../artifacts/test-runs/backend/", import.meta.url))
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lV9uKAAAAABJRU5ErkJggg==",
+  "base64",
+)
 
 describe("backend", () => {
   test("serves workspace list through the Elysia app", async () => {
@@ -96,7 +102,7 @@ describe("backend", () => {
 
     const stream = await app.handle(new Request(`http://localhost/node-operations/${started.operation.operationId}/stream`))
     const streamText = stream.text()
-    await Bun.sleep(5)
+    await sleep(5)
     releaseRunner()
 
     const messages = parseNdjson(await streamText)
@@ -135,7 +141,7 @@ describe("backend", () => {
       body: JSON.stringify({ input: { value: 9 } }),
     }))
     const started = await start.json() as { operation: { operationId: string } }
-    await Bun.sleep(5)
+    await sleep(5)
 
     const events = await app.handle(new Request(`http://localhost/node-operations/${started.operation.operationId}/events?from=1&limit=1`))
     const eventPage = await events.json() as {
@@ -150,7 +156,7 @@ describe("backend", () => {
     const cancelled = await cancel.json() as { operation: { phase: string; result: { success: boolean; message: string } } }
 
     releaseRunner()
-    await Bun.sleep(5)
+    await sleep(5)
 
     const cleanup = await app.handle(new Request("http://localhost/node-operations?maxAgeMs=0", {
       method: "DELETE",
@@ -256,10 +262,51 @@ describe("backend", () => {
       backend.close()
     }
   })
+
+  test("serves token-protected local image files as streamed browser assets", async () => {
+    const dataDir = await createTempDataDir()
+    const imagePath = join(dataDir, "preview.png")
+    await writeFile(imagePath, ONE_PIXEL_PNG)
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
+    try {
+      const blocked = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(imagePath)}`)
+      expect(blocked.status).toBe(401)
+
+      const allowed = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(imagePath)}&token=test-token`)
+      expect(allowed.status).toBe(200)
+      expect(allowed.headers.get("content-type")).toBe("image/png")
+      expect(allowed.headers.get("x-content-type-options")).toBe("nosniff")
+      expect(Buffer.from(await allowed.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      backend.close()
+      await removeWithWindowsRetry(dataDir)
+    }
+  })
+
+  test("allows browser CORS preflight for token-authenticated routes", async () => {
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
+    try {
+      const preflight = await fetch(`${backend.url}/nodes/recycleu/operations`, {
+        method: "OPTIONS",
+        headers: {
+          origin: "http://localhost:5173",
+          "access-control-request-method": "POST",
+          "access-control-request-headers": "content-type,x-xiranite-token",
+        },
+      })
+
+      expect(preflight.status).toBe(204)
+      expect(preflight.headers.get("access-control-allow-origin")).toBe("*")
+      expect(preflight.headers.get("access-control-allow-methods")).toContain("POST")
+      expect(preflight.headers.get("access-control-allow-headers")).toContain("x-xiranite-token")
+    } finally {
+      backend.close()
+    }
+  })
 })
 
 async function createTempDataDir(): Promise<string> {
-  const tmpRoot = join(import.meta.dir, "..", "..", "..", "tmp")
+  const tmpRoot = RUN_ROOT
   await mkdir(tmpRoot, { recursive: true })
   return mkdtemp(join(tmpRoot, "xiranite-backend-"))
 }
@@ -276,7 +323,11 @@ async function removeWithWindowsRetry(path: string): Promise<void> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 9) return
       if ((error as NodeJS.ErrnoException).code !== "EBUSY") throw error
-      await Bun.sleep(25)
+      await sleep(25)
     }
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
 }

@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "bun test src/**/*.test.ts && bun run build"
+    "test": "vitest run src/**/*.test.ts && bun run build"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

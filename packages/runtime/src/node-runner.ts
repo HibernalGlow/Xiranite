@@ -1,26 +1,28 @@
 ﻿import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
+import { generatedNodeSpecs } from "./node-runner.generated.js"
+
 export interface NodeRunBridgeResponse<TData = unknown> {
   result: NodeRunResult<TData>
   events: NodeRunEvent[]
 }
 
-interface PlatformNodeSpec {
+export interface PlatformNodeSpec {
   loadCore: ModuleLoader
   run: string
   loadPlatform: ModuleLoader
   createRuntime: string
 }
 
-interface PureNodeSpec {
+export interface PureNodeSpec {
   loadCore: ModuleLoader
   run: string
   message: string
 }
 
-type NodeSpec = PlatformNodeSpec | PureNodeSpec
-type NodeModule = Record<string, unknown>
-type ModuleLoader = () => Promise<NodeModule>
+export type NodeSpec = PlatformNodeSpec | PureNodeSpec
+export type NodeModule = Record<string, unknown>
+export type ModuleLoader = () => Promise<NodeModule>
 type PlatformRunFunction = (
   input: unknown,
   runtime: unknown,
@@ -29,53 +31,7 @@ type PlatformRunFunction = (
 type RuntimeFactory = () => unknown
 type PureRunFunction = (input: unknown) => unknown
 
-const nodeSpecs: Record<string, NodeSpec> = {
-  bandia: platformNode(() => import("@xiranite/node-bandia/core"), "runBandia", () => import("@xiranite/node-bandia/platform"), "createNodeBandiaRuntime"),
-  cleanf: platformNode(() => import("@xiranite/node-cleanf/core"), "runCleanf", () => import("@xiranite/node-cleanf/platform"), "createNodeCleanfRuntime"),
-  crashu: platformNode(() => import("@xiranite/node-crashu/core"), "runCrashu", () => import("@xiranite/node-crashu/platform"), "createNodeCrashuRuntime"),
-  dissolvef: platformNode(() => import("@xiranite/node-dissolvef/core"), "runDissolvef", () => import("@xiranite/node-dissolvef/platform"), "createNodeDissolvefRuntime"),
-  encodeb: platformNode(() => import("@xiranite/node-encodeb/core"), "runEncodeb", () => import("@xiranite/node-encodeb/platform"), "createNodeEncodebRuntime"),
-  enginev: platformNode(() => import("@xiranite/node-enginev/core"), "runEngineV", () => import("@xiranite/node-enginev/platform"), "createNodeEngineVRuntime"),
-  findz: platformNode(() => import("@xiranite/node-findz/core"), "runFindz", () => import("@xiranite/node-findz/platform"), "createNodeFindzRuntime"),
-  formatv: platformNode(() => import("@xiranite/node-formatv/core"), "runFormatv", () => import("@xiranite/node-formatv/platform"), "createNodeFormatvRuntime"),
-  kavvka: platformNode(() => import("@xiranite/node-kavvka/core"), "runKavvka", () => import("@xiranite/node-kavvka/platform"), "createNodeKavvkaRuntime"),
-  lata: platformNode(() => import("@xiranite/node-lata/core"), "runLata", () => import("@xiranite/node-lata/platform"), "createNodeLataRuntime"),
-  linedup: pureNode(() => import("@xiranite/node-linedup/core"), "filterLines", "Filtered lines."),
-  linku: platformNode(() => import("@xiranite/node-linku/core"), "runLinku", () => import("@xiranite/node-linku/platform"), "createNodeLinkuRuntime"),
-  marku: platformNode(() => import("@xiranite/node-marku/core"), "runMarku", () => import("@xiranite/node-marku/platform"), "createNodeMarkuRuntime"),
-  migratef: platformNode(() => import("@xiranite/node-migratef/core"), "runMigratef", () => import("@xiranite/node-migratef/platform"), "createNodeMigratefRuntime"),
-  movea: platformNode(() => import("@xiranite/node-movea/core"), "runMovea", () => import("@xiranite/node-movea/platform"), "createNodeMoveaRuntime"),
-  mvz: platformNode(() => import("@xiranite/node-mvz/core"), "runMvz", () => import("@xiranite/node-mvz/platform"), "createNodeMvzRuntime"),
-  owithu: platformNode(() => import("@xiranite/node-owithu/core"), "runOwithu", () => import("@xiranite/node-owithu/platform"), "createNodeOwithuRuntime"),
-  rawfilter: platformNode(() => import("@xiranite/node-rawfilter/core"), "runRawfilter", () => import("@xiranite/node-rawfilter/platform"), "createNodeRawfilterRuntime"),
-  recycleu: platformNode(() => import("@xiranite/node-recycleu/core"), "runRecycleu", () => import("@xiranite/node-recycleu/platform"), "createNodeRecycleuRuntime"),
-  reinstallp: platformNode(() => import("@xiranite/node-reinstallp/core"), "runReinstallp", () => import("@xiranite/node-reinstallp/platform"), "createNodeReinstallpRuntime"),
-  repacku: platformNode(() => import("@xiranite/node-repacku/core"), "runRepacku", () => import("@xiranite/node-repacku/platform"), "createNodeRepackuRuntime"),
-  scoolp: platformNode(() => import("@xiranite/node-scoolp/core"), "runScoolp", () => import("@xiranite/node-scoolp/platform"), "createNodeScoolpRuntime"),
-  seriex: platformNode(() => import("@xiranite/node-seriex/core"), "runSeriex", () => import("@xiranite/node-seriex/platform"), "createNodeSeriexRuntime"),
-  sleept: platformNode(() => import("@xiranite/node-sleept/core"), "runSleept", () => import("@xiranite/node-sleept/platform"), "createNodeSleeptRuntime"),
-  trename: platformNode(() => import("@xiranite/node-trename/core"), "runTrename", () => import("@xiranite/node-trename/platform"), "createNodeTrenameRuntime"),
-  weibospider: platformNode(() => import("@xiranite/node-weibospider/core"), "runWeiboSpider", () => import("@xiranite/node-weibospider/platform"), "createNodeWeiboSpiderRuntime"),
-}
-
 const moduleCache = new WeakMap<ModuleLoader, Promise<NodeModule>>()
-
-function platformNode(loadCore: ModuleLoader, run: string, loadPlatform: ModuleLoader, createRuntime: string): PlatformNodeSpec {
-  return {
-    loadCore,
-    run,
-    loadPlatform,
-    createRuntime,
-  }
-}
-
-function pureNode(loadCore: ModuleLoader, run: string, message: string): PureNodeSpec {
-  return {
-    loadCore,
-    run,
-    message,
-  }
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -122,34 +78,33 @@ export async function runNodeFromMain(payload: unknown): Promise<NodeRunBridgeRe
   const events: NodeRunEvent[] = []
   const onEvent = (event: NodeRunEvent) => events.push(event)
 
+  const result = await runNodeWithEvents(nodeId, input, onEvent)
+  return { result, events }
+}
+
+export async function runNodeWithEvents(
+  nodeId: unknown,
+  input: unknown,
+  onEvent: (event: NodeRunEvent) => void = () => {},
+): Promise<NodeRunResult> {
   if (typeof nodeId !== "string" || !nodeId) {
-    return {
-      result: { success: false, message: "node.run requires a nodeId string." },
-      events,
-    }
+    return { success: false, message: "node.run requires a nodeId string." }
   }
 
-  const spec = nodeSpecs[nodeId]
+  const spec = generatedNodeSpecs[nodeId]
   if (!spec) {
     return {
-      result: {
-        success: false,
-        message: `Unknown node runner "${nodeId}". Available: ${Object.keys(nodeSpecs).sort().join(", ")}`,
-      },
-      events,
+      success: false,
+      message: `Unknown node runner "${nodeId}". Available: ${Object.keys(generatedNodeSpecs).sort().join(", ")}`,
     }
   }
 
   try {
-    const result = await runSpec(spec, input, onEvent)
-    return { result, events }
+    return await runSpec(spec, input, onEvent)
   } catch (error) {
     const message = `Node "${nodeId}" failed: ${errorMessage(error)}`
-    events.push({ type: "log", message })
-    return {
-      result: { success: false, message },
-      events,
-    }
+    onEvent({ type: "log", message })
+    return { success: false, message }
   }
 }
 

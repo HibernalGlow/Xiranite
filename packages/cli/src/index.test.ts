@@ -1,11 +1,11 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNodeId } from "./index"
 
 describe("@xiranite/cli registry", () => {
   test("registers every migrated aestivus node", () => {
-    expect(NODE_CLI_REGISTRY).toHaveLength(26)
+    expect(NODE_CLI_REGISTRY).toHaveLength(24)
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("cleanf")
-    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("weibospider")
+    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("trename")
   })
 
   test("normalizes direct bin names to node ids", () => {

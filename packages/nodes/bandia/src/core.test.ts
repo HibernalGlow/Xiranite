@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { BandiaRuntime, BandiaCommandResult, BandiaFileStat } from "./core.js"
 import { parseBandiaPaths, parsePathMappings, runBandia } from "./core.js"
 
@@ -54,7 +54,7 @@ describe("bandia core", () => {
 
     expect(result.success).toBe(true)
     expect(result.data?.compressedCount).toBe(1)
-    expect(runtime.commands[0]).toEqual(["bz", "a", "-y", "book.zip", "book", "cwd=C:/work"])
+    expect(runtime.commands[0]).toEqual(["bz", "a", "-y", "C:/out/book.zip", "book", "cwd=C:/work"])
   })
 
   test("exports EFU rows", async () => {

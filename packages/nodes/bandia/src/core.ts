@@ -328,7 +328,7 @@ async function compressSingle(mapping: BandiaPathMapping, bz: string, input: Ban
 
   const archivePath = ensureArchiveExtension(mapping.archivePath, input.compressFormat ?? "zip", runtime)
   await runtime.ensureDir(runtime.dirname(archivePath))
-  const args = ["a", "-y", runtime.basename(archivePath), runtime.basename(mapping.extractedPath)]
+  const args = ["a", "-y", archivePath, runtime.basename(mapping.extractedPath)]
 
   if (input.dryRun) {
     return {

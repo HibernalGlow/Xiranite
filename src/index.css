@@ -534,9 +534,8 @@
 }
 
 /* ── Component card visuals ──
-   Motion (motion/react) drives x/y/width/height/scale/opacity transitions,
-   so CSS only handles decorative styling — no transform/opacity here to
-   avoid fighting the spring animation. */
+   Card geometry is driven by inline transform/size styles; CSS transitions keep
+   layout changes smooth without pulling an animation runtime into the main path. */
 .comp-card--animated {
   will-change: transform;
 }

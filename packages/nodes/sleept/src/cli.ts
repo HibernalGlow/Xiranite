@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -165,9 +165,9 @@ function inputFromArgs(action: SleeptAction, args: Record<string, unknown>): Sle
 
 async function runAction(input: SleeptInput, json: boolean, host: CliHost): Promise<void> {
   const runtime = createNodeSleeptRuntime()
-  const result = await runSleept(input, runtime, (event) => {
+  const result = await runSleept(input, runtime, json ? undefined : (event) => {
     if (event.type === "progress") {
-      writeLine(host, `[${event.progress ?? 0}%] ${event.message}`)
+      writeCliEvent(host, event, { label: CLI_NAME })
     } else {
       writeLine(host, event.message)
     }

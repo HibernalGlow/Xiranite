@@ -9,7 +9,18 @@
     "outDir": "dist",
     "rootDir": "src",
     "skipLibCheck": true,
-    "types": ["bun-types", "node", "react"]
+    "types": [
+      "bun-types",
+      "node",
+      "react"
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
 }

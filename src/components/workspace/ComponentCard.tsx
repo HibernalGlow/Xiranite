@@ -1,12 +1,11 @@
 import { memo } from "react"
-import { motion } from "motion/react"
 import { useTranslation } from "react-i18next"
-import { getBackend } from "@/backend/client"
 import { cn } from "@/lib/utils"
-import { useWSDispatch, actions } from "@/store/workspaceContext"
+import { useWorkspaceActions } from "@/store/workspaceContext"
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import {
   Maximize2,
   Minimize2,
@@ -35,8 +34,9 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
 }
 
 function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
-  const dispatch = useWSDispatch()
+  const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
+  const { openComponent } = useWindowControls()
   const mod = getModule(comp.moduleId)
   const moduleId = comp.moduleId
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? comp.moduleId)
@@ -47,26 +47,25 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
   const isTiny = layout.w < 240
 
   function toggleCollapse() {
-    dispatch(actions.toggleCollapse(comp.id))
+    workspaceActions.toggleCollapse(comp.id)
   }
 
   function toggleFullscreen() {
-    dispatch(actions.setFullscreen(isFullscreen ? null : comp.id))
+    workspaceActions.setFullscreen(isFullscreen ? null : comp.id)
   }
 
   function activateFocus() {
-    dispatch(actions.setCardLayout("focus"))
-    dispatch(actions.focusComponent(comp.id))
+    workspaceActions.setCardLayout("focus")
+    workspaceActions.focusComponent(comp.id)
   }
 
   function exitFocus() {
-    dispatch(actions.setCardLayout("grid"))
-    dispatch(actions.focusComponent(null))
+    workspaceActions.setCardLayout("grid")
+    workspaceActions.focusComponent(null)
   }
 
   async function openFloatingWindow() {
-    const backend = await getBackend()
-    const result = await backend.windows.openComponent({
+    const result = await openComponent({
       componentId: comp.id,
       moduleId: comp.moduleId,
       title: moduleName,
@@ -74,33 +73,30 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
       height: Math.round(layout.h),
     })
     if (result.success) {
-      dispatch(actions.setComponentState(comp.id, "floating"))
+      workspaceActions.setComponentState(comp.id, "floating")
     } else {
       console.info(`[window] ${result.message}`)
     }
   }
 
   return (
-    <motion.div
-      initial={false}
-      animate={{
-        x: layout.x,
-        y: layout.y,
+    <div
+      onPointerDown={() => workspaceActions.raiseComponent(comp.id)}
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
         width: layout.w,
         height: layout.h,
         opacity: layout.opacity,
-        scale: layout.scale,
-      }}
-      transition={isLayoutResizing ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 34, mass: 0.7 }}
-      onPointerDown={() => dispatch(actions.raiseComponent(comp.id))}
-      style={{
-        position: "absolute",
+        transform: `translate3d(${layout.x}px, ${layout.y}px, 0) scale(${layout.scale})`,
+        transformOrigin: "top left",
         zIndex: layout.z,
         pointerEvents: layout.interactive ? "auto" : "none",
       }}
       className={cn(
         "group flex flex-col overflow-hidden rounded-md border bg-card",
-        !isLayoutResizing && "comp-card--animated backdrop-blur-sm",
+        !isLayoutResizing && "comp-card--animated backdrop-blur-sm transition-[transform,width,height,opacity] duration-200 ease-out",
         isFullscreen && "comp-card--fullscreen",
         (isFocusedState || isFullscreen)
           ? "border-primary/60 shadow-[0_0_0_1px_var(--ws-accent-glow),0_24px_60px_-20px_var(--ws-accent-glow)]"
@@ -150,7 +146,7 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
             <ExternalLink className="h-3 w-3" />
           </HeaderBtn>
 
-          <HeaderBtn label={t("common:hideIn", { view: t("topbar:viewMode.cards") })} danger onClick={() => dispatch(actions.toggleComponentVisibility(comp.id, "cards"))}>
+          <HeaderBtn label={t("common:hideIn", { view: t("topbar:viewMode.cards") })} danger onClick={() => workspaceActions.toggleComponentVisibility(comp.id, "cards")}>
             <X className="h-3 w-3" />
           </HeaderBtn>
         </div>
@@ -172,7 +168,7 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
           )}
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }
 

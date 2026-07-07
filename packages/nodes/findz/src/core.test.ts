@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { FindzDirEntry, FindzFileData, FindzFileStat, FindzRuntime } from "./core.js"
 import { compileSqlFilter, formatFoundPath, formatSize, parseSize, runFindz } from "./core.js"
 

@@ -1,11 +1,12 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { RecycleuRuntime } from "./core.js"
 import { normalizeRecycleuInput, runRecycleu } from "./core.js"
 
 describe("recycleu core", () => {
   test("normalizes action and bounds", () => {
-    expect(normalizeRecycleuInput({})).toEqual({ action: "status", interval: 10, maxCycles: 360 })
-    expect(normalizeRecycleuInput({ interval: 0, maxCycles: 0 })).toEqual({ action: "status", interval: 1, maxCycles: 1 })
+    expect(normalizeRecycleuInput({})).toEqual({ action: "status", interval: 10, maxCycles: 360, driveLetter: "" })
+    expect(normalizeRecycleuInput({ interval: 0, maxCycles: 0, driveLetter: "c:" })).toEqual({ action: "status", interval: 1, maxCycles: 1, driveLetter: "C" })
+    expect(normalizeRecycleuInput({ driveLetter: "C;Remove-Item" }).driveLetter).toBe("")
   })
 
   test("runs one clean and updates counters", async () => {

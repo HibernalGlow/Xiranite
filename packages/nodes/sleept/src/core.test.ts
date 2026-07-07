@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { SleeptRuntime } from "./core.js"
 import { countdownSeconds, formatDuration, parseTargetDatetime, runSleept } from "./core.js"
 

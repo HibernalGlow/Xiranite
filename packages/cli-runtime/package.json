@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "bun test"
+    "test": "vitest run"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

@@ -8,11 +8,11 @@ export function createNodeRecycleuRuntime(): RecycleuRuntime {
   return {
     now: () => new Date(),
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-    emptyRecycleBin: () => emptyRecycleBin(),
+    emptyRecycleBin: (driveLetter) => emptyRecycleBin(driveLetter),
   }
 }
 
-async function emptyRecycleBin(): Promise<EmptyRecycleBinResult> {
+async function emptyRecycleBin(driveLetter?: string): Promise<EmptyRecycleBinResult> {
   if (process.platform !== "win32") {
     return {
       status: "unsupported",
@@ -20,15 +20,25 @@ async function emptyRecycleBin(): Promise<EmptyRecycleBinResult> {
     }
   }
 
+  const scopedDrive = driveLetter?.trim().match(/^([a-zA-Z])(?::)?$/)?.[1].toUpperCase()
+  if (driveLetter && !scopedDrive) {
+    return { status: "failed", message: `Invalid recycle bin drive letter: ${driveLetter}` }
+  }
+
   try {
+    const clearCommand = scopedDrive
+      ? `Clear-RecycleBin -DriveLetter ${scopedDrive} -Force -ErrorAction Stop`
+      : "Clear-RecycleBin -Force -ErrorAction Stop"
+    const command = `$ProgressPreference = 'SilentlyContinue'; ${clearCommand}`
     await execFileAsync("powershell.exe", [
       "-NoProfile",
+      "-NonInteractive",
       "-ExecutionPolicy",
       "Bypass",
       "-Command",
-      "Clear-RecycleBin -Force -ErrorAction Stop",
+      command,
     ])
-    return { status: "cleaned", message: "Recycle bin emptied." }
+    return { status: "cleaned", message: scopedDrive ? `Recycle bin emptied for drive ${scopedDrive}:.` : "Recycle bin emptied." }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (/empty|not contain|cannot find/i.test(message)) {

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
-import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
+import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { Activity, Calendar, Cpu, Moon, Play, Power, RotateCcw, Square, Timer, Wifi } from "lucide-react"
 import { ActionButton, Field, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, SegmentButton, StatPill } from "@xiranite/ui"
-import type { NetCounters, PowerMode, SleeptInput, SleeptRuntime } from "./core.js"
+import type { NetCounters, PowerMode, SleeptData, SleeptInput, SleeptRuntime } from "./core.js"
 import { formatDuration, runSleept } from "./core.js"
 
 interface SleeptCardState {
@@ -69,7 +69,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
 
     try {
-      const result = await runSleept({ ...input, dryrun: true }, createBrowserRuntime(), onEvent)
+      const result = await runWithHost(input, onEvent)
 
       setPhase(result.success ? "completed" : "error")
       log(result.message)
@@ -80,9 +80,14 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   async function refreshStats() {
-    const result = await runSleept({ action: "get_stats" }, createBrowserRuntime())
+    const result = await runWithHost({ action: "get_stats" })
     const next = result.data
     if (next) setStats({ cpu: next.currentCpu, upload: next.currentUpload, download: next.currentDownload })
+  }
+
+  async function runWithHost(input: SleeptInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<SleeptData>> {
+    if (host.actions?.run) return host.actions.run<SleeptInput, SleeptData>("sleept", input, onEvent)
+    return runSleept({ ...input, dryrun: true }, createBrowserRuntime(), onEvent)
   }
 
   function reset() {

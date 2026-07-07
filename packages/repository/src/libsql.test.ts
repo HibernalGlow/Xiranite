@@ -1,12 +1,14 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { createLibsqlWorkspaceRepository, type LibsqlWorkspaceRepository } from "./libsql.js"
+
+const RUN_ROOT = fileURLToPath(new URL("../../../artifacts/test-runs/repository/", import.meta.url))
 
 describe("createLibsqlWorkspaceRepository", () => {
   test("persists complete workspace snapshots to a local libSQL file", async () => {
-    const tmpRoot = join(import.meta.dir, "..", "..", "..", "tmp")
+    const tmpRoot = RUN_ROOT
     await mkdir(tmpRoot, { recursive: true })
     const dir = await mkdtemp(join(tmpRoot, "xiranite-libsql-"))
     const clients: LibsqlWorkspaceRepository[] = []
@@ -67,7 +69,7 @@ describe("createLibsqlWorkspaceRepository", () => {
   })
 
   test("removes stale rows outside the saved workspace set", async () => {
-    const tmpRoot = join(import.meta.dir, "..", "..", "..", "tmp")
+    const tmpRoot = RUN_ROOT
     await mkdir(tmpRoot, { recursive: true })
     const dir = await mkdtemp(join(tmpRoot, "xiranite-libsql-stale-"))
     const repository = await createLibsqlWorkspaceRepository({
@@ -113,7 +115,11 @@ async function removeWithWindowsRetry(path: string): Promise<void> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 9) return
       if ((error as NodeJS.ErrnoException).code !== "EBUSY") throw error
-      await Bun.sleep(25)
+      await sleep(25)
     }
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

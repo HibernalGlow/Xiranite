@@ -1,4 +1,7 @@
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useState } from "react"
+import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
+import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
 import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
@@ -7,7 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -67,19 +70,64 @@ const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: Re
   { key: "dark",   labelKey: "settings:colorMode.dark",   descKey: "settings:colorMode.darkDesc",   icon: Moon },
 ]
 
+function RuntimeRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+      <span className="text-[10px] font-mono tracking-widest text-muted-foreground">{label}</span>
+      <span className="min-w-0 truncate text-xs font-mono text-foreground" title={value}>{value}</span>
+    </div>
+  )
+}
+
 export function ThemeSettings() {
-  const { state } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const state = useWorkspaceShallowSelector((workspace) => ({
+    theme: workspace.theme,
+    vignetteDepth: workspace.vignetteDepth,
+    grainIntensity: workspace.grainIntensity,
+    actionGlow: workspace.actionGlow,
+    cardElevation: workspace.cardElevation,
+    bgMode: workspace.bgMode,
+    bgImageUrl: workspace.bgImageUrl,
+    bgOpacity: workspace.bgOpacity,
+    bgBlur: workspace.bgBlur,
+    grainEnabled: workspace.grainEnabled,
+  }))
+  const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
   const { t } = useTranslation()
   const currentLang = getCurrentLanguage()
+  const runtimeInfo = getRuntimeConnectionInfo()
+  const backendStatus = useLocalBackendStatus()
+  const [copiedCommand, setCopiedCommand] = useState<"attach" | "start" | null>(null)
 
   const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
+  const backendStatusKind = backendStatus.data?.status ?? (backendStatus.isFetching ? "checking" : "unknown")
+  const backendStatusLabel = backendStatusKind === "ready"
+    ? t("settings:developerRuntime.statusReady")
+    : backendStatusKind === "missing-config"
+      ? t("settings:developerRuntime.statusMissingConfig")
+      : backendStatusKind === "unreachable"
+        ? t("settings:developerRuntime.statusUnreachable")
+        : backendStatusKind === "checking"
+          ? t("settings:developerRuntime.statusChecking")
+          : t("common:unknown")
 
   // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
   function selectPreset(key: AppTheme) {
-    dispatch(actions.setTheme(key))
+    workspaceActions.setTheme(key)
     setColorMode(PRESET_DEFAULT_MODE[key])
+  }
+
+  async function copyDevCommand(kind: "attach" | "start") {
+    const command = kind === "attach" ? runtimeInfo.devAttachCommand : runtimeInfo.devStartCommand
+    await navigator.clipboard.writeText(command)
+    setCopiedCommand(kind)
+    window.setTimeout(() => setCopiedCommand(null), 1200)
+  }
+
+  function openFrontendDevUrl() {
+    if (!runtimeInfo.frontendDevUrl) return
+    window.open(runtimeInfo.frontendDevUrl, "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -213,6 +261,67 @@ export function ThemeSettings() {
 
           {/* Right column */}
           <div className="space-y-4">
+            <div className="bg-card border border-border rounded-sm p-5 space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-sm border border-border/50 bg-muted/35">
+                    <Code2 className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold text-foreground">{t("settings:developerRuntime.title")}</h3>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:developerRuntime.description")}</p>
+                  </div>
+                </div>
+                <Badge variant={runtimeInfo.frontendSource === "vite-dev" ? "default" : "outline"} className="font-mono text-[9px]">
+                  {t(`settings:developerRuntime.frontendSource.${runtimeInfo.frontendSource}`)}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <RuntimeRow label={t("settings:developerRuntime.hostRuntime")} value={runtimeInfo.hostRuntime} />
+                <RuntimeRow label={t("settings:developerRuntime.frontend")} value={runtimeInfo.frontendDevUrl ?? runtimeInfo.frontendOrigin} />
+                <RuntimeRow label={t("settings:developerRuntime.backend")} value={runtimeInfo.backendUrl ?? t("common:unknown")} />
+                <RuntimeRow label={t("settings:developerRuntime.token")} value={runtimeInfo.backendTokenConfigured ? t("settings:developerRuntime.configured") : t("settings:developerRuntime.notConfigured")} />
+                <RuntimeRow label={t("settings:developerRuntime.status")} value={backendStatusLabel} />
+              </div>
+
+              {backendStatus.data?.error && backendStatus.data.status !== "ready" && (
+                <div className="rounded-sm border border-destructive/25 bg-destructive/8 px-3 py-2 text-[11px] leading-relaxed text-destructive">
+                  {backendStatus.data.error}
+                </div>
+              )}
+
+              <div className="flex items-start gap-2 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+                <Server className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  {t("settings:developerRuntime.hotSwitchHint")}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => window.location.reload()}>
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  {t("settings:developerRuntime.reload")}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" disabled={backendStatus.isFetching} onClick={() => backendStatus.refetch()}>
+                  <Server className="h-3.5 w-3.5" />
+                  {backendStatus.isFetching ? t("settings:developerRuntime.statusChecking") : t("settings:developerRuntime.refreshStatus")}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => copyDevCommand("attach")}>
+                  <Copy className="h-3.5 w-3.5" />
+                  {copiedCommand === "attach" ? t("settings:developerRuntime.copied") : t("settings:developerRuntime.copyAttach")}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => copyDevCommand("start")}>
+                  <Terminal className="h-3.5 w-3.5" />
+                  {copiedCommand === "start" ? t("settings:developerRuntime.copied") : t("settings:developerRuntime.copyStart")}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" disabled={!runtimeInfo.frontendDevUrl} onClick={openFrontendDevUrl}>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {t("settings:developerRuntime.openFrontend")}
+                </Button>
+              </div>
+            </div>
+
             {/* Atmospheric Effects */}
             <div className="bg-card border border-border rounded-sm p-5">
               <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:atmospheric.title")}</h3>
@@ -225,7 +334,7 @@ export function ThemeSettings() {
                   </div>
                   <Slider
                     value={[state.vignetteDepth]}
-                    onValueChange={([v]) => dispatch(actions.setVignette(v))}
+                    onValueChange={([v]) => workspaceActions.setVignette(v)}
                     min={0} max={100} step={1}
                     className="mb-1"
                   />
@@ -239,7 +348,7 @@ export function ThemeSettings() {
                   </div>
                   <Slider
                     value={[state.grainIntensity]}
-                    onValueChange={([v]) => dispatch(actions.setGrainIntensity(v))}
+                    onValueChange={([v]) => workspaceActions.setGrainIntensity(v)}
                     min={0} max={100} step={1}
                   />
                 </div>
@@ -260,7 +369,7 @@ export function ThemeSettings() {
                       </div>
                       <Switch
                         checked={state.actionGlow}
-                        onCheckedChange={v => dispatch(actions.setActionGlow(v))}
+                        onCheckedChange={v => workspaceActions.setActionGlow(v)}
                       />
                     </div>
 
@@ -274,7 +383,7 @@ export function ThemeSettings() {
                       </div>
                       <Switch
                         checked={state.cardElevation}
-                        onCheckedChange={v => dispatch(actions.setCardElevation(v))}
+                        onCheckedChange={v => workspaceActions.setCardElevation(v)}
                       />
                     </div>
                   </div>
@@ -300,7 +409,7 @@ export function ThemeSettings() {
                     return (
                       <button
                         key={key}
-                        onClick={() => dispatch(actions.setBgMode(key as any))}
+                        onClick={() => workspaceActions.setBgMode(key as any)}
                         className={cn(
                           "flex flex-col items-center gap-1.5 p-3 rounded-sm border transition-all cursor-pointer",
                           isActive
@@ -334,7 +443,7 @@ export function ThemeSettings() {
                           const reader = new FileReader()
                           reader.onload = (event) => {
                             const dataUrl = event.target?.result as string
-                            dispatch(actions.setBgImageUrl(dataUrl))
+                            workspaceActions.setBgImageUrl(dataUrl)
                           }
                           reader.readAsDataURL(file)
                         }}
@@ -353,7 +462,7 @@ export function ThemeSettings() {
                           variant="outline"
                           size="sm"
                           className="font-mono text-xs cursor-pointer hover:text-destructive"
-                          onClick={() => dispatch(actions.setBgImageUrl(""))}
+                          onClick={() => workspaceActions.setBgImageUrl("")}
                         >
                           <X className="h-3.5 w-3.5 mr-1.5" />
                           {t("common:clear")}
@@ -368,7 +477,7 @@ export function ThemeSettings() {
                     <input
                       type="text"
                       value={state.bgImageUrl}
-                      onChange={(e) => dispatch(actions.setBgImageUrl(e.target.value))}
+                      onChange={(e) => workspaceActions.setBgImageUrl(e.target.value)}
                       placeholder="https://example.com/bg.jpg"
                       className="w-full px-3 py-1.5 text-xs font-mono rounded border border-border bg-muted/20 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50"
                     />
@@ -382,7 +491,7 @@ export function ThemeSettings() {
                     </div>
                     <Slider
                       value={[state.bgOpacity]}
-                      onValueChange={([v]) => dispatch(actions.setBgOpacity(v))}
+                      onValueChange={([v]) => workspaceActions.setBgOpacity(v)}
                       min={0} max={100} step={5}
                     />
                   </div>
@@ -395,7 +504,7 @@ export function ThemeSettings() {
                     </div>
                     <Slider
                       value={[state.bgBlur]}
-                      onValueChange={([v]) => dispatch(actions.setBgBlur(v))}
+                      onValueChange={([v]) => workspaceActions.setBgBlur(v)}
                       min={0} max={30} step={1}
                     />
                   </div>
@@ -417,7 +526,7 @@ export function ThemeSettings() {
               </div>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-[10px] font-mono text-muted-foreground tracking-widest">{t("settings:atmospheric.silkFinish")}</span>
-                <Badge variant={state.grainEnabled ? "default" : "outline"} className="text-[9px] font-mono cursor-pointer" onClick={() => dispatch(actions.setGrain(!state.grainEnabled))}>
+                <Badge variant={state.grainEnabled ? "default" : "outline"} className="text-[9px] font-mono cursor-pointer" onClick={() => workspaceActions.setGrain(!state.grainEnabled)}>
                   {t(state.grainEnabled ? "settings:atmospheric.enabled" : "settings:atmospheric.disabled")}
                 </Badge>
               </div>

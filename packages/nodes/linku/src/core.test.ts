@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import type { LinkuRuntime } from "./core.js"
 import { dumpLinkRecords, parseLinkRecords, runLinku, upsertLinkRecord } from "./core.js"
 

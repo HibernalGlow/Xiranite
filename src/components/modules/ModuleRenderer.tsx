@@ -1,34 +1,10 @@
 import { lazy, Suspense } from "react"
-import type { ComponentType } from "react"
+import type { ComponentType, LazyExoticComponent } from "react"
 import { useTranslation } from "react-i18next"
+import type { NodeComponentProps } from "@xiranite/contract"
 import { Skeleton } from "@/components/ui/skeleton"
-import bandiaEntry from "@xiranite/node-bandia"
-import cleanfEntry from "@xiranite/node-cleanf"
-import crashuEntry from "@xiranite/node-crashu"
-import dissolvefEntry from "@xiranite/node-dissolvef"
-import encodebEntry from "@xiranite/node-encodeb"
-import enginevEntry from "@xiranite/node-enginev"
-import findzEntry from "@xiranite/node-findz"
-import formatvEntry from "@xiranite/node-formatv"
-import kavvkaEntry from "@xiranite/node-kavvka"
-import lataEntry from "@xiranite/node-lata"
-import linedupEntry from "@xiranite/node-linedup"
-import linkuEntry from "@xiranite/node-linku"
-import markuEntry from "@xiranite/node-marku"
-import migratefEntry from "@xiranite/node-migratef"
-import moveaEntry from "@xiranite/node-movea"
-import mvzEntry from "@xiranite/node-mvz"
-import owithuEntry from "@xiranite/node-owithu"
-import rawfilterEntry from "@xiranite/node-rawfilter"
-import repackuEntry from "@xiranite/node-repacku"
-import recycleuEntry from "@xiranite/node-recycleu"
-import reinstallpEntry from "@xiranite/node-reinstallp"
-import scoolpEntry from "@xiranite/node-scoolp"
-import seriexEntry from "@xiranite/node-seriex"
-import sleeptEntry from "@xiranite/node-sleept"
-import trenameEntry from "@xiranite/node-trename"
-import weibospiderEntry from "@xiranite/node-weibospider"
 import { useNodeHostApi } from "./hostApi"
+import { packageModuleLoaders } from "./packageModules.generated"
 
 const modules: Record<string, ReturnType<typeof lazy>> = {
   scratch:     lazy(() => import("./ScratchModule")),
@@ -43,34 +19,15 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   blocknote:   lazy(() => import("./BlockNoteModule")),
 }
 
-const packageModules = {
-  [bandiaEntry.def.id]: bandiaEntry,
-  [cleanfEntry.def.id]: cleanfEntry,
-  [crashuEntry.def.id]: crashuEntry,
-  [dissolvefEntry.def.id]: dissolvefEntry,
-  [encodebEntry.def.id]: encodebEntry,
-  [enginevEntry.def.id]: enginevEntry,
-  [findzEntry.def.id]: findzEntry,
-  [formatvEntry.def.id]: formatvEntry,
-  [kavvkaEntry.def.id]: kavvkaEntry,
-  [lataEntry.def.id]: lataEntry,
-  [linedupEntry.def.id]: linedupEntry,
-  [linkuEntry.def.id]: linkuEntry,
-  [markuEntry.def.id]: markuEntry,
-  [migratefEntry.def.id]: migratefEntry,
-  [moveaEntry.def.id]: moveaEntry,
-  [mvzEntry.def.id]: mvzEntry,
-  [owithuEntry.def.id]: owithuEntry,
-  [rawfilterEntry.def.id]: rawfilterEntry,
-  [repackuEntry.def.id]: repackuEntry,
-  [recycleuEntry.def.id]: recycleuEntry,
-  [reinstallpEntry.def.id]: reinstallpEntry,
-  [scoolpEntry.def.id]: scoolpEntry,
-  [seriexEntry.def.id]: seriexEntry,
-  [sleeptEntry.def.id]: sleeptEntry,
-  [trenameEntry.def.id]: trenameEntry,
-  [weibospiderEntry.def.id]: weibospiderEntry,
-}
+const packageComponents = Object.fromEntries(
+  Object.entries(packageModuleLoaders).map(([id, loadEntry]) => [
+    id,
+    lazy(async () => {
+      const entry = (await loadEntry()).default
+      return { default: entry.Component }
+    }),
+  ]),
+) as Partial<Record<string, LazyExoticComponent<ComponentType<NodeComponentProps>>>>
 
 export interface ModuleProps {
   /** 当前组件实例的 id — 模块用 useComponentData(compId) 持久化状态到 store。
@@ -80,11 +37,14 @@ export interface ModuleProps {
 
 export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
   const { t } = useTranslation()
-  const host = useNodeHostApi()
-  const packageEntry = packageModules[moduleId as keyof typeof packageModules]
-  if (packageEntry) {
-    const PackageComponent = packageEntry.Component
-    return <PackageComponent compId={compId} host={host} />
+  const host = useNodeHostApi(compId)
+  const PackageComponent = packageComponents[moduleId]
+  if (PackageComponent) {
+    return (
+      <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
+        <PackageComponent compId={compId} host={host} />
+      </Suspense>
+    )
   }
 
   const Comp = modules[moduleId] as ComponentType<ModuleProps> | undefined

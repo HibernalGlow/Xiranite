@@ -1,0 +1,158 @@
+// @vitest-environment happy-dom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import i18next from "i18next"
+import { I18nextProvider, initReactI18next } from "react-i18next"
+import { afterEach, describe, expect, test, vi } from "vitest"
+import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
+import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
+import { WorkspaceProvider, useWorkspaceShallowSelector } from "./workspaceContext"
+
+const healthMock = vi.hoisted(() => vi.fn())
+const loadSnapshotMock = vi.hoisted(() => vi.fn())
+const persistSnapshotMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@xiranite/api/client", () => ({
+  createXiraniteSystemClient: vi.fn(() => ({ health: healthMock })),
+  createXiraniteWorkspaceClient: vi.fn(() => ({
+    loadSnapshot: loadSnapshotMock,
+    persistSnapshot: persistSnapshotMock,
+  })),
+}))
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  healthMock.mockReset()
+  loadSnapshotMock.mockReset()
+  persistSnapshotMock.mockReset()
+  delete window.__XIRANITE_BACKEND__
+  localStorage.clear()
+})
+
+describe("WorkspaceProvider backend lifecycle", () => {
+  test("does not load a workspace snapshot when the local backend is not configured", async () => {
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-ready").textContent).toBe("not-ready"))
+    expect(createXiraniteSystemClient).not.toHaveBeenCalled()
+    expect(createXiraniteWorkspaceClient).not.toHaveBeenCalled()
+    expect(loadSnapshotMock).not.toHaveBeenCalled()
+  })
+
+  test("loads and hydrates the workspace only after the local backend health check is ready", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39101", token: "workspace-token" }
+    healthMock.mockResolvedValueOnce({ ok: true })
+    loadSnapshotMock.mockResolvedValueOnce({
+      workspaces: [{ id: "ws-backend-ready", label: "Backend Ready", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+      components: [],
+    })
+
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-ready").textContent).toBe("ready"))
+    expect(screen.getByTestId("active-workspace").textContent).toBe("ws-backend-ready")
+    expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:39101", { token: "workspace-token" })
+    expect(createXiraniteWorkspaceClient).toHaveBeenCalledWith("http://127.0.0.1:39101", { token: "workspace-token" })
+    expect(loadSnapshotMock).toHaveBeenCalledTimes(1)
+  })
+
+  test("keeps the workspace not-ready and does not load snapshots when health check fails", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39102" }
+    healthMock.mockRejectedValueOnce(new Error("connection refused"))
+
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(createXiraniteSystemClient).toHaveBeenCalled())
+    expect(screen.getByTestId("backend-ready").textContent).toBe("not-ready")
+    expect(createXiraniteWorkspaceClient).not.toHaveBeenCalled()
+    expect(loadSnapshotMock).not.toHaveBeenCalled()
+  })
+})
+
+describe("BackendStatusBanner", () => {
+  test("shows a runtime banner for missing backend config and opens settings", async () => {
+    const user = userEvent.setup()
+    renderWithQueryAndI18n(<BackendStatusBanner />)
+
+    expect(await screen.findByText(/Local Backend is not configured/i)).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: /runtime settings/i }))
+    await waitFor(() => expect(screen.getByTestId("overlay").textContent).toBe("settings"))
+  })
+})
+
+function WorkspaceStateProbe() {
+  const state = useWorkspaceShallowSelector((workspace) => ({
+    backendReady: workspace.backendReady,
+    activeWorkspaceId: workspace.activeWorkspaceId,
+    overlay: workspace.overlay,
+  }))
+
+  return (
+    <div>
+      <output data-testid="backend-ready">{state.backendReady ? "ready" : "not-ready"}</output>
+      <output data-testid="active-workspace">{state.activeWorkspaceId}</output>
+      <output data-testid="overlay">{state.overlay ?? "none"}</output>
+    </div>
+  )
+}
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>,
+  )
+}
+
+function renderWithQueryAndI18n(ui: React.ReactElement) {
+  return renderWithQuery(
+    <I18nextProvider i18n={i18n}>
+      {ui}
+      <WorkspaceStateProbe />
+    </I18nextProvider>,
+  )
+}
+
+const i18n = i18next.createInstance()
+await i18n.use(initReactI18next).init({
+  lng: "en",
+  fallbackLng: "en",
+  interpolation: { escapeValue: false },
+  resources: {
+    en: {
+      common: { unknown: "unknown" },
+      settings: {
+        developerRuntime: { statusChecking: "CHECKING" },
+        backendBanner: {
+          missingConfig: "Local Backend is not configured, so workspace and node execution are paused.",
+          unreachable: "Local Backend is unreachable: {{url}}. Workspace and node execution are paused.",
+          retry: "Retry",
+          openRuntime: "Runtime settings",
+        },
+      },
+    },
+  },
+})

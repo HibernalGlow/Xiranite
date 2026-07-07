@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import type { RawfilterDirEntry, RawfilterPathInfo, RawfilterRuntime } from "./core.js"
 import { buildRawfilterPlan, classifyVariant, createArchive, groupArchivesInDir, normalizeArchiveName, runRawfilter } from "./core.js"
 

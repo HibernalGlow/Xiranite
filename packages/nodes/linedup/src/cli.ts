@@ -184,9 +184,22 @@ function GuidedLinedupApp({ host }: { host: CliHost }) {
   return h(
     Box,
     { flexDirection: "column", gap: 1 },
-    h(Text, { color: "cyan", bold: true }, "linedup guided"),
-    h(Text, null, message),
-    step !== "done" ? h(InputLine, { onSubmit: submit }) : null,
+    h(
+      Box,
+      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 72 },
+      h(Text, { color: "cyan", bold: true }, "Xiranite Linedup"),
+      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for source/filter files"),
+      h(Text, null, h(Text, { color: "cyan" }, "Run     "), "Direct core call, no UI shell or backend requirement"),
+      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} filter`),
+      h(Text, null, "      --sourceFile source.txt --filterFile filter.txt"),
+    ),
+    h(
+      Box,
+      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 72 },
+      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
+      h(Text, null, message),
+      step !== "done" ? h(InputLine, { onSubmit: submit }) : null,
+    ),
     result ? h(Summary, { result }) : null,
   )
 }
@@ -226,13 +239,14 @@ function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<v
     }
   })
 
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
 }
 
 function Summary({ result }: { result: Awaited<ReturnType<typeof runGuidedFilter>> }) {
   return h(
     Box,
-    { flexDirection: "column" },
+    { borderStyle: "round", borderColor: "green", flexDirection: "column", paddingX: 1, width: 72 },
+    h(Text, { color: "green", bold: true }, "Summary"),
     h(Text, { color: "green" }, `kept ${result.keptCount}`),
     h(Text, { color: "red" }, `removed ${result.removedCount}`),
     result.outputFile ? h(Text, { color: "gray" }, `output ${result.outputFile}`) : null,

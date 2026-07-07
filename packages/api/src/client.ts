@@ -15,6 +15,10 @@ export interface XiraniteClientOptions {
   token?: string
 }
 
+export interface XiraniteSystemClient {
+  health(): Promise<{ ok: boolean }>
+}
+
 export interface XiraniteWorkspaceClient {
   loadSnapshot(): Promise<WorkspaceSnapshotDTO>
   persistSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
@@ -46,6 +50,18 @@ export interface XiraniteNodeClient {
 
 export function createXiraniteClient(baseUrl: string, options: XiraniteClientOptions = {}): Treaty.Create<XiraniteApp> {
   return treaty<XiraniteApp>(baseUrl, treatyOptions(options))
+}
+
+export function createXiraniteSystemClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteSystemClient {
+  const client = createXiraniteClient(baseUrl, options)
+
+  return {
+    async health() {
+      const result = await client.health.get()
+      if (result.error) throw new Error(`Local backend health check failed: ${result.status}`)
+      return result.data
+    },
+  }
 }
 
 export function createXiraniteWorkspaceClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteWorkspaceClient {

@@ -39,10 +39,13 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute() {
     if (!sourceLines.length || running) return
     setRunning(true)
-    const next = filterLines({ sourceLines, filterLines: filterTokens })
-    setResult(next)
-    log(`kept=${next.keptCount} removed=${next.removedCount}`)
-    setRunning(false)
+    try {
+      const next = filterLines({ sourceLines, filterLines: filterTokens })
+      setResult(next)
+      log(`kept=${next.keptCount} removed=${next.removedCount}`)
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function copy(text: string) {

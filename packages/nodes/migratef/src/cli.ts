@@ -2,7 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { Box, Text, useApp, useInput } from "ink"
 import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeLine } from "@xiranite/cli-runtime"
+import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
@@ -126,7 +126,7 @@ function inputFromArgs(args: MigratefCliOptions): MigratefInput {
 
 async function runAction(input: MigratefInput, json: boolean, host: CliHost): Promise<void> {
   const result = await runMigratef(input, createNodeMigratefRuntime(), (event) => {
-    if (!json) writeLine(host, event.type === "progress" ? `[${event.progress ?? 0}%] ${event.message}` : event.message)
+    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
   })
   if (json) {
     writeJson(host, result)

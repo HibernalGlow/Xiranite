@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
-import { useWorkspace, useWSDispatch, actions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
@@ -15,8 +14,13 @@ import { cn } from "@/lib/utils"
  * free 模式已删除。
  */
 export function CardView() {
-  const { state, visibleComponents } = useWorkspace()
-  const dispatch = useWSDispatch()
+  const { cardLayout, focusedComponentId, fullscreenComponentId } = useWorkspaceShallowSelector((state) => ({
+    cardLayout: state.cardLayout,
+    focusedComponentId: state.focusedComponentId,
+    fullscreenComponentId: state.fullscreenComponentId,
+  }))
+  const visibleComponents = useWorkspaceVisibleComponents()
+  const workspaceActions = useWorkspaceActions()
   const { t } = useTranslation()
   const canvasRef = useRef<HTMLDivElement>(null)
   const resizeFrameRef = useRef<number | null>(null)
@@ -24,8 +28,6 @@ export function CardView() {
   const sizeRef = useRef({ w: 1200, h: 800 })
   const [size, setSize] = useState({ w: 1200, h: 800 })
   const [isResizing, setIsResizing] = useState(false)
-
-  const { cardLayout, focusedComponentId, fullscreenComponentId } = state
 
   // 仅渲染未在 cards 模式下隐藏的组件
   const cardComponents = useMemo(
@@ -88,13 +90,13 @@ export function CardView() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (fullscreenComponentId) dispatch(actions.setFullscreen(null))
-        else if (focusedComponentId) dispatch(actions.focusComponent(null))
+        if (fullscreenComponentId) workspaceActions.setFullscreen(null)
+        else if (focusedComponentId) workspaceActions.focusComponent(null)
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [fullscreenComponentId, focusedComponentId, dispatch])
+  }, [fullscreenComponentId, focusedComponentId, workspaceActions])
 
   const layouts = useMemo(
     () =>
@@ -126,7 +128,7 @@ export function CardView() {
             size="sm"
             variant="outline"
             className="font-mono text-xs"
-            onClick={() => dispatch(actions.setOverlay("registry"))}
+            onClick={() => workspaceActions.setOverlay("registry")}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             {t("view:cards.openRegistry")}
@@ -154,20 +156,14 @@ export function CardView() {
         />
       ))}
 
-      <AnimatePresence>
-        {fullscreenComponentId && (
-          <motion.button
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            onClick={() => dispatch(actions.setFullscreen(null))}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1001] rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground hover:text-primary backdrop-blur"
-          >
-            {t("view:cards.exitFullscreen")}
-          </motion.button>
-        )}
-      </AnimatePresence>
+      {fullscreenComponentId && (
+        <button
+          onClick={() => workspaceActions.setFullscreen(null)}
+          className="absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 hover:text-primary"
+        >
+          {t("view:cards.exitFullscreen")}
+        </button>
+      )}
     </div>
   )
 }

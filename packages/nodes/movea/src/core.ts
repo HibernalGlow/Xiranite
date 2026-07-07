@@ -207,7 +207,7 @@ async function scanMovea(input: Required<MoveaInput>, runtime: MoveaRuntime, onE
       }
     }
 
-    if ((archives.length || movableFolders.length) && subfolders.length) {
+    if (archives.length || movableFolders.length) {
       const hasPriority = subfolders.some((folder) => input.priorityKeywords.some((keyword) => folder.toLowerCase().includes(keyword.toLowerCase())))
       scanResults[level1.name] = {
         name: level1.name,
@@ -215,7 +215,8 @@ async function scanMovea(input: Required<MoveaInput>, runtime: MoveaRuntime, onE
         subfolders: subfolders.sort((a, b) => a.localeCompare(b)),
         archives: archives.sort((a, b) => a.localeCompare(b)),
         movableFolders: movableFolders.sort((a, b) => a.localeCompare(b)),
-        ...(hasPriority ? {} : { warning: "No priority target folder matched." }),
+        ...(subfolders.length && !hasPriority ? { warning: "No priority target folder matched." } : {}),
+        ...(!subfolders.length ? { warning: "No target folder matched." } : {}),
       }
     }
   }

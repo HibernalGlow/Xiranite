@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { buildCommand, buildOwithuPlan, parseOwithuConfig, registryPath, runOwithu } from "./core.js"
 
 const sampleToml = `

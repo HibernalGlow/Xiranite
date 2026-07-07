@@ -2,6 +2,41 @@
 
 本文专门记录 Xiranite 节点 CLI 尚未完成的工作、工具选择、迁移规则和验收方式。全局应用现代化路线见 [modernization-strategy.md](modernization-strategy.md)。
 
+## 实时 ToDo
+
+更新时间：2026-07-07
+
+- [x] `bun run audit:node-runtime-risks` 当前 24/24 clean：stale render logs、stale `host.getData` logs、`setRunning(false)` 未放入 `finally`、缺少 `host.actions.run` fallback、PowerShell 非交互/进度污染均已横向修复并审计。
+- [x] Playwright 真实浏览器测试当前 32/32 passed，其中真实节点点击覆盖所有 24 个保留节点；`recycleu` 使用限定 C 盘回收站 fixture，`enginev` 使用真实 Wallpaper Engine 路径 `E:\SteamLibrary\steamapps\workshop\content\431960` 加载本地预览图，并断言图片源是 token 保护的 backend `/local-files` 直通 URL，同时直接 GET `img.src` 验证返回 `image/*` 与非空字节；后端 Vitest 已补 `/local-files` 授权、MIME 与真实字节响应测试。
+- [x] 节点真实点击套件默认串行执行：Playwright `workers` 默认为 1，避免真实文件、回收站、本地后端和图片直通测试在并发 worker 下互相抢资源；需要临时并发时使用 `XIRANITE_E2E_WORKERS` 覆盖。
+- [x] 节点真实点击套件的页面启动等待已从 `networkidle` 改为 `domcontentloaded` + banner/main 可见性断言，避免 Local Backend、operation stream 或图片直通请求让测试误判页面未就绪。
+- [x] `audit:node-tests` 已把 `tests/e2e` 纳入 real-run 标记来源；24/24 节点 real-run 均为 yes。
+- [x] `migratef` 已补齐 Component 测试：覆盖路径输入、mode、`host.actions.run("migratef")`、dry-run plan、进度日志、result 与复制日志。
+- [x] `enginev` 已补齐 CLI + Component 测试：CLI 用真实 Wallpaper Engine fixture 跑 `scan --json`；Component 锁住本地 preview 图片 URL 生成链路。
+- [x] `encodeb` 已补齐 CLI + Component 测试，并修复 `--json` 模式进度输出污染；真实 fixture 使用当前 suspicious 字符集合内的文件名。
+- [x] `findz` 已补齐 CLI + Component 测试，覆盖真实文件搜索、`host.actions.run("findz")`、结果渲染和复制。
+- [x] `formatv` 已补齐 CLI + Component 测试，覆盖真实视频文件扫描、纯 JSON 输出、`host.actions.run("formatv")`、结果渲染和复制。
+- [x] `bandia` 已补齐 CLI + Component 测试，覆盖真实文件夹 dry-run 压缩、EFU 导出、压缩模式普通源路径、目标结果渲染和复制。
+- [x] `dissolvef` 已补齐 CLI + Component 测试，覆盖真实 nested dissolve/undo、纯 JSON 输出、plan 参数、日志和结果渲染。
+- [x] `kavvka` 已补齐 CLI + Component 测试，覆盖真实目录关键词扫描、真实 sibling 移动到 `#compare`、默认 dry-run、结果渲染和复制。
+- [x] `lata` 已补齐 CLI + Component 测试，覆盖真实 Taskfile 自动发现、真实 shell 执行、纯 JSON 输出、plan 参数、日志和任务渲染。
+- [x] `linku` 已补齐 CLI + Component 测试，覆盖真实目录 symlink/junction、真实 `linku.toml`、纯 JSON 输出、`move_link` 参数和 progress 日志。
+- [x] `movea` 已补齐 CLI + Component 测试，覆盖真实目录 scan、真实 JSON plan 移动、纯 JSON 输出、scan 参数、日志和结果渲染。
+- [x] `mvz` 已补齐 CLI + Component 测试，覆盖真实 entry 文件、dry-run extract/rename、纯 JSON 输出、默认 dry-run、结果渲染和复制。
+- [x] `owithu` 已补齐 CLI + Component 测试，覆盖真实 TOML preview、纯 JSON 输出、register 参数和 progress 日志；测试不写注册表。
+- [x] `scoolp` 已补齐 CLI + Component 测试，覆盖真实 Scoop bucket manifest、真实 cache backup、真实 sync TOML dry-run、纯 JSON 输出、cache 参数、progress 日志和复制日志。
+- [x] `seriex` 已补齐 CLI + Component 测试，覆盖真实 series 文件 plan、真实移动执行、纯 JSON 输出、plan 参数、progress 日志和复制日志。
+- [x] `trename` 已补齐 CLI + Component 测试，覆盖真实目录 scan、真实 rename/undo/history、纯 JSON 输出、scan 参数、progress 日志、JSON 回填和复制。
+- [x] `cli-runtime` 已删掉与 `citty` 重叠的手写 `parseArgs/flag*`，新增 `renderCliEvent/writeCliEvent` 统一节点运行事件输出；22 个节点 CLI 的显式命令进度输出已从手写 `[xx%]` 切到 runtime 进度条，`repacku` 原有 `renderProgressBar` 路线保留。
+- [x] `repacku` guided 首屏已建立真实 pseudo-tty 视觉测试：Vitest 通过 `node-pty`/Windows ConPTY 系统调用 Bun CLI，捕获 ANSI 到 `artifacts/cli/repacku/guided-entry.ansi`，再用 `@xterm/headless` + `@xterm/addon-serialize` 渲染 HTML，并由 Playwright 输出 `guided-entry.png`；测试断言无 raw control-code 泄漏。
+- [x] CLI 视觉捕获已抽成 `scripts/cli-visual-testing.ts`，并新增 `scripts/capture-cli-ui.ts` 手动捕获入口；手动入口必须用 Node 父进程运行 `node --experimental-strip-types scripts/capture-cli-ui.ts ...`，再由 helper 启动 Bun CLI，避免 Bun 父进程 + `node-pty` 在 Windows ConPTY 下残留句柄。
+- [x] `linedup` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/linedup/guided-entry.png`。
+- [x] `rawfilter` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/rawfilter/guided-entry.png`。
+- [x] `marku` 与 `cleanf` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物分别位于 `artifacts/cli/marku/guided-entry.png` 与 `artifacts/cli/cleanf/guided-entry.png`。
+- [x] 当前测试矩阵为 24/24 complete；严格审计、包测试、构建与 Chromium desktop Playwright 真实点击回归均已通过；当前全仓 Vitest 为 91/91 files、270/270 tests。
+- [ ] 每个新增 CLI 测试必须通过 `runProgram()` 或等价导出入口走真实 CLI 解析，真实文件 fixture 放在 `artifacts/test-runs/<node>` 并清理。
+- [ ] 每个新增 Component 测试必须用 React Testing Library + happy-dom 渲染无壳 Component，验证输入、按钮、`host.actions.run`、进度/日志/result 写回。
+
 ## 目标
 
 - 每个节点包都可以作为独立 npm 包安装。
@@ -23,6 +58,22 @@
 - `repacku` 已移除对 `@xiranite/node-lata` 的依赖。
 - `repacku` 的路径粘贴误判问题已修到 guided choice 解析层，粘贴真实目录会直接作为默认任务路径执行。
 - `repacku` 的 7z listfile/中文路径问题已通过直接 core/platform 执行路线验证过一次，避免 Taskfile shell hop。
+- `repacku` guided 任务选择已迁到 Clack `select`，保留路径直粘入口。
+- 测试栈已统一为 Vitest + React Testing Library + happy-dom + MSW + Playwright。
+- `test:unit`、`test:e2e`、Playwright 配置与 MSW 测试工具入口已建立；`test:unit` 明确排除 `tests/e2e`，避免 Vitest 误跑 Playwright spec；Playwright 产物写入 `artifacts/playwright*`。
+- 全仓测试 import 已从 `bun:test` 迁到 `vitest`，节点包测试脚本统一限定到 `src`，避免 `dist/*.test.js` 污染测试。
+- `scripts/audit-node-tests.ts` 已改为检查 core / CLI / Component / 真实运行标记 / Vitest script / 禁止 `bun:test`。
+- `repacku` 已建立 core / CLI / Component 测试样板：CLI 测试通过 `runProgram()` 直接调用，Component 测试使用 React Testing Library + happy-dom，真实文件 fixture 放在 `artifacts/test-runs` 并清理。
+- `repacku` platform 已去掉 `Bun.file/Bun.write`，改为 Node `fs/promises`，保证独立包不依赖 Bun 全局。
+- `linedup` 已建立第二个完整测试样板：CLI 覆盖非交互引导拒绝、JSON 脚本模式、真实文件输入输出；Component 覆盖剪贴板、过滤、复制和下载。
+- `rawfilter` 已建立第三个完整测试样板：CLI 覆盖非交互引导拒绝、中文路径 fixture、JSON plan；Component 覆盖 `host.actions.run`、日志/result 写回和复制计划。
+- `marku` 已建立第四个完整测试样板：CLI 覆盖非交互引导拒绝、inline JSON、真实文件输入输出；Component 覆盖 `host.actions.run`、日志/result 写回和复制输出。
+- `sleept` 已建立第五个完整测试样板：CLI 覆盖非交互引导拒绝、status JSON、countdown dry-run JSON；Component 覆盖宿主执行、stats 刷新和 live/dry 参数传递。
+- `cleanf` 已建立第六个完整测试样板：CLI 覆盖非交互引导拒绝、中文路径 preview JSON；Component 覆盖宿主执行、预览结果和日志复制。
+- 横向修复：仍使用 unavailable native action 的节点 Component 已统一改为 `host.actions?.run ?? unavailable fallback`，后续补各节点 Component 测试时必须锁住宿主调用。
+- 默认 backend node runner 已改为执行时实时转发事件，前端 `host.actions.run` 的 operation stream 不再等节点结束后才回放日志。
+- 新增 backend 真实节点集成测试：通过本地 HTTP backend + Eden node client + operation stream，用真实中文/空格路径和 fixture 文件验证 `cleanf`、`rawfilter`、`marku`、`repacku`、`sleept`；`linedup` 通过真实文件 CLI 测试补齐 real-run 标记。
+- 当前审计状态：`bun run audit:node-tests` 为 6/24 complete；complete 现在必须包含 core / CLI / Component / real-run，剩余 18 个保留节点仍缺 CLI/Component/real-run 覆盖。
 
 ## 仍未完成的问题
 
@@ -33,7 +84,7 @@
 - 面板、标题、提示、错误和 summary 不统一。
 - 进度条仍有手写痕迹。
 - 部分输出在 PowerShell 编码环境里容易被误判为乱码。
-- 还没有自动截图或 ANSI snapshot 验证。
+- 除 `repacku` guided 首屏外，还没有把自动 ANSI snapshot/截图验证推广到全部 CLI。
 
 决策：
 
@@ -46,12 +97,14 @@
 
 ### 2. CLI runtime 需要瘦身
 
-当前 `packages/cli-runtime/src/index.ts` 里仍有若干手写基础设施：
+当前 `packages/cli-runtime/src/index.ts` 已先收掉一部分手写基础设施：
 
-- `parseArgs` 与 `citty` 能力重叠。
+- `parseArgs` 与 `flagString/flagNumber/flagBoolean` 已删除；节点显式命令继续统一走 `citty defineCommand`。
+- `renderCliEvent/writeCliEvent` 已作为节点运行事件输出入口，显式命令进度输出不再散落手写 `[xx%]`。
+- `renderProgressBar` 已修复纯文本下 filled/empty 同字符导致看不出比例的问题，并补 Vitest 覆盖中文宽度、ANSI-free 宽度和 event formatter。
 - `stripAnsi` 应替换为成熟包。
 - `shellQuote` 应替换为成熟包或避免 shell 字符串拼接。
-- `renderProgressBar` 可替换为 `cli-progress` 或 Clack spinner/任务状态。
+- guided Ink 内部的 `setLines([xx%])` 还没有统一到 runtime event formatter，后续应结合 pseudo-tty 截图一起改。
 - `rich` wrapper 可以保留很薄的一层，也可以直接暴露 chalk/picocolors。
 
 推荐拆分：
@@ -68,16 +121,18 @@ packages/cli-runtime/src/
 
 ### 3. guided CLI 需要截图级验证
 
-用户要求每个命令行都实际系统调用并截图看效果。这不应该靠人工临时截图，而应该固化成测试工具。
+用户要求每个命令行都实际系统调用并截图看效果。这不应该靠人工临时截图，也不应把手动命令 smoke 当验收，而应该固化成测试工具。
 
 推荐方案：
 
-- 新增 `scripts/capture-cli-ui.ts`。
+- 已新增 `scripts/cli-visual-testing.ts` 与 `scripts/capture-cli-ui.ts`。
+- 手动捕获脚本使用 Node 父进程运行：`node --experimental-strip-types scripts/capture-cli-ui.ts --node <node> --cli <path> --case <case> --wait <text>`；不要用 Bun 作为父进程直接跑 `node-pty`。
 - 使用 `node-pty` 在 Windows 走 ConPTY 启动 CLI。
 - 记录原始 ANSI 输出到 `artifacts/cli/<node>/<case>.ansi`。
-- 使用 `ansi-to-html` 转成 HTML。
+- 使用 `@xterm/headless` + `@xterm/addon-serialize` 按真实终端语义渲染 HTML，避免普通 ANSI-to-HTML 工具不理解光标移动和清屏序列。
 - 使用 Playwright 对 HTML 截图，输出 `artifacts/cli/<node>/<case>.png`。
 - 保存 baseline，后续做视觉 diff 或人工审阅。
+- 所有产物必须写入 `artifacts/` 或其他 `.gitignore` 覆盖目录，测试结束后能清理的 fixture 必须清理。
 
 每个 CLI 至少捕获：
 
@@ -88,7 +143,20 @@ packages/cli-runtime/src/
 - `--help`。
 - `--json` 或非交互脚本输出。
 
-### 4. 命令名变量化仍需收口
+### 4. 节点测试验收矩阵
+
+每个仍保留的节点必须按同一套测试框架验收，不能用“手动跑过命令”替代：
+
+- 测试框架统一使用 Vitest；测试文件从 `vitest` 导入 `describe/test/expect/vi` 等 API。
+- `core.test.ts`：覆盖纯逻辑、边界输入、失败路径、dry-run/undo/计划类输出。
+- `cli.test.ts`：通过导出的 `runProgram()` 或 `cli.run()` 调用 CLI，覆盖 `--help`、`--json`、非交互错误、至少一个成功脚本化流程；需要真实文件时使用 `artifacts/test-runs/<node>` 并清理。
+- `Component.test.tsx`：用 React Testing Library + happy-dom 渲染无壳 Component，mock `NodeHostApi`，覆盖输入、按钮、`host.actions.run` 调用、进度事件、结果/日志写回。
+- HTTP/RPC 相关测试使用 MSW mock 网络边界，不直接打真实外部服务。
+- 需要 TTY 富文本视觉时，使用 pseudo-tty + ANSI snapshot/截图测试，输出到 `artifacts/cli/<node>`。
+- 真实浏览器、窗口尺寸、截图/视觉回归使用 Playwright，放在 `tests/e2e`，不混入节点 npm 包自身测试。
+- 测试不得写入未忽略路径，不得依赖系统 TEMP 中包含 `tmp/temp/cache/logs` 等会触发节点黑名单的路径。
+
+### 5. 命令名变量化仍需收口
 
 目前 `nodeCliName()` 已解决包内显示名和 `bin` 生成，但还要继续检查：
 
@@ -105,7 +173,7 @@ packages/cli-runtime/src/
 - 机器生成的 `package.json#bin` 不手改。
 - 后续如果要去掉前缀，只改 `NODE_CLI_PREFIX`，再运行同步和 shim 安装脚本。
 
-### 5. 不再用 Taskfile 调回同一个 CLI
+### 6. 不再用 Taskfile 调回同一个 CLI
 
 原 `repacku` 的 Taskfile 本质是：
 
@@ -125,7 +193,7 @@ single-pack: repacku compress --clipboard --single --delete-after
 - 节点包不得依赖 `lata` 来启动自己的 guided mode。
 - guided task 必须最终调用本包 `core.ts + platform.ts`，不要 shell 回自己的二进制。
 
-### 6. CLI 和 Component 的边界还要继续审计
+### 7. CLI 和 Component 的边界还要继续审计
 
 节点包必须遵守：
 
@@ -156,7 +224,7 @@ single-pack: repacku compress --clipboard --single --delete-after
 
 使用边界：
 
-- 不再自己维护一套完整 `parseArgs`。
+- 不再自己维护一套完整 `parseArgs`；当前工作区内只剩安装脚本的局部 shim 参数解析。
 - 每个节点的显式命令都用 citty `defineCommand`。
 
 ### Clack
@@ -262,16 +330,19 @@ const GUIDED_TASKS = [
 | 破坏性操作 | dry-run 或确认机制清晰 |
 | 构建 | `bun --filter @xiranite/node-<id> build` 通过 |
 | 测试 | `bun --filter @xiranite/node-<id> test` 通过 |
+| 真实运行 | 平台节点必须通过 backend HTTP + operation stream + 真实 fixture；纯逻辑节点必须有真实文件或真实文本数据测试 |
 | 架构 | `bun scripts/validate-node-architecture.ts --node <id>` 通过 |
+| 审计 | `bun run audit:node-tests -- --strict` 通过 |
 
 ## 迁移顺序
 
-第一批：以 `repacku` 收敛标准
+第一批：以 `repacku` / `linedup` 收敛标准
 
 1. 完成 `repacku` CLI runtime 清理。
 2. 完成 `repacku` guided UI 截图验证。
 3. 完成 `repacku` 前端 Component 调用真实宿主执行验证。
-4. 写入验证脚本，防止以后回退到 Taskfile/lata 自调用。
+4. 完成 `linedup` 的 CLI/Component 样板扩展，用作纯逻辑节点参考。
+5. 写入验证脚本，防止以后回退到 Taskfile/lata 自调用。
 
 第二批：文件系统批处理节点
 
@@ -289,7 +360,6 @@ const GUIDED_TASKS = [
 第三批：系统和包管理节点
 
 - `scoolp`
-- `reinstallp`
 - `recycleu`
 - `linku`
 - `owithu`
@@ -298,23 +368,76 @@ const GUIDED_TASKS = [
 
 第四批：网络和长任务节点
 
-- `weibospider`
 - `trename`
 - 其他 crawler/metadata 节点
 
 这些节点依赖流式进度、取消、重试、网络错误恢复。应等 Node Runner streaming 完成后再做完整体验优化。
 
+已裁剪节点：
+
+- `reinstallp`：低频 Python 本地包重装工具，不再作为 Xiranite 节点维护。
+- `weibospider`：低频且维护成本高的微博抓取工具，不再作为 Xiranite 节点维护。
+
 ## repacku 后续待办
 
+- 已完成：guided selector 从手写列表迁到 Clack `select`，保留直接粘贴路径能力。
+- 已完成：新增 Vitest `cli.test.ts`，通过 `runProgram()` 覆盖非交互错误和 JSON dry-run 成功路径；fixture 位于 `artifacts/test-runs`。
+- 已完成：新增 Vitest `Component.test.tsx`，用 React Testing Library + happy-dom 覆盖剪贴板粘贴、`host.actions.run` 调用、进度事件和 result/log 写回。
+- 已完成：`platform.ts` 去掉 `Bun.file/Bun.write`，改为 Node `fs/promises`。
 - 修复源码中所有被 PowerShell 显示成乱码但实际可能为 UTF-8 的文案检查方式，统一用 UTF-8 工具读取。
-- 确认 `GUIDED_TASKS` 文案在终端中显示正常。
-- 将 guided selector 从手写列表迁到 Clack `select`，保留直接粘贴路径能力。
-- 将 progress 输出切换到统一 runtime progress API。
-- 给 `xrepacku` 增加 pseudo-tty 截图测试。
-- 验证 `xrepacku` 从非项目目录启动。
-- 验证 `xrepacku compress --path <中文路径> --types image --minCount 1`。
-- 验证 `xrepacku guided` 的路径粘贴、剪贴板 fallback、退出、错误输入。
-- 验证前端 Repacku Component 的 `host.actions.run` 在 Wails 下能真实执行并更新日志/进度/result。
+- 已完成：`GUIDED_TASKS` 文案已在真实 pseudo-tty 首屏截图中验证，截图产物位于 `artifacts/cli/repacku/guided-entry.png`。
+- 显式命令 progress 输出已切换到统一 runtime event/progress API；guided Ink 内部行状态仍待截图级验证后统一。
+- 已完成：`xrepacku guided` 首屏 pseudo-tty 截图测试已接入 `bun --filter @xiranite/node-repacku test`。
+- 用测试框架验证 `xrepacku` 从非项目目录启动。
+- 用测试框架验证 `xrepacku compress --path <中文路径> --types image --min-count 1`。
+- 用 pseudo-tty 测试验证 `xrepacku guided` 的路径粘贴、剪贴板 fallback、退出、错误输入。
+- 在桌面集成测试中验证前端 Repacku Component 的 `host.actions.run` 在 Wails 下能真实执行并更新日志/进度/result。
+
+## linedup 当前状态
+
+- 已完成：`core.test.ts` 覆盖去重、过滤、diff row。
+- 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、inline JSON 输出、真实文件输入输出。
+- 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、过滤、复制和下载。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 已完成：`bun --filter @xiranite/node-linedup test`、`build`、`validate-node-architecture` 均通过。
+- 待补：路径输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展；如后续改成 Clack guided，需要复用同一套 ANSI/PNG snapshot。
+
+## rawfilter 当前状态
+
+- 已完成：Component 修复为调用 `host.actions?.run`，不再固定返回 unavailable native action。
+- 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、中文路径 fixture、JSON plan 输出。
+- 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、进度日志、result 写回和复制计划。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 已完成：`bun --filter @xiranite/node-rawfilter test`、`build`、`validate-node-architecture` 均通过。
+- 待补：路径输入、plan summary、错误输入、`--help` 的截图级用例仍需扩展；执行模式的破坏性移动需要更完整的 dry-run/确认策略测试。
+
+## marku 当前状态
+
+- 已完成：Component 修复为调用 `host.actions?.run`，不再固定返回 unavailable native action；旧 `xiranite-marku` 文案已移除。
+- 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、inline JSON、真实文件输入输出。
+- 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、进度日志、result 写回和复制输出。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 已完成：`bun --filter @xiranite/node-marku test`、`build`、`validate-node-architecture` 均通过。
+- 待补：模块输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展；文件写入和 undo 的真实目录端到端用例还需扩大。
+
+## sleept 当前状态
+
+- 已完成：Component 修复为宿主优先执行；无宿主时才退回浏览器 dry-run。
+- 已完成：CLI `--json` 修复为纯 JSON，不再混入进度文本。
+- 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、status JSON、countdown dry-run JSON。
+- 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖 `host.actions.run`、stats 刷新和 live/dry 参数传递。
+- 已完成：`bun --filter @xiranite/node-sleept test`、`build`、`validate-node-architecture` 均通过。
+- 待补：pseudo-tty guided 截图测试；真实系统电源动作只能通过 dry-run 和宿主 mock 验证，不能在自动测试中触发。
+
+## cleanf 当前状态
+
+- 已完成：CLI `--json` 修复为纯 JSON，不再混入进度文本。
+- 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、中文路径 fixture、preview JSON。
+- 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、`host.actions.run`、预览结果写回和日志复制。
+- 已完成：backend 集成测试通过真实中文/空格路径 fixture 验证 `cleanf` 可经本地 HTTP backend 与 operation stream 返回真实 preview 结果。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 已完成：`bun --filter @xiranite/node-cleanf test`、`build`、`validate-node-architecture` 均通过。
+- 待补：路径输入、preview summary、错误输入、`--help` 的截图级用例仍需扩展；删除模式需要扩大 dry-run 与确认策略测试，自动测试不得删除 fixture 根外路径。
 
 ## 验证命令
 
@@ -324,12 +447,30 @@ const GUIDED_TASKS = [
 bun --filter @xiranite/node-repacku test
 bun --filter @xiranite/node-repacku build
 bun scripts/validate-node-architecture.ts --node repacku
+bun --filter @xiranite/node-linedup test
+bun --filter @xiranite/node-linedup build
+bun scripts/validate-node-architecture.ts --node linedup
+bun --filter @xiranite/node-rawfilter test
+bun --filter @xiranite/node-rawfilter build
+bun scripts/validate-node-architecture.ts --node rawfilter
+bun --filter @xiranite/node-marku test
+bun --filter @xiranite/node-marku build
+bun scripts/validate-node-architecture.ts --node marku
+bun --filter @xiranite/node-sleept test
+bun --filter @xiranite/node-sleept build
+bun scripts/validate-node-architecture.ts --node sleept
+bun --filter @xiranite/node-cleanf test
+bun --filter @xiranite/node-cleanf build
+bun scripts/validate-node-architecture.ts --node cleanf
 ```
 
 全仓：
 
 ```powershell
 bun run typecheck
+bun run test:unit
+bun run test:e2e
+bun run audit:node-tests
 bun run test:packages
 bun run build:packages
 bun run build
@@ -357,4 +498,5 @@ xrepacku --help
 - `core.ts` 直接访问 Node/Bun/文件系统/shell。
 - `--json` 混入 ANSI 或富文本。
 - 没有真实路径、中文路径、带空格路径验证就声称完成。
+- 只用 Component mock 或 fake runner 证明“前端可用”，没有走真实 backend/client/operation stream。
 - 只看源码不运行 CLI。

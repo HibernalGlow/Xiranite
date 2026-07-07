@@ -1,5 +1,7 @@
 import { createXiraniteNodeClient } from "@xiranite/api/client"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { NodeOperationCleanupResponseDTO, NodeOperationDTO, NodeRunResultDTO } from "@xiranite/shared"
+import { useNodeOperations } from "@/store/nodeOperations"
 import { resolveLocalBackendConfig } from "./localBackendConfig"
 
 let nodeClient: ReturnType<typeof createXiraniteNodeClient> | null = null
@@ -9,7 +11,48 @@ export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
   input: TInput,
   onEvent?: (event: NodeRunEvent) => void,
 ): Promise<NodeRunResult<TData>> {
-  return getNodeClient().runNode<TInput, TData>(nodeId, input, onEvent)
+  let operationId: string | undefined
+  try {
+    const client = getNodeClient()
+    const operation = await client.startNodeOperation<TInput>(nodeId, input)
+    operationId = operation.operationId
+    useNodeOperations.getState().upsertOperation(operation)
+
+    let finalResult: NodeRunResultDTO<TData> | undefined
+    await client.streamNodeOperation<TData>(operation.operationId, (message) => {
+      if (message.type === "operation") {
+        useNodeOperations.getState().upsertOperation(message.operation)
+      } else if (message.type === "event") {
+        useNodeOperations.getState().appendEvent(operation.operationId, message.index, message.event)
+        onEvent?.(message.event)
+      } else {
+        finalResult = message.result
+        useNodeOperations.getState().finishOperation(message.operation, message.result)
+      }
+    })
+
+    if (!finalResult) throw new Error(`Node operation did not return a result: ${operation.operationId}`)
+    return finalResult as NodeRunResult<TData>
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const result: NodeRunResult<TData> = { success: false, message }
+    if (operationId) {
+      markTrackedOperationFailed(operationId, nodeId, result)
+    } else {
+      useNodeOperations.getState().failBeforeStart(nodeId, message)
+    }
+    return result
+  }
+}
+
+export async function cancelNodeOperationOnLocalBackend<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>> {
+  const operation = await getNodeClient().cancelNodeOperation<TData>(operationId)
+  useNodeOperations.getState().upsertOperation(operation)
+  return operation
+}
+
+export async function cleanupNodeOperationsOnLocalBackend(options?: { maxAgeMs?: number }): Promise<NodeOperationCleanupResponseDTO> {
+  return getNodeClient().cleanupNodeOperations(options)
 }
 
 function getNodeClient() {
@@ -18,4 +61,21 @@ function getNodeClient() {
   const config = resolveLocalBackendConfig()
   nodeClient = createXiraniteNodeClient(config.baseUrl, { token: config.token })
   return nodeClient
+}
+
+function markTrackedOperationFailed(operationId: string, nodeId: string, result: NodeRunResult) {
+  const now = Date.now()
+  useNodeOperations.getState().appendEvent(operationId, undefined, { type: "log", message: result.message })
+  const current = useNodeOperations.getState().operations.find((operation) => operation.operationId === operationId)
+  useNodeOperations.getState().finishOperation({
+    operationId,
+    nodeId,
+    phase: "error",
+    createdAt: current?.createdAt ?? now,
+    updatedAt: now,
+    startedAt: current?.startedAt,
+    finishedAt: now,
+    eventCount: current?.eventCount ?? 0,
+    result,
+  }, result)
 }
