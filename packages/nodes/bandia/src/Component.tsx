@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, ExternalLink, FileArchive, Package, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { BandiaAction, BandiaArchiveFormat, BandiaData, BandiaExtractMode, BandiaInput, BandiaResult, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
 import { mappingsToText, parseBandiaPaths, parsePathMappings } from "./core.js"
 
@@ -28,12 +28,53 @@ interface BandiaCardState {
   progressText?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof BandiaCardState)[] = [
+  "mode",
+  "mappingText",
+  "outputDir",
+  "deleteAfter",
+  "useTrash",
+  "parallel",
+  "workers",
+  "extractMode",
+  "overwriteMode",
+  "outputPrefix",
+  "compressFormat",
+  "deleteSource",
+  "dryRun",
+]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<BandiaCardState>(compId) ?? {}
   const dataRef = useRef<BandiaCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.bandia] 读取）
+  const [defaults, setDefaults] = useState<Partial<BandiaCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<BandiaCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.mode, data.mappingText, data.outputDir, data.deleteAfter, data.useTrash, data.parallel, data.workers, data.extractMode, data.overwriteMode, data.outputPrefix, data.compressFormat, data.deleteSource, data.dryRun, defaults])
+
   const mode = data.mode ?? "extract"
   const logs = data.logs ?? []
   const archivePaths = parseBandiaPaths(data.pathText ?? "")
@@ -107,6 +148,39 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", progress: 0, progressText: "", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<BandiaCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({
+      mode: undefined,
+      mappingText: undefined,
+      outputDir: undefined,
+      deleteAfter: undefined,
+      useTrash: undefined,
+      parallel: undefined,
+      workers: undefined,
+      extractMode: undefined,
+      overwriteMode: undefined,
+      outputPrefix: undefined,
+      compressFormat: undefined,
+      deleteSource: undefined,
+      dryRun: undefined,
+    })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -119,6 +193,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:bandia.pasteInput")} disabled={running} onClick={pasteInput}><Clipboard size={14} /></IconButton>
             <ActionButton variant="primary" disabled={running || !canRun(mode, paths, mappings)} onClick={() => execute()}><Play size={14} /> {t("module:bandia.run")}</ActionButton>
             <IconButton title={t("module:bandia.exportEfu")} disabled={running || (!paths.length && !mappings.length)} onClick={exportEfu}><ExternalLink size={14} /></IconButton>

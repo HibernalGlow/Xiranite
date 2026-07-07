@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react"
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
@@ -135,4 +136,80 @@ export function createUnavailableNativeAction(message: string): UnavailableNativ
   return async (_nodeId, _input, _onEvent) => {
     return { success: false, message }
   }
+}
+
+export interface NodeConfigButtonProps {
+  /** 是否有未保存的配置覆盖（comp.data 中存在与默认值不同的字段） */
+  isDirty?: boolean
+  /** 保存当前输入为默认值 */
+  onSaveDefault?: () => void
+  /** 从 TOML 恢复默认值到 comp.data */
+  onRestoreDefault?: () => void
+  /** 重置 comp.data 中的配置覆盖字段 */
+  onResetOverride?: () => void
+  /** 打开配置文件 */
+  onOpenConfigFile?: () => void
+  /** 禁用所有操作 */
+  disabled?: boolean
+}
+
+export function NodeConfigButton(props: NodeConfigButtonProps) {
+  const { isDirty, onSaveDefault, onRestoreDefault, onResetOverride, onOpenConfigFile, disabled } = props
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onClick)
+    return () => document.removeEventListener("mousedown", onClick)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        title="默认值"
+        disabled={disabled}
+        className={cx(
+          "flex h-6 items-center gap-1 rounded border px-1.5 text-[10px] disabled:opacity-50",
+          isDirty
+            ? "border-primary bg-primary/10 text-primary"
+            : "border-border bg-background text-muted-foreground hover:bg-muted",
+        )}
+        onClick={() => setOpen(!open)}
+      >
+        <span>默认值</span>
+        {isDirty ? <span className="h-1.5 w-1.5 rounded-full bg-primary" /> : null}
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-1 min-w-44 border border-border bg-popover text-popover-foreground shadow-md">
+          {onSaveDefault ? (
+            <MenuItem label="保存当前输入为默认" onClick={() => { setOpen(false); onSaveDefault() }} />
+          ) : null}
+          {onRestoreDefault ? (
+            <MenuItem label="从默认值恢复" onClick={() => { setOpen(false); onRestoreDefault() }} />
+          ) : null}
+          {onResetOverride ? (
+            <MenuItem label="重置本次覆盖" onClick={() => { setOpen(false); onResetOverride() }} />
+          ) : null}
+          {onOpenConfigFile ? (
+            <MenuItem label="打开配置文件" onClick={() => { setOpen(false); onOpenConfigFile() }} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      className="block w-full px-3 py-1.5 text-left text-[11px] hover:bg-muted"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  )
 }

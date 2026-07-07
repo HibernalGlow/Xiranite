@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSync, History, MoveRight, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { MigratefData, MigratefInput, MigratefMode, MigratefResult } from "./core.js"
 
 interface MigratefCardState {
@@ -15,12 +15,39 @@ interface MigratefCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof MigratefCardState)[] = ["sourceText", "targetPath", "historyPath", "mode"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<MigratefCardState>(compId) ?? {}
   const dataRef = useRef<MigratefCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.migratef] 读取）
+  const [defaults, setDefaults] = useState<Partial<MigratefCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<MigratefCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.sourceText, data.targetPath, data.historyPath, data.mode, defaults])
+
   const logs = data.logs ?? []
   const plan = data.result?.plan ?? []
   const history = data.result?.history ?? []
@@ -73,6 +100,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ result: null, logs: [], phase: "idle" })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<MigratefCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ sourceText: undefined, targetPath: undefined, historyPath: undefined, mode: undefined })
+  }
+
   async function copyLogs() {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
@@ -84,6 +130,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:migratef.meta", { phase: data.phase ?? "idle", mode: t(`module:migratef.${mode}Mode`) })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running} onClick={() => execute("plan", true)}><Play size={14} /> {t("module:migratef.plan")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("move")}><MoveRight size={14} /> {t("module:migratef.move")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("copy")}><Copy size={14} /> {t("module:migratef.copy")}</ActionButton>

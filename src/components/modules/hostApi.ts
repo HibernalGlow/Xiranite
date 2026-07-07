@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import type { HostComponentRef, NodeHostApi } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { getConfigFilePath, getNodeConfigFromBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
 import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { useTheme } from "@/components/theme-provider"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceContext"
@@ -9,7 +10,7 @@ import type { ComponentInstance, ComponentState, ViewMode } from "@/types/worksp
 const componentStates = new Set<ComponentState>(["docked", "floating", "focused", "fullscreen", "compact"])
 const viewModes = new Set<ViewMode>(["cards", "dockview", "flow", "lane", "bento"])
 
-export function useNodeHostApi(compId: string): NodeHostApi {
+export function useNodeHostApi(compId: string, nodeId?: string): NodeHostApi {
   useWorkspaceComponentData(compId)
   const workspaceActions = useWorkspaceActions()
   const { theme } = useTheme()
@@ -77,7 +78,22 @@ export function useNodeHostApi(compId: string): NodeHostApi {
       theme: hostTheme,
       platform: "web",
     },
-  }), [hostTheme, workspaceActions])
+    getNodeConfig: async <T,>() => {
+      if (!nodeId) throw new Error("Node ID is required for getNodeConfig")
+      return getNodeConfigFromBackend<T>(nodeId)
+    },
+    saveNodeConfig: async <T,>(config: T) => {
+      if (!nodeId) throw new Error("Node ID is required for saveNodeConfig")
+      await saveNodeConfigToBackend<T>(nodeId, config)
+    },
+    openConfigFile: () => {
+      void getConfigFilePath().then((path) => {
+        window.open(path, "_blank")
+      }).catch(() => {
+        // ignore
+      })
+    },
+  }), [hostTheme, workspaceActions, compId, nodeId])
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {

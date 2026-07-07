@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileCode, History, Play, RotateCcw, Undo2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { MarkuData, MarkuInput, MarkuModuleId, MarkuResult } from "./core.js"
 import { MARKU_MODULES } from "./core.js"
 
@@ -19,12 +19,39 @@ interface MarkuCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof MarkuCardState)[] = ["inputText", "pathText", "module", "configText", "recursive", "dryRun", "enableUndo"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<MarkuCardState>(compId) ?? {}
   const dataRef = useRef<MarkuCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.marku] 读取）
+  const [defaults, setDefaults] = useState<Partial<MarkuCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<MarkuCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | boolean | undefined
+      const defaultVal = defaults[field] as string | boolean | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.inputText, data.pathText, data.module, data.configText, data.recursive, data.dryRun, data.enableUndo, defaults])
+
   const logs = data.logs ?? []
   const selectedModule = data.module ?? "markt"
   const dryRun = data.dryRun ?? true
@@ -97,6 +124,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ result: null, logs: [], phase: "idle" })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<MarkuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | boolean | undefined
+      if (value !== undefined && value !== "") (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ inputText: undefined, pathText: undefined, module: undefined, configText: undefined, recursive: undefined, dryRun: undefined, enableUndo: undefined })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -104,6 +150,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:marku.meta", { phase: data.phase ?? "idle", module: selectedModule, mode: dryRun ? t("module:marku.dryRun") : t("module:marku.writeMode") })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running || (!hasText && !paths.length)} onClick={() => execute(hasText ? "text" : "run")}><Play size={14} /> {t("module:marku.run")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> {t("module:marku.history")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("undo")}><Undo2 size={14} /> {t("module:marku.undo")}</ActionButton>

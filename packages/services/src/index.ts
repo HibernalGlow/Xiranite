@@ -1,4 +1,5 @@
 import type { WorkspaceRepository } from "@xiranite/repository"
+import { ConfigService } from "./configService.js"
 import {
   createWorkspaceInputSchema,
   type NodeOperationCleanupResponseDTO,
@@ -376,15 +377,21 @@ function normalizeRetentionMs(value: number): number {
 export interface XiraniteServices {
   workspace: WorkspaceService
   nodes: NodeRunnerService
+  config: ConfigService
 }
 
 export interface CreateXiraniteServicesOptions {
   nodeRunner?: NodeRunner
+  configPath?: string
 }
 
 export function createXiraniteServices(repository: WorkspaceRepository, options: CreateXiraniteServicesOptions = {}): XiraniteServices {
   return {
     workspace: new WorkspaceService({ repository }),
     nodes: new NodeRunnerService({ runner: options.nodeRunner }),
+    config: new ConfigService({ configPath: options.configPath }),
   }
 }
+
+export { ConfigService } from "./configService.js"
+export type { GetConfigResult, GetNodeConfigResult, UpdateNodeConfigResult, ImportLegacyResult } from "./configService.js"

@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Link, List, MoveRight, Play, RotateCcw } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { LinkRecord, LinkuData, LinkuInput, LinkuResult } from "./core.js"
 
 interface LinkuCardState {
@@ -15,12 +15,39 @@ interface LinkuCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof LinkuCardState)[] = ["path", "target", "configPath"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<LinkuCardState>(compId) ?? {}
   const dataRef = useRef<LinkuCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.linku] 读取）
+  const [defaults, setDefaults] = useState<Partial<LinkuCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<LinkuCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.path, data.target, data.configPath, defaults])
+
   const logs = data.logs ?? []
   const links = data.result?.links ?? []
 
@@ -65,6 +92,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<LinkuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ path: undefined, target: undefined, configPath: undefined })
+  }
+
   async function copyLogs() {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
@@ -76,6 +122,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:linku.meta", { phase: data.phase ?? "idle", count: links.length })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running} onClick={() => execute("info")}><Play size={14} /> {t("module:linku.info")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("create")}><Link size={14} /> {t("module:linku.create")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("move_link")}><MoveRight size={14} /> {t("module:linku.move")}</ActionButton>

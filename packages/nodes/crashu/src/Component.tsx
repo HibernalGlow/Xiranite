@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, MoveRight, RotateCcw, Search, Zap } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeConfigButton, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { CrashuData, CrashuInput, CrashuResult } from "./core.js"
 
 interface CrashuCardState {
@@ -19,12 +19,39 @@ interface CrashuCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof CrashuCardState)[] = ["sourcePathsText", "targetPath", "targetNamesText", "destinationPath", "similarityThreshold", "autoMove", "moveDirection", "conflictPolicy"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<CrashuCardState>(compId) ?? {}
   const dataRef = useRef<CrashuCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.crashu] 读取）
+  const [defaults, setDefaults] = useState<Partial<CrashuCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<CrashuCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.sourcePathsText, data.targetPath, data.targetNamesText, data.destinationPath, data.similarityThreshold, data.autoMove, data.moveDirection, data.conflictPolicy, defaults])
+
   const logs = data.logs ?? []
   const sourcePaths = splitLines(data.sourcePathsText)
   const targetNames = splitLines(data.targetNamesText)
@@ -95,6 +122,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ result: null, logs: [], phase: "idle" })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<CrashuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ sourcePathsText: undefined, targetPath: undefined, targetNamesText: undefined, destinationPath: undefined, similarityThreshold: undefined, autoMove: undefined, moveDirection: undefined, conflictPolicy: undefined })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -105,6 +151,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("scan")}><Search size={14} /> {t("module:crashu.scan")}</ActionButton>
             <ActionButton disabled={running || !sourcePaths.length} onClick={() => execute("plan")}><Zap size={14} /> {t("module:crashu.plan")}</ActionButton>
             <ActionButton variant="primary" disabled={running || !sourcePaths.length || !data.destinationPath} onClick={() => execute("move")}><MoveRight size={14} /> {t("module:crashu.move")}</ActionButton>

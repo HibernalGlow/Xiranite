@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FilePenLine, FolderOpen, Play, RefreshCw, RotateCcw, Search, Undo2, Upload } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { TrenameAction, TrenameData, TrenameInput, TrenameJson, TrenameNode, TrenameResult } from "./core.js"
 
 interface TrenameCardState {
@@ -25,6 +25,13 @@ interface TrenameCardState {
   logs?: string[]
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof TrenameCardState)[] = [
+  "pathText", "basePath", "batchId", "undoPath",
+  "excludeExts", "excludePatterns", "maxLines",
+  "includeHidden", "includeRoot", "compact", "dryRun",
+]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<TrenameCardState>(compId) ?? {}
@@ -35,6 +42,29 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const jsonText = data.jsonText ?? result?.jsonContent ?? ""
   const summary = summarizeJson(jsonText)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.trename] 读取）
+  const [defaults, setDefaults] = useState<Partial<TrenameCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<TrenameCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | number | boolean | undefined
+      const defaultVal = defaults[field] as string | number | boolean | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.pathText, data.basePath, data.batchId, data.undoPath, data.excludeExts, data.excludePatterns, data.maxLines, data.includeHidden, data.includeRoot, data.compact, data.dryRun, defaults])
 
   function patch(patchData: Partial<TrenameCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -102,6 +132,37 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", progress: 0, progressText: "", result: null, jsonText: "", logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<TrenameCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({
+      pathText: undefined,
+      basePath: undefined,
+      batchId: undefined,
+      undoPath: undefined,
+      excludeExts: undefined,
+      excludePatterns: undefined,
+      maxLines: undefined,
+      includeHidden: undefined,
+      includeRoot: undefined,
+      compact: undefined,
+      dryRun: undefined,
+    })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -113,6 +174,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:trename.pastePath")} disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
             <ActionButton disabled={running || !data.pathText} onClick={() => execute("scan")}><RefreshCw size={14} /> {t("module:trename.scan")}</ActionButton>
             <ActionButton disabled={running} onClick={pasteJson}><Upload size={14} /> {t("module:trename.json")}</ActionButton>

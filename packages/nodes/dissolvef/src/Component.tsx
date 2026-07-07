@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, FolderInput, FolderOpen, History, Play, RotateCcw, Undo2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeConfigButton, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { DissolvefData, DissolvefInput, DissolvefResult } from "./core.js"
 
 interface DissolvefCardState {
@@ -25,12 +25,68 @@ interface DissolvefCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML（不含 result/logs/phase 等运行态） */
+const CONFIG_FIELDS: (keyof DissolvefCardState)[] = [
+  "pathText",
+  "historyPath",
+  "excludeText",
+  "nested",
+  "media",
+  "archive",
+  "direct",
+  "preview",
+  "protectFirstLevel",
+  "enableSimilarity",
+  "similarityThreshold",
+  "fileConflict",
+  "dirConflict",
+]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<DissolvefCardState>(compId) ?? {}
   const dataRef = useRef<DissolvefCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.dissolvef] 读取）
+  const [defaults, setDefaults] = useState<Partial<DissolvefCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<DissolvefCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as unknown
+      const defaultVal = defaults[field] as unknown
+      return JSON.stringify(current ?? null) !== JSON.stringify(defaultVal ?? null)
+    })
+    setConfigDirty(dirty)
+  }, [
+    data.pathText,
+    data.historyPath,
+    data.excludeText,
+    data.nested,
+    data.media,
+    data.archive,
+    data.direct,
+    data.preview,
+    data.protectFirstLevel,
+    data.enableSimilarity,
+    data.similarityThreshold,
+    data.fileConflict,
+    data.dirConflict,
+    defaults,
+  ])
+
   const logs = data.logs ?? []
   const nested = data.nested ?? true
   const media = data.media ?? true
@@ -108,6 +164,39 @@ export function Component({ compId, host }: NodeComponentProps) {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
 
+  async function saveAsDefault() {
+    const config: Partial<DissolvefCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({
+      pathText: undefined,
+      historyPath: undefined,
+      excludeText: undefined,
+      nested: undefined,
+      media: undefined,
+      archive: undefined,
+      direct: undefined,
+      preview: undefined,
+      protectFirstLevel: undefined,
+      enableSimilarity: undefined,
+      similarityThreshold: undefined,
+      fileConflict: undefined,
+      dirConflict: undefined,
+    })
+  }
+
   const modeParts = [
     nested ? t("module:dissolvef.nested") : "",
     media ? t("module:dissolvef.media") : "",
@@ -125,6 +214,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running} onClick={() => execute("plan")}><Play size={14} /> {t("module:dissolvef.plan")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute(direct ? "direct" : "dissolve")}><FolderInput size={14} /> {t("module:dissolvef.run")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("history")}><History size={14} /> {t("module:dissolvef.history")}</ActionButton>

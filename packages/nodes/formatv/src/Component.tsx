@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderOpen, Minus, Plus, RefreshCw, RotateCcw, Search, Video } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeConfigButton, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { FormatvData, FormatvInput, FormatvResult } from "./core.js"
 
 interface FormatvCardState {
@@ -15,12 +15,39 @@ interface FormatvCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof FormatvCardState)[] = ["pathText", "prefixName", "recursive", "dryRun"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<FormatvCardState>(compId) ?? {}
   const dataRef = useRef<FormatvCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.formatv] 读取）
+  const [defaults, setDefaults] = useState<Partial<FormatvCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<FormatvCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.pathText, data.prefixName, data.recursive, data.dryRun, defaults])
+
   const logs = data.logs ?? []
   const paths = splitLines(data.pathText)
   const prefixName = data.prefixName || "hb"
@@ -96,6 +123,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ result: null, logs: [], phase: "idle" })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<FormatvCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ pathText: undefined, prefixName: undefined, recursive: undefined, dryRun: undefined })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -103,6 +149,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:formatv.meta", { phase: phaseLabelFor(phase), count: paths.length || 0, mode: dryRun ? t("module:formatv.dryRun") : t("module:formatv.write") })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running || !paths.length} onClick={() => execute("scan")}><RefreshCw size={14} /> {t("module:formatv.scan")}</ActionButton>
             <ActionButton disabled={running || !paths.length} onClick={() => execute("add_nov")}><Plus size={14} /> .nov</ActionButton>
             <ActionButton disabled={running || !paths.length} onClick={() => execute("remove_nov")}><Minus size={14} /> .nov</ActionButton>

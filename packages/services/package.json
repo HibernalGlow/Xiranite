@@ -19,6 +19,7 @@
     "test": "vitest run src/**/*.test.ts"
   },
   "dependencies": {
+    "@xiranite/config": "workspace:*",
     "@xiranite/repository": "workspace:*",
     "@xiranite/shared": "workspace:*"
   },

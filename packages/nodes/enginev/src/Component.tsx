@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Download, Filter, Image, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeConfigButton, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, createUnavailableNativeAction } from "@xiranite/ui"
 import type { EngineVAction, EngineVData, EngineVInput, EngineVResult, EngineVWallpaper } from "./core.js"
 
 interface EngineVCardState {
@@ -25,12 +25,39 @@ interface EngineVCardState {
   logs?: string[]
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof EngineVCardState)[] = ["workshopPath", "outputPath", "template"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<EngineVCardState>(compId) ?? {}
   const dataRef = useRef<EngineVCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.enginev] 读取）
+  const [defaults, setDefaults] = useState<Partial<EngineVCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<EngineVCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.workshopPath, data.outputPath, data.template, defaults])
+
   const result = data.result ?? null
   const wallpapers = data.wallpapers ?? result?.wallpapers ?? []
   const filtered = data.filteredWallpapers ?? result?.filteredWallpapers ?? []
@@ -99,6 +126,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", progress: 0, progressText: "", result: null, wallpapers: [], filteredWallpapers: [], logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<EngineVCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ workshopPath: undefined, outputPath: undefined, template: undefined })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -110,6 +156,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:enginev.pasteWorkshopPath")} disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
             <ActionButton disabled={running || !data.workshopPath} onClick={() => execute("scan")}><RefreshCw size={14} /> {t("module:enginev.scan")}</ActionButton>
             <ActionButton disabled={running || (!wallpapers.length && !data.workshopPath)} onClick={() => execute("filter")}><Filter size={14} /> {t("module:enginev.filter")}</ActionButton>

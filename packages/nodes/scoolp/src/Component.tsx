@@ -1,9 +1,9 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FolderSearch, Package, Play, RotateCcw, Trash2 } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeConfigButton, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { ScoolpAction, ScoolpData, ScoolpInput, ScoolpResult } from "./core.js"
 import { formatSize, parseScoolpSyncConfig, planScoolpSyncCommands } from "./core.js"
 
@@ -18,6 +18,8 @@ interface ScoolpCardState {
   phase?: string
   dryRun?: boolean
 }
+
+const CONFIG_FIELDS: (keyof ScoolpCardState)[] = ["configText", "packageName", "dryRun"]
 
 const actionIds: ScoolpAction[] = ["status", "list_packages", "sync", "cache_list"]
 
@@ -40,6 +42,25 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dataRef = useRef<ScoolpCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<ScoolpCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<ScoolpCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field]
+      const defaultVal = defaults[field]
+      return String(current ?? "") !== String(defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.configText, data.packageName, data.dryRun, defaults])
+
   const logs = data.logs ?? []
   const result = data.result ?? null
   const action = data.action ?? "status"
@@ -107,6 +128,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<ScoolpCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined && value !== "") (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ configText: undefined, packageName: undefined, dryRun: undefined })
+  }
+
   async function copyLogs() {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
@@ -122,6 +162,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:scoolp.pasteConfig")} onClick={pasteConfig}><Clipboard size={14} /></IconButton>
             <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> {t("module:scoolp.run")}</ActionButton>
             <IconButton title={t("module:scoolp.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>

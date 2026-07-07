@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Archive, Clipboard, Copy, FileSearch, FolderOpen, HelpCircle, Layers, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeConfigButton, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { FindzAction, FindzData, FindzInput, FindzResult } from "./core.js"
 import { formatFoundPath } from "./core.js"
 
@@ -25,6 +25,9 @@ interface FindzCardState {
   progressText?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof FindzCardState)[] = ["action", "pathText", "where", "noArchive", "followSymlinks", "withImageMeta", "longFormat", "maxResults", "maxReturnFiles", "groupBy", "refine"]
+
 const ACTIONS: Array<{ value: FindzAction; icon: typeof Search }> = [
   { value: "search", icon: Search },
   { value: "archives_only", icon: Archive },
@@ -37,6 +40,30 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dataRef = useRef<FindzCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.findz] 读取）
+  const [defaults, setDefaults] = useState<Partial<FindzCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<FindzCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.action, data.pathText, data.where, data.noArchive, data.followSymlinks, data.withImageMeta, data.longFormat, data.maxResults, data.maxReturnFiles, data.groupBy, data.refine, defaults])
+
   const action = data.action ?? "search"
   const paths = splitPaths(data.pathText)
   const where = data.where?.trim() || "1"
@@ -105,6 +132,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", progress: 0, progressText: "", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<FindzCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ action: undefined, pathText: undefined, where: undefined, noArchive: undefined, followSymlinks: undefined, withImageMeta: undefined, longFormat: undefined, maxResults: undefined, maxReturnFiles: undefined, groupBy: undefined, refine: undefined })
+  }
+
   return (
     <NodeContent>
       <NodeHeader
@@ -112,6 +158,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:findz.meta", { action: actionLabelFor(action), count: paths.length || 1, where })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:findz.pastePaths")} disabled={running} onClick={pastePaths}><Clipboard size={14} /></IconButton>
             <ActionButton variant="primary" disabled={running} onClick={() => execute()}><Play size={14} /> {t("module:findz.run")}</ActionButton>
             <IconButton title={t("module:findz.filterHelp")} disabled={running} onClick={showHelp}><HelpCircle size={14} /></IconButton>

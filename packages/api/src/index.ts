@@ -1,4 +1,4 @@
-import { Elysia } from "elysia"
+import { Elysia, t } from "elysia"
 import type { XiraniteServices } from "@xiranite/services"
 import {
   createWorkspaceInputSchema,
@@ -99,6 +99,33 @@ export function createXiraniteApp(services: XiraniteServices) {
     .delete("/workspace/:id", async ({ params }) => {
       await services.workspace.deleteWorkspace(params.id)
       return { ok: true }
+    })
+    .get("/config", async () => {
+      const result = await services.config.getConfig()
+      return result
+    })
+    .get("/config/path", () => {
+      return { path: services.config.getConfigPath() }
+    })
+    .get("/config/nodes/:nodeId", async ({ params }) => {
+      return await services.config.getNodeConfig(params.nodeId)
+    })
+    .put("/config/nodes/:nodeId", async ({ body, params }) => {
+      const { config } = body as { config: unknown }
+      return await services.config.updateNodeConfig(params.nodeId, config)
+    }, {
+      body: t.Object({
+        config: t.Any(),
+      }),
+    })
+    .post("/config/import-legacy", async ({ body }) => {
+      const { legacyPath, nodeId } = body as { legacyPath: string; nodeId: string }
+      return await services.config.importLegacy(legacyPath, nodeId)
+    }, {
+      body: t.Object({
+        legacyPath: t.String(),
+        nodeId: t.String(),
+      }),
     })
 }
 

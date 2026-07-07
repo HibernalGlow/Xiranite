@@ -48,6 +48,55 @@ export interface XiraniteNodeClient {
   ): Promise<NodeRunResultDTO<TData>>
 }
 
+export interface XiraniteConfigClient {
+  getConfig(): Promise<{ config: unknown; path: string }>
+  getConfigPath(): Promise<string>
+  getNodeConfig<T = unknown>(nodeId: string): Promise<{ config: T | undefined; path: string }>
+  updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
+  importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
+}
+
+export function createXiraniteConfigClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteConfigClient {
+  const headers = requestHeaders(options)
+
+  return {
+    async getConfig() {
+      const response = await fetch(apiUrl(baseUrl, "/config"), { headers })
+      if (!response.ok) throw new Error(`Config load failed: ${response.status}`)
+      return await response.json() as { config: unknown; path: string }
+    },
+    async getConfigPath() {
+      const response = await fetch(apiUrl(baseUrl, "/config/path"), { headers })
+      if (!response.ok) throw new Error(`Config path load failed: ${response.status}`)
+      const data = await response.json() as { path: string }
+      return data.path
+    },
+    async getNodeConfig<T = unknown>(nodeId: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}`), { headers })
+      if (!response.ok) throw new Error(`Node config load failed: ${response.status}`)
+      return await response.json() as { config: T | undefined; path: string }
+    },
+    async updateNodeConfig<T = unknown>(nodeId: string, config: T) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}`), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ config }),
+      })
+      if (!response.ok) throw new Error(`Node config save failed: ${response.status}`)
+      return await response.json() as { config: T; path: string }
+    },
+    async importLegacy(legacyPath: string, nodeId: string) {
+      const response = await fetch(apiUrl(baseUrl, "/config/import-legacy"), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ legacyPath, nodeId }),
+      })
+      if (!response.ok) throw new Error(`Legacy import failed: ${response.status}`)
+      return await response.json() as { imported: boolean; config: unknown; path: string }
+    },
+  }
+}
+
 export function createXiraniteClient(baseUrl: string, options: XiraniteClientOptions = {}): Treaty.Create<XiraniteApp> {
   return treaty<XiraniteApp>(baseUrl, treatyOptions(options))
 }

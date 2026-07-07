@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, FileArchive, FolderOpen, Package, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill } from "@xiranite/ui"
 import type { RepackuAction, RepackuData, RepackuFolderNode, RepackuInput, RepackuResult } from "./core.js"
 
 interface RepackuCardState {
@@ -19,12 +19,39 @@ interface RepackuCardState {
   logs?: string[]
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof RepackuCardState)[] = ["path", "configPath", "typesText", "minCount", "deleteAfter", "dryRun"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<RepackuCardState>(compId) ?? {}
   const dataRef = useRef<RepackuCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.repacku] 读取）
+  const [defaults, setDefaults] = useState<Partial<RepackuCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<RepackuCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field]
+      const defaultVal = defaults[field]
+      return String(current ?? "") !== String(defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.path, data.configPath, data.typesText, data.minCount, data.deleteAfter, data.dryRun, defaults])
+
   const result = data.result ?? null
   const logs = data.logs ?? []
   const types = parseTypes(data.typesText)
@@ -114,6 +141,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", progress: 0, progressText: "", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<RepackuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ path: undefined, configPath: undefined, typesText: undefined, minCount: undefined, deleteAfter: undefined, dryRun: undefined })
+  }
+
   const treeLines = result?.folderTree ? flattenTree(result.folderTree).slice(0, 48) : []
 
   return (
@@ -123,6 +169,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:repacku.meta", { types: types.length ? types.join(", ") : t("module:repacku.allFiles"), minCount: data.minCount ?? 2, mode: data.dryRun ? t("module:repacku.dryRunMode") : t("module:repacku.write") })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:repacku.pastePath")} disabled={running} onClick={pastePath}><Clipboard size={14} /></IconButton>
             <ActionButton disabled={running || !data.path} onClick={() => execute("analyze")}><Search size={14} /> {t("module:repacku.analyze")}</ActionButton>
             <ActionButton variant="primary" disabled={running || !data.path} onClick={() => execute("full")}><Play size={14} /> {t("module:repacku.full")}</ActionButton>

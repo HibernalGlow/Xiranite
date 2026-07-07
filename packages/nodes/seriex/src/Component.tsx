@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Copy, FolderTree, Play, RotateCcw, Search } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeConfigButton, NodeFooter, NodeHeader, ResultView, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { SeriexData, SeriexInput, SeriexResult } from "./core.js"
 
 interface SeriexCardState {
@@ -15,12 +15,39 @@ interface SeriexCardState {
   phase?: string
 }
 
+/** comp.data 中属于"配置覆盖"的字段，可保存到 TOML */
+const CONFIG_FIELDS: (keyof SeriexCardState)[] = ["directoryPath", "configPath", "knownSeriesText", "prefix"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<SeriexCardState>(compId) ?? {}
   const dataRef = useRef<SeriexCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+
+  // 节点默认配置（从 xiranite.config.toml [nodes.seriex] 读取）
+  const [defaults, setDefaults] = useState<Partial<SeriexCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<SeriexCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {
+      // backend 不可用或配置文件不存在
+    })
+  }, [])
+
+  // 检测 comp.data 中的配置字段是否与 TOML 默认值不同
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.directoryPath, data.configPath, data.knownSeriesText, data.prefix, defaults])
+
   const logs = data.logs ?? []
   const planItems = data.result?.planItems ?? []
   const moveItems = data.result?.moveItems ?? []
@@ -68,6 +95,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ result: null, logs: [], phase: "idle" })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<SeriexCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ directoryPath: undefined, configPath: undefined, knownSeriesText: undefined, prefix: undefined })
+  }
+
   async function copyLogs() {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
@@ -79,6 +125,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:seriex.meta", { phase: data.phase ?? t("module:seriex.idle"), count: planItems.length || moveItems.length })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <ActionButton disabled={running} onClick={() => execute("plan", true)}><Search size={14} /> {t("module:seriex.plan")}</ActionButton>
             <ActionButton disabled={running} onClick={() => execute("execute")}><Play size={14} /> {t("module:seriex.apply")}</ActionButton>
             <IconButton title={t("module:seriex.copyLogs")} onClick={copyLogs}><Copy size={14} /></IconButton>

@@ -1,8 +1,8 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { NodeComponentProps } from "@xiranite/contract"
 import { Clipboard, Copy, Eye, MousePointerClick, RotateCcw, ShieldMinus, ShieldPlus } from "lucide-react"
-import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
+import { ActionButton, Field, IconButton, LogView, NodeBody, NodeContent, NodeFooter, NodeHeader, NodeConfigButton, ResultView, SegmentButton, StatPill, TextArea, createUnavailableNativeAction } from "@xiranite/ui"
 import type { OwithuAction, OwithuData, OwithuInput, OwithuResult, RegistryHive } from "./core.js"
 import { buildOwithuPlan, parseOwithuConfig } from "./core.js"
 
@@ -17,12 +17,33 @@ interface OwithuCardState {
   phase?: string
 }
 
+const CONFIG_FIELDS: (keyof OwithuCardState)[] = ["configText", "hive", "onlyKey"]
+
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useTranslation()
   const data = host.getData<OwithuCardState>(compId) ?? {}
   const dataRef = useRef<OwithuCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<OwithuCardState> | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<OwithuCardState>>().then((result) => {
+      setDefaults(result.config)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!defaults) return
+    const dirty = CONFIG_FIELDS.some((field) => {
+      const current = data[field] as string | undefined
+      const defaultVal = defaults[field] as string | undefined
+      return (current ?? "") !== (defaultVal ?? "")
+    })
+    setConfigDirty(dirty)
+  }, [data.configText, data.hive, data.onlyKey, defaults])
+
   const logs = data.logs ?? []
   const result = data.result ?? null
   const hive = data.hive ?? ""
@@ -88,6 +109,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ phase: "idle", result: null, logs: [] })
   }
 
+  async function saveAsDefault() {
+    const config: Partial<OwithuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field] as string | undefined
+      if (value) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ configText: undefined, hive: undefined, onlyKey: undefined })
+  }
+
   async function copyLogs() {
     await host.clipboard?.writeText?.(logs.join("\n"))
   }
@@ -99,6 +139,13 @@ export function Component({ compId, host }: NodeComponentProps) {
         meta={t("module:owithu.meta", { phase: data.phase ?? "idle", entries: result?.entries.length ?? 0, ops: result?.plan.length ?? 0 })}
         actions={
           <>
+            <NodeConfigButton
+              isDirty={configDirty}
+              onSaveDefault={saveAsDefault}
+              onRestoreDefault={restoreDefault}
+              onResetOverride={resetOverride}
+              onOpenConfigFile={host.openConfigFile}
+            />
             <IconButton title={t("module:owithu.pasteToml")} onClick={pasteConfig}><Clipboard size={14} /></IconButton>
             <ActionButton disabled={running} onClick={() => execute("preview")}><Eye size={14} /> {t("module:owithu.preview")}</ActionButton>
             <ActionButton variant="primary" disabled={running} onClick={() => execute("register")}><ShieldPlus size={14} /> {t("module:owithu.register")}</ActionButton>

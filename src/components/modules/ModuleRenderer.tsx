@@ -37,7 +37,7 @@ export interface ModuleProps {
 
 export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
   const { t } = useTranslation()
-  const host = useNodeHostApi(compId)
+  const host = useNodeHostApi(compId, moduleId)
   const PackageComponent = packageComponents[moduleId]
   if (PackageComponent) {
     return (
