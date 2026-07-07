@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, render } from "@testing-library/react"
+import type { ReactNode } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { FlowCanvasView } from "./FlowCanvasView"
 
@@ -30,10 +31,10 @@ vi.mock("@/components/theme-provider", () => ({
 }))
 
 vi.mock("tldraw", () => ({
-  HTMLContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  HTMLContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Rectangle2d: class Rectangle2d {},
   ShapeUtil: class ShapeUtil {},
-  Tldraw: ({ children }: { children: React.ReactNode }) => <div data-testid="mock-tldraw">{children}</div>,
+  Tldraw: ({ children }: { children: ReactNode }) => <div data-testid="mock-tldraw">{children}</div>,
   createShapeId: (id: string) => `shape:${id}`,
   defaultShapeUtils: [],
   useEditor: () => editorMock,
@@ -70,4 +71,46 @@ describe("FlowCanvasView", () => {
 
     expect(setComponentVisibilityMock).toHaveBeenCalledWith("comp-flow-ghost", "flow", false)
   })
+
+  test("does not recreate a previously synced shape that is missing from the canvas", () => {
+    const oldComponent = createFlowComponent("comp-old", "bandia")
+    const newComponent = createFlowComponent("comp-new", "cleanf")
+
+    visibleComponentsMock.mockReturnValue([oldComponent])
+    const { rerender } = render(<FlowCanvasView />)
+
+    expect(editorMock.createShapes).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "shape:comp-old",
+        props: expect.objectContaining({ compId: "comp-old" }),
+      }),
+    ])
+
+    editorMock.createShapes.mockClear()
+    setComponentVisibilityMock.mockClear()
+    visibleComponentsMock.mockReturnValue([oldComponent, newComponent])
+
+    rerender(<FlowCanvasView />)
+
+    expect(setComponentVisibilityMock).toHaveBeenCalledWith("comp-old", "flow", false)
+    expect(editorMock.createShapes).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "shape:comp-new",
+        props: expect.objectContaining({ compId: "comp-new" }),
+      }),
+    ])
+  })
 })
+
+function createFlowComponent(id: string, moduleId: string) {
+  return {
+    id,
+    moduleId,
+    workspaceId: "ws-test",
+    data: {},
+    state: "docked",
+    hiddenIn: { flow: false },
+    createdAt: 1,
+    updatedAt: 1,
+  }
+}

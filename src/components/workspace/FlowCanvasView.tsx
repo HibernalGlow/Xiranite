@@ -148,7 +148,10 @@ function useSyncShapesFromStore(
   syncingShapeDeletesRef: { current: boolean },
 ) {
   const visibleComponents = useWorkspaceVisibleComponents()
+  const workspaceActions = useWorkspaceActions()
   const lastSigRef = useRef<string>("")
+  const hasSyncedRef = useRef(false)
+  const previousDesiredIdsRef = useRef<Set<ModuleShape["id"]>>(new Set())
 
   useEffect(() => {
     if (!editor) return
@@ -174,6 +177,7 @@ function useSyncShapesFromStore(
     const current = editor.getCurrentPageShapes()
     const currentIds = new Set(current.map((shape) => shape.id))
     const desiredIds = new Set(desired.map((shape) => shape.id))
+    const previousDesiredIds = previousDesiredIdsRef.current
 
     const toRemove = current.filter((shape) => !desiredIds.has(shape.id)).map((shape) => shape.id)
     if (toRemove.length) {
@@ -185,11 +189,24 @@ function useSyncShapesFromStore(
       }
     }
 
-    const toCreate = desired.filter((shape) => !currentIds.has(shape.id))
+    const missingDesired = desired.filter((shape) => !currentIds.has(shape.id))
+    const missingPreviouslySynced = hasSyncedRef.current
+      ? missingDesired.filter((shape) => previousDesiredIds.has(shape.id))
+      : []
+    const toCreate = missingDesired.filter((shape) => !hasSyncedRef.current || !previousDesiredIds.has(shape.id))
     const toUpdate = desired.filter((shape) => currentIds.has(shape.id))
+
+    for (const shape of missingPreviouslySynced) {
+      const compId = shape.props.compId
+      if (compId) workspaceActions.setComponentVisibility(compId, "flow", false)
+    }
+
     if (toCreate.length) editor.createShapes(toCreate)
     if (toUpdate.length) editor.updateShapes(toUpdate)
-  }, [editor, syncingShapeDeletesRef, visibleComponents])
+
+    previousDesiredIdsRef.current = desiredIds
+    hasSyncedRef.current = true
+  }, [editor, syncingShapeDeletesRef, visibleComponents, workspaceActions])
 }
 
 function useSyncChangesToStore(editor: ReturnType<typeof useEditor> | null) {

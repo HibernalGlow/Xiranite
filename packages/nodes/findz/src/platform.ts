@@ -23,6 +23,47 @@ export function createNodeFindzRuntime(): FindzRuntime {
   }
 }
 
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runClipboardCommand("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runClipboardCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]] as const) {
+    const result = await runClipboardCommand(command[0], command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
+interface ClipboardCommandResult {
+  code: number
+  stdout: string
+}
+
+async function runClipboardCommand(command: string, args: string[]): Promise<ClipboardCommandResult> {
+  return await new Promise((resolveResult) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolveResult({ code, stdout: stdout ?? "" })
+    })
+  })
+}
+
 async function stat(path: string): Promise<FindzFileStat | null> {
   try {
     const info = await lstat(path)
