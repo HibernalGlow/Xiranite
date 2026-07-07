@@ -418,6 +418,42 @@
   transition: none;
 }
 
+/* Cover topbar mode - background image extends to cover the top bar */
+.theme-bg-image.theme-bg-cover-topbar {
+  position: relative;
+  isolation: isolate; /* Create stacking context so ::before stays behind all children */
+}
+
+.theme-bg-image.theme-bg-cover-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* Behind all children, but above the root's own background */
+  pointer-events: none;
+  background-image: var(--ws-bg-image-url, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--ws-bg-opacity, 0.3);
+  filter: blur(var(--ws-bg-blur, 5px));
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* TopBar transparent so the root background image shows through */
+.theme-bg-image.theme-bg-cover-topbar > header {
+  background: transparent;
+}
+
+/* Canvas becomes transparent to let the root background image show through */
+.theme-bg-image.theme-bg-cover-topbar .ws-canvas-bg {
+  background-color: transparent;
+}
+
+/* Disable per-canvas image layer to avoid duplicate rendering */
+.theme-bg-image.theme-bg-cover-topbar .ws-canvas-bg::after {
+  display: none;
+}
+
 /* ── Dockview 主题桥接 ──
    dockview-react 的 DockviewReact 组件默认 className 是 `dockview-theme-abyss`
    （见 dockview-react.js 源码），它在自己根 div 上写死了：

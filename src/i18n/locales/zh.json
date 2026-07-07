@@ -122,6 +122,7 @@
     "headerSubtitle": "统一管理外观、运行时与本地数据配置。",
     "sections": {
       "appearance": "外观",
+      "background": "背景",
       "runtime": "运行时",
       "data": "数据"
     },
@@ -169,7 +170,9 @@
       "chooseFile": "选择文件",
       "imageUrl": "或输入图片 URL",
       "opacity": "不透明度",
-      "blur": "模糊度"
+      "blur": "模糊度",
+      "coverTopBar": "覆盖到顶栏",
+      "coverTopBarHint": "背景图延伸至整个窗口，顶栏将变为透明"
     },
     "atmospheric": {
       "title": "氛围效果",

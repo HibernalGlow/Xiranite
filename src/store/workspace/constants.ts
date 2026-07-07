@@ -31,4 +31,5 @@ export const INITIAL_STATE: WSState = {
   bgImageUrl: "",
   bgOpacity: 30,
   bgBlur: 5,
+  bgCoverTopBar: false,
 }

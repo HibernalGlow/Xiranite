@@ -10,6 +10,7 @@
     "cssVariables": true,
     "prefix": ""
   },
+  "iconLibrary": "radix",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",
@@ -18,6 +19,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@niko-table": "https://niko-table.com/r/{name}.json"
+    "@niko-table": "https://niko-table.com/r/{name}.json",
+    "@diceui": "https://diceui.com/r/{style}/{name}.json"
   }
 }

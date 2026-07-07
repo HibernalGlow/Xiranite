@@ -63,7 +63,7 @@ const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
 }
 
 type ColorMode = "system" | "light" | "dark"
-type SettingsSection = "appearance" | "runtime" | "data"
+type SettingsSection = "appearance" | "background" | "runtime" | "data"
 
 const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "settings:colorMode.system", descKey: "settings:colorMode.systemDesc", icon: Monitor },
@@ -84,12 +84,13 @@ function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (
   const { t } = useTranslation()
   const tabs: { key: SettingsSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "appearance", label: t("settings:sections.appearance"), icon: Palette },
+    { key: "background", label: t("settings:sections.background"), icon: Image },
     { key: "runtime", label: t("settings:sections.runtime"), icon: Server },
     { key: "data", label: t("settings:sections.data"), icon: Database },
   ]
 
   return (
-    <div className="mt-3 grid grid-cols-3 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+    <div className="mt-3 grid grid-cols-4 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
       {tabs.map(({ key, label, icon: Icon }) => (
         <button
           key={key}
@@ -163,6 +164,7 @@ export function ThemeSettings() {
     bgImageUrl: workspace.bgImageUrl,
     bgOpacity: workspace.bgOpacity,
     bgBlur: workspace.bgBlur,
+    bgCoverTopBar: workspace.bgCoverTopBar,
     grainEnabled: workspace.grainEnabled,
   }))
   const workspaceActions = useWorkspaceActions()
@@ -471,7 +473,7 @@ export function ThemeSettings() {
             </div>
 
             {/* Background settings card */}
-            <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "appearance" && "hidden")}>
+            <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "background" && "hidden")}>
               <h3 className="text-lg font-semibold text-foreground">{t("settings:background.title")}</h3>
 
               {/* Background Mode Selector */}
@@ -587,12 +589,40 @@ export function ThemeSettings() {
                       min={0} max={30} step={1}
                     />
                   </div>
+
+                  {/* Cover topbar toggle */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-xs text-foreground font-mono">{t("settings:background.coverTopBar")}</p>
+                        <p className="text-[10px] text-muted-foreground">{t("settings:background.coverTopBarHint")}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-0.5 rounded-sm border border-border/50 bg-muted/20 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => workspaceActions.setBgCoverTopBar(false)}
+                          className={cn(
+                            "px-3 py-1 text-[10px] font-mono rounded-sm transition-colors cursor-pointer",
+                            !state.bgCoverTopBar ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >OFF</button>
+                        <button
+                          type="button"
+                          onClick={() => workspaceActions.setBgCoverTopBar(true)}
+                          className={cn(
+                            "px-3 py-1 text-[10px] font-mono rounded-sm transition-colors cursor-pointer",
+                            state.bgCoverTopBar ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >ON</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Texture canvas preview */}
-            <div className={cn("bg-card border border-border rounded-sm p-4", section !== "appearance" && "hidden")}>
+            <div className={cn("bg-card border border-border rounded-sm p-4", section !== "background" && "hidden")}>
               <h3 className="text-lg font-semibold text-foreground mb-4">{t("settings:texture.title")}</h3>
               <div className="ws-canvas-bg rounded border border-border/40 h-28 flex items-center justify-center">
                 <div className="bg-card border border-border rounded-sm p-3">

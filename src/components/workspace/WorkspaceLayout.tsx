@@ -20,9 +20,11 @@ export function WorkspaceLayout() {
     bgImageUrl: state.bgImageUrl,
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
+    bgCoverTopBar: state.bgCoverTopBar,
   }))
   const themeClass = chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
+  const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
 
   const bgStyles = {
     "--ws-bg-image-url": chrome.bgImageUrl ? `url(${JSON.stringify(chrome.bgImageUrl)})` : "none",
@@ -32,7 +34,7 @@ export function WorkspaceLayout() {
 
   return (
     <div
-      className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass)}
+      className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
       <WorkspaceUrlState />

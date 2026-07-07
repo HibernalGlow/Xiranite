@@ -122,6 +122,7 @@
     "headerSubtitle": "Appearance, runtime, and local data configuration.",
     "sections": {
       "appearance": "Appearance",
+      "background": "Background",
       "runtime": "Runtime",
       "data": "Data"
     },
@@ -169,7 +170,9 @@
       "chooseFile": "Choose File",
       "imageUrl": "OR IMAGE URL",
       "opacity": "Opacity",
-      "blur": "Blur"
+      "blur": "Blur",
+      "coverTopBar": "Cover Top Bar",
+      "coverTopBarHint": "Extend background image across the whole window; the top bar becomes transparent"
     },
     "atmospheric": {
       "title": "Atmospheric Effects",

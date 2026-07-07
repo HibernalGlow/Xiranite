@@ -27,6 +27,7 @@ export const NODE_CLI_REGISTRY: NodeCliRegistration[] = [
   node("lata", "Run Taskfile-style command workflows."),
   node("linedup", "Filter source lines by removing matches."),
   node("linku", "Create and track symlinks from TOML config."),
+  node("lorat", "LoRA trigger sidecar and TriggerDB manager."),
   node("marku", "Transform Markdown/text files with dry-run and undo."),
   node("migratef", "Migrate folder contents with history and undo."),
   node("movea", "Move numbered folders and matching archive files."),

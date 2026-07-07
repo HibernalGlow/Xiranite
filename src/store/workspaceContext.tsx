@@ -39,6 +39,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     bgImageUrl: state.bgImageUrl,
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
+    bgCoverTopBar: state.bgCoverTopBar,
   }
 }
 
@@ -238,6 +239,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     bgImageUrl: store.bgImageUrl,
     bgOpacity: store.bgOpacity,
     bgBlur: store.bgBlur,
+    bgCoverTopBar: store.bgCoverTopBar,
   }
 }
 
@@ -280,6 +282,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setBgImageUrl: store.setBgImageUrl,
     setBgOpacity: store.setBgOpacity,
     setBgBlur: store.setBgBlur,
+    setBgCoverTopBar: store.setBgCoverTopBar,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,

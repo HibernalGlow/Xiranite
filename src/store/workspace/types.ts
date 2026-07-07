@@ -33,6 +33,7 @@ export interface WSState {
   bgImageUrl: string
   bgOpacity: number
   bgBlur: number
+  bgCoverTopBar: boolean
 }
 
 export type ComponentPatch = {
@@ -56,6 +57,7 @@ export interface WorkspaceUiActions {
   setBgImageUrl(url: string): void
   setBgOpacity(opacity: number): void
   setBgBlur(blur: number): void
+  setBgCoverTopBar(cover: boolean): void
 }
 
 export interface WorkspaceListActions {
@@ -128,6 +130,7 @@ export type WorkspaceUiPreferences = Pick<
   | "bgImageUrl"
   | "bgOpacity"
   | "bgBlur"
+  | "bgCoverTopBar"
 >
 
 export type SetWorkspaceStore = (

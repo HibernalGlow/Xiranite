@@ -419,7 +419,7 @@ async function executeSelectedTask(host: CliHost, runtime: LataRuntime, taskfile
   return false
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+if (process.argv[1] && /\bcli\.js$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

@@ -70,8 +70,10 @@ export interface LoratData {
   errors: string[]
 }
 
+export type ScanProgress = { current: number; total: number; name?: string }
+
 export interface LoratRuntime {
-  scanModels: (folderPath: string) => Promise<LoratScannedModel[]>
+  scanModels: (folderPath: string, onProgress?: (p: ScanProgress) => void) => Promise<LoratScannedModel[]>
   writeTrigger: (row: LoratRow, trigger: string) => Promise<void>
   writeNoTrigger: (row: LoratRow) => Promise<void>
 }
@@ -90,7 +92,12 @@ export async function runLorat(
   try {
     if (action === "scan") {
       onEvent({ type: "progress", progress: 5, message: `Scanning ${folderPath}` })
-      const scanned = await runtime.scanModels(folderPath)
+      const scanned = await runtime.scanModels(folderPath, ({ current, total, name }) => {
+        if (total > 0) {
+          const progress = 5 + Math.round((current / total) * 90)
+          onEvent({ type: "progress", progress, message: `Scanning ${current}/${total}${name ? `: ${name}` : ""}` })
+        }
+      })
       const rows = buildLoratRows(scanned, parseTriggerDb(input.triggerDbJson))
       onEvent({ type: "progress", progress: 100, message: `Found ${rows.length} LoRA model(s).` })
       return success(`Found ${rows.length} LoRA model(s).`, { folderPath, rows })

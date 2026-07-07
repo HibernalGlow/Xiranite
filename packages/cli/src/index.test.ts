@@ -3,7 +3,7 @@ import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNo
 
 describe("@xiranite/cli registry", () => {
   test("registers every migrated aestivus node", () => {
-    expect(NODE_CLI_REGISTRY).toHaveLength(24)
+    expect(NODE_CLI_REGISTRY).toHaveLength(25)
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("cleanf")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("trename")
   })

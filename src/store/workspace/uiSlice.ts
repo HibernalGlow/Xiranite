@@ -15,5 +15,6 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setBgImageUrl: (url) => set({ bgImageUrl: url }, false, "SET_BG_IMAGE_URL"),
     setBgOpacity: (opacity) => set({ bgOpacity: opacity }, false, "SET_BG_OPACITY"),
     setBgBlur: (blur) => set({ bgBlur: blur }, false, "SET_BG_BLUR"),
+    setBgCoverTopBar: (cover) => set({ bgCoverTopBar: cover }, false, "SET_BG_COVER_TOP_BAR"),
   }
 }

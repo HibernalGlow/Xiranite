@@ -3,7 +3,7 @@ import { execFile } from "node:child_process"
 import { access, mkdir, open, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { constants } from "node:fs"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
-import type { LoratRow, LoratRuntime, LoratScannedModel } from "./core.js"
+import type { LoratRow, LoratRuntime, LoratScannedModel, ScanProgress } from "./core.js"
 import { LORAT_MODEL_EXTS, normalizePathKey } from "./core.js"
 
 export function createNodeLoratRuntime(): LoratRuntime {
@@ -14,17 +14,30 @@ export function createNodeLoratRuntime(): LoratRuntime {
   }
 }
 
-export async function scanModels(folderPath: string): Promise<LoratScannedModel[]> {
+export async function scanModels(
+  folderPath: string,
+  onProgress?: (p: ScanProgress) => void,
+): Promise<LoratScannedModel[]> {
   const root = resolve(folderPath)
   const rootInfo = await stat(root).catch(() => null)
   if (!rootInfo?.isDirectory()) throw new Error(`LoRA folder does not exist: ${root}`)
 
-  const models: LoratScannedModel[] = []
+  // Phase 1: 快速统计模型文件总数（只读目录，不读文件内容）
+  const modelFiles: string[] = []
   await walk(root, async (filePath) => {
+    const ext = extname(filePath).toLowerCase()
+    if (LORAT_MODEL_EXTS.includes(ext as typeof LORAT_MODEL_EXTS[number])) {
+      modelFiles.push(filePath)
+    }
+  })
+  const total = modelFiles.length
+
+  // Phase 2: 逐个读取 sidecar + 计算 fileId，报告实时进度
+  const models: LoratScannedModel[] = []
+  for (let i = 0; i < modelFiles.length; i++) {
+    const filePath = modelFiles[i]!
     const name = basename(filePath)
     const ext = extname(name).toLowerCase()
-    if (!LORAT_MODEL_EXTS.includes(ext as typeof LORAT_MODEL_EXTS[number])) return
-
     const stem = name.slice(0, -ext.length)
     const dir = dirname(filePath)
     const relativeDir = normalizePathKey(relative(root, dir))
@@ -40,7 +53,8 @@ export async function scanModels(folderPath: string): Promise<LoratScannedModel[
       noTriggerText: await readSidecar(dir, `${stem}.notrigger.txt`),
       fileId: await computeFileId(filePath),
     })
-  })
+    onProgress?.({ current: i + 1, total, name })
+  }
 
   return models.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
 }
