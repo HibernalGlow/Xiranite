@@ -3,25 +3,20 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "jsx": "react-jsx",
     "strict": true,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
     "skipLibCheck": true,
-    "verbatimModuleSyntax": true
+    "types": [
+      "bun-types",
+      "node"
+    ]
   },
   "include": [
-    "src"
+    "src/**/*.ts"
   ],
   "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx"
+    "src/**/*.test.ts"
   ]
 }
