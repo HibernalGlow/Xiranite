@@ -258,6 +258,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     moveComponent: store.moveComponent,
     setComponentFlowPos: store.setComponentFlowPos,
     setComponentFlowSize: store.setComponentFlowSize,
+    setComponentBentoLayout: store.setComponentBentoLayout,
     setComponentData: store.setComponentData,
     patchComponentData: store.patchComponentData,
     updateComponent: store.updateComponent,

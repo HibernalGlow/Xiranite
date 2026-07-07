@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/ui": "workspace:*",
     "smol-toml": "^1.7.0"

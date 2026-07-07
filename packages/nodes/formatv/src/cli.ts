@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { join } from "node:path"
 import { pathToFileURL } from "node:url"
 import {
   canRunInteractiveCli,
@@ -6,6 +7,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -19,9 +21,10 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
 
 import type { FormatvAction, FormatvInput, FormatvResult, FormatvRuntime } from "./core.js"
-import { DEFAULT_PREFIXES, runFormatv } from "./core.js"
+import { DEFAULT_PREFIXES, normalizeFormatvInput, runFormatv } from "./core.js"
 import { createNodeFormatvRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("formatv")
@@ -45,11 +48,70 @@ interface GuidedTask {
 
 type ResolvedGuidedChoice =
   | { kind: "exit" }
-  | { kind: "path"; path: string; task: GuidedTask }
+  | { kind: "paths"; paths: string[]; task: GuidedTask }
   | { kind: "task"; task: GuidedTask }
 
 type GuidedSelection = "exit" | "manual-path" | `task:${string}`
 type PathSource = "clipboard" | "manual" | "exit"
+
+interface FormatvOutputConfig {
+  report_name_template?: string
+  directory?: string
+  overwrite?: boolean
+}
+
+interface FormatvDefaults {
+  reportNameTemplate: string
+  directory?: string
+  overwrite: boolean
+}
+
+const DEFAULT_FORMATV_DEFAULTS: FormatvDefaults = {
+  reportNameTemplate: "formatv-{prefix}-duplicates.json",
+  overwrite: true,
+}
+
+async function resolveFormatvDefaults(host: CliHost): Promise<FormatvDefaults> {
+  try {
+    const { config } = await loadXiraniteConfig({ cwd: host.cwd, env: host.env })
+    const nodeConfig = getNodeConfig<{ output?: FormatvOutputConfig }>(config, "formatv")
+    const output = nodeConfig?.output ?? {}
+    return {
+      reportNameTemplate: output.report_name_template ?? DEFAULT_FORMATV_DEFAULTS.reportNameTemplate,
+      directory: output.directory,
+      overwrite: output.overwrite ?? DEFAULT_FORMATV_DEFAULTS.overwrite,
+    }
+  } catch {
+    return { ...DEFAULT_FORMATV_DEFAULTS }
+  }
+}
+
+function resolveReportPath(defaults: FormatvDefaults, prefixName: string, paths: string[]): string {
+  const name = defaults.reportNameTemplate.replace("{prefix}", prefixName)
+  const dir = defaults.directory ?? paths[0]
+  if (!dir) return ""
+  return join(dir, name)
+}
+
+async function applyFormatvDefaults(input: FormatvInput & { action: FormatvAction }, host: CliHost): Promise<void> {
+  if (input.action !== "check_duplicates") return
+  const normalized = normalizeFormatvInput(input)
+  if (normalized.reportPath) return
+
+  const defaults = await resolveFormatvDefaults(host)
+  const resolved = resolveReportPath(defaults, normalized.prefixName, normalized.paths)
+  if (!resolved) return
+
+  if (!defaults.overwrite) {
+    const runtime = createNodeFormatvRuntime()
+    const info = await runtime.pathInfo(resolved)
+    if (info.exists) {
+      input.dryRun = true
+      return
+    }
+  }
+  input.reportPath = resolved
+}
 
 const GUIDED_TASKS: GuidedTask[] = [
   {
@@ -168,6 +230,7 @@ function inputFromArgs(args: FormatvCliOptions): FormatvInput {
 }
 
 async function runAction(input: FormatvInput & { action: FormatvAction }, json: boolean, host: CliHost): Promise<FormatvResult> {
+  await applyFormatvDefaults(input, host)
   let progressActive = false
   const result = await runFormatv(input, createNodeFormatvRuntime(), (event) => {
     if (json) return
@@ -279,7 +342,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const paths = choice.kind === "path" ? [choice.path] : await resolvePaths(host, runtime)
+      const paths = choice.kind === "paths" ? choice.paths : await resolvePaths(host, runtime)
       if (!paths.length) {
         writeRichPanel(host, "Path", "未提供有效文件夹路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         continue
@@ -322,11 +385,19 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
 }
 
 async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: FormatvRuntime): Promise<ResolvedGuidedChoice> {
-  const directPath = cleanPath(await promptRich(host, "粘贴文件夹路径直接执行扫描；留空进入任务选择", ""))
-  if (directPath) {
-    const info = await runtime.pathInfo(directPath)
-    if (info.exists && (info.isDirectory || info.isFile)) return { kind: "path", path: info.path, task: defaultTask }
-    writeRichPanel(host, "Path", `不是有效路径: ${directPath}`, { color: "red", minWidth: 48 })
+  const first = cleanPath(await promptRich(host, "粘贴文件夹路径直接执行扫描（可逐行输入多个）；留空进入任务选择", ""))
+  if (first) {
+    const inputs: string[] = [first]
+    writeLine(host, rich(host, "继续输入路径，逐行回车；直接回车空行结束。", "grey"))
+    while (true) {
+      const suffix = ` (已收集 ${inputs.length} 条，留空结束)`
+      const answer = cleanPath(await promptRich(host, `输入下一个路径${suffix}`, ""))
+      if (!answer) break
+      if (!inputs.includes(answer)) inputs.push(answer)
+    }
+    const verified = await validPaths(inputs, runtime)
+    if (verified.length) return { kind: "paths", paths: verified, task: defaultTask }
+    writeRichPanel(host, "Path", "输入的路径均无效，进入任务选择。", { color: "red", minWidth: 48 })
   }
 
   const selection = await selectRich<GuidedSelection>(
@@ -345,13 +416,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime:
   )
 
   if (selection === "exit") return { kind: "exit" }
-  if (selection === "manual-path") {
-    const answer = await promptRich(host, "输入文件夹路径", "")
-    const [path] = await validPaths(splitPaths(answer), runtime)
-    if (path) return { kind: "path", path, task: defaultTask }
-    writeRichPanel(host, "Path", "未提供有效路径。", { color: "yellow", minWidth: 48 })
-    return { kind: "task", task: defaultTask }
-  }
+  if (selection === "manual-path") return { kind: "task", task: defaultTask }
 
   const taskName = selection.slice("task:".length)
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
@@ -395,13 +460,12 @@ async function resolvePaths(host: CliHost, runtime: FormatvRuntime): Promise<str
     return verified
   }
 
-  const answer = (await promptRich(host, "输入要处理的文件夹路径，用分号或换行分隔", "")).trim()
-  if (!answer) {
+  const inputs = await promptPathLines(host, "输入要处理的文件夹路径")
+  if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
   }
-  const paths = splitPaths(answer)
-  const verified = await validPaths(paths, runtime)
+  const verified = await validPaths(inputs, runtime)
   if (!verified.length) {
     writeRichPanel(host, "Path", "输入的路径均不存在。", { color: "red", minWidth: 48 })
     return []

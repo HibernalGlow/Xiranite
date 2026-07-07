@@ -6,6 +6,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -20,8 +21,9 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
 
-import type { MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
+import type { MigratefAction, MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
 import type { MigratePlanItem } from "./core.js"
 import { runMigratef } from "./core.js"
 import { createNodeMigratefRuntime, readClipboardText } from "./platform.js"
@@ -40,6 +42,34 @@ interface MigratefCliOptions {
   json?: boolean
 }
 
+interface MigratefNodeConfig {
+  enable_undo?: boolean
+  history_path?: string
+}
+
+interface MigratefDefaults {
+  enableUndo: boolean
+  historyPath: string | undefined
+}
+
+/**
+ * Resolve migratef defaults from xiranite.config.toml [nodes.migratef] section.
+ * Falls back to safe defaults (enable_undo=true, no history_path override) when the
+ * config file is missing or unreadable.
+ */
+async function resolveMigratefDefaults(host: CliHost): Promise<MigratefDefaults> {
+  try {
+    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd, allowMissing: true })
+    const nodeConfig = getNodeConfig<MigratefNodeConfig>(config, "migratef")
+    return {
+      enableUndo: nodeConfig?.enable_undo ?? true,
+      historyPath: nodeConfig?.history_path,
+    }
+  } catch {
+    return { enableUndo: true, historyPath: undefined }
+  }
+}
+
 interface GuidedTask {
   name: string
   description: string
@@ -50,7 +80,7 @@ interface GuidedTask {
 
 type ResolvedGuidedChoice =
   | { kind: "exit" }
-  | { kind: "path"; path: string; task: GuidedTask }
+  | { kind: "paths"; paths: string[]; task: GuidedTask }
   | { kind: "task"; task: GuidedTask }
 
 type GuidedSelection = "exit" | "manual-path" | `task:${string}`
@@ -119,6 +149,11 @@ function createDefaultHost(): CliHost {
   }
 }
 
+async function runSubcommand(action: MigratefAction, args: MigratefCliOptions, host: CliHost): Promise<void> {
+  const defaults = await resolveMigratefDefaults(host)
+  await runAction({ action, ...inputFromArgs(args, defaults) }, Boolean(args.json), host)
+}
+
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: { name: CLI_NAME, description: "File migrator with guided terminal mode." },
@@ -127,35 +162,35 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "plan", description: "Preview a migration plan." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as MigratefCliOptions) }, Boolean(args.json), host)
+          await runSubcommand("plan", args as MigratefCliOptions, host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move files or folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "move", ...inputFromArgs(args as MigratefCliOptions) }, Boolean(args.json), host)
+          await runSubcommand("move", args as MigratefCliOptions, host)
         },
       }),
       copy: defineCommand({
         meta: { name: "copy", description: "Copy files or folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "copy", ...inputFromArgs(args as MigratefCliOptions) }, Boolean(args.json), host)
+          await runSubcommand("copy", args as MigratefCliOptions, host)
         },
       }),
       history: defineCommand({
         meta: { name: "history", description: "Show undo history." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "history", ...inputFromArgs(args as MigratefCliOptions) }, Boolean(args.json), host)
+          await runSubcommand("history", args as MigratefCliOptions, host)
         },
       }),
       undo: defineCommand({
         meta: { name: "undo", description: "Undo a migration batch." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "undo", ...inputFromArgs(args as MigratefCliOptions) }, Boolean(args.json), host)
+          await runSubcommand("undo", args as MigratefCliOptions, host)
         },
       }),
       guided: defineCommand({
@@ -181,12 +216,12 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: MigratefCliOptions): MigratefInput {
+function inputFromArgs(args: MigratefCliOptions, defaults: MigratefDefaults): MigratefInput {
   return {
     sourcePaths: splitArg(args.source || args.path),
     targetPath: args.target,
     mode: args.mode ?? "preserve",
-    historyPath: args.historyPath,
+    historyPath: args.historyPath ?? defaults.historyPath,
     batchId: args.batchId,
     dryRun: Boolean(args.dryRun),
   }
@@ -216,6 +251,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeMigratefRuntime()
+  const defaults = await resolveMigratefDefaults(host)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
 
@@ -230,7 +266,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const sourcePaths = choice.kind === "path" ? [choice.path] : await resolveSourcePaths(host, runtime)
+      const sourcePaths = choice.kind === "paths" ? choice.paths : await resolveSourcePaths(host, runtime)
       if (!sourcePaths.length) {
         writeRichPanel(host, "Path", "未提供有效源路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         continue
@@ -267,7 +303,7 @@ async function runGuided(host: CliHost): Promise<void> {
         `mode: ${mode}  action: ${action}  dry-run: ${dryRun ? "yes" : "no"}`,
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask({ sourcePaths, targetPath, mode, action, dryRun }, host)
+      const ok = await runGuidedTask({ sourcePaths, targetPath, mode, action, dryRun }, host, defaults)
       if (!ok) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
@@ -293,11 +329,20 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
 }
 
 async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: MigratefRuntime): Promise<ResolvedGuidedChoice> {
-  const directPath = cleanPath(await promptRich(host, "粘贴源路径直接执行默认任务；留空进入任务选择", ""))
-  if (directPath) {
-    const info = await runtime.pathInfo(directPath)
-    if (info.exists && (info.isDirectory || info.isFile)) return { kind: "path", path: info.path, task: defaultTask }
-    writeRichPanel(host, "Path", `不是有效路径: ${directPath}`, { color: "red", minWidth: 48 })
+  const first = cleanPath(await promptRich(host, "粘贴源路径直接执行默认任务（可逐行输入多个）；留空进入任务选择", ""))
+
+  if (first) {
+    const paths: string[] = [first]
+    writeLine(host, rich(host, "继续输入路径，逐行回车；直接回车空行结束。", "grey"))
+    while (true) {
+      const suffix = ` (已收集 ${paths.length} 条，留空结束)`
+      const answer = cleanPath(await promptRich(host, `输入下一个源路径${suffix}`, ""))
+      if (!answer) break
+      if (!paths.includes(answer)) paths.push(answer)
+    }
+    const verified = await validPaths(paths, runtime)
+    if (verified.length) return { kind: "paths", paths: verified, task: defaultTask }
+    writeRichPanel(host, "Path", "输入的路径均无效，进入任务选择。", { color: "red", minWidth: 48 })
   }
 
   const selection = await selectRich<GuidedSelection>(
@@ -329,8 +374,8 @@ async function resolveSourcePaths(host: CliHost, runtime: MigratefRuntime): Prom
     return clipboardPaths
   }
 
-  const answer = await promptRich(host, "输入源路径，用分号或换行分隔", "")
-  return await validPaths(splitPaths(answer), runtime)
+  const inputs = await promptPathLines(host, "输入源路径")
+  return await validPaths(inputs, runtime)
 }
 
 async function resolveTargetDir(host: CliHost): Promise<string> {
@@ -364,13 +409,14 @@ async function selectAction(host: CliHost, defaultAction: "copy" | "move"): Prom
   )
 }
 
-async function runGuidedTask(input: { sourcePaths: string[]; targetPath: string; mode: MigratefMode; action: "copy" | "move"; dryRun: boolean }, host: CliHost): Promise<boolean> {
+async function runGuidedTask(input: { sourcePaths: string[]; targetPath: string; mode: MigratefMode; action: "copy" | "move"; dryRun: boolean }, host: CliHost, defaults: MigratefDefaults): Promise<boolean> {
   const migratefInput: MigratefInput = {
     action: input.action,
     sourcePaths: input.sourcePaths,
     targetPath: input.targetPath,
     mode: input.mode,
     dryRun: input.dryRun,
+    historyPath: defaults.historyPath,
   }
   const result = await runMigratefWithProgress(migratefInput, host)
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))

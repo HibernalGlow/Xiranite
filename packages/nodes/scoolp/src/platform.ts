@@ -20,6 +20,33 @@ export function createNodeScoolpRuntime(): ScoolpRuntime {
   }
 }
 
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await exec("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await exec("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const [command, ...args] of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]] as const) {
+    const result = await exec(command, args)
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
 async function commandExists(command: string): Promise<boolean> {
   const result = process.platform === "win32"
     ? await exec("where.exe", [command])

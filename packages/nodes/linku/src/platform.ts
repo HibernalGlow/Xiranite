@@ -1,15 +1,156 @@
+import { execFile } from "node:child_process"
 import { access, cp, lstat, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
+import {
+  getNodeConfig,
+  loadXiraniteConfig,
+  resolveXiraniteConfigPath,
+  saveXiraniteConfig,
+  stringifyToml,
+  parseToml,
+  stripBom,
+  type XiraniteConfig,
+} from "@xiranite/config"
 import type { LinkPathInfo, LinkuRuntime } from "./core.js"
 
-export function createNodeLinkuRuntime(configPath = join(process.cwd(), "linku.toml")): LinkuRuntime {
+interface LinkuNodeConfig {
+  enabled?: boolean
+  links?: Array<{ name?: string; link?: string; source?: string; target?: string; type?: string; created_at?: string }>
+}
+
+export function createNodeLinkuRuntime(configPath?: string): LinkuRuntime {
+  const resolvedConfigPath = configPath ?? resolveXiraniteConfigPath()
   return {
     pathInfo,
     createSymlink,
     movePath,
-    readConfig: (path) => readConfig(path || configPath),
-    writeConfig: (content, path) => writeConfig(content, path || configPath),
+    readConfig: async (path) => readLinkuConfig(path || resolvedConfigPath),
+    writeConfig: async (content, path) => writeLinkuConfig(content, path || resolvedConfigPath),
   }
+}
+
+/**
+ * Read linku records from xiranite.config.toml [nodes.linku] section.
+ * Falls back to legacy standalone linku.toml format if the resolved path is a legacy file.
+ */
+async function readLinkuConfig(path: string): Promise<string | null> {
+  const content = await readFile(path, "utf8").catch(() => null)
+  if (content === null) return null
+
+  // Detect legacy standalone linku.toml by checking for top-level [[links]] without [nodes.linku] parent
+  if (looksLikeLegacyLinkuToml(content)) return content
+
+  // xiranite.config.toml: extract [nodes.linku].links and re-serialize as legacy TOML for core parser
+  try {
+    const xconfig = (await loadXiraniteConfig({ configPath: path })).config
+    const linkuNode = getNodeConfig<LinkuNodeConfig>(xconfig, "linku")
+    if (!linkuNode?.links?.length) return null
+    const standalone = { config_version: 1, links: linkuNode.links }
+    return stringifyToml(standalone)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Write linku records into xiranite.config.toml [nodes.linku] section.
+ * Preserves other sections in the config file.
+ */
+async function writeLinkuConfig(content: string, path: string): Promise<void> {
+  // If existing file is a legacy linku.toml, write legacy format directly
+  const existing = await readFile(path, "utf8").catch(() => null)
+  if (existing !== null && looksLikeLegacyLinkuToml(existing)) {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, content, "utf8")
+    return
+  }
+
+  // Parse the core-provided standalone TOML (config_version + [[links]]) and merge into [nodes.linku]
+  const parsed = parseToml(stripBom(content)) as { links?: LinkuNodeConfig["links"] }
+  const links = parsed.links ?? []
+  const xconfig: XiraniteConfig = existing !== null
+    ? (await loadXiraniteConfig({ configPath: path })).config
+    : {}
+  const existingLinku = getNodeConfig<LinkuNodeConfig>(xconfig, "linku") ?? {}
+  const merged: LinkuNodeConfig = { ...existingLinku, links }
+  const updated = mergeNodeConfig(xconfig, "linku", merged)
+  await saveXiraniteConfig(updated, { configPath: path })
+}
+
+function mergeNodeConfig(config: XiraniteConfig, nodeId: string, patch: unknown): XiraniteConfig {
+  const nodes = { ...(config.nodes ?? {}) }
+  nodes[nodeId] = patch
+  return { ...config, nodes }
+}
+
+function looksLikeLegacyLinkuToml(content: string): boolean {
+  // Legacy linku.toml has top-level [[links]] but no [nodes.*] parent
+  if (!content.includes("[[links]]")) return false
+  return !content.includes("[nodes.")
+}
+
+/**
+ * Resolve linku config path with priority: cli override > env > xiranite config.toml.
+ */
+export function resolveLinkuConfigPath(options: { cliConfigPath?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {}): string {
+  if (options.cliConfigPath) return resolve(options.cliConfigPath)
+  return resolveXiraniteConfigPath({
+    env: options.env,
+    cwd: options.cwd,
+  })
+}
+
+/**
+ * One-time import from a legacy linku.toml file.
+ * Returns parsed LinkRecord[] from the legacy file, or null if the file does not exist.
+ */
+export async function importLegacyLinkuToml(legacyPath: string): Promise<string | null> {
+  try {
+    return await readFile(legacyPath, "utf8")
+  } catch {
+    return null
+  }
+}
+
+interface CommandResult {
+  code: number
+  stdout: string
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0]!, command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return await new Promise((resolveResult) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolveResult({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 async function pathInfo(path: string): Promise<LinkPathInfo> {

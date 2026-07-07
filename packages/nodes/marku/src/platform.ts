@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
-import { homedir } from "node:os"
+import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { MarkuDirEntry, MarkuPathInfo, MarkuRuntime } from "./core.js"
 
 export function createNodeMarkuRuntime(): MarkuRuntime {
@@ -15,8 +15,22 @@ export function createNodeMarkuRuntime(): MarkuRuntime {
     basename,
     now: () => new Date(),
     randomId: () => crypto.randomUUID().slice(0, 8),
-    defaultHistoryPath: () => join(homedir(), ".marku", "undo.json"),
+    defaultHistoryPath: () => defaultMarkuHistoryPath(),
   }
+}
+
+/**
+ * Resolve the default marku undo history JSON path.
+ *
+ * Lives under the Xiranite data directory (derived from the resolved
+ * xiranite.config.toml location) at `artifacts/undo/marku.undo.json`.
+ * The `--historyPath` CLI flag and the `[nodes.marku].history_path` TOML
+ * field both take precedence over this default.
+ */
+export function defaultMarkuHistoryPath(): string {
+  const configPath = resolveXiraniteConfigPath()
+  const dataDir = dirname(configPath)
+  return join(dataDir, "artifacts", "undo", "marku.undo.json")
 }
 
 export async function readClipboardText(): Promise<string> {

@@ -30,7 +30,8 @@ describe("scoolp CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("status --help")
+    expect(host.stderrText()).toContain("xscoolp")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON package list and info from a real local bucket", async () => {

@@ -28,7 +28,8 @@ describe("dissolvef CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("plan --path . --json")
+    expect(host.stderrText()).toContain("xdissolvef")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("runs real nested dissolve and undo with pure JSON output", async () => {

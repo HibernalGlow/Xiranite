@@ -21,6 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
 import type { LataInput, LataRuntime, LataTaskInfo } from "./core.js"
 import { runLata } from "./core.js"
 import { createNodeLataRuntime } from "./platform.js"
@@ -35,6 +36,10 @@ interface LataCliOptions {
   args?: string
   cwd?: string
   json?: boolean
+}
+
+interface LataNodeConfig {
+  taskfile?: string
 }
 
 
@@ -81,28 +86,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "list", description: "List tasks from a Taskfile." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "list", ...inputFromArgs(args as LataCliOptions) }, Boolean(args.json), host)
+          await runLataAction(args as LataCliOptions, "list", host)
         },
       }),
       plan: defineCommand({
         meta: { name: "plan", description: "Preview the commands for a task." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as LataCliOptions) }, Boolean(args.json), host)
+          await runLataAction(args as LataCliOptions, "plan", host)
         },
       }),
       execute: defineCommand({
         meta: { name: "execute", description: "Execute a task." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "execute", ...inputFromArgs(args as LataCliOptions) }, Boolean(args.json), host)
+          await runLataAction(args as LataCliOptions, "execute", host)
         },
       }),
       run: defineCommand({
         meta: { name: "run", description: "Alias for execute." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "execute", ...inputFromArgs(args as LataCliOptions) }, Boolean(args.json), host)
+          await runLataAction(args as LataCliOptions, "execute", host)
         },
       }),
       guided: defineCommand({
@@ -113,6 +118,41 @@ function createProgram(host: CliHost = createDefaultHost()) {
       }),
     },
   })
+}
+
+/**
+ * Resolve the Taskfile path for a lata CLI invocation.
+ * Priority:
+ *   1. --taskfile / --path explicit arg
+ *   2. xiranite.config.toml [nodes.lata].taskfile field
+ *   3. cwd auto-discovery (returns undefined; core.findTaskfile handles it)
+ */
+export async function resolveLataTaskfilePath(
+  args: LataCliOptions,
+  host: CliHost,
+): Promise<string | undefined> {
+  const explicit = args.taskfile || args.path
+  if (explicit) return explicit
+
+  try {
+    const { config } = await loadXiraniteConfig({
+      env: host.env,
+      cwd: args.cwd || host.cwd,
+    })
+    const lataNode = getNodeConfig<LataNodeConfig>(config, "lata")
+    if (lataNode?.taskfile) return lataNode.taskfile
+  } catch {
+    // Ignore config errors; fall through to cwd auto-discovery.
+  }
+
+  return undefined
+}
+
+async function runLataAction(args: LataCliOptions, action: "list" | "plan" | "execute", host: CliHost): Promise<void> {
+  const input: LataInput = { action, ...inputFromArgs(args) }
+  const resolved = await resolveLataTaskfilePath(args, host)
+  if (resolved) input.taskfilePath = resolved
+  await runAction(input, Boolean(args.json), host)
 }
 
 function commonArgs() {

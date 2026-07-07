@@ -30,7 +30,9 @@ describe("seriex CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
+    expect(host.stderrText()).toContain("xseriex")
     expect(host.stderrText()).toContain("plan --path")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints a pure JSON plan for real series files", async () => {

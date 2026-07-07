@@ -17,7 +17,8 @@ describe("recycleu CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("clean --help")
+    expect(host.stderrText()).toContain("xrecycleu")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON status without touching the recycle bin", async () => {

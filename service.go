@@ -409,6 +409,7 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		Frameless:        true,
 	})
 	wireFileDrop(win)
+	primeWindowFrame(win)
 
 	return WindowCommandResult{
 		Success:   true,
@@ -505,6 +506,27 @@ func getWindow(id string) (application.Window, bool) {
 		id = "main"
 	}
 	return App.Window.Get(id)
+}
+
+func primeWindowFrame(window application.Window) {
+	if window == nil || runtime.GOOS != "windows" {
+		return
+	}
+
+	go func() {
+		for _, delay := range []time.Duration{120 * time.Millisecond, 420 * time.Millisecond, 900 * time.Millisecond, 1500 * time.Millisecond} {
+			time.Sleep(delay)
+			bounds := window.Bounds()
+			if bounds.Width <= 0 || bounds.Height <= 0 {
+				continue
+			}
+			nudged := bounds
+			nudged.Width++
+			window.SetBounds(nudged)
+			time.Sleep(16 * time.Millisecond)
+			window.SetBounds(bounds)
+		}
+	}()
 }
 
 func findProjectRoot() string {

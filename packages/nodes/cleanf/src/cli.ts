@@ -7,6 +7,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -264,13 +265,12 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
     return verified
   }
 
-  const answer = (await promptRich(host, "输入要处理的文件夹路径，用分号或换行分隔", "")).trim()
-  if (!answer) {
+  const inputs = await promptPathLines(host, "输入要处理的文件夹路径")
+  if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
   }
-  const paths = parseCleanfPaths(answer)
-  const verified = await verifyPaths(paths)
+  const verified = await verifyPaths(inputs)
   if (!verified.length) {
     writeRichPanel(host, "Path", "输入的路径均不存在或不是文件夹。", { color: "red", minWidth: 48 })
     return []

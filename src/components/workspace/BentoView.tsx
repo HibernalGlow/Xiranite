@@ -41,8 +41,6 @@ export function BentoView() {
     [visibleComponents],
   )
   const componentIds = useMemo(() => bentoComponents.map((component) => component.id).join("|"), [bentoComponents])
-  const componentsRef = useRef(bentoComponents)
-  componentsRef.current = bentoComponents
   const handleDropModule = useCallback((moduleId: string, event: ReactDragEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const xRatio = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0
@@ -57,6 +55,18 @@ export function BentoView() {
     })
   }, [workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
+  const persistGridLayout = useCallback((grid: GridStack) => {
+    for (const node of grid.engine.nodes) {
+      const id = node.id ? String(node.id) : node.el?.getAttribute("gs-id")
+      if (!id) continue
+      workspaceActions.setComponentBentoLayout(id, {
+        x: node.x ?? 0,
+        y: node.y ?? 0,
+        w: node.w ?? DEFAULT_WIDGET.w,
+        h: node.h ?? DEFAULT_WIDGET.h,
+      })
+    }
+  }, [workspaceActions])
 
   useEffect(() => {
     const container = containerRef.current
@@ -80,28 +90,23 @@ export function BentoView() {
     }, container)
     gridRef.current = grid
 
-    const syncNode = (_event: Event, node: GridStackNode) => {
-      const id = node.id ? String(node.id) : node.el?.getAttribute("gs-id")
-      if (!id) return
-      const current = componentsRef.current.find((c) => c.id === id)
-      workspaceActions.setComponentBentoLayout(id, {
-        x: node.x ?? current?.bentoLayout?.x ?? 0,
-        y: node.y ?? current?.bentoLayout?.y ?? 0,
-        w: node.w ?? current?.bentoLayout?.w ?? DEFAULT_WIDGET.w,
-        h: node.h ?? current?.bentoLayout?.h ?? DEFAULT_WIDGET.h,
-      })
+    const syncLayout = (_event?: Event, _items?: GridStackNode[]) => {
+      persistGridLayout(grid)
     }
 
-    grid.on("dragstop", syncNode)
-    grid.on("resizestop", syncNode)
+    grid.on("change", syncLayout)
+    grid.on("dragstop", syncLayout)
+    grid.on("resizestop", syncLayout)
 
     return () => {
+      syncLayout()
+      grid.off("change")
       grid.off("dragstop")
       grid.off("resizestop")
       grid.destroy(false)
       if (gridRef.current === grid) gridRef.current = null
     }
-  }, [componentIds, bentoComponents.length, workspaceActions])
+  }, [bentoComponents.length, componentIds, persistGridLayout])
 
   if (bentoComponents.length === 0) {
     return (
@@ -268,3 +273,4 @@ function ModuleDropHint({ label }: { label: string }) {
     </div>
   )
 }
+

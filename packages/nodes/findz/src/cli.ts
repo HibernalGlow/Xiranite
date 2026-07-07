@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { lstat } from "node:fs/promises"
+import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import {
   canRunInteractiveCli,
@@ -7,6 +8,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -20,6 +22,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig, pathExists } from "@xiranite/config"
 
 import type { FindzAction, FindzData, FindzInput, FindzOutputFormat, FindzResult } from "./core.js"
 import { runFindz } from "./core.js"
@@ -70,6 +73,98 @@ interface GuidedQuery {
   refine?: string
 }
 
+/**
+ * [nodes.findz.output] 子段：默认输出参数。
+ * 仅放参数，查询结果导出文件本身不进入 TOML。
+ */
+interface FindzNodeOutputDefaults {
+  directory?: string
+  format?: FindzOutputFormat
+  overwrite?: boolean
+}
+
+/**
+ * [nodes.findz.defaults] 子段：默认查询参数。
+ * 支持原 where 子句以及 ext/size_min/size_max/type/name 等过滤快捷方式。
+ */
+interface FindzNodeQueryDefaults {
+  where?: string
+  path?: string
+  paths?: string[]
+  noArchive?: boolean
+  followSymlinks?: boolean
+  imageMeta?: boolean
+  longFormat?: boolean
+  maxResults?: number
+  maxReturnFiles?: number
+  groupBy?: string
+  refine?: string
+  sortBy?: "name" | "count" | "totalSize" | "avgSize"
+  sortDesc?: boolean
+  printZero?: boolean
+  ext?: string
+  size_min?: string
+  size_max?: string
+  type?: string
+  name?: string
+}
+
+interface FindzNodeConfig {
+  output?: FindzNodeOutputDefaults
+  defaults?: FindzNodeQueryDefaults
+}
+
+interface FindzDefaults {
+  output?: FindzNodeOutputDefaults
+  defaults?: FindzNodeQueryDefaults
+}
+
+const EMPTY_DEFAULTS: FindzDefaults = {}
+
+/**
+ * 从 xiranite.config.toml 的 [nodes.findz] 段读取默认参数。
+ * - [nodes.findz.output]：directory/format/overwrite
+ * - [nodes.findz.defaults]：默认查询参数（size_min、ext 等）
+ * 配置缺失或解析失败时返回空对象，保证不破坏无 TOML 的现有行为。
+ */
+export async function resolveFindzDefaults(host: CliHost): Promise<FindzDefaults> {
+  try {
+    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
+    const nodeConfig = getNodeConfig<FindzNodeConfig>(config, "findz")
+    if (!nodeConfig) return EMPTY_DEFAULTS
+    return {
+      output: nodeConfig.output,
+      defaults: nodeConfig.defaults,
+    }
+  } catch {
+    return EMPTY_DEFAULTS
+  }
+}
+
+/**
+ * 将 defaults 中的 ext/size_min/size_max/type/name 过滤快捷方式编译为 WHERE 子句。
+ * 已存在 where 时跳过（where 优先）。
+ */
+function buildWhereFromDefaults(defaults?: FindzNodeQueryDefaults): string | undefined {
+  if (!defaults) return undefined
+  const conditions: string[] = []
+  if (defaults.ext) {
+    const exts = String(defaults.ext)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `"${item}"`)
+    if (exts.length === 1) conditions.push(`ext = ${exts[0]}`)
+    else if (exts.length > 1) conditions.push(`ext in (${exts.join(", ")})`)
+  }
+  if (defaults.size_min) conditions.push(`size >= ${defaults.size_min}`)
+  if (defaults.size_max) conditions.push(`size <= ${defaults.size_max}`)
+  if (defaults.type) conditions.push(`type = "${defaults.type}"`)
+  if (defaults.name) conditions.push(`name like "%${defaults.name}%"`)
+  if (!conditions.length) return undefined
+  return conditions.join(" and ")
+}
+
 export const cli: CliCommand = {
   name: CLI_NAME,
   description: "Search files and archive members with SQL-like filters.",
@@ -106,28 +201,33 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "search", description: "Search files and optional archive members." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("search", inputFromArgs(args as FindzCliOptions), host)
+          const defaults = await resolveFindzDefaults(host)
+          await runAction("search", await inputFromArgs(args as FindzCliOptions, "search", defaults, host), host)
         },
       }),
       "archives-only": defineCommand({
         meta: { name: "archives-only", description: "Return archive files themselves, without entering them." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("archives_only", inputFromArgs(args as FindzCliOptions), host)
+          const defaults = await resolveFindzDefaults(host)
+          await runAction("archives_only", await inputFromArgs(args as FindzCliOptions, "archives_only", defaults, host), host)
         },
       }),
       nested: defineCommand({
         meta: { name: "nested", description: "Find archives containing nested archive files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("nested", inputFromArgs(args as FindzCliOptions), host)
+          const defaults = await resolveFindzDefaults(host)
+          await runAction("nested", await inputFromArgs(args as FindzCliOptions, "nested", defaults, host), host)
         },
       }),
       refine: defineCommand({
         meta: { name: "refine", description: "Search, group, and apply a secondary group filter." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("search", { ...inputFromArgs(args as FindzCliOptions), groupBy: (args as FindzCliOptions).groupBy || "archive" }, host)
+          const defaults = await resolveFindzDefaults(host)
+          const input = await inputFromArgs(args as FindzCliOptions, "search", defaults, host)
+          await runAction("search", { ...input, groupBy: (args as FindzCliOptions).groupBy || "archive" }, host)
         },
       }),
       "help-filter": defineCommand({
@@ -169,24 +269,62 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: FindzCliOptions): FindzInput {
+function inputFromArgs(args: FindzCliOptions, action: FindzAction, defaults: FindzDefaults, host: CliHost): Promise<FindzInput> {
+  return resolveFindzInput(inputFromArgsSync(args, defaults), action, defaults, host)
+}
+
+function inputFromArgsSync(args: FindzCliOptions, defaults: FindzDefaults): FindzInput {
+  const queryDefaults = defaults.defaults
+  const where = args.where || queryDefaults?.where || buildWhereFromDefaults(queryDefaults) || "1"
+  const seedPaths: string[] = []
+  if (args.path) seedPaths.push(args.path)
+  else if (queryDefaults?.path) seedPaths.push(queryDefaults.path)
+  const defaultPaths = queryDefaults?.paths ?? []
   return {
-    where: args.where || "1",
-    paths: splitArg(args.paths, args.path ? [args.path] : []),
-    noArchive: args.noArchive,
-    followSymlinks: args.followSymlinks,
-    withImageMeta: args.imageMeta,
-    maxResults: numberArg(args.maxResults),
-    maxReturnFiles: numberArg(args.maxReturn),
-    groupBy: args.groupBy,
-    refine: args.refine,
-    sortBy: args.sortBy,
-    sortDesc: !args.asc,
+    where,
+    paths: [...splitArg(args.paths, seedPaths), ...defaultPaths],
+    noArchive: args.noArchive ?? queryDefaults?.noArchive,
+    followSymlinks: args.followSymlinks ?? queryDefaults?.followSymlinks,
+    withImageMeta: args.imageMeta ?? queryDefaults?.imageMeta,
+    maxResults: numberArg(args.maxResults) ?? queryDefaults?.maxResults,
+    maxReturnFiles: numberArg(args.maxReturn) ?? queryDefaults?.maxReturnFiles,
+    groupBy: args.groupBy || queryDefaults?.groupBy,
+    refine: args.refine || queryDefaults?.refine,
+    sortBy: args.sortBy || queryDefaults?.sortBy,
+    sortDesc: args.asc === undefined ? (queryDefaults?.sortDesc ?? true) : !args.asc,
     outputPath: args.output,
-    outputFormat: outputFormat(args),
-    longFormat: args.long ?? true,
-    printZero: args.print0,
+    outputFormat: outputFormat(args, defaults.output?.format),
+    longFormat: args.long ?? queryDefaults?.longFormat ?? true,
+    printZero: args.print0 ?? queryDefaults?.printZero,
   }
+}
+
+/**
+ * 应用 [nodes.findz.output] 默认值：
+ * - 当用户未传 --output 且 TOML 配置了 output.directory 时，按 directory + action + format 派生输出路径
+ * - 当 overwrite=false 且目标文件已存在时，跳过写入（outputPath 置空）
+ * --output 始终优先于 TOML 默认值。
+ */
+async function resolveFindzInput(input: FindzInput, action: FindzAction, defaults: FindzDefaults, host: CliHost): Promise<FindzInput> {
+  if (input.outputPath) return input
+  const outputDefaults = defaults.output
+  if (!outputDefaults?.directory) return input
+  const format = input.outputFormat || outputDefaults.format || "text"
+  const ext = formatExt(format)
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)
+  const filename = `findz-${action}-${stamp}.${ext}`
+  const outputPath = resolve(host.cwd, outputDefaults.directory, filename)
+  if (outputDefaults.overwrite === false && await pathExists(outputPath)) {
+    return { ...input, outputPath: undefined }
+  }
+  return { ...input, outputPath }
+}
+
+function formatExt(format: FindzOutputFormat): string {
+  if (format === "json") return "json"
+  if (format === "csv") return "csv"
+  if (format === "efu") return "efu"
+  return "txt"
 }
 
 async function runAction(action: FindzAction, input: FindzInput, host: CliHost): Promise<FindzResult> {
@@ -369,13 +507,12 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
     return verified
   }
 
-  const answer = (await promptRich(host, "输入要搜索的路径，用分号或换行分隔", "")).trim()
-  if (!answer) {
+  const inputs = await promptPathLines(host, "输入要搜索的路径")
+  if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
   }
-  const paths = splitArg(answer)
-  const verified = await verifyPaths(paths)
+  const verified = await verifyPaths(inputs)
   if (!verified.length) {
     writeRichPanel(host, "Path", "输入的路径均不存在。", { color: "red", minWidth: 48 })
     return []
@@ -621,7 +758,8 @@ function writeQuerySummary(host: CliHost, query: GuidedQuery): void {
 }
 
 async function runGuidedTask(host: CliHost, query: GuidedQuery): Promise<void> {
-  const input: FindzInput = {
+  const defaults = await resolveFindzDefaults(host)
+  const baseInput: FindzInput = {
     action: query.action,
     where: query.where,
     paths: query.paths,
@@ -635,6 +773,7 @@ async function runGuidedTask(host: CliHost, query: GuidedQuery): Promise<void> {
     groupBy: query.groupBy,
     refine: query.refine,
   }
+  const input = await resolveFindzInput(baseInput, query.action, defaults, host)
 
   const result = await runAction(query.action, input, host)
   writeResultSummary(host, result.data, query)
@@ -686,10 +825,11 @@ function numberArg(value?: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function outputFormat(args: FindzCliOptions): FindzOutputFormat {
+function outputFormat(args: FindzCliOptions, defaultFormat?: FindzOutputFormat): FindzOutputFormat {
   if (args.json) return "json"
   if (args.csv) return "csv"
   if (args.efu) return "efu"
+  if (defaultFormat) return defaultFormat
   return "text"
 }
 

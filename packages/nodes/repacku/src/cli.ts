@@ -20,6 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig, pathExists, resolveXiraniteConfigPath } from "@xiranite/config"
 import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { runRepacku } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
@@ -43,6 +44,36 @@ interface RepackuCliOptions {
   minCount?: string | number
   galleryMarker?: string
   single?: boolean
+}
+
+/**
+ * 常用压缩规则与默认路径，从 xiranite.config.toml 的 [nodes.repacku] 段读取。
+ * 仅作为 guided 流程的回退默认值，不进入 analyze 产物 JSON。
+ */
+interface RepackuDefaults {
+  default_root?: string
+  default_output_dir?: string
+  types?: string
+  delete_after?: boolean
+  min_count?: number
+  gallery_marker?: string
+}
+
+/**
+ * 从 xiranite.config.toml 的 [nodes.repacku] 段读取常用默认参数。
+ * 文件不存在或解析失败时返回空对象，guided 流程继续使用内置默认值。
+ */
+async function resolveRepackuDefaults(host: CliHost): Promise<RepackuDefaults> {
+  try {
+    const xiranitePath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
+    if (await pathExists(xiranitePath)) {
+      const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
+      return getNodeConfig<RepackuDefaults>(config, "repacku") ?? {}
+    }
+  } catch {
+    // ignore: 配置缺失或解析失败时回退到内置默认值
+  }
+  return {}
 }
 
 interface GuidedTask {
@@ -189,11 +220,12 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeRepackuRuntime()
+  const defaults = await resolveRepackuDefaults(host)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
   try {
     while (true) {
-      renderGuidedIntro(host, firstRender)
+      renderGuidedIntro(host, firstRender, defaults)
       firstRender = false
 
       const choice = await readGuidedChoice(host, defaultTask, runtime)
@@ -202,7 +234,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const paths = choice.kind === "path" ? [choice.path] : await resolveGuidedPaths(host, runtime)
+      const paths = choice.kind === "path" ? [choice.path] : await resolveGuidedPaths(host, runtime, defaults)
       if (!paths.length) {
         writeRichPanel(host, "Path", "未提供有效文件夹路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         continue
@@ -214,7 +246,7 @@ async function runGuided(host: CliHost): Promise<void> {
         "mode: direct core call, no Taskfile shell hop",
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask(choice.task, paths, host)
+      const ok = await runGuidedTask(choice.task, paths, host, defaults)
       if (!ok) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
@@ -227,7 +259,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 }
 
-function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+function renderGuidedIntro(host: CliHost, includeHeader: boolean, defaults: RepackuDefaults = {}): void {
   if (!includeHeader) writeLine(host)
   const columns = terminalColumns(host)
   writeRichPanel(host, "Xiranite Repacku", [
@@ -236,7 +268,21 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
     `${rich(host, "路径", "cyan")}  可直接粘贴路径；否则读取剪贴板，失败时再手动输入`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
-  writeLine(host, rich(host, `提示: guided 默认保持原 repacku 习惯，成功后删除源文件；需要预演请用 \`${CLI_NAME} compress --dry-run\`。`, "grey"))
+  const hint = defaults.default_root || defaults.types || defaults.delete_after !== undefined
+    ? `提示: guided 已读取 xiranite.config.toml [nodes.repacku] 默认值（${describeDefaults(defaults)}）；不输入时自动套用。需要预演请用 \`${CLI_NAME} compress --dry-run\`。`
+    : `提示: guided 默认保持原 repacku 习惯，成功后删除源文件；需要预演请用 \`${CLI_NAME} compress --dry-run\`。`
+  writeLine(host, rich(host, hint, "grey"))
+}
+
+function describeDefaults(defaults: RepackuDefaults): string {
+  const parts: string[] = []
+  if (defaults.default_root) parts.push(`root=${defaults.default_root}`)
+  if (defaults.default_output_dir) parts.push(`output=${defaults.default_output_dir}`)
+  if (defaults.types) parts.push(`types=${defaults.types}`)
+  if (defaults.delete_after !== undefined) parts.push(`delete_after=${defaults.delete_after}`)
+  if (defaults.min_count !== undefined) parts.push(`min_count=${defaults.min_count}`)
+  if (defaults.gallery_marker) parts.push(`gallery_marker=${defaults.gallery_marker}`)
+  return parts.join(", ") || "none"
 }
 
 async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime: RepackuRuntime): Promise<ResolvedGuidedChoice> {
@@ -275,7 +321,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask, runtime:
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
 }
 
-async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime): Promise<string[]> {
+async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime, defaults: RepackuDefaults = {}): Promise<string[]> {
   const clipboardPaths = await pathsFromClipboard(runtime)
   if (clipboardPaths.length) {
     writeLine(host, rich(host, `已从剪贴板读取 ${clipboardPaths.length} 个路径。`, "yellow"))
@@ -283,11 +329,29 @@ async function resolveGuidedPaths(host: CliHost, runtime: RepackuRuntime): Promi
   }
 
   const answer = await promptRich(host, "输入文件夹路径", "")
-  return await validDirectoryPaths(splitPaths(answer), runtime)
+  const manualPaths = await validDirectoryPaths(splitPaths(answer), runtime)
+  if (manualPaths.length) return manualPaths
+
+  if (defaults.default_root) {
+    const info = await runtime.pathInfo(defaults.default_root)
+    if (info.exists && info.isDirectory) {
+      writeLine(host, rich(host, `使用 TOML 默认根目录: ${info.path}`, "yellow"))
+      return [info.path]
+    }
+  }
+
+  return []
 }
 
-async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost): Promise<boolean> {
-  const inputs = task.inputs.flatMap((input) => paths.map((path) => ({ ...input, paths: [path] })))
+async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, defaults: RepackuDefaults = {}): Promise<boolean> {
+  const inputs = task.inputs.flatMap((input) => paths.map((path) => ({
+    ...input,
+    paths: [path],
+    types: input.types ?? defaults.types,
+    deleteAfter: input.deleteAfter ?? defaults.delete_after,
+    minCount: input.minCount ?? defaults.min_count,
+    galleryMarker: input.galleryMarker ?? defaults.gallery_marker,
+  })))
   return await runActions(inputs, false, host)
 }
 

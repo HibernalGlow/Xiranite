@@ -31,7 +31,8 @@ describe("enginev CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("scan --path")
+    expect(host.stderrText()).toContain("xenginev scan --path")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON scan for a real Wallpaper Engine fixture", async () => {

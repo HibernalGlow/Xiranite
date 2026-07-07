@@ -1,7 +1,8 @@
+import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
-import { homedir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
+import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { TrenameDirEntry, TrenamePathInfo, TrenameRuntime } from "./core.js"
 
 export function createNodeTrenameRuntime(): TrenameRuntime {
@@ -16,10 +17,20 @@ export function createNodeTrenameRuntime(): TrenameRuntime {
     dirname,
     basename,
     resolve,
-    defaultUndoPath: () => join(homedir(), ".xiranite", "trename-undo.json"),
+    defaultUndoPath: () => defaultTrenameUndoPath(),
     now: () => new Date().toISOString(),
     randomId: () => randomUUID(),
   }
+}
+
+/**
+ * Default trename undo store path: `<xiranite-data-dir>/artifacts/undo/trename.undo.json`.
+ * The data dir is derived from resolveXiraniteConfigPath (XIRANITE_DATA_DIR / XIRANITE_CONFIG_PATH / system dir).
+ */
+export function defaultTrenameUndoPath(): string {
+  const configPath = resolveXiraniteConfigPath()
+  const dataDir = dirname(configPath)
+  return join(dataDir, "artifacts", "undo", "trename.undo.json")
 }
 
 async function pathInfo(path: string): Promise<TrenamePathInfo> {
@@ -72,4 +83,45 @@ async function safeStat(path: string) {
   } catch {
     return null
   }
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0]!, command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
+interface CommandResult {
+  code: number
+  stdout: string
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return await new Promise((resolveResult) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolveResult({ code, stdout: stdout ?? "" })
+    })
+  })
 }

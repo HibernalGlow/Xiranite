@@ -7,6 +7,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -56,7 +57,7 @@ interface GuidedPresetInfo {
 
 type ResolvedGuidedChoice =
   | { kind: "exit" }
-  | { kind: "path"; path: string; task: GuidedTask }
+  | { kind: "paths"; paths: string[]; task: GuidedTask }
   | { kind: "task"; task: GuidedTask }
 
 type GuidedSelection = "exit" | "manual-path" | `task:${string}`
@@ -214,7 +215,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const paths = choice.kind === "path" ? [choice.path] : await resolvePaths(host)
+      const paths = choice.kind === "paths" ? choice.paths : await resolvePaths(host)
       if (!paths.length) {
         writeRichPanel(host, "Path", "未提供有效路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         if (!await confirmRich(host, "重新开始?", false)) return
@@ -269,11 +270,19 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
 }
 
 async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask): Promise<ResolvedGuidedChoice> {
-  const directPath = cleanPath(await promptRich(host, "粘贴路径直接执行默认任务（preview）；留空进入任务选择", ""))
-  if (directPath) {
-    const verified = await verifyPaths([directPath])
-    if (verified.length) return { kind: "path", path: verified[0]!, task: defaultTask }
-    writeRichPanel(host, "Path", `不是有效路径: ${directPath}`, { color: "red", minWidth: 48 })
+  const first = cleanPath(await promptRich(host, "粘贴路径直接执行默认任务（可逐行输入多个）；留空进入任务选择", ""))
+  if (first) {
+    const inputs: string[] = [first]
+    writeLine(host, rich(host, "继续输入路径，逐行回车；直接回车空行结束。", "grey"))
+    while (true) {
+      const suffix = ` (已收集 ${inputs.length} 条，留空结束)`
+      const answer = cleanPath(await promptRich(host, `输入下一个路径${suffix}`, ""))
+      if (!answer) break
+      if (!inputs.includes(answer)) inputs.push(answer)
+    }
+    const verified = await verifyPaths(inputs)
+    if (verified.length) return { kind: "paths", paths: verified, task: defaultTask }
+    writeRichPanel(host, "Path", "输入的路径均无效，进入任务选择。", { color: "red", minWidth: 48 })
   }
 
   const selection = await selectRich<GuidedSelection>(
@@ -292,13 +301,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask): Promise
   )
 
   if (selection === "exit") return { kind: "exit" }
-  if (selection === "manual-path") {
-    const answer = await promptRich(host, "输入要处理的路径，用分号或换行分隔", "")
-    const verified = await verifyPaths(parseEncodebPaths(answer))
-    if (verified.length) return { kind: "path", path: verified[0]!, task: defaultTask }
-    writeRichPanel(host, "Path", "未提供有效路径。", { color: "yellow", minWidth: 48 })
-    return { kind: "task", task: defaultTask }
-  }
+  if (selection === "manual-path") return { kind: "task", task: defaultTask }
 
   const taskName = selection.slice("task:".length)
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
@@ -342,13 +345,12 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
     return verified
   }
 
-  const answer = (await promptRich(host, "输入要处理的路径，用分号或换行分隔", "")).trim()
-  if (!answer) {
+  const inputs = await promptPathLines(host, "输入要处理的路径")
+  if (!inputs.length) {
     writeLine(host, rich(host, "未输入任何路径。", "yellow"))
     return []
   }
-  const paths = parseEncodebPaths(answer)
-  const verified = await verifyPaths(paths)
+  const verified = await verifyPaths(inputs)
   if (!verified.length) {
     writeRichPanel(host, "Path", "输入的路径均不存在。", { color: "red", minWidth: 48 })
     return []

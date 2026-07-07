@@ -1,8 +1,16 @@
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { getBackend } from "@/backend/client"
 import type { MainWindowAction, OpenComponentWindowInput, WindowCommandResult } from "@/backend/runtime/runtime"
 
 export function useWindowControls() {
+  const capabilitiesQuery = useQuery({
+    queryKey: ["window-capabilities"],
+    queryFn: async () => {
+      const backend = await getBackend()
+      return backend.windows.getCapabilities()
+    },
+  })
+
   const controlMainMutation = useMutation({
     mutationFn: async (action: MainWindowAction): Promise<WindowCommandResult> => {
       const backend = await getBackend()
@@ -25,6 +33,8 @@ export function useWindowControls() {
   })
 
   return {
+    capabilities: capabilitiesQuery.data,
+    capabilitiesPending: capabilitiesQuery.isPending,
     controlMain: controlMainMutation.mutateAsync,
     controlMainPending: controlMainMutation.isPending,
     openComponent: openComponentMutation.mutateAsync,

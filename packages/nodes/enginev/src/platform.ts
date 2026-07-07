@@ -21,6 +21,33 @@ export function createNodeEngineVRuntime(): EngineVRuntime {
   }
 }
 
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0]!, command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
 async function pathInfo(path: string): Promise<EngineVPathInfo> {
   const resolved = resolve(path)
   try {

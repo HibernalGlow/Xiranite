@@ -76,6 +76,7 @@ func main() {
 	})
 
 	wireFileDrop(win)
+	primeWindowFrame(win)
 
 	if err := App.Run(); err != nil {
 		log.Fatal(err)

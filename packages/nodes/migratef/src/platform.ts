@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { cp, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
-import { homedir } from "node:os"
+import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { MigratefDirEntry, MigratefPathInfo, MigratefRuntime } from "./core.js"
 
 export function createNodeMigratefRuntime(): MigratefRuntime {
@@ -26,7 +26,7 @@ export function createNodeMigratefRuntime(): MigratefRuntime {
     basename,
     now: () => new Date(),
     randomId: () => crypto.randomUUID().slice(0, 8),
-    defaultHistoryPath: () => join(homedir(), ".migratef", "undo.json"),
+    defaultHistoryPath: () => join(dirname(resolveXiraniteConfigPath()), "artifacts", "undo", "migratef.undo.json"),
   }
 }
 

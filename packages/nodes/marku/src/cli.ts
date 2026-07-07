@@ -7,6 +7,7 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  promptPathLines,
   promptRich,
   renderProgressBar,
   rich,
@@ -20,6 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig, resolveXiraniteConfigPath } from "@xiranite/config"
 
 import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
 import { MARKU_MODULES, runMarku } from "./core.js"
@@ -45,6 +47,46 @@ interface MarkuCliOptions {
 }
 
 type GuidedMode = "files" | "text" | "exit"
+
+/** Shape of the `[nodes.marku]` section in xiranite.config.toml. */
+interface MarkuNodeConfig {
+  enable_undo?: boolean
+  history_path?: string
+  default_module?: string
+}
+
+/** Resolved marku defaults merged from TOML and built-in fallbacks. */
+interface MarkuDefaults {
+  /** Whether undo recording is enabled (TOML `enable_undo`, default true). */
+  enableUndo: boolean
+  /** TOML `history_path`; falls back to platform default when undefined. */
+  historyPath?: string
+  /** TOML `default_module`; falls back to "markt" when undefined/invalid. */
+  defaultModule?: string
+}
+
+/**
+ * Load marku defaults from the `[nodes.marku]` section of xiranite.config.toml.
+ * Returns safe fallbacks (enableUndo=true, no paths) when the file or section
+ * is missing. The `--historyPath` CLI flag and platform default still take
+ * precedence when this returns undefined for `historyPath`.
+ */
+async function resolveMarkuDefaults(host: CliHost): Promise<MarkuDefaults> {
+  const configPath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
+  try {
+    const { config } = await loadXiraniteConfig({ configPath, env: host.env, cwd: host.cwd })
+    const marku = getNodeConfig<MarkuNodeConfig>(config, "marku")
+    const historyPath = marku?.history_path?.trim() || undefined
+    const defaultModule = marku?.default_module?.trim() || undefined
+    return {
+      enableUndo: marku?.enable_undo ?? true,
+      historyPath,
+      defaultModule,
+    }
+  } catch {
+    return { enableUndo: true }
+  }
+}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -82,28 +124,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "text", description: "Process inline text or an input file." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "text", ...await inputFromArgs(args as MarkuCliOptions) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "text", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       run: defineCommand({
         meta: { name: "run", description: "Process Markdown files or folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "run", ...await inputFromArgs(args as MarkuCliOptions) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "run", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       history: defineCommand({
         meta: { name: "history", description: "Show undo history." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "history", ...await inputFromArgs(args as MarkuCliOptions) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "history", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       undo: defineCommand({
         meta: { name: "undo", description: "Undo the latest or selected write run." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "undo", ...await inputFromArgs(args as MarkuCliOptions) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "undo", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       guided: defineCommand({
@@ -135,17 +177,21 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(args: MarkuCliOptions): Promise<MarkuInput> {
+async function inputFromArgs(args: MarkuCliOptions, host: CliHost): Promise<MarkuInput> {
+  const defaults = await resolveMarkuDefaults(host)
   const inputText = args.inputFile ? await readFile(args.inputFile, "utf8") : args.input
+  const module = args.module
+    ? (isMarkuModule(args.module) ? args.module : "markt")
+    : (defaults.defaultModule && isMarkuModule(defaults.defaultModule) ? defaults.defaultModule : "markt")
   return {
-    module: isMarkuModule(args.module) ? args.module : "markt",
+    module,
     paths: splitArg(args.paths, args.path ? [args.path] : []),
     inputText,
     stepConfig: parseConfig(args.config),
     recursive: args.recursive,
     dryRun: args.write ? false : args.dryRun,
-    enableUndo: args.enableUndo,
-    historyPath: args.historyPath,
+    enableUndo: args.enableUndo ?? defaults.enableUndo,
+    historyPath: args.historyPath ?? defaults.historyPath,
     undoId: args.undoId,
   }
 }
@@ -185,6 +231,8 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeMarkuRuntime()
+  const defaults = await resolveMarkuDefaults(host)
+  const initialModule = defaults.defaultModule && isMarkuModule(defaults.defaultModule) ? defaults.defaultModule : "markt"
   let firstRender = true
 
   try {
@@ -200,7 +248,7 @@ async function runGuided(host: CliHost): Promise<void> {
           label: item.id,
           hint: item.name,
         })),
-        { initialValue: "markt", maxItems: 9 },
+        { initialValue: initialModule, maxItems: 9 },
       )
 
       const mode = await selectRich<GuidedMode>(
@@ -220,15 +268,15 @@ async function runGuided(host: CliHost): Promise<void> {
       }
 
       if (mode === "files") {
-        const path = await resolveInputPath(host, runtime)
-        if (!path) continue
+        const paths = await resolveInputPaths(host, runtime)
+        if (!paths.length) continue
         const recursive = await confirmRich(host, "递归扫描子目录?", false)
         const dryRun = await confirmRich(host, "以 dry-run 模式运行 (不写文件，只输出 diff)?", true)
-        await runGuidedAction({ action: "run", module, paths: [path], recursive, dryRun, enableUndo: !dryRun }, host)
+        await runGuidedAction({ action: "run", module, paths, recursive, dryRun, enableUndo: !dryRun, historyPath: defaults.historyPath }, host)
       } else {
         const text = await resolveInputText(host)
         if (!text) continue
-        await runGuidedAction({ action: "text", module, inputText: text }, host)
+        await runGuidedAction({ action: "text", module, inputText: text, historyPath: defaults.historyPath }, host)
       }
 
       if (!await confirmRich(host, "继续选择其他模块?", false)) return
@@ -256,24 +304,27 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   writeLine(host)
 }
 
-async function resolveInputPath(host: CliHost, runtime: { pathInfo: (path: string) => Promise<{ exists: boolean; isDirectory: boolean; path: string }> }): Promise<string | null> {
+async function resolveInputPaths(host: CliHost, runtime: { pathInfo: (path: string) => Promise<{ exists: boolean; isDirectory: boolean; path: string }> }): Promise<string[]> {
   const clipboard = (await readClipboardText()).trim()
   if (clipboard) {
     const info = await runtime.pathInfo(clipboard)
     if (info.exists && info.isDirectory) {
       writeLine(host, rich(host, `已从剪贴板读取路径: ${info.path}`, "yellow"))
-      return info.path
+      return [info.path]
     }
   }
 
-  const answer = (await promptRich(host, "输入文件或目录路径", "")).trim()
-  if (!answer) return null
-  const info = await runtime.pathInfo(answer)
-  if (!info.exists) {
-    writeRichPanel(host, "Path", `路径不存在: ${answer}`, { color: "red", minWidth: 48 })
-    return null
+  const inputs = await promptPathLines(host, "输入文件或目录路径")
+  const paths: string[] = []
+  for (const input of inputs) {
+    const info = await runtime.pathInfo(input)
+    if (!info.exists) {
+      writeRichPanel(host, "Path", `路径不存在: ${input}`, { color: "red", minWidth: 48 })
+      continue
+    }
+    paths.push(info.path)
   }
-  return info.path
+  return paths
 }
 
 async function resolveInputText(host: CliHost): Promise<string | null> {

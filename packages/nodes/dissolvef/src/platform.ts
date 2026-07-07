@@ -1,6 +1,7 @@
+import { execFile } from "node:child_process"
 import { cp, lstat, mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
-import { homedir } from "node:os"
+import { resolveXiraniteConfigPath } from "@xiranite/config"
 import type { DissolvefDirEntry, DissolvefPathInfo, DissolvefRuntime } from "./core.js"
 
 export function createNodeDissolvefRuntime(): DissolvefRuntime {
@@ -17,8 +18,53 @@ export function createNodeDissolvefRuntime(): DissolvefRuntime {
     basename,
     now: () => new Date(),
     randomId: () => crypto.randomUUID().slice(0, 8),
-    defaultHistoryPath: () => join(homedir(), ".dissolvef", "undo.json"),
+    defaultHistoryPath: () => {
+      const configPath = resolveXiraniteConfigPath()
+      const dataDir = dirname(configPath)
+      return join(dataDir, "artifacts", "undo", "dissolvef.undo.json")
+    },
   }
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw",
+    ])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0]!, command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+
+  return ""
+}
+
+interface CommandResult {
+  code: number
+  stdout: string
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return await new Promise((resolveResult) => {
+    execFile(command, args, { encoding: "utf8", windowsHide: true }, (error, stdout) => {
+      const code = typeof (error as NodeJS.ErrnoException | null)?.code === "number" ? Number((error as NodeJS.ErrnoException).code) : error ? 1 : 0
+      resolveResult({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 async function pathInfo(path: string): Promise<DissolvefPathInfo> {

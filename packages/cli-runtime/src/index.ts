@@ -258,6 +258,27 @@ export async function selectRich<Value extends string | number | boolean>(
   }
 }
 
+export async function promptPathLines(
+  host: CliHost,
+  prompt: string,
+  options: { separator?: RegExp; hint?: string } = {},
+): Promise<string[]> {
+  const separator = options.separator ?? /[,;\r\n]/
+  const hint = options.hint ?? "逐行回车，空行结束；单行内可用分号或逗号分隔"
+  const collected: string[] = []
+  writeLine(host, rich(host, `${hint}。`, "grey"))
+  while (true) {
+    const suffix = collected.length ? ` (已收集 ${collected.length} 条，留空结束)` : " (留空结束)"
+    const answer = await promptRich(host, `${prompt}${suffix}`, "")
+    if (!answer) break
+    for (const part of answer.split(separator)) {
+      const trimmed = part.trim().replace(/^["']|["']$/g, "")
+      if (trimmed && !collected.includes(trimmed)) collected.push(trimmed)
+    }
+  }
+  return collected
+}
+
 export function shellQuote(value: string): string {
   if (process.platform === "win32") return `"${value.replace(/"/g, '\\"')}"`
   return `'${value.replace(/'/g, "'\\''")}'`

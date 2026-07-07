@@ -1,0 +1,220 @@
+import { afterEach, describe, expect, test } from "vitest"
+import { mkdir, rm, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+import { randomUUID } from "node:crypto"
+import { tmpdir } from "node:os"
+
+const norm = (p: string): string => p.replace(/\\/g, "/")
+import {
+  getNodeConfig,
+  loadXiraniteConfig,
+  resolveNodeConfig,
+  resolveXiraniteConfigPath,
+  saveXiraniteConfig,
+  stripBom,
+  updateNodeConfig,
+  XIRANITE_CONFIG_FILENAME,
+} from "./index.js"
+
+const RUN_ROOT = join(process.cwd(), "artifacts/test-runs/config", randomUUID())
+const cases = new Set<string>()
+
+afterEach(async () => {
+  for (const dir of cases) {
+    await rm(dir, { recursive: true, force: true })
+  }
+  cases.clear()
+})
+
+describe("resolveXiraniteConfigPath", () => {
+  test("uses --configPath when provided", () => {
+    const root = join(tmpdir(), "xiranite-config-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ configPath: "custom.toml", cwd: root })
+    expect(norm(path)).toBe(`${norm(root)}/custom.toml`)
+  })
+
+  test("uses XIRANITE_CONFIG_PATH env when no --configPath", () => {
+    const root = join(tmpdir(), "xiranite-env-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ env: { XIRANITE_CONFIG_PATH: root } })
+    expect(norm(path)).toBe(norm(root))
+  })
+
+  test("uses XIRANITE_DATABASE_PATH directory when set", () => {
+    const root = join(tmpdir(), "xiranite-db-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ env: { XIRANITE_DATABASE_PATH: join(root, "xiranite.db") } })
+    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
+  })
+
+  test("uses XIRANITE_DATA_DIR when set", () => {
+    const root = join(tmpdir(), "xiranite-data-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ env: { XIRANITE_DATA_DIR: root } })
+    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
+  })
+
+  test("falls back to databasePath option when no env", () => {
+    const root = join(tmpdir(), "xiranite-fb-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ databasePath: join(root, "xiranite.db") })
+    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
+  })
+})
+
+describe("loadXiraniteConfig", () => {
+  test("returns empty config when file missing (allowMissing=true default)", async () => {
+    const result = await loadXiraniteConfig({ configPath: join(RUN_ROOT, "missing.toml") })
+    expect(result.config).toEqual({})
+  })
+
+  test("throws when allowMissing=false and file missing", async () => {
+    await expect(loadXiraniteConfig({ configPath: join(RUN_ROOT, "missing.toml"), allowMissing: false }))
+      .rejects.toThrow(/not found/)
+  })
+
+  test("parses TOML and extracts nodes record", async () => {
+    const dir = join(RUN_ROOT, "load-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, [
+      '[workspace]',
+      'default = "ws1"',
+      '',
+      '[paths]',
+      'data_dir = "/data"',
+      '',
+      '[nodes.linku]',
+      'enabled = true',
+      '',
+      '[[nodes.linku.links]]',
+      'name = "example"',
+      'source = "E:/Source"',
+      'target = "D:/Links/example"',
+    ].join("\n"), "utf8")
+
+    const { config, path: loadedPath } = await loadXiraniteConfig({ configPath: path })
+    expect(loadedPath).toBe(path)
+    expect(config.workspace?.default).toBe("ws1")
+    expect(config.paths?.data_dir).toBe("/data")
+    expect(config.nodes?.linku).toEqual({
+      enabled: true,
+      links: [{ name: "example", source: "E:/Source", target: "D:/Links/example" }],
+    })
+  })
+
+  test("strips BOM from content", async () => {
+    const dir = join(RUN_ROOT, "bom-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, "\uFEFF[workspace]\ndefault = \"bom\"\n", "utf8")
+    const { config } = await loadXiraniteConfig({ configPath: path })
+    expect(config.workspace?.default).toBe("bom")
+  })
+})
+
+describe("saveXiraniteConfig", () => {
+  test("writes TOML and round-trips", async () => {
+    const dir = join(RUN_ROOT, "save-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    const original = {
+      workspace: { default: "ws" },
+      paths: { data_dir: "/data", database: "/db/x.db" },
+      nodes: {
+        linku: { enabled: true, links: [{ name: "a", source: "s", target: "t" }] },
+      },
+    }
+    const writtenPath = await saveXiraniteConfig(original, { configPath: path })
+    expect(writtenPath).toBe(path)
+
+    const { config } = await loadXiraniteConfig({ configPath: path })
+    expect(config).toEqual(original)
+  })
+})
+
+describe("getNodeConfig / updateNodeConfig", () => {
+  test("getNodeConfig returns node section", () => {
+    const config = { nodes: { linku: { enabled: true } } }
+    expect(getNodeConfig(config, "linku")).toEqual({ enabled: true })
+    expect(getNodeConfig(config, "missing")).toBeUndefined()
+  })
+
+  test("updateNodeConfig replaces node section immutably", () => {
+    const original = { nodes: { linku: { enabled: false } } }
+    const updated = updateNodeConfig(original, "linku", { enabled: true })
+    expect(updated.nodes?.linku).toEqual({ enabled: true })
+    expect(original.nodes?.linku).toEqual({ enabled: false })
+  })
+})
+
+describe("resolveNodeConfig", () => {
+  test("cli override takes precedence over xiranite config", async () => {
+    const dir = join(RUN_ROOT, "resolve-test")
+    cases.add(dir)
+    const xiranitePath = join(dir, XIRANITE_CONFIG_FILENAME)
+    const cliPath = join(dir, "cli-override.toml")
+    await mkdir(dir, { recursive: true })
+    await writeFile(xiranitePath, [
+      '[nodes.linku]',
+      'enabled = false',
+    ].join("\n"), "utf8")
+    await writeFile(cliPath, [
+      '[linku]',
+      'enabled = true',
+    ].join("\n"), "utf8")
+
+    const result = await resolveNodeConfig<{ enabled: boolean }>("linku", {
+      cliConfigPath: cliPath,
+      env: { XIRANITE_CONFIG_PATH: xiranitePath },
+      extract: (value) => {
+        const record = value as { enabled?: boolean } | undefined
+        return record?.enabled !== undefined ? { enabled: record.enabled } : undefined
+      },
+    })
+
+    expect(result.source).toBe("cli")
+    expect(result.config?.enabled).toBe(true)
+  })
+
+  test("falls back to xiranite config when no cli override", async () => {
+    const dir = join(RUN_ROOT, "fallback-test")
+    cases.add(dir)
+    const xiranitePath = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(xiranitePath, [
+      '[nodes.linku]',
+      'enabled = true',
+      '[[nodes.linku.links]]',
+      'name = "x"',
+      'source = "s"',
+      'target = "t"',
+    ].join("\n"), "utf8")
+
+    const result = await resolveNodeConfig<{ enabled: boolean }>("linku", {
+      env: { XIRANITE_CONFIG_PATH: xiranitePath },
+      extract: (value) => {
+        const record = value as { enabled?: boolean } | undefined
+        return record?.enabled !== undefined ? { enabled: record.enabled } : undefined
+      },
+    })
+
+    expect(result.source).toBe("env")
+    expect(result.config?.enabled).toBe(true)
+  })
+
+  test("returns default source when nothing found", async () => {
+    const dir = join(RUN_ROOT, "default-test", randomUUID())
+    cases.add(dir)
+    const result = await resolveNodeConfig("linku", {
+      env: { XIRANITE_DATA_DIR: dir },
+    })
+    expect(result.source).toBe("default")
+    expect(result.config).toBeUndefined()
+  })
+})
+
+describe("stripBom", () => {
+  test("strips BOM prefix", () => {
+    expect(stripBom("\uFEFFcontent")).toBe("content")
+    expect(stripBom("content")).toBe("content")
+  })
+})

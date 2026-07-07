@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process"
 import { access, mkdir, readdir, rename, cp, rm, readFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import type { SeriexDirEntry, SeriexRuntime } from "./core.js"
@@ -13,6 +14,43 @@ export function createNodeSeriexRuntime(): SeriexRuntime {
     dirname,
     basename,
   }
+}
+
+interface CommandResult {
+  code: number
+  stdout: string
+  stderr: string
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0], command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+  return ""
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return new Promise((resolveResult) => {
+    execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "utf8" }, (error, stdout, stderr) => {
+      const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
+      resolveResult({
+        code,
+        stdout: stdout ?? "",
+        stderr: stderr ?? (error instanceof Error ? error.message : ""),
+      })
+    })
+  })
 }
 
 async function exists(path: string): Promise<boolean> {

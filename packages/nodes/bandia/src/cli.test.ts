@@ -27,7 +27,7 @@ describe("bandia CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("extract --path file.zip --dryRun --json")
+    expect(host.stderrText()).toContain("xbandia extract --path <archive> --dryRun --json")
   })
 
   test("prints pure JSON dry-run compression for a real source folder", async () => {

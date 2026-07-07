@@ -5,6 +5,11 @@ import type { NetCounters, PowerMode, SleeptRuntime } from "./core.js"
 
 const execFileAsync = promisify(execFile)
 
+interface CommandResult {
+  code: number
+  stdout: string
+}
+
 let lastCpuSample = readCpuSample()
 
 export function createNodeSleeptRuntime(): SleeptRuntime {
@@ -81,6 +86,33 @@ async function executePowerAction(mode: PowerMode, dryrun: boolean): Promise<voi
   if (mode === "sleep") await execFileAsync("systemctl", ["suspend"])
   else if (mode === "shutdown") await execFileAsync("systemctl", ["poweroff"])
   else await execFileAsync("systemctl", ["reboot"])
+}
+
+export async function readClipboardText(): Promise<string> {
+  if (process.platform === "win32") {
+    const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "$ProgressPreference = 'SilentlyContinue'; Get-Clipboard -Raw"])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  if (process.platform === "darwin") {
+    const result = await runCommand("pbpaste", [])
+    return result.code === 0 ? result.stdout.trim() : ""
+  }
+
+  for (const command of [["wl-paste"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]) {
+    const result = await runCommand(command[0], command.slice(1))
+    if (result.code === 0 && result.stdout.trim()) return result.stdout.trim()
+  }
+  return ""
+}
+
+async function runCommand(command: string, args: string[]): Promise<CommandResult> {
+  return new Promise((resolveResult) => {
+    execFile(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 * 32, encoding: "utf8" }, (error, stdout) => {
+      const code = typeof (error as { code?: unknown } | null)?.code === "number" ? (error as { code: number }).code : error ? 1 : 0
+      resolveResult({ code, stdout: stdout ?? "" })
+    })
+  })
 }
 
 function readCpuSample(): { idle: number; total: number } {

@@ -1,17 +1,32 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  renderProgressBar,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  truncateVisible,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
-
-import type { MvzAction, MvzInput } from "./core.js"
+import type { MvzAction, MvzInput, MvzResult } from "./core.js"
 import { parseMvzEntries, runMvz } from "./core.js"
-import { createNodeMvzRuntime } from "./platform.js"
+import { createNodeMvzRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("mvz")
+const PREVIEW_LIMIT = 50
 
 interface MvzCliOptions {
   entry?: string
@@ -27,6 +42,19 @@ interface MvzCliOptions {
   dryRun?: boolean
   json?: boolean
 }
+
+interface MvzGuidedOptions {
+  output?: string
+  near: boolean
+  autoDir: boolean
+  flatten: boolean
+  pattern?: string
+  replacement?: string
+  dryRun: boolean
+}
+
+type GuidedAction = MvzAction | "exit"
+type EntrySource = "clipboard" | "file" | "manual" | "exit"
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -132,140 +160,298 @@ async function inputFromArgs(args: MvzCliOptions): Promise<MvzInput> {
 }
 
 async function runAction(action: MvzAction, input: MvzInput, json: boolean, host: CliHost): Promise<void> {
+  let progressActive = false
   const result = await runMvz({ ...input, action }, createNodeMvzRuntime(), (event) => {
-    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
+    if (json) return
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
+    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
+  endProgress(host, progressActive)
 
   if (json) {
     writeJson(host, result)
+    if (!result.success) process.exitCode = 1
     return
   }
 
-  writeLine(host, result.message)
-  writeLine(host, `archives=${result.data?.totalArchives ?? 0} files=${result.data?.totalFiles ?? 0} success=${result.data?.successCount ?? 0} failed=${result.data?.failedCount ?? 0}`)
-  for (const item of result.data?.preview.slice(0, 50) ?? []) writeLine(host, `plan ${item.action} ${item.count} / ${item.command}`)
-  for (const item of result.data?.results.slice(0, 50) ?? []) writeLine(host, `${item.success ? "ok" : "fail"} ${item.action} ${item.archive} / ${item.message}`)
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeMvzSummary(host, result)
   if (!result.success) process.exitCode = 1
 }
 
+function writeMvzSummary(host: CliHost, result: MvzResult): void {
+  const data = result.data
+  if (!data) return
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Summary", [
+    `action: ${data.action}`,
+    `archives: ${data.totalArchives}  files: ${data.totalFiles}`,
+    `success: ${data.successCount}  failed: ${data.failedCount}`,
+  ], { color: result.success ? "green" : "yellow", minWidth: 76 })
+
+  if (data.preview.length) {
+    writeLine(host, rich(host, "待执行命令预览：", "cyan"))
+    for (const item of data.preview.slice(0, PREVIEW_LIMIT)) {
+      const action = rich(host, item.action, "magenta")
+      const arrow = rich(host, "->", "grey")
+      const command = truncateVisible(item.command ?? "", Math.max(0, columns - 6))
+      writeLine(host, `  ${action} ${item.archive} ${arrow} ${command}`)
+    }
+    if (data.preview.length > PREVIEW_LIMIT) {
+      writeLine(host, rich(host, `  ... 还有 ${data.preview.length - PREVIEW_LIMIT} 条预览`, "grey"))
+    }
+  }
+
+  if (data.results.length) {
+    writeLine(host, rich(host, "执行结果：", "cyan"))
+    for (const item of data.results.slice(0, PREVIEW_LIMIT)) {
+      const status = item.success ? rich(host, "ok", "green") : rich(host, "fail", "red")
+      const action = rich(host, item.action, "magenta")
+      const archive = truncateVisible(item.archive, Math.max(0, columns - 8))
+      writeLine(host, `  ${status} ${action} ${archive}`)
+      if (item.message) writeLine(host, rich(host, `    ${item.message}`, "grey"))
+    }
+    if (data.results.length > PREVIEW_LIMIT) {
+      writeLine(host, rich(host, `  ... 还有 ${data.results.length - PREVIEW_LIMIT} 条结果`, "grey"))
+    }
+  }
+}
+
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `extract --entry archive.zip//file.txt --dryRun --json` for scripted use.")
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} extract --entry archive.zip//file.txt --dry-run --json\` for scripted use.`)
     process.exitCode = 2
     return
   }
-  await runInkApp(h(GuidedMvzApp, { host }))
+
+  let firstRender = true
+
+  try {
+    while (true) {
+      renderGuidedIntro(host, firstRender)
+      firstRender = false
+
+      const action = await selectAction(host)
+      if (action === "exit") {
+        writeLine(host, rich(host, "已退出。", "yellow"))
+        return
+      }
+
+      const entries = await resolveEntries(host)
+      if (!entries.length) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      const options = await resolveActionOptions(host, action)
+      if (!options) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      writeLine(host)
+      writeGuidedSummary(host, action, entries, options)
+
+      const confirmed = await confirmRich(host, `确认执行 ${action} 操作?`, !options.dryRun)
+      if (!confirmed) {
+        writeLine(host, rich(host, "操作已取消。", "yellow"))
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      await runGuidedAction(action, entries, options, host)
+
+      if (!await confirmRich(host, "继续处理其他条目?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
+      return
+    }
+    throw error
+  }
 }
 
-function GuidedMvzApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"action" | "entries" | "output" | "pattern" | "dry" | "running" | "done">("action")
-  const [action, setAction] = useState<MvzAction>("extract")
-  const [entries, setEntries] = useState("")
-  const [output, setOutput] = useState("")
-  const [pattern, setPattern] = useState("")
-  const [message, setMessage] = useState("Action: extract, move, delete, rename.")
-  const [lines, setLines] = useState<string[]>([])
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Xiranite Mvz", [
+    `${rich(host, "入口", "cyan")}  7-Zip 压缩包内文件操作工具，输入 archive.zip//internal/path 形式的条目`,
+    `${rich(host, "动作", "cyan")}  extract / move / delete / rename，按需选择输出目录、近邻、自动子目录、扁平化等选项`,
+    `${rich(host, "输入", "cyan")}  剪贴板优先；可改用文件路径或手动输入；条目格式同 findz 输出`,
+    `${rich(host, "预演", "cyan")}  默认建议先 dry-run 预览命令，确认后再实际执行`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+  writeLine(host, rich(host, `提示: scripted 模式可使用 \`${CLI_NAME} extract --entry archive.zip//file.txt --dry-run --json\`。`, "grey"))
+}
 
-  async function submit(value: string) {
-    if (step === "action") {
-      const nextAction = normalizeAction(value)
-      setAction(nextAction)
-      setMessage("Entry list: archive.zip//path.txt.")
-      setStep("entries")
-      return
-    }
-    if (step === "entries") {
-      setEntries(value)
-      if (action === "rename") {
-        setMessage("Rename regex pattern.")
-        setStep("pattern")
-      } else if (action === "extract" || action === "move") {
-        setMessage("Output directory, blank means near archive.")
-        setStep("output")
-      } else {
-        setMessage("Dry-run? yes/no.")
-        setStep("dry")
-      }
-      return
-    }
-    if (step === "pattern") {
-      setPattern(value)
-      setMessage("Dry-run? yes/no.")
-      setStep("dry")
-      return
-    }
-    if (step === "output") {
-      setOutput(value)
-      setMessage("Dry-run? yes/no.")
-      setStep("dry")
-      return
-    }
-    await execute(!/^n(o)?$/i.test(value))
-  }
-
-  async function execute(dryRun: boolean) {
-    setStep("running")
-    setMessage("Running...")
-    const result = await runMvz({
-      action,
-      fileText: entries,
-      output: output || undefined,
-      near: !output,
-      autoDir: true,
-      pattern,
-      replacement: "",
-      dryRun,
-    }, createNodeMvzRuntime(), (event) => {
-      setLines((current) => [...current.slice(-8), event.message])
-    })
-    setLines((current) => [...current.slice(-8), result.message])
-    writeLine(host, result.message)
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
-  }
-
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) app.exit()
-  })
-
-  return h(
-    Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "mvz guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    h(Text, { color: "gray" }, `${parseMvzEntries(entries).length} entr${parseMvzEntries(entries).length === 1 ? "y" : "ies"}`),
-    ...lines.map((line, index) => h(Text, { key: `${index}:${line}`, color: "gray" }, line)),
+async function selectAction(host: CliHost): Promise<GuidedAction> {
+  return await selectRich<GuidedAction>(
+    host,
+    "选择要执行的动作",
+    [
+      { value: "extract", label: "extract", hint: "从压缩包中提取匹配文件" },
+      { value: "move", label: "move", hint: "提取后从压缩包删除原文件" },
+      { value: "delete", label: "delete", hint: "从压缩包中删除匹配文件" },
+      { value: "rename", label: "rename", hint: "使用正则重命名压缩包内文件" },
+      { value: "exit", label: "exit", hint: "离开引导模式" },
+    ],
+    { initialValue: "extract", maxItems: 5 },
   )
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
-      return
+async function resolveEntries(host: CliHost): Promise<string[]> {
+  const source = await selectRich<EntrySource>(
+    host,
+    "选择条目输入方式",
+    [
+      { value: "clipboard", label: "从剪贴板读取条目", hint: "复制的多行 archive//path" },
+      { value: "file", label: "从文本文件读取条目", hint: "输入文件路径" },
+      { value: "manual", label: "手动输入条目", hint: "每行一个，可分号或逗号分隔" },
+      { value: "exit", label: "退出", hint: "不执行任何操作" },
+    ],
+    { initialValue: "clipboard", maxItems: 4 },
+  )
+
+  if (source === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return []
+  }
+
+  if (source === "clipboard") {
+    const text = (await readClipboardText()).trim()
+    if (!text) {
+      writeRichPanel(host, "Clipboard", "剪贴板为空，请改用文件或手动输入。", { color: "yellow", minWidth: 48 })
+      return []
     }
-    if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
-    else if (!key.ctrl && input) setValue((current) => current + input)
-  })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+    const entries = splitArg(text)
+    writeLine(host, rich(host, `已从剪贴板读取 ${entries.length} 行。`, "yellow"))
+    return entries
+  }
+
+  if (source === "file") {
+    const answer = (await promptRich(host, "输入包含条目的文本文件路径", "")).trim()
+    if (!answer) {
+      writeLine(host, rich(host, "未输入文件路径。", "yellow"))
+      return []
+    }
+    try {
+      const text = await readFile(answer, "utf8")
+      const entries = splitArg(text)
+      writeLine(host, rich(host, `已从文件读取 ${entries.length} 行。`, "yellow"))
+      return entries
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      writeRichPanel(host, "File", `读取文件失败: ${message}`, { color: "red", minWidth: 48 })
+      return []
+    }
+  }
+
+  const answer = (await promptRich(host, "输入条目，用换行、分号或逗号分隔", "")).trim()
+  if (!answer) {
+    writeLine(host, rich(host, "未输入任何条目。", "yellow"))
+    return []
+  }
+  return splitArg(answer)
 }
 
-function normalizeAction(value: string): MvzAction {
-  const action = value.trim().toLowerCase()
-  if (action === "delete" || action === "del") return "delete"
-  if (action === "move" || action === "mv") return "move"
-  if (action === "rename" || action === "rn") return "rename"
-  return "extract"
+async function resolveActionOptions(host: CliHost, action: MvzAction): Promise<MvzGuidedOptions | null> {
+  let output: string | undefined
+  let near = false
+  let autoDir = false
+  let flatten = false
+  let pattern: string | undefined
+  let replacement: string | undefined
+
+  if (action === "extract" || action === "move") {
+    const outputAnswer = (await promptRich(host, "输出目录 (留空表示近邻压缩包)", "")).trim()
+    if (outputAnswer) {
+      output = outputAnswer
+      near = false
+    } else {
+      near = true
+    }
+    autoDir = await confirmRich(host, "为每个压缩包创建以压缩包名命名的子目录?", true)
+    flatten = await confirmRich(host, "扁平化提取 (使用 7z e，忽略内部目录结构)?", false)
+  }
+
+  if (action === "rename") {
+    const patternAnswer = (await promptRich(host, "输入正则匹配模式", "")).trim()
+    if (!patternAnswer) {
+      writeRichPanel(host, "Pattern", "未输入正则模式。", { color: "red", minWidth: 48 })
+      return null
+    }
+    pattern = patternAnswer
+    replacement = (await promptRich(host, "输入替换文本 (可留空)", "")).trim() || ""
+  }
+
+  const dryRun = await confirmRich(host, "使用 dry-run 预演命令 (不实际执行 7-Zip)?", action === "rename" || action === "delete")
+
+  return { output, near, autoDir, flatten, pattern, replacement, dryRun }
+}
+
+function writeGuidedSummary(host: CliHost, action: MvzAction, entries: string[], options: MvzGuidedOptions): void {
+  const parsed = parseMvzEntries(entries)
+  const archives = new Set(parsed.map((entry) => entry.archivePath)).size
+  const columns = terminalColumns(host)
+  const lines = [
+    `${rich(host, "动作", "cyan")}  ${action}`,
+    `${rich(host, "条目", "cyan")}  ${parsed.length} 条 / ${archives} 个压缩包`,
+  ]
+  if (action === "extract" || action === "move") {
+    lines.push(`${rich(host, "输出", "cyan")}  ${options.output ?? (options.near ? "<近邻压缩包>" : "<当前目录>")}`)
+    lines.push(`${rich(host, "选项", "cyan")}  near=${options.near}  autoDir=${options.autoDir}  flatten=${options.flatten}`)
+  }
+  if (action === "rename") {
+    lines.push(`${rich(host, "模式", "cyan")}  ${options.pattern ?? ""}`)
+    lines.push(`${rich(host, "替换", "cyan")}  ${options.replacement === "" ? "<空字符串>" : options.replacement}`)
+  }
+  lines.push(`${rich(host, "预演", "cyan")}  ${options.dryRun ? "是 (仅展示命令)" : "否 (实际执行 7-Zip)"}`)
+  writeRichPanel(host, "将执行以下操作", lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+}
+
+async function runGuidedAction(action: MvzAction, entries: string[], options: MvzGuidedOptions, host: CliHost): Promise<void> {
+  const input: MvzInput = {
+    action,
+    files: entries,
+    output: options.output,
+    near: options.near,
+    autoDir: options.autoDir,
+    flatten: options.flatten,
+    pattern: options.pattern,
+    replacement: options.replacement,
+    dryRun: options.dryRun,
+  }
+  await runAction(action, input, false, host)
 }
 
 function splitArg(value?: string, seed: string[] = []): string[] {
   return [...seed, ...(value ?? "").split(/[,;\r\n]/)].map((item) => item.trim()).filter(Boolean)
 }
 
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active: boolean): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

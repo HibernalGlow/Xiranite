@@ -101,9 +101,9 @@ export function TopBar() {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const runtimeInfo = getRuntimeConnectionInfo()
-  const showWindowControls = runtimeInfo.hostRuntime === "wails"
   const activeOperations = useNodeOperations((store) => activeNodeOperationCount(store.operations))
-  const { controlMain, controlMainPending } = useWindowControls()
+  const { capabilities, controlMain, controlMainPending } = useWindowControls()
+  const showWindowControls = capabilities?.nativeWindowControls === true
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {

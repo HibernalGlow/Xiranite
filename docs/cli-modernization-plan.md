@@ -48,6 +48,28 @@ CLI guided mode 的目标不是给所有命令套同一个 `Entry / Run / Script
 - [x] `rawfilter` 已从过渡 Ink 迁到 Clack：参考 repacku `GUIDED_TASKS` 模式，内置 5 个任务（basic / name-only / trash-only / shortcuts / plan-only），剪贴板优先，path 直粘优先；10/10 测试通过。
 - [x] `marku` 已从过渡 Ink 迁到 Clack：复刻原版 `_interactive_wizard` 体验，`selectRich` 选模块 + `selectRich` 选模式（files/text/exit）+ 剪贴板优先；移除所有 Ink/React 导入；11/11 测试通过。
 - [x] `cleanf` 已从过渡 Ink 迁到 Clack：复刻原版 `run_interactive` 体验，core 新增 `PRESET_COMBINATIONS`（advanced/upscale/complete）+ `CleanfPresetCombination` 接口；guided 流程为路径选择（剪贴板/手动）→ 模式选择（预设组合/自定义序号/默认）→ 排除关键词 → 最终确认 → 先 preview 后删除，preview 含统计面板；8/8 测试通过。
+- [x] 第二批 6 节点已从 Ink 迁到 Clack，全部按各自原版 Python 源码体验复刻 guided 流程：
+  - `crashu` 10/10：4 任务（scan/plan/move-to-source/move-to-target），auto_dir 剪贴板优先，默认阈值 0.8/方向 to_source/冲突 skip，移动前 confirmRich 安全门。
+  - `migratef` 10/10：5 任务（preserve-move/flat-move/direct-move/direct-copy/classify-auto），剪贴板优先路径收集 + Rich Table 预览，默认目标 `E:\1Hub\EH\2EHV`，模式/操作 selectRich。
+  - `findz` 12/12：7 类过滤器类型选择（size/name/date/ext/type/archive/custom）+ all，Query Summary 面板 + 执行前 confirmRich，结果计数 + 错误聚合面板。
+  - `movea` 11/11：4 任务（scan/match/move-single/move-all），move-all 含二次确认安全门，Summary 输出 folders/archives/movable/moved/failed。
+  - `formatv` 9/9：4 任务（scan/add-nov/remove-nov/duplicates），剪贴板优先路径 + 递归确认 + Summary（normal/nov/duplicates/prefixedLarger）。
+  - `encodeb` 9/9：3 任务（find/preview/recover），预设选择（cn/jp/jp_from_cn/custom）+ 策略选择（replace/copy）+ recover 前 confirmRich 确认。
+- [x] 第三批 4 节点已从 Ink 迁到 Clack：
+  - `scoolp` 10/10：4 任务（status/list/sync/cache-list），sync 默认 dry-run，剪贴板优先路径。
+  - `recycleu` 8/8：2 任务（auto-clean/clean-now），auto-clean 复刻原版定时清理循环，可配置间隔与循环次数。
+  - `linku` 9/9：5 任务（info/create/move-link/list/recover），剪贴板优先 + pathInfo 校验。
+  - `owithu` 8/8：3 任务（preview/register/unregister），默认配置检测 + Hive 选择 + 条目序号/key 选择 + 二次确认。
+- [x] 第四批 8 节点已从 Ink 迁到 Clack：
+  - `trename` 15/15：4 任务（scan/rename/undo/history），复刻原版 dry-run 预览 → 确认 → execute 流程。
+  - `seriex` 10/10：复刻原版 `interactive()` 流程，路径源选择 + 可选相似度参数 + TOML 配置 + 自定义前缀 + 系列目录 + plan/execute 树形预览。
+  - `kavvka` 10/10：4 子命令（scan/plan/process/guided），剪贴板优先 + 关键词/深度参数 + strictArtist 选项 + Czkawka 路径生成。
+  - `dissolvef` 13/13：7 任务（media/nested/archive/all/direct/collect-archives/exit），复刻原版 `run_interactive` 全流程（媒体类别/冲突处理/排除关键词/一级保护/相似度/黑名单/预览确认）。
+  - `bandia` 11/11：5 任务（extract/compress/repack/export-efu/exit），复刻原版 Python 默认值（前缀/冲突/删除/回收站/并行）+ Rich Table 预览 + path_mappings JSON 输出。
+  - `mvz` 13/13：4 任务（extract/move/delete/rename），复刻原版 `--input/-i`/`--clipboard`/stdin 三种入口 + pattern/replacement 参数。
+  - `enginev` 10/10：5 任务（scan/filter/rename/delete/export），复刻原版 Streamlit UI 的预览/执行双按钮设计 + 统计面板。
+  - `sleept` 10/10：6 模式（countdown/at/netspeed/cpu/status/exit），剪贴板优先预填日期时间 + 电源动作选择 + dry-run 预览。
+- [x] 全部 18 个节点 cli.ts 已无 Ink/React 残留（`from "ink"` / `from "react"` / `canRunInkApp` / `runInkApp` 全部清零，grep 验证通过）。
 - [ ] 每个新增 CLI 测试必须通过 `runProgram()` 或等价导出入口走真实 CLI 解析，真实文件 fixture 放在 `artifacts/test-runs/<node>` 并清理。
 - [x] 当前测试矩阵为 24/24 complete；严格审计、包测试、构建与 Chromium desktop Playwright 真实点击回归均已通过；当前全仓 Vitest 为 91/91 files、270/270 tests。
 - [ ] 每个新增 Component 测试必须用 React Testing Library + happy-dom 渲染无壳 Component，验证输入、按钮、`host.actions.run`、进度/日志/result 写回。

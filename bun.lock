@@ -183,6 +183,18 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/config": {
+      "name": "@xiranite/config",
+      "version": "0.1.0",
+      "dependencies": {
+        "smol-toml": "^1.3.0",
+        "zod": "^3.23.8",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+      },
+    },
     "packages/contract": {
       "name": "@xiranite/contract",
       "version": "0.1.0",
@@ -201,6 +213,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -245,6 +258,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -267,6 +281,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -312,6 +327,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -334,6 +350,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -356,6 +373,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -400,6 +418,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "yaml": "^2.8.2",
@@ -445,6 +464,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -467,6 +487,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -489,6 +510,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -555,6 +577,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "smol-toml": "^1.7.0",
@@ -622,6 +645,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -644,6 +668,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
         "smol-toml": "^1.7.0",
@@ -667,6 +692,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -711,6 +737,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/ui": "workspace:*",
       },
@@ -1371,6 +1398,8 @@
     "@xiranite/cli": ["@xiranite/cli@workspace:packages/cli"],
 
     "@xiranite/cli-runtime": ["@xiranite/cli-runtime@workspace:packages/cli-runtime"],
+
+    "@xiranite/config": ["@xiranite/config@workspace:packages/config"],
 
     "@xiranite/contract": ["@xiranite/contract@workspace:packages/contract"],
 
@@ -2181,6 +2210,8 @@
     "@tiptap/react/@types/use-sync-external-store": ["@types/use-sync-external-store@0.0.6", "https://registry.npmmirror.com/@types/use-sync-external-store/-/use-sync-external-store-0.0.6.tgz", {}, "sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg=="],
 
     "@vitest/expect/@standard-schema/spec": ["@standard-schema/spec@1.1.0", "https://registry.npmmirror.com/@standard-schema/spec/-/spec-1.1.0.tgz", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@xiranite/config/zod": ["zod@3.25.76", "https://registry.npmmirror.com/zod/-/zod-3.25.76.tgz", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "ansi-align/string-width": ["string-width@4.2.3", "https://registry.npmmirror.com/string-width/-/string-width-4.2.3.tgz", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
 

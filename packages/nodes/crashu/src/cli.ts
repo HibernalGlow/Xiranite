@@ -19,6 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
 
 import type { CrashuAction, CrashuConflictPolicy, CrashuInput, CrashuMoveDirection } from "./core.js"
 import { runCrashu } from "./core.js"
@@ -44,6 +45,21 @@ interface CrashuCliOptions {
   pairsFileName?: string
   dryRun?: boolean
   json?: boolean
+}
+
+interface CrashuNodeConfig {
+  enabled?: boolean
+  output?: {
+    pairs_file_name?: string
+    directory?: string
+    overwrite?: boolean
+  }
+}
+
+interface CrashuOutputDefaults {
+  pairsFileName: string
+  directory?: string
+  overwrite: boolean
 }
 
 interface GuidedTask {
@@ -118,6 +134,31 @@ function createDefaultHost(): CliHost {
   }
 }
 
+/**
+ * Resolve crashu default output parameters from xiranite.config.toml [nodes.crashu.output].
+ * Falls back to hardcoded defaults when the config file or section is missing.
+ */
+async function resolveCrashuDefaults(host: CliHost): Promise<CrashuOutputDefaults> {
+  const fallback: CrashuOutputDefaults = {
+    pairsFileName: DEFAULT_PAIRS_FILE,
+    directory: undefined,
+    overwrite: false,
+  }
+  try {
+    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
+    const nodeConfig = getNodeConfig<CrashuNodeConfig>(config, "crashu")
+    const output = nodeConfig?.output
+    if (!output) return fallback
+    return {
+      pairsFileName: output.pairs_file_name ?? DEFAULT_PAIRS_FILE,
+      directory: output.directory,
+      overwrite: output.overwrite ?? false,
+    }
+  } catch {
+    return fallback
+  }
+}
+
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: { name: CLI_NAME, description: "Folder similarity matcher with guided terminal mode." },
@@ -126,28 +167,32 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Find similar folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs(args as CrashuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveCrashuDefaults(host)
+          await runAction({ action: "scan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       plan: defineCommand({
         meta: { name: "plan", description: "Preview move operations." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as CrashuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveCrashuDefaults(host)
+          await runAction({ action: "plan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move matched folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "move", ...inputFromArgs(args as CrashuCliOptions), autoMove: true }, Boolean(args.json), host)
+          const defaults = await resolveCrashuDefaults(host)
+          await runAction({ action: "move", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
       execute: defineCommand({
         meta: { name: "execute", description: "Alias for move." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "execute", ...inputFromArgs(args as CrashuCliOptions), autoMove: true }, Boolean(args.json), host)
+          const defaults = await resolveCrashuDefaults(host)
+          await runAction({ action: "execute", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -178,17 +223,17 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: CrashuCliOptions): CrashuInput {
+function inputFromArgs(args: CrashuCliOptions, defaults: CrashuOutputDefaults): CrashuInput {
   return {
     sourcePaths: splitArg(args.sourcePaths, args.source ? [args.source] : []),
     targetPath: args.targetPath,
     targetNames: splitArg(args.targetNames),
-    destinationPath: args.destinationPath,
+    destinationPath: args.destinationPath ?? defaults.directory,
     similarityThreshold: numberArg(args.similarityThreshold ?? args.threshold),
     autoMove: args.autoMove,
     moveDirection: isDirection(args.moveDirection) ? args.moveDirection : undefined,
-    conflictPolicy: isConflict(args.conflictPolicy) ? args.conflictPolicy : undefined,
-    pairsFileName: args.pairsFileName,
+    conflictPolicy: resolveConflictPolicy(args.conflictPolicy, defaults.overwrite),
+    pairsFileName: args.pairsFileName ?? defaults.pairsFileName,
     dryRun: args.dryRun,
   }
 }
@@ -388,13 +433,14 @@ async function resolveGuidedPaths(host: CliHost, runtime: CrashuRuntimeLike): Pr
 }
 
 async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost): Promise<boolean> {
+  const defaults = await resolveCrashuDefaults(host)
   const targetPath = paths[0]!
   const sourcePaths = paths
   let destinationPath: string | undefined
   let threshold = DEFAULT_THRESHOLD
 
   if (task.autoMove) {
-    destinationPath = (await promptRich(host, "destinationPath（移动目标根目录）", DEFAULT_DESTINATION_PATH)).trim() || undefined
+    destinationPath = (await promptRich(host, "destinationPath（移动目标根目录）", defaults.directory ?? DEFAULT_DESTINATION_PATH)).trim() || undefined
     const thresholdInput = await promptRich(host, "相似度阈值 (0-1)", String(DEFAULT_THRESHOLD))
     const parsed = Number(thresholdInput)
     if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) threshold = parsed
@@ -414,8 +460,8 @@ async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost): 
     similarityThreshold: threshold,
     autoMove: task.autoMove,
     moveDirection: task.moveDirection,
-    conflictPolicy: "skip",
-    pairsFileName: DEFAULT_PAIRS_FILE,
+    conflictPolicy: defaults.overwrite ? "overwrite" : "skip",
+    pairsFileName: defaults.pairsFileName,
   }
   return await runAction(input, false, host)
 }
@@ -459,6 +505,12 @@ function isDirection(value?: string): value is CrashuMoveDirection {
 
 function isConflict(value?: string): value is CrashuConflictPolicy {
   return value === "skip" || value === "overwrite" || value === "rename"
+}
+
+function resolveConflictPolicy(value: string | undefined, overwriteDefault: boolean): CrashuConflictPolicy | undefined {
+  if (isConflict(value)) return value
+  if (value === undefined && overwriteDefault) return "overwrite"
+  return undefined
 }
 
 function writeProgress(host: CliHost, line: string): void {

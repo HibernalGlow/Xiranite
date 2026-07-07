@@ -1,16 +1,48 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  renderProgressBar,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
-
-import type { PowerMode, SleeptAction, SleeptInput } from "./core.js"
+import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult } from "./core.js"
 import { runSleept } from "./core.js"
-import { createNodeSleeptRuntime } from "./platform.js"
+import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("sleept")
+
+type GuidedAction = "countdown" | "specific_time" | "netspeed" | "cpu" | "status" | "exit"
+type PowerChoice = PowerMode | "exit"
+type TriggerChoice = NetTriggerMode | "exit"
+
+interface SleeptCliOptions {
+  hours?: string
+  minutes?: string
+  seconds?: string
+  target?: string
+  upload?: string
+  download?: string
+  duration?: string
+  trigger?: string
+  threshold?: string
+  power?: string
+  dryrun?: boolean
+  json?: boolean
+}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -27,26 +59,22 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     await runGuided(host)
     return
   }
-
   await runMain(createProgram(host), { rawArgs: args })
 }
 
 function createDefaultHost(): CliHost {
   return {
-  cwd: process.cwd(),
-  env: process.env,
-  stdin: process.stdin,
-  stdout: process.stdout,
-  stderr: process.stderr,
+    cwd: process.cwd(),
+    env: process.env,
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
   }
 }
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: {
-      name: CLI_NAME,
-      description: "Timer CLI with Typer-style commands and an Ink guided mode.",
-    },
+    meta: { name: CLI_NAME, description: "System timer CLI with subcommands and a Clack guided mode." },
     subCommands: {
       status: defineCommand({
         meta: { name: "status", description: "Print current system status." },
@@ -59,7 +87,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "countdown", description: "Run a countdown timer." },
         args: timerArgs(),
         async run({ args }) {
-          await runAction(inputFromArgs("countdown", args), Boolean(args.json), host)
+          await runAction(inputFromCountdownArgs(args as SleeptCliOptions), Boolean(args.json), host)
         },
       }),
       at: defineCommand({
@@ -71,12 +99,16 @@ function createProgram(host: CliHost = createDefaultHost()) {
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
-          await runAction({
-            action: "specific_time",
-            targetDatetime: String(args.target),
-            powerMode: powerMode(args.power),
-            dryrun: Boolean(args.dryrun),
-          }, Boolean(args.json), host)
+          await runAction(
+            {
+              action: "specific_time",
+              targetDatetime: String(args.target),
+              powerMode: powerMode(args.power),
+              dryrun: Boolean(args.dryrun),
+            },
+            Boolean(args.json),
+            host,
+          )
         },
       }),
       netspeed: defineCommand({
@@ -91,15 +123,19 @@ function createProgram(host: CliHost = createDefaultHost()) {
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
-          await runAction({
-            action: "netspeed",
-            uploadThreshold: Number(args.upload),
-            downloadThreshold: Number(args.download),
-            netDuration: Number(args.duration),
-            netTriggerMode: args.trigger === "any" ? "any" : "both",
-            powerMode: powerMode(args.power),
-            dryrun: Boolean(args.dryrun),
-          }, Boolean(args.json), host)
+          await runAction(
+            {
+              action: "netspeed",
+              uploadThreshold: Number(args.upload),
+              downloadThreshold: Number(args.download),
+              netDuration: Number(args.duration),
+              netTriggerMode: args.trigger === "any" ? "any" : "both",
+              powerMode: powerMode(args.power),
+              dryrun: Boolean(args.dryrun),
+            },
+            Boolean(args.json),
+            host,
+          )
         },
       }),
       cpu: defineCommand({
@@ -112,33 +148,27 @@ function createProgram(host: CliHost = createDefaultHost()) {
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
-          await runAction({
-            action: "cpu",
-            cpuThreshold: Number(args.threshold),
-            cpuDuration: Number(args.duration),
-            powerMode: powerMode(args.power),
-            dryrun: Boolean(args.dryrun),
-          }, Boolean(args.json), host)
+          await runAction(
+            {
+              action: "cpu",
+              cpuThreshold: Number(args.threshold),
+              cpuDuration: Number(args.duration),
+              powerMode: powerMode(args.power),
+              dryrun: Boolean(args.dryrun),
+            },
+            Boolean(args.json),
+            host,
+          )
         },
       }),
       guided: defineCommand({
-        meta: { name: "guided", description: "Open the rich guided terminal workflow." },
+        meta: { name: "guided", description: "Open the Clack guided terminal workflow." },
         async run() {
           await runGuided(host)
         },
       }),
     },
   })
-}
-
-async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `status --help` for scripted use.")
-    process.exitCode = 2
-    return
-  }
-
-  await runInkApp(h(GuidedSleeptApp, { host }))
 }
 
 function timerArgs() {
@@ -152,132 +182,321 @@ function timerArgs() {
   } as const
 }
 
-function inputFromArgs(action: SleeptAction, args: Record<string, unknown>): SleeptInput {
+function inputFromCountdownArgs(args: SleeptCliOptions): SleeptInput {
   return {
-    action,
-    hours: Number(args.hours ?? 0),
-    minutes: Number(args.minutes ?? 0),
-    seconds: Number(args.seconds ?? 5),
+    action: "countdown",
+    hours: nonNegativeNumber(args.hours, 0),
+    minutes: nonNegativeNumber(args.minutes, 0),
+    seconds: nonNegativeNumber(args.seconds, 5),
     powerMode: powerMode(args.power),
-    dryrun: Boolean(args.dryrun),
+    dryrun: Boolean(args.dryrun ?? true),
   }
 }
 
 async function runAction(input: SleeptInput, json: boolean, host: CliHost): Promise<void> {
   const runtime = createNodeSleeptRuntime()
+  let progressActive = false
   const result = await runSleept(input, runtime, json ? undefined : (event) => {
     if (event.type === "progress") {
-      writeCliEvent(host, event, { label: CLI_NAME })
-    } else {
-      writeLine(host, event.message)
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
     }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
+  endProgress(host, progressActive)
 
   if (json) {
     writeJson(host, result)
+    if (!result.success) process.exitCode = 1
     return
   }
 
-  writeLine(host, result.message)
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  if (!result.success) process.exitCode = 1
 }
 
 function powerMode(value: unknown): PowerMode {
   return value === "shutdown" || value === "restart" ? value : "sleep"
 }
 
-function GuidedSleeptApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"mode" | "seconds" | "power" | "dryrun" | "running" | "done">("mode")
-  const [mode, setMode] = useState<SleeptAction>("countdown")
-  const [seconds, setSeconds] = useState(5)
-  const [power, setPower] = useState<PowerMode>("sleep")
-  const [dryrun, setDryrun] = useState(true)
-  const [message, setMessage] = useState("Choose mode: 1 countdown, 2 status.")
-  const [lines, setLines] = useState<string[]>([])
-
-  async function submit(value: string) {
-    if (step === "mode") {
-      if (value === "2" || value.toLowerCase() === "status") {
-        setMode("get_stats")
-        setStep("running")
-        await execute({ action: "get_stats" })
-        return
-      }
-      setMode("countdown")
-      setStep("seconds")
-      setMessage("Countdown seconds.")
-      return
-    }
-
-    if (step === "seconds") {
-      setSeconds(Number(value) || 5)
-      setStep("power")
-      setMessage("Power action: sleep, shutdown, restart.")
-      return
-    }
-
-    if (step === "power") {
-      setPower(powerMode(value))
-      setStep("dryrun")
-      setMessage("Dry-run? yes/no.")
-      return
-    }
-
-    if (step === "dryrun") {
-      const nextDryrun = !["n", "no", "false", "0"].includes(value.toLowerCase())
-      setDryrun(nextDryrun)
-      setStep("running")
-      await execute({ action: mode, seconds, powerMode: power, dryrun: nextDryrun })
-    }
-  }
-
-  async function execute(input: SleeptInput) {
-    const runtime = createNodeSleeptRuntime()
-    setMessage("Running...")
-    const result = await runSleept(input, runtime, (event) => {
-      setLines((current) => [...current.slice(-8), `[${event.progress ?? 0}%] ${event.message}`])
-    })
-    setLines((current) => [...current.slice(-8), result.message])
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
-    writeLine(host, result.message)
-  }
-
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) {
-      app.exit()
-    }
-  })
-
-  return h(
-    Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "sleept guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    ...lines.map((line) => h(Text, { key: line, color: "gray" }, line)),
-  )
+function nonNegativeNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback
+  return parsed
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
+// --- Guided flow ---
+
+async function runGuided(host: CliHost): Promise<void> {
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} status --json\` for scripted use.`)
+    process.exitCode = 2
+    return
+  }
+
+  let firstRender = true
+  try {
+    while (true) {
+      renderGuidedIntro(host, firstRender)
+      firstRender = false
+
+      const action = await resolveAction(host)
+      if (!action) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      const input = await buildInputForAction(host, action)
+      if (!input) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      await runGuidedAction(input, host)
+
+      if (!await confirmRich(host, "继续选择其他定时任务?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
       return
     }
-    if (key.backspace || key.delete) {
-      setValue((current) => current.slice(0, -1))
+    throw error
+  }
+}
+
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Xiranite Sleept", [
+    `${rich(host, "入口", "cyan")}  系统定时器，支持倒计时、定时、网速与 CPU 触发关机`,
+    `${rich(host, "执行", "cyan")}  直接调用 sleept core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "默认", "cyan")}  dry-run 模式仅模拟电源动作；需要真实关机请在确认步骤关闭`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+  writeLine(host, rich(host, `提示: guided 默认 dry-run；脚本化使用请用 \`${CLI_NAME} status --json\` 或 \`${CLI_NAME} countdown --json\`。`, "grey"))
+}
+
+async function resolveAction(host: CliHost): Promise<GuidedAction | null> {
+  const choice = await selectRich<GuidedAction>(
+    host,
+    "选择定时模式",
+    [
+      { value: "countdown", label: "倒计时", hint: "小时:分钟:秒后触发" },
+      { value: "specific_time", label: "定时", hint: "指定日期时间触发" },
+      { value: "netspeed", label: "网速", hint: "持续低速网络触发" },
+      { value: "cpu", label: "CPU", hint: "持续低 CPU 触发" },
+      { value: "status", label: "状态", hint: "查看当前 CPU 与网速" },
+      { value: "exit", label: "退出", hint: "不执行任何操作" },
+    ],
+    { initialValue: "countdown", maxItems: 6 },
+  )
+
+  if (choice === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return null
+  }
+  return choice
+}
+
+async function buildInputForAction(host: CliHost, action: GuidedAction): Promise<SleeptInput | null> {
+  if (action === "status") {
+    return { action: "get_stats" }
+  }
+  if (action === "exit") {
+    return null
+  }
+
+  let input: SleeptInput = { action }
+
+  if (action === "countdown") {
+    const hours = await promptRich(host, "倒计时小时数", "0")
+    const minutes = await promptRich(host, "倒计时分钟数", "0")
+    const seconds = await promptRich(host, "倒计时秒数", "5")
+    input = {
+      ...input,
+      hours: nonNegativeNumber(hours, 0),
+      minutes: nonNegativeNumber(minutes, 0),
+      seconds: nonNegativeNumber(seconds, 5),
+    }
+  } else if (action === "specific_time") {
+    const clipboardText = (await readClipboardText()).trim()
+    const defaultTarget = looksLikeDatetime(clipboardText) ? clipboardText : ""
+    const target = await promptRich(host, "目标时间 (YYYY-MM-DD HH:MM:SS)", defaultTarget)
+    if (!target) {
+      writeRichPanel(host, "Target", "未提供目标时间。", { color: "yellow", minWidth: 40 })
+      return null
+    }
+    input = { ...input, targetDatetime: target }
+  } else if (action === "netspeed") {
+    const upload = await promptRich(host, "上传阈值 (KB/s)", "242")
+    const download = await promptRich(host, "下载阈值 (KB/s)", "242")
+    const duration = await promptRich(host, "持续低速时长 (分钟)", "2")
+    const trigger = await selectRich<TriggerChoice>(
+      host,
+      "触发条件",
+      [
+        { value: "both", label: "全部满足", hint: "上传与下载同时低于阈值" },
+        { value: "any", label: "任一满足", hint: "上传或下载低于阈值" },
+        { value: "exit", label: "退出", hint: "取消本次操作" },
+      ],
+      { initialValue: "both", maxItems: 3 },
+    )
+    if (trigger === "exit") {
+      writeLine(host, rich(host, "已退出。", "yellow"))
+      return null
+    }
+    input = {
+      ...input,
+      uploadThreshold: nonNegativeNumber(upload, 242),
+      downloadThreshold: nonNegativeNumber(download, 242),
+      netDuration: nonNegativeNumber(duration, 2),
+      netTriggerMode: trigger,
+    }
+  } else if (action === "cpu") {
+    const threshold = await promptRich(host, "CPU 阈值百分比", "10")
+    const duration = await promptRich(host, "持续低 CPU 时长 (分钟)", "2")
+    input = {
+      ...input,
+      cpuThreshold: nonNegativeNumber(threshold, 10),
+      cpuDuration: nonNegativeNumber(duration, 2),
+    }
+  }
+
+  const power = await selectPowerMode(host)
+  if (!power) return null
+  input = { ...input, powerMode: power }
+
+  const dryrun = await confirmRich(host, "使用 dry-run 模拟电源动作?", true)
+  input = { ...input, dryrun }
+
+  writeLine(host)
+  writeSelectedPlan(host, input)
+
+  const confirmed = await confirmRich(host, "确认开始执行?", true)
+  if (!confirmed) {
+    writeLine(host, rich(host, "操作已取消。", "yellow"))
+    return null
+  }
+  return input
+}
+
+async function selectPowerMode(host: CliHost): Promise<PowerMode | null> {
+  const choice = await selectRich<PowerChoice>(
+    host,
+    "选择电源动作",
+    [
+      { value: "sleep", label: "休眠", hint: "SetSuspendState" },
+      { value: "shutdown", label: "关机", hint: "shutdown /s" },
+      { value: "restart", label: "重启", hint: "shutdown /r" },
+      { value: "exit", label: "退出", hint: "取消本次操作" },
+    ],
+    { initialValue: "sleep", maxItems: 4 },
+  )
+  if (choice === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return null
+  }
+  return choice
+}
+
+function writeSelectedPlan(host: CliHost, input: SleeptInput): void {
+  const columns = terminalColumns(host)
+  const lines: string[] = []
+  lines.push(`${rich(host, "模式", "cyan")}  ${describeAction(input.action)}`)
+  if (input.action === "countdown") {
+    lines.push(`${rich(host, "时长", "cyan")}  ${formatHms(input.hours ?? 0, input.minutes ?? 0, input.seconds ?? 0)}`)
+  } else if (input.action === "specific_time") {
+    lines.push(`${rich(host, "目标", "cyan")}  ${input.targetDatetime ?? ""}`)
+  } else if (input.action === "netspeed") {
+    lines.push(`${rich(host, "上传", "cyan")}  ${input.uploadThreshold ?? 242} KB/s`)
+    lines.push(`${rich(host, "下载", "cyan")}  ${input.downloadThreshold ?? 242} KB/s`)
+    lines.push(`${rich(host, "持续", "cyan")}  ${input.netDuration ?? 2} 分钟`)
+    lines.push(`${rich(host, "触发", "cyan")}  ${input.netTriggerMode === "any" ? "任一满足" : "全部满足"}`)
+  } else if (input.action === "cpu") {
+    lines.push(`${rich(host, "阈值", "cyan")}  ${input.cpuThreshold ?? 10}%`)
+    lines.push(`${rich(host, "持续", "cyan")}  ${input.cpuDuration ?? 2} 分钟`)
+  }
+  lines.push(`${rich(host, "电源", "cyan")}  ${describePower(input.powerMode ?? "sleep")}`)
+  lines.push(`${rich(host, "演练", "cyan")}  ${input.dryrun ? "dry-run 模拟" : "真实执行"}`)
+  writeRichPanel(host, "即将执行", lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+}
+
+function describeAction(action: SleeptAction | undefined): string {
+  switch (action) {
+    case "countdown": return "倒计时触发"
+    case "specific_time": return "定时触发"
+    case "netspeed": return "网速触发"
+    case "cpu": return "CPU 触发"
+    case "status":
+    case "get_stats": return "查看状态"
+    default: return "未知模式"
+  }
+}
+
+function describePower(mode: PowerMode): string {
+  return mode === "shutdown" ? "关机" : mode === "restart" ? "重启" : "休眠"
+}
+
+function formatHms(hours: number, minutes: number, seconds: number): string {
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+}
+
+function looksLikeDatetime(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(value.trim())
+}
+
+async function runGuidedAction(input: SleeptInput, host: CliHost): Promise<void> {
+  let progressActive = false
+  const result = await runSleept(input, createNodeSleeptRuntime(), (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
       return
     }
-    if (!key.ctrl && input) {
-      setValue((current) => current + input)
-    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  endProgress(host, progressActive)
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeSleeptSummary(host, result)
+  if (!result.success) process.exitCode = 1
+}
+
+function writeSleeptSummary(host: CliHost, result: SleeptResult): void {
+  const data = result.data
+  if (!data) return
+  const columns = terminalColumns(host)
+  const lines = [`${rich(host, "状态", "cyan")}  ${data.timerStatus}`]
+  if (data.targetTime) lines.push(`${rich(host, "目标", "cyan")}  ${data.targetTime}`)
+  if (typeof data.currentCpu === "number" && data.currentCpu > 0) lines.push(`${rich(host, "CPU", "cyan")}  ${data.currentCpu.toFixed(1)}%`)
+  if (typeof data.currentUpload === "number" && data.currentUpload > 0) lines.push(`${rich(host, "上传", "cyan")}  ${data.currentUpload.toFixed(1)} KB/s`)
+  if (typeof data.currentDownload === "number" && data.currentDownload > 0) lines.push(`${rich(host, "下载", "cyan")}  ${data.currentDownload.toFixed(1)} KB/s`)
+  writeRichPanel(host, "执行总结", lines, { color: result.success ? "green" : "yellow", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+}
+
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active: boolean): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

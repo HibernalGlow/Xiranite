@@ -27,7 +27,8 @@ describe("mvz CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("extract --entry archive.zip//file.txt --dryRun --json")
+    expect(host.stderrText()).toContain("xmvz extract --entry")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("prints pure JSON dry-run extract plan for a real entry path", async () => {

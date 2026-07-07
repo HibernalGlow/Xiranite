@@ -1,17 +1,46 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeJson, writeCliEvent, writeLine } from "@xiranite/cli-runtime"
+import {
+  canRunInteractiveCli,
+  CliPromptExitError,
+  confirmRich,
+  defineCommand,
+  nodeCliName,
+  promptRich,
+  renderProgressBar,
+  rich,
+  runMain,
+  selectRich,
+  terminalColumns,
+  truncateVisible,
+  writeError,
+  writeJson,
+  writeLine,
+  writeRichPanel,
+} from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { getNodeConfig, loadXiraniteConfig, resolveXiraniteConfigPath } from "@xiranite/config"
 
-
-import type { EngineVAction, EngineVExportFormat, EngineVInput, EngineVSortField, EngineVSortOrder } from "./core.js"
-import { runEngineV } from "./core.js"
-import { createNodeEngineVRuntime } from "./platform.js"
+import type {
+  EngineVAction,
+  EngineVDeleteResult,
+  EngineVExportFormat,
+  EngineVInput,
+  EngineVRenameResult,
+  EngineVResult,
+  EngineVRuntime,
+  EngineVSortField,
+  EngineVSortOrder,
+  EngineVWallpaper,
+} from "./core.js"
+import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH, runEngineV } from "./core.js"
+import { createNodeEngineVRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("enginev")
+const WALLPAPER_PREVIEW_LIMIT = 30
+const RENAME_PREVIEW_LIMIT = 50
+const DELETE_PREVIEW_LIMIT = 50
 
 interface EngineVCliOptions {
   path?: string
@@ -38,6 +67,11 @@ interface EngineVCliOptions {
   sortOrder?: EngineVSortOrder
   json?: boolean
 }
+
+type PathSource = "clipboard" | "manual" | "exit"
+type GuidedAction = EngineVAction | "exit"
+type RenameMode = "preview-inplace" | "execute-inplace" | "preview-copy" | "execute-copy" | "exit"
+type DeleteMode = "preview-trash" | "execute-trash" | "preview-permanent" | "execute-permanent" | "exit"
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -140,24 +174,27 @@ function commonArgs() {
 
 async function runAction(action: EngineVAction, args: EngineVCliOptions, json: boolean, host: CliHost): Promise<void> {
   const input = await inputFromArgs(action, args)
-  const result = await runEngineV(input, createNodeEngineVRuntime(), (event) => {
-    if (!json) writeCliEvent(host, event, { label: CLI_NAME })
+  let progressActive = false
+  const result = await runEngineV(input, createNodeEngineVRuntime(), json ? undefined : (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
+      return
+    }
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
+  endProgress(host, progressActive)
+
   if (json) {
     writeJson(host, result)
+    if (!result.success) process.exitCode = 1
     return
   }
 
-  writeLine(host, result.message)
-  const data = result.data
-  if (data) {
-    writeLine(host, `total=${data.totalCount} filtered=${data.filteredCount} success=${data.successCount} failed=${data.failedCount}`)
-    for (const wallpaper of data.filteredWallpapers.slice(0, 30)) writeLine(host, `${wallpaper.workshopId}\t${wallpaper.wallpaperType}\t${wallpaper.contentRating}\t${wallpaper.title}`)
-    for (const item of data.renameResults.slice(0, 50)) writeLine(host, `${item.status} ${item.oldPath} -> ${item.newPath}${item.error ? ` / ${item.error}` : ""}`)
-    for (const item of data.deleteResults.slice(0, 50)) writeLine(host, `${item.status} ${item.path} / ${item.message}`)
-    if (data.exportPath) writeLine(host, `export=${data.exportPath}`)
-    for (const error of data.errors) writeLine(host, `error: ${error}`)
-  }
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeEngineVSummary(host, result)
   if (!result.success) process.exitCode = 1
 }
 
@@ -199,89 +236,404 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
+// --- Guided flow ---
+
+interface EnginevNodeConfig {
+  workshop_root?: string
+  export_path?: string
+  export_format?: EngineVExportFormat
+}
+
+interface EnginevDefaults {
+  workshopRoot?: string
+  exportPath?: string
+  exportFormat?: EngineVExportFormat
+}
+
+/**
+ * Read enginev defaults from xiranite.config.toml [nodes.enginev] section.
+ * Returns empty defaults when the config file or section is missing.
+ * wallpapersFile is intentionally NOT read from TOML (large scan results stay external).
+ */
+async function resolveEnginevDefaults(host: CliHost): Promise<EnginevDefaults> {
+  try {
+    const configPath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
+    const { config } = await loadXiraniteConfig({ configPath, env: host.env, cwd: host.cwd })
+    const nodeConfig = getNodeConfig<EnginevNodeConfig>(config, "enginev") ?? {}
+    return {
+      workshopRoot: nodeConfig.workshop_root?.trim() || undefined,
+      exportPath: nodeConfig.export_path?.trim() || undefined,
+      exportFormat: nodeConfig.export_format,
+    }
+  } catch {
+    return {}
+  }
+}
+
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
-    writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `scan --path ... --json` for scripted use.")
+  if (!canRunInteractiveCli(host)) {
+    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} scan --path <folder> --json\` for scripted use.`)
     process.exitCode = 2
     return
   }
-  await runInkApp(h(GuidedEngineVApp, { host }))
+
+  const runtime = createNodeEngineVRuntime()
+  const defaults = await resolveEnginevDefaults(host)
+  let firstRender = true
+  try {
+    while (true) {
+      renderGuidedIntro(host, firstRender)
+      firstRender = false
+
+      const workshopPath = await resolveWorkshopPath(host, runtime, defaults)
+      if (!workshopPath) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      const action = await resolveAction(host)
+      if (!action) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      const partial = await resolveActionOptions(host, action, defaults)
+      if (!partial) {
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      const input: EngineVInput = { action, path: workshopPath, ...partial }
+      const confirmed = await confirmRich(host, `确认执行 ${action} 操作?`, true)
+      if (!confirmed) {
+        writeLine(host, rich(host, "操作已取消。", "yellow"))
+        if (!await confirmRich(host, "重新开始?", false)) return
+        continue
+      }
+
+      await runGuidedAction(input, host)
+      if (!await confirmRich(host, "继续选择其他操作?", false)) return
+    }
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "已退出。", "yellow"))
+      return
+    }
+    throw error
+  }
 }
 
-function GuidedEngineVApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"action" | "path" | "extra" | "running" | "done">("action")
-  const [action, setAction] = useState<EngineVAction>("scan")
-  const [path, setPath] = useState("")
-  const [message, setMessage] = useState("Action: scan, filter, rename, delete, export.")
-  const [lines, setLines] = useState<string[]>([])
+function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+  if (!includeHeader) writeLine(host)
+  const columns = terminalColumns(host)
+  writeRichPanel(host, "Xiranite EngineV", [
+    `${rich(host, "入口", "cyan")}  Wallpaper Engine 工坊扫描与批量管理工具`,
+    `${rich(host, "执行", "cyan")}  直接调用 enginev core/platform，不经过 lata 或 Taskfile`,
+    `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；默认读取 Wallpaper Engine 工坊目录`,
+    `${rich(host, "操作", "cyan")}  scan / filter / rename / delete / export`,
+    rich(host, "─".repeat(Math.min(70, columns - 8)), "grey"),
+    `${rich(host, "默认工坊", "magenta")}  ${DEFAULT_WORKSHOP_PATH}`,
+    `${rich(host, "默认模板", "magenta")}  ${DEFAULT_TEMPLATE}`,
+    `${rich(host, "脚本化", "magenta")}  ${CLI_NAME} scan --path <folder> --json`,
+  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  writeLine(host)
+}
 
-  async function submit(value: string) {
-    if (step === "action") {
-      const next = normalizeAction(value)
-      setAction(next)
-      setMessage("Workshop folder path.")
-      setStep("path")
-      return
-    }
-    if (step === "path") {
-      setPath(value)
-      setMessage(action === "scan" ? "Press enter to run." : "Extra value: title filter, ids, or output path.")
-      setStep("extra")
-      return
-    }
-    await execute(value)
-  }
-
-  async function execute(extra: string) {
-    setStep("running")
-    setMessage("Running...")
-    const input: EngineVInput = { action, path }
-    if (action === "filter") input.filters = { title: extra }
-    if (action === "rename" || action === "delete") input.ids = extra
-    if (action === "export") input.exportPath = extra || "enginev_export.json"
-    const result = await runEngineV(input, createNodeEngineVRuntime(), (event) => setLines((current) => [...current.slice(-8), event.message]))
-    setLines((current) => [...current.slice(-8), result.message])
-    writeLine(host, result.message)
-    setMessage("Completed. Press q to exit.")
-    setStep("done")
-  }
-
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) app.exit()
-  })
-
-  return h(
-    Box,
-    { flexDirection: "column" },
-    h(Text, { color: "cyan", bold: true }, "enginev guided"),
-    h(Text, null, message),
-    step !== "done" && step !== "running" ? h(InputLine, { onSubmit: submit }) : null,
-    ...lines.map((line, index) => h(Text, { key: `${index}:${line}`, color: "gray" }, line)),
+async function resolveWorkshopPath(host: CliHost, runtime: EngineVRuntime, defaults: EnginevDefaults): Promise<string | undefined> {
+  const source = await selectRich<PathSource>(
+    host,
+    "选择工坊路径来源",
+    [
+      { value: "clipboard", label: "从剪贴板读取路径", hint: "复制的单行/多行路径" },
+      { value: "manual", label: "手动输入路径", hint: "直接输入完整路径" },
+      { value: "exit", label: "退出", hint: "不执行任何操作" },
+    ],
+    { initialValue: "clipboard", maxItems: 4 },
   )
+
+  if (source === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return undefined
+  }
+
+  if (source === "clipboard") {
+    const clipboard = (await readClipboardText()).trim()
+    if (!clipboard) {
+      writeRichPanel(host, "Clipboard", "剪贴板为空，请改用手动输入。", { color: "yellow", minWidth: 48 })
+      return undefined
+    }
+    const path = clipboard.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] ?? ""
+    if (!path) {
+      writeRichPanel(host, "Clipboard", "剪贴板中未找到有效路径。", { color: "yellow", minWidth: 48 })
+      return undefined
+    }
+    const info = await runtime.pathInfo(path)
+    if (!info.exists || !info.isDirectory) {
+      writeRichPanel(host, "Clipboard", `剪贴板中的路径不是有效文件夹: ${path}`, { color: "red", minWidth: 48 })
+      return undefined
+    }
+    writeLine(host, rich(host, `已从剪贴板读取路径: ${info.path}`, "yellow"))
+    return info.path
+  }
+
+  const fallback = defaults.workshopRoot
+  const answer = (await promptRich(host, "输入 Wallpaper Engine 工坊目录路径", fallback ?? "")).trim()
+  const path = answer || fallback
+  if (!path) {
+    writeLine(host, rich(host, "未输入任何路径。", "yellow"))
+    return undefined
+  }
+  const info = await runtime.pathInfo(path)
+  if (!info.exists || !info.isDirectory) {
+    writeRichPanel(host, "Path", `不是有效文件夹: ${path}`, { color: "red", minWidth: 48 })
+    return undefined
+  }
+  return info.path
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
+async function resolveAction(host: CliHost): Promise<EngineVAction | undefined> {
+  const choice = await selectRich<GuidedAction>(
+    host,
+    "选择要执行的操作",
+    [
+      { value: "scan", label: "scan", hint: "扫描工坊目录并打印统计" },
+      { value: "filter", label: "filter", hint: "按标题/类型/评级/标签过滤" },
+      { value: "rename", label: "rename", hint: "批量重命名或复制文件夹" },
+      { value: "delete", label: "delete", hint: "批量删除壁纸文件夹" },
+      { value: "export", label: "export", hint: "导出 JSON 或路径列表" },
+      { value: "exit", label: "exit", hint: "离开引导模式" },
+    ],
+    { initialValue: "scan", maxItems: 6 },
+  )
+
+  if (choice === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return undefined
+  }
+  return choice
+}
+
+async function resolveActionOptions(host: CliHost, action: EngineVAction, defaults: EnginevDefaults): Promise<Omit<EngineVInput, "action" | "path"> | undefined> {
+  if (action === "scan") return {}
+  if (action === "filter") return await resolveFilterOptions(host)
+  if (action === "rename") return await resolveRenameOptions(host)
+  if (action === "delete") return await resolveDeleteOptions(host)
+  if (action === "export") return await resolveExportOptions(host, defaults)
+  return {}
+}
+
+async function resolveFilterOptions(host: CliHost): Promise<Partial<EngineVInput>> {
+  const title = (await promptRich(host, "标题过滤词 (留空跳过)", "")).trim()
+  const type = (await promptRich(host, "壁纸类型过滤 (留空跳过，如 Video/Scene/Web)", "")).trim()
+  const contentRating = (await promptRich(host, "内容评级过滤 (留空跳过，如 Everyone/Questionable)", "")).trim()
+  const tags = (await promptRich(host, "标签过滤，逗号分隔 (留空跳过)", "")).trim()
+  return {
+    filters: {
+      title: title || undefined,
+      type: type || undefined,
+      contentRating: contentRating || undefined,
+      tags: tags || undefined,
+    },
+  }
+}
+
+async function resolveRenameOptions(host: CliHost): Promise<Partial<EngineVInput> | undefined> {
+  const template = (await promptRich(host, "命名模板", DEFAULT_TEMPLATE)).trim() || DEFAULT_TEMPLATE
+  const mode = await selectRich<RenameMode>(
+    host,
+    "选择重命名模式",
+    [
+      { value: "preview-inplace", label: "原位重命名 - 预览", hint: "生成计划，不修改文件" },
+      { value: "execute-inplace", label: "原位重命名 - 执行", hint: "直接修改文件夹名称" },
+      { value: "preview-copy", label: "复制到新位置 - 预览", hint: "保留原文件，生成计划" },
+      { value: "execute-copy", label: "复制到新位置 - 执行", hint: "保留原文件，复制到目标目录" },
+      { value: "exit", label: "退出", hint: "取消重命名" },
+    ],
+    { initialValue: "preview-inplace", maxItems: 5 },
+  )
+  if (mode === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return undefined
+  }
+  const copyMode = mode === "preview-copy" || mode === "execute-copy"
+  const dryRun = mode === "preview-inplace" || mode === "preview-copy"
+  let targetPath: string | undefined
+  if (copyMode) {
+    targetPath = (await promptRich(host, "目标目录路径", "")).trim() || undefined
+    if (!targetPath) {
+      writeRichPanel(host, "Target", "复制模式需要指定目标目录。", { color: "yellow", minWidth: 48 })
+      return undefined
+    }
+  }
+  return { template, copyMode, dryRun, targetPath }
+}
+
+async function resolveDeleteOptions(host: CliHost): Promise<Partial<EngineVInput> | undefined> {
+  const idsText = (await promptRich(host, "输入要删除的 workshop id，逗号分隔", "")).trim()
+  if (!idsText) {
+    writeRichPanel(host, "Delete", "未提供任何 id，无法删除。", { color: "yellow", minWidth: 48 })
+    return undefined
+  }
+  const mode = await selectRich<DeleteMode>(
+    host,
+    "选择删除模式",
+    [
+      { value: "preview-trash", label: "回收站 - 预览", hint: "可恢复" },
+      { value: "execute-trash", label: "回收站 - 执行", hint: "移到回收站" },
+      { value: "preview-permanent", label: "永久删除 - 预览", hint: "不可恢复" },
+      { value: "execute-permanent", label: "永久删除 - 执行", hint: "直接删除，不可恢复" },
+      { value: "exit", label: "退出", hint: "取消删除" },
+    ],
+    { initialValue: "preview-trash", maxItems: 5 },
+  )
+  if (mode === "exit") {
+    writeLine(host, rich(host, "已退出。", "yellow"))
+    return undefined
+  }
+  const permanent = mode === "preview-permanent" || mode === "execute-permanent"
+  const dryRun = mode === "preview-trash" || mode === "preview-permanent"
+  return { ids: idsText, permanent, dryRun }
+}
+
+async function resolveExportOptions(host: CliHost, defaults: EnginevDefaults): Promise<Partial<EngineVInput> | undefined> {
+  const format = await selectRich<EngineVExportFormat>(
+    host,
+    "选择导出格式",
+    [
+      { value: "json", label: "json", hint: "完整 JSON 数据" },
+      { value: "paths", label: "paths", hint: "仅路径列表，每行一个" },
+    ],
+    { initialValue: defaults.exportFormat ?? "json", maxItems: 3 },
+  )
+  const exportPath = (await promptRich(host, "导出文件路径", defaults.exportPath ?? "enginev_export.json")).trim()
+  if (!exportPath) {
+    writeRichPanel(host, "Export", "未提供导出路径。", { color: "yellow", minWidth: 48 })
+    return undefined
+  }
+  return { exportFormat: format, exportPath }
+}
+
+async function runGuidedAction(input: EngineVInput, host: CliHost): Promise<void> {
+  let progressActive = false
+  const result = await runEngineV(input, createNodeEngineVRuntime(), (event) => {
+    if (event.type === "progress") {
+      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
+      progressActive = true
       return
     }
-    if (key.backspace || key.delete) setValue((current) => current.slice(0, -1))
-    else if (!key.ctrl && input) setValue((current) => current + input)
+    endProgress(host, progressActive)
+    progressActive = false
+    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
   })
-  return h(Text, null, "> ", value, h(Text, { inverse: true }, " "))
+  endProgress(host, progressActive)
+
+  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
+  writeEngineVSummary(host, result)
+  if (!result.success) process.exitCode = 1
 }
 
-function normalizeAction(value: string): EngineVAction {
-  const action = value.trim().toLowerCase()
-  if (action === "filter") return "filter"
-  if (action === "rename") return "rename"
-  if (action === "delete") return "delete"
-  if (action === "export") return "export"
-  return "scan"
+function writeEngineVSummary(host: CliHost, result: EngineVResult): void {
+  const data = result.data
+  if (!data) return
+  const columns = terminalColumns(host)
+
+  const summaryLines: string[] = [
+    `${rich(host, "总计", "cyan")} ${data.totalCount}  ${rich(host, "过滤后", "cyan")} ${data.filteredCount}  ${rich(host, "成功", "green")} ${data.successCount}  ${rich(host, "失败", "red")} ${data.failedCount}`,
+  ]
+  if (data.exportPath) summaryLines.push(`${rich(host, "导出", "magenta")} ${data.exportPath}`)
+  writeRichPanel(host, "执行结果", summaryLines, { color: result.success ? "green" : "yellow", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+
+  if (Object.keys(data.typeStats).length || Object.keys(data.ratingStats).length) {
+    const statLines: string[] = []
+    if (Object.keys(data.typeStats).length) {
+      statLines.push(rich(host, "类型分布", "cyan"))
+      for (const [type, count] of Object.entries(data.typeStats).sort((a, b) => b[1] - a[1])) {
+        statLines.push(`  ${rich(host, type, "magenta")}: ${rich(host, String(count), "green")}`)
+      }
+    }
+    if (Object.keys(data.ratingStats).length) {
+      statLines.push(rich(host, "内容评级分布", "cyan"))
+      for (const [rating, count] of Object.entries(data.ratingStats).sort((a, b) => b[1] - a[1])) {
+        statLines.push(`  ${rich(host, rating, "magenta")}: ${rich(host, String(count), "green")}`)
+      }
+    }
+    writeRichPanel(host, "统计", statLines, { color: "blue", maxWidth: columns - 2, minWidth: Math.min(60, columns - 6) })
+  }
+
+  if (data.filteredWallpapers.length) {
+    writeLine(host, rich(host, "壁纸预览:", "cyan"))
+    for (const wallpaper of data.filteredWallpapers.slice(0, WALLPAPER_PREVIEW_LIMIT)) {
+      writeLine(host, `  ${formatWallpaper(wallpaper, host)}`)
+    }
+    if (data.filteredWallpapers.length > WALLPAPER_PREVIEW_LIMIT) {
+      writeLine(host, rich(host, `  ... 还有 ${data.filteredWallpapers.length - WALLPAPER_PREVIEW_LIMIT} 个`, "grey"))
+    }
+  }
+
+  if (data.renameResults.length) {
+    writeLine(host, rich(host, "重命名结果:", "cyan"))
+    for (const item of data.renameResults.slice(0, RENAME_PREVIEW_LIMIT)) {
+      writeLine(host, `  ${formatRenameResult(item, host)}`)
+    }
+    if (data.renameResults.length > RENAME_PREVIEW_LIMIT) {
+      writeLine(host, rich(host, `  ... 还有 ${data.renameResults.length - RENAME_PREVIEW_LIMIT} 个`, "grey"))
+    }
+  }
+
+  if (data.deleteResults.length) {
+    writeLine(host, rich(host, "删除结果:", "cyan"))
+    for (const item of data.deleteResults.slice(0, DELETE_PREVIEW_LIMIT)) {
+      writeLine(host, `  ${formatDeleteResult(item, host)}`)
+    }
+    if (data.deleteResults.length > DELETE_PREVIEW_LIMIT) {
+      writeLine(host, rich(host, `  ... 还有 ${data.deleteResults.length - DELETE_PREVIEW_LIMIT} 个`, "grey"))
+    }
+  }
+
+  if (data.errors.length) {
+    writeRichPanel(host, "Error", data.errors.join("\n"), { color: "red", minWidth: 76 })
+  }
+}
+
+function formatWallpaper(wallpaper: EngineVWallpaper, host: CliHost): string {
+  const id = rich(host, padOrTruncate(wallpaper.workshopId, 10), "magenta")
+  const type = rich(host, padOrTruncate(wallpaper.wallpaperType || "?", 8), "blue")
+  const rating = rich(host, padOrTruncate(wallpaper.contentRating || "?", 12), "yellow")
+  const budget = Math.max(8, terminalColumns(host) - 36)
+  return `${id} ${type} ${rating} ${truncateVisible(wallpaper.title, budget)}`
+}
+
+function formatRenameResult(item: EngineVRenameResult, host: CliHost): string {
+  const statusColor = item.status === "error" ? "red" : item.status === "planned" ? "cyan" : "green"
+  const status = rich(host, padOrTruncate(item.status, 8), statusColor)
+  const arrow = rich(host, "->", "grey")
+  const budget = Math.max(20, Math.floor((terminalColumns(host) - 30) / 2))
+  const error = item.error ? ` ${rich(host, `/ ${item.error}`, "red")}` : ""
+  return `${status} ${truncateVisible(item.oldPath, budget)} ${arrow} ${truncateVisible(item.newPath, budget)}${error}`
+}
+
+function formatDeleteResult(item: EngineVDeleteResult, host: CliHost): string {
+  const statusColor = item.status === "error" ? "red" : item.status === "planned" ? "cyan" : "green"
+  const status = rich(host, padOrTruncate(item.status, 8), statusColor)
+  const budget = Math.max(20, terminalColumns(host) - 30)
+  return `${status} ${truncateVisible(item.path, budget)} ${rich(host, item.message, "grey")}`
+}
+
+function padOrTruncate(value: string, width: number): string {
+  if (value.length > width) return value.slice(0, width)
+  return value.padEnd(width)
+}
+
+function writeProgress(host: CliHost, line: string): void {
+  if (host.stdout.isTTY) {
+    host.stdout.write(`\r\u001b[2K${line}`)
+    return
+  }
+  writeLine(host, line)
+}
+
+function endProgress(host: CliHost, active: boolean): void {
+  if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
 function normalizeFormat(value?: string): EngineVExportFormat {
@@ -294,5 +646,10 @@ function numberArg(value?: string | number): number | undefined {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  await runProgram()
+  try {
+    await runProgram()
+  } catch (error) {
+    writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

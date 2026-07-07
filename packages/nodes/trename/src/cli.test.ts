@@ -30,7 +30,8 @@ describe("trename CLI", () => {
     process.exitCode = 0
     expect(exitCode).toBe(2)
     expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("scan --path")
+    expect(host.stderrText()).toContain("xtrename scan")
+    expect(host.stderrText()).toContain("--json")
   })
 
   test("scans a real folder into pure JSON and writes the scan output file", async () => {
