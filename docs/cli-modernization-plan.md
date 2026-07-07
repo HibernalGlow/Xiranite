@@ -30,9 +30,9 @@
 - [x] `cli-runtime` 已删掉与 `citty` 重叠的手写 `parseArgs/flag*`，新增 `renderCliEvent/writeCliEvent` 统一节点运行事件输出；22 个节点 CLI 的显式命令进度输出已从手写 `[xx%]` 切到 runtime 进度条，`repacku` 原有 `renderProgressBar` 路线保留。
 - [x] `repacku` guided 首屏已建立真实 pseudo-tty 视觉测试：Vitest 通过 `node-pty`/Windows ConPTY 系统调用 Bun CLI，捕获 ANSI 到 `artifacts/cli/repacku/guided-entry.ansi`，再用 `@xterm/headless` + `@xterm/addon-serialize` 渲染 HTML，并由 Playwright 输出 `guided-entry.png`；测试断言无 raw control-code 泄漏。
 - [x] CLI 视觉捕获已抽成 `scripts/cli-visual-testing.ts`，并新增 `scripts/capture-cli-ui.ts` 手动捕获入口；手动入口必须用 Node 父进程运行 `node --experimental-strip-types scripts/capture-cli-ui.ts ...`，再由 helper 启动 Bun CLI，避免 Bun 父进程 + `node-pty` 在 Windows ConPTY 下残留句柄。
-- [x] `linedup` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/linedup/guided-entry.png`。
-- [x] `rawfilter` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/rawfilter/guided-entry.png`。
-- [x] `marku` 与 `cleanf` guided 首屏已从纯文本 Ink 页面改为带边框/分区的富文本终端 UI，并接入同一套 pseudo-tty 截图测试，产物分别位于 `artifacts/cli/marku/guided-entry.png` 与 `artifacts/cli/cleanf/guided-entry.png`。
+- [x] CLI 引导框架规则已纠偏：普通 guided 默认使用 Clack，Ink 只保留给需要常驻布局/实时刷新/复杂键盘导航的 TUI；`cli-runtime` 不再新增共享 Ink 组件。
+- [x] `linedup` guided 首屏已从 Ink 迁回 Clack + runtime rich panel，并接入同一套 pseudo-tty 截图测试，产物位于 `artifacts/cli/linedup/guided-entry.png`。
+- [ ] `rawfilter`、`marku` 与 `cleanf` 当前已有 pseudo-tty 截图，但仍是过渡 Ink 实现；后续必须迁到 Clack 后再标记为最终 guided 标准。
 - [x] 当前测试矩阵为 24/24 complete；严格审计、包测试、构建与 Chromium desktop Playwright 真实点击回归均已通过；当前全仓 Vitest 为 91/91 files、270/270 tests。
 - [ ] 每个新增 CLI 测试必须通过 `runProgram()` 或等价导出入口走真实 CLI 解析，真实文件 fixture 放在 `artifacts/test-runs/<node>` 并清理。
 - [ ] 每个新增 Component 测试必须用 React Testing Library + happy-dom 渲染无壳 Component，验证输入、按钮、`host.actions.run`、进度/日志/result 写回。
@@ -84,7 +84,7 @@
 - 面板、标题、提示、错误和 summary 不统一。
 - 进度条仍有手写痕迹。
 - 部分输出在 PowerShell 编码环境里容易被误判为乱码。
-- 除 `repacku` guided 首屏外，还没有把自动 ANSI snapshot/截图验证推广到全部 CLI。
+- 除 `repacku` 与 `linedup` guided 首屏外，还没有把自动 ANSI snapshot/截图验证推广到全部 CLI 的 Clack 最终形态。
 
 决策：
 
@@ -104,7 +104,7 @@
 - `renderProgressBar` 已修复纯文本下 filled/empty 同字符导致看不出比例的问题，并补 Vitest 覆盖中文宽度、ANSI-free 宽度和 event formatter。
 - `stripAnsi` 应替换为成熟包。
 - `shellQuote` 应替换为成熟包或避免 shell 字符串拼接。
-- guided Ink 内部的 `setLines([xx%])` 还没有统一到 runtime event formatter，后续应结合 pseudo-tty 截图一起改。
+- 剩余过渡 Ink 节点内部的 `setLines([xx%])` 还没有统一到 runtime event formatter，迁到 Clack 时应结合 pseudo-tty 截图一起改。
 - `rich` wrapper 可以保留很薄的一层，也可以直接暴露 chalk/picocolors。
 
 推荐拆分：
@@ -386,7 +386,7 @@ const GUIDED_TASKS = [
 - 已完成：`platform.ts` 去掉 `Bun.file/Bun.write`，改为 Node `fs/promises`。
 - 修复源码中所有被 PowerShell 显示成乱码但实际可能为 UTF-8 的文案检查方式，统一用 UTF-8 工具读取。
 - 已完成：`GUIDED_TASKS` 文案已在真实 pseudo-tty 首屏截图中验证，截图产物位于 `artifacts/cli/repacku/guided-entry.png`。
-- 显式命令 progress 输出已切换到统一 runtime event/progress API；guided Ink 内部行状态仍待截图级验证后统一。
+- 显式命令 progress 输出已切换到统一 runtime event/progress API；剩余过渡 Ink guided 内部行状态仍待迁到 Clack 后统一。
 - 已完成：`xrepacku guided` 首屏 pseudo-tty 截图测试已接入 `bun --filter @xiranite/node-repacku test`。
 - 用测试框架验证 `xrepacku` 从非项目目录启动。
 - 用测试框架验证 `xrepacku compress --path <中文路径> --types image --min-count 1`。
@@ -398,9 +398,9 @@ const GUIDED_TASKS = [
 - 已完成：`core.test.ts` 覆盖去重、过滤、diff row。
 - 已完成：Vitest `cli.test.ts` 覆盖非交互 guided 拒绝、inline JSON 输出、真实文件输入输出。
 - 已完成：Vitest `Component.test.tsx` 使用 React Testing Library + happy-dom 覆盖剪贴板、过滤、复制和下载。
-- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Ink 富文本边框、提示区和 artifacts 输出。
+- 已完成：`cli.visual.test.ts` 使用真实 pseudo-tty 捕获无参数 guided 首屏，验证 Clack prompt、runtime rich panel 和 artifacts 输出。
 - 已完成：`bun --filter @xiranite/node-linedup test`、`build`、`validate-node-architecture` 均通过。
-- 待补：路径输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展；如后续改成 Clack guided，需要复用同一套 ANSI/PNG snapshot。
+- 待补：路径输入、成功 summary、错误输入、`--help` 的截图级用例仍需扩展，并继续复用同一套 ANSI/PNG snapshot。
 
 ## rawfilter 当前状态
 

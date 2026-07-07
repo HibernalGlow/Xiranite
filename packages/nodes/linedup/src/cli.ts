@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from "node:fs/promises"
+import { readFile, stat, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import { Box, Text, useApp, useInput } from "ink"
-import { createElement as h, useState } from "react"
-import { canRunInkApp, defineCommand, nodeCliName, runInkApp, runMain, writeError, writeLine } from "@xiranite/cli-runtime"
+import { canRunInteractiveCli, CliPromptExitError, defineCommand, nodeCliName, promptRich, rich, runMain, selectRich, writeError, writeLine, writeRichPanel } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 
 import { filterLines, splitLines } from "./core.js"
+import { readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("linedup")
+type GuidedMode = "preset-files" | "clipboard-source" | "custom-files" | "inline-text" | "exit"
 
 interface FilterOptions {
   source?: string
@@ -55,7 +56,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
       name: CLI_NAME,
-      description: "Line filter with Typer-style commands and an Ink guided mode.",
+      description: "Line filter with Typer-style commands and a Clack guided mode.",
     },
     subCommands: {
       filter: defineCommand({
@@ -91,13 +92,44 @@ function createProgram(host: CliHost = createDefaultHost()) {
 }
 
 async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInkApp(host)) {
+  if (!canRunInteractiveCli(host)) {
     writeError(host, "Guided mode requires an interactive terminal. Use a subcommand such as `filter --help` for scripted use.")
     process.exitCode = 2
     return
   }
 
-  await runInkApp(h(GuidedLinedupApp, { host }))
+  try {
+    const preset = await detectPresetFiles(host.cwd)
+    writeRichPanel(host, "Xiranite Linedup", [
+      "移除 source 中包含 filter 任意 token 的行。",
+      "默认兼容原版习惯：当前目录 source.txt + filter.txt -> output.txt。",
+    ], { color: "blue", minWidth: 72 })
+    writeLine(host)
+
+    const mode = await selectRich<GuidedMode>(
+      host,
+      "选择 linedup 工作流",
+      guidedModeOptions(preset),
+      { initialValue: preset.available ? "preset-files" : "clipboard-source", maxItems: 5 },
+    )
+
+    if (mode === "exit") return
+
+    const result = await runGuidedMode(mode, preset, host)
+
+    writeRichPanel(host, "Summary", [
+      `kept: ${result.keptCount}`,
+      `removed: ${result.removedCount}`,
+      result.outputFile ? `output: ${result.outputFile}` : "output: stdout",
+    ], { color: "green", minWidth: 48 })
+    if (!result.outputFile) writeLine(host, result.filteredLines.join("\n"))
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, "Prompt cancelled.", "yellow"))
+      return
+    }
+    throw error
+  }
 }
 
 async function runFilter(options: FilterOptions, host: CliHost): Promise<void> {
@@ -135,73 +167,34 @@ async function readInput(inline?: string, filePath?: string): Promise<string> {
   return (inline ?? "").replace(/\\n/g, "\n")
 }
 
-function GuidedLinedupApp({ host }: { host: CliHost }) {
-  const app = useApp()
-  const [step, setStep] = useState<"sourceFile" | "filterFile" | "outputFile" | "done">("sourceFile")
-  const [sourceFile, setSourceFile] = useState("")
-  const [filterFile, setFilterFile] = useState("")
-  const [outputFile, setOutputFile] = useState("")
-  const [message, setMessage] = useState("Enter source file path.")
-  const [result, setResult] = useState<Awaited<ReturnType<typeof runGuidedFilter>> | null>(null)
-
-  async function submit(value: string) {
-    if (step === "sourceFile") {
-      setSourceFile(value)
-      setStep("filterFile")
-      setMessage("Enter filter file path.")
-      return
-    }
-
-    if (step === "filterFile") {
-      setFilterFile(value)
-      setStep("outputFile")
-      setMessage("Optional output file path. Press Enter to skip.")
-      return
-    }
-
-    if (step === "outputFile") {
-      setOutputFile(value)
-      try {
-        const next = await runGuidedFilter({ sourceFile, filterFile, outputFile: value || undefined })
-        setResult(next)
-        setMessage("Completed. Press q to exit.")
-        setStep("done")
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : String(error))
-      }
-    }
+async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: CliHost): Promise<Awaited<ReturnType<typeof runGuidedFilter>>> {
+  if (mode === "preset-files") {
+    return await runGuidedFilter({
+      sourceFile: preset.sourceFile,
+      filterFile: preset.filterFile,
+      outputFile: preset.outputFile,
+    })
   }
 
-  useInput((input) => {
-    if (step === "done" && (input === "q" || input === "\u0003")) {
-      app.exit()
-      if (result?.outputFile) {
-        writeLine(host, `saved ${result.outputFile}`)
-      }
-    }
-  })
+  if (mode === "custom-files") {
+    const sourceFile = await promptRich(host, "Source file path", preset.sourceFile)
+    const filterFile = await promptRich(host, "Filter file path", preset.filterFile)
+    const outputFile = await promptRich(host, "Output file path", preset.outputFile)
+    return await runGuidedFilter({ sourceFile, filterFile, outputFile })
+  }
 
-  return h(
-    Box,
-    { flexDirection: "column", gap: 1 },
-    h(
-      Box,
-      { borderStyle: "round", borderColor: "cyan", flexDirection: "column", paddingX: 1, width: 72 },
-      h(Text, { color: "cyan", bold: true }, "Xiranite Linedup"),
-      h(Text, null, h(Text, { color: "cyan" }, "Entry   "), "Ink guided flow for source/filter files"),
-      h(Text, null, h(Text, { color: "cyan" }, "Run     "), "Direct core call, no UI shell or backend requirement"),
-      h(Text, null, h(Text, { color: "cyan" }, "Script  "), `${CLI_NAME} filter`),
-      h(Text, null, "      --sourceFile source.txt --filterFile filter.txt"),
-    ),
-    h(
-      Box,
-      { borderStyle: "single", borderColor: step === "done" ? "green" : "gray", flexDirection: "column", paddingX: 1, width: 72 },
-      h(Text, { color: step === "done" ? "green" : "yellow", bold: true }, step === "done" ? "Result" : "Prompt"),
-      h(Text, null, message),
-      step !== "done" ? h(InputLine, { onSubmit: submit }) : null,
-    ),
-    result ? h(Summary, { result }) : null,
-  )
+  if (mode === "clipboard-source") {
+    const clipboard = await readClipboardText()
+    const sourceText = clipboard || await promptRich(host, "Clipboard is empty. Paste source text with \\n for new lines", "")
+    const filterText = await promptRich(host, "Filter token(s), use \\n for multiple lines", "")
+    const outputFile = await promptRich(host, "Optional output file path", "")
+    return await runGuidedText({ sourceText, filterText, outputFile })
+  }
+
+  const sourceText = await promptRich(host, "Source text, use \\n for multiple lines", "")
+  const filterText = await promptRich(host, "Filter token(s), use \\n for multiple lines", "")
+  const outputFile = await promptRich(host, "Optional output file path", "")
+  return await runGuidedText({ sourceText, filterText, outputFile })
 }
 
 async function runGuidedFilter(options: { sourceFile: string; filterFile: string; outputFile?: string }) {
@@ -219,38 +212,59 @@ async function runGuidedFilter(options: { sourceFile: string; filterFile: string
   return { ...result, outputFile: options.outputFile }
 }
 
-function InputLine({ onSubmit }: { onSubmit: (value: string) => void | Promise<void> }) {
-  const [value, setValue] = useState("")
-
-  useInput((input, key) => {
-    if (key.return) {
-      void onSubmit(value.trim())
-      setValue("")
-      return
-    }
-
-    if (key.backspace || key.delete) {
-      setValue((current) => current.slice(0, -1))
-      return
-    }
-
-    if (!key.ctrl && input) {
-      setValue((current) => current + input)
-    }
+async function runGuidedText(options: { sourceText: string; filterText: string; outputFile?: string }) {
+  const result = filterLines({
+    sourceLines: splitLines(options.sourceText.replace(/\\n/g, "\n")),
+    filterLines: splitLines(options.filterText.replace(/\\n/g, "\n")),
   })
-
-  return h(Text, null, h(Text, { color: "cyan" }, "> "), value, h(Text, { inverse: true }, " "))
+  const outputFile = options.outputFile?.trim() || undefined
+  if (outputFile) {
+    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
+  }
+  return { ...result, outputFile }
 }
 
-function Summary({ result }: { result: Awaited<ReturnType<typeof runGuidedFilter>> }) {
-  return h(
-    Box,
-    { borderStyle: "round", borderColor: "green", flexDirection: "column", paddingX: 1, width: 72 },
-    h(Text, { color: "green", bold: true }, "Summary"),
-    h(Text, { color: "green" }, `kept ${result.keptCount}`),
-    h(Text, { color: "red" }, `removed ${result.removedCount}`),
-    result.outputFile ? h(Text, { color: "gray" }, `output ${result.outputFile}`) : null,
-  )
+interface GuidedPresetFiles {
+  sourceFile: string
+  filterFile: string
+  outputFile: string
+  available: boolean
+}
+
+function guidedModeOptions(preset: GuidedPresetFiles) {
+  const presetOption = {
+    value: "preset-files" as const,
+    label: "当前目录约定文件",
+    hint: preset.available ? "source.txt / filter.txt -> output.txt" : "缺少 source.txt 或 filter.txt",
+    disabled: !preset.available,
+  }
+  const activeOptions = [
+    { value: "clipboard-source" as const, label: "剪贴板作为源文本", hint: "只需再输入过滤 token" },
+    { value: "custom-files" as const, label: "手动选择文件", hint: "自定义 source/filter/output 路径" },
+    { value: "inline-text" as const, label: "粘贴文本", hint: "用 \\n 表示多行" },
+  ]
+  const exitOption = { value: "exit" as const, label: "退出", hint: "不执行任何操作" }
+  return preset.available ? [presetOption, ...activeOptions, exitOption] : [...activeOptions, presetOption, exitOption]
+}
+
+async function detectPresetFiles(cwd: string): Promise<GuidedPresetFiles> {
+  const preset = {
+    sourceFile: join(cwd, "source.txt"),
+    filterFile: join(cwd, "filter.txt"),
+    outputFile: join(cwd, "output.txt"),
+  }
+  return {
+    ...preset,
+    available: await isFile(preset.sourceFile) && await isFile(preset.filterFile),
+  }
+}
+
+async function isFile(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isFile()
+  } catch {
+    return false
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
