@@ -25,6 +25,7 @@
     "audit:node-tests": "bun scripts/audit-node-tests.ts",
     "audit:node-runtime-risks": "bun scripts/audit-node-runtime-risks.ts",
     "audit:build-chunks": "bun scripts/audit-build-chunks.ts",
+    "qa:card": "bun scripts/qa-card.ts",
     "test:unit": "vitest run --dir . --exclude \"**/dist/**\" --exclude \"**/artifacts/**\" --exclude \"**/build/**\" --exclude \"**/vendor/**\" --exclude \"**/ref/**\" --exclude \"**/tests/e2e/**\"",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:packages": "bun run generate:node-registries && bun run build:base-packages && bun run build:nodes && bun run audit:node-architecture && bun --filter @xiranite/runtime build && bun --filter @xiranite/backend build && bun --filter './packages/*' test && bun --filter './packages/nodes/*' test",
