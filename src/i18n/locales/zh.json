@@ -263,7 +263,9 @@
     "category": "分类",
     "tabs": {
       "list": "列表",
-      "table": "表格"
+      "table": "表格",
+      "gallery": "画廊",
+      "board": "看板"
     },
     "categories": {
       "UTILITY": "工具",

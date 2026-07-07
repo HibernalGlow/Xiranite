@@ -263,7 +263,9 @@
     "category": "CATEGORY",
     "tabs": {
       "list": "List",
-      "table": "Table"
+      "table": "Table",
+      "gallery": "Gallery",
+      "board": "Board"
     },
     "categories": {
       "UTILITY": "UTILITY",
