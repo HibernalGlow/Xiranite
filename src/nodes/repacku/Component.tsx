@@ -203,6 +203,19 @@ export function Component({ compId, host }: NodeComponentProps) {
               progress={progress}
               status={status}
             />
+          ) : surface.mode === "portrait" ? (
+            <PortraitCompactView
+              {...commonProps}
+              logs={logs}
+              modeIcon={modeMeta.icon}
+              modeDescription={modeMeta.description}
+              operationPreview={operationPreview}
+              progress={progress}
+              result={result}
+              status={status}
+              onCopyLogs={copyLogs}
+              onCopyResults={copyResults}
+            />
           ) : (
             <FullView
               {...commonProps}
@@ -311,6 +324,84 @@ function CompactView(props: {
       <div className="shrink-0 border-t bg-background/80 p-2">
         <CompactOptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
       </div>
+    </div>
+  )
+}
+
+function PortraitCompactView(props: {
+  action: RepackuAction
+  configDirty: boolean
+  configFilePath?: string
+  data: RepackuCardState
+  defaults?: Partial<RepackuCardState>
+  logs: string[]
+  modeDescription: string
+  modeIcon: typeof Play
+  operationPreview: RepackuData["operations"]
+  progress: number
+  result: RepackuData | null
+  running: boolean
+  status: RepackuStatusMeta
+  onActionChange: (value: RepackuAction) => void
+  onCopyLogs: () => void
+  onCopyResults: () => void
+  onExecute: (action?: RepackuAction) => void
+  onOpenConfigFile?: () => Promise<void> | void
+  onPaste: () => void
+  onPatch: (patch: Partial<RepackuCardState>) => void
+  onReset: () => void
+  onRestoreDefault: () => void
+  onSaveDefault: () => void
+  onResetOverride: () => void
+}) {
+  const ModeIcon = props.modeIcon
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-2 p-2" data-testid="repacku-portrait-surface">
+      <div className="flex shrink-0 items-start justify-between gap-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.modeDescription} />
+        <Button disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+          <ModeIcon />
+          <span className="sr-only">快速启动</span>
+        </Button>
+      </div>
+
+      <div className="grid shrink-0 gap-2">
+        <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
+          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
+            <ModeIcon data-icon="inline-start" />
+            启动
+          </Button>
+        </div>
+        <CompactOptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+      </div>
+
+      <Tabs defaultValue="operations" className="flex min-h-0 flex-1 flex-col" data-testid="repacku-portrait-results">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="operations">操作</TabsTrigger>
+          <TabsTrigger value="tree">目录树</TabsTrigger>
+          <TabsTrigger value="logs">日志</TabsTrigger>
+        </TabsList>
+        <TabsContent value="operations" className="min-h-0 flex-1">
+          <PreviewPanel
+            emptyText="运行分析或完整流程后可预览文件夹操作。"
+            lines={props.operationPreview.map((item) => `${item.status.padEnd(7)} ${item.mode.padEnd(9)} ${item.sourcePath} -> ${item.targetPath}`)}
+            onCopy={props.onCopyResults}
+          />
+        </TabsContent>
+        <TabsContent value="tree" className="min-h-0 flex-1">
+          <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+            <FileTreePreview root={props.result?.folderTree ?? null} />
+          </section>
+        </TabsContent>
+        <TabsContent value="logs" className="min-h-0 flex-1">
+          <PreviewPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

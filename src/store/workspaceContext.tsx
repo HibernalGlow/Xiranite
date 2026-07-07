@@ -270,8 +270,8 @@ const QA_SURFACE_PRESETS: Record<QaSurfacePreset, {
     fullscreen: false,
   },
   portrait: {
-    flow: { width: 390, height: 640 },
-    bento: { w: 3, h: 8 },
+    flow: { width: 390, height: 720 },
+    bento: { w: 3, h: 10 },
     cardLayout: "grid",
     collapsed: false,
     focus: false,

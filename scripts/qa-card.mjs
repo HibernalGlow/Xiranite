@@ -12,11 +12,11 @@ const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expand
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
 const BENTO_MATRIX_LAYOUTS = {
   collapsed: { x: 0, y: 0, w: 3, h: 2 },
-  compact: { x: 3, y: 0, w: 4, h: 3 },
-  portrait: { x: 7, y: 0, w: 3, h: 8 },
+  compact: { x: 3, y: 0, w: 5, h: 3 },
+  portrait: { x: 9, y: 0, w: 3, h: 10 },
   regular: { x: 0, y: 3, w: 7, h: 4 },
-  expanded: { x: 0, y: 8, w: 8, h: 7 },
-  workspace: { x: 0, y: 15, w: 12, h: 9 },
+  expanded: { x: 0, y: 10, w: 8, h: 7 },
+  workspace: { x: 0, y: 17, w: 12, h: 9 },
 }
 
 async function main() {
@@ -30,7 +30,7 @@ async function main() {
     headless: !options.headed && !options.keepOpen,
   })
   const page = await browser.newPage({
-    viewport: options.viewport ?? (options.command === "matrix" ? { width: 1600, height: 1500 } : { width: 1440, height: 900 }),
+    viewport: options.viewport ?? (options.command === "matrix" ? { width: 1600, height: 1700 } : { width: 1440, height: 900 }),
     deviceScaleFactor: 1,
   })
   const consoleIssues = []
@@ -457,7 +457,7 @@ Options:
   --view MODE            cards | dockview | flow | lane | bento
   --surface NAME         collapsed | compact | portrait | regular | expanded | workspace
   --layout NAME          grid | stack | split | focus
-  --matrix               Stage collapsed/compact/portrait/expanded in bento and screenshot once
+  --matrix               Stage collapsed/compact/portrait/expanded in bento and screenshot once; portrait is a narrow, phone-like tall card
   --matrix-surfaces CSV  Matrix surfaces. Default: ${DEFAULT_MATRIX_SURFACES.join(",")}
   --viewport WxH         Browser viewport size, for example 720x520
   --flow WxH             Flow card size in pixels

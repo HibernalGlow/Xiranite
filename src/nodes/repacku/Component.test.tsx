@@ -42,7 +42,15 @@ describe("app-owned repacku Component", () => {
       }
 
       expect(screen.getByLabelText("文件夹路径")).toBeTruthy()
-      if (mode === "compact") {
+      if (mode === "compact" || mode === "portrait") {
+        if (mode === "portrait") {
+          expect(screen.getByTestId("repacku-portrait-surface")).toBeTruthy()
+          expect(screen.getByTestId("repacku-portrait-results")).toBeTruthy()
+          expect(screen.getByRole("tab", { name: "操作" })).toBeTruthy()
+          expect(screen.getByRole("tab", { name: "目录树" })).toBeTruthy()
+          expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+          return
+        }
         expect(screen.getByRole("button", { name: "启动" })).toBeTruthy()
         expect(screen.queryByText("操作")).toBeNull()
         return
@@ -111,6 +119,22 @@ describe("app-owned repacku Component", () => {
     expect(screen.getByText(/library · 筛选 · 3 files/)).toBeTruthy()
     expect(screen.getByText(/book · 整包 · 2 files/)).toBeTruthy()
     expect(screen.getByText(".jpg x 2")).toBeTruthy()
+  })
+
+  test("moves operation, tree, and log panels below controls in portrait cards", () => {
+    surfaceState.mode = "portrait"
+    render(<Component compId="comp-repacku" host={createHost({
+      path: "D:/library",
+      logs: ["ready"],
+      result: createRepackuData({ folderTree: createFolderTree() }),
+    })} />)
+
+    expect(screen.getByTestId("repacku-portrait-surface")).toBeTruthy()
+    expect(screen.getByTestId("repacku-portrait-results")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "启动" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "操作" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "目录树" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
   })
 
   test("keeps primary actions in the expanded header toolbar", () => {
