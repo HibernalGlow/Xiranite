@@ -6,8 +6,12 @@ export interface LocalBackendConfig {
 declare global {
   interface Window {
     __XIRANITE_BACKEND__?: Partial<LocalBackendConfig>
+    _wails?: unknown
   }
 }
+
+const PKG = "main.XiraniteService"
+const DEV_BACKEND_MANIFEST_URL = "/.well-known/xiranite/backend.json"
 
 export function resolveLocalBackendConfig(): LocalBackendConfig {
   const injected = typeof window !== "undefined" ? window.__XIRANITE_BACKEND__ : undefined
@@ -19,6 +23,51 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
   }
 
   return { baseUrl, token }
+}
+
+export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | undefined> {
+  if (typeof window === "undefined") return undefined
+
+  const manifestConfig = await loadDevBackendManifest()
+  if (manifestConfig) {
+    window.__XIRANITE_BACKEND__ = manifestConfig
+    return manifestConfig
+  }
+
+  return hydrateLocalBackendConfigFromWails()
+}
+
+export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {
+  if (typeof window === "undefined" || !window._wails) return undefined
+
+  try {
+    const runtime = await import("@wailsio/runtime")
+    const config = await runtime.Call.ByName(`${PKG}.LocalBackendConfig`) as LocalBackendConfig | null
+    if (!config?.baseUrl) return undefined
+    window.__XIRANITE_BACKEND__ = config
+    return config
+  } catch {
+    return undefined
+  }
+}
+
+async function loadDevBackendManifest(): Promise<LocalBackendConfig | undefined> {
+  if (!import.meta.env.DEV) return undefined
+
+  try {
+    const response = await fetch(`${DEV_BACKEND_MANIFEST_URL}?t=${Date.now()}`, {
+      cache: "no-store",
+    })
+    if (!response.ok) return undefined
+    const config = await response.json() as Partial<LocalBackendConfig>
+    if (!config.baseUrl) return undefined
+    return {
+      baseUrl: config.baseUrl,
+      token: config.token,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export function localBackendFileUrl(path: string): string {

@@ -6,6 +6,7 @@ export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceLi
     addWorkspace: () => update("ADD_WORKSPACE", addWorkspaceState),
     removeWorkspace: (id) => update("REMOVE_WORKSPACE", (state) => removeWorkspaceState(state, id)),
     renameWorkspace: (id, label) => update("RENAME_WORKSPACE", (state) => renameWorkspaceState(state, id, label)),
+    setWorkspaceIcon: (id, icon) => update("SET_WORKSPACE_ICON", (state) => setWorkspaceIconState(state, id, icon)),
   }
 }
 
@@ -36,6 +37,15 @@ function renameWorkspaceState(state: WSState, id: string, label: string): WSStat
     ...state,
     workspaces: state.workspaces.map((workspace) =>
       workspace.id === id ? { ...workspace, label, updatedAt: Date.now() } : workspace,
+    ),
+  }
+}
+
+function setWorkspaceIconState(state: WSState, id: string, icon: string | undefined): WSState {
+  return {
+    ...state,
+    workspaces: state.workspaces.map((workspace) =>
+      workspace.id === id ? { ...workspace, icon, updatedAt: Date.now() } : workspace,
     ),
   }
 }

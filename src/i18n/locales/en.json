@@ -94,6 +94,10 @@
     "workspace": {
       "new": "NEW WORKSPACE",
       "select": "Select Workspace",
+      "current": "Current Workspace",
+      "rename": "Rename",
+      "delete": "Delete Workspace",
+      "setIcon": "Set Icon",
       "defaults": {
         "alpha": "WORKSPACE ALPHA",
         "grid": "ANALYTICAL GRID",

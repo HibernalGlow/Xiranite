@@ -22,7 +22,6 @@ func init() {
 }
 
 func main() {
-	service := NewXiraniteService()
 	localBackend, err := StartLocalBackend()
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)
@@ -37,6 +36,7 @@ func main() {
 	if localBackend != nil {
 		backendConfig = &localBackend.Config
 	}
+	service := NewXiraniteService(backendConfig)
 
 	App = application.New(application.Options{
 		Name:        "Xiranite",

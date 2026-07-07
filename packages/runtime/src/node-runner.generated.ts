@@ -74,6 +74,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-linku/platform"),
     createRuntime: "createNodeLinkuRuntime",
   },
+  lorat: {
+    loadCore: () => import("@xiranite/node-lorat/core"),
+    run: "runLorat",
+    loadPlatform: () => import("@xiranite/node-lorat/platform"),
+    createRuntime: "createNodeLoratRuntime",
+  },
   marku: {
     loadCore: () => import("@xiranite/node-marku/core"),
     run: "runMarku",

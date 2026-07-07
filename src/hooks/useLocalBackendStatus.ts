@@ -8,7 +8,14 @@ export function useLocalBackendStatus() {
     queryKey: LOCAL_BACKEND_STATUS_QUERY_KEY,
     queryFn: checkLocalBackendStatus,
     staleTime: 5_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (!status || status !== "ready") return 2_000
+      return 10_000
+    },
+    refetchIntervalInBackground: true,
     retry: false,
   })
 }

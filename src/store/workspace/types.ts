@@ -63,6 +63,7 @@ export interface WorkspaceListActions {
   addWorkspace(): void
   removeWorkspace(id: string): void
   renameWorkspace(id: string, label: string): void
+  setWorkspaceIcon(id: string, icon: string | undefined): void
 }
 
 export interface WorkspaceComponentActions {

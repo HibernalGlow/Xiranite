@@ -18,9 +18,10 @@ import (
 )
 
 type XiraniteService struct {
-	storageMu   sync.Mutex
-	userDataDir string
-	storageFile string
+	storageMu     sync.Mutex
+	userDataDir   string
+	storageFile   string
+	backendConfig *LocalBackendConfig
 }
 
 type FsEntry struct {
@@ -83,7 +84,7 @@ type OpenComponentWindowInput struct {
 	Height      int    `json:"height"`
 }
 
-func NewXiraniteService() *XiraniteService {
+func NewXiraniteService(backendConfig *LocalBackendConfig) *XiraniteService {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		home = "."
@@ -91,9 +92,14 @@ func NewXiraniteService() *XiraniteService {
 
 	userDataDir := filepath.Join(home, ".xiranite")
 	return &XiraniteService{
-		userDataDir: userDataDir,
-		storageFile: filepath.Join(userDataDir, "storage.json"),
+		userDataDir:   userDataDir,
+		storageFile:   filepath.Join(userDataDir, "storage.json"),
+		backendConfig: backendConfig,
 	}
+}
+
+func (s *XiraniteService) LocalBackendConfig() *LocalBackendConfig {
+	return s.backendConfig
 }
 
 func (s *XiraniteService) StorageGet(key string) (*string, error) {

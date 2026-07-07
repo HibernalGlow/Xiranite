@@ -94,6 +94,10 @@
     "workspace": {
       "new": "新建工作区",
       "select": "选择工作区",
+      "current": "当前工作区",
+      "rename": "重命名",
+      "delete": "删除工作区",
+      "setIcon": "设置图标",
       "defaults": {
         "alpha": "工作区 ALPHA",
         "grid": "分析网格",

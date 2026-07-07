@@ -8,11 +8,12 @@ import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperati
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
 import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
+import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import {
   Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
-  CircleDot, Image, Code2, LayoutTemplate,
+  CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -100,10 +101,15 @@ export function TopBar() {
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [iconPickerWsId, setIconPickerWsId] = useState<string | null>(null)
   const runtimeInfo = getRuntimeConnectionInfo()
   const activeOperations = useNodeOperations((store) => activeNodeOperationCount(store.operations))
   const { capabilities, controlMain, controlMainPending } = useWindowControls()
   const showWindowControls = capabilities?.nativeWindowControls === true
+
+  const activeWorkspace = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -133,10 +139,135 @@ export function TopBar() {
         "flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-background px-4",
       )}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="font-mono text-sm font-bold text-primary tracking-tight">{t("common:appName")}</span>
-        <span className="font-mono text-[9px] text-muted-foreground/60 hidden sm:inline">{t("common:version", { version: "0.5.0" })}</span>
+      {/* ── 品牌 + 工作区切换入口 ── */}
+      <div className="xiranite-app-region-no-drag relative flex-shrink-0">
+        <button
+          onClick={() => setWsMenuOpen(o => !o)}
+          title={activeWorkspace ? `${t("topbar:workspace.current")}: ${translateLabel(activeWorkspace.label, t)}` : t("topbar:workspace.new")}
+          className="flex h-10 items-center gap-2 rounded px-1 hover:bg-muted/40 transition-colors"
+        >
+          {activeWorkspace?.icon ? (
+            <WorkspaceIcon icon={activeWorkspace.icon} size="sm" />
+          ) : null}
+          <div className="min-w-0 text-left">
+            <div className="font-mono text-sm font-bold text-primary tracking-tight leading-none">{t("common:appName")}</div>
+            <div className="font-mono text-[9px] text-muted-foreground/60 leading-none mt-0.5">{t("common:version", { version: "0.5.0" })}</div>
+          </div>
+          <ChevronDown className="h-3 w-3 text-muted-foreground/60" />
+        </button>
+
+        {wsMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => { setWsMenuOpen(false); setRenamingId(null) }} />
+            <div className="absolute left-0 top-full mt-1 w-72 rounded-md border border-border bg-card shadow-lg z-40 overflow-hidden">
+              {/* 当前工作区 */}
+              {activeWorkspace ? (
+                <div className="border-b border-border/60 px-3 py-2">
+                  <p className="text-[9px] font-mono text-muted-foreground tracking-widest mb-1">{t("topbar:workspace.current")}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 flex-shrink-0 grid place-items-center">
+                      {activeWorkspace.icon ? <WorkspaceIcon icon={activeWorkspace.icon} size="sm" /> : null}
+                    </div>
+                    {renamingId === activeWorkspace.id ? (
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && renameValue.trim()) {
+                            workspaceActions.renameWorkspace(activeWorkspace.id, renameValue.trim())
+                            setRenamingId(null)
+                          }
+                          if (e.key === "Escape") setRenamingId(null)
+                        }}
+                        onBlur={() => setRenamingId(null)}
+                        className="h-6 flex-1 rounded border border-primary/50 bg-background px-1.5 text-xs font-mono"
+                      />
+                    ) : (
+                      <span className="flex-1 truncate text-xs font-mono text-foreground">{translateLabel(activeWorkspace.label, t)}</span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* 工作区列表 */}
+              <div className="py-1 max-h-60 overflow-auto">
+                {state.workspaces.map(ws => (
+                  <div
+                    key={ws.id}
+                    data-workspace-id={ws.id}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-mono hover:bg-muted/60 transition-colors group",
+                      ws.id === state.activeWorkspaceId && "bg-primary/5 text-primary"
+                    )}
+                  >
+                    <button
+                      onClick={() => {
+                        workspaceActions.setActiveWorkspace(ws.id)
+                        setWsMenuOpen(false)
+                      }}
+                      className="flex flex-1 items-center gap-2 min-w-0"
+                    >
+                      <div className="w-5 flex-shrink-0 grid place-items-center">
+                        {ws.icon ? <WorkspaceIcon icon={ws.icon} size="sm" /> : null}
+                      </div>
+                      <span className="flex-1 truncate">{translateLabel(ws.label, t)}</span>
+                      {ws.id === state.activeWorkspaceId && <Check className="h-3 w-3 flex-shrink-0" />}
+                    </button>
+                    {/* 操作按钮（hover 显示） */}
+                    <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        title={t("topbar:workspace.setIcon")}
+                        onClick={(e) => { e.stopPropagation(); setIconPickerWsId(ws.id) }}
+                        className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Smile className="h-3 w-3" />
+                      </button>
+                      <button
+                        title={t("topbar:workspace.rename")}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRenamingId(ws.id)
+                          setRenameValue(translateLabel(ws.label, t))
+                        }}
+                        className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                      {state.workspaces.length > 1 ? (
+                        <button
+                          title={t("topbar:workspace.delete")}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (ws.id === state.activeWorkspaceId) {
+                              const rest = state.workspaces.filter(w => w.id !== ws.id)
+                              if (rest.length > 0) workspaceActions.setActiveWorkspace(rest[0].id)
+                            }
+                            workspaceActions.removeWorkspace(ws.id)
+                          }}
+                          className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 操作区 */}
+              <div className="border-t border-border/60 p-1">
+                <button
+                  onClick={() => { workspaceActions.addWorkspace(); setWsMenuOpen(false) }}
+                  className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  {t("topbar:workspace.new")}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── ViewMode 切换：cards / dockview / flow 三种主形态 ── */}
@@ -182,58 +313,6 @@ export function TopBar() {
           ))}
         </div>
       )}
-
-      {/* ── Workspace 选择器（顶栏中部） ── */}
-      <div className="xiranite-app-region-no-drag relative">
-        <button
-          data-active-workspace-id={state.activeWorkspaceId}
-          onClick={() => setWsMenuOpen(o => !o)}
-          className="flex h-8 w-[clamp(9rem,18vw,11.25rem)] items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono hover:bg-muted/60"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-          <span className="flex-1 text-left truncate">
-            {translateLabel(state.workspaces.find(w => w.id === state.activeWorkspaceId)?.label ?? "—", t)}
-          </span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-        </button>
-
-        {wsMenuOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setWsMenuOpen(false)} />
-            <div className="absolute left-0 top-full mt-1 w-72 rounded-md border border-border bg-card shadow-lg z-40 overflow-hidden">
-              <div className="py-1 max-h-80 overflow-auto">
-                {state.workspaces.map(ws => (
-                  <button
-                    key={ws.id}
-                    data-workspace-id={ws.id}
-                    onClick={() => {
-                      workspaceActions.setActiveWorkspace(ws.id)
-                      setWsMenuOpen(false)
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono hover:bg-muted/60 transition-colors",
-                      ws.id === state.activeWorkspaceId && "bg-primary/5 text-primary"
-                    )}
-                  >
-                    <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", ws.id === state.activeWorkspaceId ? "bg-primary" : "bg-muted-foreground/40")} />
-                    <span className="flex-1 truncate">{translateLabel(ws.label, t)}</span>
-                    {ws.id === state.activeWorkspaceId && <Check className="h-3 w-3" />}
-                  </button>
-                ))}
-              </div>
-              <div className="border-t border-border/60 p-1">
-                <button
-                  onClick={() => { workspaceActions.addWorkspace(); setWsMenuOpen(false) }}
-                  className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                  {t("topbar:workspace.new")}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -444,6 +523,14 @@ export function TopBar() {
           </button>
         </div>
       )}
+
+      {iconPickerWsId ? (
+        <IconPicker
+          currentIcon={state.workspaces.find(w => w.id === iconPickerWsId)?.icon}
+          onSet={(icon) => workspaceActions.setWorkspaceIcon(iconPickerWsId, icon)}
+          onClose={() => setIconPickerWsId(null)}
+        />
+      ) : null}
 
     </header>
   )

@@ -1,6 +1,8 @@
 import { startBackend } from "../packages/backend/src/index"
+import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 
 const backend = await startBackend()
+await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
 const args = process.argv.slice(2)
 const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
 const frontend = new URL(frontendUrl)
@@ -37,6 +39,7 @@ function stop() {
   stopping = true
   backend.close()
   vite.kill()
+  void removeBackendDevManifest()
 }
 
 process.on("SIGINT", stop)
@@ -45,4 +48,5 @@ process.on("exit", () => backend.close())
 
 const exitCode = await vite.exited
 backend.close()
+await removeBackendDevManifest()
 process.exit(exitCode ?? 0)

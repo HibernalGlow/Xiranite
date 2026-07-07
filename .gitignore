@@ -19,6 +19,7 @@ build/windows/*
 artifacts
 *.syso
 *.local
+public/.well-known/xiranite/backend.json
 
 # Editor directories and files
 .vscode/*

@@ -63,6 +63,7 @@
     "@xiranite/node-lata": "workspace:*",
     "@xiranite/node-linedup": "workspace:*",
     "@xiranite/node-linku": "workspace:*",
+    "@xiranite/node-lorat": "workspace:*",
     "@xiranite/node-marku": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",
     "@xiranite/node-movea": "workspace:*",
