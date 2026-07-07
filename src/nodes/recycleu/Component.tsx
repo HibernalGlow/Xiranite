@@ -36,8 +36,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   const progress = data.progress ?? (running ? 0 : data.phase === "completed" ? 100 : 0)
   const remainingSeconds = data.remainingSeconds ?? interval
   const status = statusFromState(data, running)
-  const forceCollapsedSurface = surface.mode === "compact" && surface.height > 0 && surface.height < 160
-  const portraitCompact = surface.mode === "compact" && surface.height >= 430
+  const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
+  const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
+  const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.height >= 430)
   const crampedCompact = surface.mode === "compact" && surface.height > 0 && surface.height < 280
 
   function patch(patchData: Partial<RecycleuCardState>) {
@@ -159,7 +160,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
-          ) : surface.mode === "compact" ? (
+          ) : compactSurface ? (
             portraitCompact
               ? <PortraitCompactView {...commonProps} />
               : crampedCompact

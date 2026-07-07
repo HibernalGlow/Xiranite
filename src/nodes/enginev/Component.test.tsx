@@ -18,7 +18,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
     width: widthForMode(surfaceState.mode),
     height: surfaceState.height ?? heightForMode(surfaceState.mode),
     mode: surfaceState.mode,
-    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" ? "tight" : "roomy",
+    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" || surfaceState.mode === "portrait" ? "tight" : "roomy",
   }),
 }))
 
@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 describe("app-owned enginev Component", () => {
-  test.each(["collapsed", "compact", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
+  test.each(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
     "renders the %s surface with EngineV-specific UI",
     (mode) => {
       surfaceState.mode = mode
@@ -44,9 +44,13 @@ describe("app-owned enginev Component", () => {
       }
 
       expect(screen.getByLabelText("Wallpaper Engine 工坊路径")).toBeTruthy()
-      if (mode === "compact") {
+      if (mode === "compact" || mode === "portrait") {
+        if (mode === "portrait") {
+          expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+          expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+        }
         expect(screen.getByText("预演")).toBeTruthy()
-        expect(screen.getByText("复制")).toBeTruthy()
+        expect(screen.getAllByText("复制").length).toBeGreaterThan(0)
         expect(screen.getByRole("button", { name: "筛选和选择" })).toBeTruthy()
         return
       }
@@ -70,9 +74,8 @@ describe("app-owned enginev Component", () => {
     expect(screen.getByRole("button", { name: "快速扫描" })).toBeTruthy()
   })
 
-  test("moves result and log tabs below the gallery in tall compact portrait cards", () => {
-    surfaceState.mode = "compact"
-    surfaceState.height = 340
+  test("moves result and log tabs below the gallery in portrait cards", () => {
+    surfaceState.mode = "portrait"
     render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper], logs: ["ready"] })} />)
 
     expect(screen.getByLabelText("Wallpaper Engine 工坊路径")).toBeTruthy()
@@ -255,6 +258,7 @@ const enginevData: EngineVData = {
 function widthForMode(mode: NodeSurfaceMode): number {
   if (mode === "collapsed") return 240
   if (mode === "compact") return 420
+  if (mode === "portrait") return 390
   if (mode === "regular") return 720
   if (mode === "expanded") return 920
   return 1120
@@ -263,6 +267,7 @@ function widthForMode(mode: NodeSurfaceMode): number {
 function heightForMode(mode: NodeSurfaceMode): number {
   if (mode === "collapsed") return 120
   if (mode === "compact") return 260
+  if (mode === "portrait") return 640
   if (mode === "expanded") return 560
   if (mode === "workspace") return 720
   return 420

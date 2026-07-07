@@ -17,7 +17,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
     width: widthForMode(surfaceState.mode),
     height: heightForMode(surfaceState.mode),
     mode: surfaceState.mode,
-    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" ? "tight" : "roomy",
+    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" || surfaceState.mode === "portrait" ? "tight" : "roomy",
   }),
 }))
 
@@ -28,7 +28,7 @@ afterEach(() => {
 })
 
 describe("app-owned repacku Component", () => {
-  test.each(["collapsed", "compact", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
+  test.each(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
     "renders the %s surface without falling back to the old package UI",
     (mode) => {
       surfaceState.mode = mode
@@ -256,11 +256,13 @@ function createFolderTree(): RepackuFolderNode {
 function widthForMode(mode: NodeSurfaceMode): number {
   if (mode === "collapsed") return 240
   if (mode === "compact") return 420
+  if (mode === "portrait") return 390
   if (mode === "regular") return 720
   if (mode === "expanded") return 920
   return 1120
 }
 
 function heightForMode(mode: NodeSurfaceMode): number {
+  if (mode === "portrait") return 640
   return mode === "workspace" ? 720 : 360
 }

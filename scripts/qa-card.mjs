@@ -8,15 +8,15 @@ const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url))
 const DEFAULT_URL = process.env.XIRANITE_QA_URL ?? "http://127.0.0.1:5173/?workspace=ws-default"
 const VIEW_MODES = new Set(["cards", "dockview", "flow", "lane", "bento"])
 const CARD_LAYOUTS = new Set(["grid", "stack", "split", "focus"])
-const SURFACES = new Set(["collapsed", "compact", "regular", "expanded", "workspace"])
+const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"])
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
 const BENTO_MATRIX_LAYOUTS = {
   collapsed: { x: 0, y: 0, w: 3, h: 2 },
   compact: { x: 3, y: 0, w: 4, h: 3 },
-  regular: { x: 7, y: 0, w: 5, h: 4 },
-  portrait: { x: 7, y: 0, w: 3, h: 9 },
-  expanded: { x: 0, y: 9, w: 8, h: 8 },
-  workspace: { x: 0, y: 12, w: 12, h: 9 },
+  portrait: { x: 7, y: 0, w: 3, h: 8 },
+  regular: { x: 0, y: 3, w: 7, h: 4 },
+  expanded: { x: 0, y: 8, w: 8, h: 7 },
+  workspace: { x: 0, y: 15, w: 12, h: 9 },
 }
 
 async function main() {
@@ -221,10 +221,9 @@ async function runQaCommand(page, options) {
         const created = []
         for (const [index, surface] of surfaces.entries()) {
           const bento = layouts[surface]
-          const stageSurface = surface === "portrait" ? "compact" : surface
           let selected
           if (index === 0) {
-            selected = qa.stage(moduleId, { view: "bento", surface: stageSurface, bento, collapsed: false, fresh: true }).selected
+            selected = qa.stage(moduleId, { view: "bento", surface, bento, collapsed: false, fresh: true }).selected
           } else {
             const beforeIds = new Set(qa.components().map((component) => component.id))
             qa.deploy(moduleId, "bento")
@@ -233,7 +232,7 @@ async function runQaCommand(page, options) {
               .find((component) => component.moduleId === moduleId && !beforeIds.has(component.id))
           }
           if (!selected) throw new Error(`Failed to stage ${moduleId} ${surface}`)
-          qa.stage(selected.id, { view: "bento", surface: stageSurface, bento, collapsed: false })
+          qa.stage(selected.id, { view: "bento", surface, bento, collapsed: false })
           created.push({ ...selected, surface, bento })
         }
         qa.view("bento")
@@ -323,11 +322,9 @@ async function waitForStagedRender(page, result, options) {
   if (Array.isArray(result?.matrix) && result.matrix.length) {
     const renderWaitMs = Math.min(options.timeoutMs, 10_000)
     try {
-      await page.waitForFunction(
-        (expectedCount) => document.querySelectorAll('[data-component-id]').length >= expectedCount,
-        result.matrix.length,
-        { timeout: renderWaitMs },
-      )
+      for (const item of result.matrix) {
+        await page.locator(`[data-component-id="${cssEscape(item.id)}"]`).first().waitFor({ state: "visible", timeout: renderWaitMs })
+      }
       await page.waitForTimeout(250)
     } catch {
       console.warn(`staged matrix was not fully rendered after ${renderWaitMs}ms; screenshot may show a partial layout`)
@@ -396,7 +393,6 @@ function parseMatrixSurfaces(value) {
 }
 
 function parseMatrixSurface(value) {
-  if (value === "portrait") return value
   return parseSurface(value)
 }
 
@@ -459,7 +455,7 @@ Examples:
 Options:
   --url URL              Dev app URL. Default: ${DEFAULT_URL}
   --view MODE            cards | dockview | flow | lane | bento
-  --surface NAME         collapsed | compact | regular | expanded | workspace
+  --surface NAME         collapsed | compact | portrait | regular | expanded | workspace
   --layout NAME          grid | stack | split | focus
   --matrix               Stage collapsed/compact/portrait/expanded in bento and screenshot once
   --matrix-surfaces CSV  Matrix surfaces. Default: ${DEFAULT_MATRIX_SURFACES.join(",")}

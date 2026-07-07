@@ -185,7 +185,7 @@ src/nodes/<id>/
 但 aestivus 的布局不是 Xiranite 的目标布局，不能直接照搬：
 
 - 可以参考原组件“要做什么”，不能复制原来的外壳、固定网格、NodeWrapper、Flow 专用 handles、固定宽高和旧卡片结构。
-- 原来的 block/grid 设计只能作为信息分组参考；Xiranite 中必须重新映射到 collapsed / compact / regular / expanded / workspace surface。
+- 原来的 block/grid 设计只能作为信息分组参考；Xiranite 中必须重新映射到 collapsed / compact / portrait / regular / expanded / workspace surface。
 - 旧实现里的核心能力必须保留，例如 recycleu 的倒计时圆环、清理次数、上次清理、立即清理、日志复制；但展现方式要适配卡片、便当、浮窗和主应用 shadcn/Dice UI。
 - 如果旧实现有好的组件选择或交互细节，应抽取成新的本地小组件或复用成熟组件库，而不是把旧布局整块搬进 `src/nodes/<id>/Component.tsx`。
 - 每次迁移前都应查看对应的 aestivus 源码和 blocks 定义，写清楚“保留的功能语义”和“重构的布局策略”，再开始实现。
@@ -243,11 +243,12 @@ Repacku
 每个节点 UI 应按容器尺寸进入不同布局：
 
 ```text
-width < 280      -> collapsed
-280 - 520        -> compact
-520 - 860        -> regular
-860             -> expanded
-floating window  -> workspace
+width < 280                         -> collapsed
+280 - 520                           -> compact
+窄宽度 + 高度明显大于宽度          -> portrait
+520 - 860                           -> regular
+860+                                -> expanded
+floating window / full workspace     -> workspace
 ```
 
 建议建立统一 hook：
@@ -260,7 +261,7 @@ useNodeSurface()
 
 ```ts
 {
-  mode: "collapsed" | "compact" | "regular" | "expanded" | "workspace",
+  mode: "collapsed" | "compact" | "portrait" | "regular" | "expanded" | "workspace",
   width,
   height,
   density,

@@ -19,7 +19,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
     width: widthForMode(surfaceState.mode),
     height: surfaceState.height ?? heightForMode(surfaceState.mode),
     mode: surfaceState.mode,
-    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" ? "tight" : "roomy",
+    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" || surfaceState.mode === "portrait" ? "tight" : "roomy",
   }),
 }))
 
@@ -31,7 +31,7 @@ afterEach(() => {
 })
 
 describe("app-owned recycleu Component", () => {
-  test.each(["collapsed", "compact", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
+  test.each(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
     "renders the %s surface with complete cleanup affordances",
     async (mode) => {
       surfaceState.mode = mode
@@ -104,9 +104,8 @@ describe("app-owned recycleu Component", () => {
     expect(screen.getByRole("button", { name: "启动" })).toBeTruthy()
   })
 
-  test("moves logs below controls in tall compact portrait cards", () => {
-    surfaceState.mode = "compact"
-    surfaceState.height = 520
+  test("moves logs below controls in portrait cards", () => {
+    surfaceState.mode = "portrait"
     render(<Component compId="comp-recycleu" host={createHost({ interval: 10, maxCycles: 2, driveLetter: "C" })} />)
 
     expect(screen.getByText("运行日志")).toBeTruthy()
@@ -275,6 +274,7 @@ function createDeferred<T>() {
 function widthForMode(mode: NodeSurfaceMode): number {
   if (mode === "collapsed") return 240
   if (mode === "compact") return 420
+  if (mode === "portrait") return 390
   if (mode === "regular") return 720
   if (mode === "expanded") return 920
   return 1120
@@ -283,6 +283,7 @@ function widthForMode(mode: NodeSurfaceMode): number {
 function heightForMode(mode: NodeSurfaceMode): number {
   if (mode === "collapsed") return 120
   if (mode === "compact") return 300
+  if (mode === "portrait") return 640
   if (mode === "regular") return 420
   if (mode === "expanded") return 560
   return 720

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type DragEvent as ReactDragEvent, type MouseEvent } from "react"
+import { useCallback, useLayoutEffect, useMemo, useRef, type DragEvent as ReactDragEvent, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { GridStack, type GridStackNode } from "gridstack"
 import "gridstack/dist/gridstack.min.css"
@@ -68,10 +68,11 @@ export function BentoView() {
     }
   }, [workspaceActions])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current
     if (!container || bentoComponents.length === 0) return undefined
 
+    pruneStaleGridItems(container, new Set(bentoComponents.map((component) => component.id)))
     gridRef.current?.destroy(false)
     const grid = GridStack.init({
       acceptWidgets: false,
@@ -180,6 +181,14 @@ export function BentoView() {
       </div>
     </div>
   )
+}
+
+function pruneStaleGridItems(container: HTMLElement, activeIds: Set<string>) {
+  for (const child of Array.from(container.children)) {
+    if (!(child instanceof HTMLElement) || !child.classList.contains("grid-stack-item")) continue
+    const id = child.getAttribute("gs-id") ?? child.getAttribute("data-gs-id")
+    if (!id || !activeIds.has(id)) child.remove()
+  }
 }
 
 function BentoWidget({ component }: { component: ComponentInstance }) {

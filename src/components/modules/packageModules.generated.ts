@@ -31,7 +31,7 @@ export const PACKAGE_MODULES = [
 ] satisfies NodeDef[]
 
 export const packageModuleLoaders = {
-  bandia: () => import("@xiranite/node-bandia") as Promise<{ default: NodeEntry }>,
+  bandia: () => import("@/nodes/bandia/entry") as Promise<{ default: AppNodeEntry }>,
   cleanf: () => import("@xiranite/node-cleanf") as Promise<{ default: NodeEntry }>,
   crashu: () => import("@xiranite/node-crashu") as Promise<{ default: NodeEntry }>,
   dissolvef: () => import("@xiranite/node-dissolvef") as Promise<{ default: NodeEntry }>,

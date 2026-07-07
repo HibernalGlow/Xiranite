@@ -221,7 +221,7 @@ declare global {
   }
 }
 
-type QaSurfacePreset = "collapsed" | "compact" | "regular" | "expanded" | "workspace"
+type QaSurfacePreset = "collapsed" | "compact" | "portrait" | "regular" | "expanded" | "workspace"
 
 interface QaResizeOptions {
   view?: ViewMode
@@ -264,6 +264,14 @@ const QA_SURFACE_PRESETS: Record<QaSurfacePreset, {
   compact: {
     flow: { width: 360, height: 260 },
     bento: { w: 4, h: 3 },
+    cardLayout: "grid",
+    collapsed: false,
+    focus: false,
+    fullscreen: false,
+  },
+  portrait: {
+    flow: { width: 390, height: 640 },
+    bento: { w: 3, h: 8 },
     cardLayout: "grid",
     collapsed: false,
     focus: false,

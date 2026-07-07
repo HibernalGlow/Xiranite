@@ -65,8 +65,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasFilters, wallpapers])
   const status = statusFromState(data, running)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
-  const forceCollapsedSurface = surface.mode === "compact" && surface.height > 0 && surface.height < 160
-  const portraitCompact = surface.mode === "compact" && surface.width < 560 && surface.height >= 300
+  const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
+  const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
+  const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
     host.getNodeConfig?.<Partial<EngineVCardState>>()
@@ -254,7 +255,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
-          ) : surface.mode === "compact" ? (
+          ) : compactSurface ? (
             portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
           ) : (
             <FullView {...commonProps} />
