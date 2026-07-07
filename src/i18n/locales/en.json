@@ -428,6 +428,16 @@
       }
     }
   },
+  "contextMenu": {
+    "focus": "Focus",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "openWindow": "Open in Window",
+    "duplicate": "Duplicate",
+    "compact": "Compact",
+    "expand": "Expand",
+    "delete": "Delete"
+  },
   "module": {
     "unknown": "// unknown module: {{id}}",
     "scratch": {

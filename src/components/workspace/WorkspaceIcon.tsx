@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react"
-import * as LucideIcons from "lucide-react"
+import type { ComponentType } from "react"
+import { Briefcase, Folder, Home, Layers, Package, Star } from "lucide-react"
 
 export interface WorkspaceIconProps {
   icon?: string
   className?: string
   size?: "sm" | "md"
+}
+
+const lucideIconRegistry: Record<string, ComponentType<{ className?: string }> | undefined> = {
+  Briefcase,
+  Folder,
+  Home,
+  Layers,
+  Package,
+  Star,
 }
 
 /**
@@ -25,7 +35,7 @@ export function WorkspaceIcon({ icon, className, size = "md" }: WorkspaceIconPro
   // lucide:图标名
   if (icon.startsWith("lucide:")) {
     const name = icon.slice(7)
-    const IconComp = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>)[toPascalCase(name)]
+    const IconComp = lucideIconRegistry[toPascalCase(name)]
     if (IconComp) return <IconComp className={cn(dim, className)} />
     return <span className={cn(dim, "grid place-items-center", textDim, className)}>?</span>
   }

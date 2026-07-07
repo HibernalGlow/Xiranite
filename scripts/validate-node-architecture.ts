@@ -38,8 +38,14 @@ const componentRules: Rule[] = [
   rule("src/Component.tsx", "Component must not hard-code arbitrary grid columns", /grid-cols-\[/),
 ]
 
-const componentRequiredRules: Rule[] = [
-  rule("src/Component.tsx", "Component must use @xiranite/ui shared content primitives", /from\s+["']@xiranite\/ui["']/),
+const headlessForbiddenPackagePatterns: Rule[] = [
+  rule("package.json", "headless node package must not depend on React", /"react"|"react-dom"|"react-i18next"|"@types\/react"/),
+  rule("package.json", "headless node package must not depend on lucide-react", /"lucide-react"/),
+  rule("package.json", "headless node package must not depend on @xiranite/ui", /"@xiranite\/ui"/),
+]
+
+const headlessIndexRules: Rule[] = [
+  rule("src/index.ts", "headless index must not export or import Component", /\bComponent\b|\.\/Component/),
 ]
 
 const indexRules: Rule[] = [
@@ -71,11 +77,19 @@ async function main() {
   const nodeDirs = await listNodeDirs(resolve(ROOT, "packages", "nodes"))
   for (const nodeDir of nodeDirs) {
     if (NODE_FILTER && nodeDir.name !== NODE_FILTER) continue
-    for (const rule of [...componentRules, ...indexRules, ...packageRules, ...cliRules, ...coreRules]) {
+    const hasComponent = await readTextIfExists(join(nodeDir.path, "src", "Component.tsx")) !== null
+    const rules = hasComponent
+      ? [...componentRules, ...indexRules, ...packageRules, ...cliRules, ...coreRules]
+      : [...headlessForbiddenPackagePatterns, ...headlessIndexRules, ...indexRules, ...packageRules, ...cliRules, ...coreRules]
+    for (const rule of rules) {
       await collectFindings(join(nodeDir.path, rule.file), rule, findings)
     }
-    for (const rule of componentRequiredRules) {
-      await collectMissingRequired(join(nodeDir.path, rule.file), rule, findings)
+    if (hasComponent) {
+      await collectMissingRequired(
+        join(nodeDir.path, "src", "Component.tsx"),
+        rule("src/Component.tsx", "legacy package Component must use @xiranite/ui shared content primitives", /from\s+["']@xiranite\/ui["']/),
+        findings,
+      )
     }
   }
 
@@ -158,7 +172,8 @@ function printHelp(): void {
     "",
     "Validates the adapter-free Xiranite node package boundaries:",
     "- contract has no card schema, backend runner, or CLI fields",
-    "- Component.tsx is shell-less content, uses @xiranite/ui, and does not call host runners",
+    "- migrated headless packages do not expose Component or depend on React UI packages",
+    "- legacy Component.tsx is shell-less content, uses @xiranite/ui, and does not call host runners",
     "- index.ts and package exports keep demo shells private",
     "- cli.ts does not import the React UI component",
     "- core.ts avoids obvious UI/app/native platform imports",

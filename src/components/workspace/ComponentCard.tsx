@@ -81,6 +81,8 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
 
   return (
     <div
+      data-context-menu="component-card"
+      data-component-id={comp.id}
       onPointerDown={() => workspaceActions.raiseComponent(comp.id)}
       style={{
         position: "absolute",

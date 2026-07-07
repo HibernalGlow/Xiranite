@@ -504,7 +504,7 @@ function formatOperation(operation: RepackuOperation, host: CliHost): string {
   return `${prefix}${truncateVisible(operation.sourcePath, sourceWidth)}${arrow}${truncateVisible(operation.targetPath, targetWidth)}`
 }
 
-if (process.argv[1] && /\bcli\.js$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

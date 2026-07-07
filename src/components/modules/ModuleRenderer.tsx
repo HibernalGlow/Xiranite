@@ -24,7 +24,7 @@ const packageComponents = Object.fromEntries(
     id,
     lazy(async () => {
       const entry = (await loadEntry()).default
-      return { default: entry.Component }
+      return { default: entry.Component as ComponentType<NodeComponentProps> }
     }),
   ]),
 ) as Partial<Record<string, LazyExoticComponent<ComponentType<NodeComponentProps>>>>

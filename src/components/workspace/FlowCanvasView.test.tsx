@@ -2,18 +2,22 @@
 import { act, cleanup, render } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
+import type { ComponentInstance } from "@/types/workspace"
 import { FlowCanvasView } from "./FlowCanvasView"
 
+type ModuleShapeStub = { type: string; props: { compId?: string } }
+type DeleteShapeHandler = (shape: ModuleShapeStub, source: string) => void
+
 const setComponentVisibilityMock = vi.hoisted(() => vi.fn())
-const visibleComponentsMock = vi.hoisted(() => vi.fn(() => []))
+const visibleComponentsMock = vi.hoisted(() => vi.fn<() => ComponentInstance[]>(() => []))
 const editorMock = vi.hoisted(() => ({
-  getCurrentPageShapes: vi.fn(() => []),
-  deleteShapes: vi.fn(),
-  createShapes: vi.fn(),
-  updateShapes: vi.fn(),
+  getCurrentPageShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
+  deleteShapes: vi.fn<(shapeIds: unknown[]) => void>(),
+  createShapes: vi.fn<(shapes: unknown[]) => void>(),
+  updateShapes: vi.fn<(shapes: unknown[]) => void>(),
   sideEffects: {
-    registerAfterChangeHandler: vi.fn(() => vi.fn()),
-    registerAfterDeleteHandler: vi.fn(() => vi.fn()),
+    registerAfterChangeHandler: vi.fn<(typeName: string, handler: unknown) => () => void>(() => vi.fn()),
+    registerAfterDeleteHandler: vi.fn<(typeName: string, handler: DeleteShapeHandler) => () => void>(() => vi.fn()),
   },
 }))
 
@@ -102,7 +106,7 @@ describe("FlowCanvasView", () => {
   })
 })
 
-function createFlowComponent(id: string, moduleId: string) {
+function createFlowComponent(id: string, moduleId: string): ComponentInstance {
   return {
     id,
     moduleId,

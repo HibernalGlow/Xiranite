@@ -645,7 +645,7 @@ function numberArg(value?: string | number): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-if (process.argv[1] && /\bcli\.js$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
     await runProgram()
   } catch (error) {

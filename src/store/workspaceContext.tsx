@@ -252,6 +252,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     addWorkspace: store.addWorkspace,
     removeWorkspace: store.removeWorkspace,
     renameWorkspace: store.renameWorkspace,
+    setWorkspaceIcon: store.setWorkspaceIcon,
     deployComponent: store.deployComponent,
     ensureComponent: store.ensureComponent,
     removeComponent: store.removeComponent,

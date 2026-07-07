@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
@@ -26,8 +26,8 @@ export function CardView() {
   const canvasRef = useRef<HTMLDivElement>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const resizeIdleTimerRef = useRef<number | null>(null)
-  const sizeRef = useRef({ w: 1200, h: 800 })
-  const [size, setSize] = useState({ w: 1200, h: 800 })
+  const sizeRef = useRef({ w: 0, h: 0 })
+  const [size, setSize] = useState({ w: 0, h: 0 })
   const [isResizing, setIsResizing] = useState(false)
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "cards" })
@@ -40,11 +40,11 @@ export function CardView() {
     [visibleComponents],
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = canvasRef.current
     if (!el) return
 
-    const scheduleSizeUpdate = (rawWidth: number, rawHeight: number) => {
+    const applySize = (rawWidth: number, rawHeight: number, immediate = false) => {
       const next = {
         w: Math.round(rawWidth),
         h: Math.round(rawHeight),
@@ -52,6 +52,16 @@ export function CardView() {
 
       if (next.w <= 0 || next.h <= 0) return
       if (next.w === sizeRef.current.w && next.h === sizeRef.current.h) return
+
+      if (immediate) {
+        if (resizeFrameRef.current !== null) {
+          cancelAnimationFrame(resizeFrameRef.current)
+          resizeFrameRef.current = null
+        }
+        sizeRef.current = next
+        setSize(next)
+        return
+      }
 
       if (resizeFrameRef.current !== null) {
         cancelAnimationFrame(resizeFrameRef.current)
@@ -74,11 +84,11 @@ export function CardView() {
       })
     }
 
-    scheduleSizeUpdate(el.clientWidth, el.clientHeight)
+    applySize(el.clientWidth, el.clientHeight, true)
 
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
-      scheduleSizeUpdate(width, height)
+      applySize(width, height)
     })
     ro.observe(el)
     return () => {

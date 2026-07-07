@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { readdir, readFile, writeFile } from "node:fs/promises"
+import { access, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import * as ts from "typescript"
@@ -13,6 +13,7 @@ interface NodePackage {
   id: string
   packageName: string
   hasPlatform: boolean
+  hasAppEntry: boolean
   def: NodeDefLiteral
 }
 
@@ -71,6 +72,7 @@ async function discoverNodePackages(): Promise<NodePackage[]> {
       id: entry.name,
       packageName: pkg.name,
       hasPlatform: Boolean(pkg.exports?.["./platform"]),
+      hasAppEntry: await fileExists(join(repoRoot, "src", "nodes", entry.name, "entry.ts")),
       def,
     })
   }
@@ -85,8 +87,14 @@ async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
 
   function visit(node: ts.Node) {
     if (found) return
-    if (ts.isPropertyAssignment(node) && propertyName(node.name) === "def" && ts.isObjectLiteralExpression(node.initializer)) {
-      const def = parseNodeDefLiteral(node.initializer)
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "def" && node.initializer) {
+      const object = objectLiteralFromExpression(node.initializer)
+      const def = object ? parseNodeDefLiteral(object) : undefined
+      if (def) found = def
+    }
+    if (ts.isPropertyAssignment(node) && propertyName(node.name) === "def") {
+      const object = objectLiteralFromExpression(node.initializer)
+      const def = object ? parseNodeDefLiteral(object) : undefined
       if (def) found = def
     }
     ts.forEachChild(node, visit)
@@ -129,6 +137,13 @@ function parseNodeDefLiteral(object: ts.ObjectLiteralExpression): NodeDefLiteral
   }
 }
 
+function objectLiteralFromExpression(expression: ts.Expression): ts.ObjectLiteralExpression | undefined {
+  if (ts.isObjectLiteralExpression(expression)) return expression
+  if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression)) return objectLiteralFromExpression(expression.expression)
+  if (ts.isParenthesizedExpression(expression)) return objectLiteralFromExpression(expression.expression)
+  return undefined
+}
+
 function generateRuntimeRegistry(nodes: NodePackage[]): string {
   const lines = nodes.map((node) => `  ${objectKey(node.id)}: ${runtimeSpec(node)},`)
   return `${header}import type { NodeSpec } from "./node-runner.js"
@@ -169,10 +184,14 @@ function runtimeSpec(node: NodePackage): string {
 function generatePackageModuleRegistry(nodes: NodePackage[]): string {
   const modules = nodes.map((node) => `  ${nodeDefLiteral(node.def)},`).join("\n")
   const loaders = nodes
-    .map((node) => `  ${objectKey(node.id)}: () => import(${stringLiteral(node.packageName)}) as Promise<{ default: NodeEntry }>,`)
+    .map((node) => {
+      const target = node.hasAppEntry ? `@/nodes/${node.id}/entry` : node.packageName
+      const entryType = node.hasAppEntry ? "AppNodeEntry" : "NodeEntry"
+      return `  ${objectKey(node.id)}: () => import(${stringLiteral(target)}) as Promise<{ default: ${entryType} }>,`
+    })
     .join("\n")
 
-  return `${header}import type { NodeDef, NodeEntry } from "@xiranite/contract"
+  return `${header}import type { AppNodeEntry, NodeDef, NodeEntry } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
 ${modules}
@@ -180,7 +199,7 @@ ${modules}
 
 export const packageModuleLoaders = {
 ${loaders}
-} satisfies Partial<Record<string, () => Promise<{ default: NodeEntry }>>>
+} satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry }>>>
 `
 }
 
@@ -190,6 +209,15 @@ async function writeIfChanged(filePath: string, nextContent: string): Promise<vo
 
   await writeFile(filePath, nextContent, "utf8")
   console.log(`updated ${filePath}`)
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function pascalCase(value: string): string {

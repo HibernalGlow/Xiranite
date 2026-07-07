@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react"
 import { WorkspaceProvider } from "@/store/workspaceContext"
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout"
+import { ContextMenuProvider } from "@/components/context-menu"
 import { parseAsString, useQueryStates } from "nuqs"
 
 const FloatingComponentWindow = lazy(() =>
@@ -21,18 +22,20 @@ export function App() {
 
   return (
     <WorkspaceProvider>
-      {params.floatingComponent ? (
-        <Suspense fallback={<div className="h-screen bg-background" />}>
-          <FloatingComponentWindow
-            compId={params.floatingComponent}
-            windowId={params.windowId}
-            moduleIdFallback={params.moduleId}
-            titleFallback={params.title}
-          />
-        </Suspense>
-      ) : (
-        <WorkspaceLayout />
-      )}
+      <ContextMenuProvider>
+        {params.floatingComponent ? (
+          <Suspense fallback={<div className="h-screen bg-background" />}>
+            <FloatingComponentWindow
+              compId={params.floatingComponent}
+              windowId={params.windowId}
+              moduleIdFallback={params.moduleId}
+              titleFallback={params.title}
+            />
+          </Suspense>
+        ) : (
+          <WorkspaceLayout />
+        )}
+      </ContextMenuProvider>
     </WorkspaceProvider>
   )
 }

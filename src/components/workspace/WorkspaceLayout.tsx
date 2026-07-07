@@ -5,6 +5,7 @@ import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
+import { useDefaultContextMenuItems } from "@/components/context-menu/defaults"
 import { cn } from "@/lib/utils"
 
 const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
@@ -13,6 +14,7 @@ const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ defaul
 const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
 
 export function WorkspaceLayout() {
+  useDefaultContextMenuItems()
   const chrome = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
     viewMode: state.viewMode,

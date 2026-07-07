@@ -1102,4 +1102,5 @@ export {
   KanbanItemHandle,
   KanbanOverlay,
   type KanbanProps,
+  type UniqueIdentifier,
 };

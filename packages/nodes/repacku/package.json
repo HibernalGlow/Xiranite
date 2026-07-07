@@ -36,17 +36,10 @@
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*",
-    "@xiranite/ui": "workspace:*"
-  },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-i18next": "^17.0.0",
-    "lucide-react": "^1.0.0"
+    "@xiranite/contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
-    "@types/react": "^19.2.14",
     "typescript": "~5.9.3"
   }
 }

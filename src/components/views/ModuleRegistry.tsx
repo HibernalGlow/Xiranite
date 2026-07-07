@@ -32,7 +32,7 @@ import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceContext"
 import { setModuleDragData } from "@/lib/moduleDragDrop"
 import { cn } from "@/lib/utils"
-import type { ModuleDef, ViewMode } from "@/types/workspace"
+import type { ModuleDef } from "@/types/workspace"
 
 type CatalogViewMode = "list" | "table" | "gallery" | "board"
 
@@ -57,22 +57,22 @@ type ModuleQueryOptions = {
 const TableView = Object.assign(React.lazy(async () => {
   const mod = await import("@hibernalglow/ocean-dataview/views/table-view")
   return { default: mod.TableView as React.ComponentType<TableViewProps<ModuleRow>> }
-}), { dataViewType: "table" as const, defaultLimit: 40 })
+}), { dataViewType: "table" as const, defaultLimit: 25 })
 
 const ListView = Object.assign(React.lazy(async () => {
   const mod = await import("@hibernalglow/ocean-dataview/views/list-view")
   return { default: mod.ListView as React.ComponentType<ListViewProps<ModuleRow>> }
-}), { dataViewType: "list" as const, defaultLimit: 40 })
+}), { dataViewType: "list" as const, defaultLimit: 25 })
 
 const GalleryView = Object.assign(React.lazy(async () => {
   const mod = await import("@hibernalglow/ocean-dataview/views/gallery-view")
   return { default: mod.GalleryView as React.ComponentType<GalleryViewProps<ModuleRow>> }
-}), { dataViewType: "gallery" as const, defaultLimit: 40 })
+}), { dataViewType: "gallery" as const, defaultLimit: 25 })
 
 const BoardView = Object.assign(React.lazy(async () => {
   const mod = await import("@hibernalglow/ocean-dataview/views/board-view")
   return { default: mod.BoardView as React.ComponentType<BoardViewProps<ModuleRow>> }
-}), { dataViewType: "board" as const, defaultLimit: 40 })
+}), { dataViewType: "board" as const, defaultLimit: 25 })
 
 const iconRegistry = LucideIcons as unknown as Record<string, LucideIcon | undefined>
 
@@ -302,7 +302,7 @@ export function ModuleRegistry() {
             controller={controller}
             properties={properties}
             defaults={{
-              limit: 40,
+              limit: 25,
               column: {
                 propertyId: "category",
                 propertyType: "select",

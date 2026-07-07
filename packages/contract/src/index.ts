@@ -1,5 +1,3 @@
-import type { ComponentType } from "react"
-
 export type NodeCategory =
   | "file"
   | "image"
@@ -77,11 +75,11 @@ export interface NodeHostApi {
     theme: "light" | "dark"
     platform: "web" | "electron" | "node" | string
   }
-  /** 读取节点默认配置（从 xiranite.config.toml） */
+  /** Read node defaults from xiranite.config.toml. */
   getNodeConfig?: <T = unknown>() => Promise<{ config: T | undefined; path: string }>
-  /** 保存节点默认配置（写入 xiranite.config.toml） */
+  /** Save node defaults to xiranite.config.toml. */
   saveNodeConfig?: <T = unknown>(config: T) => Promise<void>
-  /** 在系统默认编辑器中打开配置文件 */
+  /** Open the config file in the system default editor. */
   openConfigFile?: () => void
 }
 
@@ -90,8 +88,16 @@ export interface NodeComponentProps {
   host: NodeHostApi
 }
 
-export interface NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> {
+export type NodeComponent = (props: NodeComponentProps) => unknown
+
+export interface HeadlessNodePackage<TCore extends Record<string, unknown> = Record<string, unknown>> {
   def: NodeDef
-  Component: ComponentType<NodeComponentProps>
   core: TCore
 }
+
+export interface AppNodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>>
+  extends HeadlessNodePackage<TCore> {
+  Component: NodeComponent
+}
+
+export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>

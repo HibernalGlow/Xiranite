@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from "node:fs/promises"
+import { mkdir, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "@playwright/test"
@@ -33,6 +33,8 @@ export interface CliVisualCapture {
 }
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url))
+const VISUAL_LOCK_DIR = resolve(REPO_ROOT, "artifacts", ".locks", "cli-visual")
+const VISUAL_LOCK_STALE_MS = 120_000
 const DEFAULT_COLUMNS = 100
 const DEFAULT_ROWS = 24
 const DEFAULT_VIEWPORT = { width: 1180, height: 420 }
@@ -193,12 +195,28 @@ async function renderTerminalHtml(ansi: string, options: { columns: number; rows
 }
 
 async function screenshotHtml(html: string, path: string, viewport: { width: number; height: number }): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const browser = await chromium.launch()
+  await withCliVisualLock(async () => {
+    await mkdir(dirname(path), { recursive: true })
+    let lastError: unknown
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        await screenshotHtmlOnce(html, path, viewport)
+        return
+      } catch (error) {
+        lastError = error
+        if (attempt < 2) await sleep(250)
+      }
+    }
+    throw lastError
+  })
+}
+
+async function screenshotHtmlOnce(html: string, path: string, viewport: { width: number; height: number }): Promise<void> {
+  const browser = await chromium.launch({ args: ["--disable-gpu"] })
   try {
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1 })
     await page.setContent(html, { waitUntil: "load" })
-    await page.screenshot({ path })
+    await page.screenshot({ path, timeout: 5_000 })
   } finally {
     await browser.close()
   }
@@ -207,6 +225,52 @@ async function screenshotHtml(html: string, path: string, viewport: { width: num
 async function writeArtifact(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, content, "utf8")
+}
+
+async function withCliVisualLock<T>(task: () => Promise<T>): Promise<T> {
+  const release = await acquireCliVisualLock()
+  try {
+    return await task()
+  } finally {
+    await release()
+  }
+}
+
+async function acquireCliVisualLock(): Promise<() => Promise<void>> {
+  await mkdir(dirname(VISUAL_LOCK_DIR), { recursive: true })
+
+  while (true) {
+    try {
+      await mkdir(VISUAL_LOCK_DIR)
+      await writeFile(resolve(VISUAL_LOCK_DIR, "owner.txt"), `${process.pid}:${Date.now()}`, "utf8")
+      return async () => {
+        await rm(VISUAL_LOCK_DIR, { recursive: true, force: true })
+      }
+    } catch (error) {
+      if (!isExistingLockError(error)) throw error
+      await removeStaleCliVisualLock()
+      await sleep(50)
+    }
+  }
+}
+
+async function removeStaleCliVisualLock(): Promise<void> {
+  try {
+    const info = await stat(VISUAL_LOCK_DIR)
+    if (Date.now() - info.mtimeMs > VISUAL_LOCK_STALE_MS) {
+      await rm(VISUAL_LOCK_DIR, { recursive: true, force: true })
+    }
+  } catch {
+    // Lock disappeared between mkdir attempts.
+  }
+}
+
+function isExistingLockError(error: unknown): boolean {
+  return (error as { code?: unknown }).code === "EEXIST"
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
 }
 
 function bunExecutable(): string {

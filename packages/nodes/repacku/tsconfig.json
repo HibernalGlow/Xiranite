@@ -3,7 +3,6 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "jsx": "react-jsx",
     "strict": true,
     "declaration": true,
     "outDir": "dist",
@@ -11,16 +10,13 @@
     "skipLibCheck": true,
     "types": [
       "bun-types",
-      "node",
-      "react"
+      "node"
     ]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.ts"
   ],
   "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx"
+    "src/**/*.test.ts"
   ]
 }

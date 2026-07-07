@@ -214,12 +214,13 @@ useNodeSurface()
 
 ## UI 技术栈策略
 
-可用网站列表。
+可用网站列表。 最好每个都能用上
 https://motion.net.cn/docs/react-quick-start 
 https://diceui.com/
 https://www.remotion.dev/
 https://ui.aceternity.com/
-
+https://www.reactbits.dev/get-started/index
+https://r3f.docs.pmnd.rs/getting-started/introduction
 ### 首选：主应用 shadcn
 
 shadcn 负责常规 UI：
