@@ -3,14 +3,26 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react"
-import { createPortal } from "react-dom"
-import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuShortcut,
+} from "@/components/ui/dropdown-menu"
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -18,7 +30,7 @@ import { cn } from "@/lib/utils"
 
 export interface ContextMenuItemDef {
   /** Item kind. Defaults to "item". */
-  type?: "item" | "separator" | "label"
+  type?: "item" | "separator" | "label" | "checkbox" | "radio"
   /** Localized label (already translated by the builder). */
   label?: string
   /** Leading icon node. */
@@ -31,6 +43,18 @@ export interface ContextMenuItemDef {
   destructive?: boolean
   /** Click handler. Only for "item" type. */
   onSelect?: () => void
+  /** Checkbox state (for "checkbox" type). */
+  checked?: boolean
+  /** Radio value (for "radio" type). */
+  value?: string
+  /** Radio group name (for "radio" type, items with same group share selection). */
+  radioGroup?: string
+  /** Current radio group value (for "radio" type, on the group's first item). */
+  radioValue?: string
+  /** Callback when radio changes. */
+  onRadioChange?: (value: string) => void
+  /** Submenu children (implies a submenu trigger). */
+  children?: ContextMenuItemDef[]
 }
 
 export interface ContextMenuContext {
@@ -137,7 +161,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     <ContextMenuBuilderContext.Provider value={api}>
       {children}
       {openMenu && (
-        <MenuRenderer
+        <MenuController
           coords={{ x: openMenu.x, y: openMenu.y }}
           items={openMenu.items}
           onClose={() => setOpenMenu(null)}
@@ -170,10 +194,11 @@ export function useContextMenu() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Menu renderer
+// Menu controller: drives the Radix DropdownMenu in controlled mode.
+// Uses an invisible 1x1 anchor positioned at the click coordinates.
 // ──────────────────────────────────────────────────────────────────────────
 
-function MenuRenderer({
+function MenuController({
   coords,
   items,
   onClose,
@@ -182,158 +207,168 @@ function MenuRenderer({
   items: ContextMenuItemDef[]
   onClose: () => void
 }) {
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [activeIndex, setActiveIndex] = useState(-1)
-  const [pos, setPos] = useState(coords)
+  const [open, setOpen] = useState(true)
+  const anchorRef = useRef<HTMLSpanElement>(null)
 
-  // Adjust position to keep menu inside viewport.
-  useLayoutEffect(() => {
-    if (!menuRef.current) return
-    const rect = menuRef.current.getBoundingClientRect()
-    const pad = 4
-    setPos({
-      x: Math.min(coords.x, window.innerWidth - rect.width - pad),
-      y: Math.min(coords.y, window.innerHeight - rect.height - pad),
-    })
+  // Position the invisible anchor at the click point.
+  useEffect(() => {
+    if (anchorRef.current) {
+      anchorRef.current.style.left = `${coords.x}px`
+      anchorRef.current.style.top = `${coords.y}px`
+    }
   }, [coords])
 
-  // Keyboard navigation.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault()
-        setActiveIndex((i) => nextSelectable(items, i, 1))
-        return
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault()
-        setActiveIndex((i) => nextSelectable(items, i, -1))
-        return
-      }
-      if (e.key === "Enter") {
-        e.preventDefault()
-        const item = items[activeIndex]
-        if (item && item.type !== "separator" && item.type !== "label" && !item.disabled) {
-          item.onSelect?.()
-          onClose()
-        }
-      }
-    }
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
-  }, [items, activeIndex, onClose])
-
-  // Click outside to close.
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    const id = window.setTimeout(() => {
-      window.addEventListener("mousedown", handler)
-    }, 0)
-    return () => {
-      window.clearTimeout(id)
-      window.removeEventListener("mousedown", handler)
-    }
-  }, [onClose])
-
-  // Close on blur / scroll.
-  useEffect(() => {
-    const onScroll = () => onClose()
-    window.addEventListener("blur", onClose)
-    window.addEventListener("scroll", onScroll, true)
-    return () => {
-      window.removeEventListener("blur", onClose)
-      window.removeEventListener("scroll", onScroll, true)
-    }
-  }, [onClose])
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      role="menu"
-      tabIndex={-1}
-      className={cn(
-        "z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
-        "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-      )}
-      style={{ position: "fixed", left: pos.x, top: pos.y }}
-      onMouseLeave={() => setActiveIndex(-1)}
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) onClose()
+      }}
+      modal={false}
     >
-      {items.map((item, i) => {
-        if (item.type === "separator") {
-          return <div key={i} className="-mx-1 my-1 h-px bg-border" />
-        }
-        if (item.type === "label") {
-          return (
-            <div
-              key={i}
-              className="px-2 py-1.5 text-xs text-muted-foreground select-none"
-            >
-              {item.label}
-            </div>
-          )
-        }
-        const active = i === activeIndex
-        return (
-          <button
-            key={i}
-            type="button"
-            role="menuitem"
-            disabled={item.disabled}
-            data-variant={item.destructive ? "destructive" : undefined}
-            className={cn(
-              "flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none outline-none",
-              "focus:bg-accent focus:text-accent-foreground",
-              "data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive",
-              !item.disabled && active && "bg-accent text-accent-foreground",
-              item.disabled && "opacity-50 pointer-events-none",
-            )}
-            onMouseEnter={() => setActiveIndex(i)}
-            onClick={() => {
-              if (item.disabled) return
-              item.onSelect?.()
-              onClose()
-            }}
-          >
-            {item.icon && (
-              <span className="pointer-events-none shrink-0 size-4 text-muted-foreground">
-                {item.icon}
-              </span>
-            )}
-            <span className="flex-1 text-left truncate">{item.label}</span>
-            {item.shortcut && (
-              <span className="ml-auto text-xs tracking-widest text-muted-foreground">
-                {item.shortcut}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>,
-    document.body,
+      <DropdownMenuTrigger asChild>
+        <span
+          ref={anchorRef}
+          aria-hidden
+          style={{
+            position: "fixed",
+            left: coords.x,
+            top: coords.y,
+            width: 1,
+            height: 1,
+            pointerEvents: "none",
+            opacity: 0,
+          }}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="bottom"
+        sideOffset={0}
+        alignOffset={0}
+        className="min-w-[10rem]"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <MenuItems items={items} onDone={() => setOpen(false)} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
-function nextSelectable(
-  items: ContextMenuItemDef[],
-  from: number,
-  dir: 1 | -1,
-): number {
-  const n = items.length
-  for (let step = 1; step <= n; step++) {
-    const idx = (from + dir * step + n) % n
-    const it = items[idx]
-    if (it && it.type !== "separator" && it.type !== "label" && !it.disabled) {
-      return idx
+// ──────────────────────────────────────────────────────────────────────────
+// Recursive item renderer
+// ──────────────────────────────────────────────────────────────────────────
+
+function MenuItems({
+  items,
+  onDone,
+}: {
+  items: ContextMenuItemDef[]
+  onDone: () => void
+}) {
+  // Collect radio groups: first item with radioGroup defines the group's value + handler.
+  const radioGroups = useMemo(() => {
+    const map = new Map<string, { value: string; onRadioChange?: (v: string) => void }>()
+    for (const it of items) {
+      if (it.type === "radio" && it.radioGroup && !map.has(it.radioGroup)) {
+        map.set(it.radioGroup, {
+          value: it.radioValue ?? "",
+          onRadioChange: it.onRadioChange,
+        })
+      }
     }
-  }
-  return from
+    return map
+  }, [items])
+
+  return (
+    <>
+      {items.map((item, i) => {
+        if (item.type === "separator") {
+          return <DropdownMenuSeparator key={i} />
+        }
+        if (item.type === "label") {
+          return <DropdownMenuLabel key={i}>{item.label}</DropdownMenuLabel>
+        }
+        // Submenu
+        if (item.children && item.children.length > 0) {
+          return (
+            <DropdownMenuSub key={i}>
+              <DropdownMenuSubTrigger>
+                {item.icon && <span className="mr-2 size-4">{item.icon}</span>}
+                <span>{item.label}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <MenuItems items={item.children} onDone={onDone} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )
+        }
+        if (item.type === "checkbox") {
+          return (
+            <DropdownMenuCheckboxItem
+              key={i}
+              checked={item.checked}
+              disabled={item.disabled}
+              onSelect={(e) => {
+                if (item.disabled) {
+                  e.preventDefault()
+                  return
+                }
+                item.onSelect?.()
+                onDone()
+              }}
+            >
+              {item.label}
+            </DropdownMenuCheckboxItem>
+          )
+        }
+        if (item.type === "radio" && item.radioGroup) {
+          const group = radioGroups.get(item.radioGroup)
+          return (
+            <DropdownMenuRadioGroup
+              key={`group-${item.radioGroup}-${i}`}
+              value={group?.value}
+              onValueChange={(v) => group?.onRadioChange?.(v)}
+            >
+              <DropdownMenuRadioItem
+                value={item.value ?? ""}
+                disabled={item.disabled}
+                onSelect={(e) => {
+                  if (item.disabled) {
+                    e.preventDefault()
+                    return
+                  }
+                  item.onSelect?.()
+                  onDone()
+                }}
+              >
+                {item.label}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          )
+        }
+        // Default item
+        return (
+          <DropdownMenuItem
+            key={i}
+            disabled={item.disabled}
+            variant={item.destructive ? "destructive" : "default"}
+            onSelect={(e) => {
+              if (item.disabled) {
+                e.preventDefault()
+                return
+              }
+              item.onSelect?.()
+              onDone()
+            }}
+          >
+            {item.icon && <span className="mr-2 size-4 text-muted-foreground">{item.icon}</span>}
+            <span className="flex-1">{item.label}</span>
+            {item.shortcut && <DropdownMenuShortcut>{item.shortcut}</DropdownMenuShortcut>}
+          </DropdownMenuItem>
+        )
+      })}
+    </>
+  )
 }

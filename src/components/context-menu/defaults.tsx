@@ -71,12 +71,12 @@ export function useDefaultContextMenuItems() {
         {
           label: t("contextMenu:compact"),
           icon: <Layers className="h-4 w-4" />,
-          onSelect: () => actions.setCardLayout("compact"),
+          onSelect: () => actions.setCardLayout("grid"),
         },
         {
           label: t("contextMenu:expand"),
           icon: <Expand className="h-4 w-4" />,
-          onSelect: () => actions.setCardLayout("focused"),
+          onSelect: () => actions.setCardLayout("focus"),
         },
         { type: "separator" },
         {
