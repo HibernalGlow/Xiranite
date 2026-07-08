@@ -17,6 +17,7 @@
         "@hookform/resolvers": "^5.2.2",
         "@tailwindcss/vite": "^4.2.1",
         "@tanstack/react-query": "^5.90.16",
+        "@tanstack/react-table": "^8.21.3",
         "@wailsio/runtime": "latest",
         "@xiranite/api": "workspace:*",
         "@xiranite/contract": "workspace:*",
@@ -202,9 +203,6 @@
       "devDependencies": {
         "typescript": "~5.9.3",
       },
-      "peerDependencies": {
-        "react": "^19.0.0",
-      },
     },
     "packages/nodes/bandia": {
       "name": "@xiranite/node-bandia",
@@ -216,17 +214,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/cleanf": {
@@ -238,17 +229,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/crashu": {
@@ -261,17 +245,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/dissolvef": {
@@ -284,17 +261,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/encodeb": {
@@ -306,18 +276,11 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
         "iconv-lite": "^0.7.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/enginev": {
@@ -330,17 +293,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/findz": {
@@ -353,17 +309,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/formatv": {
@@ -376,17 +325,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/kavvka": {
@@ -398,17 +340,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/lata": {
@@ -421,18 +356,11 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
         "yaml": "^2.8.2",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/linedup": {
@@ -444,17 +372,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/linku": {
@@ -467,17 +388,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/lorat": {
@@ -489,16 +403,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
       },
     },
     "packages/nodes/marku": {
@@ -511,17 +419,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/migratef": {
@@ -534,17 +435,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/movea": {
@@ -556,17 +450,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/mvz": {
@@ -578,17 +465,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/owithu": {
@@ -601,18 +481,11 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
         "smol-toml": "^1.7.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/rawfilter": {
@@ -624,17 +497,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/recycleu": {
@@ -646,17 +512,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/repacku": {
@@ -669,17 +528,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/scoolp": {
@@ -692,18 +544,11 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
         "smol-toml": "^1.7.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/seriex": {
@@ -716,17 +561,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/sleept": {
@@ -738,17 +576,10 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/nodes/trename": {
@@ -761,17 +592,10 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
-        "@xiranite/ui": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
-        "@types/react": "^19.2.14",
         "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "lucide-react": "^1.0.0",
-        "react": "^19.0.0",
-        "react-i18next": "^17.0.0",
       },
     },
     "packages/repository": {

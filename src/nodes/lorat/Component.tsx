@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { ColumnDef, ColumnFiltersState, SortingState } from "@tanstack/react-table"
+import { getCoreRowModel, getFacetedRowModel, getFacetedUniqueValues, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { LoratAction, LoratData, LoratInput, LoratRow } from "@xiranite/node-lorat/core"
 import { applyTriggerDb, collectTriggerDb, filterLoratRows, parseTriggerDb, summarizeLoratRows } from "@xiranite/node-lorat/core"
@@ -12,6 +14,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { DataTable } from "@/components/data-table/data-table"
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS } from "./constants"
@@ -643,6 +648,169 @@ function RowsPanel(props: {
   onToggleRow: (row: LoratRow) => void
 }) {
   const Icon = ListChecks
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const rowSelection = useMemo(
+    () => Object.fromEntries(props.filteredRows.filter((row) => row.selected).map((row) => [row.key, true])),
+    [props.filteredRows],
+  )
+  const sourceOptions = useMemo(
+    () => Array.from(new Set(props.filteredRows.map((row) => row.source).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ label: value, value })),
+    [props.filteredRows],
+  )
+  const columns = useMemo<ColumnDef<LoratRow>[]>(() => [
+    {
+      id: "selected",
+      header: "",
+      cell: ({ row }) => (
+        <Checkbox
+          checked={Boolean(row.original.selected)}
+          aria-label={`选择 ${row.original.name}`}
+          onCheckedChange={(checked) => {
+            if (Boolean(row.original.selected) !== (checked === true)) {
+              props.onToggleRow(row.original)
+            }
+          }}
+          onMouseDown={(event) => {
+            event.stopPropagation()
+            event.preventDefault()
+            props.onToggleRow(row.original)
+          }}
+        />
+      ),
+      enableHiding: false,
+      enableSorting: false,
+    },
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Model" />,
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium" title={row.original.name}>{row.original.name}</div>
+          <div className="truncate text-[10px] text-muted-foreground" title={row.original.relativeDir || "."}>{row.original.relativeDir || "."}</div>
+        </div>
+      ),
+      enableColumnFilter: true,
+      meta: {
+        label: "Model",
+        placeholder: "Filter models...",
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Status" />,
+      cell: ({ row }) => <LoratStatusBadge status={row.original.status} />,
+      enableColumnFilter: true,
+      filterFn: optionArrayFilter,
+      meta: {
+        label: "Status",
+        variant: "multiSelect",
+        options: [
+          { label: "missing", value: "missing" },
+          { label: "trigger", value: "trigger" },
+          { label: "none", value: "notrigger" },
+        ],
+      },
+    },
+    {
+      accessorKey: "trigger",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Trigger" />,
+      cell: ({ row }) => (
+        <Input
+          aria-label={`触发词 ${row.original.name}`}
+          className="h-7 min-w-[160px] font-mono text-xs"
+          value={row.original.trigger}
+          onChange={(event) => props.onEditTrigger(row.original, event.currentTarget.value)}
+        />
+      ),
+      enableColumnFilter: true,
+      meta: {
+        label: "Trigger",
+        placeholder: "Filter triggers...",
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "source",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Source" />,
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.source}</span>,
+      enableColumnFilter: true,
+      filterFn: optionArrayFilter,
+      meta: {
+        label: "Source",
+        variant: "multiSelect",
+        options: sourceOptions,
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button
+            aria-label={`写入触发词 ${row.original.name}`}
+            size="icon-sm"
+            variant="destructive"
+            onMouseDown={(event) => {
+              event.stopPropagation()
+              event.preventDefault()
+              props.onConfirmRowAction(row.original, "write_triggers")
+            }}
+            onClick={(event) => {
+              if (event.detail === 0) props.onConfirmRowAction(row.original, "write_triggers")
+            }}
+          >
+            <Tags />
+          </Button>
+          <Button
+            aria-label={`标记无触发词 ${row.original.name}`}
+            size="icon-sm"
+            variant="destructive"
+            onMouseDown={(event) => {
+              event.stopPropagation()
+              event.preventDefault()
+              props.onConfirmRowAction(row.original, "mark_no_trigger")
+            }}
+            onClick={(event) => {
+              if (event.detail === 0) props.onConfirmRowAction(row.original, "mark_no_trigger")
+            }}
+          >
+            <XCircle />
+          </Button>
+        </div>
+      ),
+      enableHiding: false,
+      enableSorting: false,
+    },
+  ], [props, sourceOptions])
+  const table = useReactTable({
+    data: props.filteredRows,
+    columns,
+    getRowId: (row) => row.key,
+    state: {
+      sorting,
+      columnFilters,
+      rowSelection,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    initialState: {
+      pagination: {
+        pageIndex: 0,
+        pageSize: props.compact ? 10 : 20,
+      },
+    },
+  })
+
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
@@ -652,81 +820,36 @@ function RowsPanel(props: {
         </div>
       </div>
       <Separator />
-      <ScrollArea className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden p-2">
         {props.filteredRows.length ? (
-          <div className={props.compact ? "flex flex-col gap-1 p-1.5" : "flex flex-col gap-1 p-2"}>
-            {props.filteredRows.slice(0, 200).map((row) => (
-              <LoratRowView
-                key={row.key}
-                row={row}
-                onConfirmRowAction={props.onConfirmRowAction}
-                onEditTrigger={props.onEditTrigger}
-                onToggle={props.onToggleRow}
-              />
-            ))}
-          </div>
+          <DataTable table={table} className="h-full min-h-0" data-testid="lorat-data-table">
+            <DataTableToolbar table={table} className="p-0 pb-2" />
+          </DataTable>
         ) : (
           <div className="flex h-full min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><Icon className="size-3.5" />扫描后模型列表会显示在这里。</span>
           </div>
         )}
-      </ScrollArea>
+      </div>
     </section>
   )
 }
 
-function LoratRowView(props: {
-  row: LoratRow
-  onConfirmRowAction: (row: LoratRow, action: "write_triggers" | "mark_no_trigger") => void
-  onEditTrigger: (row: LoratRow, trigger: string) => void
-  onToggle: (row: LoratRow) => void
-}) {
-  const { row } = props
-  const statusLabel = row.status === "notrigger" ? "none" : row.status === "trigger" ? "trigger" : "missing"
+function LoratStatusBadge({ status }: { status: LoratRow["status"] }) {
+  const statusLabel = status === "notrigger" ? "none" : status === "trigger" ? "trigger" : "missing"
   return (
-    <div
-      data-testid="lorat-row"
-      className={cn(
-        "flex flex-wrap items-center gap-2 rounded-md border-l-2 border-b px-2 py-1.5",
-        row.status === "trigger" && "border-l-green-500",
-        row.status === "missing" && "border-l-amber-500",
-        row.status === "notrigger" && "border-l-slate-400",
-        row.changed && "bg-primary/5",
-      )}
-    >
-      <Checkbox
-        checked={Boolean(row.selected)}
-        aria-label={`选择 ${row.name}`}
-        onCheckedChange={() => props.onToggle(row)}
-      />
-      <div className="min-w-0 flex-[1_1_120px]">
-        <div className="truncate text-xs font-medium" title={row.name}>{row.name}</div>
-        <div className="truncate text-[10px] text-muted-foreground" title={row.relativeDir || "."}>{row.relativeDir || "."}</div>
-      </div>
-      <Badge variant="outline" className="shrink-0 text-[10px]">{statusLabel}</Badge>
-      <Input
-        aria-label={`触发词 ${row.name}`}
-        className="h-7 min-w-[100px] flex-[1_1_140px] font-mono text-xs"
-        value={row.trigger}
-        onChange={(event) => props.onEditTrigger(row, event.currentTarget.value)}
-      />
-      <span className="shrink-0 text-[10px] text-muted-foreground" title={`来源: ${row.source}`}>{row.source}</span>
-      <div className="flex shrink-0 items-center gap-0.5">
-        <ActionIconButton
-          destructive
-          icon={Tags}
-          label={`写入触发词 ${row.name}`}
-          onClick={() => props.onConfirmRowAction(row, "write_triggers")}
-        />
-        <ActionIconButton
-          destructive
-          icon={XCircle}
-          label={`标记无触发词 ${row.name}`}
-          onClick={() => props.onConfirmRowAction(row, "mark_no_trigger")}
-        />
-      </div>
-    </div>
+    <Badge variant="outline" className={cn(
+      "shrink-0 text-[10px]",
+      status === "trigger" && "border-green-500/40 text-green-700 dark:text-green-300",
+      status === "missing" && "border-amber-500/40 text-amber-700 dark:text-amber-300",
+      status === "notrigger" && "text-muted-foreground",
+    )}>{statusLabel}</Badge>
   )
+}
+
+function optionArrayFilter(row: { getValue: (columnId: string) => unknown }, columnId: string, value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return true
+  return value.includes(String(row.getValue(columnId)))
 }
 
 function RowActionDialog(props: {

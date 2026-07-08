@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
@@ -186,17 +186,33 @@ describe("app-owned lorat Component", () => {
     setSurface("regular")
     const host = createHost({ rows: [SAMPLE_ROW], logs: [] })
     render(<Component compId="comp-lorat" host={host} />)
-    const user = userEvent.setup()
 
     const checkbox = screen.getByRole("checkbox", { name: "选择 alice_v1.safetensors" })
-    await user.click(checkbox)
+    fireEvent.mouseDown(checkbox)
     expect(host.state.rows?.[0]?.selected).toBe(true)
 
     const triggerInput = screen.getByLabelText("触发词 alice_v1.safetensors")
-    await user.clear(triggerInput)
-    await user.type(triggerInput, "alice, blonde hair")
+    fireEvent.change(triggerInput, { target: { value: "alice, blonde hair" } })
     expect(host.state.rows?.[0]?.trigger).toBe("alice, blonde hair")
     expect(host.state.rows?.[0]?.changed).toBe(true)
+  })
+
+  test("renders Dice data table filtering controls for Lorat rows", () => {
+    setSurface("regular")
+    const host = createHost({
+      rows: [
+        SAMPLE_ROW,
+        { ...SAMPLE_ROW, key: "artist/bella", name: "bella_v2.safetensors", status: "trigger", source: "sidecar", trigger: "bella" },
+      ],
+      logs: [],
+    })
+    render(<Component compId="comp-lorat" host={host} />)
+
+    expect(screen.getByTestId("lorat-data-table")).toBeTruthy()
+    expect(screen.getByPlaceholderText("Filter models...")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Filter Status" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Filter Source" })).toBeTruthy()
+    expect(screen.getByText("View")).toBeTruthy()
   })
 
   test("requires confirmation before row-level mark_no_trigger action", async () => {
@@ -205,7 +221,7 @@ describe("app-owned lorat Component", () => {
     render(<Component compId="comp-lorat" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "标记无触发词 alice_v1.safetensors" }))
+    fireEvent.mouseDown(screen.getByRole("button", { name: "标记无触发词 alice_v1.safetensors" }))
     expect(host.runCalls).toHaveLength(0)
 
     expect(screen.getByText("确认标记无触发词？")).toBeTruthy()
