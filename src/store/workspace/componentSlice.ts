@@ -28,6 +28,7 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
     setFullscreen: (id) => update("SET_FULLSCREEN", (state) => setFullscreenState(state, id)),
     raiseComponent: (id) => update("RAISE_COMPONENT", (state) => raiseComponentState(state, id)),
     toggleCollapse: (id) => update("TOGGLE_COLLAPSE", (state) => toggleCollapseState(state, id)),
+    duplicateComponent: (id) => update("DUPLICATE_COMPONENT", (state) => duplicateComponentState(state, id)),
   }
 }
 
@@ -334,4 +335,72 @@ function normalizeBentoLayout(layout: { x: number; y: number; w: number; h: numb
   const x = Math.max(0, Math.min(12 - w, Math.round(layout.x)))
   const y = Math.max(0, Math.round(layout.y))
   return { x, y, w, h }
+}
+
+function duplicateComponentState(state: WSState, id: string): WSState {
+  const source = state.components.find((component) => component.id === id)
+  if (!source) return state
+
+  const now = Date.now()
+  const instanceCounter = nextComponentCounter()
+  const newId = `comp-${instanceCounter}-${now}`
+  const zCounter = state.zCounter + 1
+
+  // Offset positions to avoid full overlap with the source.
+  const OFFSET = 24
+  const newPosition = source.position
+    ? { x: source.position.x + OFFSET, y: source.position.y + OFFSET }
+    : { x: 20 + OFFSET, y: 20 + OFFSET }
+  const newFlowPosition = source.flowPosition
+    ? { x: source.flowPosition.x + OFFSET, y: source.flowPosition.y + OFFSET }
+    : { x: 100 + OFFSET, y: 100 + OFFSET }
+
+  const clone: ComponentInstance = {
+    id: newId,
+    moduleId: source.moduleId,
+    // New components default to docked state, never copy fullscreen state.
+    state: "docked",
+    position: newPosition,
+    size: source.size ? { ...source.size } : undefined,
+    z: zCounter,
+    collapsed: false,
+    workspaceId: source.workspaceId,
+    laneId: source.laneId,
+    flowPosition: newFlowPosition,
+    flowSize: source.flowSize ? { ...source.flowSize } : undefined,
+    bentoLayout: source.bentoLayout ? { ...source.bentoLayout } : undefined,
+    dockPanel: source.dockPanel,
+    data: source.data ? structuredCloneSafe(source.data) : {},
+    tags: source.tags ? [...source.tags] : undefined,
+    hiddenIn: source.hiddenIn ? { ...source.hiddenIn } : undefined,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  // Insert into the same lane right after the source.
+  let lanes = state.lanes
+  if (source.laneId) {
+    lanes = state.lanes.map((lane) => {
+      if (lane.id !== source.laneId || !lane.cardOrder) return lane
+      const idx = lane.cardOrder.indexOf(id)
+      if (idx === -1) return lane
+      const nextCardOrder = [...lane.cardOrder]
+      nextCardOrder.splice(idx + 1, 0, newId)
+      return { ...lane, cardOrder: nextCardOrder, updatedAt: now }
+    })
+  }
+
+  return {
+    ...state,
+    components: [...state.components, clone],
+    lanes,
+    zCounter,
+  }
+}
+
+// structuredClone is available in Node 17+ and modern browsers. Fall back to
+// JSON-based cloning if unavailable (e.g. older test environments).
+function structuredCloneSafe<T>(value: T): T {
+  if (typeof structuredClone === "function") return structuredClone(value)
+  return JSON.parse(JSON.stringify(value)) as T
 }

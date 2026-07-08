@@ -4,6 +4,8 @@ import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleCo
 import { ComponentCard } from "./ComponentCard"
 import { computeLayout } from "@/lib/workspaceLayout"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useComponentSurfaceStatusMap } from "@/lib/componentSurfaceStatus"
+import { getCardWeight, type CardWeightMeta } from "@/lib/cardWeight"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
@@ -39,6 +41,24 @@ export function CardView() {
     () => visibleComponents.filter(c => isComponentVisibleInView(c, "cards")),
     [visibleComponents],
   )
+
+  // 派生每个卡片的运行状态（订阅一次 operations）+ 权重，供 computeLayout 智能排序/放大
+  const statusMap = useComponentSurfaceStatusMap(cardComponents)
+  const cardWeights = useMemo<Record<string, CardWeightMeta>>(() => {
+    const now = Date.now()
+    const out: Record<string, CardWeightMeta> = {}
+    for (const comp of cardComponents) {
+      const status = statusMap[comp.id]
+      if (!status) continue
+      out[comp.id] = getCardWeight({
+        component: comp,
+        status,
+        focusedComponentId,
+        now,
+      })
+    }
+    return out
+  }, [cardComponents, statusMap, focusedComponentId])
 
   useLayoutEffect(() => {
     const el = canvasRef.current
@@ -122,8 +142,9 @@ export function CardView() {
         fullscreenId: fullscreenComponentId,
         W: size.w,
         H: size.h,
+        cardWeights,
       }),
-    [cardComponents, cardLayout, focusedComponentId, fullscreenComponentId, size.h, size.w],
+    [cardComponents, cardLayout, focusedComponentId, fullscreenComponentId, size.h, size.w, cardWeights],
   )
 
   if (cardComponents.length === 0) {

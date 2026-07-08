@@ -101,7 +101,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname === "/local-files") {
-        await writeNodeResponse(outgoing, await serveLocalFile(url))
+        await writeNodeResponse(outgoing, await serveLocalFile(request, url))
         return
       }
 
@@ -128,7 +128,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
   }
 }
 
-async function serveLocalFile(url: URL): Promise<Response> {
+async function serveLocalFile(request: Request, url: URL): Promise<Response> {
   const requestedPath = url.searchParams.get("path")
   if (!requestedPath) return new Response("Missing local file path.", { status: 400 })
 
@@ -136,11 +136,18 @@ async function serveLocalFile(url: URL): Promise<Response> {
   const info = await stat(resolved).catch(() => null)
   if (!info?.isFile()) return new Response("Local file was not found.", { status: 404 })
 
+  const etag = `"${info.size}-${Math.trunc(info.mtimeMs)}"`
   const headers = new Headers({
     "content-type": mimeTypeForPath(resolved),
     "cache-control": "private, max-age=60",
     "x-content-type-options": "nosniff",
+    "etag": etag,
   })
+
+  if (request.headers.get("if-none-match") === etag) {
+    return new Response(null, { status: 304, headers })
+  }
+
   return new Response(Readable.toWeb(createReadStream(resolved)) as unknown as BodyInit, { headers })
 }
 

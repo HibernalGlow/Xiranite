@@ -2,14 +2,23 @@
 import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig } from "vitest/config"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [
+          ["babel-plugin-react-compiler", { compilationMode: "annotation" }],
+        ],
+      },
+    }),
+    tailwindcss(),
+  ],
   resolve: {
     alias: [
       { find: "@hibernalglow/ocean-dataview/styles.css", replacement: path.resolve(oceanSrc, "styles.css") },
@@ -63,6 +72,9 @@ export default defineConfig({
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
     exclude: ["nuqs"],
+    esbuildOptions: {
+      target: "es2022",
+    },
   },
   test: {
     environment: "happy-dom",

@@ -12,6 +12,12 @@ const heavyInitialAssetPatterns = [
   /vendor-tldraw/i,
   /vendor-blocknote/i,
   /vendor-ocean-dataview/i,
+  // 节点 entry chunk（25 个节点包，命名形如 entry-<hash>.js）必须保持 lazy，
+  // 不能进入首屏 preload。ModuleRegistry 通过 packageModuleLoaders 动态 import。
+  /^entry-[A-Za-z0-9_-]+\.js$/i,
+  // Dockview / GridStack 仅在对应 lazy view 请求时加载，不应进首屏
+  /vendor-dockview/i,
+  /vendor-gridstack/i,
 ]
 
 const html = await readFile(indexHtmlPath, "utf8")

@@ -46,6 +46,7 @@ export function WorkspaceLayout() {
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           key={chrome.viewMode}
+          data-context-menu="workspace-canvas"
           className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
         >
           <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
