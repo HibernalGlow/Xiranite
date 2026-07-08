@@ -17,7 +17,6 @@ const basePackages: PackageEntry[] = [
   { name: "@xiranite/contract", path: "packages/contract", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/shared", path: "packages/shared", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/cli-runtime", path: "packages/cli-runtime", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/ui", path: "packages/ui", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/repository", path: "packages/repository", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/services", path: "packages/services", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/api", path: "packages/api", script: "tsc -p tsconfig.json" },

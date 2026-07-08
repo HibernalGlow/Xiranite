@@ -478,11 +478,25 @@ function FullView(props: ViewProps) {
             <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
           </div>
           <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/20 p-3 font-mono text-xs leading-5">
-            {props.result?.allCombinedPaths.length ? props.result.allCombinedPaths.map((path) => (
-              <div key={path} className="truncate">{path}</div>
-            )) : props.result?.matchedPaths.length ? props.result.matchedPaths.map((path) => (
-              <div key={path} className="truncate">{path}</div>
-            )) : (
+            {props.result?.allCombinedPaths.length ? (
+              <>
+                {props.result.allCombinedPaths.slice(0, 200).map((path) => (
+                  <div key={path} className="truncate">{path}</div>
+                ))}
+                {props.result.allCombinedPaths.length > 200 ? (
+                  <div className="pt-1 text-muted-foreground">仅显示前 200 项（共 {props.result.allCombinedPaths.length} 项）</div>
+                ) : null}
+              </>
+            ) : props.result?.matchedPaths.length ? (
+              <>
+                {props.result.matchedPaths.slice(0, 200).map((path) => (
+                  <div key={path} className="truncate">{path}</div>
+                ))}
+                {props.result.matchedPaths.length > 200 ? (
+                  <div className="pt-1 text-muted-foreground">仅显示前 200 项（共 {props.result.matchedPaths.length} 项）</div>
+                ) : null}
+              </>
+            ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
                 {props.data.progressText || "扫描或处理后将在此显示路径"}
               </div>

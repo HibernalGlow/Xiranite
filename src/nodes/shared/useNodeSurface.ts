@@ -36,18 +36,26 @@ export function useNodeSurface(): NodeSurface {
     const element = ref.current
     if (!element) return
 
+    let rafId = 0
+
     const measure = () => {
-      const rect = element.getBoundingClientRect()
-      setSize({
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const rect = element.getBoundingClientRect()
+        setSize({
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        })
       })
     }
 
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
-    return () => observer.disconnect()
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
   }, [])
 
   const mode = useMemo<NodeSurfaceMode>(() => resolveNodeSurfaceMode(size), [size])

@@ -46,7 +46,6 @@
         "@xiranite/node-trename": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/shared": "workspace:*",
-        "@xiranite/ui": "workspace:*",
         "chrono-node": "^2.9.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -656,20 +655,6 @@
       },
       "devDependencies": {
         "typescript": "~5.9.3",
-      },
-    },
-    "packages/ui": {
-      "name": "@xiranite/ui",
-      "version": "0.1.0",
-      "dependencies": {
-        "@xiranite/contract": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/react": "^19.2.14",
-        "typescript": "~5.9.3",
-      },
-      "peerDependencies": {
-        "react": "^19.0.0",
       },
     },
   },
@@ -1299,8 +1284,6 @@
     "@xiranite/services": ["@xiranite/services@workspace:packages/services"],
 
     "@xiranite/shared": ["@xiranite/shared@workspace:packages/shared"],
-
-    "@xiranite/ui": ["@xiranite/ui@workspace:packages/ui"],
 
     "@xterm/addon-serialize": ["@xterm/addon-serialize@0.14.0", "https://registry.npmmirror.com/@xterm/addon-serialize/-/addon-serialize-0.14.0.tgz", {}, "sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA=="],
 

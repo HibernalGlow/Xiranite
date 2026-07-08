@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useMemo, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
@@ -123,9 +123,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const hydrate = useWorkspaceStore((state) => state.hydrate)
   const setBackendReady = useWorkspaceStore((state) => state.setBackendReady)
   const backendReady = useWorkspaceStore((state) => state.backendReady)
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const lanes = useWorkspaceStore((state) => state.lanes)
-  const components = useWorkspaceStore((state) => state.components)
+  const { workspaces, lanes, components } = useWorkspaceStore(
+    useShallow((state) => ({
+      workspaces: state.workspaces,
+      lanes: state.lanes,
+      components: state.components,
+    })),
+  )
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined
@@ -188,7 +192,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [workspaces, lanes, components, backendReady, localBackendReady, persistWorkspace])
 
-  return <>{children}</>
+  return useMemo(() => <>{children}</>, [children])
 }
 
 interface XiraniteQaController {
