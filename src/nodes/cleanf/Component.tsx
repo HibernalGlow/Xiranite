@@ -13,6 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { RunningTint } from "@/nodes/shared/controls"
 import { DEFAULT_SELECTED_PRESETS, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, PathInput, PresetPicker, PrimarySwitches, ResultList, StatusStrip } from "./controls"
 import type { CleanfCardState, CleanfPhase, CleanfStatusMeta } from "./types"
@@ -251,7 +252,7 @@ function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
     <div data-testid="cleanf-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-70 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
+      <RunningTint tone={props.status.tone} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>

@@ -4,6 +4,7 @@ import type { PowerMode, SleeptData, SleeptInput } from "@xiranite/node-sleept/c
 import { countdownSeconds, formatDuration } from "@xiranite/node-sleept/core"
 import { Clock, Copy, Play, RotateCcw, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -12,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { RunningTint } from "@/nodes/shared/controls"
 import { POWER_MODES, TIMER_MODES } from "./constants"
 import {
   ActionIconButton,
@@ -271,7 +273,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   return (
     <div data-testid="sleept-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-70 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
+      <RunningTint tone={props.status.tone} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Clock />
       </div>
@@ -542,7 +544,7 @@ function StatsBoard(props: {
     <section className="flex h-full min-h-0 flex-col gap-3 rounded-lg border bg-background/70 p-3">
       {showRing ? (
         <div className="flex shrink-0 items-center justify-center">
-          <ProgressRing progress={props.progress} />
+          <AnimatedCircularProgressBar value={props.progress} max={100} min={0} className="h-24 w-24" />
         </div>
       ) : null}
       <div className="grid shrink-0 grid-cols-3 gap-2">
@@ -564,23 +566,6 @@ function StatTile(props: { label: string; value: string }) {
     <div className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
       <div className="truncate text-[11px] text-muted-foreground">{props.label}</div>
       <div className="truncate text-sm font-semibold tabular-nums">{props.value}</div>
-    </div>
-  )
-}
-
-function ProgressRing({ progress }: { progress: number }) {
-  const safe = Math.max(0, Math.min(100, progress))
-  return (
-    <div className="relative h-24 w-24 shrink-0">
-      <svg viewBox="0 0 100 100" className="-rotate-90" role="img" aria-label={`进度环 ${safe}%`}>
-        <title>{`进度环 ${safe}%`}</title>
-        <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" className="text-muted/40" />
-        <circle cx="50" cy="50" r="43" stroke="currentColor" strokeWidth="8" fill="none" strokeDasharray={`${safe * 2.7} 270`} strokeLinecap="round" className="text-primary" />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-semibold tabular-nums">{safe}%</span>
-        <span className="text-[10px] text-muted-foreground">进度</span>
-      </div>
     </div>
   )
 }

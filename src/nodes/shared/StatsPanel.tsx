@@ -1,3 +1,4 @@
+import { NumberTicker } from "@/components/ui/number-ticker"
 import { cn } from "@/lib/utils"
 
 export interface StatsPanelItem {
@@ -32,19 +33,30 @@ export function StatsPanel(props: {
   const fullClass = FULL_COLS_CLASS[cols] ?? "@3xl:grid-cols-6"
   return (
     <div className={cn("grid shrink-0 gap-1", baseClass, fullClass)}>
-      {props.items.map((item) => (
-        <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
-          <div
-            className={cn(
-              "text-sm font-semibold tabular-nums",
-              item.tone === "error" && Number(item.value) > 0 && "text-destructive",
-            )}
-          >
-            {item.value}
+      {props.items.map((item) => {
+        const numeric = typeof item.value === "number"
+        const errorTone = item.tone === "error" && Number(item.value) > 0
+        return (
+          <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
+            <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
+            <div
+              className={cn(
+                "text-sm font-semibold tabular-nums",
+                errorTone && "text-destructive",
+              )}
+            >
+              {numeric ? (
+                <NumberTicker
+                  value={item.value as number}
+                  decimalPlaces={Number.isInteger(item.value) ? 0 : 2}
+                />
+              ) : (
+                item.value
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

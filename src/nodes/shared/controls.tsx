@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { DatabaseZap, Info } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -16,6 +17,46 @@ export interface NodeStatusMeta {
   tone: "idle" | "running" | "success" | "error" | "warning"
   badgeVariant: "default" | "secondary" | "destructive" | "outline"
   iconClass: string
+}
+
+/**
+ * RunningTint — 卡片背景状态层
+ *
+ * 替代节点 CollapsedView 中手写的 `animate-pulse bg-primary/10` 模式：
+ * - running：背景轻染色 + BorderBeam 流光边框
+ * - error：背景 destructive 轻染色
+ * - success：背景 primary 轻染色
+ * - idle / warning：透明
+ *
+ * 必须放在 position: relative 的父容器中（自身 absolute 贴满）。
+ */
+export function RunningTint(props: {
+  tone: NodeStatusMeta["tone"]
+  className?: string
+}) {
+  return (
+    <>
+      <div
+        className={cn(
+          "absolute inset-0 opacity-70 transition-opacity",
+          props.tone === "running" && "bg-primary/10",
+          props.tone === "error" && "bg-destructive/10",
+          props.tone === "success" && "bg-primary/10",
+          props.className,
+        )}
+        aria-hidden="true"
+      />
+      {props.tone === "running" && (
+        <BorderBeam
+          size={140}
+          duration={6}
+          colorFrom="var(--primary)"
+          colorTo="var(--chart-2)"
+          borderWidth={1.5}
+        />
+      )}
+    </>
+  )
 }
 
 export function ActionIconButton(props: {

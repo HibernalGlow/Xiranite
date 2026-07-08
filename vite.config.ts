@@ -93,6 +93,7 @@ export default defineConfig({
           "vendor-query": ["@tanstack/react-query"],
           "vendor-i18n": ["i18next", "react-i18next"],
           "vendor-state": ["zustand", "nuqs"],
+          "vendor-motion": ["motion"],
           "vendor-dockview": ["dockview-react"],
           "vendor-gridstack": ["gridstack"],
         },

@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
   ActionSelect,
@@ -250,7 +251,7 @@ function CollapsedView(props: {
   const ModeIcon = props.modeIcon
   return (
     <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/80 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-60 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
+      <RunningTint tone={props.status.tone} />
       <div className="relative grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
         <Package />
       </div>

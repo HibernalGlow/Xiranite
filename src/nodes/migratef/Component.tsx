@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, MODES } from "./constants"
 import {
   ActionIconButton,
@@ -267,7 +268,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   return (
     <div data-testid="migratef-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-70 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
+      <RunningTint tone={props.status.tone} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <FolderSync />
       </div>
