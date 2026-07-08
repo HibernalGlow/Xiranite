@@ -343,7 +343,6 @@ function FullView(props: ViewProps) {
             <div className="text-sm font-semibold">关键开关</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <PrimaryActionButton props={props} />
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
@@ -358,6 +357,7 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
+      {!props.compact && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Eye} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />

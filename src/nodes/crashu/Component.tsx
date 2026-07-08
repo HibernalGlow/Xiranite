@@ -344,7 +344,6 @@ function FullView(props: ViewProps) {
             <div className="text-sm font-semibold">高级选项</div>
             <AdvancedOptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <PrimaryActionButton props={props} />
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
@@ -437,6 +436,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label="扫描匹配" onClick={() => props.onExecute("scan")} />
       <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label="生成计划" onClick={() => props.onExecute("plan")} />
+      {!props.compact && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
