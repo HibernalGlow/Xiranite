@@ -1,0 +1,210 @@
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, test, vi } from "vitest"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
+import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
+import type { EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
+import { Component } from "./Component"
+import type { EncodebCardState } from "./types"
+
+const surfaceState = vi.hoisted(() => ({
+  height: 420,
+  width: 720,
+}))
+
+vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/nodes/shared/useNodeSurface")>()
+  return {
+    ...actual,
+    useNodeSurface: () => {
+      const mode = actual.resolveNodeSurfaceMode(surfaceState)
+      return {
+        ref: { current: null },
+        width: surfaceState.width,
+        height: surfaceState.height,
+        mode,
+        density: actual.resolveNodeSurfaceDensity(mode),
+      }
+    },
+  }
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  setSurface("regular")
+})
+
+describe("app-owned encodeb Component", () => {
+  test.each(NODE_SURFACE_TEST_MODES)(
+    "renders the %s surface with Encodeb-specific UI",
+    (mode) => {
+      setSurface(mode)
+      render(<Component compId="comp-encodeb" host={createHost({ pathText: "D:/gallery" })} />)
+
+      expect(screen.getByText("Encodeb")).toBeTruthy()
+      if (mode === "collapsed") {
+        expect(screen.getByTestId("encodeb-collapsed-view")).toBeTruthy()
+        expect(screen.getByText(/1 条路径等待扫描/)).toBeTruthy()
+        expect(screen.queryByLabelText("encodeb source paths")).toBeNull()
+        return
+      }
+
+      expect(screen.getByLabelText("encodeb source paths")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+
+      if (mode === "compact") {
+        expect(screen.getByTestId("encodeb-compact-view")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "encodeb options" })).toBeTruthy()
+      } else if (mode === "portrait") {
+        expect(screen.getByTestId("encodeb-portrait-view")).toBeTruthy()
+      } else {
+        expect(screen.getByTestId("encodeb-full-view")).toBeTruthy()
+        expect(screen.getByText("编码与策略")).toBeTruthy()
+        expect(screen.getByTestId("encodeb-header-toolbar")).toBeTruthy()
+      }
+    },
+  )
+
+  test("forces collapsed content when compact surface height is too short", () => {
+    setSurfaceSize({ width: 420, height: 159 })
+
+    render(<Component compId="comp-encodeb" host={createHost({ pathText: "D:/gallery" })} />)
+
+    expect(screen.getByTestId("encodeb-collapsed-view")).toBeTruthy()
+    expect(screen.queryByLabelText("encodeb source paths")).toBeNull()
+  })
+
+  test("uses portrait compact layout for tall compact surfaces", () => {
+    setSurfaceSize({ width: 559, height: 300 })
+
+    render(<Component compId="comp-encodeb" host={createHost({ pathText: "D:/gallery" })} />)
+
+    expect(screen.getByTestId("encodeb-portrait-view")).toBeTruthy()
+    expect(screen.queryByTestId("encodeb-compact-view")).toBeNull()
+  })
+
+  test("pastes source paths from the clipboard", async () => {
+    setSurface("compact")
+    const host = createHost({})
+    render(<Component compId="comp-encodeb" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "粘贴路径" }))
+
+    expect(host.state.pathText).toBe("D:/gallery")
+  })
+
+  test("runs find action through host.actions.run and stores matches", async () => {
+    setSurface("regular")
+    const host = createHost({ pathText: "D:/gallery", logs: [] })
+    render(<Component compId="comp-encodeb" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "扫描乱码" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toEqual({
+      nodeId: "encodeb",
+      input: {
+        action: "find",
+        paths: ["D:/gallery"],
+        srcEncoding: "cp437",
+        dstEncoding: "cp936",
+        strategy: "replace",
+      },
+    })
+
+    await waitFor(() => expect(host.state.phase).toBe("completed"))
+    expect(host.state.matches).toEqual(["D:/gallery/╘╙═.txt"])
+    expect(host.state.logs?.at(-1)).toBe("Find completed, 1 item(s).")
+  })
+
+  test("uses confirmation dialog for recover action", async () => {
+    setSurface("regular")
+    const host = createHost({ pathText: "D:/gallery", logs: [] })
+    render(<Component compId="comp-encodeb" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "执行修复" }))
+    expect(screen.getByText("确认执行 Encodeb 修复？")).toBeTruthy()
+
+    await user.click(screen.getByText("确认执行"))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.action).toBe("recover")
+  })
+})
+
+type TestHost = NodeHostApi & {
+  copiedText: string
+  runCalls: Array<{ nodeId: string; input: EncodebInput }>
+  state: EncodebCardState
+}
+
+type HostOptions = {
+  runError?: Error
+  runResult?: NodeRunResult<EncodebData>
+}
+
+function createHost(initial: EncodebCardState, options: HostOptions = {}): TestHost {
+  const host: TestHost = {
+    state: { ...initial },
+    runCalls: [],
+    copiedText: "",
+    getData: <T,>() => host.state as T,
+    patchData: (_compId, patch) => {
+      host.state = { ...host.state, ...patch }
+    },
+    listComponents: () => [],
+    updateComponent: () => undefined,
+    actions: {
+      run: async <TInput, TData>(
+        nodeId: string,
+        input: TInput,
+        onEvent?: (event: NodeRunEvent) => void,
+      ): Promise<NodeRunResult<TData>> => {
+        host.runCalls.push({ nodeId, input: input as EncodebInput })
+        if (options.runError) throw options.runError
+        onEvent?.({ type: "progress", progress: 50, message: "Scanning D:/gallery" })
+        onEvent?.({ type: "log", message: "Planning transcode." })
+        onEvent?.({ type: "progress", progress: 100, message: "Scan completed." })
+        return (options.runResult ?? {
+          success: true,
+          message: "Find completed, 1 item(s).",
+          data: encodebData,
+        }) as NodeRunResult<TData>
+      },
+    },
+    clipboard: {
+      readText: async () => "D:/gallery",
+      writeText: async (text) => {
+        host.copiedText = text
+      },
+    },
+    env: {
+      theme: "light",
+      platform: "web",
+    },
+    getNodeConfig: async <T,>() => ({ config: options.runResult as T | undefined, path: "D:/config/xiranite.config.toml" }),
+    saveNodeConfig: async () => undefined,
+  }
+  return host
+}
+
+function setSurface(mode: NodeSurfaceMode) {
+  setSurfaceSize(NODE_SURFACE_TEST_SPECS[mode])
+}
+
+function setSurfaceSize(size: { height: number; width: number }) {
+  surfaceState.width = size.width
+  surfaceState.height = size.height
+}
+
+const encodebData: EncodebData = {
+  mappings: [],
+  matches: ["D:/gallery/╘╙═.txt"],
+  processed: 0,
+}
