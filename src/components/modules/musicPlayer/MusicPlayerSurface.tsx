@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react"
 import AudioPlayer from "react-modern-audio-player"
 import { Clipboard, Disc3, FolderOpen, Library, ListMusic, Loader2, Music2 } from "lucide-react"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
@@ -63,6 +63,30 @@ const PLAYER_VARIABLES = {
   "--rm-audio-player-selected-list-item-background": "hsl(var(--accent))",
 } as CSSProperties
 
+const COMPACT_ACTIVE_UI = {
+  all: false,
+  artwork: false,
+  trackInfo: false,
+  trackTime: false,
+  progress: "bar",
+  repeatType: true,
+  volume: true,
+  volumeSlider: true,
+  playButton: true,
+  prevNnext: true,
+  playList: false,
+  playbackRate: false,
+} as const
+
+const FULL_ACTIVE_UI = {
+  all: true,
+  artwork: true,
+  progress: "bar",
+  playList: "sortable",
+  prevNnext: true,
+  playbackRate: true,
+} as const
+
 export function MusicPlayerSurface({
   savedTracks = [],
   savedSourcePath,
@@ -71,7 +95,10 @@ export function MusicPlayerSurface({
   variant = "module",
   className,
 }: MusicPlayerSurfaceProps) {
-  const compact = variant === "dock"
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 })
+  const responsiveCompact = surfaceSize.width > 0 && (surfaceSize.width < 560 || surfaceSize.height < 300)
+  const compact = variant === "dock" || responsiveCompact
   const [sourcePath, setSourcePath] = useState(savedSourcePath || DEFAULT_LOCAL_PATH)
   const [tracks, setTracks] = useState<RuntimeTrack[]>([])
   const [loading, setLoading] = useState(false)
@@ -82,6 +109,26 @@ export function MusicPlayerSurface({
   useEffect(() => {
     if (savedSourcePath && savedSourcePath !== sourcePath) setSourcePath(savedSourcePath)
   }, [savedSourcePath])
+
+  useEffect(() => {
+    const el = surfaceRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+
+    const applySize = (width: number, height: number) => {
+      const next = { width: Math.round(width), height: Math.round(height) }
+      setSurfaceSize((current) => (
+        current.width === next.width && current.height === next.height ? current : next
+      ))
+    }
+
+    applySize(el.clientWidth, el.clientHeight)
+
+    const observer = new ResizeObserver(([entry]) => {
+      applySize(entry.contentRect.width, entry.contentRect.height)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (tracks.length || !savedTracks.length) return
@@ -96,7 +143,6 @@ export function MusicPlayerSurface({
     writer: track.writer,
     img: track.img,
     description: track.description,
-    customTrackInfo: track.fileName,
   })), [tracks])
 
   async function loadSource(nextSourcePath = sourcePath) {
@@ -135,6 +181,7 @@ export function MusicPlayerSurface({
 
   return (
     <div
+      ref={surfaceRef}
       data-music-player-surface={variant}
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground",
@@ -171,16 +218,9 @@ export function MusicPlayerSurface({
               volume: 0.85,
               playListExpanded: !compact,
             }}
-            activeUI={{
-              all: true,
-              artwork: !compact,
-              progress: "bar",
-              playList: compact ? false : "sortable",
-              prevNnext: true,
-              playbackRate: !compact,
-            }}
+            activeUI={compact ? COMPACT_ACTIVE_UI : FULL_ACTIVE_UI}
             placement={{
-              player: "bottom",
+              player: "static",
               playList: "bottom",
               volumeSlider: "top",
               speedSelector: "top",
@@ -255,7 +295,7 @@ function MusicLibraryToolbar({
         <Input
           value={sourcePath}
           onChange={(event) => onSourcePathChange(event.target.value)}
-          className={cn("h-8 min-w-0 text-xs", compact && "hidden sm:flex")}
+          className={cn("h-8 min-w-0 text-xs", compact && "hidden")}
           placeholder="输入本地音频文件或文件夹路径"
           aria-label="本地音乐路径"
         />
