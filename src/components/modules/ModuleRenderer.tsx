@@ -52,9 +52,11 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
     )
   }
   return (
-    <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
-      <Comp compId={compId} />
-    </Suspense>
+    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden">
+      <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
+        <Comp compId={compId} />
+      </Suspense>
+    </div>
   )
 }
 
@@ -106,9 +108,11 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 
   const Component = entry.Component as ComponentType<NodeComponentProps>
   return (
-    <NodeRenderBoundary moduleId={moduleId}>
-      <Component compId={compId} host={host} />
-    </NodeRenderBoundary>
+    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden">
+      <NodeRenderBoundary moduleId={moduleId}>
+        <Component compId={compId} host={host} />
+      </NodeRenderBoundary>
+    </div>
   )
 }
 

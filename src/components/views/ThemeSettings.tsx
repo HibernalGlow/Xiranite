@@ -3,7 +3,7 @@ import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson } from "@/lib/appearance"
+import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, THEME_PRESET_DEFAULT_MODE } from "@/lib/appearance"
 import type { AppCustomTheme, AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
@@ -52,19 +52,11 @@ const THEMES: ThemeOption[] = [
     labelKey: "settings:themes.wuling.label",
     subtitleKey: "settings:themes.wuling.subtitle",
     descriptionKey: "settings:themes.wuling.description",
-    palette: ["oklch(0.12 0.03 55)", "oklch(0.16 0.04 55)", "oklch(0.70 0.16 68)", "oklch(0.93 0.04 80)"],
-    paletteLabelKeys: ["settings:texture.paletteLabels.deep", "settings:texture.paletteLabels.surface", "settings:texture.paletteLabels.gold", "settings:texture.paletteLabels.text"],
+    palette: ["oklch(0.98 0.006 180)", "oklch(1 0 0)", "oklch(0.72 0.13 173)", "oklch(0.24 0.025 166)"],
+    paletteLabelKeys: ["settings:texture.paletteLabels.bg", "settings:texture.paletteLabels.surface", "settings:texture.paletteLabels.jade", "settings:texture.paletteLabels.text"],
     icon: Paintbrush,
   },
 ]
-
-// 每个主题预设的默认颜色模式：spatial 是浅色，endfield/wuling 是深色。
-// 切换预设时自动同步颜色模式；用户也可在 Color Mode 区域单独覆盖。
-const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
-  spatial: "light",
-  endfield: "dark",
-  wuling: "dark",
-}
 
 type ColorMode = "system" | "light" | "dark"
 type SettingsSection = "appearance" | "background" | "runtime" | "data"
@@ -260,7 +252,7 @@ export function ThemeSettings() {
   // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
   function selectPreset(key: AppTheme) {
     workspaceActions.setTheme(key)
-    setColorMode(PRESET_DEFAULT_MODE[key])
+    setColorMode(THEME_PRESET_DEFAULT_MODE[key])
   }
 
   function importThemeJson() {

@@ -1,5 +1,51 @@
 import type { AppCustomTheme, AppFontPreset, AppTheme } from "@/types/workspace"
 
+export type ThemePresetMode = "light" | "dark"
+
+export type ThemeStyleFamily =
+  | "spatial-product"
+  | "tactical-console"
+  | "jade-industrial"
+
+export type ThemeDensity = "compact" | "balanced" | "comfortable"
+export type ThemeRadiusProfile = "soft" | "technical" | "hard"
+export type ThemeBorderTreatment = "subtle" | "outlined" | "brutalist"
+export type ThemeMotionStyle = "soft" | "mechanical" | "cinematic"
+export type ThemeSurfaceTreatment = "flat" | "tonal" | "glass" | "media-led"
+export type ThemeDepthModel = "none" | "shadow" | "glow" | "layered"
+export type ThemeNodeInteriorMode = "inherit" | "dense-controls" | "ledger-panels"
+
+export interface ThemeStyleProfile {
+  family: ThemeStyleFamily
+  density: ThemeDensity
+  radius: ThemeRadiusProfile
+  border: ThemeBorderTreatment
+  motion: ThemeMotionStyle
+  surface: ThemeSurfaceTreatment
+  depth: ThemeDepthModel
+  nodeInterior: ThemeNodeInteriorMode
+  referenceAxis: string[]
+}
+
+export interface ThemeDesignRecipe {
+  /**
+   * Store-applicable appearance settings only.
+   * Higher-level website imitation axes live in THEME_STYLE_PROFILES.
+   */
+  fontPreset: AppFontPreset
+  bgMode: "grid" | "dot-grid" | "image" | "none"
+  bgOpacity?: number
+  bgBlur?: number
+  bgCoverTopBar?: boolean
+  grainEnabled?: boolean
+  vignetteDepth?: number
+  grainIntensity?: number
+  actionGlow?: boolean
+  cardElevation?: boolean
+  chromePosition?: "left" | "right" | "island"
+  chromeStyle?: "default" | "traffic-light"
+}
+
 export type ThemeMode = "system" | "light" | "dark"
 
 export interface FontPresetOption {
@@ -14,6 +60,85 @@ export const AESTIVUS_THEME_NAME_BY_PRESET: Record<AppTheme, string> = {
   spatial: "Default",
   endfield: "Endfield",
   wuling: "Wuling",
+}
+
+export const THEME_PRESET_DEFAULT_MODE: Record<AppTheme, ThemePresetMode> = {
+  spatial: "light",
+  endfield: "dark",
+  wuling: "light",
+}
+
+export const THEME_DESIGN_RECIPES: Record<AppTheme, ThemeDesignRecipe> = {
+  spatial: {
+    fontPreset: "xiranite",
+    bgMode: "dot-grid",
+    grainEnabled: true,
+    vignetteDepth: 40,
+    grainIntensity: 15,
+    actionGlow: true,
+    cardElevation: false,
+    chromePosition: "right",
+    chromeStyle: "default",
+  },
+  endfield: {
+    fontPreset: "mono",
+    bgMode: "grid",
+    grainEnabled: true,
+    vignetteDepth: 48,
+    grainIntensity: 12,
+    actionGlow: true,
+    cardElevation: true,
+    chromePosition: "left",
+    chromeStyle: "traffic-light",
+  },
+  wuling: {
+    fontPreset: "industrial",
+    bgMode: "grid",
+    bgCoverTopBar: false,
+    grainEnabled: false,
+    vignetteDepth: 0,
+    grainIntensity: 0,
+    actionGlow: false,
+    cardElevation: false,
+    chromePosition: "right",
+    chromeStyle: "default",
+  },
+}
+
+export const THEME_STYLE_PROFILES: Record<AppTheme, ThemeStyleProfile> = {
+  spatial: {
+    family: "spatial-product",
+    density: "comfortable",
+    radius: "soft",
+    border: "subtle",
+    motion: "soft",
+    surface: "tonal",
+    depth: "layered",
+    nodeInterior: "inherit",
+    referenceAxis: ["quiet SaaS workspace", "soft data surfaces", "balanced scanning"],
+  },
+  endfield: {
+    family: "tactical-console",
+    density: "compact",
+    radius: "technical",
+    border: "outlined",
+    motion: "mechanical",
+    surface: "flat",
+    depth: "glow",
+    nodeInterior: "dense-controls",
+    referenceAxis: ["operational console", "futuristic dashboard", "dark luminous UI"],
+  },
+  wuling: {
+    family: "jade-industrial",
+    density: "balanced",
+    radius: "technical",
+    border: "outlined",
+    motion: "mechanical",
+    surface: "tonal",
+    depth: "none",
+    nodeInterior: "ledger-panels",
+    referenceAxis: ["jade industrial", "ledger tables", "hard outlined utility panels"],
+  },
 }
 
 const THEME_ROOT_CLASSES: Record<AppTheme, string> = {
@@ -44,6 +169,13 @@ export const FONT_PRESETS: FontPresetOption[] = [
     label: "Aestivus",
     description: "LXGW WenKai style text with JetBrains Mono for technical fields.",
     sans: "\"LXGW WenKai Screen\", \"Inter\", ui-sans-serif, system-ui, sans-serif",
+    mono: "\"JetBrains Mono\", ui-monospace, monospace",
+  },
+  {
+    key: "industrial",
+    label: "Industrial",
+    description: "Hanken Grotesk UI with JetBrains Mono labels for jade industrial workspaces.",
+    sans: "\"Hanken Grotesk\", \"Inter\", ui-sans-serif, system-ui, sans-serif",
     mono: "\"JetBrains Mono\", ui-monospace, monospace",
   },
   {

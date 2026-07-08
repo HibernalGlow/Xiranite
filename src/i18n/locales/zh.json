@@ -143,7 +143,7 @@
     "selectPreset": "选择主题预设",
     "colorMode": {
       "label": "颜色模式",
-      "description": "切换主题预设会自动设置默认模式（spatial=浅色, endfield/wuling=深色）。可在此覆盖。",
+      "description": "切换主题预设会自动设置偏好的默认模式（spatial=浅色, endfield=深色, wuling=浅色）。可在此覆盖。",
       "system": "跟随系统",
       "systemDesc": "随系统浅色/深色偏好自动切换",
       "light": "浅色",
@@ -235,7 +235,8 @@
         "green": "绿色",
         "deep": "深沉",
         "surface": "表面",
-        "gold": "金色"
+        "gold": "金色",
+        "jade": "玉绿"
       }
     },
     "themes": {
@@ -250,9 +251,9 @@
         "description": "HUD 式数据密集技术界面。深板岩基底配 Endfield 绿高亮，精确操作对比。"
       },
       "wuling": {
-        "label": "武陵城 Wuling City",
+        "label": "武陵 Jade Industrial",
         "subtitle": "明日方舟终末地",
-        "description": "灵感来自明日方舟终末地武陵城的暖琥珀色调。古城遇赛博朋克 — 金色强调对深赭暗色。"
+        "description": "基于终末地武陵方向的玉绿工业工作台：冷灰实验室表面、硬朗技术面板、Hanken Grotesk 文本和 JetBrains Mono 数据标签，并支持浅色与深色模式。"
       }
     },
     "developerRuntime": {

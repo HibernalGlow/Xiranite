@@ -4,8 +4,12 @@ import {
   applyCustomTheme,
   applyFontPreset,
   applyThemePreset,
+  FONT_PRESETS,
   mirrorAestivusThemeStorage,
   parseImportedThemeJson,
+  THEME_DESIGN_RECIPES,
+  THEME_PRESET_DEFAULT_MODE,
+  THEME_STYLE_PROFILES,
 } from "./appearance"
 
 afterEach(() => {
@@ -18,6 +22,24 @@ afterEach(() => {
 })
 
 describe("appearance bridge", () => {
+  test("defines Wuling as a light jade industrial preset", () => {
+    expect(THEME_PRESET_DEFAULT_MODE.wuling).toBe("light")
+    expect(THEME_DESIGN_RECIPES.wuling).toMatchObject({
+      fontPreset: "industrial",
+      bgMode: "grid",
+      grainEnabled: false,
+      grainIntensity: 0,
+      actionGlow: false,
+      cardElevation: false,
+    })
+    expect(FONT_PRESETS.some((preset) => preset.key === "industrial")).toBe(true)
+    expect(THEME_STYLE_PROFILES.wuling).toMatchObject({
+      family: "jade-industrial",
+      border: "outlined",
+      nodeInterior: "ledger-panels",
+    })
+  })
+
   test("applies theme preset to the document root for portals and floating surfaces", () => {
     applyThemePreset("endfield")
 

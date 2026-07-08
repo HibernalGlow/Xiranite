@@ -7,7 +7,7 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS, getActiveCustomTheme } from "@/lib/appearance"
+import { FONT_PRESETS, getActiveCustomTheme, THEME_PRESET_DEFAULT_MODE } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMusicDock"
@@ -69,17 +69,10 @@ const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string;
   { key: "focus", labelKey: "topbar:cardLayout.focus", hintKey: "topbar:cardLayout.focusHint", icon: Target },
 ]
 
-// 主题预设与颜色模式默认值同步
-const PRESET_DEFAULT_MODE: Record<AppTheme, "light" | "dark"> = {
-  spatial: "light",
-  endfield: "dark",
-  wuling: "dark",
-}
-
 const THEME_PRESETS: { key: AppTheme; labelKey: string; swatch: string }[] = [
   { key: "spatial",  labelKey: "topbar:theme.spatial",  swatch: "oklch(0.40 0.12 148)" },
   { key: "endfield", labelKey: "topbar:theme.endfield", swatch: "oklch(0.62 0.18 152)" },
-  { key: "wuling",   labelKey: "topbar:theme.wuling",   swatch: "oklch(0.70 0.16 68)" },
+  { key: "wuling",   labelKey: "topbar:theme.wuling",   swatch: "oklch(0.72 0.13 173)" },
 ]
 
 function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
@@ -135,7 +128,7 @@ export function TopBar() {
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
     workspaceActions.setTheme(key)
-    setColorMode(PRESET_DEFAULT_MODE[key])
+    setColorMode(THEME_PRESET_DEFAULT_MODE[key])
   }
 
   function selectCustomTheme(theme: AppCustomTheme) {

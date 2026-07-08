@@ -1,8 +1,13 @@
+import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
 import type { SetWorkspaceStore, WorkspaceUiActions } from "./types"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
-    setTheme: (theme) => set({ theme, activeCustomThemeName: null }, false, "SET_THEME"),
+    setTheme: (theme) => set({
+      theme,
+      activeCustomThemeName: null,
+      ...THEME_DESIGN_RECIPES[theme],
+    }, false, "SET_THEME"),
     setCustomThemes: (customThemes) => set((state) => ({
       customThemes,
       activeCustomThemeName: customThemes.some((theme) => theme.name === state.activeCustomThemeName)
