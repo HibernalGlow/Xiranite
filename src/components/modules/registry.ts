@@ -84,6 +84,14 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "BlockNote rich text editor based on shadcn. Block-level document editing, drag-and-drop reordering, slash menu, styles follow project theme automatically.",
     icon: "FileText",
   },
+  {
+    id: "music-player",
+    name: "MUSIC PLAYER",
+    version: "v0.1.0",
+    category: "MEDIA",
+    description: "Shadcn-compatible music player card backed by Media Chrome. Default track metadata: 焚蝶 / MSR.",
+    icon: "Music2",
+  },
 ]
 
 export function getModule(id: string): ModuleDef | undefined {

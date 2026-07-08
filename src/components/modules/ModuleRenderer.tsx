@@ -26,6 +26,7 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   kanban:       lazy(() => import("./KanbanModule")),
   database:     lazy(() => import("./DatabaseModule")),
   blocknote:    lazy(() => import("./BlockNoteModule")),
+  "music-player": lazy(() => import("./MusicPlayerModule")),
 }
 
 export interface ModuleProps {
