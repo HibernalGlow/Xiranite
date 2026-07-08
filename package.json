@@ -20,6 +20,7 @@
     "build:packages:lazy": "bun scripts/build-packages-lazy.ts",
     "build:backend:js": "bun scripts/build-backend-js.ts",
     "generate:node-registries": "bun scripts/generate-node-registries.ts",
+    "migrate:node-ui": "bun scripts/migrate-node-ui-to-app.ts",
     "sync:cli-bins": "bun scripts/sync-cli-bin-names.ts",
     "audit:node-architecture": "bun scripts/validate-node-architecture.ts",
     "audit:node-tests": "bun scripts/audit-node-tests.ts",
