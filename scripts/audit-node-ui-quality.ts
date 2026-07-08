@@ -14,6 +14,8 @@ interface NodeUiAudit {
   node: string
   componentLines: number
   hasDesignDoc: boolean
+  hasMatureResultComponentCoverage: boolean
+  needsMatureResultComponent: boolean
   hasSurfaceMatrixTest: boolean
 }
 
@@ -48,6 +50,8 @@ function auditNode(node: string): NodeUiAudit {
 
   const component = readTextIfExists(componentPath)
   const test = readTextIfExists(testPath)
+  const designDoc = readTextIfExists(designDocPath)
+  const appSource = readSourceTree(appRoot)
 
   if (!component) {
     error(node, "missing app-owned Component.tsx")
@@ -74,15 +78,26 @@ function auditNode(node: string): NodeUiAudit {
     warn(node, "Component.test.tsx does not clearly cover the full node surface matrix")
   }
 
-  const hasDesignDoc = existsSync(designDocPath)
+  const hasDesignDoc = Boolean(designDoc)
   if (!hasDesignDoc) {
     warn(node, `missing design note docs/node-ui-designs/${node}.md`)
+  }
+
+  const needsMatureResultComponent = Boolean(designDoc && requiresDataTable(designDoc))
+  const hasMatureResultComponentCoverage = Boolean(
+    !needsMatureResultComponent
+      || (usesProjectDataTable(appSource) && test && coversDataTableBehavior(test)),
+  )
+  if (!hasMatureResultComponentCoverage) {
+    warn(node, "design note requires a DataTable result view, but Component/test coverage does not prove it")
   }
 
   return {
     node,
     componentLines,
     hasDesignDoc,
+    hasMatureResultComponentCoverage,
+    needsMatureResultComponent,
     hasSurfaceMatrixTest,
   }
 }
@@ -97,11 +112,14 @@ function printSummary(audits: NodeUiAudit[]): void {
   const withinRecommendedLimit = audits.filter((item) => item.componentLines > 0 && item.componentLines <= 800).length
   const surfaceMatrixCovered = audits.filter((item) => item.hasSurfaceMatrixTest).length
   const designDocs = audits.filter((item) => item.hasDesignDoc).length
+  const matureResultRequirements = audits.filter((item) => item.needsMatureResultComponent).length
+  const matureResultCovered = audits.filter((item) => item.needsMatureResultComponent && item.hasMatureResultComponentCoverage).length
   const largest = [...audits].sort((a, b) => b.componentLines - a.componentLines).slice(0, 8)
 
   console.log(`Node UI quality: ${withinRecommendedLimit}/${audits.length} Component.tsx files within 800 lines`)
   console.log(`Surface matrix tests: ${surfaceMatrixCovered}/${audits.length}`)
   console.log(`Design notes: ${designDocs}/${audits.length}`)
+  console.log(`Mature result components: ${matureResultCovered}/${matureResultRequirements} DataTable requirement(s) covered`)
   console.log("")
   console.log("Largest app-owned Component.tsx files:")
   for (const item of largest) {
@@ -143,6 +161,29 @@ function readTextIfExists(file: string): string | null {
   }
 }
 
+function readSourceTree(dir: string): string {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.(?:ts|tsx)$/.test(entry.name))
+      .map((entry) => readFileSync(join(dir, entry.name), "utf8"))
+      .join("\n")
+  } catch {
+    return ""
+  }
+}
+
 function countLines(text: string): number {
   return text.split(/\r?\n/).length
+}
+
+function requiresDataTable(designDoc: string): boolean {
+  return /\b(?:DataTable|TanStack DataTable|Dice\/TanStack)\b/i.test(designDoc)
+}
+
+function usesProjectDataTable(component: string): boolean {
+  return component.includes("@/components/data-table/data-table")
+}
+
+function coversDataTableBehavior(test: string): boolean {
+  return /data table|data-table|DataTable|filtering controls|Filter /i.test(test)
 }
