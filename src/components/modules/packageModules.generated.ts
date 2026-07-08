@@ -6,7 +6,7 @@ export const PACKAGE_MODULES = [
   { id: "bandia", name: "Bandia", version: "0.1.0", category: "file", description: "Batch extract, compress, repack, and export archive paths with Bandizip.", icon: "FileArchive", keywords: ["archive", "bandizip", "extract", "compress", "efu"] },
   { id: "cleanf", name: "Cleanf", version: "0.1.0", category: "file", description: "Remove empty folders, backup files, temp folders, and trash patterns.", icon: "Brush", keywords: ["cleanup", "empty-folders", "backup", "temp"] },
   { id: "crashu", name: "Crashu", version: "0.1.0", category: "file", description: "Match similar folder names and optionally move matched folders.", icon: "Zap", keywords: ["folder", "similarity", "match", "move"] },
-  { id: "dissolvef", name: "DissolveF", version: "0.1.0", category: "file", description: "Dissolve nested, single-media, single-archive, or direct folders with undo history.", icon: "FolderInput", keywords: ["folder", "dissolve", "flatten", "archive", "media", "undo"] },
+  { id: "dissolvef", name: "Dissolvef", version: "0.1.0", category: "file", description: "Dissolve nested, single-media, single-archive, or direct folders with undo history.", icon: "FolderInput", keywords: ["folder", "dissolve", "flatten", "archive", "media", "undo"] },
   { id: "encodeb", name: "Encodeb", version: "0.1.0", category: "file", description: "Preview and recover garbled filenames by re-decoding path components.", icon: "FileText", keywords: ["encoding", "filename", "mojibake", "cp437", "cp936"] },
   { id: "enginev", name: "EngineV", version: "0.1.0", category: "file", description: "Scan, filter, rename, delete, and export Wallpaper Engine workshop folders.", icon: "Image", keywords: ["wallpaper", "workshop", "steam", "rename", "export"] },
   { id: "findz", name: "Findz", version: "0.1.0", category: "file", description: "Search files and archive members with SQL-like filters.", icon: "Search", keywords: ["search", "archive", "filter", "find", "zip"] },
@@ -53,7 +53,7 @@ export const packageModuleLoaders = {
   recycleu: () => import("@/nodes/recycleu/entry") as Promise<{ default: AppNodeEntry }>,
   repacku: () => import("@/nodes/repacku/entry") as Promise<{ default: AppNodeEntry }>,
   scoolp: () => import("@/nodes/scoolp/entry") as Promise<{ default: AppNodeEntry }>,
-  seriex: () => import("@xiranite/node-seriex") as Promise<{ default: NodeEntry }>,
+  seriex: () => import("@/nodes/seriex/entry") as Promise<{ default: AppNodeEntry }>,
   sleept: () => import("@/nodes/sleept/entry") as Promise<{ default: AppNodeEntry }>,
   trename: () => import("@/nodes/trename/entry") as Promise<{ default: AppNodeEntry }>,
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry }>>>
