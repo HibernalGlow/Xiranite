@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { NodeCapabilityId, NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { FindzData, FindzInput } from "@xiranite/node-findz/core"
@@ -100,7 +101,7 @@ describe("app-owned findz Component", () => {
 
     await user.click(screen.getByRole("button", { name: "粘贴路径" }))
 
-    expect(host.state.pathText).toBe("D:/gallery")
+    expect(host.cardState.pathText).toBe("D:/gallery")
   })
 
   test("runs search through host.actions.run and stores the result in the files tab", async () => {
@@ -136,9 +137,9 @@ describe("app-owned findz Component", () => {
       },
     })
 
-    await waitFor(() => expect(host.state.phase).toBe("completed"))
-    expect(host.state.result?.totalCount).toBe(2)
-    expect(host.state.logs?.at(-1)).toBe("Found 2 item(s).")
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+    expect(host.cardState.result?.totalCount).toBe(2)
+    expect(host.cardState.logs?.at(-1)).toBe("Found 2 item(s).")
     expect(screen.getAllByText(/cover\.jpg/).length).toBeGreaterThanOrEqual(1)
   })
 
@@ -153,9 +154,9 @@ describe("app-owned findz Component", () => {
 
     await user.click(screen.getByRole("button", { name: "运行搜索" }))
 
-    await waitFor(() => expect(host.state.phase).toBe("error"))
-    expect(host.state.progressText).toBe("Path not found.")
-    expect(host.state.logs?.at(-1)).toBe("Path not found.")
+    await waitFor(() => expect(host.cardState.phase).toBe("error"))
+    expect(host.cardState.progressText).toBe("Path not found.")
+    expect(host.cardState.logs?.at(-1)).toBe("Path not found.")
   })
 
   test("requests filter help without requiring paths", async () => {
@@ -168,7 +169,7 @@ describe("app-owned findz Component", () => {
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("help")
-    await waitFor(() => expect(host.state.phase).toBe("completed"))
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(screen.getByRole("tab", { name: "帮助" })).toBeTruthy()
   })
 
@@ -184,12 +185,12 @@ describe("app-owned findz Component", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "findz 默认配置" }).className).toContain("bg-secondary"))
     await user.click(screen.getByRole("button", { name: "findz 默认配置" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
-    expect(host.state.pathText).toBe("D:/default")
-    expect(host.state.where).toBe("1")
+    expect(host.cardState.pathText).toBe("D:/default")
+    expect(host.cardState.where).toBe("1")
 
     await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.pathText).toBeUndefined()
-    expect(host.state.where).toBeUndefined()
+    expect(host.cardState.pathText).toBeUndefined()
+    expect(host.cardState.where).toBeUndefined()
 
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toBeDefined()
@@ -197,61 +198,95 @@ describe("app-owned findz Component", () => {
     await user.click(screen.getByRole("button", { name: "打开文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
+
+  test("exposes contract metadata and reports supported capabilities", () => {
+    const host = createHost({ pathText: "D:/gallery" })
+    expect(host.contract.name).toBe("xiranite.node-host")
+    expect(host.contract.version).toBe(NODE_HOST_CONTRACT_VERSION)
+    expect(host.contract.hasCapability("runner")).toBe(true)
+    expect(host.contract.hasCapability("localFiles")).toBe(false)
+
+    const noRunnerHost = createHost({ pathText: "D:/gallery" }, { noRunner: true })
+    expect(noRunnerHost.contract.hasCapability("runner")).toBe(false)
+    expect(noRunnerHost.contract.hasCapability("state")).toBe(true)
+  })
+
+  test("marks the card as error when the runner is unavailable", async () => {
+    setSurface("regular")
+    const host = createHost({ pathText: "D:/gallery" }, { noRunner: true })
+    render(<Component compId="comp-findz" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "运行搜索" }))
+
+    await waitFor(() => expect(host.cardState.phase).toBe("error"))
+    expect(host.cardState.progressText).toContain("没有本地运行能力")
+    expect(host.cardState.logs?.at(-1)).toBe("Native action is unavailable in this host.")
+    expect(host.runCalls).toHaveLength(0)
+  })
 })
 
-type TestHost = NodeHostApi & {
+type TestHost = NodeHostApi<FindzCardState, Partial<FindzCardState>> & {
+  cardState: FindzCardState
   copiedText: string
   openConfigFileCalls: number
   runCalls: Array<{ nodeId: string; input: FindzInput }>
   savedConfig: Partial<FindzCardState> | undefined
-  state: FindzCardState
 }
 
 type HostOptions = {
   config?: Partial<FindzCardState>
   runResult?: NodeRunResult<FindzData>
+  noRunner?: boolean
 }
 
 function createHost(initial: FindzCardState, options: HostOptions = {}): TestHost {
-  const host: TestHost = {
-    state: { ...initial },
-    runCalls: [],
-    copiedText: "",
-    savedConfig: undefined,
-    openConfigFileCalls: 0,
-    getData: <T,>() => host.state as T,
-    patchData: (_compId, patch) => {
-      host.state = { ...host.state, ...patch }
-    },
-    listComponents: () => [],
-    updateComponent: () => undefined,
-    actions: {
-      run: async <TInput, TData>(
-        nodeId: string,
-        input: TInput,
-        onEvent?: (event: NodeRunEvent) => void,
-      ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as FindzInput })
-        if (input) {
-          const action = (input as FindzInput).action
-          if (action === "help") {
-            return {
-              success: true,
-              message: "findz filter help",
-              data: { ...findzData, action: "help", outputText: "findz filter syntax" } as unknown as TData,
-            }
-          }
-        }
-        onEvent?.({ type: "progress", progress: 25, message: "Scanning paths." })
-        onEvent?.({ type: "log", message: "Compiling filter." })
-        onEvent?.({ type: "progress", progress: 100, message: "findz complete." })
-        return (options.runResult ?? {
+  const run = async <TInput, TData>(
+    nodeId: string,
+    input: TInput,
+    onEvent?: (event: NodeRunEvent) => void,
+  ): Promise<NodeRunResult<TData>> => {
+    host.runCalls.push({ nodeId, input: input as FindzInput })
+    if (input) {
+      const action = (input as FindzInput).action
+      if (action === "help") {
+        return {
           success: true,
-          message: "Found 2 item(s).",
-          data: findzData,
-        }) as NodeRunResult<TData>
-      },
+          message: "findz filter help",
+          data: { ...findzData, action: "help", outputText: "findz filter syntax" } as unknown as TData,
+        }
+      }
+    }
+    onEvent?.({ type: "progress", progress: 25, message: "Scanning paths." })
+    onEvent?.({ type: "log", message: "Compiling filter." })
+    onEvent?.({ type: "progress", progress: 100, message: "findz complete." })
+    return (options.runResult ?? {
+      success: true,
+      message: "Found 2 item(s).",
+      data: findzData,
+    }) as NodeRunResult<TData>
+  }
+
+  const supportedCapabilities: readonly NodeCapabilityId[] = options.noRunner
+    ? ["contract", "state", "workspace", "clipboard", "config", "env"]
+    : ["contract", "state", "workspace", "runner", "clipboard", "config", "env"]
+
+  const stateCapability = {
+    getData: () => host.cardState,
+    patchData: (patch: Partial<FindzCardState>) => {
+      host.cardState = { ...host.cardState, ...patch }
     },
+  }
+
+  const host: TestHost = {
+    contract: {
+      name: "xiranite.node-host",
+      version: NODE_HOST_CONTRACT_VERSION,
+      supportedCapabilities,
+      hasCapability: (capability) => supportedCapabilities.includes(capability),
+    },
+    state: stateCapability,
+    runner: options.noRunner ? undefined : { run },
     clipboard: {
       readText: async () => "D:/gallery",
       writeText: async (text) => {
@@ -262,6 +297,28 @@ function createHost(initial: FindzCardState, options: HostOptions = {}): TestHos
       theme: "light",
       platform: "web",
     },
+    config: {
+      get: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+      save: async (config) => {
+        host.savedConfig = config as Partial<FindzCardState>
+      },
+      openFile: () => {
+        host.openConfigFileCalls += 1
+      },
+    },
+    cardState: { ...initial },
+    runCalls: [],
+    copiedText: "",
+    savedConfig: undefined,
+    openConfigFileCalls: 0,
+
+    // Deprecated compatibility aliases — mapped onto the capability domains so
+    // unmigrated call sites keep working. Removed once every node uses host.state.
+    getData: <T,>() => stateCapability.getData() as T | undefined,
+    patchData: (_compId, patch) => stateCapability.patchData(patch),
+    listComponents: () => [],
+    updateComponent: () => undefined,
+    actions: options.noRunner ? undefined : { run },
     getNodeConfig: async <T,>() => ({ config: options.config as T | undefined, path: "D:/config/xiranite.config.toml" }),
     saveNodeConfig: async (config) => {
       host.savedConfig = config as Partial<FindzCardState>

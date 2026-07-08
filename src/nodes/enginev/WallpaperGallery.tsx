@@ -7,11 +7,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import type { EngineVCardState } from "./types"
+
+type EngineVHost = NodeHostApi<EngineVCardState, Partial<EngineVCardState>>
 
 export function WallpaperGallery(props: {
   columns?: number
   compact?: boolean
-  host: NodeHostApi
+  host: EngineVHost
   showMeta?: boolean
   showPath?: boolean
   selectedIds: string[]
@@ -67,7 +70,7 @@ export function WallpaperGallery(props: {
 
 function WallpaperTile(props: {
   compact?: boolean
-  host: NodeHostApi
+  host: EngineVHost
   item: EngineVWallpaper
   selected: boolean
   showMeta: boolean
@@ -78,7 +81,7 @@ function WallpaperTile(props: {
   const { t: tNode } = useNodeI18n("enginev")
   const previewPath = resolvePreviewPath(props.item)
   const previewUrl = previewPath
-    ? isRemoteUrl(previewPath) ? previewPath : props.host.localFiles?.getUrl?.(previewPath)
+    ? isRemoteUrl(previewPath) ? previewPath : props.host.localFiles?.getUrl(previewPath)
     : undefined
   const title = props.item.title || props.item.folderName
 

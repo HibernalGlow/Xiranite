@@ -27,10 +27,13 @@ import {
 import type { FindzCardState, FindzPhase, FindzStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps) {
+type FindzProps = NodeComponentProps<FindzCardState, Partial<FindzCardState>>
+
+export function Component({ host }: FindzProps) {
+  "use memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("findz")
-  const data = host.getData<FindzCardState>(compId) ?? {}
+  const data = host.state.getData() ?? {}
   const dataRef = useRef<FindzCardState>(data)
   dataRef.current = data
 
@@ -52,7 +55,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    host.getNodeConfig?.<Partial<FindzCardState>>()
+    host.config?.get()
       .then((response) => {
         setDefaults(response.config)
         setConfigFilePath(response.path)
@@ -87,7 +90,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   function patch(patchData: Partial<FindzCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
-    host.patchData(compId, patchData)
+    host.state.patchData(patchData)
   }
 
   function pushLog(message: string) {
@@ -117,7 +120,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       patch({ phase: "error", progress: 0, progressText: tNode("pathRequired", "请先输入至少一个搜索路径。") })
       return
     }
-    const run = host.actions?.run
+    const run = host.runner?.run
     if (!run) {
       patch({ phase: "error", progress: 0, progressText: tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
@@ -163,7 +166,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
-    await host.saveNodeConfig?.(config)
+    await host.config?.save(config)
     setDefaults(config)
     setConfigDirty(false)
   }
@@ -214,7 +217,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
-    onOpenConfigFile: host.openConfigFile,
+    onOpenConfigFile: host.config?.openFile,
     onPaste: pastePaths,
     onPatch: patch,
     onReset: reset,
@@ -250,7 +253,7 @@ function createViewProps(props: {
   configFilePath?: string
   data: FindzCardState
   defaults?: Partial<FindzCardState>
-  host: NodeComponentProps["host"]
+  host: FindzProps["host"]
   logs: string[]
   paths: string[]
   progress: number

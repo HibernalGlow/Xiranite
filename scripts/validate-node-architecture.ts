@@ -25,7 +25,11 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
 
 const contractRules: Rule[] = [
   rule("packages/contract/src/index.ts", "contract must not expose card schemas", /NodeCardSchema|NodeCardProps|card:\s*NodeCard/),
-  rule("packages/contract/src/index.ts", "contract must not expose backend runners", /NodeRunnerApi|host\.runNode|host\.runner|runner\??\s*:|runNode\s*[:(]/),
+  // Contract may declare the runner capability *interface* (NodeRunnerCapability,
+  // runner?: NodeRunnerCapability) — that is a typed surface nodes opt into.
+  // What contract must NOT do is expose backend runner implementations or
+  // invite nodes to call the backend directly (host.runNode / runNode()).
+  rule("packages/contract/src/index.ts", "contract must not expose backend runners", /NodeRunnerApi|host\.runNode|runNode\s*[:(]/),
   rule("packages/contract/src/index.ts", "NodeEntry must not expose CLI", /\bcli\??\s*:/),
 ]
 

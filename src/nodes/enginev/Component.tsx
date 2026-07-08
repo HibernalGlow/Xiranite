@@ -36,10 +36,12 @@ import { ResultTabs, StatsPanel } from "./ResultPanels"
 import type { EngineVCardState, EngineVStatusMeta } from "./types"
 import { WallpaperGallery } from "./WallpaperGallery"
 
-export function Component({ compId, host }: NodeComponentProps) {
+type EngineVProps = NodeComponentProps<EngineVCardState, Partial<EngineVCardState>>
+
+export function Component({ host }: EngineVProps) {
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("enginev")
-  const data = host.getData<EngineVCardState>(compId) ?? {}
+  const data = host.state.getData() ?? {}
   const dataRef = useRef<EngineVCardState>(data)
   dataRef.current = data
 
@@ -73,7 +75,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    host.getNodeConfig?.<Partial<EngineVCardState>>()
+    host.config?.get()
       .then((response) => {
         setDefaults(response.config)
         setConfigFilePath(response.path)
@@ -88,7 +90,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   function patch(patchData: Partial<EngineVCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
-    host.patchData(compId, patchData)
+    host.state.patchData(patchData)
   }
 
   function pushLog(message: string) {
@@ -136,7 +138,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       const value = dataRef.current[field]
       if (value !== undefined && value !== "") (config as Record<string, unknown>)[field] = value
     }
-    await host.saveNodeConfig?.(config)
+    await host.config?.save(config)
     setDefaults(config)
     setConfigDirty(false)
   }
@@ -181,7 +183,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
 
-    const runAction = host.actions?.run
+    const runAction = host.runner?.run
     if (!runAction) {
       const message = tNode("noNative", "Local Backend 暂不可用，无法运行 enginev。")
       patch({ phase: "error", progress: 0, progressText: message })
@@ -242,7 +244,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onCopyPath: copyPath,
     onCopyResults: copyResults,
     onExecute: (value?: EngineVAction) => execute(value),
-    onOpenConfigFile: host.openConfigFile,
+    onOpenConfigFile: host.config?.openFile,
     onPaste: pastePath,
     onPatch: patch,
     onReset: reset,
@@ -280,7 +282,7 @@ function createViewProps(props: {
   data: EngineVCardState
   defaults?: Partial<EngineVCardState>
   galleryWallpapers: EngineVData["wallpapers"]
-  host: NodeComponentProps["host"]
+  host: EngineVProps["host"]
   logs: string[]
   progress: number
   result: EngineVData | null

@@ -2,10 +2,12 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
+import type { NodeCapabilityId, NodeHostApi, NodeRunResult } from "@xiranite/contract"
+import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { EngineVData, EngineVInput, EngineVWallpaper } from "@xiranite/node-enginev/core"
 import { Component } from "./Component"
+import type { EngineVCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({
   mode: "regular" as NodeSurfaceMode,
@@ -86,7 +88,7 @@ describe("app-owned enginev Component", () => {
     expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
   })
 
-  test("runs scan through host.actions.run and renders local preview images", async () => {
+  test("runs scan through host.runner.run and renders local preview images", async () => {
     surfaceState.mode = "regular"
     const host = createHost({
       workshopPath: "D:/workshop",
@@ -123,8 +125,8 @@ describe("app-owned enginev Component", () => {
       },
     })
 
-    await waitFor(() => expect(host.state.phase).toBe("completed"))
-    expect(host.state.logs).toEqual(["[100%] Scan complete.", "Scan complete: 1 wallpaper(s)."])
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+    expect(host.cardState.logs).toEqual(["[100%] Scan complete.", "Scan complete: 1 wallpaper(s)."])
     expect(host.localFilePaths).toContain("D:/workshop/111/preview.png")
 
     const image = screen.getByAltText("Ocean Loop") as HTMLImageElement
@@ -139,66 +141,86 @@ describe("app-owned enginev Component", () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
-    expect(host.state.idsText).toBe("111")
+    expect(host.cardState.idsText).toBe("111")
 
     await user.click(screen.getByRole("button", { name: "复制 Ocean Loop 路径" }))
     expect(host.copiedText).toBe("D:/workshop/111")
   })
+
+  test("exposes contract metadata and reports supported capabilities", () => {
+    const host = createHost({ workshopPath: "D:/workshop" })
+    expect(host.contract.name).toBe("xiranite.node-host")
+    expect(host.contract.version).toBe(NODE_HOST_CONTRACT_VERSION)
+    expect(host.contract.hasCapability("runner")).toBe(true)
+    expect(host.contract.hasCapability("localFiles")).toBe(true)
+    expect(host.contract.hasCapability("downloads")).toBe(false)
+
+    const noRunnerHost = createHost({ workshopPath: "D:/workshop" }, { noRunner: true })
+    expect(noRunnerHost.contract.hasCapability("runner")).toBe(false)
+    expect(noRunnerHost.contract.hasCapability("localFiles")).toBe(true)
+  })
+
+  test("marks the card as error when the runner is unavailable", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost({ workshopPath: "D:/workshop" }, { noRunner: true })
+    render(<Component compId="comp-enginev" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "扫描工坊" }))
+
+    await waitFor(() => expect(host.cardState.phase).toBe("error"))
+    expect(host.cardState.progressText).toContain("暂不可用")
+    expect(host.cardState.logs?.at(-1)).toContain("暂不可用")
+    expect(host.runCalls).toHaveLength(0)
+  })
 })
 
-interface EngineVCardState {
-  action?: EngineVInput["action"]
-  workshopPath?: string
-  titleFilter?: string
-  ratingFilter?: string
-  typeFilter?: string
-  idsText?: string
-  template?: string
-  outputPath?: string
-  exportFormat?: EngineVInput["exportFormat"]
-  dryRun?: boolean
-  copyMode?: boolean
-  permanent?: boolean
-  targetPath?: string
-  phase?: string
-  progress?: number
-  progressText?: string
-  wallpapers?: EngineVWallpaper[]
-  filteredWallpapers?: EngineVWallpaper[]
-  result?: EngineVData | null
-  logs?: string[]
-}
-
-type TestHost = NodeHostApi & {
-  state: EngineVCardState
+type TestHost = NodeHostApi<EngineVCardState, Partial<EngineVCardState>> & {
+  cardState: EngineVCardState
   runCalls: Array<{ nodeId: string; input: EngineVInput }>
   copiedText: string
   localFilePaths: string[]
 }
 
-function createHost(initial: EngineVCardState): TestHost {
+type HostOptions = {
+  noRunner?: boolean
+}
+
+function createHost(initial: EngineVCardState, options: HostOptions = {}): TestHost {
+  const run = async <TInput, TData>(
+    nodeId: string,
+    input: TInput,
+    onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void,
+  ): Promise<NodeRunResult<TData>> => {
+    host.runCalls.push({ nodeId, input: input as EngineVInput })
+    onEvent?.({ type: "progress", progress: 100, message: "Scan complete." })
+    return {
+      success: true,
+      message: "Scan complete: 1 wallpaper(s).",
+      data: enginevData,
+    } as NodeRunResult<TData>
+  }
+
+  const supportedCapabilities: readonly NodeCapabilityId[] = options.noRunner
+    ? ["contract", "state", "workspace", "clipboard", "localFiles", "config", "env"]
+    : ["contract", "state", "workspace", "runner", "clipboard", "localFiles", "config", "env"]
+
+  const stateCapability = {
+    getData: () => host.cardState,
+    patchData: (patch: Partial<EngineVCardState>) => {
+      host.cardState = { ...host.cardState, ...patch }
+    },
+  }
+
   const host: TestHost = {
-    state: { ...initial },
-    runCalls: [],
-    copiedText: "",
-    localFilePaths: [],
-    getData: <T,>() => host.state as T,
-    patchData: (_compId, patch) => {
-      host.state = { ...host.state, ...patch }
+    contract: {
+      name: "xiranite.node-host",
+      version: NODE_HOST_CONTRACT_VERSION,
+      supportedCapabilities,
+      hasCapability: (capability) => supportedCapabilities.includes(capability),
     },
-    listComponents: () => [],
-    updateComponent: () => undefined,
-    actions: {
-      run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as EngineVInput })
-        onEvent?.({ type: "progress", progress: 100, message: "Scan complete." })
-        return {
-          success: true,
-          message: "Scan complete: 1 wallpaper(s).",
-          data: enginevData,
-        } as NodeRunResult<TData>
-      },
-    },
+    state: stateCapability,
+    runner: options.noRunner ? undefined : { run },
     clipboard: {
       readText: async () => "D:/workshop",
       writeText: async (text) => {
@@ -215,6 +237,22 @@ function createHost(initial: EngineVCardState): TestHost {
       theme: "light",
       platform: "web",
     },
+    config: {
+      get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
+      save: async () => undefined,
+    },
+    cardState: { ...initial },
+    runCalls: [],
+    copiedText: "",
+    localFilePaths: [],
+
+    // Deprecated compatibility aliases — mapped onto the capability domains so
+    // unmigrated call sites keep working. Removed once every node uses host.state.
+    getData: <T,>() => stateCapability.getData() as T | undefined,
+    patchData: (_compId, patch) => stateCapability.patchData(patch),
+    listComponents: () => [],
+    updateComponent: () => undefined,
+    actions: options.noRunner ? undefined : { run },
     getNodeConfig: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
     saveNodeConfig: async () => undefined,
   }
