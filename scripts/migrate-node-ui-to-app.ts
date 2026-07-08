@@ -3,23 +3,13 @@ import { access, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import * as ts from "typescript"
+import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.js"
 
 interface NodePackageJson {
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   name?: string
   peerDependencies?: Record<string, string>
-}
-
-interface NodeDefLiteral {
-  category: string
-  description: string
-  icon: string
-  id: string
-  keywords?: string[]
-  name: string
-  version: string
 }
 
 interface Change {
@@ -257,70 +247,6 @@ async function readJsonIfExists(file: string): Promise<Record<string, unknown> |
   }
 }
 
-async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
-  const sourceText = await readFile(indexPath, "utf8")
-  const source = ts.createSourceFile(indexPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  let found: NodeDefLiteral | undefined
-
-  function visit(node: ts.Node) {
-    if (found) return
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "def" && node.initializer) {
-      const object = objectLiteralFromExpression(node.initializer)
-      const parsed = object ? parseNodeDefLiteral(object) : undefined
-      if (parsed) found = parsed
-    }
-    if (ts.isPropertyAssignment(node) && propertyName(node.name) === "def") {
-      const object = objectLiteralFromExpression(node.initializer)
-      const parsed = object ? parseNodeDefLiteral(object) : undefined
-      if (parsed) found = parsed
-    }
-    ts.forEachChild(node, visit)
-  }
-
-  visit(source)
-  if (!found) throw new Error(`Unable to find def literal in ${relative(indexPath)}.`)
-  return found
-}
-
-function parseNodeDefLiteral(object: ts.ObjectLiteralExpression): NodeDefLiteral | undefined {
-  const strings = new Map<string, string>()
-  let keywords: string[] | undefined
-
-  for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property)) continue
-    const name = propertyName(property.name)
-    if (!name) continue
-
-    const value = property.initializer
-    if (ts.isStringLiteralLike(value)) {
-      strings.set(name, value.text)
-    } else if (name === "keywords" && ts.isArrayLiteralExpression(value)) {
-      keywords = value.elements.map((element) => ts.isStringLiteralLike(element) ? element.text : undefined)
-        .filter((item): item is string => typeof item === "string")
-    }
-  }
-
-  const required = ["id", "name", "version", "category", "description", "icon"] as const
-  if (!required.every((key) => strings.has(key))) return undefined
-
-  return {
-    id: strings.get("id")!,
-    name: strings.get("name")!,
-    version: strings.get("version")!,
-    category: strings.get("category")!,
-    description: strings.get("description")!,
-    icon: strings.get("icon")!,
-    ...(keywords?.length ? { keywords } : {}),
-  }
-}
-
-function objectLiteralFromExpression(expression: ts.Expression): ts.ObjectLiteralExpression | undefined {
-  if (ts.isObjectLiteralExpression(expression)) return expression
-  if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression)) return objectLiteralFromExpression(expression.expression)
-  if (ts.isParenthesizedExpression(expression)) return objectLiteralFromExpression(expression.expression)
-  return undefined
-}
-
 async function writeIfChanged(file: string, next: string, detail: string): Promise<void> {
   const current = await readFile(file, "utf8").catch(() => undefined)
   if (current === next) {
@@ -479,11 +405,6 @@ ${lines.join("\n")}
 
 function stableJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
-}
-
-function propertyName(name: ts.PropertyName): string | undefined {
-  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text
-  return undefined
 }
 
 function readArg(name: string): string | undefined {

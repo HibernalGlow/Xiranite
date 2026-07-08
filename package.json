@@ -111,6 +111,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@oxc-project/types": "^0.139.0",
     "@playwright/test": "^1.61.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -127,6 +128,7 @@
     "happy-dom": "^20.10.6",
     "msw": "^2.14.6",
     "node-pty": "^1.1.0",
+    "oxc-parser": "^0.139.0",
     "turbo": "^2.10.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",

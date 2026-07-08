@@ -2,7 +2,7 @@
 import { access, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import * as ts from "typescript"
+import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.js"
 
 interface NodePackageJson {
   name?: string
@@ -15,16 +15,6 @@ interface NodePackage {
   hasPlatform: boolean
   hasAppEntry: boolean
   def: NodeDefLiteral
-}
-
-interface NodeDefLiteral {
-  id: string
-  name: string
-  version: string
-  category: string
-  description: string
-  icon: string
-  keywords?: string[]
 }
 
 type RuntimeOverride =
@@ -78,70 +68,6 @@ async function discoverNodePackages(): Promise<NodePackage[]> {
   }
 
   return packages.sort((a, b) => a.id.localeCompare(b.id))
-}
-
-async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
-  const sourceText = await readFile(indexPath, "utf8")
-  const source = ts.createSourceFile(indexPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  let found: NodeDefLiteral | undefined
-
-  function visit(node: ts.Node) {
-    if (found) return
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "def" && node.initializer) {
-      const object = objectLiteralFromExpression(node.initializer)
-      const def = object ? parseNodeDefLiteral(object) : undefined
-      if (def) found = def
-    }
-    if (ts.isPropertyAssignment(node) && propertyName(node.name) === "def") {
-      const object = objectLiteralFromExpression(node.initializer)
-      const def = object ? parseNodeDefLiteral(object) : undefined
-      if (def) found = def
-    }
-    ts.forEachChild(node, visit)
-  }
-
-  visit(source)
-  if (!found) throw new Error(`Unable to find NodeEntry def literal in ${indexPath}.`)
-  return found
-}
-
-function parseNodeDefLiteral(object: ts.ObjectLiteralExpression): NodeDefLiteral | undefined {
-  const strings = new Map<string, string>()
-  let keywords: string[] | undefined
-
-  for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property)) continue
-    const name = propertyName(property.name)
-    if (!name) continue
-
-    const value = property.initializer
-    if (ts.isStringLiteralLike(value)) {
-      strings.set(name, value.text)
-    } else if (name === "keywords" && ts.isArrayLiteralExpression(value)) {
-      keywords = value.elements.map((element) => ts.isStringLiteralLike(element) ? element.text : undefined)
-        .filter((item): item is string => typeof item === "string")
-    }
-  }
-
-  const required = ["id", "name", "version", "category", "description", "icon"] as const
-  if (!required.every((key) => strings.has(key))) return undefined
-
-  return {
-    id: strings.get("id")!,
-    name: strings.get("name")!,
-    version: strings.get("version")!,
-    category: strings.get("category")!,
-    description: strings.get("description")!,
-    icon: strings.get("icon")!,
-    ...(keywords?.length ? { keywords } : {}),
-  }
-}
-
-function objectLiteralFromExpression(expression: ts.Expression): ts.ObjectLiteralExpression | undefined {
-  if (ts.isObjectLiteralExpression(expression)) return expression
-  if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression)) return objectLiteralFromExpression(expression.expression)
-  if (ts.isParenthesizedExpression(expression)) return objectLiteralFromExpression(expression.expression)
-  return undefined
 }
 
 function generateRuntimeRegistry(nodes: NodePackage[]): string {
@@ -246,11 +172,6 @@ function nodeDefLiteral(def: NodeDefLiteral): string {
     lines.push(`keywords: [${def.keywords.map(stringLiteral).join(", ")}]`)
   }
   return `{ ${lines.join(", ")} }`
-}
-
-function propertyName(name: ts.PropertyName): string | undefined {
-  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text
-  return undefined
 }
 
 function objectKey(value: string): string {
