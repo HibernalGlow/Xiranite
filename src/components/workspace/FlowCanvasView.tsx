@@ -112,6 +112,7 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
 
 function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const editor = useEditor()
+  const resizingRef = useRef(false)
   const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
@@ -132,23 +133,25 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       onClick: handleClose,
     },
   ]
-  const handleResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-    event.stopPropagation()
-    event.preventDefault()
+  const startResize = (target: HTMLDivElement, originX: number, originY: number, pointerId?: number) => {
+    if (resizingRef.current) return
+    resizingRef.current = true
 
-    const target = event.currentTarget
-    const pointerId = event.pointerId
-    const startX = event.clientX
-    const startY = event.clientY
     const startW = w
     const startH = h
     const zoom = typeof editor.getZoomLevel === "function" ? editor.getZoomLevel() : 1
 
-    target.setPointerCapture(pointerId)
+    if (pointerId !== undefined) {
+      try {
+        target.setPointerCapture(pointerId)
+      } catch {
+        // Pointer capture can fail if the event was already released by the host browser.
+      }
+    }
 
-    const onPointerMove = (moveEvent: globalThis.PointerEvent) => {
-      const nextW = Math.max(240, startW + (moveEvent.clientX - startX) / zoom)
-      const nextH = Math.max(160, startH + (moveEvent.clientY - startY) / zoom)
+    const onResizeMove = (moveEvent: globalThis.PointerEvent | globalThis.MouseEvent) => {
+      const nextW = Math.max(240, startW + (moveEvent.clientX - originX) / zoom)
+      const nextH = Math.max(160, startH + (moveEvent.clientY - originY) / zoom)
       editor.updateShape({
         id: shape.id,
         type: "module",
@@ -160,32 +163,61 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       })
     }
 
-    const onPointerUp = () => {
-      target.releasePointerCapture(pointerId)
-      window.removeEventListener("pointermove", onPointerMove)
-      window.removeEventListener("pointerup", onPointerUp)
-      window.removeEventListener("pointercancel", onPointerUp)
+    const stopResize = () => {
+      resizingRef.current = false
+      if (pointerId !== undefined) {
+        try {
+          target.releasePointerCapture(pointerId)
+        } catch {
+          // The browser may release capture before our cleanup path runs.
+        }
+      }
+      window.removeEventListener("pointermove", onResizeMove)
+      window.removeEventListener("mousemove", onResizeMove)
+      window.removeEventListener("pointerup", stopResize)
+      window.removeEventListener("pointercancel", stopResize)
+      window.removeEventListener("mouseup", stopResize)
     }
 
-    window.addEventListener("pointermove", onPointerMove)
-    window.addEventListener("pointerup", onPointerUp, { once: true })
-    window.addEventListener("pointercancel", onPointerUp, { once: true })
+    window.addEventListener("pointermove", onResizeMove)
+    window.addEventListener("mousemove", onResizeMove)
+    window.addEventListener("pointerup", stopResize, { once: true })
+    window.addEventListener("pointercancel", stopResize, { once: true })
+    window.addEventListener("mouseup", stopResize, { once: true })
+  }
+
+  const handleResizePointerStart = (event: PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+    event.preventDefault()
+    startResize(event.currentTarget, event.clientX, event.clientY, event.pointerId)
+  }
+
+  const handleResizeMouseStart = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    event.preventDefault()
+    startResize(event.currentTarget, event.clientX, event.clientY)
   }
 
   return (
     <HTMLContainer
       data-component-id={compId}
       data-context-menu="flow-node"
-      className="group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]"
+      className="group relative flex flex-col overflow-visible rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]"
       style={{ width: w, height: h }}
     >
       <NodeSurfaceChrome actions={actions} moduleName={moduleName} version={mod?.version} />
-      <div className="min-h-0 flex-1 overflow-hidden pointer-events-auto">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-b-md pointer-events-auto">
         {moduleId && compId && (
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         )}
       </div>
-      <AppleResizeHandle interactive outside onPointerDown={handleResizeStart} />
+      <AppleResizeHandle
+        interactive
+        outside
+        onMouseDown={handleResizeMouseStart}
+        onPointerDown={handleResizePointerStart}
+      />
     </HTMLContainer>
   )
 }
