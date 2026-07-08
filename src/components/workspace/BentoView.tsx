@@ -4,6 +4,7 @@ import { GridStack, type GridStackNode } from "gridstack"
 import "gridstack/dist/gridstack.min.css"
 import { LayoutTemplate, Maximize2, Minus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
@@ -258,6 +259,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
           <ModuleRenderer moduleId={component.moduleId} compId={component.id} />
         </div>
       )}
+      <AppleResizeHandle />
     </section>
   )
 }
