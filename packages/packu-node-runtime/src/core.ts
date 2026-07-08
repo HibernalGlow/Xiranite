@@ -51,11 +51,24 @@ export interface PackuDatabaseRecord {
   databasePath: string
   enabled: boolean
   mode: "jsonl"
+  label?: string
+  defaultPath: boolean
+}
+
+export interface PackuIntegrationProfile {
+  sourceRoot: string
+  moduleName: string
+  configCandidates: string[]
+  databasePath?: string
+  databaseLabel?: string
+  recordRun: boolean
+  recordFormat: "jsonl"
 }
 
 export interface PackuToolData {
   spec: PackuToolSpec
   command: PackuCommandPlan
+  integration: PackuIntegrationProfile
   config?: PackuConfigSummary
   database?: PackuDatabaseRecord
   commandResult?: CommandResult
@@ -72,6 +85,7 @@ export interface PackuToolRuntime {
 export type PackuToolResult = NodeRunResult<PackuToolData>
 
 export function normalizePackuToolInput(input: PackuToolInput, spec: PackuToolSpec): Required<PackuToolInput> {
+  const explicitDatabasePath = clean(input.databasePath)
   return {
     action: input.action ?? "status",
     paths: uniqueClean([input.path, ...(input.paths ?? [])]),
@@ -79,12 +93,12 @@ export function normalizePackuToolInput(input: PackuToolInput, spec: PackuToolSp
     args: input.args ?? [],
     configPath: clean(input.configPath),
     configText: input.configText ?? "",
-    databasePath: clean(input.databasePath),
+    databasePath: explicitDatabasePath,
     python: clean(input.python) || "python",
     sourceRoot: clean(input.sourceRoot) || spec.sourceRoot,
     moduleName: clean(input.moduleName) || spec.moduleName,
     dryRun: input.dryRun ?? false,
-    recordRun: input.recordRun ?? Boolean(input.databasePath),
+    recordRun: input.recordRun ?? Boolean(explicitDatabasePath),
   }
 }
 
@@ -99,31 +113,33 @@ export async function runPackuTool(
     onEvent({ type: "progress", progress: 20, message: `Planning ${spec.id}.` })
     const config = await loadConfigSummary(normalized, runtime)
     const command = buildPackuCommand(spec, normalized)
-    const database = normalized.databasePath
-      ? { toolId: spec.id, databasePath: normalized.databasePath, enabled: normalized.recordRun, mode: "jsonl" as const }
+    const integration = buildPackuIntegrationProfile(spec, normalized)
+    const database = integration.databasePath
+      ? {
+          toolId: spec.id,
+          databasePath: integration.databasePath,
+          enabled: normalized.recordRun,
+          mode: "jsonl" as const,
+          label: spec.databaseLabel,
+          defaultPath: !normalized.databasePath,
+        }
       : undefined
 
     if (normalized.action !== "run" || normalized.dryRun) {
-      return success(`PackU ${spec.id} planned.`, spec, { command, config, database, selectedPaths: normalized.paths })
+      return success(`PackU ${spec.id} planned.`, spec, { command, integration, config, database, selectedPaths: normalized.paths })
     }
 
     onEvent({ type: "progress", progress: 65, message: `Running ${spec.id}.` })
     const commandResult = await runtime.runCommand(command)
     if (database?.enabled) {
-      await runtime.appendRecord(database.databasePath, {
-        toolId: spec.id,
-        command,
-        selectedPaths: normalized.paths,
-        success: commandResult.code === 0,
-        code: commandResult.code,
-        at: new Date().toISOString(),
-      })
+      await runtime.appendRecord(database.databasePath, buildPackuRunRecord(spec, normalized, command, commandResult, config, database))
     }
     return {
       success: commandResult.code === 0,
       message: commandResult.code === 0 ? `PackU ${spec.id} completed.` : `PackU ${spec.id} failed.`,
       data: data(spec, {
         command,
+        integration,
         config,
         database,
         commandResult,
@@ -134,6 +150,65 @@ export async function runPackuTool(
   } catch (error) {
     return failure(spec, error instanceof Error ? error.message : String(error))
   }
+}
+
+export function buildPackuIntegrationProfile(spec: PackuToolSpec, input: Required<PackuToolInput>): PackuIntegrationProfile {
+  const databasePath = input.databasePath || defaultPackuDatabasePath(spec, input)
+  return {
+    sourceRoot: input.sourceRoot,
+    moduleName: input.moduleName,
+    configCandidates: configCandidates(spec, input),
+    databasePath,
+    databaseLabel: spec.databaseLabel,
+    recordRun: input.recordRun,
+    recordFormat: "jsonl",
+  }
+}
+
+export function defaultPackuDatabasePath(spec: PackuToolSpec, input: Required<Pick<PackuToolInput, "sourceRoot">>): string | undefined {
+  if (!spec.databaseLabel) return undefined
+  return joinPath(input.sourceRoot, ".xiranite", `${spec.id}-runs.jsonl`)
+}
+
+export function configCandidates(spec: PackuToolSpec, input: Required<Pick<PackuToolInput, "sourceRoot">>): string[] {
+  return (spec.configFiles ?? []).map((path) => isAbsolutePathLike(path) ? path : joinPath(input.sourceRoot, path))
+}
+
+export function buildPackuRunRecord(
+  spec: PackuToolSpec,
+  input: Required<PackuToolInput>,
+  command: PackuCommandPlan,
+  commandResult: CommandResult,
+  config: PackuConfigSummary | undefined,
+  database: PackuDatabaseRecord,
+): Record<string, unknown> {
+  return {
+    toolId: spec.id,
+    databaseLabel: database.label,
+    command,
+    config,
+    selectedPaths: input.paths,
+    success: commandResult.code === 0,
+    code: commandResult.code,
+    stdoutLength: commandResult.stdout.length,
+    stderrLength: commandResult.stderr.length,
+    at: new Date().toISOString(),
+  }
+}
+
+export function joinPath(...parts: string[]): string {
+  const cleaned = parts.map((part, index) => {
+    const value = clean(part)
+    if (!value) return ""
+    if (index === 0) return value.replace(/[\\/]+$/g, "")
+    return value.replace(/^[\\/]+|[\\/]+$/g, "")
+  }).filter(Boolean)
+  if (cleaned.length === 0) return ""
+  return cleaned.join("/")
+}
+
+function isAbsolutePathLike(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path) || /^[\\/]/.test(path)
 }
 
 export function buildPackuCommand(spec: PackuToolSpec, input: Required<PackuToolInput>): PackuCommandPlan {
@@ -175,6 +250,14 @@ function data(spec: PackuToolSpec, partial: Partial<PackuToolData>): PackuToolDa
   return {
     spec,
     command: partial.command ?? { label: "", command: "", args: [] },
+    integration: partial.integration ?? {
+      sourceRoot: spec.sourceRoot,
+      moduleName: spec.moduleName,
+      configCandidates: [],
+      databaseLabel: spec.databaseLabel,
+      recordRun: false,
+      recordFormat: "jsonl",
+    },
     selectedPaths: [],
     errors: [],
     ...partial,
