@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react"
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react"
 import AudioPlayer from "react-modern-audio-player"
-import { FolderOpen, Library, ListMusic, Music2, Upload } from "lucide-react"
+import { Clipboard, Disc3, FolderOpen, Library, ListMusic, Loader2, Music2 } from "lucide-react"
+import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { resolveLocalAudioTracks, type LocalAudioTrack } from "@/backend/localFilesClient"
+import { useTheme } from "@/components/theme-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
@@ -10,6 +14,7 @@ export interface PersistedTrack {
   name: string
   writer?: string
   fileName?: string
+  path?: string
   relativePath?: string
   size?: number
   type?: string
@@ -17,6 +22,7 @@ export interface PersistedTrack {
 
 interface RuntimeTrack extends PersistedTrack {
   id: number
+  path: string
   src: string
   img?: string
   description?: string
@@ -24,25 +30,15 @@ interface RuntimeTrack extends PersistedTrack {
 
 export interface MusicPlayerSurfaceProps {
   savedTracks?: PersistedTrack[]
+  savedSourcePath?: string
   onSavedTracksChange?: (tracks: PersistedTrack[]) => void
+  onSourcePathChange?: (path: string) => void
   variant?: "module" | "dock"
   className?: string
 }
 
-const AUDIO_ACCEPT = [
-  ".flac",
-  ".mp3",
-  ".wav",
-  ".ogg",
-  ".oga",
-  ".m4a",
-  ".aac",
-  ".opus",
-  ".webm",
-  "audio/*",
-].join(",")
-
 const DEFAULT_LOCAL_PATH = "E:\\1Hub\\Music\\焚蝶 - 铁痕电台-MSR&Aurora Sky&Lucien X.flac"
+const DEFAULT_TRACK_NAME = "焚蝶"
 const DEFAULT_COVER_URL = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/68/6b/51/686b5103-f58d-3ba6-4f20-3bb55b482078/4711720299471.jpg/600x600bb.jpg"
 
 const PLAYER_VARIABLES = {
@@ -69,17 +65,29 @@ const PLAYER_VARIABLES = {
 
 export function MusicPlayerSurface({
   savedTracks = [],
+  savedSourcePath,
   onSavedTracksChange,
+  onSourcePathChange,
   variant = "module",
   className,
 }: MusicPlayerSurfaceProps) {
-  const [tracks, setTracks] = useState<RuntimeTrack[]>([])
-  const objectUrlsRef = useRef<string[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
   const compact = variant === "dock"
+  const [sourcePath, setSourcePath] = useState(savedSourcePath || DEFAULT_LOCAL_PATH)
+  const [tracks, setTracks] = useState<RuntimeTrack[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { resolvedTheme, theme } = useTheme()
+  const colorScheme = resolvedTheme === "light" || theme === "light" ? "light" : "dark"
 
-  useEffect(() => () => revokeObjectUrls(objectUrlsRef.current), [])
+  useEffect(() => {
+    if (savedSourcePath && savedSourcePath !== sourcePath) setSourcePath(savedSourcePath)
+  }, [savedSourcePath])
+
+  useEffect(() => {
+    if (tracks.length || !savedTracks.length) return
+    const restored = restoreTracks(savedTracks)
+    if (restored.length) setTracks(restored)
+  }, [savedTracks, tracks.length])
 
   const playList = useMemo(() => tracks.map((track) => ({
     id: track.id,
@@ -91,83 +99,72 @@ export function MusicPlayerSurface({
     customTrackInfo: track.fileName,
   })), [tracks])
 
-  function loadFiles(files: FileList | File[]) {
-    const nextFiles = Array.from(files).filter(isSupportedAudioFile)
-    if (nextFiles.length === 0) return
+  async function loadSource(nextSourcePath = sourcePath) {
+    const trimmed = nextSourcePath.trim()
+    if (!trimmed) return
 
-    revokeObjectUrls(objectUrlsRef.current)
-    const urls: string[] = []
-    const nextTracks = nextFiles.map((file, index) => {
-      const src = URL.createObjectURL(file)
-      urls.push(src)
-      const metadata = parseTrackMetadata(file)
-      return {
-        ...metadata,
-        id: index + 1,
-        src,
-        img: metadata.name === "焚蝶" ? DEFAULT_COVER_URL : undefined,
-        description: metadata.relativePath ?? file.name,
-      } satisfies RuntimeTrack
-    })
+    setLoading(true)
+    setError(null)
+    try {
+      const localTracks = await resolveLocalAudioTracks(trimmed)
+      if (!localTracks.length) {
+        throw new Error("这个路径下没有找到可播放的音频文件。")
+      }
 
-    objectUrlsRef.current = urls
-    setTracks(nextTracks)
-    onSavedTracksChange?.(nextTracks.map(({ name, writer, fileName, relativePath, size, type }) => ({
-      name,
-      writer,
-      fileName,
-      relativePath,
-      size,
-      type,
-    })))
+      const nextTracks = toRuntimeTracks(localTracks)
+      setTracks(nextTracks)
+      onSourcePathChange?.(trimmed)
+      onSavedTracksChange?.(nextTracks.map(toPersistedTrack))
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError))
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    if (event.target.files) loadFiles(event.target.files)
-    event.target.value = ""
+  async function pastePath() {
+    const text = await navigator.clipboard?.readText?.()
+    if (!text) return
+    setSourcePath(text.trim())
   }
 
-  function openFolderPicker() {
-    const input = folderInputRef.current
-    if (!input) return
-    input.setAttribute("webkitdirectory", "")
-    input.setAttribute("directory", "")
-    input.click()
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void loadSource()
   }
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden bg-background", compact ? "p-2" : "p-3", className)}>
-      <input ref={fileInputRef} hidden type="file" accept={AUDIO_ACCEPT} multiple onChange={handleFileChange} />
-      <input ref={folderInputRef} hidden type="file" accept={AUDIO_ACCEPT} multiple onChange={handleFileChange} />
+    <div
+      data-music-player-surface={variant}
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground",
+        compact ? "gap-2 p-2" : "gap-3 p-3",
+        className
+      )}
+    >
+      <MusicLibraryToolbar
+        compact={compact}
+        loading={loading}
+        sourcePath={sourcePath}
+        trackCount={tracks.length}
+        savedTrackCount={savedTracks.length}
+        onLoad={() => void loadSource()}
+        onPastePath={() => void pastePath()}
+        onSourcePathChange={setSourcePath}
+        onSubmit={handleSubmit}
+      />
 
-      <div className={cn("flex min-w-0 items-start justify-between gap-3", compact ? "mb-2" : "mb-3")}>
-        <div className="min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="text-[10px]">本地音乐库</Badge>
-            <Badge variant="outline" className="text-[10px]">FLAC / MP3 / WAV / OGG / M4A</Badge>
-          </div>
-          <h3 className={cn("truncate font-semibold leading-tight", compact ? "text-sm" : "text-lg")}>Music Player</h3>
-          {!compact && (
-            <p className="truncate text-xs text-muted-foreground">默认示例：{DEFAULT_LOCAL_PATH}</p>
-          )}
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+          {error}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => fileInputRef.current?.click()}>
-            <Upload data-icon="inline-start" />
-            文件
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={openFolderPicker}>
-            <FolderOpen data-icon="inline-start" />
-            文件夹
-          </Button>
-        </div>
-      </div>
+      )}
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/60">
+      <div className={cn("min-h-0 flex-1 overflow-hidden border bg-card/60", compact ? "rounded-md" : "rounded-lg")}>
         {tracks.length > 0 ? (
           <AudioPlayer
             playList={playList}
-            colorScheme="dark"
+            colorScheme={colorScheme}
             audioInitialState={{
               curPlayId: playList[0]?.id ?? 1,
               repeatType: "ALL",
@@ -200,9 +197,13 @@ export function MusicPlayerSurface({
         ) : (
           <EmptyLibrary
             compact={compact}
+            loading={loading}
             savedTracks={savedTracks}
-            onPickFiles={() => fileInputRef.current?.click()}
-            onPickFolder={openFolderPicker}
+            onLoad={() => void loadSource()}
+            onUseDefaultPath={() => {
+              setSourcePath(DEFAULT_LOCAL_PATH)
+              void loadSource(DEFAULT_LOCAL_PATH)
+            }}
           />
         )}
       </div>
@@ -210,45 +211,125 @@ export function MusicPlayerSurface({
   )
 }
 
-function EmptyLibrary({
+function MusicLibraryToolbar({
   compact,
-  savedTracks,
-  onPickFiles,
-  onPickFolder,
+  loading,
+  sourcePath,
+  trackCount,
+  savedTrackCount,
+  onLoad,
+  onPastePath,
+  onSourcePathChange,
+  onSubmit,
 }: {
   compact: boolean
-  savedTracks: PersistedTrack[]
-  onPickFiles(): void
-  onPickFolder(): void
+  loading: boolean
+  sourcePath: string
+  trackCount: number
+  savedTrackCount: number
+  onLoad(): void
+  onPastePath(): void
+  onSourcePathChange(path: string): void
+  onSubmit(event: FormEvent<HTMLFormElement>): void
 }) {
+  const countLabel = trackCount > 0 ? `${trackCount} 首` : savedTrackCount > 0 ? `上次 ${savedTrackCount} 首` : "待载入"
+
   return (
-    <div className={cn("flex h-full flex-col items-center justify-center gap-4 p-4 text-center", compact ? "min-h-[120px]" : "min-h-[180px]")}>
+    <div className={cn("flex min-w-0 items-center gap-3", compact ? "min-h-9" : "min-h-12")}>
+      <div className="flex min-w-0 items-center gap-2">
+        <div className={cn("flex shrink-0 items-center justify-center rounded-md border bg-muted/55 text-primary", compact ? "size-8" : "size-10")}>
+          <Disc3 className={compact ? "size-4" : "size-5"} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className={cn("truncate font-semibold leading-tight", compact ? "text-sm" : "text-lg")}>本地音乐库</h3>
+            <Badge variant="secondary" className="shrink-0 text-[10px]">{countLabel}</Badge>
+          </div>
+          {!compact && (
+            <p className="truncate text-xs text-muted-foreground">后端文件服务播放，不走浏览器上传。</p>
+          )}
+        </div>
+      </div>
+
+      <form className="flex min-w-0 flex-1 items-center gap-1.5" onSubmit={onSubmit}>
+        <Input
+          value={sourcePath}
+          onChange={(event) => onSourcePathChange(event.target.value)}
+          className={cn("h-8 min-w-0 text-xs", compact && "hidden sm:flex")}
+          placeholder="输入本地音频文件或文件夹路径"
+          aria-label="本地音乐路径"
+        />
+        <Button type="button" size="icon-sm" variant="outline" onClick={onPastePath} title="粘贴路径" aria-label="粘贴路径">
+          <Clipboard />
+        </Button>
+        <Button type="button" size="sm" className="h-8 gap-1.5" disabled={loading} onClick={onLoad}>
+          {loading ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FolderOpen data-icon="inline-start" />}
+          载入
+        </Button>
+      </form>
+    </div>
+  )
+}
+
+function EmptyLibrary({
+  compact,
+  loading,
+  savedTracks,
+  onLoad,
+  onUseDefaultPath,
+}: {
+  compact: boolean
+  loading: boolean
+  savedTracks: PersistedTrack[]
+  onLoad(): void
+  onUseDefaultPath(): void
+}) {
+  if (compact) {
+    return (
+      <div className="flex h-full min-h-[96px] items-center gap-3 p-3 text-left">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border bg-muted/60">
+          <ListMusic className="size-5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">输入文件或文件夹路径后开始播放</p>
+          <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+            FLAC、MP3、WAV、OGG、M4A 等格式会通过本地后端文件服务流式播放。
+          </p>
+        </div>
+        <Button size="sm" disabled={loading} onClick={onLoad} className="hidden h-8 gap-1.5 sm:inline-flex">
+          <Music2 data-icon="inline-start" />
+          载入
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-4 p-4 text-center">
       <div className="flex size-14 items-center justify-center rounded-full border bg-muted/60">
         <ListMusic className="text-primary" />
       </div>
       <div className="max-w-md">
-        <p className="text-sm font-medium">导入本地音乐文件或整个文件夹</p>
-        {!compact && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            使用 react-modern-audio-player，支持歌单、拖拽排序、循环、随机和浏览器可解码的音频格式。
-          </p>
-        )}
+        <p className="text-sm font-medium">载入本地音乐文件或整个文件夹</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          使用 react-modern-audio-player 负责播放器和歌单；本地文件由 Xiranite 后端文件服务提供 URL 与 Range 流。
+        </p>
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={onPickFiles} className="gap-1.5">
-          <Music2 data-icon="inline-start" />
-          选择文件
-        </Button>
-        <Button size="sm" variant="outline" onClick={onPickFolder} className="gap-1.5">
+        <Button size="sm" disabled={loading} onClick={onLoad} className="gap-1.5">
           <Library data-icon="inline-start" />
-          选择文件夹
+          载入路径
+        </Button>
+        <Button size="sm" variant="outline" disabled={loading} onClick={onUseDefaultPath} className="gap-1.5">
+          <Music2 data-icon="inline-start" />
+          焚蝶示例
         </Button>
       </div>
-      {savedTracks.length > 0 && !compact && (
+      {savedTracks.length > 0 && (
         <>
           <Separator className="max-w-sm" />
           <p className="max-w-sm text-[11px] text-muted-foreground">
-            上次歌单有 {savedTracks.length} 首。浏览器安全限制下，刷新后需要重新选择本地文件才能恢复可播放 URL。
+            已保存 {savedTracks.length} 首的路径元数据。后端服务可用时会自动恢复播放 URL。
           </p>
         </>
       )}
@@ -256,66 +337,43 @@ function EmptyLibrary({
   )
 }
 
-function parseTrackMetadata(file: File): PersistedTrack {
-  const relativePath = getRelativePath(file)
-  const fileName = file.name
-  const baseName = fileName.replace(/\.[^.]+$/, "")
-  const [namePart, writerPart] = baseName.split(/\s+-\s+/, 2)
-  const name = (namePart || baseName).trim()
-  const writer = writerPart?.trim() || inferWriterFromPath(relativePath)
+function restoreTracks(savedTracks: PersistedTrack[]): RuntimeTrack[] {
+  const restored: RuntimeTrack[] = []
+  for (const track of savedTracks) {
+    if (!track.path) continue
+    try {
+      restored.push({
+        ...track,
+        id: restored.length + 1,
+        path: track.path,
+        src: localBackendFileUrl(track.path),
+        img: track.name.includes(DEFAULT_TRACK_NAME) ? DEFAULT_COVER_URL : undefined,
+        description: track.relativePath ?? track.path,
+      })
+    } catch {
+      return []
+    }
+  }
+  return restored
+}
 
+function toRuntimeTracks(tracks: LocalAudioTrack[]): RuntimeTrack[] {
+  return tracks.map((track, index) => ({
+    ...track,
+    id: index + 1,
+    img: track.name.includes(DEFAULT_TRACK_NAME) ? DEFAULT_COVER_URL : undefined,
+    description: track.relativePath ?? track.path,
+  }))
+}
+
+function toPersistedTrack(track: RuntimeTrack): PersistedTrack {
   return {
-    name,
-    writer,
-    fileName,
-    relativePath,
-    size: file.size,
-    type: file.type || inferMimeType(fileName),
+    name: track.name,
+    writer: track.writer,
+    fileName: track.fileName,
+    path: track.path,
+    relativePath: track.relativePath,
+    size: track.size,
+    type: track.type,
   }
-}
-
-function getRelativePath(file: File): string | undefined {
-  const maybePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
-  return maybePath || undefined
-}
-
-function inferWriterFromPath(path: string | undefined): string | undefined {
-  if (!path) return undefined
-  const parts = path.split(/[\\/]/).filter(Boolean)
-  return parts.length > 1 ? parts[parts.length - 2] : undefined
-}
-
-function isSupportedAudioFile(file: File): boolean {
-  const lowerName = file.name.toLowerCase()
-  return /\.(flac|mp3|wav|ogg|oga|m4a|aac|opus|webm)$/i.test(lowerName) || file.type.startsWith("audio/")
-}
-
-function inferMimeType(fileName: string): string | undefined {
-  const extension = fileName.toLowerCase().split(".").pop()
-  switch (extension) {
-    case "flac":
-      return "audio/flac"
-    case "mp3":
-      return "audio/mpeg"
-    case "wav":
-      return "audio/wav"
-    case "ogg":
-    case "oga":
-      return "audio/ogg"
-    case "m4a":
-      return "audio/mp4"
-    case "aac":
-      return "audio/aac"
-    case "opus":
-      return "audio/opus"
-    case "webm":
-      return "audio/webm"
-    default:
-      return undefined
-  }
-}
-
-function revokeObjectUrls(urls: string[]) {
-  for (const url of urls) URL.revokeObjectURL(url)
-  urls.length = 0
 }

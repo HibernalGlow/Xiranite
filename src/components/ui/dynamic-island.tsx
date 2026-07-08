@@ -104,7 +104,7 @@ export function DynamicIsland({
         height,
         borderRadius: currentSize.borderRadius,
       }}
-      transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.62 }}
+      transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.48 }}
       style={{ willChange }}
       className={cn("mx-auto flex items-center justify-center overflow-hidden", className)}
     >

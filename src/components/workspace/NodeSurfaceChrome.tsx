@@ -279,14 +279,14 @@ function DynamicIslandChromeContent({
       className="flex h-full w-full items-center justify-center"
     >
       <DynamicContainer className={cn("relative flex h-full w-full items-center justify-center", expanded ? "gap-0.5 px-2" : "gap-1")}>
-        <AnimatePresence initial={false} mode="wait">
+        <AnimatePresence initial={false}>
           {expanded ? (
             <motion.div
               key="island-actions"
-              initial={{ opacity: 0, scale: 0.86, y: 2, filter: "blur(3px)" }}
+              initial={{ opacity: 0, scale: contentScale * 0.96, y: 0, filter: "blur(1px)" }}
               animate={{ opacity: 1, scale: contentScale, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, scale: contentScale * 0.86, y: -2, filter: "blur(3px)" }}
-              transition={{ type: "spring", stiffness: 460, damping: 36, mass: 0.55 }}
+              exit={{ opacity: 0, scale: contentScale * 0.96, y: -1, filter: "blur(1px)" }}
+              transition={{ duration: 0.16, delay: 0.045, ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center justify-center gap-0.5"
               style={{ transformOrigin: "center" }}
             >
@@ -306,14 +306,14 @@ function DynamicIslandChromeContent({
           ) : (
             <motion.div
               key="island-idle"
-              initial={{ opacity: 0, scale: 0.72, y: -1, filter: "blur(2px)" }}
-              animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, scale: 0.7, y: 1, filter: "blur(2px)" }}
-              transition={{ type: "spring", stiffness: 500, damping: 34, mass: 0.45 }}
-              className="flex items-center justify-center gap-1"
+              initial={{ opacity: 0, scale: 0.86, y: -1, filter: "blur(1.5px)" }}
+              animate={{ opacity: 1, scale: 1, y: -3, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.82, y: -1, filter: "blur(1px)" }}
+              transition={{ duration: 0.14, delay: expanded ? 0 : 0.06, ease: [0.16, 1, 0.3, 1] }}
+              className="flex items-center justify-center gap-0.5"
             >
-              <span className="h-1.5 w-5 rounded-full bg-primary/75 shadow-[0_0_14px_var(--ws-accent-glow)]" />
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
+              <span className="h-1 w-3 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
+              <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -323,14 +323,14 @@ function DynamicIslandChromeContent({
 }
 
 function getIslandMetrics(surfaceWidth: number, surfaceHeight: number, buttonCount: number) {
-  const availableWidth = Math.max(36, surfaceWidth - 16)
-  const availableHeight = Math.max(28, surfaceHeight - 12)
-  const desiredContentWidth = Math.min(235, Math.max(148, buttonCount * 30 + 40))
-  const scale = Math.max(0.62, Math.min(1, availableWidth / desiredContentWidth, availableHeight / 44))
-  const compactWidth = Math.round(Math.max(52, Math.min(desiredContentWidth * scale, availableWidth)))
-  const compactHeight = Math.round(Math.max(32, Math.min(44 * scale, availableHeight)))
-  const idleWidth = Math.round(Math.max(36, Math.min(52 * scale, availableWidth)))
-  const idleHeight = Math.round(Math.max(28, Math.min(44 * scale, availableHeight)))
+  const availableWidth = Math.max(34, surfaceWidth - 16)
+  const availableHeight = Math.max(24, surfaceHeight - 12)
+  const desiredContentWidth = Math.min(208, Math.max(128, buttonCount * 28 + 28))
+  const scale = Math.max(0.58, Math.min(0.94, availableWidth / desiredContentWidth, availableHeight / 38))
+  const compactWidth = Math.round(Math.max(48, Math.min(desiredContentWidth * scale, availableWidth)))
+  const compactHeight = Math.round(Math.max(28, Math.min(38 * scale, availableHeight)))
+  const idleWidth = Math.round(Math.max(30, Math.min(44 * scale, availableWidth)))
+  const idleHeight = Math.round(Math.max(22, Math.min(34 * scale, availableHeight)))
 
   return {
     compactWidth,
