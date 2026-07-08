@@ -20,7 +20,6 @@ import type { CleanfCardState, CleanfPhase, CleanfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
-  "use memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("cleanf")
   const data = host.getData<CleanfCardState>(compId) ?? {}

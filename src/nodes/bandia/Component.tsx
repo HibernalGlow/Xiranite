@@ -28,7 +28,6 @@ import type { BandiaCardState, BandiaMode, BandiaStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
-  "use memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("bandia")
   const data = host.getData<BandiaCardState>(compId) ?? {}

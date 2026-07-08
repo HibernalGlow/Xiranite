@@ -19,7 +19,6 @@ import type { FormatvCardState, FormatvPhase, FormatvStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
-  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<FormatvCardState>(compId) ?? {}
   const dataRef = useRef<FormatvCardState>(data)

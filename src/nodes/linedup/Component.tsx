@@ -17,7 +17,6 @@ import { LinedupDisplayTabs, StatsPanel } from "./ResultPanels"
 import type { LinedupCardState, LinedupPhase, LinedupStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
-  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<LinedupCardState>(compId) ?? {}
   const sourceText = data.sourceText ?? ""

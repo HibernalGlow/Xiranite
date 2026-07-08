@@ -31,7 +31,6 @@ import { FileTreePreview } from "./FileTreePreview"
 import type { RepackuCardState, RepackuStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
-  "use memo"
   const surface = useNodeSurface()
   const workspaceActions = useWorkspaceActions()
   const data = host.getData<RepackuCardState>(compId) ?? {}

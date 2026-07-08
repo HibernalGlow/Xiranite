@@ -15,9 +15,9 @@ const PHASE_CLASS: Record<ComponentSurfacePhase, string> = {
   idle: "bg-muted/40",
   queued: "bg-muted-foreground/40",
   running: "bg-primary",
-  completed: "bg-primary",
+  completed: "bg-emerald-500/80",
   error: "bg-destructive",
-  cancelled: "bg-muted-foreground",
+  cancelled: "bg-amber-500/80",
 }
 
 /**
