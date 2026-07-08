@@ -30,7 +30,9 @@ interface Change {
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const nodeId = readArg("--node")
 const apply = process.argv.includes("--apply")
+const check = process.argv.includes("--check")
 const keepPackageComponent = process.argv.includes("--keep-package-component")
+const refreshRegistries = process.argv.includes("--refresh-registries")
 
 const helpRequested = process.argv.includes("--help") || process.argv.includes("-h")
 
@@ -65,8 +67,10 @@ await rewriteHeadlessIndex(def)
 await updateTsconfig()
 await removePackageReactSurface()
 await ensureAppEntry()
+if (refreshRegistries) await runRefreshRegistries()
 
 printSummary()
+if (check) await runChecks()
 
 async function updatePackageJson(pkgJson: NodePackageJson): Promise<void> {
   const next: NodePackageJson = JSON.parse(JSON.stringify(pkgJson))
@@ -268,10 +272,49 @@ function printSummary(): void {
   }
   console.log("")
   console.log("Recommended follow-up:")
-  console.log(`  bun run generate:node-registries`)
-  console.log(`  bun scripts/validate-node-architecture.ts --node ${nodeId}`)
-  console.log(`  bun --filter @xiranite/node-${nodeId} test`)
-  console.log(`  bun --filter @xiranite/node-${nodeId} build`)
+  if (!refreshRegistries) console.log(`  bun run generate:node-registries`)
+  if (!check) {
+    console.log(`  bun x vitest run src/nodes/${nodeId}/Component.test.tsx`)
+    console.log(`  bun scripts/validate-node-architecture.ts --node ${nodeId}`)
+    console.log(`  bun --filter @xiranite/node-${nodeId} test`)
+    console.log(`  bun --filter @xiranite/node-${nodeId} build`)
+  }
+}
+
+async function runRefreshRegistries(): Promise<void> {
+  if (!apply) {
+    record("skip", join(repoRoot, "src", "components", "modules", "packageModules.generated.ts"), "--refresh-registries requires --apply")
+    return
+  }
+  runCommand("refresh generated node registries", ["bun", "run", "generate:node-registries"])
+}
+
+async function runChecks(): Promise<void> {
+  console.log("")
+  console.log(`Running checks for ${nodeId}...`)
+  const appComponentTest = join(appNodeRoot, "Component.test.tsx")
+  if (await exists(appComponentTest)) {
+    runCommand("app Component test", ["bun", "x", "vitest", "run", `src/nodes/${nodeId}/Component.test.tsx`])
+  } else {
+    console.log(`skip   ${relative(appComponentTest)} - app Component test is missing`)
+  }
+  runCommand("node architecture validation", ["bun", "scripts/validate-node-architecture.ts", "--node", nodeId])
+  runCommand("node package tests", ["bun", "--filter", `@xiranite/node-${nodeId}`, "test"])
+  runCommand("node package build", ["bun", "--filter", `@xiranite/node-${nodeId}`, "build"])
+}
+
+function runCommand(label: string, cmd: string[]): void {
+  console.log("")
+  console.log(`> ${cmd.join(" ")}`)
+  const result = Bun.spawnSync({
+    cmd,
+    cwd: repoRoot,
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  if (result.exitCode !== 0) {
+    throw new Error(`${label} failed with exit code ${result.exitCode}.`)
+  }
 }
 
 function nodeDefLiteral(def: NodeDefLiteral): string {
@@ -312,7 +355,7 @@ function relative(file: string): string {
 
 function printHelp(): void {
   console.log([
-    "Usage: bun scripts/migrate-node-ui-to-app.ts --node <node-id> [--apply] [--keep-package-component]",
+    "Usage: bun scripts/migrate-node-ui-to-app.ts --node <node-id> [--apply] [--refresh-registries] [--check] [--keep-package-component]",
     "",
     "Automates the mechanical part of moving a node from package-owned React UI to app-owned UI:",
     "- removes React/UI dependencies from packages/nodes/<id>/package.json",
@@ -320,6 +363,8 @@ function printHelp(): void {
     "- removes package-side Component.tsx, Component.test.tsx, and src/demo",
     "- removes package-side jsx compiler option",
     "- creates or refreshes src/nodes/<id>/entry.ts when src/nodes/<id>/Component.tsx exists",
+    "- optionally refreshes generated registries with --refresh-registries",
+    "- optionally runs the app Component test and package validation with --check",
     "",
     "The script intentionally does not generate the app UI Component. Build that UI deliberately, then run this script.",
     "Dry-run is the default; pass --apply to write changes.",
