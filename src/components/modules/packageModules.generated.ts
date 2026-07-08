@@ -54,6 +54,6 @@ export const packageModuleLoaders = {
   repacku: () => import("@/nodes/repacku/entry") as Promise<{ default: AppNodeEntry }>,
   scoolp: () => import("@xiranite/node-scoolp") as Promise<{ default: NodeEntry }>,
   seriex: () => import("@xiranite/node-seriex") as Promise<{ default: NodeEntry }>,
-  sleept: () => import("@xiranite/node-sleept") as Promise<{ default: NodeEntry }>,
+  sleept: () => import("@/nodes/sleept/entry") as Promise<{ default: AppNodeEntry }>,
   trename: () => import("@/nodes/trename/entry") as Promise<{ default: AppNodeEntry }>,
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry }>>>
