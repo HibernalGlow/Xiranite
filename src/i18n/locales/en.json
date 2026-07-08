@@ -190,6 +190,22 @@
       "cardElevation": "Card Elevation Highlights",
       "cardElevationDesc": "Subtle top-border shine on elevated surfaces"
     },
+    "chrome": {
+      "title": "Operation Bar",
+      "description": "Shared floating action bar for cards and node views. Can be fully hidden, or adjust position and style to reduce obstruction.",
+      "visible": "Show operation bar",
+      "visibleDesc": "When off, the bar is not rendered (components can still be operated via the context menu)",
+      "position": "Position",
+      "positionDesc": "Horizontal position of the bar on a card",
+      "positionLeft": "Left",
+      "positionRight": "Right",
+      "style": "Style",
+      "styleDesc": "Visual style of the bar, independent of position",
+      "styleDefault": "Default",
+      "styleDefaultDesc": "Pill-shaped buttons, appears on hover",
+      "styleTrafficLight": "Traffic Light",
+      "styleTrafficLightDesc": "macOS-style colored dots, always visible, icons on hover"
+    },
     "texture": {
       "title": "Texture Canvas",
       "basePalette": "BASE PALETTE",

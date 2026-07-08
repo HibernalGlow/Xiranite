@@ -39,6 +39,9 @@ export interface WSState {
   bgOpacity: number
   bgBlur: number
   bgCoverTopBar: boolean
+  chromeVisible: boolean
+  chromePosition: "left" | "right"
+  chromeStyle: "default" | "traffic-light"
 }
 
 export type ComponentPatch = {
@@ -66,6 +69,9 @@ export interface WorkspaceUiActions {
   setBgOpacity(opacity: number): void
   setBgBlur(blur: number): void
   setBgCoverTopBar(cover: boolean): void
+  setChromeVisible(visible: boolean): void
+  setChromePosition(position: "left" | "right"): void
+  setChromeStyle(style: "default" | "traffic-light"): void
 }
 
 export interface WorkspaceListActions {
@@ -86,6 +92,7 @@ export interface WorkspaceComponentActions {
   setComponentFlowPos(id: string, x: number, y: number): void
   setComponentFlowSize(id: string, width: number, height: number): void
   setComponentBentoLayout(id: string, layout: { x: number; y: number; w: number; h: number }): void
+  setComponentLaneSize(id: string, size: { height: number }): void
   setComponentData(id: string, data: Record<string, unknown>): void
   patchComponentData(id: string, patch: Record<string, unknown>): void
   updateComponent(id: string, patch: ComponentPatch): void
@@ -109,6 +116,7 @@ export interface WorkspaceLaneActions {
   toggleLaneVisibility(id: string): void
   reorderLane(fromId: string, toId: string): void
   setLaneCardOrder(id: string, cardOrder: string[]): void
+  setLaneBoardLayout(workspaceId: string | undefined, laneOrder: string[], cardOrderByLane: Record<string, string[]>): void
   moveComponentToLane(componentId: string, toLaneId: string, targetCardId?: string | null, insertAfter?: boolean): void
 }
 
@@ -143,6 +151,9 @@ export type WorkspaceUiPreferences = Pick<
   | "bgOpacity"
   | "bgBlur"
   | "bgCoverTopBar"
+  | "chromeVisible"
+  | "chromePosition"
+  | "chromeStyle"
 >
 
 export type SetWorkspaceStore = (

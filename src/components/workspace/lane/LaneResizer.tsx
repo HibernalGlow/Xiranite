@@ -6,13 +6,15 @@
  */
 import { useRef } from "react"
 import { useTranslation } from "react-i18next"
+import { cn } from "@/lib/utils"
 
 interface Props {
   onResize?: (deltaRatio: number) => void
   onResizeEnd?: () => void
+  className?: string
 }
 
-export function LaneResizer({ onResize, onResizeEnd }: Props) {
+export function LaneResizer({ onResize, onResizeEnd, className }: Props) {
   const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
@@ -20,9 +22,14 @@ export function LaneResizer({ onResize, onResizeEnd }: Props) {
 
   function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     e.preventDefault()
+    e.stopPropagation()
     startXRef.current = e.clientX
     pointerIdRef.current = e.pointerId
-    btnRef.current?.setPointerCapture(e.pointerId)
+    try {
+      btnRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      // Pointer capture can fail if the browser has already cancelled the pointer.
+    }
 
     const handleMove = (moveEvent: PointerEvent) => {
       if (pointerIdRef.current !== moveEvent.pointerId) return
@@ -35,7 +42,11 @@ export function LaneResizer({ onResize, onResizeEnd }: Props) {
     const handleUp = (upEvent: PointerEvent) => {
       if (pointerIdRef.current !== upEvent.pointerId) return
       pointerIdRef.current = null
-      btnRef.current?.releasePointerCapture(upEvent.pointerId)
+      try {
+        btnRef.current?.releasePointerCapture(upEvent.pointerId)
+      } catch {
+        // The pointer may already be released by the browser.
+      }
       window.removeEventListener("pointermove", handleMove)
       window.removeEventListener("pointerup", handleUp)
       window.removeEventListener("pointercancel", handleUp)
@@ -53,7 +64,10 @@ export function LaneResizer({ onResize, onResizeEnd }: Props) {
       type="button"
       aria-label={t("common:resizeLane")}
       onPointerDown={handlePointerDown}
-      className="lane-resizer w-1 cursor-ew-resize bg-transparent hover:bg-primary/40 transition-colors flex-shrink-0"
+      className={cn(
+        "lane-resizer w-1 cursor-ew-resize bg-transparent hover:bg-primary/40 transition-colors flex-shrink-0",
+        className,
+      )}
     />
   )
 }

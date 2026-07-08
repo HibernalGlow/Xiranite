@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown, PanelRight, ToggleLeft, Circle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -213,6 +213,9 @@ export function ThemeSettings() {
     bgBlur: workspace.bgBlur,
     bgCoverTopBar: workspace.bgCoverTopBar,
     grainEnabled: workspace.grainEnabled,
+    chromeVisible: workspace.chromeVisible,
+    chromePosition: workspace.chromePosition,
+    chromeStyle: workspace.chromeStyle,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -703,6 +706,109 @@ export function ThemeSettings() {
                       />
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Operation Bar (chrome) settings card */}
+            <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "appearance" && "hidden")}>
+              <div className="flex items-start gap-2">
+                <PanelRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <h3 className="text-lg font-semibold text-foreground">{t("settings:chrome.title")}</h3>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:chrome.description")}</p>
+                </div>
+              </div>
+
+              {/* Visibility toggle */}
+              <div className="flex items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+                <ToggleLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{t("settings:chrome.visible")}</p>
+                  <p className="text-[11px] text-muted-foreground">{t("settings:chrome.visibleDesc")}</p>
+                </div>
+                <Switch
+                  checked={state.chromeVisible}
+                  onCheckedChange={v => workspaceActions.setChromeVisible(v)}
+                />
+              </div>
+
+              {/* Position — independent of style */}
+              <div className={cn("space-y-2 transition-opacity", !state.chromeVisible && "pointer-events-none opacity-40")}>
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:chrome.position")}</p>
+                <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:chrome.positionDesc")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { key: "left", label: t("settings:chrome.positionLeft"), icon: PanelRight },
+                    { key: "right", label: t("settings:chrome.positionRight"), icon: PanelRight },
+                  ] as const).map(({ key, label, icon: Icon }) => {
+                    const isActive = state.chromePosition === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => workspaceActions.setChromePosition(key)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 p-2.5 rounded-sm border transition-all",
+                          isActive
+                            ? "border-primary/50 bg-primary/8 text-primary"
+                            : "border-border/40 text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground",
+                          key === "left" && "[&>svg]:scale-x-[-1]",
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="text-[11px] font-medium">{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <Separator className="opacity-50" />
+
+              {/* Style — independent of position */}
+              <div className={cn("space-y-2 transition-opacity", !state.chromeVisible && "pointer-events-none opacity-40")}>
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:chrome.style")}</p>
+                <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:chrome.styleDesc")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { key: "default", label: t("settings:chrome.styleDefault"), desc: t("settings:chrome.styleDefaultDesc"), icon: PanelRight },
+                    { key: "traffic-light", label: t("settings:chrome.styleTrafficLight"), desc: t("settings:chrome.styleTrafficLightDesc"), icon: Circle },
+                  ] as const).map(({ key, label, desc, icon: Icon }) => {
+                    const isActive = state.chromeStyle === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => workspaceActions.setChromeStyle(key)}
+                        className={cn(
+                          "flex min-w-0 items-start gap-2.5 rounded-sm border p-3 text-left transition-all",
+                          isActive
+                            ? "border-primary/50 bg-primary/8"
+                            : "border-border/40 hover:border-border hover:bg-muted/30",
+                        )}
+                      >
+                        <div className={cn(
+                          "grid h-7 w-7 shrink-0 place-items-center rounded-sm border",
+                          isActive ? "border-primary/40 bg-primary/15 text-primary" : "border-border/40 bg-muted/40 text-muted-foreground",
+                        )}>
+                          {key === "traffic-light" ? (
+                            <span className="flex items-center gap-0.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500/80" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-yellow-500/80" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
+                            </span>
+                          ) : (
+                            <Icon className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={cn("truncate text-xs font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{label}</p>
+                          <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/75">{desc}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>

@@ -10,38 +10,27 @@
  * 关闭：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅在 lane 模式下隐藏。
  *
  */
+import { useRef, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { X } from "lucide-react"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceComponent } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { KanbanItem, KanbanItemHandle } from "@/components/ui/kanban"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
-import { cardDndId } from "./dndIds"
 
 interface Props {
   compId: string
   moduleId: string
-  laneId: string
 }
 
-export function LaneCard({ compId, moduleId, laneId }: Props) {
+export function LaneCard({ compId, moduleId }: Props) {
   const { t, i18n } = useTranslation()
   const workspaceActions = useWorkspaceActions()
+  const component = useWorkspaceComponent(compId)
+  const resizeStartRef = useRef<{ y: number; height: number } | null>(null)
   const mod = getModule(moduleId)
-  const {
-    attributes,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: cardDndId(compId),
-    data: { type: "card", cardId: compId, laneId },
-  })
+  const laneHeight = component?.laneSize?.height ?? 420
   const moduleName = mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
   const actions: NodeSurfaceChromeAction[] = [
     {
@@ -56,36 +45,73 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
     },
   ]
   const dragHandle = (
-    <span
-      ref={setActivatorNodeRef}
-      {...attributes}
-      {...listeners}
+    <KanbanItemHandle
       data-lane-card-drag-handle="true"
-      className="cursor-grab text-muted-foreground/55 active:cursor-grabbing"
+      className="text-muted-foreground/55"
       title={t("common:dragToOtherLane")}
     >
       <DefaultNodeDragGrip />
-    </span>
+    </KanbanItemHandle>
   )
 
+  function handleHeightResizeStart(event: PointerEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    resizeStartRef.current = { y: event.clientY, height: laneHeight }
+    try {
+      target.setPointerCapture(pointerId)
+    } catch {
+      // Pointer capture can fail if the browser has already cancelled the pointer.
+    }
+
+    const handleMove = (moveEvent: globalThis.PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId || !resizeStartRef.current) return
+      workspaceActions.setComponentLaneSize(compId, {
+        height: resizeStartRef.current.height + (moveEvent.clientY - resizeStartRef.current.y),
+      })
+    }
+
+    const handleUp = (upEvent: globalThis.PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return
+      resizeStartRef.current = null
+      try {
+        target.releasePointerCapture(pointerId)
+      } catch {
+        // The pointer may already be released by the browser.
+      }
+      window.removeEventListener("pointermove", handleMove)
+      window.removeEventListener("pointerup", handleUp)
+      window.removeEventListener("pointercancel", handleUp)
+    }
+
+    window.addEventListener("pointermove", handleMove)
+    window.addEventListener("pointerup", handleUp)
+    window.addEventListener("pointercancel", handleUp)
+  }
+
   return (
-    <div
-      ref={setNodeRef}
+    <KanbanItem
+      value={compId}
       data-card-id={compId}
       data-component-id={compId}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
+      style={{ height: laneHeight }}
       className={[
-        "group relative flex h-[clamp(420px,56vh,620px)] min-h-[420px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
-        isDragging ? "opacity-50 ring-2 ring-primary/40" : "",
+        "group relative flex min-h-[220px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
       ].join(" ")}
     >
       <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleName={moduleName} version={mod?.version} />
       <div className="flex-1 min-h-0 overflow-hidden">
         <ModuleRenderer moduleId={moduleId} compId={compId} />
       </div>
-    </div>
+      <button
+        type="button"
+        aria-label={t("common:resize")}
+        className="xiranite-no-drag h-2 cursor-ns-resize border-t border-border/35 bg-muted/20 transition-colors hover:bg-primary/30"
+        onPointerDown={handleHeightResizeStart}
+      />
+    </KanbanItem>
   )
 }

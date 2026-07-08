@@ -30,6 +30,7 @@ function hydrateState(state: WSState, workspaces: WorkspaceDTO[], lanes: LaneDTO
     flowPosition: component.flowPosition,
     flowSize: component.flowSize,
     bentoLayout: component.bentoLayout,
+    laneSize: component.laneSize,
     dockPanel: component.dockPanel,
     laneId: component.laneId,
     hiddenIn: component.hiddenIn,

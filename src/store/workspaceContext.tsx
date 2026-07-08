@@ -45,6 +45,9 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,
+    chromeVisible: state.chromeVisible,
+    chromePosition: state.chromePosition,
+    chromeStyle: state.chromeStyle,
   }
 }
 
@@ -99,6 +102,7 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
     flowPosition: component.flowPosition,
     flowSize: component.flowSize,
     bentoLayout: component.bentoLayout,
+    laneSize: component.laneSize,
     dockPanel: component.dockPanel,
     laneId: component.laneId,
     hiddenIn: component.hiddenIn,
@@ -452,6 +456,7 @@ function summarizeWorkspaceComponents(store: WSStore) {
       flowPosition: component.flowPosition,
       flowSize: component.flowSize,
       bentoLayout: component.bentoLayout,
+      laneSize: component.laneSize,
       dockPanel: component.dockPanel,
       laneId: component.laneId,
     }))
@@ -706,6 +711,9 @@ function selectWorkspaceState(store: WSStore): WSState {
     bgOpacity: store.bgOpacity,
     bgBlur: store.bgBlur,
     bgCoverTopBar: store.bgCoverTopBar,
+    chromeVisible: store.chromeVisible,
+    chromePosition: store.chromePosition,
+    chromeStyle: store.chromeStyle,
   }
 }
 
@@ -731,6 +739,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setComponentFlowPos: store.setComponentFlowPos,
     setComponentFlowSize: store.setComponentFlowSize,
     setComponentBentoLayout: store.setComponentBentoLayout,
+    setComponentLaneSize: store.setComponentLaneSize,
     setComponentData: store.setComponentData,
     patchComponentData: store.patchComponentData,
     updateComponent: store.updateComponent,
@@ -754,6 +763,9 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setBgOpacity: store.setBgOpacity,
     setBgBlur: store.setBgBlur,
     setBgCoverTopBar: store.setBgCoverTopBar,
+    setChromeVisible: store.setChromeVisible,
+    setChromePosition: store.setChromePosition,
+    setChromeStyle: store.setChromeStyle,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,
@@ -762,6 +774,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     toggleLaneVisibility: store.toggleLaneVisibility,
     reorderLane: store.reorderLane,
     setLaneCardOrder: store.setLaneCardOrder,
+    setLaneBoardLayout: store.setLaneBoardLayout,
     moveComponentToLane: store.moveComponentToLane,
     setBackendReady: store.setBackendReady,
     hydrate: store.hydrate,

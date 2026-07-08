@@ -11,6 +11,8 @@ export function createLaneSlice(update: WorkspaceStoreUpdater): WorkspaceLaneAct
     toggleLaneVisibility: (id) => update("TOGGLE_LANE_VISIBILITY", (state) => toggleLaneVisibilityState(state, id)),
     reorderLane: (fromId, toId) => update("REORDER_LANE", (state) => reorderLaneState(state, fromId, toId)),
     setLaneCardOrder: (id, cardOrder) => update("SET_LANE_CARD_ORDER", (state) => setLaneCardOrderState(state, id, cardOrder)),
+    setLaneBoardLayout: (workspaceId, laneOrder, cardOrderByLane) =>
+      update("SET_LANE_BOARD_LAYOUT", (state) => setLaneBoardLayoutState(state, workspaceId, laneOrder, cardOrderByLane)),
     moveComponentToLane: (componentId, toLaneId, targetCardId, insertAfter) =>
       update("MOVE_COMPONENT_TO_LANE", (state) => moveComponentToLaneState(state, componentId, toLaneId, targetCardId, insertAfter)),
   }
@@ -88,6 +90,44 @@ function setLaneCardOrderState(state: WSState, id: string, cardOrder: string[]):
     ...state,
     lanes: state.lanes.map((lane) => lane.id === id ? { ...lane, cardOrder, updatedAt: Date.now() } : lane),
   }
+}
+
+function setLaneBoardLayoutState(
+  state: WSState,
+  workspaceId: string | undefined,
+  laneOrder: string[],
+  cardOrderByLane: Record<string, string[]>,
+): WSState {
+  const now = Date.now()
+  const targetWorkspaceId = workspaceId ?? state.activeWorkspaceId
+  const orderedLaneIds = new Set(laneOrder)
+  const lanesById = new Map(state.lanes.map((lane) => [lane.id, lane]))
+  const orderedWorkspaceLanes = laneOrder
+    .map((id) => lanesById.get(id))
+    .filter((lane): lane is NonNullable<typeof lane> => !!lane && lane.workspaceId === targetWorkspaceId)
+
+  const lanes = [
+    ...state.lanes.filter((lane) => lane.workspaceId !== targetWorkspaceId),
+    ...orderedWorkspaceLanes.map((lane) => ({
+      ...lane,
+      cardOrder: cardOrderByLane[lane.id] ?? lane.cardOrder ?? [],
+      updatedAt: now,
+    })),
+    ...state.lanes.filter((lane) => lane.workspaceId === targetWorkspaceId && !orderedLaneIds.has(lane.id)),
+  ]
+
+  const componentLaneById = new Map<string, string>()
+  for (const [laneId, cardIds] of Object.entries(cardOrderByLane)) {
+    for (const cardId of cardIds) componentLaneById.set(cardId, laneId)
+  }
+
+  const components = state.components.map((component) => {
+    const laneId = componentLaneById.get(component.id)
+    if (!laneId || component.laneId === laneId) return component
+    return { ...component, laneId, updatedAt: now }
+  })
+
+  return { ...state, lanes, components }
 }
 
 function moveComponentToLaneState(

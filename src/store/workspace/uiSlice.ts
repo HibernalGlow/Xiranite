@@ -24,5 +24,8 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setBgOpacity: (opacity) => set({ bgOpacity: opacity }, false, "SET_BG_OPACITY"),
     setBgBlur: (blur) => set({ bgBlur: blur }, false, "SET_BG_BLUR"),
     setBgCoverTopBar: (cover) => set({ bgCoverTopBar: cover }, false, "SET_BG_COVER_TOP_BAR"),
+    setChromeVisible: (visible) => set({ chromeVisible: visible }, false, "SET_CHROME_VISIBLE"),
+    setChromePosition: (position) => set({ chromePosition: position }, false, "SET_CHROME_POSITION"),
+    setChromeStyle: (style) => set({ chromeStyle: style }, false, "SET_CHROME_STYLE"),
   }
 }

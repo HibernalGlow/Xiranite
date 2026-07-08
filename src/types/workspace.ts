@@ -65,6 +65,8 @@ export interface ComponentInstance {
   flowSize?: { width: number; height: number }
   /** GridStack-backed Bento layout in 12-column grid units. */
   bentoLayout?: { x: number; y: number; w: number; h: number }
+  /** Lane-view card dimensions. */
+  laneSize?: { height: number }
   /** Dockview tab area. */
   dockPanel?: string
   /** Owning lane id. */

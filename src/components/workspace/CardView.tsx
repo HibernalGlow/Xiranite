@@ -147,17 +147,23 @@ export function CardView() {
     [cardComponents, cardLayout, focusedComponentId, fullscreenComponentId, size.h, size.w, cardWeights],
   )
 
-  if (cardComponents.length === 0) {
-    return (
-      <div
-        className={cn(
-          "relative flex flex-1 items-center justify-center ws-canvas-bg transition-colors",
-          isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
-        )}
-        data-testid="cards-drop-target"
-        {...moduleDropHandlers}
-      >
-        {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
+  const isEmpty = cardComponents.length === 0
+
+  return (
+    <div
+      className={cn(
+        "flex-1 ws-canvas-bg overflow-hidden relative transition-colors",
+        isEmpty && "flex items-center justify-center",
+        isResizing && "ws-canvas-bg--resizing",
+        isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+      )}
+      ref={canvasRef}
+      data-testid="cards-drop-target"
+      {...moduleDropHandlers}
+    >
+      {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
+
+      {isEmpty ? (
         <div className="xiranite-ui-copy text-center space-y-4">
           <div className="flex items-center justify-center">
             <div className="w-12 h-12 rounded-sm border-2 border-dashed border-border flex items-center justify-center">
@@ -178,42 +184,30 @@ export function CardView() {
             {t("view:cards.openRegistry")}
           </Button>
         </div>
-      </div>
-    )
-  }
+      ) : (
+        <>
+          {cardComponents.map(comp => (
+            <ComponentCard
+              key={comp.id}
+              comp={comp}
+              layout={layouts[comp.id]}
+              canvasRef={canvasRef}
+              isFocused={focusedComponentId === comp.id}
+              hasFocused={focusedComponentId !== null}
+              cardLayout={cardLayout}
+              isLayoutResizing={isResizing}
+            />
+          ))}
 
-  return (
-    <div
-      className={cn(
-        "flex-1 ws-canvas-bg overflow-hidden relative transition-colors",
-        isResizing && "ws-canvas-bg--resizing",
-        isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
-      )}
-      ref={canvasRef}
-      data-testid="cards-drop-target"
-      {...moduleDropHandlers}
-    >
-      {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
-      {cardComponents.map(comp => (
-        <ComponentCard
-          key={comp.id}
-          comp={comp}
-          layout={layouts[comp.id]}
-          canvasRef={canvasRef}
-          isFocused={focusedComponentId === comp.id}
-          hasFocused={focusedComponentId !== null}
-          cardLayout={cardLayout}
-          isLayoutResizing={isResizing}
-        />
-      ))}
-
-      {fullscreenComponentId && (
-        <button
-          onClick={() => workspaceActions.setFullscreen(null)}
-          className="xiranite-ui-copy absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 hover:text-primary"
-        >
-          {t("view:cards.exitFullscreen")}
-        </button>
+          {fullscreenComponentId && (
+            <button
+              onClick={() => workspaceActions.setFullscreen(null)}
+              className="xiranite-ui-copy absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 hover:text-primary"
+            >
+              {t("view:cards.exitFullscreen")}
+            </button>
+          )}
+        </>
       )}
     </div>
   )

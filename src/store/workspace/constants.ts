@@ -35,4 +35,7 @@ export const INITIAL_STATE: WSState = {
   bgOpacity: 30,
   bgBlur: 5,
   bgCoverTopBar: false,
+  chromeVisible: true,
+  chromePosition: "right",
+  chromeStyle: "default",
 }

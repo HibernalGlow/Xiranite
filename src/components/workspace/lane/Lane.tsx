@@ -10,22 +10,20 @@
  * 调宽：dispatch SET_LANE_WIDTH_RATIO（按 ratio 增量累加并 clamp 到 0.25~4）
  * 拖拽 lane：拖动标题栏时由 @dnd-kit 在 LaneView 中重排。
  */
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
-import { useDroppable } from "@dnd-kit/core"
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions } from "@/store/workspaceContext"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
+import { KanbanColumn, KanbanColumnHandle } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
-import { cardDndId, laneDndId, laneDropDndId } from "./dndIds"
 
 const RATIO_PRESETS = [0.5, 1, 1.5, 2, 3]
+const formatRatioInput = (ratio: number) => Number(ratio.toFixed(2)).toString()
 
 /** 泳道折叠/展开图标 — 从 Xlchemy LaneDragHandle.svelte 移植的 SVG。
  *  原版设计：泳道外框 + 内部 lane 矩形，矩形 fill 状态表示折叠/展开：
@@ -71,35 +69,20 @@ export function Lane({ lane, components }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(translateLabel(lane.label, t))
-  const [ratioInput, setRatioInput] = useState(String(lane.widthRatio))
+  const [ratioInput, setRatioInput] = useState(formatRatioInput(lane.widthRatio))
+  const widthRatioRef = useRef(lane.widthRatio)
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane", laneId: lane.id })
   }, [lane.id, workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
-  const {
-    attributes,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: laneDndId(lane.id),
-    data: { type: "lane", laneId: lane.id },
-    disabled: renaming,
-  })
-  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
-    id: laneDropDndId(lane.id),
-    data: { type: "lane-drop", laneId: lane.id },
-    disabled: lane.collapsed,
-  })
-  const sortableStyle = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : undefined,
-    zIndex: isDragging ? 20 : undefined,
-  }
+  const columnStyle = lane.collapsed
+    ? { flex: "0 0 3rem" }
+    : { flex: `${lane.widthRatio} 1 0` }
+
+  useEffect(() => {
+    widthRatioRef.current = lane.widthRatio
+    setRatioInput(formatRatioInput(lane.widthRatio))
+  }, [lane.widthRatio])
 
   function commitRename() {
     const trimmed = name.trim()
@@ -110,17 +93,17 @@ export function Lane({ lane, components }: Props) {
   function commitRatioInput() {
     const val = parseFloat(ratioInput)
     if (!isNaN(val) && val > 0) workspaceActions.setLaneWidthRatio(lane.id, val)
-    setRatioInput(String(lane.widthRatio))
+    setRatioInput(formatRatioInput(lane.widthRatio))
   }
 
   if (lane.collapsed) {
     return (
-      <div
-        ref={setNodeRef}
+      <KanbanColumn
+        value={lane.id}
         data-context-menu="lane"
         data-lane-id={lane.id}
-        style={sortableStyle}
-        className="xiranite-ui-copy w-12 flex-shrink-0 flex flex-col items-center gap-2 py-3 px-1 border-r border-border/40 bg-muted/20 hover:bg-muted/40 cursor-grab active:cursor-grabbing"
+        style={columnStyle}
+        className="xiranite-ui-copy h-full w-auto min-w-12 flex-shrink-0 items-center gap-2 rounded-none border-0 border-r border-border/40 bg-muted/20 px-1 py-3 hover:bg-muted/40"
       >
         <button
           onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
@@ -129,27 +112,26 @@ export function Lane({ lane, components }: Props) {
         >
           <LaneIcon collapsed />
         </button>
-        <span
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
+        <KanbanColumnHandle
+          disabled={renaming}
           data-lane-drag-handle="true"
           className="text-[10px] font-mono tracking-widest text-muted-foreground"
           style={{ writingMode: "vertical-rl" }}
         >
           {translateLabel(lane.label, t)}
-        </span>
-      </div>
+        </KanbanColumnHandle>
+      </KanbanColumn>
     )
   }
 
   return (
-    <div
-      ref={setNodeRef}
+    <KanbanColumn
+      value={lane.id}
+      disabled={renaming}
       data-context-menu="lane"
       data-lane-id={lane.id}
-      style={{ flex: lane.widthRatio, minWidth: 240, maxWidth: 720, ...sortableStyle }}
-      className="xiranite-ui-copy relative flex flex-col h-full border-r border-border/40 bg-card/40 last:border-r-0 flex-shrink-0"
+      style={columnStyle}
+      className="xiranite-ui-copy relative h-full w-auto min-w-60 gap-0 rounded-none border-0 border-r border-border/40 bg-card/40 p-0"
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
@@ -171,16 +153,13 @@ export function Lane({ lane, components }: Props) {
             className="flex-1 bg-background border border-border px-1 py-0 text-[11px] font-mono rounded-sm outline-none focus:border-primary"
           />
         ) : (
-          <span
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
+          <KanbanColumnHandle
             data-lane-drag-handle="true"
-            className="flex-1 text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground cursor-grab active:cursor-grabbing truncate select-none"
+            className="flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
             title={t("common:dragReorder")}
           >
             {translateLabel(lane.label, t)}
-          </span>
+          </KanbanColumnHandle>
         )}
 
         <button
@@ -271,35 +250,32 @@ export function Lane({ lane, components }: Props) {
 
       {/* 内容区：card 列表 */}
       <div
-        ref={setDropNodeRef}
         data-lane-drop-zone={lane.id}
         className={cn(
           "flex-1 overflow-y-auto p-2 space-y-2 min-h-0 transition-colors",
-          isOver ? "bg-primary/5" : undefined,
           isModuleOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : undefined,
         )}
         {...moduleDropHandlers}
       >
-        <SortableContext items={components.map((component) => cardDndId(component.id))} strategy={verticalListSortingStrategy}>
-          {components.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <p className="text-[10px] font-mono text-muted-foreground/60">
-                {isModuleOver ? t("registry:dropHint") : t("view:lane.emptyLane")}
-              </p>
-            </div>
-          ) : (
-            components.map(c => (
-              <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId={lane.id} />
-            ))
-          )}
-        </SortableContext>
+        {components.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-[10px] font-mono text-muted-foreground/60">
+              {isModuleOver ? t("registry:dropHint") : t("view:lane.emptyLane")}
+            </p>
+          </div>
+        ) : (
+          components.map(c => (
+            <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} />
+          ))
+        )}
       </div>
-
       <LaneResizer
+        className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1 bg-transparent hover:bg-primary/30"
         onResize={(deltaRatio) => {
-          workspaceActions.setLaneWidthRatio(lane.id, lane.widthRatio + deltaRatio)
+          widthRatioRef.current += deltaRatio
+          workspaceActions.setLaneWidthRatio(lane.id, widthRatioRef.current)
         }}
       />
-    </div>
+    </KanbanColumn>
   )
 }

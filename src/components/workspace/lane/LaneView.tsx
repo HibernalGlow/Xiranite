@@ -16,39 +16,23 @@
  * - "+ ADD LANE" 按钮：dispatch ADD_LANE
  * - 关闭 card：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅 lane 模式下隐藏
  */
-import { useMemo, useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Columns3 } from "lucide-react"
-import {
-  closestCorners,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  horizontalListSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import type { UniqueIdentifier } from "@dnd-kit/core"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
+import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
 import { Lane } from "./Lane"
 import { LaneCard } from "./LaneCard"
 import { cn } from "@/lib/utils"
-import {
-  cardDndId,
-  isCardDragData,
-  isLaneDragData,
-  isLaneDropData,
-  laneDndId,
-  type LaneDndData,
-} from "./dndIds"
+
+interface LaneCardItem {
+  id: string
+  moduleId: string
+}
 
 export function LaneView() {
   const { t } = useTranslation()
@@ -62,10 +46,6 @@ export function LaneView() {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
 
   // 当前 workspace 的 lanes（隐藏的不渲染）
   const wsLanes = useMemo(
@@ -80,8 +60,8 @@ export function LaneView() {
   )
 
   // 每个 lane 内的组件列表（按 cardOrder 排序；不在 cardOrder 中的也加上，放到末尾）
-  const cardsByLane = useMemo(() => {
-    const map = new Map<string, { id: string; moduleId: string }[]>()
+  const kanbanValue = useMemo<Record<UniqueIdentifier, LaneCardItem[]>>(() => {
+    const columns: Record<UniqueIdentifier, LaneCardItem[]> = {}
     for (const lane of wsLanes) {
       const order = lane.cardOrder ?? []
       const ordered = order
@@ -95,9 +75,9 @@ export function LaneView() {
           ordered.push({ id: c.id, moduleId: c.moduleId })
         }
       }
-      map.set(lane.id, ordered)
+      columns[lane.id] = ordered
     }
-    return map
+    return columns
   }, [wsLanes, laneComponents])
 
   // 没归属任何 lane 的组件 — 兜底到第一个 lane（不修改 store，仅 UI 展示）
@@ -106,34 +86,14 @@ export function LaneView() {
     return laneComponents.filter(c => !c.laneId || !laneIds.has(c.laneId))
   }, [laneComponents, wsLanes])
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const activeData = event.active.data.current as LaneDndData | undefined
-    const overData = event.over?.data.current as LaneDndData | undefined
-    if (!activeData || !overData) return
-
-    if (isLaneDragData(activeData)) {
-      if ((isLaneDragData(overData) || isLaneDropData(overData)) && activeData.laneId !== overData.laneId) {
-        workspaceActions.reorderLane(activeData.laneId, overData.laneId)
-      }
-      return
-    }
-
-    if (!isCardDragData(activeData)) return
-
-    if (isCardDragData(overData)) {
-      workspaceActions.moveComponentToLane(
-        activeData.cardId,
-        overData.laneId,
-        overData.cardId,
-        shouldInsertAfter(event),
-      )
-      return
-    }
-
-    if (isLaneDropData(overData) || isLaneDragData(overData)) {
-      workspaceActions.moveComponentToLane(activeData.cardId, overData.laneId, null, false)
-    }
-  }, [workspaceActions])
+  const handleKanbanChange = useCallback((columns: Record<UniqueIdentifier, LaneCardItem[]>) => {
+    const visibleLaneIds = new Set(wsLanes.map((lane) => lane.id))
+    const laneOrder = Object.keys(columns).filter((id) => visibleLaneIds.has(id))
+    const cardOrderByLane = Object.fromEntries(
+      laneOrder.map((laneId) => [laneId, (columns[laneId] ?? []).map((card) => card.id)]),
+    )
+    workspaceActions.setLaneBoardLayout(activeWorkspaceId, laneOrder, cardOrderByLane)
+  }, [activeWorkspaceId, workspaceActions, wsLanes])
 
   // 没有任何 lane：显示空态 + 创建默认 lane
   if (wsLanes.length === 0) {
@@ -165,32 +125,37 @@ export function LaneView() {
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-      <div className="flex-1 ws-canvas-bg flex overflow-x-auto overflow-y-hidden" data-testid="lane-drop-target">
-        <SortableContext items={wsLanes.map((lane) => laneDndId(lane.id))} strategy={horizontalListSortingStrategy}>
-          {wsLanes.map(lane => (
+    <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange}>
+      <div className="flex-1 ws-canvas-bg flex overflow-hidden" data-testid="lane-drop-target">
+        <KanbanBoard
+          className="min-w-0 flex-1 gap-0 overflow-x-auto overflow-y-hidden"
+          data-lane-board="true"
+        >
+          {wsLanes.map((lane) => (
             <Lane
               key={lane.id}
               lane={lane}
-              components={cardsByLane.get(lane.id) ?? []}
+              components={kanbanValue[lane.id] ?? []}
             />
           ))}
-        </SortableContext>
+        </KanbanBoard>
 
-        {/* 兜底：没归属任何 lane 的组件也展示（在末尾） */}
         {orphanComponents.length > 0 && (
-          <div className="flex-shrink-0 w-72 flex flex-col border-l border-border/40 bg-card/40">
-            <div className="xiranite-ui-copy h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
+          <div className="xiranite-ui-copy flex w-72 flex-shrink-0 flex-col border-l border-border/40 bg-card/40">
+            <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
               <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
                 {t("common:unfiled")}
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              <SortableContext items={orphanComponents.map((component) => cardDndId(component.id))} strategy={verticalListSortingStrategy}>
-                {orphanComponents.map(c => (
-                  <LaneCard key={c.id} compId={c.id} moduleId={c.moduleId} laneId="" />
-                ))}
-              </SortableContext>
+            <div className="flex-1 overflow-y-auto p-2">
+              {orphanComponents.map((component) => (
+                <div
+                  key={component.id}
+                  className="rounded-md border border-border/40 bg-card/70 px-2 py-1.5 text-[10px] font-mono text-muted-foreground"
+                >
+                  {component.moduleId}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -206,7 +171,28 @@ export function LaneView() {
           </button>
         </div>
       </div>
-    </DndContext>
+      <KanbanOverlay className="z-[1000]">
+        {({ value, variant }) => {
+          if (variant === "column") {
+            const lane = wsLanes.find((item) => item.id === value)
+            if (!lane) return null
+            return (
+              <div className="h-[min(72vh,720px)] w-80 overflow-hidden rounded-md border border-border/50 bg-card shadow-2xl">
+                <Lane lane={lane} components={kanbanValue[lane.id] ?? []} />
+              </div>
+            )
+          }
+
+          const component = laneComponents.find((item) => item.id === value)
+          if (!component) return null
+          return (
+            <div className="w-80 shadow-2xl">
+              <LaneCard compId={component.id} moduleId={component.moduleId} />
+            </div>
+          )
+        }}
+      </KanbanOverlay>
+    </Kanban>
   )
 }
 
@@ -216,14 +202,4 @@ function ModuleDropHint({ label }: { label: string }) {
       {label}
     </div>
   )
-}
-
-function shouldInsertAfter(event: DragEndEvent): boolean {
-  const activeRect = event.active.rect.current.translated ?? event.active.rect.current.initial
-  const overRect = event.over?.rect
-  if (!activeRect || !overRect) return false
-
-  const activeCenter = activeRect.top + activeRect.height / 2
-  const overCenter = overRect.top + overRect.height / 2
-  return activeCenter > overCenter
 }

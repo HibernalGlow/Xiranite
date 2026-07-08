@@ -8,6 +8,7 @@ import { getModule } from "@/components/modules/registry"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
+import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
 import {
   Maximize2,
   Minimize2,
@@ -82,39 +83,52 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
     }
   }
 
-  const chromeActions = (
-    <>
-      <HeaderBtn label={comp.collapsed ? t("common:expand") : t("common:collapse")} onClick={toggleCollapse}>
-        {comp.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-      </HeaderBtn>
-
-      {!isFocusedState && !isFullscreen && (
-        <HeaderBtn label={t("common:focus")} onClick={activateFocus}>
-          <Expand className="h-3 w-3" />
-        </HeaderBtn>
-      )}
-      {isFocusedState && (
-        <HeaderBtn label={t("common:exitFocus")} onClick={exitFocus}>
-          <Minimize2 className="h-3 w-3" />
-        </HeaderBtn>
-      )}
-
-      <HeaderBtn
-        label={isFullscreen ? t("common:exitFullscreen") : t("common:fullscreen")}
-        onClick={toggleFullscreen}
-      >
-        {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-      </HeaderBtn>
-
-      <HeaderBtn label={t("common:openFloatingWindow")} onClick={openFloatingWindow}>
-        <ExternalLink className="h-3 w-3" />
-      </HeaderBtn>
-
-      <HeaderBtn label={t("common:hideIn", { view: t("topbar:viewMode.cards") })} danger onClick={() => workspaceActions.toggleComponentVisibility(comp.id, "cards")}>
-        <X className="h-3 w-3" />
-      </HeaderBtn>
-    </>
-  )
+  // 构造操作栏动作列表，tone 决定红绿灯样式下的圆点颜色。
+  const chromeActions: NodeSurfaceChromeAction[] = [
+    {
+      key: "collapse",
+      label: comp.collapsed ? t("common:expand") : t("common:collapse"),
+      icon: comp.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />,
+      tone: "minimize",
+      onClick: () => toggleCollapse(),
+    },
+    ...(!isFocusedState && !isFullscreen ? [{
+      key: "focus",
+      label: t("common:focus"),
+      icon: <Expand className="h-3 w-3" />,
+      tone: "neutral" as const,
+      onClick: () => activateFocus(),
+    }] : []),
+    ...(isFocusedState ? [{
+      key: "exitFocus",
+      label: t("common:exitFocus"),
+      icon: <Minimize2 className="h-3 w-3" />,
+      tone: "neutral" as const,
+      onClick: () => exitFocus(),
+    }] : []),
+    {
+      key: "fullscreen",
+      label: isFullscreen ? t("common:exitFullscreen") : t("common:fullscreen"),
+      icon: isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />,
+      tone: "maximize",
+      onClick: () => toggleFullscreen(),
+    },
+    {
+      key: "float",
+      label: t("common:openFloatingWindow"),
+      icon: <ExternalLink className="h-3 w-3" />,
+      tone: "neutral",
+      onClick: () => openFloatingWindow(),
+    },
+    {
+      key: "hide",
+      label: t("common:hideIn", { view: t("topbar:viewMode.cards") }),
+      icon: <X className="h-3 w-3" />,
+      danger: true,
+      tone: "close",
+      onClick: () => workspaceActions.toggleComponentVisibility(comp.id, "cards"),
+    },
+  ]
 
   return (
     <div
@@ -149,31 +163,13 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
         compact={comp.collapsed || isCompact}
       />
 
-      {comp.collapsed ? (
-        <div className="xiranite-ui-copy flex h-full min-h-10 select-none items-center gap-2 px-3">
-          <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />
-          <span className="truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-foreground/80">
-            {moduleName}
-          </span>
-          {mod && (
-            <span className="flex-shrink-0 text-[9px] font-mono text-muted-foreground/50">
-              {mod.version}
-            </span>
-          )}
-          <span className="ml-1 rounded-[3px] bg-muted/35 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground">
-            {t(stateLabelKey[layout.state])}
-          </span>
-          <div className="ml-auto flex items-center gap-0.5 opacity-65 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-            {chromeActions}
-          </div>
-        </div>
-      ) : (
-        <div className="xiranite-ui-copy pointer-events-none absolute right-2 top-2 z-20 flex items-center justify-end opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
-          <div className="pointer-events-none flex items-center gap-0.5 rounded-[4px] bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
-            {chromeActions}
-          </div>
-        </div>
-      )}
+      <NodeSurfaceChrome
+        actions={chromeActions}
+        collapsed={comp.collapsed}
+        moduleName={moduleName}
+        version={mod?.version}
+        stateLabel={t(stateLabelKey[layout.state])}
+      />
 
       {/* ── Body — always mounted so component state survives every layout morph ── */}
       {!comp.collapsed && (
@@ -182,39 +178,6 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
         </div>
       )}
     </div>
-  )
-}
-
-function HeaderBtn({
-  children,
-  onClick,
-  label,
-  danger,
-}: {
-  children: React.ReactNode
-  onClick: () => void
-  label: string
-  danger?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onMouseDown={e => e.stopPropagation()}
-      onClick={e => {
-        e.stopPropagation()
-        onClick()
-      }}
-      className={cn(
-        "grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
-        danger
-          ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:bg-muted/55 hover:text-primary",
-      )}
-    >
-      {children}
-    </button>
   )
 }
 

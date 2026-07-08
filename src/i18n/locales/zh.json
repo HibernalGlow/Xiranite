@@ -190,6 +190,22 @@
       "cardElevation": "卡片高亮",
       "cardElevationDesc": "高亮表面的细微顶部边框光泽"
     },
+    "chrome": {
+      "title": "操作栏",
+      "description": "卡片与节点视图共享的悬浮操作栏。可完全隐藏，或调整位置与样式以减少遮挡。",
+      "visible": "显示操作栏",
+      "visibleDesc": "关闭后操作栏将不再显示（仍可用右键菜单操作组件）",
+      "position": "位置",
+      "positionDesc": "操作栏在卡片上的横向位置",
+      "positionLeft": "左侧",
+      "positionRight": "右侧",
+      "style": "样式",
+      "styleDesc": "操作栏的视觉样式，与位置相互独立",
+      "styleDefault": "默认",
+      "styleDefaultDesc": "胶囊式按钮，悬停时浮现",
+      "styleTrafficLight": "红绿灯",
+      "styleTrafficLightDesc": "macOS 风格彩色圆点，常驻可见，悬停显示图标"
+    },
     "texture": {
       "title": "纹理画布",
       "basePalette": "基础调色板",

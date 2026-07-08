@@ -15,6 +15,7 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
     setComponentFlowPos: (id, x, y) => update("SET_COMPONENT_FLOW_POS", (state) => setComponentFlowPosState(state, id, x, y)),
     setComponentFlowSize: (id, width, height) => update("SET_COMPONENT_FLOW_SIZE", (state) => setComponentFlowSizeState(state, id, width, height)),
     setComponentBentoLayout: (id, layout) => update("SET_COMPONENT_BENTO_LAYOUT", (state) => setComponentBentoLayoutState(state, id, layout)),
+    setComponentLaneSize: (id, size) => update("SET_COMPONENT_LANE_SIZE", (state) => setComponentLaneSizeState(state, id, size)),
     setComponentData: (id, data) => update("SET_COMPONENT_DATA", (state) => setComponentDataState(state, id, data)),
     patchComponentData: (id, patch) => update("PATCH_COMPONENT_DATA", (state) => patchComponentDataState(state, id, patch)),
     updateComponent: (id, patch) => update("UPDATE_COMPONENT", (state) => updateComponentState(state, id, patch)),
@@ -59,6 +60,7 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
     flowPosition: options.flowPosition ?? { x: 100 + (instanceCounter % 4) * 280, y: 100 + Math.floor(instanceCounter / 4) * 200 },
     flowSize: { width: 384, height: 320 },
     bentoLayout: options.bentoLayout ?? defaultBentoLayout(instanceCounter),
+    laneSize: { height: 420 },
     dockPanel: options.dockPanel ?? "default",
     hiddenIn: options.viewMode
       ? (Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== options.viewMode])) as Record<ViewMode, boolean>)
@@ -178,6 +180,18 @@ function setComponentBentoLayoutState(
     }
     changed = true
     return { ...component, bentoLayout: nextLayout, updatedAt: Date.now() }
+  })
+  return changed ? { ...state, components } : state
+}
+
+function setComponentLaneSizeState(state: WSState, id: string, size: { height: number }): WSState {
+  const nextSize = { height: Math.max(220, Math.min(1200, Math.round(size.height))) }
+  let changed = false
+  const components = state.components.map((component) => {
+    if (component.id !== id) return component
+    if (component.laneSize?.height === nextSize.height) return component
+    changed = true
+    return { ...component, laneSize: nextSize, updatedAt: Date.now() }
   })
   return changed ? { ...state, components } : state
 }
@@ -369,6 +383,7 @@ function duplicateComponentState(state: WSState, id: string): WSState {
     flowPosition: newFlowPosition,
     flowSize: source.flowSize ? { ...source.flowSize } : undefined,
     bentoLayout: source.bentoLayout ? { ...source.bentoLayout } : undefined,
+    laneSize: source.laneSize ? { ...source.laneSize } : undefined,
     dockPanel: source.dockPanel,
     data: source.data ? structuredCloneSafe(source.data) : {},
     tags: source.tags ? [...source.tags] : undefined,
