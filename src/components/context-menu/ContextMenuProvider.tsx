@@ -21,30 +21,79 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuGroup,
   DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { buttonVariants } from "@/components/ui/button"
+
+// NOTE: The global context menu is rendered with DropdownMenu primitives instead of
+// Radix ContextMenu because Radix ContextMenu.Root does not accept a controlled
+// `open` prop — it only emits `onOpenChange`. The global builder needs to open the
+// menu programmatically at arbitrary client coordinates, which requires controlled
+// open + a fixed invisible anchor. DropdownMenu supports this. The shadcn
+// `context-menu.tsx` is still installed for future localized menus via
+// `<ScopedContextMenu>` (see ./ScopedContextMenu).
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────
 
+export type ContextMenuItemType =
+  | "item"
+  | "separator"
+  | "label"
+  | "group"
+  | "checkbox"
+  | "radio"
+  | "submenu"
+
 export interface ContextMenuItemDef {
-  /** Item kind. Defaults to "item". */
-  type?: "item" | "separator" | "label" | "checkbox" | "radio"
+  /** Stable id, also used as React key when present. Falls back to index. */
+  id?: string
+  /** Item kind. Defaults to "item". When `children` is set, behaves as submenu. */
+  type?: ContextMenuItemType
   /** Localized label (already translated by the builder). */
   label?: string
-  /** Leading icon node. */
+  /** Leading icon node. Let the menu CSS handle svg sizing. */
   icon?: ReactNode
   /** Keyboard shortcut hint, e.g. "Ctrl+D". */
   shortcut?: string
   /** Disable the item. */
   disabled?: boolean
+  /** When true, the item is skipped entirely (not rendered). */
+  hidden?: boolean
   /** Render in destructive color. */
   destructive?: boolean
+  /** Inset (aligns content with checkbox/radio items). */
+  inset?: boolean
+  /** Stable test id for queries. */
+  testId?: string
+  /** Keep the menu open after selecting this item. */
+  keepOpen?: boolean
+  /** Confirmation dialog before running `onSelect`. Useful for destructive actions. */
+  confirm?: {
+    title: string
+    description?: string
+    confirmLabel?: string
+    cancelLabel?: string
+    /** Render the confirm button in destructive style. Defaults to `destructive` flag. */
+    destructive?: boolean
+  }
   /** Click handler. Only for "item" type. */
-  onSelect?: () => void
+  onSelect?: () => void | Promise<void>
   /** Checkbox state (for "checkbox" type). */
   checked?: boolean
+  /** Called when checkbox state should change. Required for "checkbox" type. */
+  onCheckedChange?: (checked: boolean) => void | Promise<void>
   /** Radio value (for "radio" type). */
   value?: string
   /** Radio group name (for "radio" type, items with same group share selection). */
@@ -52,8 +101,8 @@ export interface ContextMenuItemDef {
   /** Current radio group value (for "radio" type, on the group's first item). */
   radioValue?: string
   /** Callback when radio changes. */
-  onRadioChange?: (value: string) => void
-  /** Submenu children (implies a submenu trigger). */
+  onRadioChange?: (value: string) => void | Promise<void>
+  /** Submenu children. Renders as a submenu trigger. */
   children?: ContextMenuItemDef[]
 }
 
@@ -94,6 +143,9 @@ interface OpenMenu {
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
   const buildersRef = useRef(new Map<string, Builder>())
   const [openMenu, setOpenMenu] = useState<OpenMenu | null>(null)
+  // Confirm state lives at the provider level so the dialog persists even after
+  // the menu unmounts (Radix may close the menu on item select in some envs).
+  const [confirm, setConfirm] = useState<ContextMenuItemDef | null>(null)
 
   const show = useCallback((x: number, y: number, items: ContextMenuItemDef[]) => {
     if (items.length === 0) return
@@ -111,11 +163,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
-      const isEditable =
-        !!target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
+      const isEditable = !!target && isEditableTarget(target)
       // Always suppress native menu for non-editable targets.
       if (!isEditable) e.preventDefault()
 
@@ -165,6 +213,20 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           coords={{ x: openMenu.x, y: openMenu.y }}
           items={openMenu.items}
           onClose={() => setOpenMenu(null)}
+          onRequestConfirm={(item) => {
+            setConfirm(item)
+            setOpenMenu(null)
+          }}
+        />
+      )}
+      {confirm && (
+        <ConfirmDialog
+          item={confirm}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            void confirm.onSelect?.()
+            setConfirm(null)
+          }}
         />
       )}
     </ContextMenuBuilderContext.Provider>
@@ -194,7 +256,7 @@ export function useContextMenu() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Menu controller: drives the Radix DropdownMenu in controlled mode.
+// Menu controller: drives the Radix ContextMenu in controlled mode.
 // Uses an invisible 1x1 anchor positioned at the click coordinates.
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -202,10 +264,12 @@ function MenuController({
   coords,
   items,
   onClose,
+  onRequestConfirm,
 }: {
   coords: { x: number; y: number }
   items: ContextMenuItemDef[]
   onClose: () => void
+  onRequestConfirm: (item: ContextMenuItemDef) => void
 }) {
   const [open, setOpen] = useState(true)
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -217,6 +281,17 @@ function MenuController({
       anchorRef.current.style.top = `${coords.y}px`
     }
   }, [coords])
+
+  const runItem = useCallback((item: ContextMenuItemDef) => {
+    if (item.confirm) {
+      // Defer to provider-level dialog so it survives menu unmount.
+      onRequestConfirm(item)
+      return
+    }
+    // keepOpen items: run handler but keep the menu open.
+    void item.onSelect?.()
+    if (!item.keepOpen) setOpen(false)
+  }, [onRequestConfirm])
 
   return (
     <DropdownMenu
@@ -247,12 +322,46 @@ function MenuController({
         side="bottom"
         sideOffset={0}
         alignOffset={0}
-        className="min-w-[10rem]"
+        className="min-w-48"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <MenuItems items={items} onDone={() => setOpen(false)} />
+        <MenuItems items={items} runItem={runItem} />
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Confirm dialog
+// ──────────────────────────────────────────────────────────────────────────
+
+function ConfirmDialog({
+  item,
+  onCancel,
+  onConfirm,
+}: {
+  item: ContextMenuItemDef
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const cfg = item.confirm!
+  const destructive = cfg.destructive ?? item.destructive ?? false
+  return (
+    <AlertDialog open onOpenChange={(next) => { if (!next) onCancel() }}>
+      <AlertDialogContent>
+        <AlertDialogTitle>{cfg.title}</AlertDialogTitle>
+        {cfg.description && <AlertDialogDescription>{cfg.description}</AlertDialogDescription>}
+        <AlertDialogFooter>
+          <AlertDialogCancel>{cfg.cancelLabel ?? "Cancel"}</AlertDialogCancel>
+          <AlertDialogAction
+            className={destructive ? buttonVariants({ variant: "destructive" }) : undefined}
+            onClick={onConfirm}
+          >
+            {cfg.confirmLabel ?? "Confirm"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -262,15 +371,18 @@ function MenuController({
 
 function MenuItems({
   items,
-  onDone,
+  runItem,
 }: {
   items: ContextMenuItemDef[]
-  onDone: () => void
+  runItem: (item: ContextMenuItemDef) => void
 }) {
+  // Drop hidden items, then collapse consecutive separators and trim leading/trailing.
+  const normalized = useMemo(() => normalizeItems(items), [items])
+
   // Collect radio groups: first item with radioGroup defines the group's value + handler.
   const radioGroups = useMemo(() => {
-    const map = new Map<string, { value: string; onRadioChange?: (v: string) => void }>()
-    for (const it of items) {
+    const map = new Map<string, { value: string; onRadioChange?: (v: string) => void | Promise<void> }>()
+    for (const it of normalized) {
       if (it.type === "radio" && it.radioGroup && !map.has(it.radioGroup)) {
         map.set(it.radioGroup, {
           value: it.radioValue ?? "",
@@ -279,96 +391,163 @@ function MenuItems({
       }
     }
     return map
-  }, [items])
+  }, [normalized])
 
+  // Track whether we are inside a ContextMenuRadioGroup to render groups once.
+  // We group consecutive radio items with the same radioGroup into a single ContextMenuRadioGroup.
   return (
     <>
-      {items.map((item, i) => {
+      {normalized.map((item, i) => {
+        const key = item.id ?? `${item.type ?? "item"}-${i}`
         if (item.type === "separator") {
-          return <DropdownMenuSeparator key={i} />
+          return <DropdownMenuSeparator key={key} />
         }
         if (item.type === "label") {
-          return <DropdownMenuLabel key={i}>{item.label}</DropdownMenuLabel>
+          return <DropdownMenuLabel key={key} inset={item.inset}>{item.label}</DropdownMenuLabel>
         }
-        // Submenu
-        if (item.children && item.children.length > 0) {
+        // Submenu: explicit "submenu" type OR children present.
+        if (item.type === "submenu" || (item.children && item.children.length > 0 && item.type !== "group")) {
           return (
-            <DropdownMenuSub key={i}>
-              <DropdownMenuSubTrigger>
-                {item.icon && <span className="mr-2 size-4">{item.icon}</span>}
+            <DropdownMenuSub key={key}>
+              <DropdownMenuSubTrigger inset={item.inset}>
+                {item.icon}
                 <span>{item.label}</span>
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <MenuItems items={item.children} onDone={onDone} />
+              <DropdownMenuSubContent className="min-w-48">
+                <MenuItems items={item.children ?? []} runItem={runItem} />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )
         }
+        if (item.type === "group") {
+          return (
+            <DropdownMenuGroup key={key}>
+              <MenuItems items={item.children ?? []} runItem={runItem} />
+            </DropdownMenuGroup>
+          )
+        }
         if (item.type === "checkbox") {
+          const checked = !!item.checked
           return (
             <DropdownMenuCheckboxItem
-              key={i}
-              checked={item.checked}
+              key={key}
+              checked={checked}
               disabled={item.disabled}
+              data-testid={item.testId}
               onSelect={(e) => {
                 if (item.disabled) {
                   e.preventDefault()
                   return
                 }
-                item.onSelect?.()
-                onDone()
+                // Radix toggles internally; reflect via onCheckedChange.
+                item.onCheckedChange?.(!checked)
+                if (item.keepOpen) {
+                  e.preventDefault()
+                  return
+                }
+                // Default: close menu.
               }}
             >
-              {item.label}
+              {item.icon}
+              <span>{item.label}</span>
+              {item.shortcut && <DropdownMenuShortcut>{item.shortcut}</DropdownMenuShortcut>}
             </DropdownMenuCheckboxItem>
           )
         }
         if (item.type === "radio" && item.radioGroup) {
-          const group = radioGroups.get(item.radioGroup)
-          return (
-            <DropdownMenuRadioGroup
-              key={`group-${item.radioGroup}-${i}`}
-              value={group?.value}
-              onValueChange={(v) => group?.onRadioChange?.(v)}
-            >
-              <DropdownMenuRadioItem
-                value={item.value ?? ""}
-                disabled={item.disabled}
-                onSelect={(e) => {
-                  if (item.disabled) {
-                    e.preventDefault()
-                    return
-                  }
-                  item.onSelect?.()
-                  onDone()
-                }}
-              >
-                {item.label}
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          )
+          // Rendered inline below as part of a single RadioGroup block.
+          return null
         }
         // Default item
         return (
           <DropdownMenuItem
-            key={i}
+            key={key}
+            inset={item.inset}
             disabled={item.disabled}
             variant={item.destructive ? "destructive" : "default"}
+            data-testid={item.testId}
             onSelect={(e) => {
               if (item.disabled) {
                 e.preventDefault()
                 return
               }
-              item.onSelect?.()
-              onDone()
+              // keepOpen prevents the menu from closing after select.
+              // confirm items delegate to a provider-level dialog; the menu
+              // may close naturally because the dialog renders independently.
+              if (item.keepOpen) {
+                e.preventDefault()
+              }
+              runItem(item)
             }}
           >
-            {item.icon && <span className="mr-2 size-4 text-muted-foreground">{item.icon}</span>}
+            {item.icon}
             <span className="flex-1">{item.label}</span>
             {item.shortcut && <DropdownMenuShortcut>{item.shortcut}</DropdownMenuShortcut>}
           </DropdownMenuItem>
         )
       })}
+
+      {/* Render radio groups as a single block each, in encounter order. */}
+      {Array.from(radioGroups.entries()).map(([group, cfg]) => {
+        const groupItems = normalized.filter((it) => it.type === "radio" && it.radioGroup === group)
+        if (groupItems.length === 0) return null
+        return (
+          <DropdownMenuRadioGroup
+            key={`radio-${group}`}
+            value={cfg.value}
+            onValueChange={(v) => void cfg.onRadioChange?.(v)}
+          >
+            {groupItems.map((it, idx) => (
+              <DropdownMenuRadioItem
+                key={it.id ?? `radio-${group}-${idx}`}
+                value={it.value ?? ""}
+                disabled={it.disabled}
+                data-testid={it.testId}
+                onSelect={(e) => {
+                  if (it.disabled) {
+                    e.preventDefault()
+                    return
+                  }
+                  // onRadioChange handled by onValueChange above.
+                  if (it.keepOpen) e.preventDefault()
+                }}
+              >
+                {it.icon}
+                <span>{it.label}</span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        )
+      })}
     </>
   )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────────────
+
+function isEditableTarget(target: HTMLElement): boolean {
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
+  const role = target.getAttribute("role")
+  if (role === "textbox") return true
+  return false
+}
+
+function normalizeItems(items: ContextMenuItemDef[]): ContextMenuItemDef[] {
+  // Drop hidden items.
+  const visible = items.filter((item) => !item.hidden)
+  // Collapse consecutive separators.
+  const out: ContextMenuItemDef[] = []
+  for (const item of visible) {
+    const isSep = item.type === "separator"
+    if (isSep && out.length > 0 && out[out.length - 1].type === "separator") continue
+    out.push(item)
+  }
+  // Trim leading / trailing separators.
+  while (out.length > 0 && out[0].type === "separator") out.shift()
+  while (out.length > 0 && out[out.length - 1].type === "separator") out.pop()
+  return out
 }
