@@ -580,12 +580,24 @@
 /* TLDraw shape 选中框/resize handles 默认是蓝色，
    --tl-color-selected 变量已被覆盖为 var(--primary)，
    但部分 SVG 元素直接用 stroke/fill 不读变量，这里强制覆盖。 */
-.tl-container [class*="tl-selected"] svg [class*="selected"] {
+.tl-container .tl-selection__fg,
+.tl-container .tl-selection__fg *,
+.tl-container [data-testid*="selection"],
+.tl-container [class*="tl-selected"] svg [class*="selected"],
+.tl-container [class*="tl-selection"] svg [stroke],
+.tl-container [class*="tl-indicator"] svg [stroke] {
   stroke: var(--primary) !important;
-  fill: var(--primary) !important;
 }
-.tl-container [class*="tl-handle"] {
+
+.tl-container [class*="tl-selection"] svg [fill]:not(.tl-transparent),
+.tl-container [class*="tl-indicator"] svg [fill]:not(.tl-transparent) {
+  fill: color-mix(in oklch, var(--primary) 24%, transparent) !important;
+}
+
+.tl-container [class*="tl-handle"],
+.tl-container [class*="tl-handle"] svg [fill] {
   background: var(--primary) !important;
+  fill: var(--primary) !important;
   border-color: var(--primary-foreground) !important;
 }
 /* TLDraw 主工具栏（底部）的 toggle 按钮 active 态用 inline style 硬编码蓝色
@@ -813,4 +825,3 @@
   --badge-teal-subtle: oklch(31.5% 0.0767 180.99);
   --badge-teal-subtle-foreground: oklch(74.56% 0.1765 182.8);
 }
-

@@ -30,6 +30,78 @@ import zhCnTranslationUrl from "@/assets/tldraw-zh-cn.json?url"
 // assetUrls must be memoized or defined outside of any React component (per tldraw docs).
 const tldrawAssetUrls = { translations: { "zh-cn": zhCnTranslationUrl } }
 
+function resolveRootColor(cssValue: string, fallback: string) {
+  if (typeof document === "undefined") return fallback
+
+  const probe = document.createElement("span")
+  probe.style.color = cssValue
+  probe.style.position = "fixed"
+  probe.style.pointerEvents = "none"
+  probe.style.opacity = "0"
+  document.body.appendChild(probe)
+  const resolved = getComputedStyle(probe).color
+  probe.remove()
+  return resolved || fallback
+}
+
+function syncTldrawThemeWithApp(editor: ReturnType<typeof useEditor>, signatureRef: { current: string }) {
+  if (typeof editor.updateTheme !== "function" || typeof editor.getCurrentTheme !== "function") return
+
+  const defaultTheme = "getTheme" in editor
+    ? editor.getTheme("default") ?? editor.getCurrentTheme()
+    : editor.getCurrentTheme()
+  const selectionStroke = resolveRootColor("var(--primary)", "hsl(214, 84%, 56%)")
+  const selectedContrast = resolveRootColor("var(--primary-foreground)", "#ffffff")
+  const background = resolveRootColor("var(--background)", "#ffffff")
+  const selectionFill = resolveRootColor(
+    "color-mix(in oklch, var(--primary) 24%, transparent)",
+    "rgba(68, 101, 233, 0.24)",
+  )
+  const signature = `${selectionStroke}|${selectionFill}|${selectedContrast}|${background}`
+  if (signature === signatureRef.current) return
+  signatureRef.current = signature
+
+  editor.updateTheme({
+    ...defaultTheme,
+    colors: {
+      light: {
+        ...defaultTheme.colors.light,
+        background,
+        negativeSpace: background,
+        selectionStroke,
+        selectionFill,
+        selectedContrast,
+      },
+      dark: {
+        ...defaultTheme.colors.dark,
+        background,
+        negativeSpace: background,
+        selectionStroke,
+        selectionFill,
+        selectedContrast,
+      },
+    },
+  })
+}
+
+function useTldrawAppThemeBridge(editor: ReturnType<typeof useEditor>) {
+  const signatureRef = useRef("")
+
+  useEffect(() => {
+    syncTldrawThemeWithApp(editor, signatureRef)
+
+    const root = document.documentElement
+    const observer = new MutationObserver(() => {
+      syncTldrawThemeWithApp(editor, signatureRef)
+    })
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-app-theme", "data-custom-theme", "data-custom-theme-name"],
+    })
+    return () => observer.disconnect()
+  }, [editor])
+}
+
 function isFlowCanvasVisible(component: ComponentInstance) {
   return isComponentVisibleInView(component, "flow")
 }
@@ -344,6 +416,7 @@ function FlowCanvas() {
   const editor = useEditor()
   const syncingShapeDeletesRef = useRef(false)
 
+  useTldrawAppThemeBridge(editor)
   useSyncShapesFromStore(editor, syncingShapeDeletesRef)
   useSyncChangesToStore(editor)
   useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
