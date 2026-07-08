@@ -10,6 +10,11 @@ import type {
   NodeRunHistoryItemDTO,
   NodeRunHistoryListDTO,
   NodeRunHistoryQueryDTO,
+  RuntimeHistoryClearQueryDTO,
+  RuntimeHistoryClearResultDTO,
+  RuntimeHistoryItemDTO,
+  RuntimeHistoryListDTO,
+  RuntimeHistoryQueryDTO,
   WorkspaceDTO,
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
@@ -64,6 +69,28 @@ const nodeRunHistory = sqliteTable("node_run_history", {
   message: text("message").notNull(),
   result: text("result"),
   eventCount: integer("event_count").notNull(),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+})
+
+const runtimeHistory = sqliteTable("runtime_history", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  operation: text("operation").notNull(),
+  status: text("status").notNull(),
+  title: text("title"),
+  message: text("message").notNull(),
+  target: text("target"),
+  nodeId: text("node_id"),
+  componentId: text("component_id"),
+  workspaceId: text("workspace_id"),
+  input: text("input"),
+  inputSummary: text("input_summary"),
+  result: text("result"),
+  resultSummary: text("result_summary"),
+  metadata: text("metadata"),
+  eventCount: integer("event_count"),
   startedAt: integer("started_at").notNull(),
   finishedAt: integer("finished_at").notNull(),
   durationMs: integer("duration_ms").notNull(),
@@ -199,6 +226,7 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS node_run_history_component_id_idx ON node_run_history (component_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
+    ...runtimeHistorySchemaSql(),
   ], "write")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")
 }
@@ -371,44 +399,37 @@ export async function createLibsqlNodeRunHistoryRepository(
 
   return {
     client,
-    async createNodeRunHistory(item) {
-      await db.insert(nodeRunHistory).values({
-        id: item.id,
-        nodeId: item.nodeId,
-        componentId: item.componentId ?? null,
-        workspaceId: item.workspaceId ?? null,
-        input: serialize(item.input),
-        inputSummary: item.inputSummary ?? null,
-        status: item.status,
-        message: item.message,
-        result: serialize(item.result),
-        eventCount: item.eventCount,
-        startedAt: item.startedAt,
-        finishedAt: item.finishedAt,
-        durationMs: item.durationMs,
-      }).onConflictDoUpdate({
-        target: nodeRunHistory.id,
+    async createRuntimeHistory(item) {
+      await db.insert(runtimeHistory).values(fromRuntimeHistoryItemDTO(item)).onConflictDoUpdate({
+        target: runtimeHistory.id,
         set: {
+          kind: item.kind,
+          operation: item.operation,
           status: item.status,
+          title: item.title ?? null,
           message: item.message,
+          target: serialize(item.target),
+          nodeId: item.nodeId ?? null,
+          componentId: item.componentId ?? null,
+          workspaceId: item.workspaceId ?? null,
+          input: serialize(item.input),
+          inputSummary: item.inputSummary ?? null,
           result: serialize(item.result),
-          eventCount: item.eventCount,
+          resultSummary: item.resultSummary ?? null,
+          metadata: serialize(item.metadata),
+          eventCount: item.eventCount ?? null,
           finishedAt: item.finishedAt,
           durationMs: item.durationMs,
         },
       })
       return item
     },
-    async listNodeRunHistory(query) {
-      const conditions: SQL[] = []
-      if (query.nodeId) conditions.push(eq(nodeRunHistory.nodeId, query.nodeId))
-      if (query.componentId) conditions.push(eq(nodeRunHistory.componentId, query.componentId))
-      if (query.workspaceId) conditions.push(eq(nodeRunHistory.workspaceId, query.workspaceId))
-      if (query.status) conditions.push(eq(nodeRunHistory.status, query.status))
+    async listRuntimeHistory(query) {
+      const conditions = runtimeHistoryConditions(query)
 
-      let rows = await db.select().from(nodeRunHistory)
+      let rows = await db.select().from(runtimeHistory)
         .where(conditions.length ? and(...conditions) : undefined)
-        .orderBy(desc(nodeRunHistory.finishedAt), desc(nodeRunHistory.id))
+        .orderBy(desc(runtimeHistory.finishedAt), desc(runtimeHistory.id))
         .limit((query.limit ?? 50) + 1)
 
       let nextCursor: string | null = null
@@ -420,34 +441,52 @@ export async function createLibsqlNodeRunHistoryRepository(
       }
 
       return {
-        items: rows.map(toNodeRunHistoryItemDTO),
+        items: rows.map(toRuntimeHistoryItemDTO),
         nextCursor,
       }
     },
-    async getNodeRunHistory(id) {
-      const rows = await db.select().from(nodeRunHistory).where(eq(nodeRunHistory.id, id)).limit(1)
+    async getRuntimeHistory(id) {
+      const rows = await db.select().from(runtimeHistory).where(eq(runtimeHistory.id, id)).limit(1)
       const row = rows[0]
-      return row ? toNodeRunHistoryItemDTO(row) : undefined
+      return row ? toRuntimeHistoryItemDTO(row) : undefined
     },
-    async deleteNodeRunHistory(id) {
-      await db.delete(nodeRunHistory).where(eq(nodeRunHistory.id, id))
+    async deleteRuntimeHistory(id) {
+      await db.delete(runtimeHistory).where(eq(runtimeHistory.id, id))
     },
-    async clearNodeRunHistory(query) {
-      const conditions: SQL[] = []
-      if (query.nodeId) conditions.push(eq(nodeRunHistory.nodeId, query.nodeId))
-      if (query.componentId) conditions.push(eq(nodeRunHistory.componentId, query.componentId))
-      if (query.workspaceId) conditions.push(eq(nodeRunHistory.workspaceId, query.workspaceId))
-      if (query.before !== undefined) conditions.push(lt(nodeRunHistory.finishedAt, query.before))
+    async clearRuntimeHistory(query) {
+      const conditions = runtimeHistoryConditions(query)
+      if (query.before !== undefined) conditions.push(lt(runtimeHistory.finishedAt, query.before))
 
-      const before = await db.select({ id: nodeRunHistory.id }).from(nodeRunHistory)
+      const before = await db.select({ id: runtimeHistory.id }).from(runtimeHistory)
         .where(conditions.length ? and(...conditions) : undefined)
       const deletedCount = before.length
       if (deletedCount > 0) {
-        await db.delete(nodeRunHistory).where(
-          inArray(nodeRunHistory.id, before.map((row) => row.id)),
+        await db.delete(runtimeHistory).where(
+          inArray(runtimeHistory.id, before.map((row) => row.id)),
         )
       }
       return { deletedCount }
+    },
+    async createNodeRunHistory(item) {
+      await this.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
+      return item
+    },
+    async listNodeRunHistory(query) {
+      const result = await this.listRuntimeHistory({ ...query, kind: "node" })
+      return {
+        items: result.items.map(runtimeHistoryToNodeHistory).filter((item): item is NodeRunHistoryItemDTO => item !== undefined),
+        nextCursor: result.nextCursor,
+      }
+    },
+    async getNodeRunHistory(id) {
+      const item = await this.getRuntimeHistory(id)
+      return item ? runtimeHistoryToNodeHistory(item) : undefined
+    },
+    async deleteNodeRunHistory(id) {
+      await this.deleteRuntimeHistory(id)
+    },
+    async clearNodeRunHistory(query) {
+      return await this.clearRuntimeHistory({ ...query, kind: "node" })
     },
   }
 }
@@ -473,7 +512,40 @@ async function ensureHistorySchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS node_run_history_component_id_idx ON node_run_history (component_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
+    ...runtimeHistorySchemaSql(),
   ], "write")
+}
+
+function runtimeHistorySchemaSql(): string[] {
+  return [
+    `CREATE TABLE IF NOT EXISTS runtime_history (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      status TEXT NOT NULL,
+      title TEXT,
+      message TEXT NOT NULL,
+      target TEXT,
+      node_id TEXT,
+      component_id TEXT,
+      workspace_id TEXT,
+      input TEXT,
+      input_summary TEXT,
+      result TEXT,
+      result_summary TEXT,
+      metadata TEXT,
+      event_count INTEGER,
+      started_at INTEGER NOT NULL,
+      finished_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_kind_idx ON runtime_history (kind, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_operation_idx ON runtime_history (operation, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_node_id_idx ON runtime_history (node_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_component_id_idx ON runtime_history (component_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_workspace_id_idx ON runtime_history (workspace_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS runtime_history_finished_at_idx ON runtime_history (finished_at DESC)`,
+  ]
 }
 
 function toNodeRunHistoryItemDTO(row: typeof nodeRunHistory.$inferSelect): NodeRunHistoryItemDTO {
@@ -491,5 +563,107 @@ function toNodeRunHistoryItemDTO(row: typeof nodeRunHistory.$inferSelect): NodeR
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     durationMs: row.durationMs,
+  }
+}
+
+function fromRuntimeHistoryItemDTO(item: RuntimeHistoryItemDTO): typeof runtimeHistory.$inferInsert {
+  return {
+    id: item.id,
+    kind: item.kind,
+    operation: item.operation,
+    status: item.status,
+    title: item.title ?? null,
+    message: item.message,
+    target: serialize(item.target),
+    nodeId: item.nodeId ?? null,
+    componentId: item.componentId ?? null,
+    workspaceId: item.workspaceId ?? null,
+    input: serialize(item.input),
+    inputSummary: item.inputSummary ?? null,
+    result: serialize(item.result),
+    resultSummary: item.resultSummary ?? null,
+    metadata: serialize(item.metadata),
+    eventCount: item.eventCount ?? null,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    durationMs: item.durationMs,
+  }
+}
+
+function toRuntimeHistoryItemDTO(row: typeof runtimeHistory.$inferSelect): RuntimeHistoryItemDTO {
+  return {
+    id: row.id,
+    kind: row.kind as RuntimeHistoryItemDTO["kind"],
+    operation: row.operation,
+    status: row.status as RuntimeHistoryItemDTO["status"],
+    title: row.title ?? undefined,
+    message: row.message,
+    target: deserialize<RuntimeHistoryItemDTO["target"]>(row.target),
+    nodeId: row.nodeId ?? undefined,
+    componentId: row.componentId ?? undefined,
+    workspaceId: row.workspaceId ?? undefined,
+    input: deserialize<unknown>(row.input),
+    inputSummary: row.inputSummary ?? undefined,
+    result: deserialize<unknown>(row.result),
+    resultSummary: row.resultSummary ?? undefined,
+    metadata: deserialize<Record<string, unknown>>(row.metadata),
+    eventCount: row.eventCount ?? undefined,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    durationMs: row.durationMs,
+  }
+}
+
+function runtimeHistoryConditions(query: RuntimeHistoryQueryDTO | RuntimeHistoryClearQueryDTO): SQL[] {
+  const conditions: SQL[] = []
+  if (query.kind) conditions.push(eq(runtimeHistory.kind, query.kind))
+  if (query.operation) conditions.push(eq(runtimeHistory.operation, query.operation))
+  if (query.nodeId) conditions.push(eq(runtimeHistory.nodeId, query.nodeId))
+  if (query.componentId) conditions.push(eq(runtimeHistory.componentId, query.componentId))
+  if (query.workspaceId) conditions.push(eq(runtimeHistory.workspaceId, query.workspaceId))
+  if ("status" in query && query.status) conditions.push(eq(runtimeHistory.status, query.status))
+  return conditions
+}
+
+function nodeHistoryToRuntimeHistory(item: NodeRunHistoryItemDTO): RuntimeHistoryItemDTO {
+  return {
+    id: item.id,
+    kind: "node",
+    operation: "node.run",
+    status: item.status,
+    title: item.nodeId,
+    message: item.message,
+    target: { type: "node", id: item.nodeId, label: item.nodeId },
+    nodeId: item.nodeId,
+    componentId: item.componentId,
+    workspaceId: item.workspaceId,
+    input: item.input,
+    inputSummary: item.inputSummary,
+    result: item.result,
+    resultSummary: item.result?.message,
+    eventCount: item.eventCount,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    durationMs: item.durationMs,
+  }
+}
+
+function runtimeHistoryToNodeHistory(item: RuntimeHistoryItemDTO): NodeRunHistoryItemDTO | undefined {
+  if (item.kind !== "node" || !item.nodeId) return undefined
+  if (item.status !== "success" && item.status !== "error" && item.status !== "cancelled") return undefined
+  return {
+    id: item.id,
+    nodeId: item.nodeId,
+    componentId: item.componentId,
+    workspaceId: item.workspaceId,
+    input: item.input,
+    inputSummary: item.inputSummary,
+    status: item.status,
+    message: item.message,
+    result: item.result as NodeRunHistoryItemDTO["result"],
+    eventCount: item.eventCount ?? 0,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    durationMs: item.durationMs,
   }
 }

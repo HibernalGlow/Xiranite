@@ -194,6 +194,73 @@ export const nodeRunHistoryListSchema = z.object({
   nextCursor: z.string().nullable().optional(),
 })
 
+export const runtimeHistoryKindSchema = z.enum([
+  "node",
+  "workspace",
+  "config",
+  "system",
+])
+
+export const runtimeHistoryStatusSchema = z.enum([
+  "success",
+  "error",
+  "cancelled",
+  "info",
+])
+
+export const runtimeHistoryTargetSchema = z.object({
+  type: z.string().min(1),
+  id: z.string().optional(),
+  label: z.string().optional(),
+})
+
+export const runtimeHistoryItemSchema = z.object({
+  id: z.string().min(1),
+  kind: runtimeHistoryKindSchema,
+  operation: z.string().min(1),
+  status: runtimeHistoryStatusSchema,
+  title: z.string().optional(),
+  message: z.string(),
+  target: runtimeHistoryTargetSchema.optional(),
+  nodeId: z.string().optional(),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  input: z.unknown().optional(),
+  inputSummary: z.string().optional(),
+  result: z.unknown().optional(),
+  resultSummary: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  eventCount: z.number().int().nonnegative().optional(),
+  startedAt: z.number().int().nonnegative(),
+  finishedAt: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative(),
+})
+
+export const runtimeHistoryQuerySchema = z.object({
+  kind: runtimeHistoryKindSchema.optional(),
+  operation: z.string().optional(),
+  nodeId: z.string().optional(),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  status: runtimeHistoryStatusSchema.optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  cursor: z.string().optional(),
+})
+
+export const runtimeHistoryClearQuerySchema = z.object({
+  kind: runtimeHistoryKindSchema.optional(),
+  operation: z.string().optional(),
+  nodeId: z.string().optional(),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
+})
+
+export const runtimeHistoryListSchema = z.object({
+  items: z.array(runtimeHistoryItemSchema),
+  nextCursor: z.string().nullable().optional(),
+})
+
 export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
@@ -257,5 +324,16 @@ export type NodeRunHistoryQueryDTO = z.infer<typeof nodeRunHistoryQuerySchema>
 export type NodeRunHistoryClearQueryDTO = z.infer<typeof nodeRunHistoryClearQuerySchema>
 export type NodeRunHistoryListDTO = z.infer<typeof nodeRunHistoryListSchema>
 export interface NodeRunHistoryClearResultDTO {
+  deletedCount: number
+}
+
+export type RuntimeHistoryKindDTO = z.infer<typeof runtimeHistoryKindSchema>
+export type RuntimeHistoryStatusDTO = z.infer<typeof runtimeHistoryStatusSchema>
+export type RuntimeHistoryTargetDTO = z.infer<typeof runtimeHistoryTargetSchema>
+export type RuntimeHistoryItemDTO = z.infer<typeof runtimeHistoryItemSchema>
+export type RuntimeHistoryQueryDTO = z.infer<typeof runtimeHistoryQuerySchema>
+export type RuntimeHistoryClearQueryDTO = z.infer<typeof runtimeHistoryClearQuerySchema>
+export type RuntimeHistoryListDTO = z.infer<typeof runtimeHistoryListSchema>
+export interface RuntimeHistoryClearResultDTO {
   deletedCount: number
 }

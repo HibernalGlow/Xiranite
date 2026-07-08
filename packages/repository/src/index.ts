@@ -6,6 +6,11 @@ import type {
   NodeRunHistoryItemDTO,
   NodeRunHistoryListDTO,
   NodeRunHistoryQueryDTO,
+  RuntimeHistoryClearQueryDTO,
+  RuntimeHistoryClearResultDTO,
+  RuntimeHistoryItemDTO,
+  RuntimeHistoryListDTO,
+  RuntimeHistoryQueryDTO,
   WorkspaceDTO,
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
@@ -20,7 +25,15 @@ export interface WorkspaceRepository {
   saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
 }
 
-export interface NodeRunHistoryRepository {
+export interface RuntimeHistoryRepository {
+  createRuntimeHistory(item: RuntimeHistoryItemDTO): Promise<RuntimeHistoryItemDTO>
+  listRuntimeHistory(query: RuntimeHistoryQueryDTO): Promise<RuntimeHistoryListDTO>
+  getRuntimeHistory(id: string): Promise<RuntimeHistoryItemDTO | undefined>
+  deleteRuntimeHistory(id: string): Promise<void>
+  clearRuntimeHistory(query: RuntimeHistoryClearQueryDTO): Promise<RuntimeHistoryClearResultDTO>
+}
+
+export interface NodeRunHistoryRepository extends RuntimeHistoryRepository {
   createNodeRunHistory(item: NodeRunHistoryItemDTO): Promise<NodeRunHistoryItemDTO>
   listNodeRunHistory(query: NodeRunHistoryQueryDTO): Promise<NodeRunHistoryListDTO>
   getNodeRunHistory(id: string): Promise<NodeRunHistoryItemDTO | undefined>
@@ -90,7 +103,7 @@ export interface MemoryNodeRunHistoryRepositoryOptions {
 export function createMemoryNodeRunHistoryRepository(
   options: MemoryNodeRunHistoryRepositoryOptions = {},
 ): NodeRunHistoryRepository {
-  let items = [...(options.items ?? [])]
+  let items = (options.items ?? []).map(nodeHistoryToRuntimeHistory)
   const limitPerNode = options.limitPerNode ?? 100
   const globalLimit = options.globalLimit ?? 1000
 
@@ -114,18 +127,21 @@ export function createMemoryNodeRunHistoryRepository(
         }
       }
       next.sort((a, b) => a.finishedAt - b.finishedAt)
-      items = next
+      const nodeIds = new Set(next.map((item) => item.id))
+      items = items.filter((item) => item.kind !== "node" || nodeIds.has(item.id))
     }
   }
 
   return {
-    async createNodeRunHistory(item) {
+    async createRuntimeHistory(item) {
       items = [...items.filter((existing) => existing.id !== item.id), item]
       enforceLimits()
       return clone(item)
     },
-    async listNodeRunHistory(query) {
+    async listRuntimeHistory(query) {
       let filtered = items.slice()
+      if (query.kind) filtered = filtered.filter((item) => item.kind === query.kind)
+      if (query.operation) filtered = filtered.filter((item) => item.operation === query.operation)
       if (query.nodeId) filtered = filtered.filter((item) => item.nodeId === query.nodeId)
       if (query.componentId) filtered = filtered.filter((item) => item.componentId === query.componentId)
       if (query.workspaceId) filtered = filtered.filter((item) => item.workspaceId === query.workspaceId)
@@ -148,17 +164,19 @@ export function createMemoryNodeRunHistoryRepository(
         nextCursor,
       }
     },
-    async getNodeRunHistory(id) {
+    async getRuntimeHistory(id) {
       const item = items.find((existing) => existing.id === id)
       return item ? clone(item) : undefined
     },
-    async deleteNodeRunHistory(id) {
+    async deleteRuntimeHistory(id) {
       items = items.filter((existing) => existing.id !== id)
     },
-    async clearNodeRunHistory(query) {
+    async clearRuntimeHistory(query) {
       const before = query.before
       const beforeCount = items.length
       items = items.filter((item) => {
+        if (query.kind && item.kind !== query.kind) return true
+        if (query.operation && item.operation !== query.operation) return true
         if (query.nodeId && item.nodeId !== query.nodeId) return true
         if (query.componentId && item.componentId !== query.componentId) return true
         if (query.workspaceId && item.workspaceId !== query.workspaceId) return true
@@ -167,5 +185,70 @@ export function createMemoryNodeRunHistoryRepository(
       })
       return { deletedCount: beforeCount - items.length }
     },
+    async createNodeRunHistory(item) {
+      await this.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
+      return clone(item)
+    },
+    async listNodeRunHistory(query) {
+      const result = await this.listRuntimeHistory({ ...query, kind: "node" })
+      return {
+        items: result.items.map(runtimeHistoryToNodeHistory).filter((item): item is NodeRunHistoryItemDTO => item !== undefined),
+        nextCursor: result.nextCursor,
+      }
+    },
+    async getNodeRunHistory(id) {
+      const item = await this.getRuntimeHistory(id)
+      const nodeItem = item ? runtimeHistoryToNodeHistory(item) : undefined
+      return nodeItem ? clone(nodeItem) : undefined
+    },
+    async deleteNodeRunHistory(id) {
+      await this.deleteRuntimeHistory(id)
+    },
+    async clearNodeRunHistory(query) {
+      return await this.clearRuntimeHistory({ ...query, kind: "node" })
+    },
+  }
+}
+
+function nodeHistoryToRuntimeHistory(item: NodeRunHistoryItemDTO): RuntimeHistoryItemDTO {
+  return {
+    id: item.id,
+    kind: "node",
+    operation: "node.run",
+    status: item.status,
+    title: item.nodeId,
+    message: item.message,
+    target: { type: "node", id: item.nodeId, label: item.nodeId },
+    nodeId: item.nodeId,
+    componentId: item.componentId,
+    workspaceId: item.workspaceId,
+    input: item.input,
+    inputSummary: item.inputSummary,
+    result: item.result,
+    resultSummary: item.result?.message,
+    eventCount: item.eventCount,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    durationMs: item.durationMs,
+  }
+}
+
+function runtimeHistoryToNodeHistory(item: RuntimeHistoryItemDTO): NodeRunHistoryItemDTO | undefined {
+  if (item.kind !== "node" || !item.nodeId) return undefined
+  if (item.status !== "success" && item.status !== "error" && item.status !== "cancelled") return undefined
+  return {
+    id: item.id,
+    nodeId: item.nodeId,
+    componentId: item.componentId,
+    workspaceId: item.workspaceId,
+    input: item.input,
+    inputSummary: item.inputSummary,
+    status: item.status,
+    message: item.message,
+    result: item.result as NodeRunHistoryItemDTO["result"],
+    eventCount: item.eventCount ?? 0,
+    startedAt: item.startedAt,
+    finishedAt: item.finishedAt,
+    durationMs: item.durationMs,
   }
 }
