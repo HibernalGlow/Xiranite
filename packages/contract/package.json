@@ -18,6 +18,9 @@
     "build": "tsc -p tsconfig.json",
     "test": "npm run build"
   },
+  "dependencies": {
+    "@xiranite/shared": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "~5.9.3"
   }

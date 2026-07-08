@@ -1,6 +1,6 @@
 import { createXiraniteNodeClient } from "@xiranite/api/client"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { NodeOperationCleanupResponseDTO, NodeOperationDTO, NodeRunResultDTO } from "@xiranite/shared"
+import type { NodeOperationCleanupResponseDTO, NodeOperationDTO } from "@xiranite/shared"
 import { useNodeOperations } from "@/store/nodeOperations"
 import { resolveLocalBackendConfig } from "./localBackendConfig"
 
@@ -18,7 +18,7 @@ export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
     operationId = operation.operationId
     useNodeOperations.getState().upsertOperation(operation)
 
-    let finalResult: NodeRunResultDTO<TData> | undefined
+    let finalResult: NodeRunResult<TData> | undefined
     await client.streamNodeOperation<TData>(operation.operationId, (message) => {
       if (message.type === "operation") {
         useNodeOperations.getState().upsertOperation(message.operation)
@@ -32,7 +32,7 @@ export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
     })
 
     if (!finalResult) throw new Error(`Node operation did not return a result: ${operation.operationId}`)
-    return finalResult as NodeRunResult<TData>
+    return finalResult
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const result: NodeRunResult<TData> = { success: false, message }

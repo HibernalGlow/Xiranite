@@ -1,3 +1,5 @@
+import type { NodeRunEventDTO as NodeRunEvent, NodeRunResultDTO as NodeRunResult } from "@xiranite/shared"
+
 export type NodeCategory =
   | "file"
   | "image"
@@ -37,25 +39,13 @@ export interface HostComponentRef {
   data?: Record<string, unknown>
 }
 
-export interface NodeRunEvent {
-  type: "progress" | "log"
-  progress?: number
-  message: string
-}
-
-export interface NodeRunResult<TData = unknown> {
-  success: boolean
-  message: string
-  data?: TData
-  stats?: Record<string, number>
-  outputPath?: string
-}
+export type { NodeRunEvent, NodeRunResult }
 
 export interface NodeHostApi {
   getData: <T = Record<string, unknown>>(compId: string) => T | undefined
   patchData: (compId: string, patch: Record<string, unknown>) => void
   listComponents: () => HostComponentRef[]
-  updateComponent: (id: string, patch: Partial<HostComponentRef>) => void
+  updateComponent: (compId: string, patch: Partial<HostComponentRef>) => void
   actions?: {
     run?: <TInput = unknown, TData = unknown>(
       nodeId: string,

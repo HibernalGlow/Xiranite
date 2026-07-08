@@ -191,6 +191,9 @@
     "packages/contract": {
       "name": "@xiranite/contract",
       "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/shared": "workspace:*",
+      },
       "devDependencies": {
         "typescript": "~5.9.3",
       },
