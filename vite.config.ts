@@ -63,4 +63,33 @@ export default defineConfig({
     // exclude 后所有入口共享同一份 context 模块。
     exclude: ["nuqs"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "scheduler"],
+          "vendor-radix": [
+            "radix-ui",
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-checkbox",
+            "@radix-ui/react-scroll-area",
+            "@radix-ui/react-separator",
+            "@radix-ui/react-slot",
+            "@radix-ui/react-switch",
+            "@radix-ui/react-alert-dialog",
+            "@radix-ui/react-progress",
+          ],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-i18n": ["i18next", "react-i18next"],
+          "vendor-state": ["zustand", "nuqs"],
+          "vendor-dockview": ["dockview-react"],
+          "vendor-gridstack": ["gridstack"],
+        },
+      },
+    },
+  },
 })

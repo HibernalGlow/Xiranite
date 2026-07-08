@@ -177,6 +177,7 @@ function HeaderBtn({
 }) {
   return (
     <button
+      type="button"
       aria-label={label}
       title={label}
       onMouseDown={e => e.stopPropagation()}

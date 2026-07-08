@@ -195,7 +195,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   return (
     <TooltipProvider>
       <div ref={surface.ref} className="@container/rawfilter relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,hsl(var(--primary)/0.14),transparent_36%),radial-gradient(circle_at_88%_8%,hsl(var(--chart-2)/0.16),transparent_34%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-2)_16%,transparent),transparent_34%)]" />
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
