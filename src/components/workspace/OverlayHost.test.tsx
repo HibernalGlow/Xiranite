@@ -4,12 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { OverlayHost } from "./OverlayHost"
 
 const setOverlayMock = vi.hoisted(() => vi.fn())
-const overlayState = vi.hoisted(() => ({ value: null as null | "registry" | "settings" | "deployment" | "operations" }))
+const overlayState = vi.hoisted(() => ({ value: null as null | "registry" | "settings" | "deployment" | "operations" | "history" }))
 const moduleLoadCounts = vi.hoisted(() => ({
   registry: vi.fn(),
   settings: vi.fn(),
   deployment: vi.fn(),
   operations: vi.fn(),
+  history: vi.fn(),
 }))
 
 vi.mock("@/store/workspaceContext", () => ({
@@ -38,6 +39,11 @@ vi.mock("@/components/views/NodeOperationMonitor", () => {
   return { NodeOperationMonitor: () => <div data-testid="operations-view">Operations view</div> }
 })
 
+vi.mock("@/components/views/NodeRunHistoryView", () => {
+  moduleLoadCounts.history()
+  return { NodeRunHistoryView: () => <div data-testid="history-view">History view</div> }
+})
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
@@ -62,6 +68,7 @@ describe("OverlayHost", () => {
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
     expect(moduleLoadCounts.deployment).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
+    expect(moduleLoadCounts.history).not.toHaveBeenCalled()
   })
 
   test("loads only the active overlay view", async () => {
@@ -76,6 +83,7 @@ describe("OverlayHost", () => {
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
     expect(moduleLoadCounts.deployment).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
+    expect(moduleLoadCounts.history).not.toHaveBeenCalled()
   })
 
   test("restores floating mode and custom width from local storage", async () => {

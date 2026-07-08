@@ -17,12 +17,16 @@ const DeploymentHub = lazy(() =>
 const NodeOperationMonitor = lazy(() =>
   import("@/components/views/NodeOperationMonitor").then((module) => ({ default: module.NodeOperationMonitor })),
 )
+const NodeRunHistoryView = lazy(() =>
+  import("@/components/views/NodeRunHistoryView").then((module) => ({ default: module.NodeRunHistoryView })),
+)
 
 const TITLE_KEYS = {
   registry: "overlay:registry",
   settings: "overlay:settings",
   deployment: "overlay:deployment",
   operations: "overlay:operations",
+  history: "overlay:history",
 } as const
 
 type OverlayMode = "docked" | "floating"
@@ -143,6 +147,7 @@ export function OverlayHost() {
             {overlay === "settings" && <ThemeSettings />}
             {overlay === "deployment" && <DeploymentHub />}
             {overlay === "operations" && <NodeOperationMonitor />}
+            {overlay === "history" && <NodeRunHistoryView />}
           </Suspense>
         </div>
       </aside>

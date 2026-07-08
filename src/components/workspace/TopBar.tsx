@@ -15,6 +15,7 @@ import {
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
   CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile, Type,
+  History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -393,6 +394,16 @@ export function TopBar() {
               {activeOperations > 9 ? "9+" : activeOperations}
             </span>
           )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={() => workspaceActions.setOverlay("history")}
+          title={t("topbar:history")}
+          aria-label={t("topbar:history")}
+        >
+          <History className="h-4 w-4" />
         </Button>
 
         {/* ── 主题快速切换下拉 ── */}

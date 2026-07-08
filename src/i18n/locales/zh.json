@@ -109,6 +109,7 @@
     "registry": "模块库",
     "deployment": "部署中心",
     "operations": "节点运行",
+    "history": "运行历史",
     "search": "搜索...",
     "searchHint": "搜索",
     "devRuntime": {
@@ -297,6 +298,7 @@
     "settings": "设置",
     "deployment": "部署中心",
     "operations": "节点运行",
+    "history": "运行历史",
     "floatingMode": "切换为悬浮遮罩",
     "dockMode": "固定为推开侧栏",
     "resize": "拖动调整面板宽度"
@@ -395,6 +397,37 @@
         "queued": "排队",
         "running": "运行中",
         "completed": "已完成",
+        "error": "错误",
+        "cancelled": "已取消"
+      }
+    },
+    "history": {
+      "title": "运行历史",
+      "subtitle": "每次节点运行的参数与结果快照。",
+      "all": "全部",
+      "success": "成功",
+      "error": "错误",
+      "cancelled": "已取消",
+      "clearAll": "全部清空",
+      "clearNode": "清空节点",
+      "delete": "删除",
+      "copyInput": "复制参数 JSON",
+      "restore": "恢复",
+      "viewDetail": "查看详情",
+      "empty": "暂无运行历史。",
+      "emptyHint": "运行任意节点后会自动保存参数快照。",
+      "loadMore": "加载更多",
+      "loading": "加载中...",
+      "duration": "{{ms}} 毫秒",
+      "events": "{{count}} 个事件",
+      "input": "输入参数",
+      "result": "运行结果",
+      "stats": "统计",
+      "outputPath": "输出路径",
+      "noInput": "未记录输入参数",
+      "noResult": "无结果数据",
+      "status": {
+        "success": "成功",
         "error": "错误",
         "cancelled": "已取消"
       }

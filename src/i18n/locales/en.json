@@ -401,6 +401,37 @@
         "cancelled": "cancelled"
       }
     },
+    "history": {
+      "title": "Run history",
+      "subtitle": "Saved parameters and results from every node run.",
+      "all": "All",
+      "success": "Success",
+      "error": "Error",
+      "cancelled": "Cancelled",
+      "clearAll": "Clear all",
+      "clearNode": "Clear node",
+      "delete": "Delete",
+      "copyInput": "Copy input JSON",
+      "restore": "Restore",
+      "viewDetail": "View detail",
+      "empty": "No run history yet.",
+      "emptyHint": "Run any node and a parameter snapshot will be saved automatically.",
+      "loadMore": "Load more",
+      "loading": "Loading...",
+      "duration": "{{ms}}ms",
+      "events": "{{count}} event(s)",
+      "input": "Input",
+      "result": "Result",
+      "stats": "Stats",
+      "outputPath": "Output path",
+      "noInput": "No input recorded",
+      "noResult": "No result data",
+      "status": {
+        "success": "success",
+        "error": "error",
+        "cancelled": "cancelled"
+      }
+    },
     "database": {
       "empty": "// no components to display",
       "emptyHint": "Deploy some modules first.",
