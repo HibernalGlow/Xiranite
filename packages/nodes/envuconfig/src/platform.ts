@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises"
+import { appendFile, copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import type { EnvuConfigRuntime } from "./core.js"
 
@@ -7,6 +7,7 @@ export function createNodeEnvuConfigRuntime(): EnvuConfigRuntime {
     listFiles,
     copyFile,
     writeText: (path, content) => writeFile(path, content, "utf8"),
+    appendRecord,
     makeDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     join,
     dirname,
@@ -33,4 +34,9 @@ async function listFiles(root: string): Promise<Array<{ path: string; relativePa
   }
   await visit(base)
   return files
+}
+
+async function appendRecord(path: string, record: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
 }

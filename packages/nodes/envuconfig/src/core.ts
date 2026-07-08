@@ -8,6 +8,8 @@ export interface EnvuConfigInput {
   include?: string[]
   backupDir?: string
   manifestName?: string
+  databasePath?: string
+  recordRun?: boolean
   dryRun?: boolean
 }
 
@@ -26,10 +28,18 @@ export interface EnvuBackupOperation {
   reason?: string
 }
 
+export interface EnvuConfigDatabase {
+  path: string
+  enabled: boolean
+  mode: "jsonl"
+  defaultPath: boolean
+}
+
 export interface EnvuConfigData {
   files: EnvuConfigFile[]
   operations: EnvuBackupOperation[]
   manifestPath: string
+  database?: EnvuConfigDatabase
   fileCount: number
   totalSize: number
   errors: string[]
@@ -39,6 +49,7 @@ export interface EnvuConfigRuntime {
   listFiles: (root: string) => Promise<Array<{ path: string; relativePath: string; size: number; modifiedMs: number }>>
   copyFile: (source: string, target: string) => Promise<void>
   writeText: (path: string, content: string) => Promise<void>
+  appendRecord: (path: string, record: unknown) => Promise<void>
   makeDir: (path: string) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
@@ -65,6 +76,8 @@ export function normalizeEnvuConfigInput(input: EnvuConfigInput): Required<EnvuC
     include: input.include?.length ? input.include : DEFAULT_ENVU_INCLUDE,
     backupDir: clean(input.backupDir),
     manifestName: clean(input.manifestName) || "envu-config-manifest.json",
+    databasePath: clean(input.databasePath),
+    recordRun: input.recordRun ?? Boolean(input.databasePath),
     dryRun: input.dryRun ?? false,
   }
 }
@@ -79,14 +92,20 @@ export async function runEnvuConfig(
     if (!normalized.root) return failure("EnvU root is required.")
     onEvent({ type: "progress", progress: 25, message: "Scanning EnvU config files." })
     const files = classifyEnvuFiles(await runtime.listFiles(normalized.root), normalized.include)
-    if (normalized.action === "scan") return success(`Found ${files.length} EnvU config file(s).`, { files })
+    const database = buildEnvuDatabase(normalized, runtime)
+    if (normalized.action === "scan") {
+      await writeInventoryRecordIfEnabled("scan", normalized, files, [], database, runtime)
+      return success(`Found ${files.length} EnvU config file(s).`, { files, database })
+    }
 
     const manifestPath = normalized.backupDir
       ? runtime.join(normalized.backupDir, normalized.manifestName)
       : runtime.join(normalized.root, normalized.manifestName)
     const manifest = renderManifest(normalized.root, files)
     if (normalized.action === "manifest" || normalized.dryRun) {
-      return success(`Manifest planned for ${files.length} file(s).`, { files, manifestPath, operations: buildBackupOperations(files, normalized, runtime) })
+      const operations = buildBackupOperations(files, normalized, runtime)
+      if (!normalized.dryRun) await writeInventoryRecordIfEnabled("manifest", normalized, files, operations, database, runtime)
+      return success(`Manifest planned for ${files.length} file(s).`, { files, manifestPath, operations, database })
     }
 
     onEvent({ type: "progress", progress: 65, message: "Backing up EnvU config files." })
@@ -94,11 +113,12 @@ export async function runEnvuConfig(
     await runtime.makeDir(normalized.backupDir)
     const operations = await executeBackup(buildBackupOperations(files, normalized, runtime), runtime)
     await runtime.writeText(manifestPath, manifest)
+    await writeInventoryRecordIfEnabled("backup", normalized, files, operations, database, runtime)
     const failed = operations.filter((item) => item.status === "error")
     return {
       success: failed.length === 0,
       message: `EnvU backup completed: ${operations.length - failed.length} success, ${failed.length} failed.`,
-      data: data({ files, operations, manifestPath, errors: failed.map((item) => `${item.sourcePath}: ${item.reason}`) }),
+      data: data({ files, operations, manifestPath, database, errors: failed.map((item) => `${item.sourcePath}: ${item.reason}`) }),
     }
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
@@ -130,6 +150,50 @@ export function buildBackupOperations(
   }))
 }
 
+export function defaultEnvuDatabasePath(
+  input: Pick<Required<EnvuConfigInput>, "root">,
+  runtime: Pick<EnvuConfigRuntime, "join">,
+): string {
+  return runtime.join(input.root, ".xiranite", "envu-config-inventory.jsonl")
+}
+
+export function buildEnvuDatabase(
+  input: Pick<Required<EnvuConfigInput>, "root" | "databasePath" | "recordRun">,
+  runtime: Pick<EnvuConfigRuntime, "join">,
+): EnvuConfigDatabase {
+  const defaultPath = !input.databasePath
+  return {
+    path: input.databasePath || defaultEnvuDatabasePath(input, runtime),
+    enabled: input.recordRun,
+    mode: "jsonl",
+    defaultPath,
+  }
+}
+
+export function buildInventoryRecord(
+  action: EnvuConfigAction,
+  input: Pick<Required<EnvuConfigInput>, "root" | "backupDir" | "manifestName" | "dryRun">,
+  files: EnvuConfigFile[],
+  operations: EnvuBackupOperation[],
+): Record<string, unknown> {
+  const failed = operations.filter((item) => item.status === "error")
+  return {
+    toolId: "envuconfig",
+    action,
+    root: input.root,
+    backupDir: input.backupDir || undefined,
+    manifestName: input.manifestName,
+    dryRun: input.dryRun,
+    fileCount: files.length,
+    totalSize: files.reduce((sum, file) => sum + file.size, 0),
+    groups: countGroups(files),
+    operationCount: operations.length,
+    failedCount: failed.length,
+    success: failed.length === 0,
+    at: new Date().toISOString(),
+  }
+}
+
 export function renderManifest(root: string, files: EnvuConfigFile[]): string {
   return `${JSON.stringify({
     root,
@@ -138,6 +202,18 @@ export function renderManifest(root: string, files: EnvuConfigFile[]): string {
     totalSize: files.reduce((sum, file) => sum + file.size, 0),
     files,
   }, null, 2)}\n`
+}
+
+async function writeInventoryRecordIfEnabled(
+  action: EnvuConfigAction,
+  input: Required<EnvuConfigInput>,
+  files: EnvuConfigFile[],
+  operations: EnvuBackupOperation[],
+  database: EnvuConfigDatabase,
+  runtime: EnvuConfigRuntime,
+): Promise<void> {
+  if (!database.enabled || input.dryRun) return
+  await runtime.appendRecord(database.path, buildInventoryRecord(action, input, files, operations))
 }
 
 async function executeBackup(operations: EnvuBackupOperation[], runtime: EnvuConfigRuntime): Promise<EnvuBackupOperation[]> {
@@ -169,6 +245,12 @@ function groupFor(relativePath: string): string {
   if (relativePath.startsWith("dotfile/")) return "dotfile"
   if (relativePath.includes("/")) return relativePath.split("/")[1] ?? "tool"
   return "root"
+}
+
+function countGroups(files: EnvuConfigFile[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const file of files) counts[file.group] = (counts[file.group] ?? 0) + 1
+  return counts
 }
 
 function normalizeSlash(path: string): string {
