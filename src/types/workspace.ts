@@ -2,7 +2,7 @@ export type ViewMode = "cards" | "dockview" | "flow" | "lane" | "bento"
 
 export type CardLayout = "grid" | "stack" | "split" | "focus"
 
-export type OverlayKind = "registry" | "settings" | "deployment" | "operations" | null
+export type OverlayKind = "registry" | "settings" | "deployment" | "operations" | "history" | null
 
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
 export type AppTheme = "spatial" | "endfield" | "wuling"

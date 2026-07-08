@@ -1,67 +1,79 @@
-/**
- * AnimatedList — 列表逐项入场动画
- *
- * 包裹一组子元素，让每个子元素按 delay 间隔依次滑入。
- * 使用 AnimatePresence 支持新增/移除动画。
- *
- * 用法：
- *   <AnimatedList delay={0.1}>
- *     {items.map((item) => (
- *       <AnimatedList.Item key={item.id}>...</AnimatedList.Item>
- *     ))}
- *   </AnimatedList>
- *
- * Props：
- * - className / delay: 每项之间额外延迟（秒，默认 0.05）
- *
- * AnimatedList.Item Props：
- * - children / className
- * - delay: 覆盖父级的单项延迟
- *
- * 参考：magicui.design/docs/components/animated-list
- */
-import { AnimatePresence, motion } from "motion/react"
+"use client"
+
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentPropsWithoutRef,
+} from "react"
+import { AnimatePresence, motion, type MotionProps } from "motion/react"
+
 import { cn } from "@/lib/utils"
 
-export interface AnimatedListProps {
+export function AnimatedListItem({ children }: { children: React.ReactNode }) {
+  const animations: MotionProps = {
+    initial: { scale: 0, opacity: 0 },
+    animate: { scale: 1, opacity: 1, originY: 0 },
+    exit: { scale: 0, opacity: 0 },
+    transition: { type: "spring", stiffness: 350, damping: 40 },
+  }
+
+  return (
+    <motion.div {...animations} layout className="mx-auto w-full">
+      {children}
+    </motion.div>
+  )
+}
+
+export interface AnimatedListProps extends ComponentPropsWithoutRef<"div"> {
   children: React.ReactNode
-  className?: string
   delay?: number
 }
 
-export function AnimatedList({ children, className, delay = 0.05 }: AnimatedListProps) {
-  return (
-    <div className={cn("flex flex-col", className)}>
-      <AnimatePresence initial={false}>
-        {Array.isArray(children) ? children.map((child, index) => {
-          if (!child) return null
-          return (
-            <motion.div
-              key={(child as { key?: React.Key })?.key ?? index}
-              initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                filter: "blur(0px)",
-                transition: { delay: index * delay, duration: 0.3, ease: "easeOut" },
-              }}
-              exit={{ opacity: 0, y: -8, filter: "blur(4px)", transition: { duration: 0.2 } }}
-              layout
-            >
-              {child}
-            </motion.div>
-          )
-        }) : (
-          <motion.div
-            initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.3 } }}
-            exit={{ opacity: 0, y: -8, filter: "blur(4px)", transition: { duration: 0.2 } }}
-            layout
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
+export const AnimatedList = React.memo(
+  ({ children, className, delay = 1000, ...props }: AnimatedListProps) => {
+    const [index, setIndex] = useState(0)
+    const childrenArray = useMemo(
+      () => React.Children.toArray(children),
+      [children]
+    )
+
+    useEffect(() => {
+      let timeout: ReturnType<typeof setTimeout> | null = null
+
+      if (index < childrenArray.length - 1) {
+        timeout = setTimeout(() => {
+          setIndex((prevIndex) => (prevIndex + 1) % childrenArray.length)
+        }, delay)
+      }
+
+      return () => {
+        if (timeout !== null) {
+          clearTimeout(timeout)
+        }
+      }
+    }, [index, delay, childrenArray.length])
+
+    const itemsToShow = useMemo(() => {
+      const result = childrenArray.slice(0, index + 1).reverse()
+      return result
+    }, [index, childrenArray])
+
+    return (
+      <div
+        className={cn(`flex flex-col items-center gap-4`, className)}
+        {...props}
+      >
+        <AnimatePresence>
+          {itemsToShow.map((item) => (
+            <AnimatedListItem key={(item as React.ReactElement).key}>
+              {item}
+            </AnimatedListItem>
+          ))}
+        </AnimatePresence>
+      </div>
+    )
+  }
+)
+
+AnimatedList.displayName = "AnimatedList"

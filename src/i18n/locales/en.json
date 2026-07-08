@@ -109,6 +109,7 @@
     "registry": "REGISTRY",
     "deployment": "Deployment Hub",
     "operations": "Node operations",
+    "history": "Run history",
     "search": "SEARCH...",
     "searchHint": "Search",
     "devRuntime": {
@@ -297,6 +298,7 @@
     "settings": "SETTINGS",
     "deployment": "DEPLOYMENT HUB",
     "operations": "NODE OPERATIONS",
+    "history": "RUN HISTORY",
     "floatingMode": "Use floating overlay",
     "dockMode": "Dock as fixed panel",
     "resize": "Drag to resize panel"

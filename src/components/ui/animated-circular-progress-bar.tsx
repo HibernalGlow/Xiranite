@@ -1,86 +1,108 @@
-/**
- * AnimatedCircularProgressBar — 环形进度条
- *
- * SVG 圆环 + motion 动画 strokeDashoffset，
- * 用于替代手写 ProgressRing，提供标准化的进度可视化。
- *
- * 用法：
- *   <AnimatedCircularProgressBar value={66} max={100} min={0} />
- *
- * Props：
- * - value: 当前值
- * - max: 最大值（默认 100）
- * - min: 最小值（默认 0）
- * - gaugePrimaryColor: 进度色（默认 var(--primary)）
- * - gaugeSecondaryColor: 轨道色（默认 var(--muted)）
- * - className: 透传（用于控制尺寸，如 "size-24"）
- *
- * 参考：magicui.design/docs/components/animated-circular-progress-bar
- */
-import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
 
-export interface AnimatedCircularProgressBarProps {
-  value: number
+interface AnimatedCircularProgressBarProps {
   max?: number
   min?: number
+  value: number
   gaugePrimaryColor?: string
   gaugeSecondaryColor?: string
   className?: string
 }
 
 export function AnimatedCircularProgressBar({
-  value = 0,
   max = 100,
   min = 0,
+  value = 0,
   gaugePrimaryColor = "var(--primary)",
   gaugeSecondaryColor = "var(--muted)",
   className,
 }: AnimatedCircularProgressBarProps) {
   const circumference = 2 * Math.PI * 45
-  const clamped = Math.min(Math.max(value, min), max)
-  const percent = max === min ? 0 : (clamped - min) / (max - min)
-  const offset = circumference - percent * circumference
+  const percentPx = circumference / 100
+  const currentPercent = Math.round(((value - min) / (max - min)) * 100)
 
   return (
     <div
-      role="progressbar"
-      aria-valuenow={clamped}
-      aria-valuemin={min}
-      aria-valuemax={max}
-      className={cn("relative grid place-items-center", className)}
+      className={cn("relative size-40 text-2xl font-semibold", className)}
+      style={
+        {
+          "--circle-size": "100px",
+          "--circumference": circumference,
+          "--percent-to-px": `${percentPx}px`,
+          "--gap-percent": "5",
+          "--offset-factor": "0",
+          "--transition-length": "1s",
+          "--transition-step": "200ms",
+          "--delay": "0s",
+          "--percent-to-deg": "3.6deg",
+          transform: "translateZ(0)",
+        } as React.CSSProperties
+      }
     >
       <svg
+        fill="none"
+        className="size-full"
+        strokeWidth="2"
         viewBox="0 0 100 100"
-        className="size-full -rotate-90"
-        aria-hidden="true"
       >
-        <title>progress</title>
+        {currentPercent <= 90 && currentPercent >= 0 && (
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            strokeWidth="10"
+            strokeDashoffset="0"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="opacity-100"
+            style={
+              {
+                stroke: gaugeSecondaryColor,
+                "--stroke-percent": 90 - currentPercent,
+                "--offset-factor-secondary": "calc(1 - var(--offset-factor))",
+                strokeDasharray:
+                  "calc(var(--stroke-percent) * var(--percent-to-px)) var(--circumference)",
+                transform:
+                  "rotate(calc(1turn - 90deg - (var(--gap-percent) * var(--percent-to-deg) * var(--offset-factor-secondary)))) scaleY(-1)",
+                transition: "all var(--transition-length) ease var(--delay)",
+                transformOrigin:
+                  "calc(var(--circle-size) / 2) calc(var(--circle-size) / 2)",
+              } as React.CSSProperties
+            }
+          />
+        )}
         <circle
           cx="50"
           cy="50"
           r="45"
-          stroke={gaugeSecondaryColor}
-          strokeWidth="8"
-          fill="none"
-        />
-        <motion.circle
-          cx="50"
-          cy="50"
-          r="45"
-          stroke={gaugePrimaryColor}
-          strokeWidth="8"
-          fill="none"
+          strokeWidth="10"
+          strokeDashoffset="0"
           strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ type: "spring", stiffness: 60, damping: 18 }}
+          strokeLinejoin="round"
+          className="opacity-100"
+          style={
+            {
+              stroke: gaugePrimaryColor,
+              "--stroke-percent": currentPercent,
+              strokeDasharray:
+                "calc(var(--stroke-percent) * var(--percent-to-px)) var(--circumference)",
+              transition:
+                "var(--transition-length) ease var(--delay),stroke var(--transition-length) ease var(--delay)",
+              transitionProperty: "stroke-dasharray,transform",
+              transform:
+                "rotate(calc(-90deg + var(--gap-percent) * var(--offset-factor) * var(--percent-to-deg)))",
+              transformOrigin:
+                "calc(var(--circle-size) / 2) calc(var(--circle-size) / 2)",
+            } as React.CSSProperties
+          }
         />
       </svg>
-      <div className="absolute inset-0 grid place-items-center text-sm font-semibold tabular-nums">
-        {Math.round(percent * 100)}%
-      </div>
+      <span
+        data-current-value={currentPercent}
+        className="animate-in fade-in absolute inset-0 m-auto size-fit delay-(--delay) duration-(--transition-length) ease-linear"
+      >
+        {currentPercent}
+      </span>
     </div>
   )
 }

@@ -1,90 +1,106 @@
-/**
- * BorderBeam — 边框流光动画
- *
- * 在元素的边框上绘制一道沿四边循环流动的光带，
- * 适合用作「正在执行 / 加载中 / 高亮卡片」的视觉提示。
- *
- * 用法：
- *   <div className="relative">
- *     ...内容...
- *     <BorderBeam />
- *   </div>
- *
- * 必须放在 position: relative 的父容器中，组件本身 absolute 贴满父容器边框。
- *
- * Props：
- * - size: 光带长度（px，默认 200）
- * - duration: 一圈耗时（秒，默认 15）
- * - delay: 延迟开始（秒，默认 0）
- * - colorFrom / colorTo: 光带渐变两端的颜色（默认 primary / chart-2）
- * - borderWidth: 边框宽度（px，默认 1.5）
- * - reverse: 反向流动
- * - initialOffset: 起始偏移（0~100，默认 0）
- * - transition / className / style: 透传 motion 与 DOM
- *
- * 参考：magicui.design/docs/components/border-beam
- */
-import { motion, type Transition } from "motion/react"
+"use client"
+
+import { motion, type MotionStyle, type Transition } from "motion/react"
+
 import { cn } from "@/lib/utils"
 
-export interface BorderBeamProps {
+interface BorderBeamProps {
+  /**
+   * The size of the border beam.
+   */
   size?: number
+  /**
+   * The duration of the border beam.
+   */
   duration?: number
+  /**
+   * The delay of the border beam.
+   */
   delay?: number
+  /**
+   * The color of the border beam from.
+   */
   colorFrom?: string
+  /**
+   * The color of the border beam to.
+   */
   colorTo?: string
+  /**
+   * The motion transition of the border beam.
+   */
   transition?: Transition
-  reverse?: boolean
-  initialOffset?: number
-  borderWidth?: number | string
+  /**
+   * The class name of the border beam.
+   */
   className?: string
+  /**
+   * The style of the border beam.
+   */
   style?: React.CSSProperties
+  /**
+   * Whether to reverse the animation direction.
+   */
+  reverse?: boolean
+  /**
+   * The initial offset position (0-100).
+   */
+  initialOffset?: number
+  /**
+   * The border width of the beam.
+   */
+  borderWidth?: number
 }
 
-export function BorderBeam({
+export const BorderBeam = ({
   className,
-  size = 200,
-  duration = 15,
+  size = 50,
   delay = 0,
-  colorFrom = "var(--primary)",
-  colorTo = "var(--chart-2)",
+  duration = 6,
+  colorFrom = "#ffaa40",
+  colorTo = "#9c40ff",
   transition,
+  style,
   reverse = false,
   initialOffset = 0,
-  borderWidth = 1.5,
-  style,
-}: BorderBeamProps) {
+  borderWidth = 1,
+}: BorderBeamProps) => {
   return (
     <div
-      role="presentation"
-      aria-hidden="true"
-      className={cn(
-        "pointer-events-none absolute inset-0 rounded-[inherit] border",
-        className,
-      )}
-      style={{
-        padding: borderWidth,
-        mask: "linear-gradient(transparent, transparent) content-box, linear-gradient(white, white)",
-        WebkitMaskComposite: "xor",
-        maskComposite: "exclude",
-        ...style,
-      }}
+      className="pointer-events-none absolute inset-0 rounded-[inherit] border-(length:--border-beam-width) border-transparent mask-[linear-gradient(transparent,transparent),linear-gradient(#000,#000)] mask-intersect [mask-clip:padding-box,border-box]"
+      style={
+        {
+          "--border-beam-width": `${borderWidth}px`,
+        } as React.CSSProperties
+      }
     >
       <motion.div
-        className="size-full"
-        style={{
-          background: `conic-gradient(from ${initialOffset}deg, transparent 0deg, ${colorFrom} ${size}deg, ${colorTo} ${size * 1.5}deg, transparent ${size * 2}deg)`,
-        }}
-        initial={{ rotate: reverse ? -360 : 0 }}
-        animate={{ rotate: reverse ? 0 : 360 }}
-        transition={
-          transition ?? {
-            duration,
-            delay,
-            repeat: Infinity,
-            ease: "linear",
-          }
+        className={cn(
+          "absolute aspect-square",
+          "bg-linear-to-l from-(--color-from) via-(--color-to) to-transparent",
+          className
+        )}
+        style={
+          {
+            width: size,
+            offsetPath: `rect(0 auto auto 0 round ${size}px)`,
+            "--color-from": colorFrom,
+            "--color-to": colorTo,
+            ...style,
+          } as MotionStyle
         }
+        initial={{ offsetDistance: `${initialOffset}%` }}
+        animate={{
+          offsetDistance: reverse
+            ? [`${100 - initialOffset}%`, `${-initialOffset}%`]
+            : [`${initialOffset}%`, `${100 + initialOffset}%`],
+        }}
+        transition={{
+          repeat: Infinity,
+          ease: "linear",
+          duration,
+          delay: -delay,
+          ...transition,
+        }}
       />
     </div>
   )
