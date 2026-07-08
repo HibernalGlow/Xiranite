@@ -5,7 +5,7 @@ interface NodeTestAudit {
   node: string
   core: boolean
   cli: boolean
-  component: boolean
+  appComponent: boolean
   realRun: boolean
   vitestScript: boolean
   usesBunTest: boolean
@@ -14,6 +14,7 @@ interface NodeTestAudit {
 const strict = process.argv.includes("--strict")
 const root = process.cwd()
 const nodesDir = join(root, "packages", "nodes")
+const appNodesDir = join(root, "src", "nodes")
 const nodeNames = readdirSync(nodesDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
@@ -21,7 +22,7 @@ const nodeNames = readdirSync(nodesDir, { withFileTypes: true })
 const realRunNodes = collectRealRunNodes(root)
 
 const audits = nodeNames.map(auditNode)
-const complete = audits.filter((item) => item.core && item.cli && item.component && item.realRun && item.vitestScript && !item.usesBunTest)
+const complete = audits.filter((item) => item.core && item.cli && item.appComponent && item.realRun && item.vitestScript && !item.usesBunTest)
 const missing = audits.filter((item) => !complete.includes(item))
 
 printSummary(audits, complete.length)
@@ -42,7 +43,7 @@ function auditNode(node: string): NodeTestAudit {
     node,
     core: existsSync(join(src, "core.test.ts")) || existsSync(join(src, "core.test.tsx")),
     cli: existsSync(join(src, "cli.test.ts")) || existsSync(join(src, "cli.test.tsx")),
-    component: existsSync(join(src, "Component.test.tsx")),
+    appComponent: existsSync(join(appNodesDir, node, "Component.test.tsx")),
     realRun: realRunNodes.has(node),
     vitestScript: /\bvitest\s+run\b/.test(testScript),
     usesBunTest: sourceFiles(src).some((file) => readFileSync(file, "utf8").includes("bun:test")),
@@ -51,7 +52,7 @@ function auditNode(node: string): NodeTestAudit {
 
 function printSummary(audits: NodeTestAudit[], completeCount: number): void {
   console.log(`Node test matrix: ${completeCount}/${audits.length} complete`)
-  console.log("Required: core.test.ts, cli.test.ts, Component.test.tsx, real file/backend run marker, Vitest test script, and no bun:test imports.")
+  console.log("Required: package core.test.ts, package cli.test.ts, app Component.test.tsx, real file/backend run marker, Vitest test script, and no bun:test imports.")
 }
 
 function printTable(audits: NodeTestAudit[]): void {
@@ -59,12 +60,12 @@ function printTable(audits: NodeTestAudit[]): void {
     item.node,
     mark(item.core),
     mark(item.cli),
-    mark(item.component),
+    mark(item.appComponent),
     mark(item.realRun),
     mark(item.vitestScript),
     item.usesBunTest ? "yes" : "no",
   ])
-  const headers = ["node", "core", "cli", "component", "real-run", "vitest", "bun:test"]
+  const headers = ["node", "core", "cli", "app-component", "real-run", "vitest", "bun:test"]
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]!.length)))
 
   console.log("")
