@@ -8,6 +8,10 @@ export interface SimiuInput {
   action?: SimiuAction
   root?: string
   roots?: string[]
+  configPath?: string
+  configText?: string
+  databasePath?: string
+  recordRun?: boolean
   recursive?: boolean
   scanOrder?: SimiuScanOrder
   namePrefix?: string
@@ -58,10 +62,25 @@ export interface SimiuOperation {
   reason?: string
 }
 
+export interface SimiuConfigSummary {
+  path: string
+  keys: string[]
+  tables: string[]
+}
+
+export interface SimiuDatabase {
+  path: string
+  enabled: boolean
+  mode: "jsonl"
+  defaultPath: boolean
+}
+
 export interface SimiuData {
   batches: SimiuFolderBatch[]
   groups: SimiuGroup[]
   operations: SimiuOperation[]
+  config?: SimiuConfigSummary
+  database?: SimiuDatabase
   imageCount: number
   groupCount: number
   movedCount: number
@@ -71,6 +90,8 @@ export interface SimiuData {
 }
 
 export interface SimiuRuntime {
+  readText: (path: string) => Promise<string>
+  appendRecord: (path: string, record: unknown) => Promise<void>
   pathInfo: (path: string) => Promise<SimiuPathInfo>
   listDir: (path: string) => Promise<SimiuDirEntry[]>
   makeDir: (path: string) => Promise<void>
@@ -92,6 +113,10 @@ export function normalizeSimiuInput(input: SimiuInput): Required<SimiuInput> {
     action: input.action ?? "scan",
     root: clean(input.root),
     roots: uniqueClean([input.root, ...(input.roots ?? [])]),
+    configPath: clean(input.configPath),
+    configText: input.configText ?? "",
+    databasePath: clean(input.databasePath),
+    recordRun: input.recordRun ?? Boolean(input.databasePath),
     recursive: input.recursive ?? true,
     scanOrder: input.scanOrder ?? "path",
     namePrefix: sanitizePrefix(input.namePrefix ?? "simiu_set"),
@@ -107,26 +132,137 @@ export async function runSimiu(
   runtime: SimiuRuntime,
   onEvent: (event: NodeRunEvent) => void = () => {},
 ): Promise<SimiuResult> {
-  const normalized = normalizeSimiuInput(input)
+  const configInput = await loadSimiuConfigInput(input, runtime)
+  const normalized = normalizeSimiuInput(mergeSimiuConfigInput(configInput, input))
   try {
     if (!normalized.roots.length) return failure("At least one root path is required.")
+    const config = await loadSimiuConfigSummary(normalized, runtime)
+    const database = buildSimiuDatabase(normalized, runtime)
     onEvent({ type: "progress", progress: 20, message: "Scanning image folders." })
     const batches = await collectFolderBatches(normalized.roots, normalized, runtime)
-    if (normalized.action === "scan") return success(`Scanned ${imageCount(batches)} image(s).`, { batches })
+    if (normalized.action === "scan") {
+      await writeSimiuRecordIfEnabled("scan", normalized, batches, [], [], database, runtime)
+      return success(`Scanned ${imageCount(batches)} image(s).`, { batches, config, database })
+    }
 
     onEvent({ type: "progress", progress: 55, message: "Planning groups." })
     const groups = planSimiuGroups(batches, normalized, runtime)
-    if (normalized.action === "plan" || normalized.dryRun) return success(`Planned ${groups.length} group(s).`, { batches, groups, operations: planOperations(groups, normalized.mode, runtime) })
+    if (normalized.action === "plan" || normalized.dryRun) {
+      const operations = planOperations(groups, normalized.mode, runtime)
+      await writeSimiuRecordIfEnabled("plan", normalized, batches, groups, operations, database, runtime)
+      return success(`Planned ${groups.length} group(s).`, { batches, groups, operations, config, database })
+    }
 
     onEvent({ type: "progress", progress: 75, message: "Applying groups." })
     const operations = await applyOperations(planOperations(groups, normalized.mode, runtime), runtime)
+    await writeSimiuRecordIfEnabled("apply", normalized, batches, groups, operations, database, runtime)
     return {
       success: operations.every((item) => item.status !== "error"),
       message: `Applied ${operations.filter((item) => item.status === "success").length} file operation(s).`,
-      data: data({ batches, groups, operations }),
+      data: data({ batches, groups, operations, config, database }),
     }
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
+  }
+}
+
+export async function loadSimiuConfigInput(input: SimiuInput, runtime: Pick<SimiuRuntime, "readText">): Promise<SimiuInput> {
+  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "")
+  if (!text.trim()) return {}
+  return parseSimiuTomlConfig(text)
+}
+
+export async function loadSimiuConfigSummary(input: Required<SimiuInput>, runtime: Pick<SimiuRuntime, "readText">): Promise<SimiuConfigSummary | undefined> {
+  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "")
+  if (!text.trim()) return undefined
+  const parsed = parseTomlLikeKeys(text)
+  return { path: input.configPath, keys: parsed.keys, tables: parsed.tables }
+}
+
+export function mergeSimiuConfigInput(config: SimiuInput, input: SimiuInput): SimiuInput {
+  return {
+    ...config,
+    ...input,
+    roots: input.roots ?? config.roots,
+  }
+}
+
+export function parseSimiuTomlConfig(text: string): SimiuInput {
+  const values = parseTomlLikeValues(text)
+  return {
+    root: stringValue(values.root),
+    roots: arrayValue(values.roots),
+    recursive: booleanValue(values.recursive),
+    scanOrder: enumValue(values.scanOrder, ["path", "smallest-first", "deepest-first"]),
+    namePrefix: stringValue(values.namePrefix),
+    minGroupSize: numberValue(values.minGroupSize),
+    sizeToleranceBytes: numberValue(values.sizeToleranceBytes),
+    mode: enumValue(values.mode, ["move", "copy", "link"]),
+    dryRun: booleanValue(values.dryRun),
+    databasePath: stringValue(values.databasePath),
+    recordRun: booleanValue(values.recordRun),
+  }
+}
+
+export function parseTomlLikeKeys(text: string): { keys: string[]; tables: string[] } {
+  const keys = new Set<string>()
+  const tables = new Set<string>()
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#")) continue
+    const table = /^\[+([^\]]+)\]+$/.exec(line)
+    if (table) {
+      tables.add(table[1]!.trim())
+      continue
+    }
+    const index = line.indexOf("=")
+    if (index > 0) keys.add(line.slice(0, index).trim())
+  }
+  return { keys: [...keys].sort(), tables: [...tables].sort() }
+}
+
+export function buildSimiuDatabase(input: Required<SimiuInput>, runtime: Pick<SimiuRuntime, "join">): SimiuDatabase | undefined {
+  const path = input.databasePath || defaultSimiuDatabasePath(input, runtime)
+  if (!path) return undefined
+  return {
+    path,
+    enabled: input.recordRun,
+    mode: "jsonl",
+    defaultPath: !input.databasePath,
+  }
+}
+
+export function defaultSimiuDatabasePath(input: Pick<Required<SimiuInput>, "roots">, runtime: Pick<SimiuRuntime, "join">): string {
+  return input.roots[0] ? runtime.join(input.roots[0], ".xiranite", "simiu-runs.jsonl") : ""
+}
+
+export function buildSimiuRunRecord(
+  action: SimiuAction,
+  input: Pick<Required<SimiuInput>, "roots" | "recursive" | "scanOrder" | "namePrefix" | "minGroupSize" | "sizeToleranceBytes" | "mode" | "dryRun">,
+  batches: SimiuFolderBatch[],
+  groups: SimiuGroup[],
+  operations: SimiuOperation[],
+): Record<string, unknown> {
+  return {
+    toolId: "simiu",
+    action,
+    roots: input.roots,
+    options: {
+      recursive: input.recursive,
+      scanOrder: input.scanOrder,
+      namePrefix: input.namePrefix,
+      minGroupSize: input.minGroupSize,
+      sizeToleranceBytes: input.sizeToleranceBytes,
+      mode: input.mode,
+      dryRun: input.dryRun,
+    },
+    folderCount: batches.length,
+    imageCount: imageCount(batches),
+    groupCount: groups.length,
+    operationCount: operations.length,
+    successCount: operations.filter((item) => item.status === "success").length,
+    errorCount: operations.filter((item) => item.status === "error").length,
+    at: new Date().toISOString(),
   }
 }
 
@@ -204,6 +340,19 @@ async function applyOperations(operations: SimiuOperation[], runtime: SimiuRunti
   return results
 }
 
+async function writeSimiuRecordIfEnabled(
+  action: SimiuAction,
+  input: Required<SimiuInput>,
+  batches: SimiuFolderBatch[],
+  groups: SimiuGroup[],
+  operations: SimiuOperation[],
+  database: SimiuDatabase | undefined,
+  runtime: Pick<SimiuRuntime, "appendRecord">,
+): Promise<void> {
+  if (!database?.enabled) return
+  await runtime.appendRecord(database.path, buildSimiuRunRecord(action, input, batches, groups, operations))
+}
+
 export function clusterBySignature(images: SimiuImageFeature[], tolerance: number): SimiuImageFeature[][] {
   const sorted = sortFeatures(images)
   const clusters: SimiuImageFeature[][] = []
@@ -259,6 +408,53 @@ function sanitizePrefix(value: string): string {
 
 function imageCount(batches: SimiuFolderBatch[]): number {
   return batches.reduce((sum, batch) => sum + batch.images.length, 0)
+}
+
+function parseTomlLikeValues(text: string): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#") || line.startsWith("[")) continue
+    const index = line.indexOf("=")
+    if (index <= 0) continue
+    values[line.slice(0, index).trim()] = line.slice(index + 1).trim()
+  }
+  return values
+}
+
+function stringValue(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  return value.trim().replace(/^["']|["']$/g, "")
+}
+
+function arrayValue(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return [stringValue(trimmed) ?? ""].filter(Boolean)
+  return trimmed
+    .slice(1, -1)
+    .split(",")
+    .map(stringValue)
+    .filter((item): item is string => Boolean(item))
+}
+
+function booleanValue(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined
+  const normalized = stringValue(value)?.toLowerCase()
+  if (normalized === "true" || normalized === "1") return true
+  if (normalized === "false" || normalized === "0") return false
+  return undefined
+}
+
+function numberValue(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const parsed = Number(stringValue(value))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function enumValue<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
+  const normalized = stringValue(value)
+  return allowed.find((item) => item === normalized)
 }
 
 function data(partial: Partial<SimiuData>): SimiuData {

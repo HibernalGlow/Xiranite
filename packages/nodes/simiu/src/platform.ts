@@ -1,9 +1,11 @@
-import { copyFile, link, mkdir, readdir, rename, stat } from "node:fs/promises"
+import { appendFile, copyFile, link, mkdir, readFile, readdir, rename, stat } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import type { SimiuRuntime } from "./core.js"
 
 export function createNodeSimiuRuntime(): SimiuRuntime {
   return {
+    readText: (path) => readFile(path, "utf8"),
+    appendRecord,
     pathInfo,
     listDir,
     makeDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
@@ -38,4 +40,9 @@ async function listDir(path: string) {
       size: info?.size ?? 0,
     }
   }))
+}
+
+async function appendRecord(path: string, record: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
 }
