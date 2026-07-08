@@ -80,6 +80,10 @@ export const nodeRunResultSchema = z.object({
 
 export const nodeRunRequestSchema = z.object({
   input: z.unknown().optional(),
+  context: z.object({
+    componentId: z.string().optional(),
+    workspaceId: z.string().optional(),
+  }).optional(),
 })
 
 export const nodeRunResponseSchema = z.object({
@@ -142,6 +146,51 @@ export const nodeOperationStreamMessageSchema = z.discriminatedUnion("type", [
   }),
 ])
 
+// ── Node run history ───────────────────────────────────────────────
+// 每次节点运行结束后持久化一条快照，用于全局历史中心 / 节点内参数恢复。
+export const nodeRunHistoryStatusSchema = z.enum([
+  "success",
+  "error",
+  "cancelled",
+])
+
+export const nodeRunHistoryItemSchema = z.object({
+  id: z.string().min(1),
+  nodeId: z.string().min(1),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  input: z.unknown().optional(),
+  inputSummary: z.string().optional(),
+  status: nodeRunHistoryStatusSchema,
+  message: z.string(),
+  result: nodeRunResultSchema.optional(),
+  eventCount: z.number().int().nonnegative(),
+  startedAt: z.number().int().nonnegative(),
+  finishedAt: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative(),
+})
+
+export const nodeRunHistoryQuerySchema = z.object({
+  nodeId: z.string().optional(),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  status: nodeRunHistoryStatusSchema.optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  cursor: z.string().optional(),
+})
+
+export const nodeRunHistoryClearQuerySchema = z.object({
+  nodeId: z.string().optional(),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  before: z.coerce.number().int().nonnegative().optional(),
+})
+
+export const nodeRunHistoryListSchema = z.object({
+  items: z.array(nodeRunHistoryItemSchema),
+  nextCursor: z.string().nullable().optional(),
+})
+
 export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
@@ -196,3 +245,12 @@ export type NodeOperationStreamMessageDTO<TData = unknown> =
   | { type: "operation"; operation: NodeOperationDTO<TData> }
   | { type: "event"; index: number; event: NodeRunEventDTO }
   | { type: "result"; operation: NodeOperationDTO<TData>; result: NodeRunResultDTO<TData> }
+
+export type NodeRunHistoryStatusDTO = z.infer<typeof nodeRunHistoryStatusSchema>
+export type NodeRunHistoryItemDTO = z.infer<typeof nodeRunHistoryItemSchema>
+export type NodeRunHistoryQueryDTO = z.infer<typeof nodeRunHistoryQuerySchema>
+export type NodeRunHistoryClearQueryDTO = z.infer<typeof nodeRunHistoryClearQuerySchema>
+export type NodeRunHistoryListDTO = z.infer<typeof nodeRunHistoryListSchema>
+export interface NodeRunHistoryClearResultDTO {
+  deletedCount: number
+}

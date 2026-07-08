@@ -1,6 +1,11 @@
 import { createXiraniteApp } from "@xiranite/api"
-import type { WorkspaceRepository } from "@xiranite/repository"
-import { createLibsqlWorkspaceRepository, type LibsqlWorkspaceRepository } from "@xiranite/repository/libsql"
+import type { NodeRunHistoryRepository, WorkspaceRepository } from "@xiranite/repository"
+import {
+  createLibsqlNodeRunHistoryRepository,
+  createLibsqlWorkspaceRepository,
+  type LibsqlNodeRunHistoryRepository,
+  type LibsqlWorkspaceRepository,
+} from "@xiranite/repository/libsql"
 import { createXiraniteServices, type NodeRunner } from "@xiranite/services"
 import { createReadStream } from "node:fs"
 import { mkdir, stat } from "node:fs/promises"
@@ -16,6 +21,7 @@ import { createBackendNodeRunner } from "./nodeRunner.js"
 export interface CreateDefaultBackendOptions {
   now?: number
   repository?: WorkspaceRepository
+  historyRepository?: NodeRunHistoryRepository
   databaseUrl?: string
   databasePath?: string
   databaseAuthToken?: string
@@ -42,6 +48,7 @@ export interface BackendDatabaseConfig {
 export interface XiraniteBackendApp {
   app: ReturnType<typeof createXiraniteApp>
   repository: WorkspaceRepository
+  historyRepository?: NodeRunHistoryRepository
   database?: BackendDatabaseConfig
   close(): void
 }
@@ -53,19 +60,23 @@ export async function createDefaultBackendApp(options: CreateDefaultBackendOptio
 
 export async function createDefaultBackend(options: CreateDefaultBackendOptions = {}): Promise<XiraniteBackendApp> {
   const repository = options.repository ?? await createDefaultRepository(options)
+  const historyRepository = options.historyRepository ?? await createDefaultHistoryRepository(options)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
 
   const services = createXiraniteServices(repository, {
     nodeRunner: options.nodeRunner ?? createBackendNodeRunner(),
+    historyRepository,
   })
   await services.config.ensureConfigFile()
 
   return {
     app: createXiraniteApp(services),
     repository,
+    historyRepository,
     database: options.repository ? undefined : resolveBackendDatabaseConfig(options),
     close() {
       closeRepository(repository)
+      closeHistoryRepository(historyRepository)
     },
   }
 }
@@ -158,6 +169,18 @@ async function createDefaultRepository(options: CreateDefaultBackendOptions): Pr
   })
 }
 
+async function createDefaultHistoryRepository(options: CreateDefaultBackendOptions): Promise<NodeRunHistoryRepository> {
+  const config = resolveBackendDatabaseConfig(options)
+  if (config.path) {
+    await mkdir(path.dirname(config.path), { recursive: true })
+  }
+
+  return createLibsqlNodeRunHistoryRepository({
+    url: config.url,
+    authToken: config.authToken,
+  })
+}
+
 export function resolveBackendDatabaseConfig(options: CreateDefaultBackendOptions = {}): BackendDatabaseConfig {
   const databaseUrl = options.databaseUrl ?? process.env.XIRANITE_DATABASE_URL
   if (databaseUrl) {
@@ -210,6 +233,11 @@ async function ensureDefaultWorkspace(repository: WorkspaceRepository, now: numb
 
 function closeRepository(repository: WorkspaceRepository): void {
   const maybeLibsql = repository as Partial<LibsqlWorkspaceRepository>
+  maybeLibsql.client?.close()
+}
+
+function closeHistoryRepository(repository: NodeRunHistoryRepository): void {
+  const maybeLibsql = repository as Partial<LibsqlNodeRunHistoryRepository>
   maybeLibsql.client?.close()
 }
 

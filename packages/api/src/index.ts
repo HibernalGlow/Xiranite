@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia"
 import type { XiraniteServices } from "@xiranite/services"
 import {
   createWorkspaceInputSchema,
+  nodeRunHistoryClearQuerySchema,
+  nodeRunHistoryQuerySchema,
   nodeRunRequestSchema,
   renameWorkspaceInputSchema,
   workspaceSnapshotSchema,
@@ -13,7 +15,7 @@ export function createXiraniteApp(services: XiraniteServices) {
   return new Elysia({ name: "xiranite-api" })
     .get("/health", () => ({ ok: true }))
     .post("/nodes/:id/operations", ({ body, params }) => {
-      const operation = services.nodes.startOperation(params.id, body.input)
+      const operation = services.nodes.startOperation(params.id, body.input, body.context)
       return { operation }
     }, {
       body: nodeRunRequestSchema,
@@ -22,7 +24,7 @@ export function createXiraniteApp(services: XiraniteServices) {
       const events: NodeRunEventDTO[] = []
       const result = await services.nodes.runNode(params.id, body.input, (event) => {
         events.push(event)
-      })
+      }, body.context)
       return { result, events }
     }, {
       body: nodeRunRequestSchema,
@@ -99,6 +101,42 @@ export function createXiraniteApp(services: XiraniteServices) {
     .delete("/workspace/:id", async ({ params }) => {
       await services.workspace.deleteWorkspace(params.id)
       return { ok: true }
+    })
+    .get("/node-run-history", async ({ query, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Node run history is not available." }
+      }
+      const parsed = nodeRunHistoryQuerySchema.parse(query)
+      return await services.history.list(parsed)
+    })
+    .get("/node-run-history/:id", async ({ params, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Node run history is not available." }
+      }
+      const item = await services.history.get(params.id)
+      if (!item) {
+        set.status = 404
+        return { error: "History item not found." }
+      }
+      return { item }
+    })
+    .delete("/node-run-history/:id", async ({ params, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Node run history is not available." }
+      }
+      await services.history.delete(params.id)
+      return { ok: true }
+    })
+    .delete("/node-run-history", async ({ query, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Node run history is not available." }
+      }
+      const parsed = nodeRunHistoryClearQuerySchema.parse(query)
+      return await services.history.clear(parsed)
     })
     .get("/config", async () => {
       const result = await services.config.getConfig()

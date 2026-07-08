@@ -6,6 +6,11 @@ import type {
   NodeOperationStartResponseDTO,
   NodeOperationStreamMessageDTO,
   NodeRunEventDTO,
+  NodeRunHistoryClearQueryDTO,
+  NodeRunHistoryClearResultDTO,
+  NodeRunHistoryItemDTO,
+  NodeRunHistoryListDTO,
+  NodeRunHistoryQueryDTO,
   NodeRunResultDTO,
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
@@ -55,6 +60,13 @@ export interface XiraniteConfigClient {
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
   openConfigFile(): Promise<{ opened: boolean; path: string }>
   importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
+}
+
+export interface XiraniteNodeRunHistoryClient {
+  list(query: NodeRunHistoryQueryDTO): Promise<NodeRunHistoryListDTO>
+  get(id: string): Promise<NodeRunHistoryItemDTO>
+  delete(id: string): Promise<void>
+  clear(query: NodeRunHistoryClearQueryDTO): Promise<NodeRunHistoryClearResultDTO>
 }
 
 export function createXiraniteConfigClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteConfigClient {
@@ -228,6 +240,48 @@ function requestHeaders(options: XiraniteClientOptions): Record<string, string> 
 
 function apiUrl(baseUrl: string, path: string): URL {
   return new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`)
+}
+
+export function createXiraniteNodeRunHistoryClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteNodeRunHistoryClient {
+  const headers = requestHeaders(options)
+
+  return {
+    async list(query) {
+      const url = apiUrl(baseUrl, "/node-run-history")
+      if (query.nodeId) url.searchParams.set("nodeId", query.nodeId)
+      if (query.componentId) url.searchParams.set("componentId", query.componentId)
+      if (query.workspaceId) url.searchParams.set("workspaceId", query.workspaceId)
+      if (query.status) url.searchParams.set("status", query.status)
+      if (query.limit !== undefined) url.searchParams.set("limit", String(query.limit))
+      if (query.cursor) url.searchParams.set("cursor", query.cursor)
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`Node run history load failed: ${response.status}`)
+      return await response.json() as NodeRunHistoryListDTO
+    },
+    async get(id) {
+      const response = await fetch(apiUrl(baseUrl, `/node-run-history/${encodeURIComponent(id)}`), { headers })
+      if (!response.ok) throw new Error(`Node run history item load failed: ${response.status}`)
+      const data = await response.json() as { item: NodeRunHistoryItemDTO }
+      return data.item
+    },
+    async delete(id) {
+      const response = await fetch(apiUrl(baseUrl, `/node-run-history/${encodeURIComponent(id)}`), {
+        method: "DELETE",
+        headers,
+      })
+      if (!response.ok) throw new Error(`Node run history delete failed: ${response.status}`)
+    },
+    async clear(query) {
+      const url = apiUrl(baseUrl, "/node-run-history")
+      if (query.nodeId) url.searchParams.set("nodeId", query.nodeId)
+      if (query.componentId) url.searchParams.set("componentId", query.componentId)
+      if (query.workspaceId) url.searchParams.set("workspaceId", query.workspaceId)
+      if (query.before !== undefined) url.searchParams.set("before", String(query.before))
+      const response = await fetch(url, { method: "DELETE", headers })
+      if (!response.ok) throw new Error(`Node run history clear failed: ${response.status}`)
+      return await response.json() as NodeRunHistoryClearResultDTO
+    },
+  }
 }
 
 async function readNdjsonStream<TMessage>(response: Response, onMessage: (message: TMessage) => void): Promise<void> {

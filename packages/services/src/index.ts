@@ -1,5 +1,6 @@
-import type { WorkspaceRepository } from "@xiranite/repository"
+import type { NodeRunHistoryRepository, WorkspaceRepository } from "@xiranite/repository"
 import { ConfigService } from "./configService.js"
+import { NodeRunHistoryService } from "./historyService.js"
 import {
   createWorkspaceInputSchema,
   type NodeOperationCleanupResponseDTO,
@@ -36,6 +37,12 @@ export interface NodeRunnerServiceOptions {
   now?: () => number
   createOperationId?: () => string
   operationRetentionMs?: number
+  history?: NodeRunHistoryService
+}
+
+export interface NodeOperationContext {
+  componentId?: string
+  workspaceId?: string
 }
 
 export class WorkspaceService {
@@ -109,6 +116,7 @@ export class NodeRunnerService {
   private readonly now: () => number
   private readonly createOperationId: () => string
   private readonly operationRetentionMs: number
+  private readonly history?: NodeRunHistoryService
   private readonly operations = new Map<string, NodeOperationState>()
 
   constructor(options: NodeRunnerServiceOptions = {}) {
@@ -116,9 +124,10 @@ export class NodeRunnerService {
     this.now = options.now ?? Date.now
     this.createOperationId = options.createOperationId ?? (() => `op-${Math.random().toString(36).slice(2)}`)
     this.operationRetentionMs = options.operationRetentionMs ?? defaultOperationRetentionMs
+    this.history = options.history
   }
 
-  startOperation<TInput = unknown>(nodeId: string, input: TInput): NodeOperationDTO {
+  startOperation<TInput = unknown>(nodeId: string, input: TInput, context?: NodeOperationContext): NodeOperationDTO {
     this.cleanupOperations()
     const now = this.now()
     const operationId = this.createUniqueOperationId()
@@ -130,6 +139,8 @@ export class NodeRunnerService {
       operationId,
       nodeId,
       input,
+      componentId: context?.componentId,
+      workspaceId: context?.workspaceId,
       phase: "queued",
       createdAt: now,
       updatedAt: now,
@@ -243,8 +254,9 @@ export class NodeRunnerService {
     nodeId: string,
     input: TInput,
     onEvent?: (event: NodeRunEventDTO) => void,
+    context?: NodeOperationContext,
   ): Promise<NodeRunResultDTO<TData>> {
-    const operation = this.startOperation(nodeId, input)
+    const operation = this.startOperation(nodeId, input, context)
     const unsubscribe = this.subscribeOperation<TData>(operation.operationId, (message) => {
       if (message.type === "event") onEvent?.(message.event)
     }, { fromEventIndex: 0, includeSnapshot: false })
@@ -310,6 +322,29 @@ export class NodeRunnerService {
     this.emit(state, message)
     state.listeners.clear()
     state.resolveCompletion(result)
+
+    void this.recordHistory(state, result, phase)
+  }
+
+  private async recordHistory(
+    state: NodeOperationState,
+    result: NodeRunResultDTO,
+    phase: Extract<NodeOperationPhaseDTO, "completed" | "error" | "cancelled">,
+  ): Promise<void> {
+    if (!this.history) return
+    const status = phase === "completed" ? "success" : phase === "error" ? "error" : "cancelled"
+    const startedAt = state.startedAt ?? state.createdAt
+    await this.history.recordFromOperation({
+      nodeId: state.nodeId,
+      componentId: state.componentId,
+      workspaceId: state.workspaceId,
+      input: state.input,
+      status,
+      result,
+      eventCount: state.events.length,
+      startedAt,
+      finishedAt: state.finishedAt ?? this.now(),
+    })
   }
 
   private emitOperation(state: NodeOperationState): void {
@@ -325,6 +360,8 @@ interface NodeOperationState {
   operationId: string
   nodeId: string
   input: unknown
+  componentId?: string
+  workspaceId?: string
   phase: NodeOperationPhaseDTO
   createdAt: number
   updatedAt: number
@@ -378,20 +415,28 @@ export interface XiraniteServices {
   workspace: WorkspaceService
   nodes: NodeRunnerService
   config: ConfigService
+  history?: NodeRunHistoryService
 }
 
 export interface CreateXiraniteServicesOptions {
   nodeRunner?: NodeRunner
   configPath?: string
+  historyRepository?: NodeRunHistoryRepository
 }
 
 export function createXiraniteServices(repository: WorkspaceRepository, options: CreateXiraniteServicesOptions = {}): XiraniteServices {
+  const history = options.historyRepository
+    ? new NodeRunHistoryService({ repository: options.historyRepository })
+    : undefined
   return {
     workspace: new WorkspaceService({ repository }),
-    nodes: new NodeRunnerService({ runner: options.nodeRunner }),
+    nodes: new NodeRunnerService({ runner: options.nodeRunner, history }),
     config: new ConfigService({ configPath: options.configPath }),
+    history,
   }
 }
 
 export { ConfigService } from "./configService.js"
+export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export type { EnsureConfigFileResult, GetConfigResult, GetNodeConfigResult, ImportLegacyResult, OpenConfigFileResult, UpdateNodeConfigResult } from "./configService.js"
+export type { NodeRunHistoryServiceOptions } from "./historyService.js"

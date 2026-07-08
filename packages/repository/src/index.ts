@@ -1,4 +1,14 @@
-import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
+import type {
+  ComponentDTO,
+  LaneDTO,
+  NodeRunHistoryClearQueryDTO,
+  NodeRunHistoryClearResultDTO,
+  NodeRunHistoryItemDTO,
+  NodeRunHistoryListDTO,
+  NodeRunHistoryQueryDTO,
+  WorkspaceDTO,
+  WorkspaceSnapshotDTO,
+} from "@xiranite/shared"
 
 export interface WorkspaceRepository {
   listWorkspaces(): Promise<WorkspaceDTO[]>
@@ -8,6 +18,14 @@ export interface WorkspaceRepository {
   listLanes(): Promise<LaneDTO[]>
   listComponents(): Promise<ComponentDTO[]>
   saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
+}
+
+export interface NodeRunHistoryRepository {
+  createNodeRunHistory(item: NodeRunHistoryItemDTO): Promise<NodeRunHistoryItemDTO>
+  listNodeRunHistory(query: NodeRunHistoryQueryDTO): Promise<NodeRunHistoryListDTO>
+  getNodeRunHistory(id: string): Promise<NodeRunHistoryItemDTO | undefined>
+  deleteNodeRunHistory(id: string): Promise<void>
+  clearNodeRunHistory(query: NodeRunHistoryClearQueryDTO): Promise<NodeRunHistoryClearResultDTO>
 }
 
 export interface MemoryWorkspaceRepositoryOptions {
@@ -59,4 +77,95 @@ export function createMemoryWorkspaceRepository(options: MemoryWorkspaceReposito
 
 function clone<T>(value: T): T {
   return structuredClone(value)
+}
+
+// ── Memory NodeRunHistoryRepository ────────────────────────────────
+
+export interface MemoryNodeRunHistoryRepositoryOptions {
+  items?: NodeRunHistoryItemDTO[]
+  limitPerNode?: number
+  globalLimit?: number
+}
+
+export function createMemoryNodeRunHistoryRepository(
+  options: MemoryNodeRunHistoryRepositoryOptions = {},
+): NodeRunHistoryRepository {
+  let items = [...(options.items ?? [])]
+  const limitPerNode = options.limitPerNode ?? 100
+  const globalLimit = options.globalLimit ?? 1000
+
+  function enforceLimits(): void {
+    if (items.length > globalLimit) {
+      items = items.slice(items.length - globalLimit)
+    }
+    if (limitPerNode > 0) {
+      const byNode = new Map<string, NodeRunHistoryItemDTO[]>()
+      for (const item of items) {
+        const list = byNode.get(item.nodeId) ?? []
+        list.push(item)
+        byNode.set(item.nodeId, list)
+      }
+      const next: NodeRunHistoryItemDTO[] = []
+      for (const list of byNode.values()) {
+        if (list.length > limitPerNode) {
+          next.push(...list.slice(list.length - limitPerNode))
+        } else {
+          next.push(...list)
+        }
+      }
+      next.sort((a, b) => a.finishedAt - b.finishedAt)
+      items = next
+    }
+  }
+
+  return {
+    async createNodeRunHistory(item) {
+      items = [...items.filter((existing) => existing.id !== item.id), item]
+      enforceLimits()
+      return clone(item)
+    },
+    async listNodeRunHistory(query) {
+      let filtered = items.slice()
+      if (query.nodeId) filtered = filtered.filter((item) => item.nodeId === query.nodeId)
+      if (query.componentId) filtered = filtered.filter((item) => item.componentId === query.componentId)
+      if (query.workspaceId) filtered = filtered.filter((item) => item.workspaceId === query.workspaceId)
+      if (query.status) filtered = filtered.filter((item) => item.status === query.status)
+
+      filtered.sort((a, b) => b.finishedAt - a.finishedAt)
+
+      let startIndex = 0
+      if (query.cursor) {
+        const cursorIndex = filtered.findIndex((item) => item.id === query.cursor)
+        if (cursorIndex >= 0) startIndex = cursorIndex + 1
+      }
+
+      const limit = query.limit ?? 50
+      const slice = filtered.slice(startIndex, startIndex + limit)
+      const nextCursor = startIndex + limit < filtered.length ? slice[slice.length - 1]?.id ?? null : null
+
+      return {
+        items: clone(slice),
+        nextCursor,
+      }
+    },
+    async getNodeRunHistory(id) {
+      const item = items.find((existing) => existing.id === id)
+      return item ? clone(item) : undefined
+    },
+    async deleteNodeRunHistory(id) {
+      items = items.filter((existing) => existing.id !== id)
+    },
+    async clearNodeRunHistory(query) {
+      const before = query.before
+      const beforeCount = items.length
+      items = items.filter((item) => {
+        if (query.nodeId && item.nodeId !== query.nodeId) return true
+        if (query.componentId && item.componentId !== query.componentId) return true
+        if (query.workspaceId && item.workspaceId !== query.workspaceId) return true
+        if (before !== undefined && item.finishedAt >= before) return true
+        return false
+      })
+      return { deletedCount: beforeCount - items.length }
+    },
+  }
 }

@@ -1,9 +1,19 @@
 import { createClient, type Client } from "@libsql/client"
-import { asc, eq, inArray, not } from "drizzle-orm"
+import { asc, desc, eq, inArray, not, and, lt, type SQL } from "drizzle-orm"
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql"
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
-import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
-import type { WorkspaceRepository } from "./index.js"
+import type {
+  ComponentDTO,
+  LaneDTO,
+  NodeRunHistoryClearQueryDTO,
+  NodeRunHistoryClearResultDTO,
+  NodeRunHistoryItemDTO,
+  NodeRunHistoryListDTO,
+  NodeRunHistoryQueryDTO,
+  WorkspaceDTO,
+  WorkspaceSnapshotDTO,
+} from "@xiranite/shared"
+import type { NodeRunHistoryRepository, WorkspaceRepository } from "./index.js"
 
 const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
@@ -40,6 +50,22 @@ const components = sqliteTable("components", {
   collapsed: integer("collapsed", { mode: "boolean" }),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+})
+
+const nodeRunHistory = sqliteTable("node_run_history", {
+  id: text("id").primaryKey(),
+  nodeId: text("node_id").notNull(),
+  componentId: text("component_id"),
+  workspaceId: text("workspace_id"),
+  input: text("input"),
+  inputSummary: text("input_summary"),
+  status: text("status").notNull(),
+  message: text("message").notNull(),
+  result: text("result"),
+  eventCount: integer("event_count").notNull(),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at").notNull(),
+  durationMs: integer("duration_ms").notNull(),
 })
 
 export interface LibsqlWorkspaceRepositoryOptions {
@@ -152,6 +178,25 @@ async function ensureSchema(client: Client): Promise<void> {
     )`,
     `CREATE INDEX IF NOT EXISTS components_workspace_id_idx ON components (workspace_id)`,
     `CREATE INDEX IF NOT EXISTS components_lane_id_idx ON components (lane_id)`,
+    `CREATE TABLE IF NOT EXISTS node_run_history (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL,
+      component_id TEXT,
+      workspace_id TEXT,
+      input TEXT,
+      input_summary TEXT,
+      status TEXT NOT NULL,
+      message TEXT NOT NULL,
+      result TEXT,
+      event_count INTEGER NOT NULL,
+      started_at INTEGER NOT NULL,
+      finished_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_node_id_idx ON node_run_history (node_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_component_id_idx ON node_run_history (component_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
   ], "write")
 }
 
@@ -287,4 +332,150 @@ function serialize(value: unknown): string | null {
 
 function deserialize<T>(value: string | null): T | undefined {
   return value === null ? undefined : JSON.parse(value) as T
+}
+
+// ── Libsql NodeRunHistoryRepository ────────────────────────────────
+
+export interface LibsqlNodeRunHistoryRepositoryOptions {
+  url: string
+  authToken?: string
+}
+
+export interface LibsqlNodeRunHistoryRepository extends NodeRunHistoryRepository {
+  client: Client
+}
+
+export async function createLibsqlNodeRunHistoryRepository(
+  options: LibsqlNodeRunHistoryRepositoryOptions,
+): Promise<LibsqlNodeRunHistoryRepository> {
+  const client = createClient({
+    url: options.url,
+    authToken: options.authToken,
+  })
+  const db = drizzle(client)
+  await ensureHistorySchema(client)
+
+  return {
+    client,
+    async createNodeRunHistory(item) {
+      await db.insert(nodeRunHistory).values({
+        id: item.id,
+        nodeId: item.nodeId,
+        componentId: item.componentId ?? null,
+        workspaceId: item.workspaceId ?? null,
+        input: serialize(item.input),
+        inputSummary: item.inputSummary ?? null,
+        status: item.status,
+        message: item.message,
+        result: serialize(item.result),
+        eventCount: item.eventCount,
+        startedAt: item.startedAt,
+        finishedAt: item.finishedAt,
+        durationMs: item.durationMs,
+      }).onConflictDoUpdate({
+        target: nodeRunHistory.id,
+        set: {
+          status: item.status,
+          message: item.message,
+          result: serialize(item.result),
+          eventCount: item.eventCount,
+          finishedAt: item.finishedAt,
+          durationMs: item.durationMs,
+        },
+      })
+      return item
+    },
+    async listNodeRunHistory(query) {
+      const conditions: SQL[] = []
+      if (query.nodeId) conditions.push(eq(nodeRunHistory.nodeId, query.nodeId))
+      if (query.componentId) conditions.push(eq(nodeRunHistory.componentId, query.componentId))
+      if (query.workspaceId) conditions.push(eq(nodeRunHistory.workspaceId, query.workspaceId))
+      if (query.status) conditions.push(eq(nodeRunHistory.status, query.status))
+
+      let rows = await db.select().from(nodeRunHistory)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(nodeRunHistory.finishedAt), desc(nodeRunHistory.id))
+        .limit((query.limit ?? 50) + 1)
+
+      let nextCursor: string | null = null
+      if (rows.length > (query.limit ?? 50)) {
+        const limit = query.limit ?? 50
+        const last = rows[limit - 1]
+        nextCursor = last?.id ?? null
+        rows = rows.slice(0, limit)
+      }
+
+      return {
+        items: rows.map(toNodeRunHistoryItemDTO),
+        nextCursor,
+      }
+    },
+    async getNodeRunHistory(id) {
+      const rows = await db.select().from(nodeRunHistory).where(eq(nodeRunHistory.id, id)).limit(1)
+      const row = rows[0]
+      return row ? toNodeRunHistoryItemDTO(row) : undefined
+    },
+    async deleteNodeRunHistory(id) {
+      await db.delete(nodeRunHistory).where(eq(nodeRunHistory.id, id))
+    },
+    async clearNodeRunHistory(query) {
+      const conditions: SQL[] = []
+      if (query.nodeId) conditions.push(eq(nodeRunHistory.nodeId, query.nodeId))
+      if (query.componentId) conditions.push(eq(nodeRunHistory.componentId, query.componentId))
+      if (query.workspaceId) conditions.push(eq(nodeRunHistory.workspaceId, query.workspaceId))
+      if (query.before !== undefined) conditions.push(lt(nodeRunHistory.finishedAt, query.before))
+
+      const before = await db.select({ id: nodeRunHistory.id }).from(nodeRunHistory)
+        .where(conditions.length ? and(...conditions) : undefined)
+      const deletedCount = before.length
+      if (deletedCount > 0) {
+        await db.delete(nodeRunHistory).where(
+          inArray(nodeRunHistory.id, before.map((row) => row.id)),
+        )
+      }
+      return { deletedCount }
+    },
+  }
+}
+
+async function ensureHistorySchema(client: Client): Promise<void> {
+  await client.batch([
+    `CREATE TABLE IF NOT EXISTS node_run_history (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL,
+      component_id TEXT,
+      workspace_id TEXT,
+      input TEXT,
+      input_summary TEXT,
+      status TEXT NOT NULL,
+      message TEXT NOT NULL,
+      result TEXT,
+      event_count INTEGER NOT NULL,
+      started_at INTEGER NOT NULL,
+      finished_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_node_id_idx ON node_run_history (node_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_component_id_idx ON node_run_history (component_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
+  ], "write")
+}
+
+function toNodeRunHistoryItemDTO(row: typeof nodeRunHistory.$inferSelect): NodeRunHistoryItemDTO {
+  return {
+    id: row.id,
+    nodeId: row.nodeId,
+    componentId: row.componentId ?? undefined,
+    workspaceId: row.workspaceId ?? undefined,
+    input: deserialize<unknown>(row.input),
+    inputSummary: row.inputSummary ?? undefined,
+    status: row.status as NodeRunHistoryItemDTO["status"],
+    message: row.message,
+    result: deserialize<NodeRunHistoryItemDTO["result"]>(row.result),
+    eventCount: row.eventCount,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    durationMs: row.durationMs,
+  }
 }
