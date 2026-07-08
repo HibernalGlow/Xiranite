@@ -280,7 +280,7 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   return (
-    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
+    <div data-testid="trename-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("absolute inset-0 opacity-70 transition-opacity", props.status.tone === "running" && "animate-pulse bg-primary/10", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <FilePenLine />
@@ -300,7 +300,7 @@ function CollapsedView(props: ViewProps) {
 
 function CompactView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-testid="trename-compact-view" className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
@@ -336,7 +336,7 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+    <div data-testid="trename-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
@@ -369,7 +369,7 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+    <div data-testid="trename-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/trename:flex-row @4xl/trename:items-center @4xl/trename:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/trename:flex-row @4xl/trename:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.pathCount} 路径 / ${props.tree.ready} 就绪 / ${props.dryRun ? "预演" : "真实执行"}`} />
@@ -397,7 +397,7 @@ function FullView(props: ViewProps) {
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
-        <div className="min-h-0">
+        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/trename:h-full">
           <TrenameDisplayTabs
             jsonText={props.jsonText}
             logs={props.logs}

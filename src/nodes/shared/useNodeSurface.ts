@@ -11,6 +11,23 @@ export interface NodeSurface {
   density: "tight" | "normal" | "roomy"
 }
 
+export function resolveNodeSurfaceMode(size: { width: number; height: number }): NodeSurfaceMode {
+  if (size.width >= 1040 && size.height >= 680) return "workspace"
+  if (size.width >= 860 && size.height >= 520) return "expanded"
+  if (size.width >= 260 && size.width < 600 && size.height >= Math.max(360, size.width * 1.15)) return "portrait"
+  if (size.width >= 520 && size.height >= 360) return "regular"
+  if (size.width >= 220 && size.height >= 96) return "compact"
+  return "collapsed"
+}
+
+export function resolveNodeSurfaceDensity(mode: NodeSurfaceMode): NodeSurface["density"] {
+  return mode === "collapsed" || mode === "compact" || mode === "portrait"
+    ? "tight"
+    : mode === "workspace" || mode === "expanded"
+      ? "roomy"
+      : "normal"
+}
+
 export function useNodeSurface(): NodeSurface {
   const ref = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -33,20 +50,8 @@ export function useNodeSurface(): NodeSurface {
     return () => observer.disconnect()
   }, [])
 
-  const mode = useMemo<NodeSurfaceMode>(() => {
-    if (size.width >= 1040 && size.height >= 680) return "workspace"
-    if (size.width >= 860 && size.height >= 520) return "expanded"
-    if (size.width >= 260 && size.width < 600 && size.height >= Math.max(360, size.width * 1.15)) return "portrait"
-    if (size.width >= 520 && size.height >= 360) return "regular"
-    if (size.width >= 220 && size.height >= 96) return "compact"
-    return "collapsed"
-  }, [size.height, size.width])
-
-  const density = mode === "collapsed" || mode === "compact" || mode === "portrait"
-    ? "tight"
-    : mode === "workspace" || mode === "expanded"
-      ? "roomy"
-      : "normal"
+  const mode = useMemo<NodeSurfaceMode>(() => resolveNodeSurfaceMode(size), [size])
+  const density = resolveNodeSurfaceDensity(mode)
 
   return { ref, width: size.width, height: size.height, mode, density }
 }

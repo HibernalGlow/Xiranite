@@ -106,7 +106,7 @@ function toTreeElement(node: TrenameNode, id: string): TreeViewElement {
       id,
       name: labelForNode(node.src, node.tgt, false),
       type: "file",
-      isSelectable: false,
+      isSelectable: true,
     }
   }
 
@@ -114,7 +114,7 @@ function toTreeElement(node: TrenameNode, id: string): TreeViewElement {
     id,
     name: labelForNode(node.src_dir, node.tgt_dir, true),
     type: "folder",
-    isSelectable: false,
+    isSelectable: true,
     children: node.children.map((child, index) => toTreeElement(child, `${id}/${index}`)),
   }
 }

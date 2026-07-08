@@ -2,43 +2,52 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
+import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { TrenameData, TrenameInput } from "@xiranite/node-trename/core"
 import { Component } from "./Component"
+import { FileTreePanel } from "./FileTreePanel"
 import type { TrenameCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({
-  mode: "regular" as NodeSurfaceMode,
-  height: undefined as number | undefined,
+  height: 420,
+  width: 720,
 }))
 
-vi.mock("@/nodes/shared/useNodeSurface", () => ({
-  useNodeSurface: () => ({
-    ref: { current: null },
-    width: widthForMode(surfaceState.mode),
-    height: surfaceState.height ?? heightForMode(surfaceState.mode),
-    mode: surfaceState.mode,
-    density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" || surfaceState.mode === "portrait" ? "tight" : "roomy",
-  }),
-}))
+vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/nodes/shared/useNodeSurface")>()
+  return {
+    ...actual,
+    useNodeSurface: () => {
+      const mode = actual.resolveNodeSurfaceMode(surfaceState)
+      return {
+        ref: { current: null },
+        width: surfaceState.width,
+        height: surfaceState.height,
+        mode,
+        density: actual.resolveNodeSurfaceDensity(mode),
+      }
+    },
+  }
+})
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  surfaceState.mode = "regular"
-  surfaceState.height = undefined
+  setSurface("regular")
 })
 
 describe("app-owned trename Component", () => {
-  test.each(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"] as NodeSurfaceMode[])(
+  test.each(NODE_SURFACE_TEST_MODES)(
     "renders the %s surface with Trename-specific UI",
     (mode) => {
-      surfaceState.mode = mode
+      setSurface(mode)
       render(<Component compId="comp-trename" host={createHost({ pathText: "D:/gallery" })} />)
 
       expect(screen.getByText("Trename")).toBeTruthy()
       if (mode === "collapsed") {
+        expect(screen.getByTestId("trename-collapsed-view")).toBeTruthy()
         expect(screen.getByText(/1 条路径等待扫描/)).toBeTruthy()
         expect(screen.queryByLabelText("trename scan paths")).toBeNull()
         return
@@ -48,15 +57,42 @@ describe("app-owned trename Component", () => {
       expect(screen.getByRole("tab", { name: /文件/ })).toBeTruthy()
       expect(screen.getByRole("tab", { name: /计划/ })).toBeTruthy()
       expect(screen.getByRole("tab", { name: /冲突/ })).toBeTruthy()
-      if (mode === "regular" || mode === "expanded" || mode === "workspace") {
+
+      if (mode === "compact") {
+        expect(screen.getByTestId("trename-compact-view")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "trename advanced options" })).toBeTruthy()
+      } else if (mode === "portrait") {
+        expect(screen.getByTestId("trename-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("trename-key-switches")).toBeTruthy()
+      } else {
+        expect(screen.getByTestId("trename-full-view")).toBeTruthy()
         expect(screen.getByText("关键开关")).toBeTruthy()
+        expect(screen.getByText("总计")).toBeTruthy()
         expect(screen.getByTestId("trename-header-toolbar")).toBeTruthy()
       }
     },
   )
 
+  test("forces collapsed content when compact surface height is too short", () => {
+    setSurfaceSize({ width: 420, height: 159 })
+
+    render(<Component compId="comp-trename" host={createHost({ pathText: "D:/gallery" })} />)
+
+    expect(screen.getByTestId("trename-collapsed-view")).toBeTruthy()
+    expect(screen.queryByLabelText("trename scan paths")).toBeNull()
+  })
+
+  test("uses portrait compact layout for tall compact surfaces", () => {
+    setSurfaceSize({ width: 559, height: 300 })
+
+    render(<Component compId="comp-trename" host={createHost({ pathText: "D:/gallery" })} />)
+
+    expect(screen.getByTestId("trename-portrait-view")).toBeTruthy()
+    expect(screen.queryByTestId("trename-compact-view")).toBeNull()
+  })
+
   test("pastes scan paths from the clipboard", async () => {
-    surfaceState.mode = "compact"
+    setSurface("compact")
     const host = createHost({})
     render(<Component compId="comp-trename" host={host} />)
     const user = userEvent.setup()
@@ -67,7 +103,7 @@ describe("app-owned trename Component", () => {
   })
 
   test("runs scan through host.actions.run and stores JSON in the file tab", async () => {
-    surfaceState.mode = "regular"
+    setSurface("regular")
     const host = createHost({ pathText: "D:/gallery", includeRoot: true, compact: true, dryRun: true, logs: [] })
     render(<Component compId="comp-trename" host={host} />)
     const user = userEvent.setup()
@@ -98,12 +134,99 @@ describe("app-owned trename Component", () => {
 
     await waitFor(() => expect(host.state.phase).toBe("completed"))
     expect(host.state.jsonText).toContain("image-a.jpg")
-    expect(host.state.logs).toEqual(["[100%] Scan complete.", "Scan complete: 2 item(s), 1 segment(s)."])
+    expect(host.state.logs).toEqual([
+      "[25%] Reading paths.",
+      "Planning rename JSON.",
+      "[100%] Scan complete.",
+      "Scan complete: 2 item(s), 1 segment(s).",
+    ])
     expect(screen.getAllByText(/image-a\.jpg/).length).toBeGreaterThanOrEqual(1)
   })
 
+  test("marks the card as error when the runner returns a failed response", async () => {
+    setSurface("regular")
+    const host = createHost(
+      { jsonText: jsonContent, logs: [] },
+      {
+        runResult: { success: false, message: "Validation failed.", data: { ...trenameData, errors: ["bad target"] } },
+      },
+    )
+    render(<Component compId="comp-trename" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "校验冲突" }))
+
+    await waitFor(() => expect(host.state.phase).toBe("error"))
+    expect(host.state.progressText).toBe("Validation failed.")
+    expect(host.state.logs?.at(-1)).toBe("Validation failed.")
+  })
+
+  test("catches thrown runner errors and appends the message to logs", async () => {
+    setSurface("regular")
+    const host = createHost({ jsonText: jsonContent, logs: [] }, { runError: new Error("backend offline") })
+    render(<Component compId="comp-trename" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "校验冲突" }))
+
+    await waitFor(() => expect(host.state.phase).toBe("error"))
+    expect(host.state.progressText).toBe("backend offline")
+    expect(host.state.logs?.at(-1)).toBe("backend offline")
+  })
+
+  test("saves, restores, clears, and opens default config controls", async () => {
+    setSurface("regular")
+    const host = createHost(
+      { pathText: "D:/current", dryRun: true },
+      { config: { pathText: "D:/default", dryRun: false } },
+    )
+    render(<Component compId="comp-trename" host={host} />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "trename defaults" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "trename defaults" }))
+    await user.click(screen.getByRole("button", { name: "恢复默认" }))
+    expect(host.state.pathText).toBe("D:/default")
+    expect(host.state.dryRun).toBe(false)
+
+    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
+    expect(host.state.pathText).toBeUndefined()
+    expect(host.state.dryRun).toBeUndefined()
+
+    await user.click(screen.getByRole("button", { name: "保存为默认" }))
+    expect(host.savedConfig).toEqual({})
+
+    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    expect(host.openConfigFileCalls).toBe(1)
+  })
+
+  test("keeps file tree rows clickable for selection and folder toggles", async () => {
+    render(
+      <div style={{ height: "360px" }}>
+        <FileTreePanel jsonText={jsonContent} />
+      </div>,
+    )
+    const user = userEvent.setup()
+
+    const folder = screen.getByRole("button", { name: /gallery/ }) as HTMLButtonElement
+    expect(folder.disabled).toBe(false)
+    expect(folder.getAttribute("aria-expanded")).toBe("true")
+
+    await user.click(folder)
+    expect(folder.getAttribute("aria-expanded")).toBe("false")
+
+    await user.click(folder)
+    expect(folder.getAttribute("aria-expanded")).toBe("true")
+
+    const file = screen.getByRole("button", { name: /image-a\.jpg/ }) as HTMLButtonElement
+    expect(file.disabled).toBe(false)
+
+    await user.click(file)
+    expect(file.className).toContain("bg-muted")
+  })
+
   test("uses confirmation for real rename", async () => {
-    surfaceState.mode = "regular"
+    setSurface("regular")
     const host = createHost({ jsonText: jsonContent, dryRun: false })
     render(<Component compId="comp-trename" host={host} />)
     const user = userEvent.setup()
@@ -119,16 +242,26 @@ describe("app-owned trename Component", () => {
 })
 
 type TestHost = NodeHostApi & {
-  state: TrenameCardState
-  runCalls: Array<{ nodeId: string; input: TrenameInput }>
   copiedText: string
+  openConfigFileCalls: number
+  runCalls: Array<{ nodeId: string; input: TrenameInput }>
+  savedConfig: Partial<TrenameCardState> | undefined
+  state: TrenameCardState
 }
 
-function createHost(initial: TrenameCardState): TestHost {
+type HostOptions = {
+  config?: Partial<TrenameCardState>
+  runError?: Error
+  runResult?: NodeRunResult<TrenameData>
+}
+
+function createHost(initial: TrenameCardState, options: HostOptions = {}): TestHost {
   const host: TestHost = {
     state: { ...initial },
     runCalls: [],
     copiedText: "",
+    savedConfig: undefined,
+    openConfigFileCalls: 0,
     getData: <T,>() => host.state as T,
     patchData: (_compId, patch) => {
       host.state = { ...host.state, ...patch }
@@ -136,14 +269,21 @@ function createHost(initial: TrenameCardState): TestHost {
     listComponents: () => [],
     updateComponent: () => undefined,
     actions: {
-      run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void): Promise<NodeRunResult<TData>> => {
+      run: async <TInput, TData>(
+        nodeId: string,
+        input: TInput,
+        onEvent?: (event: NodeRunEvent) => void,
+      ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as TrenameInput })
+        if (options.runError) throw options.runError
+        onEvent?.({ type: "progress", progress: 25, message: "Reading paths." })
+        onEvent?.({ type: "log", message: "Planning rename JSON." })
         onEvent?.({ type: "progress", progress: 100, message: "Scan complete." })
-        return {
+        return (options.runResult ?? {
           success: true,
           message: "Scan complete: 2 item(s), 1 segment(s).",
           data: trenameData,
-        } as NodeRunResult<TData>
+        }) as NodeRunResult<TData>
       },
     },
     clipboard: {
@@ -156,10 +296,24 @@ function createHost(initial: TrenameCardState): TestHost {
       theme: "light",
       platform: "web",
     },
-    getNodeConfig: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async () => undefined,
+    getNodeConfig: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+    saveNodeConfig: async (config) => {
+      host.savedConfig = config as Partial<TrenameCardState>
+    },
+    openConfigFile: () => {
+      host.openConfigFileCalls += 1
+    },
   }
   return host
+}
+
+function setSurface(mode: NodeSurfaceMode) {
+  setSurfaceSize(NODE_SURFACE_TEST_SPECS[mode])
+}
+
+function setSurfaceSize(size: { height: number; width: number }) {
+  surfaceState.width = size.width
+  surfaceState.height = size.height
 }
 
 const jsonContent = `{
@@ -190,22 +344,4 @@ const trenameData: TrenameData = {
   history: [],
   basePath: "D:/",
   errors: [],
-}
-
-function widthForMode(mode: NodeSurfaceMode): number {
-  if (mode === "collapsed") return 240
-  if (mode === "compact") return 420
-  if (mode === "portrait") return 390
-  if (mode === "regular") return 720
-  if (mode === "expanded") return 920
-  return 1120
-}
-
-function heightForMode(mode: NodeSurfaceMode): number {
-  if (mode === "collapsed") return 120
-  if (mode === "compact") return 280
-  if (mode === "portrait") return 640
-  if (mode === "expanded") return 560
-  if (mode === "workspace") return 720
-  return 420
 }
