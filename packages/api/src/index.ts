@@ -6,6 +6,8 @@ import {
   nodeRunHistoryQuerySchema,
   nodeRunRequestSchema,
   renameWorkspaceInputSchema,
+  runtimeHistoryClearQuerySchema,
+  runtimeHistoryQuerySchema,
   workspaceSnapshotSchema,
   type NodeOperationStreamMessageDTO,
   type NodeRunEventDTO,
@@ -101,6 +103,42 @@ export function createXiraniteApp(services: XiraniteServices) {
     .delete("/workspace/:id", async ({ params }) => {
       await services.workspace.deleteWorkspace(params.id)
       return { ok: true }
+    })
+    .get("/runtime-history", async ({ query, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Runtime history is not available." }
+      }
+      const parsed = runtimeHistoryQuerySchema.parse(query)
+      return await services.history.listRuntime(parsed)
+    })
+    .get("/runtime-history/:id", async ({ params, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Runtime history is not available." }
+      }
+      const item = await services.history.getRuntime(params.id)
+      if (!item) {
+        set.status = 404
+        return { error: "History item not found." }
+      }
+      return { item }
+    })
+    .delete("/runtime-history/:id", async ({ params, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Runtime history is not available." }
+      }
+      await services.history.deleteRuntime(params.id)
+      return { ok: true }
+    })
+    .delete("/runtime-history", async ({ query, set }) => {
+      if (!services.history) {
+        set.status = 503
+        return { error: "Runtime history is not available." }
+      }
+      const parsed = runtimeHistoryClearQuerySchema.parse(query)
+      return await services.history.clearRuntime(parsed)
     })
     .get("/node-run-history", async ({ query, set }) => {
       if (!services.history) {

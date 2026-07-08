@@ -55,7 +55,7 @@ describe("NodeRunHistoryService", () => {
   test("swallows record failures so the runner chain is unaffected", async () => {
     const failingRepository = {
       ...createMemoryNodeRunHistoryRepository(),
-      async createNodeRunHistory() {
+      async createRuntimeHistory() {
         throw new Error("disk full")
       },
     }
@@ -70,6 +70,33 @@ describe("NodeRunHistoryService", () => {
       startedAt: 0,
       finishedAt: 1,
     })).resolves.toBeUndefined()
+  })
+
+  test("records non-node runtime operations through the generic API", async () => {
+    const repository = createMemoryNodeRunHistoryRepository()
+    const history = new NodeRunHistoryService({ repository, createId: () => "hist-runtime" })
+
+    await history.record({
+      kind: "workspace",
+      operation: "workspace.snapshot.save",
+      message: "Saved workspace snapshot.",
+      inputSummary: "1 workspaces, 0 lanes, 2 components",
+      metadata: { componentCount: 2 },
+      startedAt: 10,
+      finishedAt: 15,
+    })
+
+    const list = await history.listRuntime({ kind: "workspace" })
+    expect(list.items).toHaveLength(1)
+    expect(list.items[0]).toMatchObject({
+      id: "hist-runtime",
+      kind: "workspace",
+      operation: "workspace.snapshot.save",
+      status: "success",
+      durationMs: 5,
+      metadata: { componentCount: 2 },
+    })
+    expect((await history.list({})).items).toHaveLength(0)
   })
 })
 
@@ -98,6 +125,13 @@ describe("NodeRunnerService history integration", () => {
       nodeId: "repacku",
       status: "success",
       message: "done",
+      componentId: "comp-1",
+    })
+    const runtimeList = await history.listRuntime({ kind: "node", componentId: "comp-1" })
+    expect(runtimeList.items[0]).toMatchObject({
+      kind: "node",
+      operation: "node.run",
+      nodeId: "repacku",
       componentId: "comp-1",
     })
   })

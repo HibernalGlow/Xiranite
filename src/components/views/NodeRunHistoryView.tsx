@@ -9,62 +9,69 @@ import {
   Clock3,
   Copy,
   History,
+  Info,
   Loader2,
   Trash2,
 } from "lucide-react"
-import type { NodeRunHistoryItemDTO, NodeRunHistoryStatusDTO } from "@xiranite/shared"
-import { useNodeRunHistory, useDeleteNodeRunHistory, useClearNodeRunHistory } from "@/hooks/useNodeRunHistory"
+import type { RuntimeHistoryItemDTO, RuntimeHistoryKindDTO, RuntimeHistoryStatusDTO } from "@xiranite/shared"
+import { useClearRuntimeHistory, useDeleteRuntimeHistory, useRuntimeHistory } from "@/hooks/useRuntimeHistory"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-const STATUS_ICON: Record<NodeRunHistoryStatusDTO, typeof Clock3> = {
+const STATUS_ICON: Record<RuntimeHistoryStatusDTO, typeof Clock3> = {
   success: CheckCircle2,
   error: CircleAlert,
   cancelled: CircleSlash,
+  info: Info,
 }
 
-const STATUS_CLASS: Record<NodeRunHistoryStatusDTO, string> = {
+const STATUS_CLASS: Record<RuntimeHistoryStatusDTO, string> = {
   success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   error: "border-destructive/40 bg-destructive/10 text-destructive",
   cancelled: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
+  info: "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400",
 }
 
-type HistoryFilter = "all" | NodeRunHistoryStatusDTO
+type HistoryKindFilter = "all" | RuntimeHistoryKindDTO
+type HistoryStatusFilter = "all" | RuntimeHistoryStatusDTO
 
-const FILTERS: HistoryFilter[] = ["all", "success", "error", "cancelled"]
+const KIND_FILTERS: HistoryKindFilter[] = ["all", "node", "workspace", "config", "system"]
+const STATUS_FILTERS: HistoryStatusFilter[] = ["all", "success", "error", "cancelled", "info"]
 
 export function NodeRunHistoryView() {
   const { t } = useTranslation()
-  const [filter, setFilter] = useState<HistoryFilter>("all")
+  const [kindFilter, setKindFilter] = useState<HistoryKindFilter>("all")
+  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const query = useMemo(
     () => ({
       limit: 50,
-      status: filter === "all" ? undefined : filter,
+      kind: kindFilter === "all" ? undefined : kindFilter,
+      status: statusFilter === "all" ? undefined : statusFilter,
     }),
-    [filter],
+    [kindFilter, statusFilter],
   )
 
-  const historyQuery = useNodeRunHistory(query)
-  const deleteMutation = useDeleteNodeRunHistory()
-  const clearMutation = useClearNodeRunHistory()
+  const historyQuery = useRuntimeHistory(query)
+  const deleteMutation = useDeleteRuntimeHistory()
+  const clearMutation = useClearRuntimeHistory()
 
   const items = historyQuery.data?.items ?? []
 
-  async function copyInput(item: NodeRunHistoryItemDTO) {
+  async function copyInput(item: RuntimeHistoryItemDTO) {
     try {
       await navigator.clipboard.writeText(JSON.stringify(item.input ?? null, null, 2))
       setCopiedId(item.id)
       setTimeout(() => setCopiedId(null), 1500)
     } catch {
-      // ignore clipboard errors
+      // Clipboard access can be blocked by browser permissions.
     }
   }
 
   async function handleClearAll() {
-    await clearMutation.mutateAsync({})
+    await clearMutation.mutateAsync(kindFilter === "all" ? {} : { kind: kindFilter })
   }
 
   return (
@@ -87,13 +94,23 @@ export function NodeRunHistoryView() {
           </Button>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
-          {FILTERS.map((key) => (
+        <div className="mt-4 grid grid-cols-5 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+          {KIND_FILTERS.map((key) => (
             <FilterButton
               key={key}
-              active={filter === key}
-              label={t(`view:history.${key}`)}
-              onClick={() => setFilter(key)}
+              active={kindFilter === key}
+              label={t(`view:history.kind.${key}`)}
+              onClick={() => setKindFilter(key)}
+            />
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-5 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+          {STATUS_FILTERS.map((key) => (
+            <FilterButton
+              key={key}
+              active={statusFilter === key}
+              label={t(`view:history.statusFilter.${key}`)}
+              onClick={() => setStatusFilter(key)}
             />
           ))}
         </div>
@@ -136,16 +153,8 @@ export function NodeRunHistoryView() {
                   variant="ghost"
                   size="sm"
                   className="h-8 text-xs text-muted-foreground"
-                  disabled={historyQuery.isFetching}
-                  onClick={() => {
-                    // Cursor-based pagination: refetch with cursor
-                    // For now, the hook handles placeholderData; full cursor
-                    // support can be added by extending the hook to accept cursor.
-                  }}
+                  disabled
                 >
-                  {historyQuery.isFetching ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : null}
                   {t("view:history.loadMore")}
                 </Button>
               </div>
@@ -166,7 +175,7 @@ function HistoryRow({
   onCopyInput,
   onDelete,
 }: {
-  item: NodeRunHistoryItemDTO
+  item: RuntimeHistoryItemDTO
   expanded: boolean
   copied: boolean
   deleting: boolean
@@ -175,7 +184,8 @@ function HistoryRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const Icon = STATUS_ICON[item.status]
+  const title = item.title ?? item.target?.label ?? item.nodeId ?? item.operation
+  const subtitle = item.inputSummary || item.resultSummary || item.target?.id
 
   return (
     <section className="rounded-sm border border-border/60 bg-card/80 p-3">
@@ -183,13 +193,16 @@ function HistoryRow({
         <StatusPill status={item.status} />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="truncate text-sm font-semibold text-foreground">{item.nodeId}</div>
+            <div className="truncate text-sm font-semibold text-foreground">{title}</div>
+            <div className="shrink-0 rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
+              {t(`view:history.kind.${item.kind}`)}
+            </div>
             <div className="shrink-0 text-[10px] font-mono text-muted-foreground">
               {formatTime(item.finishedAt)}
             </div>
           </div>
-          {item.inputSummary && (
-            <div className="mt-1 truncate text-xs text-muted-foreground">{item.inputSummary}</div>
+          {subtitle && (
+            <div className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</div>
           )}
           <div className="mt-1 truncate text-xs text-muted-foreground">{item.message}</div>
         </div>
@@ -226,9 +239,10 @@ function HistoryRow({
       </div>
 
       <div className="mt-2 flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
+        <span>{item.operation}</span>
         <span>{t("view:history.duration", { ms: item.durationMs })}</span>
-        <span>{t("view:history.events", { count: item.eventCount })}</span>
-        {copied && <span className="text-emerald-500">{t("view:history.copyInput")} ✓</span>}
+        {item.eventCount !== undefined && <span>{t("view:history.events", { count: item.eventCount })}</span>}
+        {copied && <span className="text-emerald-500">{t("view:history.copied")}</span>}
       </div>
 
       {expanded && <HistoryDetail item={item} />}
@@ -236,23 +250,31 @@ function HistoryRow({
   )
 }
 
-function HistoryDetail({ item }: { item: NodeRunHistoryItemDTO }) {
+function HistoryDetail({ item }: { item: RuntimeHistoryItemDTO }) {
   const { t } = useTranslation()
   const hasInput = item.input !== undefined && item.input !== null
   const hasResult = item.result !== undefined && item.result !== null
-  const stats = item.result?.stats
-  const outputPath = item.result?.outputPath
+  const resultRecord = isRecord(item.result) ? item.result : undefined
+  const stats = isNumberRecord(resultRecord?.stats) ? resultRecord.stats : undefined
+  const outputPath = typeof resultRecord?.outputPath === "string" ? resultRecord.outputPath : undefined
 
   return (
     <div className="mt-3 space-y-3 border-t border-border/50 pt-3">
-      {hasInput && (
+      <div className="grid grid-cols-2 gap-1.5">
+        <MetaField label={t("view:history.operation")} value={item.operation} />
+        <MetaField label={t("view:history.kindLabel")} value={item.kind} />
+        {item.nodeId && <MetaField label={t("view:history.nodeId")} value={item.nodeId} />}
+        {item.componentId && <MetaField label={t("view:history.componentId")} value={item.componentId} />}
+        {item.workspaceId && <MetaField label={t("view:history.workspaceId")} value={item.workspaceId} />}
+      </div>
+
+      {hasInput ? (
         <DetailSection label={t("view:history.input")}>
           <pre className="max-h-48 overflow-auto rounded-sm bg-muted/40 p-2 text-[10px] leading-relaxed text-foreground">
             {JSON.stringify(item.input, null, 2)}
           </pre>
         </DetailSection>
-      )}
-      {!hasInput && (
+      ) : (
         <p className="text-xs text-muted-foreground">{t("view:history.noInput")}</p>
       )}
 
@@ -269,7 +291,7 @@ function HistoryDetail({ item }: { item: NodeRunHistoryItemDTO }) {
           <div className="grid grid-cols-2 gap-1.5">
             {Object.entries(stats).map(([key, value]) => (
               <div key={key} className="rounded-sm border border-border/40 bg-muted/20 px-2 py-1">
-                <div className="text-[9px] font-mono uppercase tracking-wider text-muted-foreground">{key}</div>
+                <div className="text-[9px] font-mono uppercase text-muted-foreground">{key}</div>
                 <div className="text-sm font-semibold tabular-nums text-foreground">{value}</div>
               </div>
             ))}
@@ -288,16 +310,25 @@ function HistoryDetail({ item }: { item: NodeRunHistoryItemDTO }) {
   )
 }
 
+function MetaField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-sm border border-border/40 bg-muted/20 px-2 py-1">
+      <div className="text-[9px] font-mono uppercase text-muted-foreground">{label}</div>
+      <div className="truncate text-[11px] text-foreground">{value}</div>
+    </div>
+  )
+}
+
 function DetailSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mb-1 text-[10px] font-mono uppercase text-muted-foreground">{label}</div>
       {children}
     </div>
   )
 }
 
-function StatusPill({ status }: { status: NodeRunHistoryStatusDTO }) {
+function StatusPill({ status }: { status: RuntimeHistoryStatusDTO }) {
   const { t } = useTranslation()
   const Icon = STATUS_ICON[status]
   return (
@@ -321,6 +352,15 @@ function FilterButton({ active, label, onClick }: { active: boolean; label: stri
       {label}
     </button>
   )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function isNumberRecord(value: unknown): value is Record<string, number> {
+  if (!isRecord(value)) return false
+  return Object.values(value).every((item) => typeof item === "number")
 }
 
 function formatTime(value: number): string {

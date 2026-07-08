@@ -78,7 +78,7 @@ export default defineConfig({
   },
   test: {
     environment: "happy-dom",
-    setupFiles: ["./src/test/setup-i18n.ts"],
+    setupFiles: [path.resolve(__dirname, "./src/test/setup-i18n.ts")],
     include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**", "**/tests/e2e/**"],
   },

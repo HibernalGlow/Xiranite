@@ -434,7 +434,7 @@
     },
     "history": {
       "title": "Run history",
-      "subtitle": "Saved parameters and results from every node run.",
+      "subtitle": "Saved node runs and key runtime operations.",
       "all": "All",
       "success": "Success",
       "error": "Error",
@@ -455,6 +455,12 @@
       "result": "Result",
       "stats": "Stats",
       "outputPath": "Output path",
+      "copied": "Copied",
+      "operation": "Operation",
+      "kindLabel": "Kind",
+      "nodeId": "Node",
+      "componentId": "Component",
+      "workspaceId": "Workspace",
       "noInput": "No input recorded",
       "noResult": "No result data",
       "recent": "Recent runs",
@@ -464,7 +470,22 @@
       "status": {
         "success": "success",
         "error": "error",
-        "cancelled": "cancelled"
+        "cancelled": "cancelled",
+        "info": "info"
+      },
+      "statusFilter": {
+        "all": "All",
+        "success": "Success",
+        "error": "Error",
+        "cancelled": "Cancelled",
+        "info": "Info"
+      },
+      "kind": {
+        "all": "All",
+        "node": "Nodes",
+        "workspace": "Workspace",
+        "config": "Config",
+        "system": "System"
       }
     },
     "database": {

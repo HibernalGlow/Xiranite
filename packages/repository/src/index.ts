@@ -112,13 +112,14 @@ export function createMemoryNodeRunHistoryRepository(
       items = items.slice(items.length - globalLimit)
     }
     if (limitPerNode > 0) {
-      const byNode = new Map<string, NodeRunHistoryItemDTO[]>()
+      const byNode = new Map<string, RuntimeHistoryItemDTO[]>()
       for (const item of items) {
+        if (item.kind !== "node" || !item.nodeId) continue
         const list = byNode.get(item.nodeId) ?? []
         list.push(item)
         byNode.set(item.nodeId, list)
       }
-      const next: NodeRunHistoryItemDTO[] = []
+      const next: RuntimeHistoryItemDTO[] = []
       for (const list of byNode.values()) {
         if (list.length > limitPerNode) {
           next.push(...list.slice(list.length - limitPerNode))
@@ -132,7 +133,7 @@ export function createMemoryNodeRunHistoryRepository(
     }
   }
 
-  return {
+  const repository: NodeRunHistoryRepository = {
     async createRuntimeHistory(item) {
       items = [...items.filter((existing) => existing.id !== item.id), item]
       enforceLimits()
@@ -186,28 +187,29 @@ export function createMemoryNodeRunHistoryRepository(
       return { deletedCount: beforeCount - items.length }
     },
     async createNodeRunHistory(item) {
-      await this.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
+      await repository.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
       return clone(item)
     },
     async listNodeRunHistory(query) {
-      const result = await this.listRuntimeHistory({ ...query, kind: "node" })
+      const result = await repository.listRuntimeHistory({ ...query, kind: "node" })
       return {
         items: result.items.map(runtimeHistoryToNodeHistory).filter((item): item is NodeRunHistoryItemDTO => item !== undefined),
         nextCursor: result.nextCursor,
       }
     },
     async getNodeRunHistory(id) {
-      const item = await this.getRuntimeHistory(id)
+      const item = await repository.getRuntimeHistory(id)
       const nodeItem = item ? runtimeHistoryToNodeHistory(item) : undefined
       return nodeItem ? clone(nodeItem) : undefined
     },
     async deleteNodeRunHistory(id) {
-      await this.deleteRuntimeHistory(id)
+      await repository.deleteRuntimeHistory(id)
     },
     async clearNodeRunHistory(query) {
-      return await this.clearRuntimeHistory({ ...query, kind: "node" })
+      return await repository.clearRuntimeHistory({ ...query, kind: "node" })
     },
   }
+  return repository
 }
 
 function nodeHistoryToRuntimeHistory(item: NodeRunHistoryItemDTO): RuntimeHistoryItemDTO {

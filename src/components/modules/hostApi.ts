@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import type {
   HostComponentRef,
   NodeCapabilityId,
+  NodeRunEvent,
   NodeHostApi,
   NodeSchema,
   NodeSchemas,
@@ -37,7 +38,7 @@ export function useNodeHostApi(
   useWorkspaceComponentData(compId)
   const workspaceActions = useWorkspaceActions()
   const { theme } = useTheme()
-  const hostTheme = theme === "dark"
+  const hostTheme: "light" | "dark" = theme === "dark"
     ? "dark"
     : theme === "light"
       ? "light"
@@ -90,7 +91,17 @@ export function useNodeHostApi(
     }
 
     const runnerCapability = {
-      run: runNodeOnLocalBackend,
+      run: <TInput = unknown, TData = unknown>(
+        id: string,
+        input: TInput,
+        onEvent?: (event: NodeRunEvent) => void,
+      ) => {
+        const workspaceId = getWorkspaceState().components.find((component) => component.id === compId)?.workspaceId
+        return runNodeOnLocalBackend<TInput, TData>(id, input, onEvent, {
+          componentId: compId,
+          workspaceId,
+        })
+      },
     }
 
     const clipboardCapability = {

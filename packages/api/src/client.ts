@@ -12,6 +12,11 @@ import type {
   NodeRunHistoryListDTO,
   NodeRunHistoryQueryDTO,
   NodeRunResultDTO,
+  RuntimeHistoryClearQueryDTO,
+  RuntimeHistoryClearResultDTO,
+  RuntimeHistoryItemDTO,
+  RuntimeHistoryListDTO,
+  RuntimeHistoryQueryDTO,
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
 import type { XiraniteApp } from "./index.js"
@@ -33,6 +38,7 @@ export interface XiraniteNodeClient {
   startNodeOperation<TInput = unknown>(
     nodeId: string,
     input: TInput,
+    context?: { componentId?: string; workspaceId?: string },
   ): Promise<NodeOperationDTO>
   getNodeOperation<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>>
   getNodeOperationEvents<TData = unknown>(
@@ -60,6 +66,13 @@ export interface XiraniteConfigClient {
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
   openConfigFile(): Promise<{ opened: boolean; path: string }>
   importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
+}
+
+export interface XiraniteRuntimeHistoryClient {
+  list(query: RuntimeHistoryQueryDTO): Promise<RuntimeHistoryListDTO>
+  get(id: string): Promise<RuntimeHistoryItemDTO>
+  delete(id: string): Promise<void>
+  clear(query: RuntimeHistoryClearQueryDTO): Promise<RuntimeHistoryClearResultDTO>
 }
 
 export interface XiraniteNodeRunHistoryClient {
@@ -155,14 +168,14 @@ export function createXiraniteNodeClient(baseUrl: string, options: XiraniteClien
   const headers = requestHeaders(options)
 
   return {
-    async startNodeOperation(nodeId, input) {
+    async startNodeOperation(nodeId, input, context) {
       const response = await fetch(apiUrl(baseUrl, `/nodes/${encodeURIComponent(nodeId)}/operations`), {
         method: "POST",
         headers: {
           ...headers,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ input, context }),
       })
       if (!response.ok) throw new Error(`Node operation start failed: ${response.status}`)
       const data = await response.json() as NodeOperationStartResponseDTO
@@ -221,6 +234,52 @@ export function createXiraniteNodeClient(baseUrl: string, options: XiraniteClien
       })
       if (!finalResult) throw new Error(`Node operation did not return a result: ${operation.operationId}`)
       return finalResult
+    },
+  }
+}
+
+export function createXiraniteRuntimeHistoryClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteRuntimeHistoryClient {
+  const headers = requestHeaders(options)
+
+  return {
+    async list(query) {
+      const url = apiUrl(baseUrl, "/runtime-history")
+      if (query.kind) url.searchParams.set("kind", query.kind)
+      if (query.operation) url.searchParams.set("operation", query.operation)
+      if (query.nodeId) url.searchParams.set("nodeId", query.nodeId)
+      if (query.componentId) url.searchParams.set("componentId", query.componentId)
+      if (query.workspaceId) url.searchParams.set("workspaceId", query.workspaceId)
+      if (query.status) url.searchParams.set("status", query.status)
+      if (query.limit !== undefined) url.searchParams.set("limit", String(query.limit))
+      if (query.cursor) url.searchParams.set("cursor", query.cursor)
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`Runtime history load failed: ${response.status}`)
+      return await response.json() as RuntimeHistoryListDTO
+    },
+    async get(id) {
+      const response = await fetch(apiUrl(baseUrl, `/runtime-history/${encodeURIComponent(id)}`), { headers })
+      if (!response.ok) throw new Error(`Runtime history item load failed: ${response.status}`)
+      const data = await response.json() as { item: RuntimeHistoryItemDTO }
+      return data.item
+    },
+    async delete(id) {
+      const response = await fetch(apiUrl(baseUrl, `/runtime-history/${encodeURIComponent(id)}`), {
+        method: "DELETE",
+        headers,
+      })
+      if (!response.ok) throw new Error(`Runtime history delete failed: ${response.status}`)
+    },
+    async clear(query) {
+      const url = apiUrl(baseUrl, "/runtime-history")
+      if (query.kind) url.searchParams.set("kind", query.kind)
+      if (query.operation) url.searchParams.set("operation", query.operation)
+      if (query.nodeId) url.searchParams.set("nodeId", query.nodeId)
+      if (query.componentId) url.searchParams.set("componentId", query.componentId)
+      if (query.workspaceId) url.searchParams.set("workspaceId", query.workspaceId)
+      if (query.before !== undefined) url.searchParams.set("before", String(query.before))
+      const response = await fetch(url, { method: "DELETE", headers })
+      if (!response.ok) throw new Error(`Runtime history clear failed: ${response.status}`)
+      return await response.json() as RuntimeHistoryClearResultDTO
     },
   }
 }

@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createMemoryWorkspaceRepository } from "@xiranite/repository"
-import { ConfigService, NodeRunnerService, WorkspaceService } from "./index.js"
+import { createMemoryNodeRunHistoryRepository, createMemoryWorkspaceRepository } from "@xiranite/repository"
+import { ConfigService, NodeRunHistoryService, NodeRunnerService, WorkspaceService } from "./index.js"
 
 describe("WorkspaceService", () => {
   test("creates and renames workspaces through the repository contract", async () => {
@@ -65,6 +65,31 @@ describe("WorkspaceService", () => {
     const nextSnapshot = { workspaces: [], lanes: [], components: [] }
     expect(await service.saveSnapshot(nextSnapshot)).toEqual(nextSnapshot)
     expect(await service.getSnapshot()).toEqual(nextSnapshot)
+  })
+
+  test("records workspace write operations into runtime history", async () => {
+    const repository = createMemoryWorkspaceRepository()
+    const historyRepository = createMemoryNodeRunHistoryRepository()
+    const history = new NodeRunHistoryService({ repository: historyRepository, createId: fixedIds(["hist-create", "hist-save"]) })
+    const service = new WorkspaceService({
+      repository,
+      history,
+      now: fixedClock([100, 101, 200, 201]),
+      createId: () => "alpha",
+    })
+
+    await service.createWorkspace({ label: "Alpha" })
+    await service.saveSnapshot({
+      workspaces: [{ id: "ws-alpha", label: "Alpha", createdAt: 100, updatedAt: 100 }],
+      lanes: [],
+      components: [],
+    })
+
+    const list = await history.listRuntime({})
+    expect(list.items.map((item) => [item.id, item.kind, item.operation])).toEqual([
+      ["hist-save", "workspace", "workspace.snapshot.save"],
+      ["hist-create", "workspace", "workspace.create"],
+    ])
   })
 })
 
@@ -167,6 +192,11 @@ describe("ConfigService", () => {
 })
 
 function fixedClock(values: number[]) {
+  let index = 0
+  return () => values[Math.min(index++, values.length - 1)]!
+}
+
+function fixedIds(values: string[]) {
   let index = 0
   return () => values[Math.min(index++, values.length - 1)]!
 }

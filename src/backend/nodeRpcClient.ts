@@ -10,11 +10,12 @@ export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
   nodeId: string,
   input: TInput,
   onEvent?: (event: NodeRunEvent) => void,
+  context?: { componentId?: string; workspaceId?: string },
 ): Promise<NodeRunResult<TData>> {
   let operationId: string | undefined
   try {
     const client = getNodeClient()
-    const operation = await client.startNodeOperation<TInput>(nodeId, input)
+    const operation = await client.startNodeOperation<TInput>(nodeId, input, context)
     operationId = operation.operationId
     useNodeOperations.getState().upsertOperation(operation)
 

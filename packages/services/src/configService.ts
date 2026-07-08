@@ -10,6 +10,7 @@ import {
   updateNodeConfig,
   type XiraniteConfig,
 } from "@xiranite/config"
+import type { NodeRunHistoryService } from "./historyService.js"
 
 export interface GetNodeConfigResult {
   config: unknown | undefined
@@ -85,10 +86,12 @@ default = "ws-default"
 export class ConfigService {
   private readonly configPath: string | undefined
   private readonly openPath: OpenPathHandler
+  private readonly history?: NodeRunHistoryService
 
-  constructor(options: { configPath?: string; openPath?: OpenPathHandler } = {}) {
+  constructor(options: { configPath?: string; openPath?: OpenPathHandler; history?: NodeRunHistoryService } = {}) {
     this.configPath = options.configPath
     this.openPath = options.openPath ?? openPathWithSystemDefaultApp
+    this.history = options.history
   }
 
   async getConfig(): Promise<GetConfigResult> {
@@ -102,9 +105,23 @@ export class ConfigService {
   }
 
   async updateNodeConfig(nodeId: string, patch: unknown): Promise<UpdateNodeConfigResult> {
+    const startedAt = Date.now()
     const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
     const updated = updateNodeConfig(config, nodeId, patch)
     await saveXiraniteConfig(updated, { configPath: this.configPath })
+    void this.history?.record({
+      kind: "config",
+      operation: "config.node.update",
+      title: nodeId,
+      message: `Updated node config: ${nodeId}`,
+      target: { type: "node-config", id: nodeId, label: nodeId },
+      nodeId,
+      input: patch,
+      result: { path },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
     return { config: patch, path }
   }
 
@@ -113,6 +130,7 @@ export class ConfigService {
   }
 
   async ensureConfigFile(): Promise<EnsureConfigFileResult> {
+    const startedAt = Date.now()
     const path = this.getConfigPath()
     try {
       await access(path)
@@ -120,24 +138,60 @@ export class ConfigService {
     } catch {
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, CONFIG_TEMPLATE, "utf8")
+      void this.history?.record({
+        kind: "config",
+        operation: "config.file.create",
+        title: "Config file",
+        message: "Created config file.",
+        target: { type: "config-file", id: path, label: path },
+        result: { path },
+        resultSummary: path,
+        startedAt,
+        finishedAt: Date.now(),
+      })
       return { path, created: true }
     }
   }
 
   async openConfigFile(): Promise<OpenConfigFileResult> {
+    const startedAt = Date.now()
     const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
     await saveXiraniteConfig(config, { configPath: this.configPath })
     await this.openPath(path)
+    void this.history?.record({
+      kind: "config",
+      operation: "config.file.open",
+      title: "Config file",
+      message: "Opened config file.",
+      target: { type: "config-file", id: path, label: path },
+      result: { path },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
     return { opened: true, path }
   }
 
   async importLegacy(legacyPath: string, nodeId: string): Promise<ImportLegacyResult> {
+    const startedAt = Date.now()
     const { readFile } = await import("node:fs/promises")
 
     let content: string
     try {
       content = await readFile(legacyPath, "utf8")
     } catch {
+      void this.history?.record({
+        kind: "config",
+        operation: "config.legacy.import",
+        status: "error",
+        title: nodeId,
+        message: `Legacy config import failed: ${legacyPath}`,
+        target: { type: "node-config", id: nodeId, label: nodeId },
+        nodeId,
+        input: { legacyPath, nodeId },
+        startedAt,
+        finishedAt: Date.now(),
+      })
       return { imported: false, config: undefined, path: legacyPath }
     }
 
@@ -148,6 +202,19 @@ export class ConfigService {
     const updated = updateNodeConfig(config, nodeId, nodeValue)
     await saveXiraniteConfig(updated, { configPath: this.configPath })
 
+    void this.history?.record({
+      kind: "config",
+      operation: "config.legacy.import",
+      title: nodeId,
+      message: `Imported legacy config: ${nodeId}`,
+      target: { type: "node-config", id: nodeId, label: nodeId },
+      nodeId,
+      input: { legacyPath, nodeId },
+      result: { path, config: nodeValue },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
     return { imported: true, config: nodeValue, path }
   }
 }

@@ -22,6 +22,7 @@ export interface WorkspaceServiceOptions {
   repository: WorkspaceRepository
   now?: () => number
   createId?: () => string
+  history?: NodeRunHistoryService
 }
 
 export interface NodeRunner {
@@ -49,11 +50,13 @@ export class WorkspaceService {
   private readonly repository: WorkspaceRepository
   private readonly now: () => number
   private readonly createId: () => string
+  private readonly history?: NodeRunHistoryService
 
   constructor(options: WorkspaceServiceOptions) {
     this.repository = options.repository
     this.now = options.now ?? Date.now
     this.createId = options.createId ?? (() => Math.random().toString(36).slice(2))
+    this.history = options.history
   }
 
   async listWorkspaces(): Promise<WorkspaceDTO[]> {
@@ -63,22 +66,61 @@ export class WorkspaceService {
   async createWorkspace(input: CreateWorkspaceInput): Promise<WorkspaceDTO> {
     const parsed = createWorkspaceInputSchema.parse(input)
     const now = this.now()
-    return this.repository.createWorkspace({
+    const workspace = await this.repository.createWorkspace({
       id: `ws-${this.createId()}`,
       label: parsed.label,
       icon: parsed.icon,
       createdAt: now,
       updatedAt: now,
     })
+    void this.history?.record({
+      kind: "workspace",
+      operation: "workspace.create",
+      title: workspace.label,
+      message: `Created workspace: ${workspace.label}`,
+      target: { type: "workspace", id: workspace.id, label: workspace.label },
+      workspaceId: workspace.id,
+      input: parsed,
+      result: workspace,
+      startedAt: now,
+      finishedAt: this.now(),
+    })
+    return workspace
   }
 
   async renameWorkspace(id: string, input: RenameWorkspaceInput): Promise<WorkspaceDTO> {
     const parsed = renameWorkspaceInputSchema.parse(input)
-    return this.repository.renameWorkspace(id, parsed.label, this.now())
+    const startedAt = this.now()
+    const workspace = await this.repository.renameWorkspace(id, parsed.label, startedAt)
+    void this.history?.record({
+      kind: "workspace",
+      operation: "workspace.rename",
+      title: workspace.label,
+      message: `Renamed workspace: ${workspace.label}`,
+      target: { type: "workspace", id: workspace.id, label: workspace.label },
+      workspaceId: workspace.id,
+      input: { id, ...parsed },
+      result: workspace,
+      startedAt,
+      finishedAt: this.now(),
+    })
+    return workspace
   }
 
   async deleteWorkspace(id: string): Promise<void> {
+    const startedAt = this.now()
     await this.repository.deleteWorkspace(id)
+    void this.history?.record({
+      kind: "workspace",
+      operation: "workspace.delete",
+      title: id,
+      message: `Deleted workspace: ${id}`,
+      target: { type: "workspace", id },
+      workspaceId: id,
+      input: { id },
+      startedAt,
+      finishedAt: this.now(),
+    })
   }
 
   async getSnapshot(): Promise<WorkspaceSnapshotDTO> {
@@ -93,7 +135,23 @@ export class WorkspaceService {
 
   async saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO> {
     const parsed = workspaceSnapshotSchema.parse(snapshot)
-    return this.repository.saveSnapshot(parsed)
+    const startedAt = this.now()
+    const saved = await this.repository.saveSnapshot(parsed)
+    void this.history?.record({
+      kind: "workspace",
+      operation: "workspace.snapshot.save",
+      title: "Workspace snapshot",
+      message: "Saved workspace snapshot.",
+      inputSummary: `${parsed.workspaces.length} workspaces, ${parsed.lanes.length} lanes, ${parsed.components.length} components`,
+      metadata: {
+        workspaceCount: parsed.workspaces.length,
+        laneCount: parsed.lanes.length,
+        componentCount: parsed.components.length,
+      },
+      startedAt,
+      finishedAt: this.now(),
+    })
+    return saved
   }
 }
 
@@ -431,9 +489,9 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
     ? new NodeRunHistoryService({ repository: options.historyRepository })
     : undefined
   return {
-    workspace: new WorkspaceService({ repository }),
+    workspace: new WorkspaceService({ repository, history }),
     nodes: new NodeRunnerService({ runner: options.nodeRunner, history }),
-    config: new ConfigService({ configPath: options.configPath }),
+    config: new ConfigService({ configPath: options.configPath, history }),
     history,
   }
 }

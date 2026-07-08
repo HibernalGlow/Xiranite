@@ -127,6 +127,29 @@ describe("createMemoryNodeRunHistoryRepository", () => {
     const again = await repository.getNodeRunHistory("a")
     expect(again!.message).toBe("ok")
   })
+
+  test("stores generic runtime history without leaking it into node history", async () => {
+    const repository = createMemoryNodeRunHistoryRepository({
+      items: [item({ id: "node-1", nodeId: "repacku", finishedAt: 100 })],
+    })
+
+    await repository.createRuntimeHistory({
+      id: "workspace-1",
+      kind: "workspace",
+      operation: "workspace.snapshot.save",
+      status: "success",
+      message: "Saved workspace snapshot.",
+      inputSummary: "1 workspace",
+      startedAt: 200,
+      finishedAt: 200,
+      durationMs: 0,
+    })
+
+    expect((await repository.listRuntimeHistory({})).items.map((i) => i.id)).toEqual(["workspace-1", "node-1"])
+    expect((await repository.listRuntimeHistory({ kind: "workspace" })).items.map((i) => i.id)).toEqual(["workspace-1"])
+    expect((await repository.listRuntimeHistory({ operation: "node.run" })).items.map((i) => i.id)).toEqual(["node-1"])
+    expect((await repository.listNodeRunHistory({})).items.map((i) => i.id)).toEqual(["node-1"])
+  })
 })
 
 function item(overrides: Partial<NodeRunHistoryItemDTO>): NodeRunHistoryItemDTO {

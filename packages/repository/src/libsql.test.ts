@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { pathToFileURL } from "node:url"
 import { createLibsqlWorkspaceRepository, type LibsqlWorkspaceRepository } from "./libsql.js"
 
-const RUN_ROOT = fileURLToPath(new URL("../../../artifacts/test-runs/repository/", import.meta.url))
+const RUN_ROOT = join(process.cwd(), "artifacts", "test-runs", "repository")
 
 describe("createLibsqlWorkspaceRepository", () => {
   test("persists complete workspace snapshots to a local libSQL file", async () => {

@@ -434,7 +434,7 @@
     },
     "history": {
       "title": "运行历史",
-      "subtitle": "每次节点运行的参数与结果快照。",
+      "subtitle": "保存节点运行与关键运行操作。",
       "all": "全部",
       "success": "成功",
       "error": "错误",
@@ -455,6 +455,12 @@
       "result": "运行结果",
       "stats": "统计",
       "outputPath": "输出路径",
+      "copied": "已复制",
+      "operation": "操作",
+      "kindLabel": "类型",
+      "nodeId": "节点",
+      "componentId": "组件",
+      "workspaceId": "工作区",
       "noInput": "未记录输入参数",
       "noResult": "无结果数据",
       "recent": "最近运行",
@@ -464,7 +470,22 @@
       "status": {
         "success": "成功",
         "error": "错误",
-        "cancelled": "已取消"
+        "cancelled": "已取消",
+        "info": "信息"
+      },
+      "statusFilter": {
+        "all": "全部",
+        "success": "成功",
+        "error": "错误",
+        "cancelled": "已取消",
+        "info": "信息"
+      },
+      "kind": {
+        "all": "全部",
+        "node": "节点",
+        "workspace": "工作区",
+        "config": "配置",
+        "system": "系统"
       }
     },
     "database": {

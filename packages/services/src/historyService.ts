@@ -5,12 +5,48 @@ import type {
   NodeRunHistoryListDTO,
   NodeRunHistoryQueryDTO,
   NodeRunResultDTO,
+  RuntimeHistoryClearQueryDTO,
+  RuntimeHistoryClearResultDTO,
+  RuntimeHistoryItemDTO,
+  RuntimeHistoryListDTO,
+  RuntimeHistoryQueryDTO,
 } from "@xiranite/shared"
 import type { NodeRunHistoryRepository } from "@xiranite/repository"
 
 export interface NodeRunHistoryServiceOptions {
   repository: NodeRunHistoryRepository
   createId?: () => string
+  now?: () => number
+}
+
+export interface RuntimeHistoryRecordInput {
+  kind: RuntimeHistoryItemDTO["kind"]
+  operation: string
+  status?: RuntimeHistoryItemDTO["status"]
+  title?: string
+  message: string
+  target?: RuntimeHistoryItemDTO["target"]
+  nodeId?: string
+  componentId?: string
+  workspaceId?: string
+  input?: unknown
+  inputSummary?: string
+  result?: unknown
+  resultSummary?: string
+  metadata?: Record<string, unknown>
+  eventCount?: number
+  startedAt?: number
+  finishedAt?: number
+}
+
+function summarizeResult(result: unknown): string | undefined {
+  if (!result || typeof result !== "object") return undefined
+  const record = result as Record<string, unknown>
+  const message = record.message
+  if (typeof message === "string" && message.trim()) return message.slice(0, 240)
+  const outputPath = record.outputPath
+  if (typeof outputPath === "string" && outputPath.trim()) return outputPath.slice(0, 240)
+  return undefined
 }
 
 /**
@@ -24,10 +60,28 @@ export interface NodeRunHistoryServiceOptions {
 export class NodeRunHistoryService {
   private readonly repository: NodeRunHistoryRepository
   private readonly createId: () => string
+  private readonly now: () => number
 
   constructor(options: NodeRunHistoryServiceOptions) {
     this.repository = options.repository
     this.createId = options.createId ?? (() => `hist-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`)
+    this.now = options.now ?? Date.now
+  }
+
+  async listRuntime(query: RuntimeHistoryQueryDTO): Promise<RuntimeHistoryListDTO> {
+    return this.repository.listRuntimeHistory(query)
+  }
+
+  async getRuntime(id: string): Promise<RuntimeHistoryItemDTO | undefined> {
+    return this.repository.getRuntimeHistory(id)
+  }
+
+  async deleteRuntime(id: string): Promise<void> {
+    await this.repository.deleteRuntimeHistory(id)
+  }
+
+  async clearRuntime(query: RuntimeHistoryClearQueryDTO): Promise<RuntimeHistoryClearResultDTO> {
+    return this.repository.clearRuntimeHistory(query)
   }
 
   async list(query: NodeRunHistoryQueryDTO): Promise<NodeRunHistoryListDTO> {
@@ -61,26 +115,54 @@ export class NodeRunHistoryService {
     startedAt: number
     finishedAt: number
   }): Promise<void> {
+    await this.record({
+      kind: "node",
+      operation: "node.run",
+      status: params.status,
+      title: params.nodeId,
+      message: params.result.message,
+      target: { type: "node", id: params.nodeId, label: params.nodeId },
+      nodeId: params.nodeId,
+      componentId: params.componentId,
+      workspaceId: params.workspaceId,
+      input: params.input,
+      result: params.result,
+      resultSummary: params.result.message,
+      eventCount: params.eventCount,
+      startedAt: params.startedAt,
+      finishedAt: params.finishedAt,
+    })
+  }
+
+  async record(params: RuntimeHistoryRecordInput): Promise<void> {
     try {
-      const durationMs = Math.max(0, params.finishedAt - params.startedAt)
-      const item: NodeRunHistoryItemDTO = {
+      const startedAt = params.startedAt ?? this.now()
+      const finishedAt = params.finishedAt ?? this.now()
+      const durationMs = Math.max(0, finishedAt - startedAt)
+      const item: RuntimeHistoryItemDTO = {
         id: this.createId(),
+        kind: params.kind,
+        operation: params.operation,
+        status: params.status ?? "success",
+        title: params.title,
+        message: params.message,
+        target: params.target,
         nodeId: params.nodeId,
         componentId: params.componentId,
         workspaceId: params.workspaceId,
         input: sanitizeInput(params.input),
-        inputSummary: summarizeInput(params.input),
-        status: params.status,
-        message: params.result.message,
+        inputSummary: params.inputSummary ?? summarizeInput(params.input),
         result: params.result,
+        resultSummary: params.resultSummary ?? summarizeResult(params.result),
+        metadata: sanitizeInput(params.metadata) as Record<string, unknown> | undefined,
         eventCount: params.eventCount,
-        startedAt: params.startedAt,
-        finishedAt: params.finishedAt,
+        startedAt,
+        finishedAt,
         durationMs,
       }
-      await this.repository.createNodeRunHistory(item)
+      await this.repository.createRuntimeHistory(item)
     } catch (error) {
-      console.warn("[NodeRunHistory] Failed to record history:", error instanceof Error ? error.message : error)
+      console.warn("[RuntimeHistory] Failed to record history:", error instanceof Error ? error.message : error)
     }
   }
 }
