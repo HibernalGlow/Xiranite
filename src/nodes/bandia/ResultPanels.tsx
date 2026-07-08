@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import type { BandiaData, BandiaItemResult, BandiaPathMapping } from "@xiranite/node-bandia/core"
 import { Archive, CheckCircle2, Copy, FileArchive, FolderOpen, ListChecks, XCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +39,7 @@ export function StatsPanel(props: {
 
 export function QueuePreview(props: {
   archivePaths: string[]
+  compact?: boolean
   mappings: BandiaPathMapping[]
   mode: BandiaMode
   paths: string[]
@@ -51,7 +53,7 @@ export function QueuePreview(props: {
 
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
-      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="size-4 text-muted-foreground" />
           <div className="truncate text-xs font-medium">{isExtract ? "待解压文件" : "待压缩映射"}</div>
@@ -91,23 +93,54 @@ export function QueuePreview(props: {
 }
 
 export function ResultTabs(props: {
+  archivePaths?: string[]
   compact?: boolean
   logs: string[]
+  mappings?: BandiaPathMapping[]
+  mode?: BandiaMode
+  paths?: string[]
   result: BandiaData | null
+  running?: boolean
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
+  const hasQueue = Boolean(props.mode)
   const resultLines = [
     ...(props.result?.pathMappings ?? []).map((mapping) => `map ${mapping.archivePath} -> ${mapping.extractedPath}`),
     ...(props.result?.results ?? []).map(resultLine),
   ]
+  const preferredTab = props.running
+    ? "queue"
+    : resultLines.length || props.result
+      ? "results"
+      : props.logs.length
+        ? "logs"
+        : "queue"
+  const [tab, setTab] = useState(hasQueue ? preferredTab : "results")
+
+  useEffect(() => {
+    setTab(hasQueue ? preferredTab : "results")
+  }, [hasQueue, preferredTab])
 
   return (
-    <Tabs defaultValue="results" className="flex h-full min-h-0 flex-col">
+    <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
+        {hasQueue && <TabsTrigger value="queue">队列</TabsTrigger>}
         <TabsTrigger value="results">结果</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>
       </TabsList>
+      {hasQueue && (
+        <TabsContent value="queue" className="min-h-0 flex-1">
+          <QueuePreview
+            compact={props.compact}
+            archivePaths={props.archivePaths ?? []}
+            mappings={props.mappings ?? []}
+            mode={props.mode ?? "extract"}
+            paths={props.paths ?? []}
+            result={props.result}
+          />
+        </TabsContent>
+      )}
       <TabsContent value="results" className="min-h-0 flex-1">
         <TextPanel
           compact={props.compact}

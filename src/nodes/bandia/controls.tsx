@@ -147,7 +147,15 @@ export function PrimarySwitches(props: PatchProps & {
 }) {
   const isExtract = props.mode === "extract"
   return (
-    <div className={cn("grid gap-2", props.compact ? "grid-cols-2" : "@2xl/bandia:grid-cols-2")}>
+    <div
+      className={cn(
+        "grid gap-2",
+        props.compact
+          ? "grid-cols-2"
+          : "grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]",
+      )}
+      data-testid="bandia-primary-switches"
+    >
       <SwitchRow
         checked={props.data.dryRun ?? true}
         disabled={props.disabled}
@@ -200,7 +208,7 @@ export function PrimarySwitches(props: PatchProps & {
 export function OptionsFields(props: PatchProps) {
   const isExtract = props.mode === "extract"
   return (
-    <div className="grid gap-2 @3xl/bandia:grid-cols-2">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2" data-testid="bandia-options-fields">
       {isExtract ? (
         <>
           <SelectField
@@ -371,9 +379,9 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-background/60 p-2">
-      <label className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-background/60 px-2 py-1.5">
+      <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
           <span className="truncate text-xs font-medium">{props.label}</span>
         </span>

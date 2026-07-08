@@ -348,9 +348,19 @@ function PortraitCompactView(props: ViewProps) {
         <PrimarySwitches compact data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(112px,1fr)_minmax(128px,0.85fr)] gap-2">
-        <QueuePreview archivePaths={props.archivePaths} mappings={props.mappings} mode={props.mode} paths={props.paths} result={props.result} />
-        <ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+      <div className="min-h-0 flex-1">
+        <ResultTabs
+          compact
+          archivePaths={props.archivePaths}
+          logs={props.logs}
+          mappings={props.mappings}
+          mode={props.mode}
+          paths={props.paths}
+          result={props.result}
+          running={props.running}
+          onCopyLogs={props.onCopyLogs}
+          onCopyResults={props.onCopyResults}
+        />
       </div>
     </div>
   )
@@ -397,9 +407,18 @@ function FullView(props: ViewProps) {
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
-        <div className="grid min-h-0 gap-3 @4xl/bandia:grid-rows-[minmax(180px,0.9fr)_minmax(220px,1fr)]">
-          <QueuePreview archivePaths={props.archivePaths} mappings={props.mappings} mode={props.mode} paths={props.paths} result={props.result} />
-          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <div className="min-h-0">
+          <ResultTabs
+            archivePaths={props.archivePaths}
+            logs={props.logs}
+            mappings={props.mappings}
+            mode={props.mode}
+            paths={props.paths}
+            result={props.result}
+            running={props.running}
+            onCopyLogs={props.onCopyLogs}
+            onCopyResults={props.onCopyResults}
+          />
         </div>
       </div>
     </div>
