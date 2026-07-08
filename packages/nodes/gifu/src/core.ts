@@ -9,6 +9,10 @@ export interface GifuInput {
   paths?: string[]
   path?: string
   listText?: string
+  configPath?: string
+  configText?: string
+  databasePath?: string
+  recordRun?: boolean
   recursive?: boolean
   format?: GifuFormat
   outDir?: string
@@ -59,8 +63,23 @@ export interface GifuCommandPlan {
   env?: Record<string, string>
 }
 
+export interface GifuConfigSummary {
+  path: string
+  keys: string[]
+  tables: string[]
+}
+
+export interface GifuDatabase {
+  path: string
+  enabled: boolean
+  mode: "jsonl"
+  defaultPath: boolean
+}
+
 export interface GifuData {
   archives: GifuArchivePlan[]
+  config?: GifuConfigSummary
+  database?: GifuDatabase
   command?: GifuCommandPlan
   commandResult?: CommandResult
   readyCount: number
@@ -70,6 +89,8 @@ export interface GifuData {
 }
 
 export interface GifuRuntime {
+  readText: (path: string) => Promise<string>
+  appendRecord: (path: string, record: unknown) => Promise<void>
   pathInfo: (path: string) => Promise<GifuPathInfo>
   listDir: (path: string) => Promise<GifuDirEntry[]>
   countArchiveImages: (path: string) => Promise<number>
@@ -101,6 +122,10 @@ export function normalizeGifuInput(input: GifuInput): Required<GifuInput> {
     path: clean(input.path),
     paths,
     listText: input.listText ?? "",
+    configPath: clean(input.configPath),
+    configText: input.configText ?? "",
+    databasePath: clean(input.databasePath),
+    recordRun: input.recordRun ?? Boolean(input.databasePath),
     recursive: input.recursive ?? true,
     format: input.format ?? "webp",
     outDir: clean(input.outDir),
@@ -123,9 +148,11 @@ export async function runGifu(
   runtime: GifuRuntime,
   onEvent: (event: NodeRunEvent) => void = () => {},
 ): Promise<GifuResult> {
-  const normalized = normalizeGifuInput(input)
+  const configInput = await loadGifuConfigInput(input, runtime)
+  const normalized = normalizeGifuInput(mergeGifuConfigInput(configInput, input))
   try {
     if (!normalized.paths.length) return failure("At least one archive, directory, or list entry is required.")
+    const config = await loadGifuConfigSummary(normalized, runtime)
     onEvent({ type: "progress", progress: 15, message: "Collecting archives." })
     const archivePaths = await collectArchives(normalized.paths, normalized.recursive, runtime)
     onEvent({ type: "progress", progress: 45, message: `Inspecting ${archivePaths.length} archive(s).` })
@@ -139,20 +166,139 @@ export async function runGifu(
         status: imageCount >= 2 ? "ready" : imageCount === 1 ? "single" : "empty",
       })
     }
+    const database = buildGifuDatabase(normalized, archives, runtime)
     if (normalized.action !== "make" || normalized.dryRun) {
-      return success(`Gifu planned ${archives.length} archive(s).`, { archives, command: buildGifuCommand(normalized) })
+      const command = buildGifuCommand(normalized)
+      const action = normalized.action === "make" && normalized.dryRun ? "plan" : normalized.action
+      await writeGifuRecordIfEnabled(action, normalized, archives, command, undefined, database, runtime)
+      return success(`Gifu planned ${archives.length} archive(s).`, { archives, config, database, command })
     }
 
     onEvent({ type: "progress", progress: 70, message: "Running gifu Python module." })
     const command = buildGifuCommand(normalized)
     const commandResult = await runtime.runCommand(command)
+    await writeGifuRecordIfEnabled("make", normalized, archives, command, commandResult, database, runtime)
     return {
       success: commandResult.code === 0,
       message: commandResult.code === 0 ? "Gifu conversion completed." : "Gifu conversion failed.",
-      data: data({ archives, command, commandResult, errors: commandResult.code === 0 ? [] : [commandResult.stderr || commandResult.stdout] }),
+      data: data({ archives, config, database, command, commandResult, errors: commandResult.code === 0 ? [] : [commandResult.stderr || commandResult.stdout] }),
     }
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
+  }
+}
+
+export async function loadGifuConfigInput(input: GifuInput, runtime: Pick<GifuRuntime, "readText">): Promise<GifuInput> {
+  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "")
+  if (!text.trim()) return {}
+  return parseGifuTomlConfig(text)
+}
+
+export async function loadGifuConfigSummary(input: Required<GifuInput>, runtime: Pick<GifuRuntime, "readText">): Promise<GifuConfigSummary | undefined> {
+  const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "")
+  if (!text.trim()) return undefined
+  const parsed = parseTomlLikeKeys(text)
+  return { path: input.configPath, keys: parsed.keys, tables: parsed.tables }
+}
+
+export function mergeGifuConfigInput(config: GifuInput, input: GifuInput): GifuInput {
+  return {
+    ...config,
+    ...input,
+    paths: input.paths ?? config.paths,
+  }
+}
+
+export function parseGifuTomlConfig(text: string): GifuInput {
+  const values = parseTomlLikeValues(text)
+  return {
+    path: stringValue(values.path),
+    paths: arrayValue(values.paths),
+    listText: stringValue(values.listText),
+    recursive: booleanValue(values.recursive),
+    format: enumValue(values.format, ["auto", "gif", "webp", "apng", "webm", "mp4"]),
+    outDir: stringValue(values.outDir),
+    outMode: enumValue(values.outMode, ["same", "separate"]),
+    namePrefix: stringValue(values.namePrefix),
+    nameTemplate: stringValue(values.nameTemplate),
+    durationMs: numberValue(values.durationMs),
+    maxWorkers: numberValue(values.maxWorkers),
+    extractSingle: booleanValue(values.extractSingle),
+    overwrite: booleanValue(values.overwrite),
+    python: stringValue(values.python),
+    moduleName: stringValue(values.moduleName),
+    sourceRoot: stringValue(values.sourceRoot),
+    databasePath: stringValue(values.databasePath),
+    recordRun: booleanValue(values.recordRun),
+  }
+}
+
+export function parseTomlLikeKeys(text: string): { keys: string[]; tables: string[] } {
+  const keys = new Set<string>()
+  const tables = new Set<string>()
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#")) continue
+    const table = /^\[+([^\]]+)\]+$/.exec(line)
+    if (table) {
+      tables.add(table[1]!.trim())
+      continue
+    }
+    const index = line.indexOf("=")
+    if (index > 0) keys.add(line.slice(0, index).trim())
+  }
+  return { keys: [...keys].sort(), tables: [...tables].sort() }
+}
+
+export function buildGifuDatabase(input: Required<GifuInput>, archives: GifuArchivePlan[], runtime: Pick<GifuRuntime, "dirname" | "join">): GifuDatabase | undefined {
+  const path = input.databasePath || defaultGifuDatabasePath(input, archives, runtime)
+  if (!path) return undefined
+  return {
+    path,
+    enabled: input.recordRun,
+    mode: "jsonl",
+    defaultPath: !input.databasePath,
+  }
+}
+
+export function defaultGifuDatabasePath(input: Pick<Required<GifuInput>, "paths" | "outDir">, archives: GifuArchivePlan[], runtime: Pick<GifuRuntime, "dirname" | "join">): string {
+  const fallback = input.paths[0] ?? ""
+  const base = input.outDir || (archives[0] ? runtime.dirname(archives[0].archivePath) : isGifuArchive(fallback) ? runtime.dirname(fallback) : fallback)
+  return base ? runtime.join(base, ".xiranite", "gifu-runs.jsonl") : ""
+}
+
+export function buildGifuRunRecord(
+  action: GifuAction,
+  input: Pick<Required<GifuInput>, "paths" | "recursive" | "format" | "outMode" | "outDir" | "durationMs" | "maxWorkers" | "extractSingle" | "overwrite" | "dryRun">,
+  archives: GifuArchivePlan[],
+  command: GifuCommandPlan,
+  commandResult?: CommandResult,
+): Record<string, unknown> {
+  return {
+    toolId: "gifu",
+    action,
+    paths: input.paths,
+    options: {
+      recursive: input.recursive,
+      format: input.format,
+      outMode: input.outMode,
+      outDir: input.outDir || undefined,
+      durationMs: input.durationMs,
+      maxWorkers: input.maxWorkers,
+      extractSingle: input.extractSingle,
+      overwrite: input.overwrite,
+      dryRun: input.dryRun,
+    },
+    archiveCount: archives.length,
+    readyCount: archives.filter((item) => item.status === "ready").length,
+    singleCount: archives.filter((item) => item.status === "single").length,
+    emptyCount: archives.filter((item) => item.status === "empty").length,
+    command,
+    success: commandResult ? commandResult.code === 0 : true,
+    code: commandResult?.code,
+    stdoutLength: commandResult?.stdout.length,
+    stderrLength: commandResult?.stderr.length,
+    at: new Date().toISOString(),
   }
 }
 
@@ -208,6 +354,19 @@ export function buildOutputPath(archivePath: string, input: Required<GifuInput>,
   return runtime.join(parent, outputName)
 }
 
+async function writeGifuRecordIfEnabled(
+  action: GifuAction,
+  input: Required<GifuInput>,
+  archives: GifuArchivePlan[],
+  command: GifuCommandPlan,
+  commandResult: CommandResult | undefined,
+  database: GifuDatabase | undefined,
+  runtime: Pick<GifuRuntime, "appendRecord">,
+): Promise<void> {
+  if (!database?.enabled) return
+  await runtime.appendRecord(database.path, buildGifuRunRecord(action, input, archives, command, commandResult))
+}
+
 export function parsePathList(text: string): string[] {
   return text
     .split(/\r?\n|;/)
@@ -233,6 +392,53 @@ function stripArchiveExtension(name: string): string {
 function sanitizeOutputStem(value: string): string {
   const cleaned = value.replace(/[<>:"/\\|?*]/g, "_").trim().replace(/^\.+|\.+$/g, "")
   return cleaned || "output"
+}
+
+function parseTomlLikeValues(text: string): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#") || line.startsWith("[")) continue
+    const index = line.indexOf("=")
+    if (index <= 0) continue
+    values[line.slice(0, index).trim()] = line.slice(index + 1).trim()
+  }
+  return values
+}
+
+function stringValue(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  return value.trim().replace(/^["']|["']$/g, "")
+}
+
+function arrayValue(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return [stringValue(trimmed) ?? ""].filter(Boolean)
+  return trimmed
+    .slice(1, -1)
+    .split(",")
+    .map(stringValue)
+    .filter((item): item is string => Boolean(item))
+}
+
+function booleanValue(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined
+  const normalized = stringValue(value)?.toLowerCase()
+  if (normalized === "true" || normalized === "1") return true
+  if (normalized === "false" || normalized === "0") return false
+  return undefined
+}
+
+function numberValue(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const parsed = Number(stringValue(value))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function enumValue<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
+  const normalized = stringValue(value)
+  return allowed.find((item) => item === normalized)
 }
 
 function data(partial: Partial<GifuData>): GifuData {

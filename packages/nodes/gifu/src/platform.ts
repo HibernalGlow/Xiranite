@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { readdir, stat } from "node:fs/promises"
+import { appendFile, mkdir, readFile, readdir, stat } from "node:fs/promises"
 import { basename, dirname, extname, join, resolve } from "node:path"
 import { open } from "node:fs/promises"
 import type { CommandResult, GifuCommandPlan, GifuRuntime } from "./core.js"
@@ -7,6 +7,8 @@ import { isGifuArchive } from "./core.js"
 
 export function createNodeGifuRuntime(): GifuRuntime {
   return {
+    readText: (path) => readFile(path, "utf8"),
+    appendRecord,
     pathInfo,
     listDir,
     countArchiveImages,
@@ -72,4 +74,9 @@ async function runCommand(plan: GifuCommandPlan): Promise<CommandResult> {
       resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? (error instanceof Error ? error.message : "")) })
     })
   })
+}
+
+async function appendRecord(path: string, record: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
 }
