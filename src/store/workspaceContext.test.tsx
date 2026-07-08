@@ -24,6 +24,16 @@ describe("workspace UI preference persistence", () => {
     }
 
     expect(persisted.state?.theme).toBe("endfield")
+    expect(persisted.state?.customThemes).toEqual([
+      {
+        name: "Imported",
+        cssVars: {
+          light: { primary: "oklch(0.5 0.1 120)" },
+          dark: { primary: "oklch(0.7 0.1 120)" },
+        },
+      },
+    ])
+    expect(persisted.state?.activeCustomThemeName).toBe("Imported")
     expect(persisted.state?.fontPreset).toBe("aestivus")
     expect(persisted.state?.bgMode).toBe("image")
     expect(persisted.state?.bgOpacity).toBe(55)
@@ -38,6 +48,8 @@ describe("workspace UI preference persistence", () => {
 function WorkspacePreferenceProbe() {
   const prefs = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
+    customThemes: state.customThemes,
+    activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
     bgMode: state.bgMode,
     bgOpacity: state.bgOpacity,
@@ -51,6 +63,16 @@ function WorkspacePreferenceProbe() {
         type="button"
         onClick={() => {
           workspaceActions.setTheme("endfield")
+          workspaceActions.setCustomThemes([
+            {
+              name: "Imported",
+              cssVars: {
+                light: { primary: "oklch(0.5 0.1 120)" },
+                dark: { primary: "oklch(0.7 0.1 120)" },
+              },
+            },
+          ])
+          workspaceActions.setActiveCustomThemeName("Imported")
           workspaceActions.setFontPreset("aestivus")
           workspaceActions.setBgMode("image")
           workspaceActions.setBgOpacity(55)
@@ -62,6 +84,8 @@ function WorkspacePreferenceProbe() {
         type="button"
         onClick={() => {
           workspaceActions.setTheme("spatial")
+          workspaceActions.setCustomThemes([])
+          workspaceActions.setActiveCustomThemeName(null)
           workspaceActions.setFontPreset("xiranite")
           workspaceActions.setBgMode("dot-grid")
           workspaceActions.setBgOpacity(30)

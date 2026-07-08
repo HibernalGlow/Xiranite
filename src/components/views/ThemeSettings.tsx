@@ -3,15 +3,18 @@ import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS } from "@/lib/appearance"
-import type { AppTheme } from "@/types/workspace"
+import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson } from "@/lib/appearance"
+import type { AppCustomTheme, AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -71,6 +74,46 @@ const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: Re
   { key: "light",  labelKey: "settings:colorMode.light",  descKey: "settings:colorMode.lightDesc",  icon: Sun },
   { key: "dark",   labelKey: "settings:colorMode.dark",   descKey: "settings:colorMode.darkDesc",   icon: Moon },
 ]
+
+function ImportedThemePreview({
+  theme,
+  active,
+  onSelect,
+}: {
+  theme: AppCustomTheme
+  active: boolean
+  onSelect: () => void
+}) {
+  const colors = theme.cssVars.light
+  const swatches = [
+    colors.background,
+    colors.primary,
+    colors.secondary,
+    colors.accent,
+  ].filter(Boolean)
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "flex min-w-0 items-center gap-2 rounded-sm border p-2 text-left transition-colors",
+        active ? "border-primary/50 bg-primary/8" : "border-border/40 bg-muted/10 hover:border-border hover:bg-muted/30",
+      )}
+    >
+      <div className="grid h-7 w-7 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/40">
+        {swatches.slice(0, 4).map((color, index) => (
+          <span key={`${theme.name}-${index}`} style={{ background: color }} />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn("truncate text-xs font-medium", active ? "text-foreground" : "text-muted-foreground")}>{theme.name}</p>
+        <p className="truncate text-[9px] font-mono text-muted-foreground/70">{colors.primary ?? colors.background ?? "custom"}</p>
+      </div>
+      {active && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+    </button>
+  )
+}
 
 function RuntimeRow({ label, value }: { label: string; value: string }) {
   return (
@@ -157,6 +200,8 @@ function DataSettingsPanel({
 export function ThemeSettings() {
   const state = useWorkspaceShallowSelector((workspace) => ({
     theme: workspace.theme,
+    customThemes: workspace.customThemes,
+    activeCustomThemeName: workspace.activeCustomThemeName,
     fontPreset: workspace.fontPreset,
     vignetteDepth: workspace.vignetteDepth,
     grainIntensity: workspace.grainIntensity,
@@ -177,8 +222,23 @@ export function ThemeSettings() {
   const backendStatus = useLocalBackendStatus()
   const [copiedCommand, setCopiedCommand] = useState<"attach" | "start" | null>(null)
   const [section, setSection] = useState<SettingsSection>("appearance")
+  const [themeJson, setThemeJson] = useState("")
+  const [themeImportError, setThemeImportError] = useState<string | null>(null)
+  const [importedThemesOpen, setImportedThemesOpen] = useState(false)
 
   const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
+  const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
+  const activeThemePalette = activeCustomTheme
+    ? [
+      activeCustomTheme.cssVars.light.background,
+      activeCustomTheme.cssVars.light.primary,
+      activeCustomTheme.cssVars.light.border,
+      activeCustomTheme.cssVars.light.foreground,
+    ].filter(Boolean)
+    : active.palette
+  const activeThemePaletteLabels = activeCustomTheme
+    ? ["background", "primary", "border", "foreground"]
+    : active.paletteLabelKeys.map((key) => t(key))
   const backendStatusKind = backendStatus.data?.status ?? (backendStatus.isFetching ? "checking" : "unknown")
   const backendStatusLabel = backendStatusKind === "ready"
     ? t("settings:developerRuntime.statusReady")
@@ -194,6 +254,25 @@ export function ThemeSettings() {
   function selectPreset(key: AppTheme) {
     workspaceActions.setTheme(key)
     setColorMode(PRESET_DEFAULT_MODE[key])
+  }
+
+  function importThemeJson() {
+    try {
+      const imported = parseImportedThemeJson(themeJson)
+      workspaceActions.setCustomThemes(imported)
+      workspaceActions.setActiveCustomThemeName(imported[0]?.name ?? null)
+      setImportedThemesOpen(false)
+      setThemeJson("")
+      setThemeImportError(null)
+    } catch (error) {
+      setThemeImportError(error instanceof Error ? error.message : t("settings:themeImport.invalidJson", "Invalid theme JSON."))
+    }
+  }
+
+  function clearImportedTheme() {
+    workspaceActions.setCustomThemes([])
+    workspaceActions.setActiveCustomThemeName(null)
+    setThemeImportError(null)
   }
 
   async function copyDevCommand(kind: "attach" | "start") {
@@ -229,20 +308,22 @@ export function ThemeSettings() {
               <div className="flex items-start justify-between mb-3">
                 <Badge variant="outline" className="font-mono text-[9px] text-primary border-primary/40">
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mr-1.5 inline-block" />
-                  {t("settings:activePreset")}
+                  {t("settings:activeTheme", "ACTIVE THEME")}
                 </Badge>
-                <active.icon className="h-4 w-4 text-muted-foreground" />
+                {activeCustomTheme ? <Palette className="h-4 w-4 text-muted-foreground" /> : <active.icon className="h-4 w-4 text-muted-foreground" />}
               </div>
-              <h2 className="text-2xl font-semibold text-foreground mb-2">{t(active.labelKey)}</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-4">{t(active.descriptionKey)}</p>
+              <h2 className="mb-2 truncate text-2xl font-semibold text-foreground">{activeCustomTheme?.name ?? t(active.labelKey)}</h2>
+              <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                {activeCustomTheme?.description ?? t(active.descriptionKey)}
+              </p>
 
               <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-2">{t("settings:texture.basePalette")}</p>
               <div className="flex rounded-sm overflow-hidden border border-border/40">
-                {active.palette.map((color, i) => (
+                {activeThemePalette.map((color, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1 pb-2 pt-3" style={{ background: color }}>
                     <div className="w-full h-8" />
                     <span className="text-[9px] font-mono" style={{ color: i < 2 ? "oklch(0.7 0 0)" : "oklch(0.2 0 0)" }}>
-                      {t(active.paletteLabelKeys[i])}
+                      {activeThemePaletteLabels[i]}
                     </span>
                   </div>
                 ))}
@@ -307,6 +388,121 @@ export function ThemeSettings() {
                   )
                 })}
               </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-sm p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs font-mono text-muted-foreground tracking-widest">
+                      {t("settings:themeImport.label", "IMPORT JSON")}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {t("settings:themeImport.description", "Import a tweakcn/aestivus theme object or a theme.json array, then switch between imported themes from a compact library.")}
+                  </p>
+                </div>
+                {activeCustomTheme && (
+                  <Badge variant="outline" className="max-w-[11rem] truncate font-mono text-[9px]" title={activeCustomTheme.name}>
+                    {activeCustomTheme.name}
+                  </Badge>
+                )}
+              </div>
+
+              <Textarea
+                value={themeJson}
+                onChange={(event) => {
+                  setThemeJson(event.target.value)
+                  if (themeImportError) setThemeImportError(null)
+                }}
+                spellCheck={false}
+                placeholder='[{"name":"perpetuity","cssVars":{"light":{"background":"oklch(1 0 0)","primary":"oklch(0.5 0.12 250)"},"dark":{"background":"oklch(0.2 0 0)"}}}]'
+                className="min-h-28 resize-y font-mono text-[11px] leading-relaxed"
+                aria-invalid={Boolean(themeImportError)}
+              />
+
+              {themeImportError && (
+                <p className="rounded-sm border border-destructive/25 bg-destructive/8 px-3 py-2 text-[11px] leading-relaxed text-destructive">
+                  {themeImportError}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="font-mono text-xs"
+                  disabled={!themeJson.trim()}
+                  onClick={importThemeJson}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {t("settings:themeImport.import", "Import JSON")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs"
+                  disabled={state.customThemes.length === 0}
+                  onClick={clearImportedTheme}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t("settings:themeImport.clear", "Clear imported themes")}
+                </Button>
+              </div>
+
+              {state.customThemes.length > 0 && (
+                <Collapsible open={importedThemesOpen} onOpenChange={setImportedThemesOpen}>
+                  <div className="rounded-sm border border-border/50 bg-muted/15">
+                    <CollapsibleTrigger asChild>
+                      <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-foreground">
+                            {activeCustomTheme?.name ?? t("settings:themeImport.noActive", "No imported theme active")}
+                          </p>
+                          <p className="text-[10px] font-mono text-muted-foreground">
+                            {t("settings:themeImport.count", { count: state.customThemes.length, defaultValue: "{{count}} imported themes" })}
+                          </p>
+                        </div>
+                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", importedThemesOpen && "rotate-180")} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border-t border-border/40 p-3">
+                        <div className="mb-3">
+                          <Select
+                            value={state.activeCustomThemeName ?? "none"}
+                            onValueChange={(value) => workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)}
+                          >
+                            <SelectTrigger className="w-full font-mono text-xs" size="sm">
+                              <SelectValue placeholder={t("settings:themeImport.selectTheme", "Select imported theme")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="none">{t("settings:themeImport.disableImported", "Use preset only")}</SelectItem>
+                                {state.customThemes.map((theme) => (
+                                  <SelectItem key={theme.name} value={theme.name}>{theme.name}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {state.customThemes.map((theme) => (
+                            <ImportedThemePreview
+                              key={theme.name}
+                              theme={theme}
+                              active={theme.name === state.activeCustomThemeName}
+                              onSelect={() => workspaceActions.setActiveCustomThemeName(theme.name)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              )}
             </div>
 
             <div className="bg-card border border-border rounded-sm p-4 space-y-3">

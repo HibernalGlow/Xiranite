@@ -7,8 +7,8 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS } from "@/lib/appearance"
-import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
+import { FONT_PRESETS, getActiveCustomTheme } from "@/lib/appearance"
+import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import {
   Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
@@ -80,6 +80,18 @@ const THEME_PRESETS: { key: AppTheme; labelKey: string; swatch: string }[] = [
   { key: "wuling",   labelKey: "topbar:theme.wuling",   swatch: "oklch(0.70 0.16 68)" },
 ]
 
+function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
+  const colors = theme.cssVars.light
+  const swatches = [colors.background, colors.primary, colors.secondary, colors.accent].filter(Boolean)
+  return (
+    <span className="grid h-4 w-4 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/60">
+      {swatches.slice(0, 4).map((color, index) => (
+        <span key={`${theme.name}-${index}`} style={{ background: color }} />
+      ))}
+    </span>
+  )
+}
+
 type ColorMode = "system" | "light" | "dark"
 const COLOR_MODES: { key: ColorMode; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "topbar:theme.system", icon: Monitor },
@@ -94,6 +106,8 @@ export function TopBar() {
     workspaces: workspace.workspaces,
     activeWorkspaceId: workspace.activeWorkspaceId,
     theme: workspace.theme,
+    customThemes: workspace.customThemes,
+    activeCustomThemeName: workspace.activeCustomThemeName,
     fontPreset: workspace.fontPreset,
     bgMode: workspace.bgMode,
   }))
@@ -112,11 +126,18 @@ export function TopBar() {
   const showWindowControls = capabilities?.nativeWindowControls === true
 
   const activeWorkspace = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
+  const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
+  const activePreset = THEME_PRESETS.find(p => p.key === state.theme) ?? THEME_PRESETS[0]
+  const activeThemeLabel = activeCustomTheme?.name ?? t(activePreset.labelKey)
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
     workspaceActions.setTheme(key)
     setColorMode(PRESET_DEFAULT_MODE[key])
+  }
+
+  function selectCustomTheme(theme: AppCustomTheme) {
+    workspaceActions.setActiveCustomThemeName(theme.name)
   }
 
   async function controlMainWindow(action: "minimize" | "maximize" | "close") {
@@ -383,7 +404,7 @@ export function TopBar() {
           >
             <Palette className="h-3.5 w-3.5" />
             <span className="hidden xl:inline uppercase tracking-widest text-[10px]">
-              {THEME_PRESETS.find(p => p.key === state.theme) ? t(THEME_PRESETS.find(p => p.key === state.theme)!.labelKey) : t("topbar:theme.label")}
+              {activeThemeLabel}
             </span>
             <ChevronDown className="h-3 w-3" />
           </button>
@@ -396,7 +417,7 @@ export function TopBar() {
                 <div className="p-2">
                   <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.preset")}</p>
                   {THEME_PRESETS.map(p => {
-                    const isActive = p.key === state.theme
+                    const isActive = !activeCustomTheme && p.key === state.theme
                     return (
                       <button
                         key={p.key}
@@ -418,6 +439,31 @@ export function TopBar() {
                 </div>
 
                 {/* 颜色模式 */}
+                {state.customThemes.length > 0 && (
+                  <div className="border-t border-border/60 p-2">
+                    <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">IMPORTED</p>
+                    <div className="max-h-44 overflow-y-auto pr-1">
+                      {state.customThemes.map(theme => {
+                        const isActive = theme.name === state.activeCustomThemeName
+                        return (
+                          <button
+                            key={theme.name}
+                            onClick={() => selectCustomTheme(theme)}
+                            className={cn(
+                              "flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors",
+                              isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted/60"
+                            )}
+                          >
+                            <CustomThemeSwatch theme={theme} />
+                            <span className="min-w-0 flex-1 truncate">{theme.name}</span>
+                            {isActive && <Check className="h-3 w-3 shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="border-t border-border/60 p-2">
                   <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.colorMode")}</p>
                   <div className="grid grid-cols-3 gap-1">

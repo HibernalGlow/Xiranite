@@ -8,6 +8,16 @@ export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | 
 export type AppTheme = "spatial" | "endfield" | "wuling"
 export type AppFontPreset = "xiranite" | "system" | "aestivus" | "serif" | "mono"
 
+export interface AppCustomTheme {
+  name: string
+  description?: string
+  cssVars: {
+    theme?: Record<string, string>
+    light: Record<string, string>
+    dark?: Record<string, string>
+  }
+}
+
 export interface WorkspaceItem {
   id: string
   label: string

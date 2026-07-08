@@ -31,6 +31,8 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
 function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   return {
     theme: state.theme,
+    customThemes: state.customThemes,
+    activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
     cardLayout: state.cardLayout,
     grainEnabled: state.grainEnabled,
@@ -680,6 +682,8 @@ export function useWorkspaceActions(): WorkspaceActions {
 function selectWorkspaceState(store: WSStore): WSState {
   return {
     theme: store.theme,
+    customThemes: store.customThemes,
+    activeCustomThemeName: store.activeCustomThemeName,
     fontPreset: store.fontPreset,
     viewMode: store.viewMode,
     cardLayout: store.cardLayout,
@@ -708,6 +712,8 @@ function selectWorkspaceState(store: WSStore): WSState {
 function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,
+    setCustomThemes: store.setCustomThemes,
+    setActiveCustomThemeName: store.setActiveCustomThemeName,
     setFontPreset: store.setFontPreset,
     setViewMode: store.setViewMode,
     setCardLayout: store.setCardLayout,

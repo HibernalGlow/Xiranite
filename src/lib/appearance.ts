@@ -1,4 +1,4 @@
-import type { AppFontPreset, AppTheme } from "@/types/workspace"
+import type { AppCustomTheme, AppFontPreset, AppTheme } from "@/types/workspace"
 
 export type ThemeMode = "system" | "light" | "dark"
 
@@ -21,6 +21,8 @@ const THEME_ROOT_CLASSES: Record<AppTheme, string> = {
   endfield: "theme-endfield",
   wuling: "theme-wuling",
 }
+
+let customThemeKeys = new Set<string>()
 
 export const FONT_PRESETS: FontPresetOption[] = [
   {
@@ -94,9 +96,142 @@ export function applyThemePreset(theme: AppTheme): void {
   root.classList.add(THEME_ROOT_CLASSES[theme])
 }
 
-export function mirrorAestivusThemeStorage(theme: AppTheme, mode: ThemeMode): void {
+export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: ThemeMode): void {
+  if (typeof document === "undefined") return
+
+  const root = document.documentElement
+  for (const key of customThemeKeys) {
+    root.style.removeProperty(`--${key}`)
+  }
+  customThemeKeys = new Set()
+
+  if (!customTheme) {
+    root.removeAttribute("data-custom-theme")
+    root.removeAttribute("data-custom-theme-name")
+    return
+  }
+
+  const isDark = mode === "dark" || (mode === "system" && root.classList.contains("dark"))
+  const selectedVars = isDark ? (customTheme.cssVars.dark ?? customTheme.cssVars.light) : customTheme.cssVars.light
+  const cssVars = {
+    ...(customTheme.cssVars.theme ?? {}),
+    ...selectedVars,
+  }
+
+  root.setAttribute("data-custom-theme", "enabled")
+  root.dataset.customThemeName = customTheme.name
+  for (const [key, value] of Object.entries(cssVars)) {
+    const cssVarName = normalizeCssVarName(key)
+    if (!cssVarName) continue
+    root.style.setProperty(`--${cssVarName}`, value)
+    customThemeKeys.add(cssVarName)
+  }
+}
+
+export function parseImportedThemeJson(jsonString: string): AppCustomTheme[] {
+  const parsed = JSON.parse(jsonString) as unknown
+
+  if (Array.isArray(parsed)) {
+    const themes: AppCustomTheme[] = []
+    for (const item of parsed) {
+      const theme = parseThemeRecord(item)
+      if (theme) themes.push(theme)
+    }
+    if (themes.length > 0) return dedupeThemesByName(themes)
+    throw new Error("Theme JSON array must include at least one valid theme.")
+  }
+
+  const theme = parseThemeRecord(parsed)
+  if (theme) return [theme]
+
+  throw new Error("Theme JSON must include cssVars.light or colors.light.")
+}
+
+function parseThemeRecord(value: unknown): AppCustomTheme | null {
+  if (!isRecord(value)) return null
+
+  const name = typeof value.name === "string" && value.name.trim() ? value.name.trim() : "Imported"
+  const description = typeof value.description === "string" ? value.description : undefined
+
+  if (isRecord(value.cssVars)) {
+    const light = stringRecord(value.cssVars.light)
+    if (!light) return null
+
+    return {
+      name,
+      description,
+      cssVars: {
+        theme: stringRecord(value.cssVars.theme) ?? undefined,
+        light,
+        dark: stringRecord(value.cssVars.dark) ?? undefined,
+      },
+    }
+  }
+
+  if (isRecord(value.colors)) {
+    const light = stringRecord(value.colors.light)
+    if (!light) return null
+
+    return {
+      name,
+      description,
+      cssVars: {
+        light,
+        dark: stringRecord(value.colors.dark) ?? undefined,
+      },
+    }
+  }
+
+  return null
+}
+
+export function mirrorAestivusThemeStorage(theme: AppTheme, mode: ThemeMode, customThemes: AppCustomTheme[] = [], activeTheme?: AppCustomTheme | null): void {
   if (typeof localStorage === "undefined") return
 
-  localStorage.setItem("theme-name", AESTIVUS_THEME_NAME_BY_PRESET[theme])
+  localStorage.setItem("theme-name", activeTheme?.name ?? AESTIVUS_THEME_NAME_BY_PRESET[theme])
   localStorage.setItem("theme-mode", mode)
+
+  if (customThemes.length > 0) {
+    const aestivusThemes = customThemes.map((customTheme) => ({
+      name: customTheme.name,
+      description: customTheme.description ?? "Imported theme",
+      colors: {
+        light: customTheme.cssVars.light,
+        dark: customTheme.cssVars.dark ?? customTheme.cssVars.light,
+      },
+    }))
+    localStorage.setItem("custom-themes", JSON.stringify(aestivusThemes))
+  } else {
+    localStorage.removeItem("custom-themes")
+  }
+}
+
+export function getActiveCustomTheme(customThemes: AppCustomTheme[], activeThemeName: string | null): AppCustomTheme | null {
+  if (!activeThemeName) return null
+  return customThemes.find((theme) => theme.name === activeThemeName) ?? null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function stringRecord(value: unknown): Record<string, string> | null {
+  if (!isRecord(value)) return null
+
+  const entries = Object.entries(value)
+    .map(([key, entryValue]) => [normalizeCssVarName(key), entryValue] as const)
+    .filter((entry): entry is [string, string] => Boolean(entry[0]) && typeof entry[1] === "string")
+  return entries.length > 0 ? Object.fromEntries(entries) : null
+}
+
+function normalizeCssVarName(key: string): string {
+  return key.trim().replace(/^--/, "")
+}
+
+function dedupeThemesByName(themes: AppCustomTheme[]): AppCustomTheme[] {
+  const map = new Map<string, AppCustomTheme>()
+  for (const theme of themes) {
+    map.set(theme.name, theme)
+  }
+  return [...map.values()]
 }

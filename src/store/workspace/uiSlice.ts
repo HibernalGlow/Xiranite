@@ -2,7 +2,14 @@ import type { SetWorkspaceStore, WorkspaceUiActions } from "./types"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
-    setTheme: (theme) => set({ theme }, false, "SET_THEME"),
+    setTheme: (theme) => set({ theme, activeCustomThemeName: null }, false, "SET_THEME"),
+    setCustomThemes: (customThemes) => set((state) => ({
+      customThemes,
+      activeCustomThemeName: customThemes.some((theme) => theme.name === state.activeCustomThemeName)
+        ? state.activeCustomThemeName
+        : (customThemes[0]?.name ?? null),
+    }), false, "SET_CUSTOM_THEMES"),
+    setActiveCustomThemeName: (activeCustomThemeName) => set({ activeCustomThemeName }, false, "SET_ACTIVE_CUSTOM_THEME"),
     setFontPreset: (fontPreset) => set({ fontPreset }, false, "SET_FONT_PRESET"),
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),

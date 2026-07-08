@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { applyFontPreset, applyThemePreset, mirrorAestivusThemeStorage, type ThemeMode } from "@/lib/appearance"
+import { applyCustomTheme, applyFontPreset, applyThemePreset, getActiveCustomTheme, mirrorAestivusThemeStorage, type ThemeMode } from "@/lib/appearance"
 import { useTheme } from "@/components/theme-provider"
 import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 
@@ -7,6 +7,8 @@ export function WorkspaceAppearance() {
   const { theme: colorMode } = useTheme()
   const appearance = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
+    customThemes: state.customThemes,
+    activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
   }))
 
@@ -19,8 +21,23 @@ export function WorkspaceAppearance() {
   }, [appearance.theme])
 
   useEffect(() => {
-    mirrorAestivusThemeStorage(appearance.theme, colorMode as ThemeMode)
-  }, [appearance.theme, colorMode])
+    const mode = colorMode as ThemeMode
+    const activeCustomTheme = getActiveCustomTheme(appearance.customThemes, appearance.activeCustomThemeName)
+    applyCustomTheme(activeCustomTheme, mode)
+    mirrorAestivusThemeStorage(appearance.theme, mode, appearance.customThemes, activeCustomTheme)
+
+    if (mode !== "system") {
+      return undefined
+    }
+
+    const mediaQuery = window.matchMedia?.("(prefers-color-scheme: dark)")
+    const handleChange = () => applyCustomTheme(activeCustomTheme, mode)
+    mediaQuery?.addEventListener("change", handleChange)
+
+    return () => {
+      mediaQuery?.removeEventListener("change", handleChange)
+    }
+  }, [appearance.theme, appearance.customThemes, appearance.activeCustomThemeName, colorMode])
 
   return null
 }
