@@ -1,21 +1,21 @@
-import type { NodeEntry } from "@xiranite/contract"
-import { Component } from "./Component.js"
+import type { HeadlessNodePackage, NodeDef } from "@xiranite/contract"
 import * as core from "./core.js"
 
-const entry: NodeEntry<typeof core> = {
-  def: {
-    id: "trename",
-    name: "Trename",
-    version: "0.1.0",
-    category: "file",
-    description: "Scan folders into rename JSON, validate translated targets, rename, and undo.",
-    icon: "FilePenLine",
-    keywords: ["rename", "translate", "json", "undo", "batch"],
-  },
-  Component,
-  core,
-}
+export const def = {
+  id: "trename",
+  name: "Trename",
+  version: "0.1.0",
+  category: "file",
+  description: "Scan folders into rename JSON, validate translated targets, rename, and undo.",
+  icon: "FilePenLine",
+  keywords: ["rename", "translate", "json", "undo", "batch"],
+} satisfies NodeDef
 
-export { Component }
+const entry = {
+  def,
+  core,
+} satisfies HeadlessNodePackage<typeof core>
+
+export { core }
 export * from "./core.js"
 export default entry
