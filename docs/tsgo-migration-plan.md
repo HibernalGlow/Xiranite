@@ -24,9 +24,9 @@ Current official position:
 
 | Area | Current Xiranite use | tsgo readiness | Decision |
 |---|---|---:|---|
-| Root typecheck | `bun run typecheck` -> `tsc --noEmit` | Good | Safe to smoke-test with `tsgo --noEmit` |
+| Root typecheck | `bun run typecheck` -> `tsgo --noEmit` (rollback: `typecheck:tsc`) | Good | Switched in PR 4 |
 | App build check | root `build` runs `tsc -b` before Vite | Good | Safe to compare with TS7, but keep old path until scripts are fixed |
-| Package emit | every package uses `tsc -p tsconfig.json` | Good | Candidate for tsgo/TS7 after API blockers are removed |
+| Package emit | every package uses `tsgo -p tsconfig.json` (rollback: `build:tsc`) | Good | Switched in PR 4 |
 | JSX / React | React 19 + `jsx: react-jsx` | Good | No known blocker |
 | Declaration emit | packages emit `.d.ts` | Good | Candidate for tsgo comparison |
 | Project references | root has only app/node refs; packages are built by scripts | Partial | Good future target, not fully wired today |
@@ -409,6 +409,15 @@ If dist files are not tracked, compare file counts and selected public `.d.ts` c
 - Replace default typecheck/build compiler only after PRs 1-3 pass.
 - Keep rollback scripts for at least one release.
 - Update docs and CI.
+
+**Status: done (2026-07-08).**
+
+- `typecheck` now runs `tsgo --noEmit`; `typecheck:tsc` is the rollback.
+- Every package `build` script now runs `tsgo -p tsconfig.json`; `build:tsc` is the rollback.
+- Root `build:packages:turbo` uses tsgo via the package `build` scripts; `build:packages:tsc` is the rollback.
+- `turbo.json` defines a `build:tsc` task (`dependsOn: ["^build:tsc"]`) for the rollback path.
+- The root app `build` still uses `tsc -b` before Vite; switching it to `tsgo -b` is deferred until the pre-existing `NodeStateCapability` project-reference errors (unrelated to tsgo) are resolved.
+- No CI workflows exist in this repo, so nothing to update there.
 
 ## Do not do
 

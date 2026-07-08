@@ -18,8 +18,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:tsgo": "tsgo -p tsconfig.json",
+    "build": "tsgo -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
     "test": "vitest run src/**/*.test.ts"
   },
   "dependencies": {

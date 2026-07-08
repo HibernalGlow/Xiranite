@@ -5,8 +5,8 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "build:tsgo": {
-      "dependsOn": ["^build"],
+    "build:tsc": {
+      "dependsOn": ["^build:tsc"],
       "outputs": ["dist/**"]
     },
     "test": {
