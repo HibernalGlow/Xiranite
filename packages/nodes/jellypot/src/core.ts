@@ -112,6 +112,8 @@ export async function runJellyPot(
   }
 }
 
+export const runJellypot = runJellyPot
+
 export async function loadJellyPotConfig(input: Required<JellyPotInput>, runtime: JellyPotRuntime): Promise<JellyPotConfig> {
   const text = input.configText || (input.configPath ? await runtime.readText(input.configPath) : "")
   if (!text.trim()) return {}

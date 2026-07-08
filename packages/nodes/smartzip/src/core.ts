@@ -103,6 +103,8 @@ export async function runSmartZip(
   }
 }
 
+export const runSmartzip = runSmartZip
+
 export function parseSmartZipIni(text: string): SmartZipConfig {
   const sections = parseIni(text)
   const set = sections.set ?? {}

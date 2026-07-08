@@ -13,6 +13,8 @@ export function createNodeJellyPotRuntime(): JellyPotRuntime {
   }
 }
 
+export const createNodeJellypotRuntime = createNodeJellyPotRuntime
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path)

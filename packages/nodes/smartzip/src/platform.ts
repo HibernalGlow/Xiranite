@@ -10,6 +10,8 @@ export function createNodeSmartZipRuntime(): SmartZipRuntime {
   }
 }
 
+export const createNodeSmartzipRuntime = createNodeSmartZipRuntime
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path)

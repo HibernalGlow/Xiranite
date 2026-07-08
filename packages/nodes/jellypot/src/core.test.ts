@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { buildCommandPlans, normalizeMediaPath, runJellyPot } from "./core.js"
+import { buildCommandPlans, normalizeMediaPath, runJellyPot, runJellypot } from "./core.js"
 
 describe("jellypot core", () => {
   test("normalizes potplayer URLs", () => {
@@ -32,5 +32,9 @@ describe("jellypot core", () => {
     })
     expect(result.success).toBe(true)
     expect(result.data?.checks[0]?.name).toBe("potplayer")
+  })
+
+  test("exports generated runner alias", () => {
+    expect(runJellypot).toBe(runJellyPot)
   })
 })

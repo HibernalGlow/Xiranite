@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { actionMode, buildSmartZipCommand, isArchivePath, parseSmartZipIni, runSmartZip } from "./core.js"
+import { actionMode, buildSmartZipCommand, isArchivePath, parseSmartZipIni, runSmartZip, runSmartzip } from "./core.js"
 
 describe("smartzip core", () => {
   test("parses ini sections", () => {
@@ -38,5 +38,9 @@ describe("smartzip core", () => {
     })
     expect(result.success).toBe(true)
     expect(result.data?.archiveCount).toBe(1)
+  })
+
+  test("exports generated runner alias", () => {
+    expect(runSmartzip).toBe(runSmartZip)
   })
 })

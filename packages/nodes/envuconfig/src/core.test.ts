@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { buildBackupOperations, classifyEnvuFiles, runEnvuConfig } from "./core.js"
+import { buildBackupOperations, classifyEnvuFiles, runEnvuConfig, runEnvuconfig } from "./core.js"
 
 describe("envuconfig core", () => {
   test("classifies EnvU config files", () => {
@@ -29,5 +29,9 @@ describe("envuconfig core", () => {
     })
     expect(result.success).toBe(true)
     expect(result.data?.fileCount).toBe(1)
+  })
+
+  test("exports generated runner alias", () => {
+    expect(runEnvuconfig).toBe(runEnvuConfig)
   })
 })

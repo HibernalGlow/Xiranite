@@ -105,6 +105,8 @@ export async function runEnvuConfig(
   }
 }
 
+export const runEnvuconfig = runEnvuConfig
+
 export function classifyEnvuFiles(
   files: Array<{ path: string; relativePath: string; size: number; modifiedMs: number }>,
   include: string[],

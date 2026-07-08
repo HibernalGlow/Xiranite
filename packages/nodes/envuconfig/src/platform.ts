@@ -13,6 +13,8 @@ export function createNodeEnvuConfigRuntime(): EnvuConfigRuntime {
   }
 }
 
+export const createNodeEnvuconfigRuntime = createNodeEnvuConfigRuntime
+
 async function listFiles(root: string): Promise<Array<{ path: string; relativePath: string; size: number; modifiedMs: number }>> {
   const base = resolve(root)
   const files: Array<{ path: string; relativePath: string; size: number; modifiedMs: number }> = []
