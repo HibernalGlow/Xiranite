@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { access, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import * as ts from "typescript"
@@ -33,6 +34,7 @@ const apply = process.argv.includes("--apply")
 const check = process.argv.includes("--check")
 const keepPackageComponent = process.argv.includes("--keep-package-component")
 const refreshRegistries = process.argv.includes("--refresh-registries")
+const stage = process.argv.includes("--stage")
 
 const helpRequested = process.argv.includes("--help") || process.argv.includes("-h")
 
@@ -48,6 +50,7 @@ const packageTsconfigPath = join(packageRoot, "tsconfig.json")
 const appNodeRoot = join(repoRoot, "src", "nodes", nodeId)
 const appEntryPath = join(appNodeRoot, "entry.ts")
 const appComponentPath = join(appNodeRoot, "Component.tsx")
+const generatedModulesPath = join(repoRoot, "src", "components", "modules", "packageModules.generated.ts")
 const changes: Change[] = []
 
 await assertExists(packageJsonPath, `Unknown node package: ${nodeId}`)
@@ -71,6 +74,7 @@ if (refreshRegistries) await runRefreshRegistries()
 
 printSummary()
 if (check) await runChecks()
+if (stage) await stageCurrentNode()
 
 async function updatePackageJson(pkgJson: NodePackageJson): Promise<void> {
   const next: NodePackageJson = JSON.parse(JSON.stringify(pkgJson))
@@ -279,6 +283,7 @@ function printSummary(): void {
     console.log(`  bun --filter @xiranite/node-${nodeId} test`)
     console.log(`  bun --filter @xiranite/node-${nodeId} build`)
   }
+  if (!stage) console.log(`  bun run migrate:node-ui -- --node ${nodeId} --stage`)
 }
 
 async function runRefreshRegistries(): Promise<void> {
@@ -303,6 +308,38 @@ async function runChecks(): Promise<void> {
   runCommand("node package build", ["bun", "--filter", `@xiranite/node-${nodeId}`, "build"])
 }
 
+async function stageCurrentNode(): Promise<void> {
+  console.log("")
+  console.log(`Staging ${nodeId} migration files...`)
+  runCommand("stage node package and app UI", ["git", "add", relative(packageRoot), relative(appNodeRoot)])
+  await stageGeneratedLoaderLine()
+  runCommand("show staged files", ["git", "diff", "--cached", "--name-status"])
+}
+
+async function stageGeneratedLoaderLine(): Promise<void> {
+  const generatedRelative = relative(generatedModulesPath)
+  const headContent = runCommandCapture("read HEAD generated node registry", ["git", "show", `HEAD:${generatedRelative}`])
+  const packageLoader = `  ${nodeId}: () => import("@xiranite/node-${nodeId}") as Promise<{ default: NodeEntry }>,`
+  const appLoader = `  ${nodeId}: () => import("@/nodes/${nodeId}/entry") as Promise<{ default: AppNodeEntry }>,`
+  const nextContent = headContent.includes(packageLoader)
+    ? headContent.replace(packageLoader, appLoader)
+    : headContent
+
+  if (!nextContent.includes(appLoader)) {
+    throw new Error(`Unable to find a loader entry for ${nodeId} in ${generatedRelative}.`)
+  }
+
+  runCommand("unstage full generated node registry", ["git", "reset", "-q", "--", generatedRelative])
+
+  const tempPath = join(tmpdir(), `xiranite-${nodeId}-packageModules.generated.ts`)
+  await writeFile(tempPath, nextContent, "utf8")
+  const hash = runCommandCapture("hash generated node registry", ["git", "hash-object", "-w", tempPath]).trim()
+  runCommand("stage current node loader line", ["git", "update-index", "--cacheinfo", `100644,${hash},${generatedRelative}`])
+  await rm(tempPath, { force: true })
+
+  console.log(`staged ${generatedRelative} - loader switched to @/nodes/${nodeId}/entry only`)
+}
+
 function runCommand(label: string, cmd: string[]): void {
   console.log("")
   console.log(`> ${cmd.join(" ")}`)
@@ -315,6 +352,20 @@ function runCommand(label: string, cmd: string[]): void {
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed with exit code ${result.exitCode}.`)
   }
+}
+
+function runCommandCapture(label: string, cmd: string[]): string {
+  const result = Bun.spawnSync({
+    cmd,
+    cwd: repoRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  if (result.exitCode !== 0) {
+    const stderr = new TextDecoder().decode(result.stderr).trim()
+    throw new Error(`${label} failed with exit code ${result.exitCode}${stderr ? `: ${stderr}` : "."}`)
+  }
+  return new TextDecoder().decode(result.stdout)
 }
 
 function nodeDefLiteral(def: NodeDefLiteral): string {
@@ -355,7 +406,7 @@ function relative(file: string): string {
 
 function printHelp(): void {
   console.log([
-    "Usage: bun scripts/migrate-node-ui-to-app.ts --node <node-id> [--apply] [--refresh-registries] [--check] [--keep-package-component]",
+    "Usage: bun scripts/migrate-node-ui-to-app.ts --node <node-id> [--apply] [--refresh-registries] [--check] [--stage] [--keep-package-component]",
     "",
     "Automates the mechanical part of moving a node from package-owned React UI to app-owned UI:",
     "- removes React/UI dependencies from packages/nodes/<id>/package.json",
@@ -365,6 +416,7 @@ function printHelp(): void {
     "- creates or refreshes src/nodes/<id>/entry.ts when src/nodes/<id>/Component.tsx exists",
     "- optionally refreshes generated registries with --refresh-registries",
     "- optionally runs the app Component test and package validation with --check",
+    "- optionally stages only this node package/app files and this node's generated loader line with --stage",
     "",
     "The script intentionally does not generate the app UI Component. Build that UI deliberately, then run this script.",
     "Dry-run is the default; pass --apply to write changes.",
