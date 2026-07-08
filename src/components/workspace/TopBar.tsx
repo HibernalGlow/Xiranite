@@ -7,13 +7,14 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
+import { FONT_PRESETS } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import {
   Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
-  CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile,
+  CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile, Type,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -93,6 +94,7 @@ export function TopBar() {
     workspaces: workspace.workspaces,
     activeWorkspaceId: workspace.activeWorkspaceId,
     theme: workspace.theme,
+    fontPreset: workspace.fontPreset,
     bgMode: workspace.bgMode,
   }))
   const workspaceActions = useWorkspaceActions()
@@ -136,6 +138,7 @@ export function TopBar() {
       onDoubleClick={handleTitleBarDoubleClick}
       className={cn(
         "xiranite-app-region-drag",
+        "xiranite-topbar",
         "flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-background px-4",
       )}
     >
@@ -434,6 +437,31 @@ export function TopBar() {
                         >
                           <Icon className="h-3.5 w-3.5" />
                           <span className="text-[10px] font-mono">{t(m.labelKey)}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-border/60 p-2">
+                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">FONT</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {FONT_PRESETS.map((preset) => {
+                      const isActive = state.fontPreset === preset.key
+                      return (
+                        <button
+                          key={preset.key}
+                          onClick={() => workspaceActions.setFontPreset(preset.key)}
+                          title={preset.description}
+                          className={cn(
+                            "flex min-w-0 items-center gap-1.5 rounded-sm border px-2 py-1.5 text-left transition-all",
+                            isActive
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          )}
+                        >
+                          <Type className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate text-[10px] font-mono">{preset.label}</span>
                         </button>
                       )
                     })}

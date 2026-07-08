@@ -146,7 +146,7 @@ export function DockviewView() {
     moduleTab: (props: IDockviewPanelHeaderProps) => {
       const title = String(props.api.title ?? "panel")
       return (
-        <div className="flex items-center gap-2 px-1 group/tab">
+        <div className="xiranite-ui-copy flex items-center gap-2 px-1 group/tab">
           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           <span className="text-[10px] font-mono font-semibold tracking-widest uppercase">{title}</span>
           <button
@@ -175,7 +175,7 @@ export function DockviewView() {
       {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
       {isEmpty ? (
         <div className="flex min-h-0 flex-1 items-center justify-center ws-canvas-bg">
-          <div className="text-center space-y-4">
+          <div className="xiranite-ui-copy text-center space-y-4">
             <LayoutPanelTop className="h-10 w-10 text-muted-foreground/40 mx-auto" />
             <p className="text-sm font-mono text-muted-foreground">{t("view:dockview.empty")}</p>
             <Button
@@ -203,7 +203,7 @@ export function DockviewView() {
 
 function ModuleDropHint({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+    <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
     </div>
   )

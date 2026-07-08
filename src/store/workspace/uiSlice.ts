@@ -3,6 +3,7 @@ import type { SetWorkspaceStore, WorkspaceUiActions } from "./types"
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
     setTheme: (theme) => set({ theme }, false, "SET_THEME"),
+    setFontPreset: (fontPreset) => set({ fontPreset }, false, "SET_FONT_PRESET"),
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),
     setOverlay: (overlay) => set({ overlay }, false, "SET_OVERLAY"),

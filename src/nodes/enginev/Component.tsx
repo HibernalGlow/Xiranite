@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
@@ -36,6 +37,7 @@ import { WallpaperGallery } from "./WallpaperGallery"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t: tNode } = useNodeI18n("enginev")
   const data = host.getData<EngineVCardState>(compId) ?? {}
   const dataRef = useRef<EngineVCardState>(data)
   dataRef.current = data
@@ -63,7 +65,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
     return data.filteredWallpapers?.length ? data.filteredWallpapers : wallpapers
   }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasFilters, wallpapers])
-  const status = statusFromState(data, running)
+  const status = statusFromState(data, running, tNode)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
@@ -160,19 +162,19 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(nextAction, current)
 
     if (!input.path && !input.wallpapers?.length) {
-      const message = "请先选择 Wallpaper Engine 工坊目录，或先完成一次扫描。"
+      const message = tNode("pathRequired", "请先选择 Wallpaper Engine 工坊目录，或先完成一次扫描。")
       patch({ phase: "error", progressText: message })
       pushLog(message)
       return
     }
     if (nextAction === "delete" && !ids.length) {
-      const message = "删除前请先在画廊中选择至少一个项目。"
+      const message = tNode("deleteRequiresSelection", "删除前请先在画廊中选择至少一个项目。")
       patch({ phase: "error", progressText: message })
       pushLog(message)
       return
     }
     if (nextAction === "export" && !input.exportPath) {
-      const message = "导出需要目标文件路径。"
+      const message = tNode("exportRequiresPath", "导出需要目标文件路径。")
       patch({ phase: "error", progressText: message })
       pushLog(message)
       return
@@ -180,14 +182,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const runAction = host.actions?.run
     if (!runAction) {
-      const message = "Local Backend 暂不可用，无法运行 enginev。"
+      const message = tNode("noNative", "Local Backend 暂不可用，无法运行 enginev。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `正在${labelForAction(nextAction)}。` })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: tNode("actionStart", "正在{{action}}。", { action: labelForAction(nextAction, tNode) }) })
     try {
       const response = await runAction<EngineVInput, EngineVData>("enginev", input, (event) => {
         if (event.type === "progress") {
@@ -232,6 +234,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     running,
     selectedIds,
     status,
+    tNode,
     wallpapers,
     onActionChange: (value: EngineVAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
@@ -283,6 +286,7 @@ function createViewProps(props: {
   running: boolean
   selectedIds: string[]
   status: EngineVStatusMeta
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   wallpapers: EngineVData["wallpapers"]
   onActionChange: (value: EngineVAction) => void
   onCopyLogs: () => void
@@ -316,12 +320,12 @@ function CollapsedView(props: ViewProps) {
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summarize(props)}</div>
         <div className="mt-1 truncate text-[11px] text-muted-foreground">
-          {props.galleryWallpapers.length} 可见 · {props.selectedIds.length} 选中
+          {props.tNode("summary.visibleSelected", "{{visible}} 可见 · {{selected}} 选中", { visible: props.galleryWallpapers.length, selected: props.selectedIds.length })}
         </div>
       </div>
-      <Button aria-label={`快速${props.actionMeta.shortLabel}`} disabled={props.running} size="icon-xs" onClick={() => props.onExecute(props.action)}>
+      <Button aria-label={props.tNode("buttons.quickAction", "快速{{action}}", { action: props.actionMeta.shortLabel })} disabled={props.running} size="icon-xs" onClick={() => props.onExecute(props.action)}>
         <ActionIcon />
-        <span className="sr-only">快速{props.actionMeta.shortLabel}</span>
+        <span className="sr-only">{props.tNode("buttons.quickAction", "快速{{action}}", { action: props.actionMeta.shortLabel })}</span>
       </Button>
       {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
     </div>
@@ -337,9 +341,9 @@ function CompactView(props: ViewProps) {
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <Button aria-label={`执行${props.actionMeta.shortLabel}`} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+          <Button aria-label={props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
             <ActionIcon />
-            <span className="sr-only">执行{props.actionMeta.shortLabel}</span>
+            <span className="sr-only">{props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })}</span>
           </Button>
         </div>
       </div>
@@ -349,19 +353,19 @@ function CompactView(props: ViewProps) {
           <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
           <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
             <Play data-icon="inline-start" />
-            运行
+            {props.tNode("buttons.run", "运行")}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label="预演" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label="复制" onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
+          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "预演")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "复制")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
         </div>
         <ToolbarActions compact {...props} />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
         <div className="flex shrink-0 items-center justify-between gap-2">
-          <div className="truncate text-xs text-muted-foreground">{props.galleryWallpapers.length} 个可见项目</div>
+          <div className="truncate text-xs text-muted-foreground">{props.tNode("empty.visibleItems", "{{count}} 个可见项目", { count: props.galleryWallpapers.length })}</div>
           <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </div>
         <div className="min-h-0 flex-1">
@@ -391,9 +395,9 @@ function PortraitCompactView(props: ViewProps) {
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <Button aria-label={`执行${props.actionMeta.shortLabel}`} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+          <Button aria-label={props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
             <ActionIcon />
-            <span className="sr-only">执行{props.actionMeta.shortLabel}</span>
+            <span className="sr-only">{props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })}</span>
           </Button>
         </div>
       </div>
@@ -404,12 +408,12 @@ function PortraitCompactView(props: ViewProps) {
           <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
           <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
             <Play data-icon="inline-start" />
-            运行
+            {props.tNode("buttons.run", "运行")}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label="预演" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label="复制" onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
+          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "预演")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "复制")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <ToolbarActions compact {...props} />
@@ -424,7 +428,7 @@ function PortraitCompactView(props: ViewProps) {
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(96px,1fr)_minmax(128px,0.85fr)] gap-2">
           <section className="flex min-h-0 flex-col gap-1.5">
             <div className="flex shrink-0 items-center justify-between gap-2">
-              <div className="truncate text-xs font-medium text-muted-foreground">{props.galleryWallpapers.length} 个可见项目</div>
+              <div className="truncate text-xs font-medium text-muted-foreground">{props.tNode("empty.visibleItems", "{{count}} 个可见项目", { count: props.galleryWallpapers.length })}</div>
             </div>
             <div className="min-h-0 flex-1">
               <WallpaperGallery
@@ -458,16 +462,16 @@ function FullView(props: ViewProps) {
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row @4xl/enginev:items-center">
           <HeaderLine
             status={props.status}
-            subtitle={props.data.progressText || `${props.galleryWallpapers.length} 可见 / ${props.wallpapers.length} 已扫描 / ${props.selectedIds.length} 选中`}
+            subtitle={props.data.progressText || props.tNode("summary.headerLine", "{{visible}} 可见 / {{scanned}} 已扫描 / {{selected}} 选中", { visible: props.galleryWallpapers.length, scanned: props.wallpapers.length, selected: props.selectedIds.length })}
           />
           <div data-testid="enginev-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/enginev:w-40" onActionChange={props.onActionChange} />
             <ToolbarActions {...props} />
-            <ActionIconButton label="清空状态" icon={RotateCcw} disabled={props.running} onClick={props.onReset} />
+            <ActionIconButton label={props.tNode("buttons.clearState", "清空状态")} icon={RotateCcw} disabled={props.running} onClick={props.onReset} />
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <HeaderStats selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} />
+          <HeaderStats selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} tNode={props.tNode} />
           <ConfigDefaultsPopover
             configDirty={props.configDirty}
             configFilePath={props.configFilePath}
@@ -486,17 +490,17 @@ function FullView(props: ViewProps) {
           <div className="flex min-h-0 flex-col gap-3 pr-1">
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
               <div>
-                <div className="text-sm font-semibold">输入</div>
-                <div className="text-xs text-muted-foreground">工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。</div>
+                <div className="text-sm font-semibold">{props.tNode("sections.input", "输入")}</div>
+                <div className="text-xs text-muted-foreground">{props.tNode("sections.inputDesc", "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。")}</div>
               </div>
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
             </section>
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div className="text-sm font-semibold">筛选</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.filter", "筛选")}</div>
               <FilterFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </section>
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div className="text-sm font-semibold">写入选项</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.writeOptions", "写入选项")}</div>
               <OptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </section>
             <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -507,8 +511,8 @@ function FullView(props: ViewProps) {
         <Tabs defaultValue="gallery" className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2">
             <TabsList>
-              <TabsTrigger value="gallery">画廊</TabsTrigger>
-              <TabsTrigger value="results">结果</TabsTrigger>
+              <TabsTrigger value="gallery">{props.tNode("tabs.gallery", "画廊")}</TabsTrigger>
+              <TabsTrigger value="results">{props.tNode("tabs.results", "结果")}</TabsTrigger>
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
@@ -547,8 +551,8 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
           onClick={() => props.onExecute(item.value)}
         />
       ))}
-      <DeleteConfirmButton disabled={props.running || !props.selectedIds.length} onConfirm={() => props.onExecute("delete")} selectedCount={props.selectedIds.length} />
-      <ActionIconButton label="复制结果" icon={Copy} disabled={!props.galleryWallpapers.length && !props.result} onClick={props.onCopyResults} />
+      <DeleteConfirmButton disabled={props.running || !props.selectedIds.length} onConfirm={() => props.onExecute("delete")} selectedCount={props.selectedIds.length} tNode={props.tNode} />
+      <ActionIconButton label={props.tNode("buttons.copyResults", "复制结果")} icon={Copy} disabled={!props.galleryWallpapers.length && !props.result} onClick={props.onCopyResults} />
     </div>
   )
 }
@@ -556,6 +560,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function DeleteConfirmButton(props: {
   disabled?: boolean
   selectedCount: number
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onConfirm: () => void
 }) {
   return (
@@ -563,24 +568,24 @@ function DeleteConfirmButton(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
-            <Button aria-label="删除所选" disabled={props.disabled} size="icon-sm" variant="destructive">
+            <Button aria-label={props.tNode("aria.deleteSelected", "删除所选")} disabled={props.disabled} size="icon-sm" variant="destructive">
               <Trash2 />
-              <span className="sr-only">删除所选</span>
+              <span className="sr-only">{props.tNode("aria.deleteSelected", "删除所选")}</span>
             </Button>
           </AlertDialogTrigger>
         </TooltipTrigger>
-        <TooltipContent>删除所选</TooltipContent>
+        <TooltipContent>{props.tNode("aria.deleteSelected", "删除所选")}</TooltipContent>
       </Tooltip>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>确认删除所选项目？</AlertDialogTitle>
+          <AlertDialogTitle>{props.tNode("dialog.confirmDeleteTitle", "确认删除所选项目？")}</AlertDialogTitle>
           <AlertDialogDescription>
-            将处理 {props.selectedCount} 个 Wallpaper Engine 工坊项目。默认会走回收站；如果关闭预演并启用永久删除，操作不可恢复。
+            {props.tNode("dialog.confirmDeleteDesc", "将处理 {{count}} 个 Wallpaper Engine 工坊项目。默认会走回收站；如果关闭预演并启用永久删除，操作不可恢复。", { count: props.selectedCount })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={props.onConfirm}>确认删除</AlertDialogAction>
+          <AlertDialogCancel>{props.tNode("buttons.cancel", "取消")}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={props.onConfirm}>{props.tNode("buttons.confirmDelete", "确认删除")}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -606,11 +611,11 @@ function HeaderLine({ status, subtitle }: { status: EngineVStatusMeta; subtitle:
   )
 }
 
-function HeaderStats(props: { selected: number; total: number; visible: number }) {
+function HeaderStats(props: { selected: number; total: number; visible: number; tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string }) {
   const items = [
-    ["可见", props.visible],
-    ["已扫描", props.total],
-    ["选中", props.selected],
+    [props.tNode("stats.visible", "可见"), props.visible],
+    [props.tNode("stats.scanned", "已扫描"), props.total],
+    [props.tNode("stats.selected", "选中"), props.selected],
   ] as const
   return (
     <div className="hidden shrink-0 grid-cols-3 gap-1 @4xl/enginev:grid @4xl/enginev:min-w-52">
@@ -646,11 +651,11 @@ function buildInput(action: EngineVAction, data: EngineVCardState): EngineVInput
   }
 }
 
-function statusFromState(data: EngineVCardState, running: boolean): EngineVStatusMeta {
+function statusFromState(data: EngineVCardState, running: boolean, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): EngineVStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: "运行中",
-      description: "EngineV 正在处理当前任务。",
+      label: tNode("status.running", "运行中"),
+      description: data.progressText || tNode("statusDesc.running", "EngineV 正在处理当前任务。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -658,8 +663,8 @@ function statusFromState(data: EngineVCardState, running: boolean): EngineVStatu
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: "上次任务已完成。",
+      label: tNode("status.completed", "完成"),
+      description: data.progressText || tNode("statusDesc.completed", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -667,16 +672,16 @@ function statusFromState(data: EngineVCardState, running: boolean): EngineVStatu
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: "上次任务失败，请查看结果和日志。",
+      label: tNode("status.error", "失败"),
+      description: data.progressText || tNode("statusDesc.error", "上次任务失败，请查看结果和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "选择工坊路径后即可扫描。",
+    label: tNode("status.idle", "就绪"),
+    description: tNode("statusDesc.idle", "选择工坊路径后即可扫描。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -685,13 +690,13 @@ function statusFromState(data: EngineVCardState, running: boolean): EngineVStatu
 
 function summarize(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.failedCount) return `${props.result.failedCount} 个失败项`
-  if (props.galleryWallpapers.length) return `${props.galleryWallpapers.length} 个可见项目`
+  if (props.result?.failedCount) return props.tNode("summary.failedItems", "{{count}} 个失败项", { count: props.result.failedCount })
+  if (props.galleryWallpapers.length) return props.tNode("summary.visibleItems", "{{count}} 个可见项目", { count: props.galleryWallpapers.length })
   if (props.data.workshopPath) return compactPath(props.data.workshopPath)
-  return "选择工坊目录"
+  return props.tNode("summary.selectWorkshop", "选择工坊目录")
 }
 
-function labelForAction(action: EngineVAction): string {
+function labelForAction(action: EngineVAction, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): string {
   return ACTIONS.find((item) => item.value === action)?.shortLabel ?? action
 }
 

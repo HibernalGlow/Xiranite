@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { DEFAULT_SELECTED_PRESETS, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, PathInput, PresetPicker, PrimarySwitches, ResultList, StatusStrip } from "./controls"
@@ -19,6 +20,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("cleanf")
   const data = host.getData<CleanfCardState>(compId) ?? {}
   const dataRef = useRef<CleanfCardState>(data)
   dataRef.current = data
@@ -81,7 +83,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     const current = { ...dataRef.current, ...override }
     const paths = parseCleanfPaths(current.pathText ?? "")
     if (!paths.length) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入至少一个扫描路径。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noScanPath", "请先输入至少一个扫描路径。") })
       return
     }
 
@@ -94,15 +96,15 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      const actionLabel = input.preview ? "预演" : "清理"
-      patch({ phase: "scanning", progress: 0, progressText: `${actionLabel}开始`, result: null, ...override })
+      const actionLabel = input.preview ? t("actionLabel.preview", "预演") : t("actionLabel.clean", "清理")
+      patch({ phase: "scanning", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel }), result: null, ...override })
       const response = await run<CleanfInput, CleanfData>("cleanf", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -318,7 +320,7 @@ function FullView(props: ViewProps) {
     <div data-testid="cleanf-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/cleanf:flex-row @4xl/cleanf:items-center @4xl/cleanf:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/cleanf:flex-row @4xl/cleanf:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.pathCount} 路径 / ${props.selectedPresets.length} 预设 / ${props.previewMode ? "预演" : "真实执行"}`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("cleanf", "subtitle.full", "{{paths}} 路径 / {{presets}} 预设 / {{mode}}", { paths: props.pathCount, presets: props.selectedPresets.length, mode: props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.liveExecute", "真实执行") })} />
           <div data-testid="cleanf-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
           </div>
@@ -330,17 +332,17 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">粘贴目录，选择清理预设，预演确认后再执行真实删除。</div>
+              <div className="text-sm font-semibold">{tNode("cleanf", "labels.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")}</div>
             </div>
             <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">清理预设</div>
+            <div className="text-sm font-semibold">{tNode("cleanf", "labels.presets", "清理预设")}</div>
             <PresetPicker disabled={props.running} selected={props.selectedPresets} onToggle={props.onTogglePreset} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{tNode("cleanf", "labels.switches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -358,9 +360,9 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={Eye} label="复制日志" onClick={props.onCopyLogs} />
-      <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("cleanf", "actions.copyResults", "复制结果")} onClick={props.onCopyResults} />
+      <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+      <ActionIconButton icon={RotateCcw} label={tNode("cleanf", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -380,15 +382,15 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="cleanf running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("cleanf", "aria.running", "cleanf running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{tNode("cleanf", "status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const disabled = !props.pathCount
-  const label = props.previewMode ? "预演清理" : "真实清理"
+  const label = props.previewMode ? tNode("cleanf", "actions.dryClean", "预演清理") : tNode("cleanf", "actions.liveClean", "真实清理")
   if (!props.previewMode) {
     return (
       <AlertDialog>
@@ -400,14 +402,14 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Cleanf？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("cleanf", "confirm.title", "确认真实执行 Cleanf？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前将真实删除扫描到的文件和文件夹，启用了 {props.selectedPresets.length} 个预设，共 {props.pathCount} 条路径。删除后无法恢复，请确认路径和排除关键词无误。
+              {tNode("cleanf", "confirm.description", "当前将真实删除扫描到的文件和文件夹，启用了 {{presets}} 个预设，共 {{paths}} 条路径。删除后无法恢复，请确认路径和排除关键词无误。", { presets: props.selectedPresets.length, paths: props.pathCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute()}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("cleanf", "common:cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute()}>{tNode("cleanf", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -450,10 +452,10 @@ function StatsPanel(props: {
   result: CleanfData | null
 }) {
   const stats = [
-    ["总计", props.result?.totalRemoved ?? 0],
-    ["跳过", props.result?.skipped ?? 0],
-    ["预演项", props.result?.previewFiles.length ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("cleanf", "stats.total", "总计"), props.result?.totalRemoved ?? 0],
+    [tNode("cleanf", "stats.skipped", "跳过"), props.result?.skipped ?? 0],
+    [tNode("cleanf", "stats.preview", "预演项"), props.result?.previewFiles.length ?? 0],
+    [tNode("cleanf", "stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -487,8 +489,8 @@ function CleanfDisplayTabs(props: {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="results">结果</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="results">{tNode("cleanf", "tabs.results", "结果")}</TabsTrigger>
+        <TabsTrigger value="logs">{tNode("cleanf", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
         <ResultList compact={props.compact} result={props.result} />
@@ -503,8 +505,8 @@ function CleanfDisplayTabs(props: {
 function statusFromState(data: CleanfCardState, running: boolean): CleanfStatusMeta {
   if (running || data.phase === "scanning") {
     return {
-      label: "运行中",
-      description: data.progressText || "Cleanf 正在扫描并清理。",
+      label: tNode("cleanf", "status.running", "运行中"),
+      description: data.progressText || tNode("cleanf", "desc.running", "Cleanf 正在扫描并清理。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -512,8 +514,8 @@ function statusFromState(data: CleanfCardState, running: boolean): CleanfStatusM
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
+      label: tNode("cleanf", "status.error", "失败"),
+      description: data.progressText || tNode("cleanf", "desc.error", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -521,16 +523,16 @@ function statusFromState(data: CleanfCardState, running: boolean): CleanfStatusM
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("cleanf", "status.success", "完成"),
+      description: data.progressText || tNode("cleanf", "desc.success", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴目录并选择预设后预演或清理。",
+    label: tNode("cleanf", "status.idle", "就绪"),
+    description: tNode("cleanf", "desc.idle", "粘贴目录并选择预设后预演或清理。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -544,7 +546,7 @@ function phaseFromState(data: CleanfCardState, running: boolean): CleanfPhase {
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.totalRemoved) return `删除 ${props.result.totalRemoved} 项 / 跳过 ${props.result.skipped} 项`
-  if (props.pathCount) return `${props.pathCount} 条路径 / ${props.selectedPresets.length} 预设 / ${props.previewMode ? "预演" : "真实"}`
-  return "粘贴目录后预演清理结果"
+  if (props.result?.totalRemoved) return tNode("cleanf", "summary.removed", "删除 {{removed}} 项 / 跳过 {{skipped}} 项", { removed: props.result.totalRemoved, skipped: props.result.skipped })
+  if (props.pathCount) return tNode("cleanf", "summary.paths", "{{paths}} 条路径 / {{presets}} 预设 / {{mode}}", { paths: props.pathCount, presets: props.selectedPresets.length, mode: props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.live", "真实") })
+  return tNode("cleanf", "summary.empty", "粘贴目录后预演清理结果")
 }

@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, HELP_ACTION } from "./constants"
 import {
@@ -27,6 +28,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t: tNode } = useNodeI18n("findz")
   const data = host.getData<FindzCardState>(compId) ?? {}
   const dataRef = useRef<FindzCardState>(data)
   dataRef.current = data
@@ -43,7 +45,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const progress = data.progress ?? 0
   const paths = useMemo(() => splitPaths(data.pathText), [data.pathText])
   const where = data.where?.trim() || "1"
-  const status = statusFromState(data, running)
+  const status = statusFromState(data, running, tNode)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -111,12 +113,12 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(nextAction: FindzAction = action) {
     if (running) return
     if (nextAction !== "help" && !paths.length) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入至少一个搜索路径。" })
+      patch({ phase: "error", progress: 0, progressText: tNode("pathRequired", "请先输入至少一个搜索路径。") })
       return
     }
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
@@ -124,7 +126,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(nextAction, dataRef.current)
     setRunning(true)
     try {
-      patch({ phase: "searching", progress: 0, progressText: `${labelForAction(nextAction)}开始`, result: null, action: nextAction })
+      patch({ phase: "searching", progress: 0, progressText: tNode("actionStart", "{{action}}开始", { action: labelForAction(nextAction, tNode) }), result: null, action: nextAction })
       const response = await run<FindzInput, FindzData>("findz", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -206,6 +208,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     result,
     running,
     status,
+    tNode,
     where,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -253,6 +256,7 @@ function createViewProps(props: {
   result: FindzData | null
   running: boolean
   status: FindzStatusMeta
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   where: string
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -299,8 +303,8 @@ function CompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <ActionIconButton disabled={props.running} icon={HelpCircle} label="过滤器帮助" onClick={() => props.onExecute("help")} />
-          {props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton compact props={props} />}
+          <ActionIconButton disabled={props.running} icon={HelpCircle} label={props.tNode("buttons.filterHelp", "过滤器帮助")} onClick={() => props.onExecute("help")} />
+          {props.running ? <ActionIconButton destructive icon={Square} label={props.tNode("buttons.running", "运行中")} onClick={() => undefined} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
@@ -327,7 +331,7 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          {props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton compact props={props} />}
+          {props.running ? <ActionIconButton destructive icon={Square} label={props.tNode("buttons.running", "运行中")} onClick={() => undefined} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
@@ -352,7 +356,7 @@ function FullView(props: ViewProps) {
           <HeaderLine
             actionMeta={props.actionMeta}
             status={props.status}
-            subtitle={props.data.progressText || `${props.actionMeta.label} / ${props.paths.length || 1} 路径 / where ${props.where}`}
+            subtitle={props.data.progressText || `${props.actionMeta.label} / ${props.paths.length || 1} ${props.tNode("pathsLabel", "路径")} / where ${props.where}`}
           />
           <div data-testid="findz-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
@@ -365,15 +369,15 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">任务</div>
-              <div className="text-xs text-muted-foreground">选择搜索动作，粘贴路径，写 SQL 过滤器。</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.task", "任务")}</div>
+              <div className="text-xs text-muted-foreground">{props.tNode("sections.taskDesc", "选择搜索动作，粘贴路径，写 SQL 过滤器。")}</div>
             </div>
             <ActionPicker disabled={props.running} value={props.action} onActionChange={(value) => props.onPatch({ action: value })} />
             <PathInput data={props.data} disabled={props.running} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
             <WhereInput data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{props.tNode("sections.switches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -390,11 +394,11 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {!props.compact && (props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton props={props} />)}
-      <ActionIconButton disabled={props.running} icon={HelpCircle} label="过滤器帮助" onClick={() => props.onExecute("help")} />
-      <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={FileSearch} label="复制日志" onClick={props.onCopyLogs} />
-      <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      {!props.compact && (props.running ? <ActionIconButton destructive icon={Square} label={props.tNode("buttons.running", "运行中")} onClick={() => undefined} /> : <RunActionButton props={props} />)}
+      <ActionIconButton disabled={props.running} icon={HelpCircle} label={props.tNode("buttons.filterHelp", "过滤器帮助")} onClick={() => props.onExecute("help")} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
+      <ActionIconButton disabled={!props.logs.length} icon={FileSearch} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+      <ActionIconButton icon={RotateCcw} label={props.tNode("buttons.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -416,11 +420,11 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
     return (
       <Button aria-label="findz running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{props.tNode("buttons.running", "运行中")}</span>}
       </Button>
     )
   }
-  const label = `运行${props.actionMeta.shortLabel}`
+  const label = props.tNode("buttons.run", "运行{{action}}", { action: props.actionMeta.shortLabel })
   return (
     <Button aria-label={label} disabled={!props.paths.length} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}>
       <Play />
@@ -456,23 +460,25 @@ function StatsPanel(props: {
   progress: number
   result: FindzData | null
 }) {
+  const { t: tNode } = useNodeI18n("findz")
   const stats = [
-    ["总计", props.result?.totalCount ?? 0],
-    ["文件", props.result?.fileCount ?? 0],
-    ["目录", props.result?.dirCount ?? 0],
-    ["归档成员", props.result?.archiveCount ?? 0],
-    ["嵌套", props.result?.nestedCount ?? 0],
-    ["错误", props.result?.errors.length ?? 0],
-    ["扫描", props.result?.scannedFiles ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("stats.total", "总计"), props.result?.totalCount ?? 0],
+    [tNode("stats.files", "文件"), props.result?.fileCount ?? 0],
+    [tNode("stats.dirs", "目录"), props.result?.dirCount ?? 0],
+    [tNode("stats.archive", "归档成员"), props.result?.archiveCount ?? 0],
+    [tNode("stats.nested", "嵌套"), props.result?.nestedCount ?? 0],
+    [tNode("stats.errors", "错误"), props.result?.errors.length ?? 0],
+    [tNode("stats.scanned", "扫描"), props.result?.scannedFiles ?? 0],
+    [tNode("stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
+  const errorLabel = tNode("stats.errors", "错误")
   return (
     <div className="grid shrink-0 grid-cols-4 gap-1 @4xl/findz:grid-cols-8">
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "错误" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === errorLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -487,6 +493,7 @@ function FindzResultTabs(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
+  const { t: tNode } = useNodeI18n("findz")
   const isHelp = props.result?.action === "help"
   const fileLines = useMemo(() => (props.result?.files ?? []).slice(0, 500).map((file) => `${file.type} ${formatFoundPath(file)} ${file.sizeFormatted}`), [props.result])
   const groupLines = useMemo(() => (props.result?.groups ?? []).map((group) => `${group.count} ${group.name} / ${group.totalSizeFormatted} / 均 ${group.avgSizeFormatted}`), [props.result])
@@ -500,28 +507,28 @@ function FindzResultTabs(props: {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        {isHelp ? <TabsTrigger value="output">帮助</TabsTrigger> : (
+        {isHelp ? <TabsTrigger value="output">{tNode("tabs.help", "帮助")}</TabsTrigger> : (
           <>
-            <TabsTrigger value="files">文件</TabsTrigger>
-            <TabsTrigger value="groups">分组</TabsTrigger>
-            <TabsTrigger value="logs">日志</TabsTrigger>
+            <TabsTrigger value="files">{tNode("tabs.files", "文件")}</TabsTrigger>
+            <TabsTrigger value="groups">{tNode("tabs.groups", "分组")}</TabsTrigger>
+            <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
           </>
         )}
       </TabsList>
       {isHelp ? (
         <TabsContent value="output" className="min-h-0 flex-1">
-          <TextPanel compact={props.compact} emptyText="帮助文本会显示在这里。" icon={HelpCircle} lines={props.result?.outputText ? [props.result.outputText] : []} onCopy={props.onCopyResults} />
+          <TextPanel compact={props.compact} emptyText={tNode("empty.help", "帮助文本会显示在这里。")} icon={HelpCircle} lines={props.result?.outputText ? [props.result.outputText] : []} onCopy={props.onCopyResults} />
         </TabsContent>
       ) : (
         <>
           <TabsContent value="files" className="min-h-0 flex-1">
-            <TextPanel compact={props.compact} emptyText="运行后会显示匹配的文件和归档成员。" icon={FolderOpen} lines={fileLines} onCopy={props.onCopyResults} />
+            <TextPanel compact={props.compact} emptyText={tNode("empty.files", "运行后会显示匹配的文件和归档成员。")} icon={FolderOpen} lines={fileLines} onCopy={props.onCopyResults} />
           </TabsContent>
           <TabsContent value="groups" className="min-h-0 flex-1">
-            <TextPanel compact={props.compact} emptyText="设置分组字段后会显示分组汇总。" icon={Search} lines={groupLines} onCopy={props.onCopyResults} />
+            <TextPanel compact={props.compact} emptyText={tNode("empty.groups", "设置分组字段后会显示分组汇总。")} icon={Search} lines={groupLines} onCopy={props.onCopyResults} />
           </TabsContent>
           <TabsContent value="logs" className="min-h-0 flex-1">
-            <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" icon={FileSearch} lines={props.logs} onCopy={props.onCopyLogs} />
+            <TextPanel compact={props.compact} emptyText={tNode("empty.logs", "运行日志会显示在这里。")} icon={FileSearch} lines={props.logs} onCopy={props.onCopyLogs} />
           </TabsContent>
         </>
       )}
@@ -536,17 +543,18 @@ function TextPanel(props: {
   lines: string[]
   onCopy: () => void
 }) {
+  const { t: tNode } = useNodeI18n("findz")
   const Icon = props.icon
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Icon className="size-3.5" />
-          <span>{props.lines.length ? `${props.lines.length} 项` : "等待运行"}</span>
+          <span>{props.lines.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.lines.length }) : tNode("empty.waitingRun", "等待运行")}</span>
         </div>
         <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onCopy}>
           <Copy data-icon="inline-start" />
-          复制
+          {tNode("buttons.copy", "复制")}
         </Button>
       </div>
       <Separator />
@@ -588,11 +596,11 @@ function buildInput(action: FindzAction, data: FindzCardState): FindzInput {
   }
 }
 
-function statusFromState(data: FindzCardState, running: boolean): FindzStatusMeta {
+function statusFromState(data: FindzCardState, running: boolean, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): FindzStatusMeta {
   if (running || data.phase === "searching") {
     return {
-      label: "运行中",
-      description: data.progressText || "Findz 正在扫描并过滤。",
+      label: tNode("status.running", "运行中"),
+      description: data.progressText || tNode("statusDesc.running", "Findz 正在扫描并过滤。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -600,8 +608,8 @@ function statusFromState(data: FindzCardState, running: boolean): FindzStatusMet
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次搜索已完成。",
+      label: tNode("status.completed", "完成"),
+      description: data.progressText || tNode("statusDesc.completed", "上次搜索已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -609,35 +617,35 @@ function statusFromState(data: FindzCardState, running: boolean): FindzStatusMet
   }
   if (data.phase === "error" || (data.result?.errors.length ?? 0) > 0) {
     return {
-      label: "失败",
-      description: data.progressText || data.result?.errors[0] || "上次搜索失败，请查看日志。",
+      label: tNode("status.error", "失败"),
+      description: data.progressText || data.result?.errors[0] || tNode("statusDesc.error", "上次搜索失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴路径并编写 SQL 过滤器后开始搜索。",
+    label: tNode("status.idle", "就绪"),
+    description: tNode("statusDesc.idle", "粘贴路径并编写 SQL 过滤器后开始搜索。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
   }
 }
 
-function labelForAction(action: FindzAction): string {
-  if (action === "search") return "搜索"
-  if (action === "archives_only") return "压缩包列举"
-  if (action === "nested") return "嵌套归档"
-  if (action === "help") return "帮助"
+function labelForAction(action: FindzAction, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): string {
+  if (action === "search") return tNode("actions.search", "搜索")
+  if (action === "archives_only") return tNode("actions.archives_only", "压缩包列举")
+  if (action === "nested") return tNode("actions.nested", "嵌套归档")
+  if (action === "help") return tNode("actions.help", "帮助")
   return action
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.totalCount) return `${props.result.totalCount} 项 / ${props.result.archiveCount} 归档成员`
-  if (props.paths.length) return `${props.paths.length} 条路径等待搜索`
-  return "粘贴路径后开始搜索"
+  if (props.result?.totalCount) return props.tNode("summary.result", "{{total}} 项 / {{archive}} 归档成员", { total: props.result.totalCount, archive: props.result.archiveCount })
+  if (props.paths.length) return props.tNode("summary.pathWaiting", "{{count}} 条路径等待搜索", { count: props.paths.length })
+  return props.tNode("summary.pasteHint", "粘贴路径后开始搜索")
 }
 
 function splitPaths(text?: string): string[] {

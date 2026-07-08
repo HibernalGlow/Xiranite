@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=LXGW+WenKai+Screen&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -82,8 +82,8 @@
   /* workspace tokens */
   --color-ws-canvas: var(--ws-canvas);
   --color-ws-grid: var(--ws-grid-color);
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-app-sans);
+  --font-sans: var(--font-app-sans);
 
   /* ocean badge 扩展色 — 与 ocean-dataview 内部 bg-badge-*-subtle 等类对齐 */
   --color-badge-gray: var(--badge-gray);
@@ -132,6 +132,8 @@
 
 :root {
   --radius: 0.375rem;
+  --font-app-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-app-mono: "JetBrains Mono", ui-monospace, monospace;
   /* Spatial Studio light (default) */
   --background: oklch(0.975 0.004 148);
   --foreground: oklch(0.12 0.01 148);
@@ -332,8 +334,22 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-app-sans);
   }
+  code, pre, kbd, samp {
+    font-family: var(--font-app-mono);
+  }
+}
+
+:root[data-custom-font="enabled"] body {
+  font-family: var(--font-custom-sans, var(--font-app-sans));
+}
+
+:root[data-custom-font="enabled"] code,
+:root[data-custom-font="enabled"] pre,
+:root[data-custom-font="enabled"] kbd,
+:root[data-custom-font="enabled"] samp {
+  font-family: var(--font-custom-mono, var(--font-app-mono));
 }
 
 .xiranite-app-region-drag,
@@ -626,8 +642,42 @@
   box-shadow: 0 0 18px var(--ws-accent-glow), 0 2px 8px oklch(0 0 0 / 0.22);
 }
 
-/* ── Monospace ── */
-.font-mono { font-family: "JetBrains Mono", ui-monospace, monospace !important; }
+/* ── Typography routing ── */
+.font-mono { font-family: var(--font-app-sans) !important; }
+
+:root[data-custom-font="enabled"] .font-mono {
+  font-family: var(--font-custom-sans, var(--font-app-sans)) !important;
+}
+
+.xiranite-font-mono,
+.xiranite-code-font {
+  font-family: var(--font-app-mono) !important;
+}
+
+:root[data-custom-font="enabled"] .xiranite-font-mono,
+:root[data-custom-font="enabled"] .xiranite-code-font {
+  font-family: var(--font-custom-mono, var(--font-app-mono)) !important;
+}
+
+.xiranite-topbar,
+.xiranite-topbar .font-mono {
+  font-family: var(--font-app-sans) !important;
+}
+
+:root[data-custom-font="enabled"] .xiranite-topbar,
+:root[data-custom-font="enabled"] .xiranite-topbar .font-mono {
+  font-family: var(--font-custom-sans, var(--font-app-sans)) !important;
+}
+
+.xiranite-ui-copy,
+.xiranite-ui-copy .font-mono {
+  font-family: var(--font-app-sans) !important;
+}
+
+:root[data-custom-font="enabled"] .xiranite-ui-copy,
+:root[data-custom-font="enabled"] .xiranite-ui-copy .font-mono {
+  font-family: var(--font-custom-sans, var(--font-app-sans)) !important;
+}
 
 /* ── Focused overlay (legacy — kept for non-focus-mode dimming) ── */
 .focused-overlay {

@@ -3,6 +3,7 @@ import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
+import { FONT_PRESETS } from "@/lib/appearance"
 import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
@@ -10,7 +11,7 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -156,6 +157,7 @@ function DataSettingsPanel({
 export function ThemeSettings() {
   const state = useWorkspaceShallowSelector((workspace) => ({
     theme: workspace.theme,
+    fontPreset: workspace.fontPreset,
     vignetteDepth: workspace.vignetteDepth,
     grainIntensity: workspace.grainIntensity,
     actionGlow: workspace.actionGlow,
@@ -301,6 +303,43 @@ export function ThemeSettings() {
                     >
                       <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                       <span className={cn("text-[11px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t(m.labelKey)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-sm p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Type className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:font.label", "FONT")}</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                {t("settings:font.description", "Switch the global UI font while preserving monospace surfaces and aestivus-compatible font variables.")}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {FONT_PRESETS.map((preset) => {
+                  const isActive = state.fontPreset === preset.key
+                  return (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      onClick={() => workspaceActions.setFontPreset(preset.key)}
+                      className={cn(
+                        "flex min-w-0 items-start gap-3 rounded-sm border p-3 text-left transition-all",
+                        isActive
+                          ? "border-primary/50 bg-primary/8"
+                          : "border-border/40 hover:border-border hover:bg-muted/30",
+                      )}
+                    >
+                      <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-sm border", isActive ? "border-primary/40 bg-primary/15" : "border-border/40 bg-muted/40")}>
+                        <Type className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("truncate text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{preset.label}</p>
+                        <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/75">{preset.description}</p>
+                        <p className="mt-2 truncate text-[10px] font-mono text-muted-foreground/60">Aa / 0123</p>
+                      </div>
                     </button>
                   )
                 })}

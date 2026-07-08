@@ -107,7 +107,7 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
       )}
     >
       {/* ── Header ── */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-3 select-none">
+      <div className="xiranite-ui-copy flex h-10 shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-3 select-none">
         <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
         <span className="truncate text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase">
           {moduleName}

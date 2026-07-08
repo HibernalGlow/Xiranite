@@ -121,7 +121,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       style={{ width: w, height: h }}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="flex h-8 flex-shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-2">
+      <div className="xiranite-ui-copy flex h-8 flex-shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-2">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         <span className="flex-1 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
           {moduleName}

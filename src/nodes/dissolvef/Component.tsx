@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { DEFAULT_THRESHOLD, DISSOLVE_ICON, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, HistoryPanel, LogPanel, ModePicker, PathInput, PlanList, PrimarySwitches, StatusStrip } from "./controls"
@@ -16,6 +17,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("dissolvef")
   const data = host.getData<DissolvefCardState>(compId) ?? {}
   const dataRef = useRef<DissolvefCardState>(data)
   dataRef.current = data
@@ -88,7 +90,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(action: DissolvefAction) {
     if (running) return
     if (!dataRef.current.pathText?.trim()) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入目标文件夹。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noPath", "请先输入目标文件夹。") })
       return
     }
 
@@ -112,14 +114,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: phaseForAction(action), progress: 0, progressText: `${actionLabel(action)}开始`, result: null })
+      patch({ phase: phaseForAction(action), progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(action) }), result: null })
       const response = await run<DissolvefInput, DissolvefData>("dissolvef", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -337,7 +339,7 @@ function FullView(props: ViewProps) {
     <div data-testid="dissolvef-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/dissolvef:flex-row @4xl/dissolvef:items-center @4xl/dissolvef:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/dissolvef:flex-row @4xl/dissolvef:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.direct ? "直提" : "捆绑"} / ${props.preview ? "预演" : "真实执行"}`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("dissolvef", "subtitle.full", "{{mode}} / {{preview}}", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), preview: props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.liveExecute", "真实执行") })} />
           <div data-testid="dissolvef-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
           </div>
@@ -349,14 +351,14 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">选择捆绑或直提模式，预演确认后再执行真实溶解。</div>
+              <div className="text-sm font-semibold">{tNode("dissolvef", "labels.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("dissolvef", "labels.inputHint", "选择捆绑或直提模式，预演确认后再执行真实溶解。")}</div>
             </div>
             <PathInput disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
             <ModePicker direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{tNode("dissolvef", "labels.switches", "关键开关")}</div>
             <PrimarySwitches data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -373,10 +375,10 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <ActionIconButton disabled={props.running} icon={History} label="读取历史" onClick={() => props.onExecute("history")} />
-      <ActionIconButton disabled={props.running || !props.result?.history.length} icon={Undo2} label="撤销最近" onClick={() => props.onExecute("undo")} />
+      <ActionIconButton disabled={props.running} icon={History} label={tNode("dissolvef", "actions.history", "读取历史")} onClick={() => props.onExecute("history")} />
+      <ActionIconButton disabled={props.running || !props.result?.history.length} icon={Undo2} label={tNode("dissolvef", "actions.undoRecent", "撤销最近")} onClick={() => props.onExecute("undo")} />
       {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton icon={RotateCcw} label={tNode("dissolvef", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -396,15 +398,15 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="dissolvef running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("dissolvef", "aria.running", "dissolvef running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{tNode("dissolvef", "status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const disabled = !props.data.pathText?.trim()
-  const label = props.preview ? "预演溶解" : "真实溶解"
+  const label = props.preview ? tNode("dissolvef", "actions.dryDissolve", "预演溶解") : tNode("dissolvef", "actions.liveDissolve", "真实溶解")
   const Icon = DISSOLVE_ICON
   if (!props.preview) {
     return (
@@ -417,14 +419,14 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Dissolvef？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("dissolvef", "confirm.title", "确认真实执行 Dissolvef？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前将真实移动和删除文件夹，模式为 {props.direct ? "直提" : "捆绑"}，目标 {props.data.pathText || "未指定"}。操作会记录到历史，可撤销但无法还原删除。
+              {tNode("dissolvef", "confirm.description", "当前将真实移动和删除文件夹，模式为 {{mode}}，目标 {{path}}。操作会记录到历史，可撤销但无法还原删除。", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), path: props.data.pathText || "未指定" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("dissolve")}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("dissolvef", "common:cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("dissolve")}>{tNode("dissolvef", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -466,13 +468,15 @@ function StatsPanel(props: {
   progress: number
   result: DissolvefData | null
 }) {
+  const failedLabel = tNode("dissolvef", "stats.failed", "失败")
+  const errorLabel = tNode("dissolvef", "stats.error", "错误")
   const stats = [
-    ["总计", props.result?.totalCount ?? 0],
-    ["嵌套", props.result?.nestedCount ?? 0],
-    ["媒体", props.result?.mediaCount ?? 0],
-    ["归档", props.result?.archiveCount ?? 0],
-    ["跳过", props.result?.skippedCount ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("dissolvef", "stats.total", "总计"), props.result?.totalCount ?? 0],
+    [tNode("dissolvef", "stats.nested", "嵌套"), props.result?.nestedCount ?? 0],
+    [tNode("dissolvef", "stats.media", "媒体"), props.result?.mediaCount ?? 0],
+    [tNode("dissolvef", "stats.archive", "归档"), props.result?.archiveCount ?? 0],
+    [tNode("dissolvef", "stats.skipped", "跳过"), props.result?.skippedCount ?? 0],
+    [tNode("dissolvef", "stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -480,7 +484,7 @@ function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", (label === "失败" || label === "错误") && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", (label === failedLabel || label === errorLabel) && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -505,9 +509,9 @@ function DissolvefDisplayTabs(props: {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="plan">计划</TabsTrigger>
-        <TabsTrigger value="history">历史</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="plan">{tNode("dissolvef", "tabs.plan", "计划")}</TabsTrigger>
+        <TabsTrigger value="history">{tNode("dissolvef", "tabs.history", "历史")}</TabsTrigger>
+        <TabsTrigger value="logs">{tNode("dissolvef", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1">
         <PlanList compact={props.compact} result={props.result} />
@@ -525,8 +529,8 @@ function DissolvefDisplayTabs(props: {
 function statusFromState(data: DissolvefCardState, running: boolean, result: DissolvefData | null): DissolvefStatusMeta {
   if (running || data.phase === "planning" || data.phase === "dissolving") {
     return {
-      label: "运行中",
-      description: data.progressText || "Dissolvef 正在生成计划或执行溶解。",
+      label: tNode("dissolvef", "status.running", "运行中"),
+      description: data.progressText || tNode("dissolvef", "desc.running", "Dissolvef 正在生成计划或执行溶解。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -534,8 +538,8 @@ function statusFromState(data: DissolvefCardState, running: boolean, result: Dis
   }
   if (data.phase === "error" || result?.errors.length) {
     return {
-      label: "失败",
-      description: data.progressText || result?.errors[0] || "上次任务失败，请查看计划和日志。",
+      label: tNode("dissolvef", "status.error", "失败"),
+      description: data.progressText || result?.errors[0] || tNode("dissolvef", "desc.error", "上次任务失败，请查看计划和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -543,16 +547,16 @@ function statusFromState(data: DissolvefCardState, running: boolean, result: Dis
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("dissolvef", "status.success", "完成"),
+      description: data.progressText || tNode("dissolvef", "desc.success", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴文件夹后预演或溶解。",
+    label: tNode("dissolvef", "status.idle", "就绪"),
+    description: tNode("dissolvef", "desc.idle", "粘贴文件夹后预演或溶解。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -572,16 +576,16 @@ function phaseForAction(action: DissolvefAction): DissolvefPhase {
 }
 
 function actionLabel(action: DissolvefAction): string {
-  if (action === "plan") return "预演"
-  if (action === "dissolve") return "溶解"
-  if (action === "history") return "历史"
-  if (action === "undo") return "撤销"
+  if (action === "plan") return tNode("dissolvef", "actionLabel.plan", "预演")
+  if (action === "dissolve") return tNode("dissolvef", "actionLabel.dissolve", "溶解")
+  if (action === "history") return tNode("dissolvef", "actionLabel.history", "历史")
+  if (action === "undo") return tNode("dissolvef", "actionLabel.undo", "撤销")
   return action
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.totalCount) return `${props.result.totalCount} 项 / ${props.result.successCount} 成功`
-  if (props.data.pathText) return `${props.direct ? "直提" : "捆绑"} / ${props.preview ? "预演" : "真实"}`
-  return "粘贴文件夹后开始溶解"
+  if (props.result?.totalCount) return tNode("dissolvef", "summary.total", "{{total}} 项 / {{success}} 成功", { total: props.result.totalCount, success: props.result.successCount })
+  if (props.data.pathText) return tNode("dissolvef", "summary.mode", "{{mode}} / {{preview}}", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), preview: props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.live", "真实") })
+  return tNode("dissolvef", "summary.empty", "粘贴文件夹后开始溶解")
 }

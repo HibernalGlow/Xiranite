@@ -6,6 +6,7 @@ export type OverlayKind = "registry" | "settings" | "deployment" | "operations" 
 
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
 export type AppTheme = "spatial" | "endfield" | "wuling"
+export type AppFontPreset = "xiranite" | "system" | "aestivus" | "serif" | "mono"
 
 export interface WorkspaceItem {
   id: string

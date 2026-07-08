@@ -119,7 +119,7 @@ export function Lane({ lane, components }: Props) {
         ref={setNodeRef}
         data-lane-id={lane.id}
         style={sortableStyle}
-        className="w-12 flex-shrink-0 flex flex-col items-center gap-2 py-3 px-1 border-r border-border/40 bg-muted/20 hover:bg-muted/40 cursor-grab active:cursor-grabbing"
+        className="xiranite-ui-copy w-12 flex-shrink-0 flex flex-col items-center gap-2 py-3 px-1 border-r border-border/40 bg-muted/20 hover:bg-muted/40 cursor-grab active:cursor-grabbing"
       >
         <button
           onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
@@ -147,7 +147,7 @@ export function Lane({ lane, components }: Props) {
       ref={setNodeRef}
       data-lane-id={lane.id}
       style={{ flex: lane.widthRatio, minWidth: 240, maxWidth: 720, ...sortableStyle }}
-      className="relative flex flex-col h-full border-r border-border/40 bg-card/40 last:border-r-0 flex-shrink-0"
+      className="xiranite-ui-copy relative flex flex-col h-full border-r border-border/40 bg-card/40 last:border-r-0 flex-shrink-0"
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">

@@ -564,12 +564,91 @@
         "filtered": "已筛选",
         "types": "类型",
         "ok": "成功",
-        "failed": "失败"
+        "failed": "失败",
+        "visible": "可见",
+        "scanned": "已扫描",
+        "selected": "选中"
       },
       "unknown": "未知",
       "unrated": "未评级",
       "wallpaperLine": "{{id}} / {{type}} / {{rating}} / {{title}}",
-      "readyToScan": "准备扫描 Wallpaper Engine 创意工坊文件夹。"
+      "readyToScan": "准备扫描 Wallpaper Engine 创意工坊文件夹。",
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "idle": "选择工坊路径后即可扫描。",
+        "running": "EngineV 正在处理当前任务。",
+        "completed": "上次任务已完成。",
+        "error": "上次任务失败，请查看结果和日志。"
+      },
+      "buttons": {
+        "run": "运行",
+        "dryRun": "预演",
+        "copy": "复制",
+        "copyResults": "复制结果",
+        "clearState": "清空状态",
+        "cancel": "取消",
+        "confirmDelete": "确认删除",
+        "quickAction": "快速{{action}}",
+        "executeAction": "执行{{action}}"
+      },
+      "sections": {
+        "input": "输入",
+        "inputDesc": "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。",
+        "filter": "筛选",
+        "writeOptions": "写入选项"
+      },
+      "tabs": {
+        "gallery": "画廊",
+        "results": "结果",
+        "logs": "日志"
+      },
+      "empty": {
+        "results": "运行重命名、删除或导出后，这里会显示计划和错误明细。",
+        "logs": "运行日志会显示在这里。",
+        "gallery": "还没有画廊数据",
+        "galleryHint": "选择 Wallpaper Engine 工坊目录后运行扫描，图片预览会直接使用本地文件 URL 显示。",
+        "waitingRun": "等待运行",
+        "itemCount": "{{count}} 项",
+        "visibleItems": "{{count}} 个可见项目",
+        "truncatedItems": "仅显示前 {{visible}} 项，共 {{total}} 项。"
+      },
+      "dialog": {
+        "confirmDeleteTitle": "确认删除所选项目？",
+        "confirmDeleteDesc": "将处理 {{count}} 个 Wallpaper Engine 工坊项目。默认会走回收站；如果关闭预演并启用永久删除，操作不可恢复。"
+      },
+      "aria": {
+        "exportFormat": "enginev 导出格式",
+        "actionSelect": "enginev 动作",
+        "workshopPath": "Wallpaper Engine 工坊路径",
+        "pastePath": "enginev 粘贴路径",
+        "useDefaultPath": "enginev 使用默认路径",
+        "filterSelect": "筛选和选择",
+        "templateOptions": "enginev 模板和写入选项",
+        "defaults": "enginev 默认配置",
+        "gallerySettings": "enginev 画廊显示设置",
+        "galleryColumns": "enginev 画廊每行数量",
+        "deleteSelected": "删除所选",
+        "selectWallpaper": "选择 {{title}}",
+        "copyWallpaperPath": "复制 {{title}} 路径",
+        "copyPath": "复制路径"
+      },
+      "summary": {
+        "visibleSelected": "{{visible}} 可见 · {{selected}} 选中",
+        "headerLine": "{{visible}} 可见 / {{scanned}} 已扫描 / {{selected}} 选中",
+        "failedItems": "{{count}} 个失败项",
+        "visibleItems": "{{count}} 个可见项目",
+        "selectWorkshop": "选择工坊目录"
+      },
+      "actionStart": "正在{{action}}。",
+      "noNative": "Local Backend 暂不可用，无法运行 enginev。",
+      "pathRequired": "请先选择 Wallpaper Engine 工坊目录，或先完成一次扫描。",
+      "deleteRequiresSelection": "删除前请先在画廊中选择至少一个项目。",
+      "exportRequiresPath": "导出需要目标文件路径。"
     },
     "bandia": {
       "name": "Bandia",
@@ -614,6 +693,71 @@
       "extractModes": {
         "auto": "自动",
         "normal": "普通"
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "success": "完成",
+        "error": "失败"
+      },
+      "desc": {
+        "idle": "粘贴路径或映射后即可预演。",
+        "running": "Bandia 正在处理当前队列。",
+        "success": "上次任务已完成。",
+        "error": "上次任务失败，请查看结果和日志。"
+      },
+      "actions": {
+        "stop": "停止",
+        "exportEfu": "导出 EFU",
+        "copyResults": "复制结果",
+        "clearState": "清空状态",
+        "confirmExecute": "确认执行",
+        "runLabel": "{{mode}}{{action}}"
+      },
+      "labels": {
+        "task": "任务",
+        "taskHint": "选择解压、压缩或重打包；危险写入默认以预演保护。",
+        "switches": "关键开关",
+        "advanced": "高级选项"
+      },
+      "confirm": {
+        "title": "确认真实执行 Bandia？",
+        "description": "当前关闭了预演，并启用了删除源文件相关选项。请确认路径、映射和回收站策略无误后再继续。"
+      },
+      "summary": {
+        "failed": "{{count}} 个失败",
+        "archives": "{{count}} 个归档 / {{mode}}",
+        "items": "{{count}} 项 / {{mode}}"
+      },
+      "subtitle": {
+        "full": "{{label}} / {{mode}} / {{count}} 项"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "aria": {
+        "running": "bandia running"
+      },
+      "error": {
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+        "stopRequested": "已请求停止"
+      },
+      "empty": "无结果",
+      "mode": {
+        "dry": "预演",
+        "live": "真实",
+        "execute": "执行",
+        "liveExecute": "真实执行"
+      },
+      "actionLabel": {
+        "extract": "解压",
+        "compress": "压缩",
+        "repack": "重打包",
+        "export_efu": "导出"
+      },
+      "progress": {
+        "start": "{{action}}开始"
       }
     },
     "cleanf": {
@@ -634,7 +778,77 @@
       "noResult": "无结果",
       "previewing": "预览中...",
       "cleaning": "清理中...",
-      "meta": "{{paths}} 个路径 / {{presets}} 个预设 / {{state}}"
+      "meta": "{{paths}} 个路径 / {{presets}} 个预设 / {{state}}",
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "success": "完成",
+        "error": "失败"
+      },
+      "desc": {
+        "idle": "粘贴目录并选择预设后预演或清理。",
+        "running": "Cleanf 正在扫描并清理。",
+        "success": "上次任务已完成。",
+        "error": "上次任务失败，请查看日志。"
+      },
+      "actions": {
+        "copyResults": "复制结果",
+        "clearState": "清空状态",
+        "dryClean": "预演清理",
+        "liveClean": "真实清理",
+        "confirmExecute": "确认执行"
+      },
+      "labels": {
+        "input": "输入",
+        "inputHint": "粘贴目录，选择清理预设，预演确认后再执行真实删除。",
+        "presets": "清理预设",
+        "switches": "关键开关"
+      },
+      "confirm": {
+        "title": "确认真实执行 Cleanf？",
+        "description": "当前将真实删除扫描到的文件和文件夹，启用了 {{presets}} 个预设，共 {{paths}} 条路径。删除后无法恢复，请确认路径和排除关键词无误。"
+      },
+      "summary": {
+        "removed": "删除 {{removed}} 项 / 跳过 {{skipped}} 项",
+        "paths": "{{paths}} 条路径 / {{presets}} 预设 / {{mode}}",
+        "empty": "粘贴目录后预演清理结果"
+      },
+      "subtitle": {
+        "full": "{{paths}} 路径 / {{presets}} 预设 / {{mode}}"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "aria": {
+        "running": "cleanf running",
+        "scanPaths": "cleanf scan paths",
+        "advancedOptions": "cleanf advanced options",
+        "defaults": "cleanf defaults"
+      },
+      "error": {
+        "noScanPath": "请先输入至少一个扫描路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "empty": "无结果",
+      "mode": {
+        "dry": "预演",
+        "live": "真实",
+        "liveExecute": "真实执行"
+      },
+      "stats": {
+        "total": "总计",
+        "skipped": "跳过",
+        "preview": "预演项",
+        "progress": "进度"
+      },
+      "actionLabel": {
+        "preview": "预演",
+        "clean": "清理"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      }
     },
     "crashu": {
       "name": "Crashu",
@@ -675,6 +889,96 @@
         "moving": "移动中",
         "completed": "已完成",
         "error": "错误"
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "success": "完成",
+        "error": "失败"
+      },
+      "desc": {
+        "idle": "粘贴源目录和目标名称后开始匹配。",
+        "running": "Crashu 正在匹配或移动文件夹。",
+        "success": "上次任务已完成。",
+        "error": "上次任务失败，请查看结果和日志。"
+      },
+      "actions": {
+        "scanMatch": "扫描匹配",
+        "plan": "生成计划",
+        "copyResults": "复制结果",
+        "clearState": "清空状态",
+        "dryMove": "预演移动",
+        "liveMove": "真实移动",
+        "confirmExecute": "确认执行"
+      },
+      "labels": {
+        "input": "输入",
+        "inputHint": "源目录与目标名称用于相似度匹配；目标目录可自动读取子文件夹。",
+        "switches": "关键开关",
+        "advanced": "高级选项",
+        "moveDirection": "移动方向",
+        "conflictPolicy": "冲突策略"
+      },
+      "moveDirection": {
+        "toTarget": "源→目标",
+        "toSource": "目标→源"
+      },
+      "conflictPolicy": {
+        "skip": "跳过",
+        "rename": "改名",
+        "overwrite": "覆盖"
+      },
+      "confirm": {
+        "title": "确认真实执行 Crashu？",
+        "description": "当前将真实移动匹配的文件夹到 {{destination}}，共 {{sources}} 个源目录，相似度阈值 {{threshold}}%。移动后无法撤销，请确认目标和冲突策略。"
+      },
+      "summary": {
+        "matches": "匹配 {{matched}} / 移动 {{moved}}",
+        "sources": "{{sources}} 源 / {{targets}} 目标 / {{mode}}",
+        "empty": "粘贴源目录后开始匹配"
+      },
+      "subtitle": {
+        "full": "{{sources}} 源 / {{targets}} 目标 / {{mode}}"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "aria": {
+        "running": "crashu running",
+        "sourcePaths": "crashu source paths",
+        "targetNames": "crashu target names",
+        "moveDirection": "crashu move direction",
+        "conflictPolicy": "crashu conflict policy",
+        "advancedOptions": "crashu advanced options",
+        "defaults": "crashu defaults"
+      },
+      "error": {
+        "noSource": "请先输入至少一个源目录。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "empty": "暂无匹配",
+      "mode": {
+        "dry": "预演",
+        "live": "真实",
+        "liveExecute": "真实执行"
+      },
+      "stats": {
+        "sources": "源",
+        "targets": "目标",
+        "matches": "匹配",
+        "moved": "移动",
+        "skipped": "跳过",
+        "progress": "进度",
+        "error": "错误"
+      },
+      "actionLabel": {
+        "scan": "扫描",
+        "plan": "计划",
+        "move": "移动"
+      },
+      "progress": {
+        "start": "{{action}}开始"
       }
     },
     "dissolvef": {
@@ -714,6 +1018,102 @@
         "running": "运行中",
         "completed": "已完成",
         "error": "错误"
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "success": "完成",
+        "error": "失败"
+      },
+      "desc": {
+        "idle": "粘贴文件夹后预演或溶解。",
+        "running": "Dissolvef 正在生成计划或执行溶解。",
+        "success": "上次任务已完成。",
+        "error": "上次任务失败，请查看计划和日志。"
+      },
+      "actions": {
+        "history": "读取历史",
+        "undoRecent": "撤销最近",
+        "clearState": "清空状态",
+        "dryDissolve": "预演溶解",
+        "liveDissolve": "真实溶解",
+        "confirmExecute": "确认执行",
+        "pasteFolder": "粘贴文件夹",
+        "clearPath": "清空路径"
+      },
+      "labels": {
+        "input": "输入",
+        "inputHint": "选择捆绑或直提模式，预演确认后再执行真实溶解。",
+        "switches": "关键开关",
+        "advanced": "高级选项",
+        "defaults": "默认配置",
+        "targetFolder": "目标文件夹",
+        "similarityThreshold": "相似度阈值",
+        "excludeKeywords": "排除关键词",
+        "historyPath": "历史路径",
+        "fileConflict": "文件冲突",
+        "dirConflict": "目录冲突"
+      },
+      "switches": {
+        "preview": "预演",
+        "protectFirstLevel": "保护一级",
+        "enableSimilarity": "相似度校验"
+      },
+      "confirm": {
+        "title": "确认真实执行 Dissolvef？",
+        "description": "当前将真实移动和删除文件夹，模式为 {{mode}}，目标 {{path}}。操作会记录到历史，可撤销但无法还原删除。"
+      },
+      "summary": {
+        "total": "{{total}} 项 / {{success}} 成功",
+        "mode": "{{mode}} / {{preview}}",
+        "empty": "粘贴文件夹后开始溶解"
+      },
+      "subtitle": {
+        "full": "{{mode}} / {{preview}}"
+      },
+      "tabs": {
+        "plan": "计划",
+        "history": "历史",
+        "logs": "日志"
+      },
+      "aria": {
+        "running": "dissolvef running",
+        "targetFolder": "dissolvef target folder",
+        "advancedOptions": "dissolvef advanced options",
+        "defaults": "dissolvef defaults",
+        "bundleMode": "捆绑模式",
+        "directMode": "直提模式"
+      },
+      "error": {
+        "noPath": "请先输入目标文件夹。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "empty": "无结果",
+      "mode": {
+        "bundle": "捆绑",
+        "direct": "直提",
+        "dry": "预演",
+        "live": "真实",
+        "liveExecute": "真实执行"
+      },
+      "stats": {
+        "total": "总计",
+        "nested": "嵌套",
+        "media": "媒体",
+        "archive": "归档",
+        "skipped": "跳过",
+        "progress": "进度",
+        "failed": "失败",
+        "error": "错误"
+      },
+      "actionLabel": {
+        "plan": "预演",
+        "dissolve": "溶解",
+        "history": "历史",
+        "undo": "撤销"
+      },
+      "progress": {
+        "start": "{{action}}开始"
       }
     },
     "encodeb": {
@@ -743,7 +1143,68 @@
       "strategies": {
         "replace": "替换",
         "copy": "复制"
-      }
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "running": "Encodeb 正在处理文件名。",
+        "completed": "上次任务已完成。",
+        "error": "上次任务失败，请查看日志。",
+        "idle": "粘贴路径后扫描乱码或预览转码。"
+      },
+      "buttons": {
+        "scanGarbled": "扫描乱码",
+        "previewConvert": "预览转换",
+        "copyResults": "复制结果",
+        "clearState": "清空状态",
+        "running": "运行中",
+        "execute": "执行修复",
+        "cancel": "取消",
+        "confirmExecute": "确认执行",
+        "copy": "复制"
+      },
+      "sections": {
+        "input": "输入",
+        "inputDesc": "粘贴包含乱码文件名的目录，选择编码预设后预览或修复。",
+        "encoding": "编码与策略"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "stats": {
+        "preview": "预览",
+        "garbled": "乱码",
+        "progress": "进度"
+      },
+      "empty": {
+        "results": "扫描或预览后会显示乱码匹配和转码映射。",
+        "logs": "运行日志会显示在这里。",
+        "waitingRun": "等待运行",
+        "itemCount": "{{count}} 项"
+      },
+      "dialog": {
+        "confirmTitle": "确认执行 Encodeb 修复？",
+        "confirmDesc": "当前将对 {{count}} 个路径执行真实文件名修复，策略为 {{strategy}}，编码 {{src}} -> {{dst}}。该操作不可撤销，请确认路径无误。"
+      },
+      "aria": {
+        "running": "encodeb running"
+      },
+      "summary": {
+        "mappings": "{{count}} 个转码映射",
+        "matches": "{{count}} 个乱码",
+        "pathWaiting": "{{count}} 条路径等待扫描",
+        "pasteHint": "粘贴路径后扫描乱码文件名"
+      },
+      "strategyCopy": "复制副本",
+      "strategyReplace": "原地重命名",
+      "actionStart": "{{action}}开始",
+      "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+      "pathRequired": "请先输入至少一个源路径。"
     },
     "findz": {
       "name": "Findz",
@@ -776,89 +1237,374 @@
       "statErrors": "错误",
       "statProgress": "进度",
       "noResult": "尚未搜索",
-      "starting": "启动中"
+      "starting": "启动中",
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "idle": "粘贴路径并编写 SQL 过滤器后开始搜索。",
+        "running": "Findz 正在扫描并过滤。",
+        "completed": "上次搜索已完成。",
+        "error": "上次搜索失败，请查看日志。"
+      },
+      "buttons": {
+        "run": "运行{{action}}",
+        "running": "运行中",
+        "filterHelp": "过滤器帮助",
+        "copyResults": "复制结果",
+        "copyLogs": "复制日志",
+        "clearState": "清空状态",
+        "copy": "复制"
+      },
+      "sections": {
+        "task": "任务",
+        "taskDesc": "选择搜索动作，粘贴路径，写 SQL 过滤器。",
+        "switches": "关键开关"
+      },
+      "tabs": {
+        "files": "文件",
+        "groups": "分组",
+        "logs": "日志",
+        "help": "帮助"
+      },
+      "stats": {
+        "total": "总计",
+        "files": "文件",
+        "dirs": "目录",
+        "archive": "归档成员",
+        "nested": "嵌套",
+        "errors": "错误",
+        "scanned": "扫描",
+        "progress": "进度"
+      },
+      "empty": {
+        "help": "帮助文本会显示在这里。",
+        "files": "运行后会显示匹配的文件和归档成员。",
+        "groups": "设置分组字段后会显示分组汇总。",
+        "logs": "运行日志会显示在这里。",
+        "waitingRun": "等待运行",
+        "itemCount": "{{count}} 项"
+      },
+      "summary": {
+        "result": "{{total}} 项 / {{archive}} 归档成员",
+        "pathWaiting": "{{count}} 条路径等待搜索",
+        "pasteHint": "粘贴路径后开始搜索"
+      },
+      "actionStart": "{{action}}开始",
+      "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+      "pathRequired": "请先输入至少一个搜索路径。",
+      "actions": {
+        "search": "搜索",
+        "archives_only": "压缩包列举",
+        "nested": "嵌套归档",
+        "help": "帮助"
+      },
+      "aria": {
+        "searchPaths": "findz 搜索路径",
+        "whereFilter": "findz SQL 过滤器",
+        "advancedOptions": "findz 高级选项",
+        "defaults": "findz 默认配置"
+      }
     },
     "formatv": {
       "name": "FormatV",
       "description": "扫描视频文件夹，添加/移除 .nov 后缀，并检查带前缀的重复项。",
       "title": "formatv",
-      "meta": "{{phase}} / {{count}} 个路径 / {{mode}}",
-      "phaseIdle": "空闲",
-      "phaseScan": "扫描",
-      "phaseAddNov": "添加 .nov",
-      "phaseRemoveNov": "移除 .nov",
-      "phaseCheckDuplicates": "查重",
-      "phaseCompleted": "已完成",
-      "phaseError": "错误",
-      "dryRun": "预演",
-      "write": "写入",
-      "scan": "扫描",
-      "dup": "查重",
-      "copyResults": "复制结果",
-      "copyLogs": "复制日志",
-      "reset": "重置",
-      "pastePaths": "粘贴路径",
-      "fieldPaths": "路径",
-      "fieldPrefix": "前缀",
-      "recursive": "递归",
-      "statNormal": "普通",
-      "statSuccess": "成功",
-      "statDups": "重复",
-      "statErrors": "错误",
-      "noScanYet": "尚未扫描",
-      "noVideoFiles": "无视频文件"
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "error": "失败",
+        "completed": "完成"
+      },
+      "statusDesc": {
+        "idle": "粘贴视频目录后扫描或查重。",
+        "running": "FormatV 正在处理视频文件。",
+        "error": "上次任务失败，请查看结果和日志。",
+        "completed": "上次任务已完成。"
+      },
+      "buttons": {
+        "scan": "扫描视频",
+        "addNov": "添加 .nov",
+        "removeNov": "移除 .nov",
+        "checkDuplicates": "查重",
+        "reset": "清空状态",
+        "cancel": "取消",
+        "confirmExecute": "确认执行",
+        "copy": "复制",
+        "pastePath": "粘贴路径",
+        "clearPath": "清空路径",
+        "saveDefault": "保存为默认",
+        "restoreDefault": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "viewConfig": "查看配置",
+        "openFile": "打开文件"
+      },
+      "sections": {
+        "input": "输入",
+        "inputDesc": "粘贴视频目录，扫描后可加/移除 .nov 或查重。",
+        "keySwitches": "关键开关"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "stats": {
+        "normal": "普通",
+        "nov": ".nov",
+        "success": "成功",
+        "duplicates": "查重",
+        "progress": "进度"
+      },
+      "empty": {
+        "results": "扫描、加/移除 .nov 或查重后会显示文件列表和操作结果。",
+        "logs": "运行日志会显示在这里。",
+        "itemCount": "{{count}} 项",
+        "waitingRun": "等待运行"
+      },
+      "dialog": {
+        "confirmRealTitle": "确认真实执行 {{action}}？",
+        "confirmRealDesc": "当前已关闭预演，将对 {{count}} 个路径执行真实文件重命名。该操作不可撤销，请确认路径和前缀无误。"
+      },
+      "aria": {
+        "running": "formatv running"
+      },
+      "summary": {
+        "duplicates": "{{count}} 个重复",
+        "errors": "{{count}} 个失败",
+        "videos": "{{count}} 个视频",
+        "pathWaiting": "{{count}} 条路径等待扫描",
+        "pasteHint": "粘贴视频目录后扫描"
+      },
+      "actionStart": "{{action}}开始",
+      "pathRequired": "请先输入至少一个视频路径。",
+      "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+      "headerSubtitle": "{{count}} 路径 / {{mode}} / 前缀 {{prefix}}",
+      "modeDryRun": "预演",
+      "modeWrite": "真实执行",
+      "pathsLabel": "视频目录",
+      "pathsCount": "{{count}} 条",
+      "switches": {
+        "recursive": "递归",
+        "recursiveDesc": "递归扫描子目录内的视频文件。",
+        "dryRun": "预演",
+        "dryRunDesc": "开启后只生成重命名计划，不写入文件系统。关闭后执行真实重命名。"
+      },
+      "options": {
+        "title": "任务选项",
+        "description": "前缀名称和递归、预演开关集中在这里。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 FormatV 的路径、前缀和开关到明文配置。",
+        "noConfig": "# nodes.formatv 暂无默认配置",
+        "notConnected": "未连接本地配置服务",
+        "configFile": "配置文件",
+        "configTitle": "FormatV 配置",
+        "configDesc": "当前 nodes.formatv 默认值和配置文件位置。"
+      },
+      "prefix": {
+        "label": "前缀名称"
+      }
     },
     "kavvka": {
       "name": "Kavvka",
       "description": "为 Czkawka 对比准备图像文件夹：扫描、移动同级文件并生成包含路径。",
       "title": "kavvka",
-      "meta": "{{sourceCount}} 源 / {{scanCount}} 扫描根 / 深度 {{depth}}",
-      "pasteSources": "粘贴来源",
-      "scan": "扫描",
-      "plan": "规划",
-      "process": "执行",
-      "copyResults": "复制结果",
-      "copyLogs": "复制日志",
-      "reset": "重置",
-      "sourceFoldersLabel": "源文件夹",
-      "sourceFoldersPlaceholder": "每行一个文件夹，通常为 [artist] 文件夹下的画廊文件夹",
-      "scanRootsLabel": "扫描根",
-      "scanRootsPlaceholder": "每行一个根文件夹",
-      "keywordsLabel": "关键词",
-      "depthLabel": "深度",
-      "forceMove": "强制移动",
-      "dryRun": "预演",
-      "strictArtist": "严格 []",
-      "statMatched": "已匹配",
-      "statPaths": "路径",
-      "statMoved": "已移动",
-      "statErrors": "错误",
-      "starting": "启动中"
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "error": "失败",
+        "completed": "完成",
+        "hasResults": "有结果"
+      },
+      "statusDesc": {
+        "idle": "粘贴路径或扫描根目录后开始处理。",
+        "running": "Kavvka 正在处理当前任务。",
+        "error": "上次任务失败，请查看日志。",
+        "completed": "上次任务已完成。",
+        "hasResults": "{{count}} 个 Czkawka 路径已生成。"
+      },
+      "buttons": {
+        "scan": "扫描关键词",
+        "plan": "预演计划",
+        "process": "执行处理",
+        "realProcess": "真实处理",
+        "copyResults": "复制结果",
+        "copyLogs": "复制日志",
+        "reset": "清空状态",
+        "cancel": "取消",
+        "confirmExecute": "确认执行",
+        "pasteSource": "粘贴源路径",
+        "pasteScan": "粘贴扫描根目录",
+        "clearSource": "清空源路径",
+        "clearScan": "清空扫描根目录",
+        "saveDefault": "保存为默认",
+        "restoreDefault": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "viewConfig": "查看配置",
+        "openFile": "打开文件"
+      },
+      "sections": {
+        "input": "输入",
+        "inputDesc": "扫描根目录下匹配关键词的文件夹会回填到源路径。",
+        "keywordsDepth": "关键词与扫描深度",
+        "keySwitches": "关键开关",
+        "results": "Czkawka 路径 / 扫描结果"
+      },
+      "stats": {
+        "source": "源",
+        "roots": "根目录",
+        "scanned": "扫描",
+        "matched": "匹配",
+        "processed": "处理",
+        "moved": "移动",
+        "errors": "失败",
+        "progress": "进度"
+      },
+      "empty": {
+        "results": "扫描或处理后将在此显示路径",
+        "logs": "暂无日志",
+        "truncated": "仅显示前 200 项（共 {{count}} 项）",
+        "keywordsEmpty": "关键词：{{keywords}} 或未设置",
+        "noProgress": "扫描或处理后将在此显示路径"
+      },
+      "dialog": {
+        "confirmRealTitle": "确认真实执行 Kavvka？",
+        "confirmRealDesc": "当前关闭了预演，处理时会真的把兄弟目录移动到 #compare 下。源路径 {{count}} 项，请确认无误后继续。"
+      },
+      "aria": {
+        "running": "kavvka running"
+      },
+      "summary": {
+        "errors": "{{count}} 个失败",
+        "pathGroups": "{{count}} 组路径",
+        "matched": "{{count}} 个匹配",
+        "sourceRoots": "{{source}} 源 / {{roots}} 根",
+        "rootsScannable": "{{count}} 个根目录可扫描",
+        "pasteHint": "粘贴路径或扫描根目录"
+      },
+      "actionStart": "{{action}}开始",
+      "pathRequiredScan": "请先输入至少一个扫描根目录。",
+      "pathRequiredSource": "请先输入至少一个源路径。",
+      "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+      "headerSubtitle": "{{source}} 源 / {{roots}} 根 / {{mode}}",
+      "modeDryRun": "预演",
+      "modeWrite": "真实",
+      "sourceLabel": "源路径",
+      "scanLabel": "扫描根目录",
+      "pathsCount": "{{count}} 条",
+      "switches": {
+        "force": "强制移动",
+        "forceDesc": "允许把兄弟文件夹移入 #compare 目录。",
+        "dryRun": "预演",
+        "dryRunDesc": "开启时只生成 Czkawka 路径，不写入文件系统。",
+        "strictArtist": "严格画师",
+        "strictArtistDesc": "强制要求源路径中存在带 [] 标记的画师目录。"
+      },
+      "fields": {
+        "keywords": "关键词",
+        "depth": "扫描深度"
+      },
+      "options": {
+        "title": "高级选项",
+        "description": "关键词、扫描深度和严格画师等低频参数收在这里。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 Kavvka 的扫描路径、关键词和风险开关到明文配置。",
+        "noConfig": "# nodes.kavvka 暂无默认配置",
+        "notConnected": "未连接本地配置服务",
+        "configFile": "配置文件",
+        "configTitle": "Kavvka 配置",
+        "configDesc": "当前 nodes.kavvka 默认值和配置文件位置。"
+      }
     },
     "lata": {
       "name": "Lata",
       "description": "列出、规划并执行 Taskfile 任务。",
       "title": "lata",
-      "meta": "{{phase}} / {{task}}",
-      "phaseIdle": "空闲",
-      "phaseLoading": "加载中",
-      "phaseRunning": "运行中",
-      "phaseCompleted": "已完成",
-      "phaseError": "错误",
-      "noTask": "无任务",
-      "load": "加载",
-      "plan": "规划",
-      "run": "运行",
-      "copyLogs": "复制日志",
-      "reset": "重置",
-      "taskfileLabel": "Taskfile",
-      "pasteTaskfile": "粘贴 Taskfile 路径",
-      "argsLabel": "参数",
-      "loadTasks": "加载任务",
-      "statTasks": "任务",
-      "statCommands": "命令",
-      "statExit": "退出码",
-      "noTasksLoaded": "未加载任务"
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "error": "失败",
+        "completed": "完成"
+      },
+      "statusDesc": {
+        "idle": "指定 Taskfile 路径后加载任务。",
+        "running": "Lata 正在加载或执行任务。",
+        "error": "上次任务失败，请查看日志。",
+        "completed": "上次任务已完成。"
+      },
+      "buttons": {
+        "list": "加载任务",
+        "plan": "预览命令",
+        "execute": "执行任务",
+        "copyLogs": "复制日志",
+        "reset": "清空状态",
+        "cancel": "取消",
+        "confirmExecute": "确认执行",
+        "pasteTaskfile": "粘贴 Taskfile 路径",
+        "saveDefault": "保存为默认",
+        "restoreDefault": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "viewConfig": "查看配置",
+        "openFile": "打开文件",
+        "copy": "复制"
+      },
+      "sections": {
+        "taskfile": "Taskfile 配置",
+        "taskfileDesc": "指定 Taskfile 路径与任务参数，加载后可选择任务。",
+        "tasks": "任务列表",
+        "tasksDesc": "点击任务名选中，再预览或执行。"
+      },
+      "tabs": {
+        "tasks": "任务",
+        "commands": "命令",
+        "logs": "日志"
+      },
+      "stats": {
+        "tasks": "任务",
+        "commands": "命令",
+        "exitCode": "退出码"
+      },
+      "empty": {
+        "tasks": "加载 Taskfile 后任务会显示在这里。",
+        "commands": "预览或执行任务后命令会显示在这里。",
+        "logs": "运行日志会显示在这里。",
+        "logCount": "{{count}} 条",
+        "waitingRun": "等待运行"
+      },
+      "dialog": {
+        "confirmTitle": "确认执行 Lata 任务？",
+        "confirmDesc": "将真实执行 Taskfile 中「{{task}}」任务的命令。请确认命令内容无误后再继续。"
+      },
+      "aria": {
+        "running": "lata running"
+      },
+      "summary": {
+        "completed": "任务已完成",
+        "taskCount": "{{task}} / {{count}} 个任务"
+      },
+      "actionStart": "{{action}}开始",
+      "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+      "noTaskSelected": "未选择",
+      "fields": {
+        "taskfile": "Taskfile 路径",
+        "args": "任务参数",
+        "noTasks": "尚无任务"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 Lata 的 Taskfile 路径、任务名和参数到明文配置。",
+        "noConfig": "# nodes.lata 暂无默认配置",
+        "notConnected": "未连接本地配置服务",
+        "configFile": "配置文件",
+        "configTitle": "Lata 配置",
+        "configDesc": "当前 nodes.lata 默认值和配置文件位置。"
+      }
     },
     "linedup": {
       "name": "Linedup",
@@ -902,6 +1648,141 @@
       "noResult": "无结果",
       "existsLabel": "存在",
       "symlinkLabel": "symlink"
+    },
+    "lorat": {
+      "name": "Lorat",
+      "description": "扫描 LoRA 文件夹、应用 TriggerDB、写入 sidecar 并导出 TriggerDB。",
+      "title": "lorat",
+      "meta": "{{action}} / {{count}} 行 / {{missing}} 缺失",
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "running": "Lorat 正在处理 LoRA 模型。",
+        "completed": "上次操作已完成。",
+        "error": "上次操作失败，请查看日志。",
+        "idle": "输入目录后开始扫描。"
+      },
+      "actions": {
+        "scan": "扫描",
+        "applyDb": "应用 TriggerDB",
+        "writeTriggers": "写入触发词",
+        "markNoTrigger": "标记无触发词",
+        "exportDb": "导出 TriggerDB"
+      },
+      "actionShort": {
+        "scan": "扫描",
+        "applyDb": "应用",
+        "writeTriggers": "写入",
+        "markNoTrigger": "无触发",
+        "exportDb": "导出"
+      },
+      "buttons": {
+        "running": "运行中",
+        "selectMissing": "选中缺失",
+        "clearSelection": "清除选择",
+        "copyResults": "复制结果",
+        "copyLogs": "复制日志",
+        "clearState": "清空状态",
+        "saveDefault": "保存为默认",
+        "restoreDefault": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "viewConfig": "查看配置",
+        "openFile": "打开文件",
+        "cancel": "取消",
+        "confirmExecute": "确认执行",
+        "pasteFolder": "粘贴目录",
+        "clearFolder": "清空目录",
+        "pasteJson": "粘贴 JSON",
+        "clearSearch": "清空搜索",
+        "copy": "复制"
+      },
+      "sections": {
+        "task": "任务",
+        "taskDesc": "选择动作，输入 LoRA 目录或粘贴 TriggerDB。",
+        "triggerDb": "TriggerDB JSON",
+        "advanced": "高级选项",
+        "advancedDesc": "状态与范围过滤集中在这里。",
+        "defaults": "默认配置",
+        "defaultsDesc": "保存 Lorat 的动作、目录、搜索和过滤到明文配置。",
+        "statusFilter": "状态过滤",
+        "scopeFilter": "范围过滤",
+        "filterHelp": "状态过滤按 sidecar 状态显示，范围过滤按目录中的 self/@ 标记显示。",
+        "loraFolder": "LoRA 目录",
+        "searchFilter": "搜索过滤",
+        "configFile": "配置文件",
+        "configDialogTitle": "Lorat 配置",
+        "configDialogDesc": "当前 nodes.lorat 默认值和配置文件位置。",
+        "noDefaults": "# nodes.lorat 暂无默认配置\n",
+        "configDisconnected": "未连接本地配置服务"
+      },
+      "labels": {
+        "folderSet": "已设目录",
+        "folderPending": "待输入",
+        "set": "已设置",
+        "optional": "可选",
+        "chars": "{{count}} 字符"
+      },
+      "tabs": {
+        "models": "模型",
+        "logs": "日志"
+      },
+      "stats": {
+        "total": "总数",
+        "missing": "缺失",
+        "trigger": "已有",
+        "notrigger": "无触发",
+        "changed": "已改",
+        "selected": "已选",
+        "dbMatched": "库匹配",
+        "progress": "进度"
+      },
+      "summary": {
+        "stats": "{{total}} LoRA / {{missing}} 缺失 / {{trigger}} 已有 / {{notrigger}} 无触发",
+        "folderWaiting": "{{folder}} 等待扫描",
+        "pasteHint": "粘贴目录后开始扫描",
+        "waitingScan": "等待扫描",
+        "waitingRun": "等待运行",
+        "itemCount": "{{count}} 项",
+        "modelCount": "{{count}} 个模型"
+      },
+      "empty": {
+        "logs": "运行日志会显示在这里。"
+      },
+      "dialog": {
+        "confirmTitle": "确认真实执行 Lorat？",
+        "confirmWrite": "确认写入触发词？",
+        "confirmMark": "确认标记无触发词？",
+        "writeDesc": "将向 {{name}} 写入触发词 sidecar，已存在的 sidecar 会被覆盖。",
+        "markDesc": "将为 {{name}} 写入 no-trigger sidecar，标记该 LoRA 没有触发词。"
+      },
+      "progress": {
+        "appliedDb": "已应用 TriggerDB 到 {{count}} 行。",
+        "exportedDb": "已导出 {{count}} 条 TriggerDB。",
+        "noNative": "当前环境没有本地运行能力，请使用桌面模式或 CLI。",
+        "actionStart": "{{action}}开始"
+      },
+      "aria": {
+        "loraFolder": "lorat LoRA 目录",
+        "searchFilter": "lorat 搜索过滤",
+        "advanced": "lorat 高级选项",
+        "defaults": "lorat 默认配置",
+        "triggerDb": "lorat TriggerDB JSON",
+        "running": "lorat running",
+        "selectRow": "选择 {{name}}",
+        "triggerFor": "触发词 {{name}}",
+        "writeTriggerFor": "写入触发词 {{name}}",
+        "markNoTriggerFor": "标记无触发词 {{name}}"
+      },
+      "phases": {
+        "idle": "空闲",
+        "scanning": "扫描中",
+        "completed": "已完成",
+        "error": "错误"
+      }
     },
     "marku": {
       "name": "Marku",
@@ -1242,7 +2123,88 @@
       "statConflicts": "冲突",
       "renameJson": "重命名 JSON",
       "progressLine": "[{{progress}}%] {{text}}",
-      "readyToScan": "准备将文件夹扫描为重命名 JSON。"
+      "readyToScan": "准备将文件夹扫描为重命名 JSON。",
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "success": "完成",
+        "error": "失败",
+        "warning": "有冲突",
+        "pending": "待校验"
+      },
+      "desc": {
+        "idle": "粘贴目录并扫描成 rename JSON。",
+        "running": "Trename 正在处理当前任务。",
+        "success": "上次任务已完成。",
+        "error": "上次任务失败，请查看冲突和日志。",
+        "warning": "{{count}} 个冲突需要处理。",
+        "pending": "{{total}} 项，{{ready}} 项已准备重命名。"
+      },
+      "actions": {
+        "scanPaths": "扫描路径",
+        "validate": "校验冲突",
+        "history": "读取历史",
+        "clearState": "清空状态",
+        "dryRename": "预演重命名",
+        "liveRename": "真实重命名",
+        "confirmExecute": "确认执行"
+      },
+      "labels": {
+        "input": "输入",
+        "inputHint": "粘贴目录，扫描成 rename JSON；大 JSON 在弹窗里编辑。",
+        "switches": "关键开关"
+      },
+      "confirm": {
+        "title": "确认真实执行 Trename？",
+        "description": "当前将执行真实文件重命名。计划 {{plan}} 项，冲突 {{conflicts}} 项，base path 为 {{basePath}}。"
+      },
+      "summary": {
+        "conflicts": "{{count}} 个冲突",
+        "tree": "{{total}} 项 / {{ready}} 就绪 / {{mode}}",
+        "waiting": "{{count}} 条路径等待扫描",
+        "empty": "选择目录后扫描 rename JSON"
+      },
+      "subtitle": {
+        "full": "{{paths}} 路径 / {{ready}} 就绪 / {{mode}}"
+      },
+      "tabs": {
+        "results": "结果",
+        "logs": "日志"
+      },
+      "aria": {
+        "running": "trename running",
+        "scanMode": "trename scan mode",
+        "scanPaths": "trename scan paths",
+        "advancedOptions": "trename advanced options",
+        "defaults": "trename defaults",
+        "jsonText": "trename json text",
+        "jsonEditor": "open trename json editor"
+      },
+      "error": {
+        "noScanPath": "请先输入至少一个扫描路径。",
+        "noJson": "请先扫描或导入 rename JSON。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "empty": "尚未扫描路径",
+      "mode": {
+        "dry": "预演",
+        "live": "真实",
+        "liveExecute": "真实执行"
+      },
+      "stats": {
+        "progress": "进度"
+      },
+      "actionLabel": {
+        "scan": "扫描",
+        "import": "导入",
+        "validate": "校验",
+        "rename": "重命名",
+        "undo": "撤销",
+        "history": "读取历史"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      }
     }
   }
 }

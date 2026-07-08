@@ -564,12 +564,91 @@
         "filtered": "filtered",
         "types": "types",
         "ok": "ok",
-        "failed": "failed"
+        "failed": "failed",
+        "visible": "visible",
+        "scanned": "scanned",
+        "selected": "selected"
       },
       "unknown": "unknown",
       "unrated": "unrated",
       "wallpaperLine": "{{id}} / {{type}} / {{rating}} / {{title}}",
-      "readyToScan": "Ready to scan Wallpaper Engine workshop folders."
+      "readyToScan": "Ready to scan Wallpaper Engine workshop folders.",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Done",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "idle": "Pick a workshop path to start scanning.",
+        "running": "EngineV is processing the current task.",
+        "completed": "Last task completed.",
+        "error": "Last task failed, see results and logs."
+      },
+      "buttons": {
+        "run": "Run",
+        "dryRun": "Dry run",
+        "copy": "Copy",
+        "copyResults": "Copy results",
+        "clearState": "Clear state",
+        "cancel": "Cancel",
+        "confirmDelete": "Confirm delete",
+        "quickAction": "Quick {{action}}",
+        "executeAction": "Run {{action}}"
+      },
+      "sections": {
+        "input": "Input",
+        "inputDesc": "Workshop path, action, and frequent buttons stay at the top so they aren't pushed out by the gallery and logs.",
+        "filter": "Filter",
+        "writeOptions": "Write options"
+      },
+      "tabs": {
+        "gallery": "Gallery",
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "empty": {
+        "results": "Rename, delete, or export results and errors will appear here.",
+        "logs": "Run logs will appear here.",
+        "gallery": "No gallery data yet",
+        "galleryHint": "Pick a Wallpaper Engine workshop folder and run scan; previews use local file URLs.",
+        "waitingRun": "Waiting to run",
+        "itemCount": "{{count}} items",
+        "visibleItems": "{{count}} visible items",
+        "truncatedItems": "Showing first {{visible}} of {{total}} items."
+      },
+      "dialog": {
+        "confirmDeleteTitle": "Confirm delete selected items?",
+        "confirmDeleteDesc": "Will process {{count}} Wallpaper Engine workshop items. Defaults to recycle bin; if dry run is off and permanent delete is enabled, this cannot be undone."
+      },
+      "aria": {
+        "exportFormat": "enginev export format",
+        "actionSelect": "enginev action",
+        "workshopPath": "enginev workshop path",
+        "pastePath": "enginev paste path",
+        "useDefaultPath": "enginev use default path",
+        "filterSelect": "enginev filter and selection",
+        "templateOptions": "enginev template and options",
+        "defaults": "enginev defaults",
+        "gallerySettings": "enginev gallery display settings",
+        "galleryColumns": "enginev gallery columns",
+        "deleteSelected": "Delete selected",
+        "selectWallpaper": "Select {{title}}",
+        "copyWallpaperPath": "Copy {{title}} path",
+        "copyPath": "Copy path"
+      },
+      "summary": {
+        "visibleSelected": "{{visible}} visible · {{selected}} selected",
+        "headerLine": "{{visible}} visible / {{scanned}} scanned / {{selected}} selected",
+        "failedItems": "{{count}} failed items",
+        "visibleItems": "{{count}} visible items",
+        "selectWorkshop": "Select workshop folder"
+      },
+      "actionStart": "Running {{action}}.",
+      "noNative": "Local backend is unavailable; cannot run enginev.",
+      "pathRequired": "Pick a Wallpaper Engine workshop folder first, or complete a scan first.",
+      "deleteRequiresSelection": "Select at least one item in the gallery before deleting.",
+      "exportRequiresPath": "Export requires a target file path."
     },
     "bandia": {
       "name": "Bandia",
@@ -614,6 +693,71 @@
       "extractModes": {
         "auto": "auto",
         "normal": "normal"
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed"
+      },
+      "desc": {
+        "idle": "Paste paths or mappings to dry-run.",
+        "running": "Bandia is processing the current queue.",
+        "success": "Last task completed.",
+        "error": "Last task failed, check results and logs."
+      },
+      "actions": {
+        "stop": "Stop",
+        "exportEfu": "Export EFU",
+        "copyResults": "Copy results",
+        "clearState": "Clear state",
+        "confirmExecute": "Confirm execute",
+        "runLabel": "{{mode}}{{action}}"
+      },
+      "labels": {
+        "task": "Task",
+        "taskHint": "Pick extract, compress, or repack; dangerous writes are dry-run by default.",
+        "switches": "Key switches",
+        "advanced": "Advanced options"
+      },
+      "confirm": {
+        "title": "Confirm live Bandia?",
+        "description": "Dry-run is off and source deletion options are enabled. Confirm paths, mappings, and trash strategy before continuing."
+      },
+      "summary": {
+        "failed": "{{count}} failed",
+        "archives": "{{count}} archive(s) / {{mode}}",
+        "items": "{{count}} item(s) / {{mode}}"
+      },
+      "subtitle": {
+        "full": "{{label}} / {{mode}} / {{count}} item(s)"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "aria": {
+        "running": "bandia running"
+      },
+      "error": {
+        "noRunEnv": "No local run capability in this environment; use desktop mode or CLI.",
+        "stopRequested": "Stop requested"
+      },
+      "empty": "No result",
+      "mode": {
+        "dry": "Dry run",
+        "live": "Live",
+        "execute": "Run",
+        "liveExecute": "Live execute"
+      },
+      "actionLabel": {
+        "extract": "Extract",
+        "compress": "Compress",
+        "repack": "Repack",
+        "export_efu": "Export"
+      },
+      "progress": {
+        "start": "{{action}} started"
       }
     },
     "cleanf": {
@@ -634,7 +778,77 @@
       "noResult": "No result",
       "previewing": "Previewing...",
       "cleaning": "Cleaning...",
-      "meta": "{{paths}} path(s) / {{presets}} preset(s) / {{state}}"
+      "meta": "{{paths}} path(s) / {{presets}} preset(s) / {{state}}",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed"
+      },
+      "desc": {
+        "idle": "Paste directories and pick presets to dry-run or clean.",
+        "running": "Cleanf is scanning and cleaning.",
+        "success": "Last task completed.",
+        "error": "Last task failed, check logs."
+      },
+      "actions": {
+        "copyResults": "Copy results",
+        "clearState": "Clear state",
+        "dryClean": "Dry clean",
+        "liveClean": "Live clean",
+        "confirmExecute": "Confirm execute"
+      },
+      "labels": {
+        "input": "Input",
+        "inputHint": "Paste directories, pick presets, dry-run before live delete.",
+        "presets": "Clean presets",
+        "switches": "Key switches"
+      },
+      "confirm": {
+        "title": "Confirm live Cleanf?",
+        "description": "This will really delete scanned files and folders. {{presets}} preset(s) enabled, {{paths}} path(s). Deletion is irreversible; confirm paths and exclude keywords."
+      },
+      "summary": {
+        "removed": "Deleted {{removed}} / skipped {{skipped}}",
+        "paths": "{{paths}} path(s) / {{presets}} preset(s) / {{mode}}",
+        "empty": "Paste directories to preview clean results"
+      },
+      "subtitle": {
+        "full": "{{paths}} paths / {{presets}} presets / {{mode}}"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "aria": {
+        "running": "cleanf running",
+        "scanPaths": "cleanf scan paths",
+        "advancedOptions": "cleanf advanced options",
+        "defaults": "cleanf defaults"
+      },
+      "error": {
+        "noScanPath": "Please enter at least one scan path.",
+        "noRunEnv": "No local run capability in this environment; use desktop mode or CLI."
+      },
+      "empty": "No result",
+      "mode": {
+        "dry": "Dry run",
+        "live": "Live",
+        "liveExecute": "Live execute"
+      },
+      "stats": {
+        "total": "Total",
+        "skipped": "Skipped",
+        "preview": "Preview items",
+        "progress": "Progress"
+      },
+      "actionLabel": {
+        "preview": "Dry run",
+        "clean": "Clean"
+      },
+      "progress": {
+        "start": "{{action}} started"
+      }
     },
     "crashu": {
       "name": "Crashu",
@@ -675,6 +889,96 @@
         "moving": "moving",
         "completed": "completed",
         "error": "error"
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed"
+      },
+      "desc": {
+        "idle": "Paste source directories and target names to start matching.",
+        "running": "Crashu is matching or moving folders.",
+        "success": "Last task completed.",
+        "error": "Last task failed, check results and logs."
+      },
+      "actions": {
+        "scanMatch": "Scan matches",
+        "plan": "Generate plan",
+        "copyResults": "Copy results",
+        "clearState": "Clear state",
+        "dryMove": "Dry move",
+        "liveMove": "Live move",
+        "confirmExecute": "Confirm execute"
+      },
+      "labels": {
+        "input": "Input",
+        "inputHint": "Source directories and target names are used for similarity matching; target folder can auto-read subfolders.",
+        "switches": "Key switches",
+        "advanced": "Advanced options",
+        "moveDirection": "Move direction",
+        "conflictPolicy": "Conflict policy"
+      },
+      "moveDirection": {
+        "toTarget": "Source → Target",
+        "toSource": "Target → Source"
+      },
+      "conflictPolicy": {
+        "skip": "Skip",
+        "rename": "Rename",
+        "overwrite": "Overwrite"
+      },
+      "confirm": {
+        "title": "Confirm live Crashu?",
+        "description": "This will really move matched folders to {{destination}}, {{sources}} source directory(s), similarity threshold {{threshold}}%. Moves are irreversible; confirm target and conflict policy."
+      },
+      "summary": {
+        "matches": "Matched {{matched}} / moved {{moved}}",
+        "sources": "{{sources}} sources / {{targets}} targets / {{mode}}",
+        "empty": "Paste source directories to start matching"
+      },
+      "subtitle": {
+        "full": "{{sources}} sources / {{targets}} targets / {{mode}}"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "aria": {
+        "running": "crashu running",
+        "sourcePaths": "crashu source paths",
+        "targetNames": "crashu target names",
+        "moveDirection": "crashu move direction",
+        "conflictPolicy": "crashu conflict policy",
+        "advancedOptions": "crashu advanced options",
+        "defaults": "crashu defaults"
+      },
+      "error": {
+        "noSource": "Please enter at least one source directory.",
+        "noRunEnv": "No local run capability in this environment; use desktop mode or CLI."
+      },
+      "empty": "No matches yet",
+      "mode": {
+        "dry": "Dry run",
+        "live": "Live",
+        "liveExecute": "Live execute"
+      },
+      "stats": {
+        "sources": "Sources",
+        "targets": "Targets",
+        "matches": "Matches",
+        "moved": "Moved",
+        "skipped": "Skipped",
+        "progress": "Progress",
+        "error": "Error"
+      },
+      "actionLabel": {
+        "scan": "Scan",
+        "plan": "Plan",
+        "move": "Move"
+      },
+      "progress": {
+        "start": "{{action}} started"
       }
     },
     "dissolvef": {
@@ -714,6 +1018,102 @@
         "running": "running",
         "completed": "completed",
         "error": "error"
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed"
+      },
+      "desc": {
+        "idle": "Paste a folder to dry-run or dissolve.",
+        "running": "Dissolvef is generating a plan or dissolving.",
+        "success": "Last task completed.",
+        "error": "Last task failed, check plan and logs."
+      },
+      "actions": {
+        "history": "Read history",
+        "undoRecent": "Undo recent",
+        "clearState": "Clear state",
+        "dryDissolve": "Dry dissolve",
+        "liveDissolve": "Live dissolve",
+        "confirmExecute": "Confirm execute",
+        "pasteFolder": "Paste folder",
+        "clearPath": "Clear path"
+      },
+      "labels": {
+        "input": "Input",
+        "inputHint": "Pick bundle or direct mode, dry-run before live dissolve.",
+        "switches": "Key switches",
+        "advanced": "Advanced options",
+        "defaults": "Defaults",
+        "targetFolder": "Target folder",
+        "similarityThreshold": "Similarity threshold",
+        "excludeKeywords": "Exclude keywords",
+        "historyPath": "History path",
+        "fileConflict": "File conflict",
+        "dirConflict": "Dir conflict"
+      },
+      "switches": {
+        "preview": "Dry run",
+        "protectFirstLevel": "Protect first level",
+        "enableSimilarity": "Similarity check"
+      },
+      "confirm": {
+        "title": "Confirm live Dissolvef?",
+        "description": "This will really move and delete folders, mode {{mode}}, target {{path}}. Operations are recorded to history and can be undone, but deletions cannot be restored."
+      },
+      "summary": {
+        "total": "{{total}} items / {{success}} success",
+        "mode": "{{mode}} / {{preview}}",
+        "empty": "Paste a folder to start dissolving"
+      },
+      "subtitle": {
+        "full": "{{mode}} / {{preview}}"
+      },
+      "tabs": {
+        "plan": "Plan",
+        "history": "History",
+        "logs": "Logs"
+      },
+      "aria": {
+        "running": "dissolvef running",
+        "targetFolder": "dissolvef target folder",
+        "advancedOptions": "dissolvef advanced options",
+        "defaults": "dissolvef defaults",
+        "bundleMode": "Bundle mode",
+        "directMode": "Direct mode"
+      },
+      "error": {
+        "noPath": "Please enter a target folder.",
+        "noRunEnv": "No local run capability in this environment; use desktop mode or CLI."
+      },
+      "empty": "No result",
+      "mode": {
+        "bundle": "Bundle",
+        "direct": "Direct",
+        "dry": "Dry run",
+        "live": "Live",
+        "liveExecute": "Live execute"
+      },
+      "stats": {
+        "total": "Total",
+        "nested": "Nested",
+        "media": "Media",
+        "archive": "Archive",
+        "skipped": "Skipped",
+        "progress": "Progress",
+        "failed": "Failed",
+        "error": "Error"
+      },
+      "actionLabel": {
+        "plan": "Dry run",
+        "dissolve": "Dissolve",
+        "history": "History",
+        "undo": "Undo"
+      },
+      "progress": {
+        "start": "{{action}} started"
       }
     },
     "encodeb": {
@@ -743,7 +1143,68 @@
       "strategies": {
         "replace": "replace",
         "copy": "copy"
-      }
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Done",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "running": "Encodeb is processing filenames.",
+        "completed": "Last task completed.",
+        "error": "Last task failed, see logs.",
+        "idle": "Paste paths to scan garbled names or preview encoding."
+      },
+      "buttons": {
+        "scanGarbled": "Scan garbled",
+        "previewConvert": "Preview convert",
+        "copyResults": "Copy results",
+        "clearState": "Clear state",
+        "running": "Running",
+        "execute": "Execute fix",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execute",
+        "copy": "Copy"
+      },
+      "sections": {
+        "input": "Input",
+        "inputDesc": "Paste a folder with garbled filenames, pick a preset, then preview or recover.",
+        "encoding": "Encoding & strategy"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "stats": {
+        "preview": "Preview",
+        "garbled": "Garbled",
+        "progress": "Progress"
+      },
+      "empty": {
+        "results": "Scan or preview to see garbled matches and encoding mappings.",
+        "logs": "Run logs will appear here.",
+        "waitingRun": "Waiting to run",
+        "itemCount": "{{count}} items"
+      },
+      "dialog": {
+        "confirmTitle": "Confirm Encodeb fix?",
+        "confirmDesc": "Will perform live filename recovery on {{count}} path(s), strategy: {{strategy}}, encoding {{src}} -> {{dst}}. This cannot be undone."
+      },
+      "aria": {
+        "running": "encodeb running"
+      },
+      "summary": {
+        "mappings": "{{count}} encoding mappings",
+        "matches": "{{count}} garbled",
+        "pathWaiting": "{{count}} paths waiting to scan",
+        "pasteHint": "Paste paths to scan garbled filenames"
+      },
+      "strategyCopy": "copy",
+      "strategyReplace": "rename",
+      "actionStart": "{{action}} started",
+      "noNative": "No native runtime in this host. Use desktop mode or CLI.",
+      "pathRequired": "Enter at least one source path first."
     },
     "findz": {
       "name": "Findz",
@@ -776,89 +1237,374 @@
       "statErrors": "errors",
       "statProgress": "progress",
       "noResult": "No search yet",
-      "starting": "starting"
+      "starting": "starting",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Done",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "idle": "Paste paths and a SQL filter to start searching.",
+        "running": "Findz is scanning and filtering.",
+        "completed": "Last search completed.",
+        "error": "Last search failed, see logs."
+      },
+      "buttons": {
+        "run": "Run {{action}}",
+        "running": "Running",
+        "filterHelp": "Filter help",
+        "copyResults": "Copy results",
+        "copyLogs": "Copy logs",
+        "clearState": "Clear state",
+        "copy": "Copy"
+      },
+      "sections": {
+        "task": "Task",
+        "taskDesc": "Pick a search action, paste paths, write a SQL filter.",
+        "switches": "Key switches"
+      },
+      "tabs": {
+        "files": "Files",
+        "groups": "Groups",
+        "logs": "Logs",
+        "help": "Help"
+      },
+      "stats": {
+        "total": "Total",
+        "files": "Files",
+        "dirs": "Dirs",
+        "archive": "Archive members",
+        "nested": "Nested",
+        "errors": "Errors",
+        "scanned": "Scanned",
+        "progress": "Progress"
+      },
+      "empty": {
+        "help": "Help text will appear here.",
+        "files": "Matched files and archive members will appear here after running.",
+        "groups": "Group summaries appear here after setting a group-by field.",
+        "logs": "Run logs will appear here.",
+        "waitingRun": "Waiting to run",
+        "itemCount": "{{count}} items"
+      },
+      "summary": {
+        "result": "{{total}} items / {{archive}} archive members",
+        "pathWaiting": "{{count}} paths waiting to search",
+        "pasteHint": "Paste paths to start searching"
+      },
+      "actionStart": "{{action}} started",
+      "noNative": "No native runtime in this host. Use desktop mode or CLI.",
+      "pathRequired": "Enter at least one search path first.",
+      "actions": {
+        "search": "Search",
+        "archives_only": "Archive listing",
+        "nested": "Nested archives",
+        "help": "Help"
+      },
+      "aria": {
+        "searchPaths": "findz search paths",
+        "whereFilter": "findz SQL filter",
+        "advancedOptions": "findz advanced options",
+        "defaults": "findz defaults"
+      }
     },
     "formatv": {
       "name": "FormatV",
       "description": "Scan video folders, add/remove .nov suffixes, and check prefixed duplicates.",
       "title": "formatv",
-      "meta": "{{phase}} / {{count}} path(s) / {{mode}}",
-      "phaseIdle": "idle",
-      "phaseScan": "scan",
-      "phaseAddNov": "add .nov",
-      "phaseRemoveNov": "remove .nov",
-      "phaseCheckDuplicates": "check dup",
-      "phaseCompleted": "completed",
-      "phaseError": "error",
-      "dryRun": "dry-run",
-      "write": "write",
-      "scan": "Scan",
-      "dup": "Dup",
-      "copyResults": "Copy results",
-      "copyLogs": "Copy logs",
-      "reset": "Reset",
-      "pastePaths": "Paste paths",
-      "fieldPaths": "paths",
-      "fieldPrefix": "prefix",
-      "recursive": "recursive",
-      "statNormal": "normal",
-      "statSuccess": "success",
-      "statDups": "dups",
-      "statErrors": "errors",
-      "noScanYet": "No scan yet",
-      "noVideoFiles": "No video files"
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "error": "Failed",
+        "completed": "Done"
+      },
+      "statusDesc": {
+        "idle": "Paste video folders then scan or check duplicates.",
+        "running": "FormatV is processing video files.",
+        "error": "Last task failed, check results and logs.",
+        "completed": "Last task completed."
+      },
+      "buttons": {
+        "scan": "Scan videos",
+        "addNov": "Add .nov",
+        "removeNov": "Remove .nov",
+        "checkDuplicates": "Check duplicates",
+        "reset": "Clear state",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execute",
+        "copy": "Copy",
+        "pastePath": "Paste path",
+        "clearPath": "Clear path",
+        "saveDefault": "Save as default",
+        "restoreDefault": "Restore default",
+        "clearOverride": "Clear overrides",
+        "viewConfig": "View config",
+        "openFile": "Open file"
+      },
+      "sections": {
+        "input": "Input",
+        "inputDesc": "Paste video folders; after scanning you can add/remove .nov or check duplicates.",
+        "keySwitches": "Key switches"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "stats": {
+        "normal": "Normal",
+        "nov": ".nov",
+        "success": "Success",
+        "duplicates": "Dups",
+        "progress": "Progress"
+      },
+      "empty": {
+        "results": "File list and operation results will appear here after scanning, adding/removing .nov, or checking duplicates.",
+        "logs": "Run logs will appear here.",
+        "itemCount": "{{count}} items",
+        "waitingRun": "Waiting to run"
+      },
+      "dialog": {
+        "confirmRealTitle": "Confirm real execute {{action}}?",
+        "confirmRealDesc": "Dry-run is off; this will perform real file renames on {{count}} path(s). This cannot be undone — verify paths and prefix."
+      },
+      "aria": {
+        "running": "formatv running"
+      },
+      "summary": {
+        "duplicates": "{{count}} duplicates",
+        "errors": "{{count}} failed",
+        "videos": "{{count}} videos",
+        "pathWaiting": "{{count}} paths waiting to scan",
+        "pasteHint": "Paste video folders then scan"
+      },
+      "actionStart": "{{action}} starting",
+      "pathRequired": "Enter at least one video path first.",
+      "noNative": "No native run capability in this environment; use desktop mode or CLI.",
+      "headerSubtitle": "{{count}} paths / {{mode}} / prefix {{prefix}}",
+      "modeDryRun": "dry-run",
+      "modeWrite": "write",
+      "pathsLabel": "Video folders",
+      "pathsCount": "{{count}} entries",
+      "switches": {
+        "recursive": "Recursive",
+        "recursiveDesc": "Recursively scan video files in subdirectories.",
+        "dryRun": "Dry-run",
+        "dryRunDesc": "When on, only generates a rename plan without writing to the filesystem. When off, performs real renames."
+      },
+      "options": {
+        "title": "Task options",
+        "description": "Prefix name and recursive/dry-run switches are here."
+      },
+      "defaults": {
+        "title": "Default config",
+        "description": "Save FormatV paths, prefix, and switches to a plaintext config.",
+        "noConfig": "# nodes.formatv has no default config yet",
+        "notConnected": "Not connected to local config service",
+        "configFile": "Config file",
+        "configTitle": "FormatV config",
+        "configDesc": "Current nodes.formatv defaults and config file location."
+      },
+      "prefix": {
+        "label": "Prefix name"
+      }
     },
     "kavvka": {
       "name": "Kavvka",
       "description": "Prepare image folders for Czkawka comparison by scanning, moving siblings, and generating include paths.",
       "title": "kavvka",
-      "meta": "{{sourceCount}} source / {{scanCount}} scan root / depth {{depth}}",
-      "pasteSources": "Paste sources",
-      "scan": "Scan",
-      "plan": "Plan",
-      "process": "Process",
-      "copyResults": "Copy results",
-      "copyLogs": "Copy logs",
-      "reset": "Reset",
-      "sourceFoldersLabel": "source folders",
-      "sourceFoldersPlaceholder": "one folder per line, usually a gallery folder under an [artist] folder",
-      "scanRootsLabel": "scan roots",
-      "scanRootsPlaceholder": "one root folder per line",
-      "keywordsLabel": "keywords",
-      "depthLabel": "depth",
-      "forceMove": "force move",
-      "dryRun": "dry run",
-      "strictArtist": "strict []",
-      "statMatched": "matched",
-      "statPaths": "paths",
-      "statMoved": "moved",
-      "statErrors": "errors",
-      "starting": "starting"
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "error": "Failed",
+        "completed": "Done",
+        "hasResults": "Results"
+      },
+      "statusDesc": {
+        "idle": "Paste paths or scan roots to start processing.",
+        "running": "Kavvka is processing the current task.",
+        "error": "Last task failed, check logs.",
+        "completed": "Last task completed.",
+        "hasResults": "{{count}} Czkawka paths generated."
+      },
+      "buttons": {
+        "scan": "Scan keywords",
+        "plan": "Plan",
+        "process": "Process",
+        "realProcess": "Real process",
+        "copyResults": "Copy results",
+        "copyLogs": "Copy logs",
+        "reset": "Clear state",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execute",
+        "pasteSource": "Paste source",
+        "pasteScan": "Paste scan root",
+        "clearSource": "Clear source",
+        "clearScan": "Clear scan root",
+        "saveDefault": "Save as default",
+        "restoreDefault": "Restore default",
+        "clearOverride": "Clear overrides",
+        "viewConfig": "View config",
+        "openFile": "Open file"
+      },
+      "sections": {
+        "input": "Input",
+        "inputDesc": "Folders under scan roots matching keywords will be backfilled into source paths.",
+        "keywordsDepth": "Keywords & scan depth",
+        "keySwitches": "Key switches",
+        "results": "Czkawka paths / scan results"
+      },
+      "stats": {
+        "source": "Src",
+        "roots": "Roots",
+        "scanned": "Scan",
+        "matched": "Match",
+        "processed": "Proc",
+        "moved": "Moved",
+        "errors": "Errors",
+        "progress": "Prog"
+      },
+      "empty": {
+        "results": "Paths will appear here after scanning or processing",
+        "logs": "No logs yet",
+        "truncated": "Showing first 200 of {{count}} items",
+        "keywordsEmpty": "Keywords: {{keywords}} or not set",
+        "noProgress": "Scan or process to see paths here"
+      },
+      "dialog": {
+        "confirmRealTitle": "Confirm real execute Kavvka?",
+        "confirmRealDesc": "Dry-run is off; processing will actually move sibling folders into #compare. {{count}} source path(s) — verify before continuing."
+      },
+      "aria": {
+        "running": "kavvka running"
+      },
+      "summary": {
+        "errors": "{{count}} failed",
+        "pathGroups": "{{count}} path groups",
+        "matched": "{{count}} matched",
+        "sourceRoots": "{{source}} src / {{roots}} roots",
+        "rootsScannable": "{{count}} roots scannable",
+        "pasteHint": "Paste paths or scan roots"
+      },
+      "actionStart": "{{action}} starting",
+      "pathRequiredScan": "Enter at least one scan root first.",
+      "pathRequiredSource": "Enter at least one source path first.",
+      "noNative": "No native run capability in this environment; use desktop mode or CLI.",
+      "headerSubtitle": "{{source}} src / {{roots}} roots / {{mode}}",
+      "modeDryRun": "dry-run",
+      "modeWrite": "real",
+      "sourceLabel": "Source paths",
+      "scanLabel": "Scan roots",
+      "pathsCount": "{{count}} entries",
+      "switches": {
+        "force": "Force move",
+        "forceDesc": "Allow moving sibling folders into the #compare directory.",
+        "dryRun": "Dry-run",
+        "dryRunDesc": "When on, only generates Czkawka paths without writing to the filesystem.",
+        "strictArtist": "Strict artist",
+        "strictArtistDesc": "Require an [artist] folder in the source path."
+      },
+      "fields": {
+        "keywords": "Keywords",
+        "depth": "Scan depth"
+      },
+      "options": {
+        "title": "Advanced options",
+        "description": "Keywords, scan depth, and strict artist are here."
+      },
+      "defaults": {
+        "title": "Default config",
+        "description": "Save Kavvka scan paths, keywords, and risk switches to a plaintext config.",
+        "noConfig": "# nodes.kavvka has no default config yet",
+        "notConnected": "Not connected to local config service",
+        "configFile": "Config file",
+        "configTitle": "Kavvka config",
+        "configDesc": "Current nodes.kavvka defaults and config file location."
+      }
     },
     "lata": {
       "name": "Lata",
       "description": "List, plan, and execute Taskfile tasks.",
       "title": "lata",
-      "meta": "{{phase}} / {{task}}",
-      "phaseIdle": "idle",
-      "phaseLoading": "loading",
-      "phaseRunning": "running",
-      "phaseCompleted": "completed",
-      "phaseError": "error",
-      "noTask": "no task",
-      "load": "Load",
-      "plan": "Plan",
-      "run": "Run",
-      "copyLogs": "Copy logs",
-      "reset": "Reset",
-      "taskfileLabel": "Taskfile",
-      "pasteTaskfile": "Paste Taskfile path",
-      "argsLabel": "args",
-      "loadTasks": "load tasks",
-      "statTasks": "tasks",
-      "statCommands": "commands",
-      "statExit": "exit",
-      "noTasksLoaded": "No tasks loaded"
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "error": "Failed",
+        "completed": "Done"
+      },
+      "statusDesc": {
+        "idle": "Specify a Taskfile path then load tasks.",
+        "running": "Lata is loading or executing tasks.",
+        "error": "Last task failed, check logs.",
+        "completed": "Last task completed."
+      },
+      "buttons": {
+        "list": "Load tasks",
+        "plan": "Preview commands",
+        "execute": "Execute task",
+        "copyLogs": "Copy logs",
+        "reset": "Clear state",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execute",
+        "pasteTaskfile": "Paste Taskfile path",
+        "saveDefault": "Save as default",
+        "restoreDefault": "Restore default",
+        "clearOverride": "Clear overrides",
+        "viewConfig": "View config",
+        "openFile": "Open file",
+        "copy": "Copy"
+      },
+      "sections": {
+        "taskfile": "Taskfile config",
+        "taskfileDesc": "Specify the Taskfile path and task args; after loading you can select a task.",
+        "tasks": "Task list",
+        "tasksDesc": "Click a task name to select it, then preview or execute."
+      },
+      "tabs": {
+        "tasks": "Tasks",
+        "commands": "Commands",
+        "logs": "Logs"
+      },
+      "stats": {
+        "tasks": "Tasks",
+        "commands": "Commands",
+        "exitCode": "Exit code"
+      },
+      "empty": {
+        "tasks": "Tasks will appear here after loading a Taskfile.",
+        "commands": "Commands will appear here after previewing or executing a task.",
+        "logs": "Run logs will appear here.",
+        "logCount": "{{count}} entries",
+        "waitingRun": "Waiting to run"
+      },
+      "dialog": {
+        "confirmTitle": "Confirm execute Lata task?",
+        "confirmDesc": "This will actually execute the \"{{task}}\" task command from the Taskfile. Verify the command before continuing."
+      },
+      "aria": {
+        "running": "lata running"
+      },
+      "summary": {
+        "completed": "Task completed",
+        "taskCount": "{{task}} / {{count}} tasks"
+      },
+      "actionStart": "{{action}} starting",
+      "noNative": "No native run capability in this environment; use desktop mode or CLI.",
+      "noTaskSelected": "No task selected",
+      "fields": {
+        "taskfile": "Taskfile path",
+        "args": "Task args",
+        "noTasks": "No tasks yet"
+      },
+      "defaults": {
+        "title": "Default config",
+        "description": "Save Lata Taskfile path, task name, and args to a plaintext config.",
+        "noConfig": "# nodes.lata has no default config yet",
+        "notConnected": "Not connected to local config service",
+        "configFile": "Config file",
+        "configTitle": "Lata config",
+        "configDesc": "Current nodes.lata defaults and config file location."
+      }
     },
     "linedup": {
       "name": "Linedup",
@@ -902,6 +1648,141 @@
       "noResult": "No result",
       "existsLabel": "exists",
       "symlinkLabel": "symlink"
+    },
+    "lorat": {
+      "name": "Lorat",
+      "description": "Scan LoRA folders, apply TriggerDB, write sidecars, and export TriggerDB.",
+      "title": "lorat",
+      "meta": "{{action}} / {{count}} row(s) / {{missing}} missing",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Done",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "running": "Lorat is processing LoRA models.",
+        "completed": "Last operation completed.",
+        "error": "Last operation failed, see logs.",
+        "idle": "Enter a folder to start scanning."
+      },
+      "actions": {
+        "scan": "Scan",
+        "applyDb": "Apply TriggerDB",
+        "writeTriggers": "Write triggers",
+        "markNoTrigger": "Mark no trigger",
+        "exportDb": "Export TriggerDB"
+      },
+      "actionShort": {
+        "scan": "Scan",
+        "applyDb": "Apply",
+        "writeTriggers": "Write",
+        "markNoTrigger": "No trigger",
+        "exportDb": "Export"
+      },
+      "buttons": {
+        "running": "Running",
+        "selectMissing": "Select missing",
+        "clearSelection": "Clear selection",
+        "copyResults": "Copy results",
+        "copyLogs": "Copy logs",
+        "clearState": "Clear state",
+        "saveDefault": "Save as default",
+        "restoreDefault": "Restore default",
+        "clearOverride": "Clear override",
+        "viewConfig": "View config",
+        "openFile": "Open file",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execute",
+        "pasteFolder": "Paste folder",
+        "clearFolder": "Clear folder",
+        "pasteJson": "Paste JSON",
+        "clearSearch": "Clear search",
+        "copy": "Copy"
+      },
+      "sections": {
+        "task": "Task",
+        "taskDesc": "Pick an action, enter a LoRA folder, or paste TriggerDB.",
+        "triggerDb": "TriggerDB JSON",
+        "advanced": "Advanced options",
+        "advancedDesc": "Status and scope filters live here.",
+        "defaults": "Default config",
+        "defaultsDesc": "Save Lorat's action, folder, search, and filters to a plaintext config.",
+        "statusFilter": "Status filter",
+        "scopeFilter": "Scope filter",
+        "filterHelp": "Status filter shows by sidecar state; scope filter shows by self/@ markers in the directory.",
+        "loraFolder": "LoRA folder",
+        "searchFilter": "Search filter",
+        "configFile": "Config file",
+        "configDialogTitle": "Lorat config",
+        "configDialogDesc": "Current nodes.lorat defaults and config file location.",
+        "noDefaults": "# nodes.lorat has no default config yet",
+        "configDisconnected": "Local config service not connected"
+      },
+      "labels": {
+        "folderSet": "Folder set",
+        "folderPending": "Pending input",
+        "set": "Set",
+        "optional": "Optional",
+        "chars": "{{count}} chars"
+      },
+      "tabs": {
+        "models": "Models",
+        "logs": "Logs"
+      },
+      "stats": {
+        "total": "Total",
+        "missing": "Missing",
+        "trigger": "Has trigger",
+        "notrigger": "No trigger",
+        "changed": "Changed",
+        "selected": "Selected",
+        "dbMatched": "DB matched",
+        "progress": "Progress"
+      },
+      "summary": {
+        "stats": "{{total}} LoRA / {{missing}} missing / {{trigger}} has / {{notrigger}} none",
+        "folderWaiting": "{{folder}} waiting to scan",
+        "pasteHint": "Paste a folder to start scanning",
+        "waitingScan": "Waiting to scan",
+        "waitingRun": "Waiting to run",
+        "itemCount": "{{count}} items",
+        "modelCount": "{{count}} models"
+      },
+      "empty": {
+        "logs": "Run logs will appear here."
+      },
+      "dialog": {
+        "confirmTitle": "Confirm live Lorat execution?",
+        "confirmWrite": "Confirm write triggers?",
+        "confirmMark": "Confirm mark no trigger?",
+        "writeDesc": "Will write trigger sidecar to {{name}}. Existing sidecars will be overwritten.",
+        "markDesc": "Will write no-trigger sidecar for {{name}}, marking this LoRA as having no trigger."
+      },
+      "progress": {
+        "appliedDb": "Applied TriggerDB to {{count}} row(s).",
+        "exportedDb": "Exported {{count}} TriggerDB entries.",
+        "noNative": "No native runtime in this host. Use desktop mode or CLI.",
+        "actionStart": "{{action}} started"
+      },
+      "aria": {
+        "loraFolder": "lorat LoRA folder",
+        "searchFilter": "lorat search filter",
+        "advanced": "lorat advanced options",
+        "defaults": "lorat default config",
+        "triggerDb": "lorat TriggerDB JSON",
+        "running": "lorat running",
+        "selectRow": "Select {{name}}",
+        "triggerFor": "Trigger for {{name}}",
+        "writeTriggerFor": "Write triggers for {{name}}",
+        "markNoTriggerFor": "Mark no trigger for {{name}}"
+      },
+      "phases": {
+        "idle": "idle",
+        "scanning": "scanning",
+        "completed": "completed",
+        "error": "error"
+      }
     },
     "marku": {
       "name": "Marku",
@@ -1242,7 +2123,88 @@
       "statConflicts": "conflicts",
       "renameJson": "rename json",
       "progressLine": "[{{progress}}%] {{text}}",
-      "readyToScan": "Ready to scan folders into rename JSON."
+      "readyToScan": "Ready to scan folders into rename JSON.",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed",
+        "warning": "Has conflicts",
+        "pending": "Pending validation"
+      },
+      "desc": {
+        "idle": "Paste directories and scan into rename JSON.",
+        "running": "Trename is processing the current task.",
+        "success": "Last task completed.",
+        "error": "Last task failed, check conflicts and logs.",
+        "warning": "{{count}} conflict(s) to resolve.",
+        "pending": "{{total}} items, {{ready}} ready to rename."
+      },
+      "actions": {
+        "scanPaths": "Scan paths",
+        "validate": "Validate conflicts",
+        "history": "Read history",
+        "clearState": "Clear state",
+        "dryRename": "Dry rename",
+        "liveRename": "Live rename",
+        "confirmExecute": "Confirm execute"
+      },
+      "labels": {
+        "input": "Input",
+        "inputHint": "Paste directories, scan into rename JSON; edit large JSON in the dialog.",
+        "switches": "Key switches"
+      },
+      "confirm": {
+        "title": "Confirm live Trename?",
+        "description": "This will perform real file renames. {{plan}} planned, {{conflicts}} conflicts, base path {{basePath}}."
+      },
+      "summary": {
+        "conflicts": "{{count}} conflict(s)",
+        "tree": "{{total}} items / {{ready}} ready / {{mode}}",
+        "waiting": "{{count}} path(s) waiting to scan",
+        "empty": "Select directories then scan rename JSON"
+      },
+      "subtitle": {
+        "full": "{{paths}} paths / {{ready}} ready / {{mode}}"
+      },
+      "tabs": {
+        "results": "Results",
+        "logs": "Logs"
+      },
+      "aria": {
+        "running": "trename running",
+        "scanMode": "trename scan mode",
+        "scanPaths": "trename scan paths",
+        "advancedOptions": "trename advanced options",
+        "defaults": "trename defaults",
+        "jsonText": "trename json text",
+        "jsonEditor": "open trename json editor"
+      },
+      "error": {
+        "noScanPath": "Please enter at least one scan path.",
+        "noJson": "Please scan or import rename JSON first.",
+        "noRunEnv": "No local run capability in this environment; use desktop mode or CLI."
+      },
+      "empty": "No paths scanned yet",
+      "mode": {
+        "dry": "Dry run",
+        "live": "Live",
+        "liveExecute": "Live execute"
+      },
+      "stats": {
+        "progress": "Progress"
+      },
+      "actionLabel": {
+        "scan": "Scan",
+        "import": "Import",
+        "validate": "Validate",
+        "rename": "Rename",
+        "undo": "Undo",
+        "history": "Read history"
+      },
+      "progress": {
+        "start": "{{action}} started"
+      }
     }
   }
 }

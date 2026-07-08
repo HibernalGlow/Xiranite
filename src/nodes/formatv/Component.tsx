@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, DEFAULT_PREFIX_NAME } from "./constants"
 import { ActionIconButton, ConfigDefaultsPopover, OptionsPopover, PathInput, PrefixField, PrimarySwitches, StatusStrip } from "./controls"
@@ -26,6 +27,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [defaults, setDefaults] = useState<Partial<FormatvCardState> | undefined>(undefined)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
+  const { t: tNode } = useNodeI18n("formatv")
 
   const logs = data.logs ?? []
   const result = data.result ?? null
@@ -35,7 +37,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dryRun = data.dryRun ?? false
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running, result)
+  const status = statusFromState(data, running, result, tNode)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -87,13 +89,13 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (running) return
     const paths = splitLines(dataRef.current.pathText ?? "")
     if (!paths.length) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入至少一个视频路径。" })
+      patch({ phase: "error", progress: 0, progressText: tNode("pathRequired", "请先输入至少一个视频路径。") })
       return
     }
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
@@ -108,7 +110,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     try {
-      patch({ phase: phaseForAction(action), progress: 0, progressText: `${actionLabel(action)}开始`, result: null })
+      patch({ phase: phaseForAction(action), progress: 0, progressText: tNode("actionStart", "{{action}}开始", { action: actionLabel(action, tNode) }), result: null })
       const response = await run<FormatvInput, FormatvData>("formatv", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -173,6 +175,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     result,
     running,
     status,
+    tNode,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -221,6 +224,7 @@ function createViewProps(props: {
   result: FormatvData | null
   running: boolean
   status: FormatvStatusMeta
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action: FormatvAction) => void
@@ -307,7 +311,7 @@ function FullView(props: ViewProps) {
     <div data-testid="formatv-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/formatv:flex-row @4xl/formatv:items-center @4xl/formatv:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/formatv:flex-row @4xl/formatv:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.pathCount} 路径 / ${props.dryRun ? "预演" : "真实执行"} / 前缀 ${props.prefixName}`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("headerSubtitle", "{{count}} 路径 / {{mode}} / 前缀 {{prefix}}", { count: props.pathCount, mode: props.dryRun ? props.tNode("modeDryRun", "预演") : props.tNode("modeWrite", "真实执行"), prefix: props.prefixName })} />
           <div data-testid="formatv-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
           </div>
@@ -319,14 +323,14 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">粘贴视频目录，扫描后可加/移除 .nov 或查重。</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{props.tNode("sections.inputDesc", "粘贴视频目录，扫描后可加/移除 .nov 或查重。")}</div>
             </div>
             <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPaste} />
             <PrefixField disabled={props.running} value={props.prefixName} onChange={(prefixName) => props.onPatch({ prefixName })} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{props.tNode("sections.keySwitches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -343,11 +347,11 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <ActionIconButton disabled={props.running || !props.pathCount} icon={Search} label="扫描视频" onClick={() => props.onExecute("scan")} />
+      <ActionIconButton disabled={props.running || !props.pathCount} icon={Search} label={props.tNode("buttons.scan", "扫描视频")} onClick={() => props.onExecute("scan")} />
       <RenameActionButton compact={props.compact} action="add_nov" props={props} />
       <RenameActionButton compact={props.compact} action="remove_nov" props={props} />
-      <ActionIconButton disabled={props.running || !props.pathCount} icon={Copy} label="查重" onClick={() => props.onExecute("check_duplicates")} />
-      <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={props.running || !props.pathCount} icon={Copy} label={props.tNode("buttons.checkDuplicates", "查重")} onClick={() => props.onExecute("check_duplicates")} />
+      <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -367,15 +371,15 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="formatv running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={props.tNode("aria.running", "formatv running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{props.tNode("status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const disabled = !props.pathCount
-  const label = "扫描视频"
+  const label = props.tNode("buttons.scan", "扫描视频")
   return (
     <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute("scan")}>
       <Search />
@@ -385,9 +389,10 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
 }
 
 function RenameActionButton({ compact, action, props }: { compact?: boolean; action: "add_nov" | "remove_nov"; props: ViewProps }) {
+  const { t: tNode } = useNodeI18n("formatv")
   const meta = action === "add_nov"
-    ? { icon: Plus, label: "添加 .nov" }
-    : { icon: Minus, label: "移除 .nov" }
+    ? { icon: Plus, label: tNode("buttons.addNov", "添加 .nov") }
+    : { icon: Minus, label: tNode("buttons.removeNov", "移除 .nov") }
   const Icon = meta.icon
   const disabled = props.running || !props.pathCount
 
@@ -402,14 +407,14 @@ function RenameActionButton({ compact, action, props }: { compact?: boolean; act
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 {meta.label}？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("dialog.confirmRealTitle", "确认真实执行 {{action}}？", { action: meta.label })}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，将对 {props.pathCount} 个路径执行真实文件重命名。该操作不可撤销，请确认路径和前缀无误。
+              {tNode("dialog.confirmRealDesc", "当前已关闭预演，将对 {{count}} 个路径执行真实文件重命名。该操作不可撤销，请确认路径和前缀无误。", { count: props.pathCount })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(action)}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("buttons.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(action)}>{tNode("buttons.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -456,13 +461,15 @@ function StatsPanel(props: {
   result: FormatvData | null
   prefixName: string
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
+  const dupLabel = tNode("stats.duplicates", "查重")
   const stats = [
-    ["普通", props.result?.normalCount ?? 0],
-    [".nov", props.result?.novCount ?? 0],
+    [tNode("stats.normal", "普通"), props.result?.normalCount ?? 0],
+    [tNode("stats.nov", ".nov"), props.result?.novCount ?? 0],
     [props.prefixName, props.result?.prefixedCounts[props.prefixName] ?? 0],
-    ["成功", props.result?.successCount ?? 0],
-    ["查重", props.result?.duplicateCount ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("stats.success", "成功"), props.result?.successCount ?? 0],
+    [dupLabel, props.result?.duplicateCount ?? 0],
+    [tNode("stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -470,7 +477,7 @@ function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", (label === "查重" || label === "成功") && Number(value) > 0 && label === "查重" && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === dupLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -486,6 +493,7 @@ function ResultTabs(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   const resultLines = buildResultLines(props.result, props.prefixName)
   const preferredTab = props.running
     ? "results"
@@ -498,20 +506,20 @@ function ResultTabs(props: {
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="results">结果</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="results">{tNode("tabs.results", "结果")}</TabsTrigger>
+        <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
         <TextPanel
           compact={props.compact}
-          emptyText="扫描、加/移除 .nov 或查重后会显示文件列表和操作结果。"
+          emptyText={tNode("empty.results", "扫描、加/移除 .nov 或查重后会显示文件列表和操作结果。")}
           icon={Video}
           lines={resultLines}
           onCopy={props.onCopyResults}
         />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" icon={Copy} lines={props.logs} onCopy={props.onCopyLogs} />
+        <TextPanel compact={props.compact} emptyText={tNode("empty.logs", "运行日志会显示在这里。")} icon={Copy} lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
   )
@@ -524,17 +532,18 @@ function TextPanel(props: {
   lines: string[]
   onCopy: () => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   const Icon = props.icon
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Icon className="size-3.5" />
-          <span>{props.lines.length ? `${props.lines.length} 项` : "等待运行"}</span>
+          <span>{props.lines.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.lines.length }) : tNode("empty.waitingRun", "等待运行")}</span>
         </div>
         <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onCopy}>
           <Copy data-icon="inline-start" />
-          复制
+          {tNode("buttons.copy", "复制")}
         </Button>
       </div>
       <Separator />
@@ -568,11 +577,11 @@ function buildResultLines(result: FormatvData | null, prefixName: string): strin
   ]
 }
 
-function statusFromState(data: FormatvCardState, running: boolean, result: FormatvData | null): FormatvStatusMeta {
+function statusFromState(data: FormatvCardState, running: boolean, result: FormatvData | null, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): FormatvStatusMeta {
   if (running || data.phase === "scan" || data.phase === "add_nov" || data.phase === "remove_nov" || data.phase === "check_duplicates") {
     return {
-      label: "运行中",
-      description: data.progressText || "FormatV 正在处理视频文件。",
+      label: tNode("status.running", "运行中"),
+      description: data.progressText || tNode("statusDesc.running", "FormatV 正在处理视频文件。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -580,8 +589,8 @@ function statusFromState(data: FormatvCardState, running: boolean, result: Forma
   }
   if (data.phase === "error" || result?.errors.length) {
     return {
-      label: "失败",
-      description: data.progressText || result?.errors[0] || "上次任务失败，请查看结果和日志。",
+      label: tNode("status.error", "失败"),
+      description: data.progressText || result?.errors[0] || tNode("statusDesc.error", "上次任务失败，请查看结果和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -589,16 +598,16 @@ function statusFromState(data: FormatvCardState, running: boolean, result: Forma
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("status.completed", "完成"),
+      description: data.progressText || tNode("statusDesc.completed", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴视频目录后扫描或查重。",
+    label: tNode("status.idle", "就绪"),
+    description: tNode("statusDesc.idle", "粘贴视频目录后扫描或查重。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -617,18 +626,22 @@ function phaseForAction(action: FormatvAction): FormatvPhase {
   return "check_duplicates"
 }
 
-function actionLabel(action: FormatvAction): string {
+function actionLabel(action: FormatvAction, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): string {
   const meta = ACTIONS.find((item) => item.value === action)
-  return meta?.shortLabel ?? action
+  if (!meta) return action
+  if (action === "scan") return tNode("buttons.scan", meta.shortLabel)
+  if (action === "add_nov") return tNode("buttons.addNov", meta.shortLabel)
+  if (action === "remove_nov") return tNode("buttons.removeNov", meta.shortLabel)
+  return tNode("buttons.checkDuplicates", meta.shortLabel)
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.duplicateCount) return `${props.result.duplicateCount} 个重复`
-  if (props.result?.errorCount) return `${props.result.errorCount} 个失败`
-  if (props.result) return `${props.result.normalCount + props.result.novCount} 个视频`
-  if (props.pathCount) return `${props.pathCount} 条路径等待扫描`
-  return "粘贴视频目录后扫描"
+  if (props.result?.duplicateCount) return props.tNode("summary.duplicates", "{{count}} 个重复", { count: props.result.duplicateCount })
+  if (props.result?.errorCount) return props.tNode("summary.errors", "{{count}} 个失败", { count: props.result.errorCount })
+  if (props.result) return props.tNode("summary.videos", "{{count}} 个视频", { count: props.result.normalCount + props.result.novCount })
+  if (props.pathCount) return props.tNode("summary.pathWaiting", "{{count}} 条路径等待扫描", { count: props.pathCount })
+  return props.tNode("summary.pasteHint", "粘贴视频目录后扫描")
 }
 
 function splitLines(text?: string): string[] {

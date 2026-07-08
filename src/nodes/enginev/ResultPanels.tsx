@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 
 export function StatsPanel({ result, total, visible, selected }: {
   result: EngineVData | null
@@ -11,12 +12,13 @@ export function StatsPanel({ result, total, visible, selected }: {
   total: number
   visible: number
 }) {
+  const { t: tNode } = useNodeI18n("enginev")
   const stats = [
-    ["总数", result?.totalCount ?? total],
-    ["可见", result?.filteredCount ?? visible],
-    ["选中", selected],
-    ["类型", Object.keys(result?.typeStats ?? {}).length],
-    ["失败", result?.failedCount ?? 0],
+    [tNode("stats.total", "总数"), result?.totalCount ?? total],
+    [tNode("stats.visible", "可见"), result?.filteredCount ?? visible],
+    [tNode("stats.selected", "选中"), selected],
+    [tNode("stats.types", "类型"), Object.keys(result?.typeStats ?? {}).length],
+    [tNode("stats.failed", "失败"), result?.failedCount ?? 0],
   ] as const
 
   return (
@@ -38,6 +40,7 @@ export function ResultTabs(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
+  const { t: tNode } = useNodeI18n("enginev")
   const renameLines = props.result?.renameResults.map((item) => `${item.status} ${item.oldName} -> ${item.newName}`) ?? []
   const deleteLines = props.result?.deleteResults.map((item) => `${item.status} ${item.workshopId} ${item.message}`) ?? []
   const errorLines = props.result?.errors ?? []
@@ -46,19 +49,19 @@ export function ResultTabs(props: {
   return (
     <Tabs defaultValue="results" className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="results">结果</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="results">{tNode("tabs.results", "结果")}</TabsTrigger>
+        <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
         <TextPanel
           compact={props.compact}
-          emptyText="运行重命名、删除或导出后，这里会显示计划和错误明细。"
+          emptyText={tNode("empty.results", "运行重命名、删除或导出后，这里会显示计划和错误明细。")}
           lines={hasResults ? [...renameLines, ...deleteLines, ...errorLines.map((item) => `error ${item}`)] : []}
           onCopy={props.onCopyResults}
         />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
+        <TextPanel compact={props.compact} emptyText={tNode("empty.logs", "运行日志会显示在这里。")} lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
   )
@@ -70,16 +73,17 @@ function TextPanel(props: {
   lines: string[]
   onCopy: () => void
 }) {
+  const { t: tNode } = useNodeI18n("enginev")
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <ListChecks className="size-3.5" />
-          <span>{props.lines.length ? `${props.lines.length} 项` : "等待运行"}</span>
+          <span>{props.lines.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.lines.length }) : tNode("empty.waitingRun", "等待运行")}</span>
         </div>
         <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onCopy}>
           <Copy data-icon="inline-start" />
-          复制
+          {tNode("buttons.copy", "复制")}
         </Button>
       </div>
       <Separator />

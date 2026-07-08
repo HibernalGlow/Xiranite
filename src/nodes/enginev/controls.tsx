@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { ACTIONS } from "./constants"
 import type { EngineVCardState, EngineVStatusMeta } from "./types"
 
@@ -37,7 +38,7 @@ export function ActionSelect(props: {
 }) {
   return (
     <Select value={props.action} disabled={props.disabled} onValueChange={(value) => props.onActionChange(value as EngineVAction)}>
-      <SelectTrigger aria-label="选择 EngineV 动作" className={cn("min-w-0", props.triggerClassName)}>
+      <SelectTrigger aria-label="enginev action" className={cn("min-w-0", props.triggerClassName)}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -95,7 +96,7 @@ export function PathInput(props: PatchProps & {
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5">
         <Input
           id="enginev-workshop-path"
-          aria-label="Wallpaper Engine 工坊路径"
+          aria-label={tNode("enginev", "aria.workshopPath", "Wallpaper Engine 工坊路径")}
           disabled={props.disabled}
           placeholder={DEFAULT_WORKSHOP_PATH}
           value={props.data.workshopPath ?? ""}
@@ -103,7 +104,7 @@ export function PathInput(props: PatchProps & {
         />
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button aria-label="粘贴路径" disabled={props.disabled} size="icon-sm" variant="outline" onClick={props.onPaste}>
+            <Button aria-label="enginev paste path" disabled={props.disabled} size="icon-sm" variant="outline" onClick={props.onPaste}>
               <Clipboard />
             </Button>
           </TooltipTrigger>
@@ -112,7 +113,7 @@ export function PathInput(props: PatchProps & {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              aria-label="使用默认工坊路径"
+              aria-label="enginev use default path"
               disabled={props.disabled}
               size="icon-sm"
               variant="outline"
@@ -203,7 +204,7 @@ export function OptionsFields({ data, disabled, onPatch }: PatchProps) {
           disabled={disabled}
           onValueChange={(exportFormat) => onPatch({ exportFormat: exportFormat as EngineVCardState["exportFormat"] })}
         >
-          <SelectTrigger aria-label="导出格式" className="w-full @3xl/enginev:w-28">
+          <SelectTrigger aria-label={tNode("enginev", "aria.exportFormat", "enginev export format")} className="w-full @3xl/enginev:w-28">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -222,7 +223,7 @@ export function FilterPopover(props: PatchProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="筛选和选择" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("enginev", "aria.filterSelect", "筛选和选择")} disabled={props.disabled} size="icon-sm" variant="outline">
               <SlidersHorizontal />
               <span className="sr-only">筛选和选择</span>
             </Button>
@@ -247,7 +248,7 @@ export function OptionsPopover(props: PatchProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="模板和写入选项" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label="enginev template and options" disabled={props.disabled} size="icon-sm" variant="outline">
               <Settings2 />
               <span className="sr-only">模板和写入选项</span>
             </Button>
@@ -281,7 +282,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label="enginev defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>
@@ -346,7 +347,7 @@ export function GallerySettingsPopover(props: PatchProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="画廊显示设置" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label="enginev gallery display settings" disabled={props.disabled} size="icon-sm" variant="outline">
               <Columns3 />
               <span className="sr-only">画廊显示设置</span>
             </Button>
@@ -367,7 +368,7 @@ export function GallerySettingsPopover(props: PatchProps) {
               disabled={props.disabled}
               onValueChange={(value) => props.onPatch({ galleryColumns: value === "0" ? undefined : Number(value) })}
             >
-              <SelectTrigger aria-label="画廊每行数量" className="w-full">
+              <SelectTrigger aria-label="enginev gallery columns" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

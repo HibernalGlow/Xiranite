@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { PRESET_METAS } from "./constants"
 import type { CleanfCardState, CleanfStatusMeta } from "./types"
 
@@ -65,7 +66,7 @@ export function PathInput(props: {
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
           id="cleanf-paths"
-          aria-label="cleanf scan paths"
+          aria-label={tNode("cleanf", "aria.scanPaths", "cleanf scan paths")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-24")}
           disabled={props.disabled}
           placeholder={"每行一个文件夹路径\nD:/gallery\nD:/archives"}
@@ -150,7 +151,7 @@ export function AdvancedOptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="cleanf advanced options" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("cleanf", "aria.advancedOptions", "cleanf advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
               <Sparkles />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -192,7 +193,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="cleanf defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("cleanf", "aria.defaults", "cleanf defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>

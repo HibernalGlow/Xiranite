@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { DEFAULT_THRESHOLD, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, MatchList, PrimarySwitches, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
@@ -16,6 +17,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("crashu")
   const data = host.getData<CrashuCardState>(compId) ?? {}
   const dataRef = useRef<CrashuCardState>(data)
   dataRef.current = data
@@ -73,7 +75,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function execute(action: CrashuAction) {
     if (running) return
     if (!sourcePaths.length) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入至少一个源目录。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noSource", "请先输入至少一个源目录。") })
       return
     }
 
@@ -92,14 +94,14 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: phaseForAction(action), progress: 0, progressText: `${actionLabel(action)}开始`, result: null })
+      patch({ phase: phaseForAction(action), progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(action) }), result: null })
       const response = await run<CrashuInput, CrashuData>("crashu", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -318,7 +320,7 @@ function FullView(props: ViewProps) {
     <div data-testid="crashu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/crashu:flex-row @4xl/crashu:items-center @4xl/crashu:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/crashu:flex-row @4xl/crashu:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.sourcePaths.length} 源 / ${props.targetNames.length} 目标 / ${props.dryRun ? "预演" : "真实执行"}`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("crashu", "subtitle.full", "{{sources}} 源 / {{targets}} 目标 / {{mode}}", { sources: props.sourcePaths.length, targets: props.targetNames.length, mode: props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.liveExecute", "真实执行") })} />
           <div data-testid="crashu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
           </div>
@@ -330,18 +332,18 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">源目录与目标名称用于相似度匹配；目标目录可自动读取子文件夹。</div>
+              <div className="text-sm font-semibold">{tNode("crashu", "labels.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("crashu", "labels.inputHint", "源目录与目标名称用于相似度匹配；目标目录可自动读取子文件夹。")}</div>
             </div>
             <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
             <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{tNode("crashu", "labels.switches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">高级选项</div>
+            <div className="text-sm font-semibold">{tNode("crashu", "labels.advanced", "高级选项")}</div>
             <AdvancedOptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -375,7 +377,7 @@ function DirectionField(props: {
 }) {
   return (
     <div className="grid gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">移动方向</div>
+      <div className="text-xs font-medium text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</div>
       <div className="grid grid-cols-2 gap-1">
         {MOVE_DIRECTION_OPTIONS.map((item) => (
           <Button
@@ -401,7 +403,7 @@ function ConflictField(props: {
 }) {
   return (
     <div className="grid gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">冲突策略</div>
+      <div className="text-xs font-medium text-muted-foreground">{tNode("crashu", "labels.conflictPolicy", "冲突策略")}</div>
       <div className="grid grid-cols-3 gap-1">
         {CONFLICT_POLICY_OPTIONS.map((item) => (
           <Button
@@ -421,24 +423,24 @@ function ConflictField(props: {
 }
 
 const MOVE_DIRECTION_OPTIONS: Array<{ value: CrashuMoveDirection; label: string }> = [
-  { value: "to_target", label: "源→目标" },
-  { value: "to_source", label: "目标→源" },
+  { value: "to_target", label: tNode("crashu", "moveDirection.toTarget", "源→目标") },
+  { value: "to_source", label: tNode("crashu", "moveDirection.toSource", "目标→源") },
 ]
 
 const CONFLICT_POLICY_OPTIONS: Array<{ value: CrashuConflictPolicy; label: string }> = [
-  { value: "skip", label: "跳过" },
-  { value: "rename", label: "改名" },
-  { value: "overwrite", label: "覆盖" },
+  { value: "skip", label: tNode("crashu", "conflictPolicy.skip", "跳过") },
+  { value: "rename", label: tNode("crashu", "conflictPolicy.rename", "改名") },
+  { value: "overwrite", label: tNode("crashu", "conflictPolicy.overwrite", "覆盖") },
 ]
 
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label="扫描匹配" onClick={() => props.onExecute("scan")} />
-      <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label="生成计划" onClick={() => props.onExecute("plan")} />
+      <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label={tNode("crashu", "actions.scanMatch", "扫描匹配")} onClick={() => props.onExecute("scan")} />
+      <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label={tNode("crashu", "actions.plan", "生成计划")} onClick={() => props.onExecute("plan")} />
       {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
-      <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("crashu", "copyResults", "复制结果")} onClick={props.onCopyResults} />
+      <ActionIconButton icon={RotateCcw} label={tNode("crashu", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -458,15 +460,15 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="crashu running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("crashu", "aria.running", "crashu running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{tNode("crashu", "status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const disabled = !props.sourcePaths.length || !props.data.destinationPath
-  const label = props.dryRun ? "预演移动" : "真实移动"
+  const label = props.dryRun ? tNode("crashu", "actions.dryMove", "预演移动") : tNode("crashu", "actions.liveMove", "真实移动")
   const Icon = MoveRight
   if (!props.dryRun) {
     return (
@@ -479,14 +481,14 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Crashu？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("crashu", "confirm.title", "确认真实执行 Crashu？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前将真实移动匹配的文件夹到 {props.data.destinationPath || "未指定"}，共 {props.sourcePaths.length} 个源目录，相似度阈值 {(props.data.similarityThreshold ?? DEFAULT_THRESHOLD) * 100}%。移动后无法撤销，请确认目标和冲突策略。
+              {tNode("crashu", "confirm.description", "当前将真实移动匹配的文件夹到 {{destination}}，共 {{sources}} 个源目录，相似度阈值 {{threshold}}%。移动后无法撤销，请确认目标和冲突策略。", { destination: props.data.destinationPath || "未指定", sources: props.sourcePaths.length, threshold: (props.data.similarityThreshold ?? DEFAULT_THRESHOLD) * 100 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("move")}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("crashu", "common:cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("move")}>{tNode("crashu", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -528,13 +530,14 @@ function StatsPanel(props: {
   progress: number
   result: CrashuData | null
 }) {
+  const errorLabel = tNode("crashu", "stats.error", "错误")
   const stats = [
-    ["源", props.result?.sourceCount ?? 0],
-    ["目标", props.result?.targetCount ?? 0],
-    ["匹配", props.result?.similarFound ?? 0],
-    ["移动", props.result?.movedCount ?? 0],
-    ["跳过", props.result?.skippedCount ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("crashu", "stats.sources", "源"), props.result?.sourceCount ?? 0],
+    [tNode("crashu", "stats.targets", "目标"), props.result?.targetCount ?? 0],
+    [tNode("crashu", "stats.matches", "匹配"), props.result?.similarFound ?? 0],
+    [tNode("crashu", "stats.moved", "移动"), props.result?.movedCount ?? 0],
+    [tNode("crashu", "stats.skipped", "跳过"), props.result?.skippedCount ?? 0],
+    [tNode("crashu", "stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -542,7 +545,7 @@ function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "错误" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === errorLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -567,8 +570,8 @@ function CrashuDisplayTabs(props: {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="results">结果</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="results">{tNode("crashu", "tabs.results", "结果")}</TabsTrigger>
+        <TabsTrigger value="logs">{tNode("crashu", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
         <MatchList compact={props.compact} result={props.result} />
@@ -583,8 +586,8 @@ function CrashuDisplayTabs(props: {
 function statusFromState(data: CrashuCardState, running: boolean, result: CrashuData | null): CrashuStatusMeta {
   if (running || data.phase === "scanning" || data.phase === "planning" || data.phase === "moving") {
     return {
-      label: "运行中",
-      description: data.progressText || "Crashu 正在匹配或移动文件夹。",
+      label: tNode("crashu", "status.running", "运行中"),
+      description: data.progressText || tNode("crashu", "desc.running", "Crashu 正在匹配或移动文件夹。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -592,8 +595,8 @@ function statusFromState(data: CrashuCardState, running: boolean, result: Crashu
   }
   if (data.phase === "error" || result?.errors.length) {
     return {
-      label: "失败",
-      description: data.progressText || result?.errors[0] || "上次任务失败，请查看结果和日志。",
+      label: tNode("crashu", "status.error", "失败"),
+      description: data.progressText || result?.errors[0] || tNode("crashu", "desc.error", "上次任务失败，请查看结果和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -601,16 +604,16 @@ function statusFromState(data: CrashuCardState, running: boolean, result: Crashu
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("crashu", "status.success", "完成"),
+      description: data.progressText || tNode("crashu", "desc.success", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴源目录和目标名称后开始匹配。",
+    label: tNode("crashu", "status.idle", "就绪"),
+    description: tNode("crashu", "desc.idle", "粘贴源目录和目标名称后开始匹配。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -630,17 +633,17 @@ function phaseForAction(action: CrashuAction): CrashuPhase {
 }
 
 function actionLabel(action: CrashuAction): string {
-  if (action === "scan") return "扫描"
-  if (action === "plan") return "计划"
-  if (action === "move") return "移动"
+  if (action === "scan") return tNode("crashu", "actionLabel.scan", "扫描")
+  if (action === "plan") return tNode("crashu", "actionLabel.plan", "计划")
+  if (action === "move") return tNode("crashu", "actionLabel.move", "移动")
   return action
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.similarFound) return `匹配 ${props.result.similarFound} / 移动 ${props.result.movedCount}`
-  if (props.sourcePaths.length) return `${props.sourcePaths.length} 源 / ${props.targetNames.length} 目标 / ${props.dryRun ? "预演" : "真实"}`
-  return "粘贴源目录后开始匹配"
+  if (props.result?.similarFound) return tNode("crashu", "summary.matches", "匹配 {{matched}} / 移动 {{moved}}", { matched: props.result.similarFound, moved: props.result.movedCount })
+  if (props.sourcePaths.length) return tNode("crashu", "summary.sources", "{{sources}} 源 / {{targets}} 目标 / {{mode}}", { sources: props.sourcePaths.length, targets: props.targetNames.length, mode: props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.live", "真实") })
+  return tNode("crashu", "summary.empty", "粘贴源目录后开始匹配")
 }
 
 function splitLines(text?: string): string[] {

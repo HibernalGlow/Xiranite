@@ -57,7 +57,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
         isDragging ? "opacity-50 ring-2 ring-primary/40" : "",
       ].join(" ")}
     >
-      <div className="flex items-center gap-1.5 h-7 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
+      <div className="xiranite-ui-copy flex items-center gap-1.5 h-7 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
         <span
           ref={setActivatorNodeRef}
           {...attributes}

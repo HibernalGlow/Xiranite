@@ -18,6 +18,7 @@ type ThemeProviderState = {
 
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 const THEME_VALUES: Theme[] = ["dark", "light", "system"]
+const AESTIVUS_THEME_MODE_STORAGE_KEY = "theme-mode"
 
 const ThemeProviderContext = React.createContext<
   ThemeProviderState | undefined
@@ -90,12 +91,18 @@ export function ThemeProvider({
       return storedTheme
     }
 
+    const aestivusThemeMode = localStorage.getItem(AESTIVUS_THEME_MODE_STORAGE_KEY)
+    if (isTheme(aestivusThemeMode)) {
+      return aestivusThemeMode
+    }
+
     return defaultTheme
   })
 
   const setTheme = React.useCallback(
     (nextTheme: Theme) => {
       localStorage.setItem(storageKey, nextTheme)
+      localStorage.setItem(AESTIVUS_THEME_MODE_STORAGE_KEY, nextTheme)
       setThemeState(nextTheme)
     },
     [storageKey]
@@ -168,6 +175,7 @@ export function ThemeProvider({
                 : "dark"
 
         localStorage.setItem(storageKey, nextTheme)
+        localStorage.setItem(AESTIVUS_THEME_MODE_STORAGE_KEY, nextTheme)
         return nextTheme
       })
     }
@@ -185,7 +193,7 @@ export function ThemeProvider({
         return
       }
 
-      if (event.key !== storageKey) {
+      if (event.key !== storageKey && event.key !== AESTIVUS_THEME_MODE_STORAGE_KEY) {
         return
       }
 

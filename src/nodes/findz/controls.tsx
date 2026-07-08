@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { ACTIONS, DEFAULT_ARCHIVE_SEPARATOR, DEFAULT_WHERE, OUTPUT_FORMATS } from "./constants"
 import type { FindzCardState, FindzStatusMeta } from "./types"
 
@@ -88,7 +89,7 @@ export function PathInput(props: {
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
           id="findz-paths"
-          aria-label="findz 搜索路径"
+          aria-label={tNode("findz", "aria.searchPaths", "findz 搜索路径")}
           disabled={props.disabled}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-16" : "h-28")}
           placeholder={"每行一个目录，或用 ; 分隔\nD:\\gallery\nD:/archives"}
@@ -125,7 +126,7 @@ export function WhereInput(props: {
       )}
       <Textarea
         id="findz-where"
-        aria-label="findz SQL 过滤器"
+        aria-label={tNode("findz", "aria.whereFilter", "findz SQL 过滤器")}
         disabled={props.disabled}
         className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-20")}
         placeholder={'ext IN ("jpg", "png") AND size < 10M'}
@@ -197,7 +198,7 @@ export function AdvancedOptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="findz 高级选项" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("findz", "aria.advancedOptions", "findz 高级选项")} disabled={props.disabled} size="icon-sm" variant="outline">
               <SlidersHorizontal />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -318,7 +319,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="findz 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("findz", "aria.defaults", "findz 默认配置")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">findz 默认配置</span>
             </Button>

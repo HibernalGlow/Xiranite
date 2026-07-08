@@ -120,7 +120,7 @@ export function BentoView() {
         {...moduleDropHandlers}
       >
         {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
-        <div className="space-y-4 text-center">
+        <div className="xiranite-ui-copy space-y-4 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-sm border-2 border-dashed border-border text-muted-foreground/50">
             <LayoutTemplate className="h-5 w-5" />
           </div>
@@ -214,7 +214,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
       data-component-id={component.id}
       className="group flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/70 bg-card/95 shadow-[0_18px_45px_-24px_oklch(0_0_0/0.45)] backdrop-blur-sm"
     >
-      <header className="xiranite-bento-drag-handle flex h-9 shrink-0 cursor-grab items-center gap-2 border-b border-border/60 bg-muted/25 px-2 active:cursor-grabbing">
+      <header className="xiranite-ui-copy xiranite-bento-drag-handle flex h-9 shrink-0 cursor-grab items-center gap-2 border-b border-border/60 bg-muted/25 px-2 active:cursor-grabbing">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
         <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" />
         <span className="min-w-0 flex-1 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
@@ -280,7 +280,7 @@ function WidgetButton({
 
 function ModuleDropHint({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+    <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
     </div>
   )

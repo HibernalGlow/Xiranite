@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 
 export function JsonEditorDialog(props: {
   disabled?: boolean
@@ -18,7 +19,7 @@ export function JsonEditorDialog(props: {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button aria-label="open trename json editor" disabled={props.disabled} size="sm" variant="outline">
+        <Button aria-label={tNode("trename", "aria.jsonEditor", "open trename json editor")} disabled={props.disabled} size="sm" variant="outline">
           <FileJson data-icon="inline-start" />
           JSON
         </Button>
@@ -36,7 +37,7 @@ export function JsonEditorDialog(props: {
           <Badge variant={props.readyCount ? "default" : "outline"}>{props.readyCount} 就绪</Badge>
         </div>
         <Textarea
-          aria-label="trename json text"
+          aria-label={tNode("trename", "aria.jsonText", "trename json text")}
           className="h-[52vh] min-h-64 resize-none font-mono text-xs leading-5"
           disabled={props.disabled}
           spellCheck={false}

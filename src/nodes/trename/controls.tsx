@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { DEFAULT_EXCLUDE_EXTS_TEXT, SCAN_MODES } from "./constants"
 import type { TrenameCardState, TrenameStatusMeta } from "./types"
 
@@ -53,7 +54,7 @@ export function ModePicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="trename scan mode"
+      aria-label={tNode("trename", "aria.scanMode", "trename scan mode")}
       className="grid w-full grid-cols-2"
       disabled={props.disabled}
       size="sm"
@@ -95,7 +96,7 @@ export function PathInput(props: {
         <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
           <Textarea
             id="trename-paths"
-            aria-label="trename scan paths"
+            aria-label={tNode("trename", "aria.scanPaths", "trename scan paths")}
             className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-24")}
             disabled={props.disabled}
             placeholder={'"D:\\gallery-a" "D:\\gallery-b"'}
@@ -172,7 +173,7 @@ export function AdvancedOptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="trename advanced options" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("trename", "aria.advancedOptions", "trename advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
               <Settings2 />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -216,7 +217,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="trename defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("trename", "aria.defaults", "trename defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>

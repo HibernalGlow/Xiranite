@@ -147,7 +147,7 @@ export function LaneView() {
         {...moduleDropHandlers}
       >
         {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
-        <div className="text-center space-y-4">
+        <div className="xiranite-ui-copy text-center space-y-4">
           <Columns3 className="h-10 w-10 text-muted-foreground/40 mx-auto" />
           <p className="text-sm font-mono text-muted-foreground">{t("view:lane.empty")}</p>
           <Button
@@ -180,7 +180,7 @@ export function LaneView() {
         {/* 兜底：没归属任何 lane 的组件也展示（在末尾） */}
         {orphanComponents.length > 0 && (
           <div className="flex-shrink-0 w-72 flex flex-col border-l border-border/40 bg-card/40">
-            <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
+            <div className="xiranite-ui-copy h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
               <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
                 {t("common:unfiled")}
               </span>
@@ -212,7 +212,7 @@ export function LaneView() {
 
 function ModuleDropHint({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+    <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
     </div>
   )

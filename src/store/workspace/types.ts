@@ -1,5 +1,6 @@
 import type {
   AppTheme,
+  AppFontPreset,
   CardLayout,
   ComponentInstance,
   ComponentState,
@@ -13,6 +14,7 @@ import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 
 export interface WSState {
   theme: AppTheme
+  fontPreset: AppFontPreset
   viewMode: ViewMode
   cardLayout: CardLayout
   workspaces: WorkspaceItem[]
@@ -45,6 +47,7 @@ export type ComponentPatch = {
 
 export interface WorkspaceUiActions {
   setTheme(theme: AppTheme): void
+  setFontPreset(fontPreset: AppFontPreset): void
   setViewMode(mode: ViewMode): void
   setCardLayout(layout: CardLayout): void
   setOverlay(overlay: OverlayKind): void
@@ -120,6 +123,7 @@ export type WSStore = WSState & WorkspaceActions
 export type WorkspaceUiPreferences = Pick<
   WSState,
   | "theme"
+  | "fontPreset"
   | "cardLayout"
   | "grainEnabled"
   | "vignetteDepth"

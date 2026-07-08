@@ -137,7 +137,7 @@ export function CardView() {
         {...moduleDropHandlers}
       >
         {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
-        <div className="text-center space-y-4">
+        <div className="xiranite-ui-copy text-center space-y-4">
           <div className="flex items-center justify-center">
             <div className="w-12 h-12 rounded-sm border-2 border-dashed border-border flex items-center justify-center">
               <LayoutGrid className="h-5 w-5 text-muted-foreground/50" />
@@ -189,7 +189,7 @@ export function CardView() {
       {fullscreenComponentId && (
         <button
           onClick={() => workspaceActions.setFullscreen(null)}
-          className="absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 hover:text-primary"
+          className="xiranite-ui-copy absolute bottom-4 left-1/2 z-[1001] -translate-x-1/2 rounded-full border border-border bg-card/90 px-4 py-1.5 font-mono text-[11px] tracking-widest text-muted-foreground backdrop-blur animate-in fade-in slide-in-from-bottom-2 duration-150 hover:text-primary"
         >
           {t("view:cards.exitFullscreen")}
         </button>
@@ -200,7 +200,7 @@ export function CardView() {
 
 function ModuleDropHint({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 z-[1002] -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+    <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-[1002] -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
     </div>
   )

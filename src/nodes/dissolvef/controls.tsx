@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { BUNDLE_MODES, CONFLICT_MODES, DEFAULT_THRESHOLD } from "./constants"
 import type { DissolvefCardState, DissolvefStatusMeta } from "./types"
 
@@ -56,7 +57,7 @@ export function ModePicker(props: {
   return (
     <div data-testid="dissolvef-mode-picker" className="grid grid-cols-2 gap-1 sm:grid-cols-4">
       <Button
-        aria-label="捆绑模式"
+        aria-label={tNode("dissolvef", "aria.bundleMode", "捆绑模式")}
         disabled={props.disabled}
         size="sm"
         variant={!props.direct ? "secondary" : "outline"}
@@ -79,7 +80,7 @@ export function ModePicker(props: {
         </Button>
       ))}
       <Button
-        aria-label="直提模式"
+        aria-label={tNode("dissolvef", "aria.directMode", "直提模式")}
         disabled={props.disabled}
         size="sm"
         variant={props.direct ? "secondary" : "outline"}
@@ -110,7 +111,7 @@ export function PathInput(props: {
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
           id="dissolvef-path"
-          aria-label="dissolvef target folder"
+          aria-label={tNode("dissolvef", "aria.targetFolder", "dissolvef target folder")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-20")}
           disabled={props.disabled}
           placeholder={"要溶解的文件夹路径\nD:/library/outer"}
@@ -180,7 +181,7 @@ export function AdvancedOptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="dissolvef advanced options" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("dissolvef", "aria.advancedOptions", "dissolvef advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
               <ShieldAlert />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -254,7 +255,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="dissolvef defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("dissolvef", "aria.defaults", "dissolvef defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>

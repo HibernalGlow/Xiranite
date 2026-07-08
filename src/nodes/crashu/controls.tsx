@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { CONFLICT_POLICIES, DEFAULT_THRESHOLD, MOVE_DIRECTIONS } from "./constants"
 import type { CrashuCardState, CrashuStatusMeta } from "./types"
 
@@ -66,7 +67,7 @@ export function SourcePathsInput(props: {
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
           id="crashu-sources"
-          aria-label="crashu source paths"
+          aria-label={tNode("crashu", "aria.sourcePaths", "crashu source paths")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-24")}
           disabled={props.disabled}
           placeholder={"每行一个源根目录\nD:/source/gallery"}
@@ -99,7 +100,7 @@ export function TargetNamesInput(props: {
       )}
       <Textarea
         id="crashu-targets"
-        aria-label="crashu target names"
+        aria-label={tNode("crashu", "aria.targetNames", "crashu target names")}
         className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-20")}
         disabled={props.disabled}
         placeholder={"每行一个目标文件夹名，或填写目标目录自动读取"}
@@ -117,7 +118,7 @@ export function DirectionPicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="crashu move direction"
+      aria-label={tNode("crashu", "aria.moveDirection", "crashu move direction")}
       className="grid w-full grid-cols-2"
       disabled={props.disabled}
       size="sm"
@@ -144,7 +145,7 @@ export function ConflictPicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="crashu conflict policy"
+      aria-label={tNode("crashu", "aria.conflictPolicy", "crashu conflict policy")}
       className="grid w-full grid-cols-3"
       disabled={props.disabled}
       size="sm"
@@ -208,7 +209,7 @@ export function AdvancedOptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="crashu advanced options" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("crashu", "aria.advancedOptions", "crashu advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
               <ShieldAlert />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -274,7 +275,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="crashu defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("crashu", "aria.defaults", "crashu defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>

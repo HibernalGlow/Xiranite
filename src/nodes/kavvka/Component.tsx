@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS } from "./constants"
 import {
@@ -33,6 +34,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [defaults, setDefaults] = useState<Partial<KavvkaCardState> | undefined>(undefined)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
+  const { t: tNode } = useNodeI18n("kavvka")
 
   const logs = data.logs ?? []
   const result = data.result ?? null
@@ -44,7 +46,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const action = data.action ?? "process"
   const actionMeta = ActionMeta(action)
   const phase = phaseFromState(data, running)
-  const status = statusFromState(data, running)
+  const status = statusFromState(data, running, tNode)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -104,13 +106,13 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (running) return
     const input = buildInput(nextAction, dataRef.current)
     if (nextAction === "scan" && !scanRoots.length) {
-      const message = "请先输入至少一个扫描根目录。"
+      const message = tNode("pathRequiredScan", "请先输入至少一个扫描根目录。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
     }
     if (nextAction !== "scan" && !sourcePaths.length) {
-      const message = "请先输入至少一个源路径。"
+      const message = tNode("pathRequiredSource", "请先输入至少一个源路径。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
@@ -118,7 +120,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const run = host.actions?.run
     if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      const message = tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
@@ -130,7 +132,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         action: nextAction,
         phase: phaseForAction(nextAction),
         progress: 0,
-        progressText: `${actionMeta.shortLabel}开始`,
+        progressText: tNode("actionStart", "{{action}}开始", { action: actionMeta.shortLabel }),
         result: null,
       })
       const response = await run<KavvkaInput, KavvkaData>("kavvka", input, (event) => {
@@ -211,6 +213,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     scanRoots,
     sourcePaths,
     status,
+    tNode,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -260,6 +263,7 @@ function createViewProps(props: {
   scanRoots: string[]
   sourcePaths: string[]
   status: KavvkaStatusMeta
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action: KavvkaAction) => void
@@ -289,7 +293,7 @@ function CollapsedView(props: ViewProps) {
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <Button aria-label={props.actionMeta.shortLabel} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
+      <Button aria-label={props.tNode("aria.running", "kavvka running")} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
         <ActionIcon />
         <span className="sr-only">{props.actionMeta.shortLabel}</span>
       </Button>
@@ -315,7 +319,7 @@ function CompactView(props: ViewProps) {
           count={props.sourcePaths.length}
           disabled={props.running}
           inputId="kavvka-source-paths"
-          label="源路径"
+          label={props.tNode("sourceLabel", "源路径")}
           placeholder={"D:/library/[artist] bundle/gallery"}
           value={props.data.sourceText ?? ""}
           onChange={(sourceText) => props.onPatch({ sourceText })}
@@ -329,7 +333,7 @@ function CompactView(props: ViewProps) {
           count={props.scanRoots.length}
           disabled={props.running}
           inputId="kavvka-scan-roots"
-          label="扫描根目录"
+          label={props.tNode("scanLabel", "扫描根目录")}
           placeholder={"D:/library"}
           value={props.data.scanRootText ?? ""}
           onChange={(scanRootText) => props.onPatch({ scanRootText })}
@@ -347,7 +351,7 @@ function CompactView(props: ViewProps) {
             <div key={path} className="truncate">{path}</div>
           )) : (
             <div className="flex h-full items-center justify-center text-muted-foreground">
-              {props.data.progressText || `关键词：${props.keywords.slice(0, 4).join(", ") || "未设置"}`}
+              {props.data.progressText || props.tNode("empty.keywordsEmpty", "关键词：{{keywords}} 或未设置", { keywords: props.keywords.slice(0, 4).join(", ") || "—" })}
             </div>
           )}
         </div>
@@ -373,7 +377,7 @@ function PortraitCompactView(props: ViewProps) {
           count={props.sourcePaths.length}
           disabled={props.running}
           inputId="kavvka-source-paths"
-          label="源路径"
+          label={props.tNode("sourceLabel", "源路径")}
           placeholder={"D:/library/[artist] bundle/gallery"}
           value={props.data.sourceText ?? ""}
           onChange={(sourceText) => props.onPatch({ sourceText })}
@@ -387,7 +391,7 @@ function PortraitCompactView(props: ViewProps) {
           count={props.scanRoots.length}
           disabled={props.running}
           inputId="kavvka-scan-roots"
-          label="扫描根目录"
+          label={props.tNode("scanLabel", "扫描根目录")}
           placeholder={"D:/library"}
           value={props.data.scanRootText ?? ""}
           onChange={(scanRootText) => props.onPatch({ scanRootText })}
@@ -419,7 +423,7 @@ function FullView(props: ViewProps) {
         <div className="flex min-w-0 flex-col gap-2 @4xl/kavvka:flex-row @4xl/kavvka:items-center">
           <HeaderLine
             status={props.status}
-            subtitle={props.data.progressText || `${props.sourcePaths.length} 源 / ${props.scanRoots.length} 根 / ${props.dryRun ? "预演" : "真实"}`}
+            subtitle={props.data.progressText || props.tNode("headerSubtitle", "{{source}} 源 / {{roots}} 根 / {{mode}}", { source: props.sourcePaths.length, roots: props.scanRoots.length, mode: props.dryRun ? props.tNode("modeDryRun", "预演") : props.tNode("modeWrite", "真实") })}
           />
           <div data-testid="kavvka-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
@@ -432,15 +436,15 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">扫描根目录下匹配关键词的文件夹会回填到源路径。</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{props.tNode("sections.inputDesc", "扫描根目录下匹配关键词的文件夹会回填到源路径。")}</div>
             </div>
             <PathTextPanel
               ariaLabel="kavvka source paths"
               count={props.sourcePaths.length}
               disabled={props.running}
               inputId="kavvka-source-paths"
-              label="源路径"
+              label={props.tNode("sourceLabel", "源路径")}
               placeholder={"D:/library/[artist] bundle/gallery"}
               value={props.data.sourceText ?? ""}
               onChange={(sourceText) => props.onPatch({ sourceText })}
@@ -453,7 +457,7 @@ function FullView(props: ViewProps) {
               count={props.scanRoots.length}
               disabled={props.running}
               inputId="kavvka-scan-roots"
-              label="扫描根目录"
+              label={props.tNode("scanLabel", "扫描根目录")}
               placeholder={"D:/library"}
               value={props.data.scanRootText ?? ""}
               onChange={(scanRootText) => props.onPatch({ scanRootText })}
@@ -462,11 +466,11 @@ function FullView(props: ViewProps) {
             />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键词与扫描深度</div>
+            <div className="text-sm font-semibold">{props.tNode("sections.keywordsDepth", "关键词与扫描深度")}</div>
             <KeywordAndDepthFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{props.tNode("sections.keySwitches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -474,8 +478,8 @@ function FullView(props: ViewProps) {
 
         <div className="flex min-h-0 flex-col gap-2">
           <div className="flex shrink-0 items-center justify-between gap-2">
-            <div className="text-sm font-semibold">Czkawka 路径 / 扫描结果</div>
-            <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
+            <div className="text-sm font-semibold">{props.tNode("sections.results", "Czkawka 路径 / 扫描结果")}</div>
+            <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
           </div>
           <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-muted/20 p-3 font-mono text-xs leading-5">
             {props.result?.allCombinedPaths.length ? (
@@ -484,7 +488,7 @@ function FullView(props: ViewProps) {
                   <div key={path} className="truncate">{path}</div>
                 ))}
                 {props.result.allCombinedPaths.length > 200 ? (
-                  <div className="pt-1 text-muted-foreground">仅显示前 200 项（共 {props.result.allCombinedPaths.length} 项）</div>
+                  <div className="pt-1 text-muted-foreground">{props.tNode("empty.truncated", "仅显示前 200 项（共 {{count}} 项）", { count: props.result.allCombinedPaths.length })}</div>
                 ) : null}
               </>
             ) : props.result?.matchedPaths.length ? (
@@ -493,18 +497,18 @@ function FullView(props: ViewProps) {
                   <div key={path} className="truncate">{path}</div>
                 ))}
                 {props.result.matchedPaths.length > 200 ? (
-                  <div className="pt-1 text-muted-foreground">仅显示前 200 项（共 {props.result.matchedPaths.length} 项）</div>
+                  <div className="pt-1 text-muted-foreground">{props.tNode("empty.truncated", "仅显示前 200 项（共 {{count}} 项）", { count: props.result.matchedPaths.length })}</div>
                 ) : null}
               </>
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">
-                {props.data.progressText || "扫描或处理后将在此显示路径"}
+                {props.data.progressText || props.tNode("empty.noProgress", "扫描或处理后将在此显示路径")}
               </div>
             )}
           </div>
           <div className="h-32 shrink-0 overflow-auto rounded-md border bg-muted/15 p-2 font-mono text-xs text-muted-foreground">
             {props.logs.length ? props.logs.map((line, index) => <div key={index} className="truncate">{line}</div>) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">暂无日志</div>
+              <div className="flex h-full items-center justify-center text-muted-foreground">{props.tNode("empty.logs", "暂无日志")}</div>
             )}
           </div>
         </div>
@@ -514,6 +518,11 @@ function FullView(props: ViewProps) {
 }
 
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+  const labelForAction = (value: string, fallback: string) => {
+    if (value === "scan") return props.tNode("buttons.scan", fallback)
+    if (value === "plan") return props.tNode("buttons.plan", fallback)
+    return props.tNode("buttons.process", fallback)
+  }
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       {ACTIONS.filter((item) => item.value !== "process").map((item) => (
@@ -522,14 +531,14 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
           active={props.action === item.value}
           disabled={props.running || isActionDisabled(item.value, props)}
           icon={item.icon}
-          label={item.label}
+          label={labelForAction(item.value, item.label)}
           onClick={() => props.onExecute(item.value)}
         />
       ))}
       {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
-      <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
+      <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+      <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -549,16 +558,16 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="kavvka running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={props.tNode("aria.running", "kavvka running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{props.tNode("status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const actionMeta = props.actionMeta
   const dangerous = actionMeta.value === "process" && !props.dryRun
-  const label = dangerous ? "真实处理" : actionMeta.label
+  const label = dangerous ? props.tNode("buttons.realProcess", "真实处理") : actionMeta.label
   const disabled = isActionDisabled(actionMeta.value, props)
 
   if (dangerous) {
@@ -572,14 +581,14 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Kavvka？</AlertDialogTitle>
+            <AlertDialogTitle>{props.tNode("dialog.confirmRealTitle", "确认真实执行 Kavvka？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前关闭了预演，处理时会真的把兄弟目录移动到 #compare 下。源路径 {props.sourcePaths.length} 项，请确认无误后继续。
+              {props.tNode("dialog.confirmRealDesc", "当前关闭了预演，处理时会真的把兄弟目录移动到 #compare 下。源路径 {{count}} 项，请确认无误后继续。", { count: props.sourcePaths.length })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("process")}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{props.tNode("buttons.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("process")}>{props.tNode("buttons.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -622,15 +631,17 @@ function StatsPanel(props: {
   scanRoots: string[]
   sourcePaths: string[]
 }) {
+  const { t: tNode } = useNodeI18n("kavvka")
+  const errorLabel = tNode("stats.errors", "失败")
   const stats = [
-    ["源", props.sourcePaths.length],
-    ["根目录", props.scanRoots.length],
-    ["扫描", props.result?.scanResults.length ?? 0],
-    ["匹配", props.result?.matchedPaths.length ?? 0],
-    ["处理", props.result?.processedCount ?? 0],
-    ["移动", props.result?.movedCount ?? 0],
-    ["失败", props.result?.errorCount ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("stats.source", "源"), props.sourcePaths.length],
+    [tNode("stats.roots", "根目录"), props.scanRoots.length],
+    [tNode("stats.scanned", "扫描"), props.result?.scanResults.length ?? 0],
+    [tNode("stats.matched", "匹配"), props.result?.matchedPaths.length ?? 0],
+    [tNode("stats.processed", "处理"), props.result?.processedCount ?? 0],
+    [tNode("stats.moved", "移动"), props.result?.movedCount ?? 0],
+    [errorLabel, props.result?.errorCount ?? 0],
+    [tNode("stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -638,7 +649,7 @@ function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "失败" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === errorLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -669,11 +680,11 @@ function phaseForAction(action: KavvkaAction): KavvkaPhase {
   return "processing"
 }
 
-function statusFromState(data: KavvkaCardState, running: boolean): KavvkaStatusMeta {
+function statusFromState(data: KavvkaCardState, running: boolean, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): KavvkaStatusMeta {
   if (running || data.phase === "scanning" || data.phase === "planning" || data.phase === "processing") {
     return {
-      label: "运行中",
-      description: data.progressText || "Kavvka 正在处理当前任务。",
+      label: tNode("status.running", "运行中"),
+      description: data.progressText || tNode("statusDesc.running", "Kavvka 正在处理当前任务。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -681,8 +692,8 @@ function statusFromState(data: KavvkaCardState, running: boolean): KavvkaStatusM
   }
   if (data.phase === "error" || (data.result?.errors.length ?? 0) > 0) {
     return {
-      label: "失败",
-      description: data.progressText || data.result?.errors[0] || "上次任务失败，请查看日志。",
+      label: tNode("status.error", "失败"),
+      description: data.progressText || data.result?.errors[0] || tNode("statusDesc.error", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -690,8 +701,8 @@ function statusFromState(data: KavvkaCardState, running: boolean): KavvkaStatusM
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("status.completed", "完成"),
+      description: data.progressText || tNode("statusDesc.completed", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -699,16 +710,16 @@ function statusFromState(data: KavvkaCardState, running: boolean): KavvkaStatusM
   }
   if (data.result?.allCombinedPaths.length) {
     return {
-      label: "有结果",
-      description: `${data.result.allCombinedPaths.length} 个 Czkawka 路径已生成。`,
+      label: tNode("status.hasResults", "有结果"),
+      description: tNode("statusDesc.hasResults", "{{count}} 个 Czkawka 路径已生成。", { count: data.result.allCombinedPaths.length }),
       tone: "idle",
       badgeVariant: "outline",
       iconClass: "bg-secondary text-secondary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴路径或扫描根目录后开始处理。",
+    label: tNode("status.idle", "就绪"),
+    description: tNode("statusDesc.idle", "粘贴路径或扫描根目录后开始处理。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -722,12 +733,12 @@ function isActionDisabled(action: KavvkaAction, props: ViewProps): boolean {
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.errorCount) return `${props.result.errorCount} 个失败`
-  if (props.result?.allCombinedPaths.length) return `${props.result.allCombinedPaths.length} 组路径`
-  if (props.result?.matchedPaths.length) return `${props.result.matchedPaths.length} 个匹配`
-  if (props.sourcePaths.length) return `${props.sourcePaths.length} 源 / ${props.scanRoots.length} 根`
-  if (props.scanRoots.length) return `${props.scanRoots.length} 个根目录可扫描`
-  return "粘贴路径或扫描根目录"
+  if (props.result?.errorCount) return props.tNode("summary.errors", "{{count}} 个失败", { count: props.result.errorCount })
+  if (props.result?.allCombinedPaths.length) return props.tNode("summary.pathGroups", "{{count}} 组路径", { count: props.result.allCombinedPaths.length })
+  if (props.result?.matchedPaths.length) return props.tNode("summary.matched", "{{count}} 个匹配", { count: props.result.matchedPaths.length })
+  if (props.sourcePaths.length) return props.tNode("summary.sourceRoots", "{{source}} 源 / {{roots}} 根", { source: props.sourcePaths.length, roots: props.scanRoots.length })
+  if (props.scanRoots.length) return props.tNode("summary.rootsScannable", "{{count}} 个根目录可扫描", { count: props.scanRoots.length })
+  return props.tNode("summary.pasteHint", "粘贴路径或扫描根目录")
 }
 
 function appendText(current = "", next: string): string {

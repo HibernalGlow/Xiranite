@@ -5,6 +5,7 @@ export const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane", "ben
 
 export const INITIAL_STATE: WSState = {
   theme: "spatial",
+  fontPreset: "xiranite",
   viewMode: "cards",
   cardLayout: "grid",
   workspaces: [

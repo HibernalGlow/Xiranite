@@ -17,13 +17,14 @@ describe("workspace UI preference persistence", () => {
     render(<WorkspacePreferenceProbe />)
 
     await user.click(screen.getByRole("button", { name: "set persisted prefs" }))
-    await waitFor(() => expect(screen.getByTestId("prefs").textContent).toContain("endfield/image"))
+    await waitFor(() => expect(screen.getByTestId("prefs").textContent).toContain("endfield/aestivus/image"))
 
     const persisted = JSON.parse(localStorage.getItem("xiranite-workspace-ui") ?? "{}") as {
       state?: Record<string, unknown>
     }
 
     expect(persisted.state?.theme).toBe("endfield")
+    expect(persisted.state?.fontPreset).toBe("aestivus")
     expect(persisted.state?.bgMode).toBe("image")
     expect(persisted.state?.bgOpacity).toBe(55)
     expect(persisted.state?.workspaces).toBeUndefined()
@@ -37,6 +38,7 @@ describe("workspace UI preference persistence", () => {
 function WorkspacePreferenceProbe() {
   const prefs = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
+    fontPreset: state.fontPreset,
     bgMode: state.bgMode,
     bgOpacity: state.bgOpacity,
   }))
@@ -44,11 +46,12 @@ function WorkspacePreferenceProbe() {
 
   return (
     <div>
-      <output data-testid="prefs">{`${prefs.theme}/${prefs.bgMode}/${prefs.bgOpacity}`}</output>
+      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}`}</output>
       <button
         type="button"
         onClick={() => {
           workspaceActions.setTheme("endfield")
+          workspaceActions.setFontPreset("aestivus")
           workspaceActions.setBgMode("image")
           workspaceActions.setBgOpacity(55)
         }}
@@ -59,6 +62,7 @@ function WorkspacePreferenceProbe() {
         type="button"
         onClick={() => {
           workspaceActions.setTheme("spatial")
+          workspaceActions.setFontPreset("xiranite")
           workspaceActions.setBgMode("dot-grid")
           workspaceActions.setBgOpacity(30)
         }}

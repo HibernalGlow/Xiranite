@@ -28,7 +28,7 @@ function FlowEmptyState() {
 
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center">
-      <div className="space-y-4 text-center">
+      <div className="xiranite-ui-copy space-y-4 text-center">
         <Workflow className="mx-auto h-10 w-10 text-muted-foreground/40" />
         <p className="text-sm font-mono text-muted-foreground">{t("view:flow.empty")}</p>
         <Button
@@ -70,7 +70,7 @@ function FlowCanvasLoading({ label, onActivate }: { label?: string; onActivate()
           <Skeleton className="mt-3 h-2.5 w-3/4 rounded-sm" />
         </div>
         <div className="absolute left-64 top-24 h-px w-32 rotate-12 bg-border/70" />
-        <span className="absolute bottom-4 left-4 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+        <span className="xiranite-ui-copy absolute bottom-4 left-4 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
           {text}
         </span>
       </div>
@@ -149,7 +149,7 @@ export function FlowView() {
 
 function ModuleDropHint({ label }: { label: string }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
+    <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
     </div>
   )

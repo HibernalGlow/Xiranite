@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { DEFAULT_PREFIX_NAME } from "./constants"
 import type { FormatvCardState, FormatvStatusMeta } from "./types"
 
@@ -52,12 +53,13 @@ export function PathInput(props: {
   onClear: () => void
   onPaste: () => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-1.5">
       {!props.compact && (
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="formatv-paths">视频目录</Label>
-          <Badge variant="outline" className="shrink-0">{props.pathCount} 条</Badge>
+          <Label htmlFor="formatv-paths">{tNode("pathsLabel", "视频目录")}</Label>
+          <Badge variant="outline" className="shrink-0">{tNode("pathsCount", "{{count}} 条", { count: props.pathCount })}</Badge>
         </div>
       )}
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
@@ -71,8 +73,8 @@ export function PathInput(props: {
           onChange={(event) => props.onChange(event.currentTarget.value)}
         />
         <div className="grid content-start gap-1.5">
-          <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
-          <ActionIconButton disabled={props.disabled || !props.value} icon={Eraser} label="清空路径" onClick={props.onClear} />
+          <ActionIconButton disabled={props.disabled} icon={Clipboard} label={tNode("buttons.pastePath", "粘贴路径")} onClick={props.onPaste} />
+          <ActionIconButton disabled={props.disabled || !props.value} icon={Eraser} label={tNode("buttons.clearPath", "清空路径")} onClick={props.onClear} />
         </div>
       </div>
     </div>
@@ -85,6 +87,7 @@ export function PrimarySwitches(props: {
   disabled?: boolean
   onPatch: (patch: Partial<FormatvCardState>) => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   return (
     <div
       className={cn(
@@ -97,16 +100,16 @@ export function PrimarySwitches(props: {
         checked={props.data.recursive ?? false}
         disabled={props.disabled}
         icon={FolderTree}
-        label="递归"
-        description="递归扫描子目录内的视频文件。"
+        label={tNode("switches.recursive", "递归")}
+        description={tNode("switches.recursiveDesc", "递归扫描子目录内的视频文件。")}
         onCheckedChange={(recursive) => props.onPatch({ recursive })}
       />
       <SwitchRow
         checked={props.data.dryRun ?? false}
         disabled={props.disabled}
         icon={ShieldAlert}
-        label="预演"
-        description="开启后只生成重命名计划，不写入文件系统。关闭后执行真实重命名。"
+        label={tNode("switches.dryRun", "预演")}
+        description={tNode("switches.dryRunDesc", "开启后只生成重命名计划，不写入文件系统。关闭后执行真实重命名。")}
         onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
       />
     </div>
@@ -118,6 +121,7 @@ export function OptionsPopover(props: {
   disabled?: boolean
   onPatch: (patch: Partial<FormatvCardState>) => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   return (
     <Popover>
       <Tooltip>
@@ -125,16 +129,16 @@ export function OptionsPopover(props: {
           <PopoverTrigger asChild>
             <Button aria-label="formatv options" disabled={props.disabled} size="icon-sm" variant="outline">
               <Repeat />
-              <span className="sr-only">任务选项</span>
+              <span className="sr-only">{tNode("options.title", "任务选项")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>任务选项</TooltipContent>
+        <TooltipContent>{tNode("options.title", "任务选项")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,420px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">任务选项</div>
-          <p className="text-xs text-muted-foreground">前缀名称和递归、预演开关集中在这里。</p>
+          <div className="text-sm font-semibold">{tNode("options.title", "任务选项")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("options.description", "前缀名称和递归、预演开关集中在这里。")}</p>
         </div>
         <div className="grid gap-3">
           <PrefixField
@@ -159,6 +163,7 @@ export function ConfigDefaultsPopover(props: {
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   return (
     <Popover>
       <Tooltip>
@@ -166,35 +171,35 @@ export function ConfigDefaultsPopover(props: {
           <PopoverTrigger asChild>
             <Button aria-label="formatv defaults" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
-              <span className="sr-only">默认配置</span>
+              <span className="sr-only">{tNode("defaults.title", "默认配置")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
+        <TooltipContent>{tNode("defaults.title", "默认配置")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 FormatV 的路径、前缀和开关到明文配置。</p>
+          <div className="text-sm font-semibold">{tNode("defaults.title", "默认配置")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("defaults.description", "保存 FormatV 的路径、前缀和开关到明文配置。")}</p>
         </div>
         <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
+          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{tNode("buttons.saveDefault", "保存为默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{tNode("buttons.restoreDefault", "恢复默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{tNode("buttons.clearOverride", "清除覆盖")}</Button>
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
+              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{tNode("buttons.viewConfig", "查看配置")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>FormatV 配置</DialogTitle>
-                <DialogDescription>当前 nodes.formatv 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>{tNode("defaults.configTitle", "FormatV 配置")}</DialogTitle>
+                <DialogDescription>{tNode("defaults.configDesc", "当前 nodes.formatv 默认值和配置文件位置。")}</DialogDescription>
               </DialogHeader>
               <ConfigPreview config={props.defaults} path={props.configFilePath} />
             </DialogContent>
           </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
+          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{tNode("buttons.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -246,9 +251,10 @@ export function PrefixField(props: {
   value: string
   onChange: (value: string) => void
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor="formatv-prefix" className="text-xs">前缀名称</Label>
+      <Label htmlFor="formatv-prefix" className="text-xs">{tNode("prefix.label", "前缀名称")}</Label>
       <Input
         id="formatv-prefix"
         aria-label="formatv prefix name"
@@ -265,14 +271,15 @@ function ConfigPreview(props: {
   config?: Partial<FormatvCardState>
   path?: string
 }) {
+  const { t: tNode } = useNodeI18n("formatv")
   const content = props.config === undefined
-    ? "# nodes.formatv 暂无默认配置\n"
+    ? `${tNode("defaults.noConfig", "# nodes.formatv 暂无默认配置")}\n`
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+        <div className="text-xs font-medium text-muted-foreground">{tNode("defaults.configFile", "配置文件")}</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? tNode("defaults.notConnected", "未连接本地配置服务")}</div>
       </div>
       <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
         {content}

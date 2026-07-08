@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { LATA_ACTIONS } from "./constants"
 import {
@@ -25,6 +26,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t: tNode } = useNodeI18n("lata")
   const data = host.getData<LataCardState>(compId) ?? {}
   const dataRef = useRef<LataCardState>(data)
   dataRef.current = data
@@ -40,7 +42,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const result = data.result ?? null
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running)
+  const status = statusFromState(data, running, tNode)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -79,14 +81,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(action, dataRef.current, selectedTask)
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: action === "execute" ? "running" : "loading", progress: 0, progressText: `${labelForAction(action)}开始` })
+      patch({ phase: action === "execute" ? "running" : "loading", progress: 0, progressText: tNode("actionStart", "{{action}}开始", { action: labelForAction(action, tNode) }) })
       const response = await run<LataInput, LataData>("lata", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -153,6 +155,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     selectedTask,
     status,
     tasks,
+    tNode,
     onCopyLogs: copyLogs,
     onExecute: (action: LataAction) => execute(action),
     onOpenConfigFile: host.openConfigFile,
@@ -199,6 +202,7 @@ function createViewProps(props: {
   selectedTask: string
   status: LataStatusMeta
   tasks: LataData["tasks"]
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onCopyLogs: () => void
   onExecute: (action: LataAction) => void
   onOpenConfigFile?: () => Promise<void> | void
@@ -283,11 +287,11 @@ function FullView(props: ViewProps) {
     <div data-testid="lata-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/lata:flex-row @4xl/lata:items-center @4xl/lata:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/lata:flex-row @4xl/lata:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.selectedTask || "未选择"} / ${props.tasks.length} 个任务`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("summary.taskCount", "{{task}} / {{count}} 个任务", { task: props.selectedTask || props.tNode("noTaskSelected", "未选择"), count: props.tasks.length })} />
           <div data-testid="lata-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionButtons props={props} />
-            <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
-            <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+            <ActionIconButton icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
@@ -307,16 +311,16 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">Taskfile 配置</div>
-              <div className="text-xs text-muted-foreground">指定 Taskfile 路径与任务参数，加载后可选择任务。</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.taskfile", "Taskfile 配置")}</div>
+              <div className="text-xs text-muted-foreground">{props.tNode("sections.taskfileDesc", "指定 Taskfile 路径与任务参数，加载后可选择任务。")}</div>
             </div>
             <TaskfileInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
             <ArgsInput data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">任务列表</div>
-              <div className="text-xs text-muted-foreground">点击任务名选中，再预览或执行。</div>
+              <div className="text-sm font-semibold">{props.tNode("sections.tasks", "任务列表")}</div>
+              <div className="text-xs text-muted-foreground">{props.tNode("sections.tasksDesc", "点击任务名选中，再预览或执行。")}</div>
             </div>
             <TaskPicker disabled={props.running} selectedTask={props.selectedTask} tasks={props.tasks} onTaskChange={props.onTaskChange} />
           </div>
@@ -334,9 +338,9 @@ function FullView(props: ViewProps) {
 function ActionButtons({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="lata running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={props.tNode("aria.running", "lata running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{props.tNode("status.running", "运行中")}</span>}
       </Button>
     )
   }
@@ -348,34 +352,35 @@ function ActionButtons({ compact, props }: { compact?: boolean; props: ViewProps
         const disabled = action.value === "list"
           ? props.running || !props.data.taskfilePath
           : props.running || !props.selectedTask
+        const actionLabel = labelForAction(action.value, props.tNode)
         if (action.value === "execute") {
           return (
             <AlertDialog key={action.value}>
               <AlertDialogTrigger asChild>
-                <Button aria-label={action.label} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
+                <Button aria-label={actionLabel} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
                   <Icon />
-                  {!compact && <span>{action.label}</span>}
+                  {!compact && <span>{actionLabel}</span>}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>确认执行 Lata 任务？</AlertDialogTitle>
+                  <AlertDialogTitle>{props.tNode("dialog.confirmTitle", "确认执行 Lata 任务？")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    将真实执行 Taskfile 中「{props.selectedTask}」任务的命令。请确认命令内容无误后再继续。
+                    {props.tNode("dialog.confirmDesc", "将真实执行 Taskfile 中「{{task}}」任务的命令。请确认命令内容无误后再继续。", { task: props.selectedTask })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>取消</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" onClick={() => props.onExecute("execute")}>确认执行</AlertDialogAction>
+                  <AlertDialogCancel>{props.tNode("buttons.cancel", "取消")}</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={() => props.onExecute("execute")}>{props.tNode("buttons.confirmExecute", "确认执行")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )
         }
         return (
-          <Button key={action.value} aria-label={action.label} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="outline" onClick={() => props.onExecute(action.value)}>
+          <Button key={action.value} aria-label={actionLabel} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="outline" onClick={() => props.onExecute(action.value)}>
             <Icon />
-            {!compact && <span>{action.label}</span>}
+            {!compact && <span>{actionLabel}</span>}
           </Button>
         )
       })}
@@ -410,11 +415,12 @@ function StatsPanel(props: {
   selectedTask: string
   tasks: LataData["tasks"]
 }) {
+  const { t: tNode } = useNodeI18n("lata")
   const commandCount = props.result?.commandPlan.length ?? props.tasks.find((task) => task.name === props.selectedTask)?.cmdCount ?? 0
   const stats = [
-    ["任务", `${props.tasks.length}`],
-    ["命令", `${commandCount}`],
-    ["退出码", `${props.result?.exitCode ?? "-"}`],
+    [tNode("stats.tasks", "任务"), `${props.tasks.length}`],
+    [tNode("stats.commands", "命令"), `${commandCount}`],
+    [tNode("stats.exitCode", "退出码"), `${props.result?.exitCode ?? "-"}`],
   ] as const
 
   return (

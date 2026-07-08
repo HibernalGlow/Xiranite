@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { DEFAULT_OUTPUT_PREFIX, MODES } from "./constants"
 import {
@@ -27,6 +28,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("bandia")
   const data = host.getData<BandiaCardState>(compId) ?? {}
   const dataRef = useRef<BandiaCardState>(data)
   dataRef.current = data
@@ -105,14 +107,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(action, dataRef.current, paths, mappings)
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: "running", progress: 0, progressText: `${labelForAction(action)}开始`, result: null })
+      patch({ phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: labelForAction(action) }), result: null })
       const response = await run<BandiaInput, BandiaData>("bandia", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -142,7 +144,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function requestStop() {
     if (!running) return
     await host.actions?.run?.("bandia", { action: "stop" })
-    patch({ phase: "error", progressText: "已请求停止" })
+    patch({ phase: "error", progressText: t("error.stopRequested", "已请求停止") })
     pushLog("Stop requested.")
   }
 
@@ -310,7 +312,7 @@ function CompactView(props: ViewProps) {
         <HeaderLine modeMeta={props.modeMeta} status={props.status} subtitle={props.data.progressText || props.modeMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
-          {props.running ? <ActionIconButton destructive icon={Square} label="停止" onClick={props.onStop} /> : <RunActionButton compact props={props} />}
+          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
@@ -339,7 +341,7 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine modeMeta={props.modeMeta} status={props.status} subtitle={props.data.progressText || props.modeMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
-          {props.running ? <ActionIconButton destructive icon={Square} label="停止" onClick={props.onStop} /> : <RunActionButton compact props={props} />}
+          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
@@ -374,7 +376,7 @@ function FullView(props: ViewProps) {
           <HeaderLine
             modeMeta={props.modeMeta}
             status={props.status}
-            subtitle={props.data.progressText || `${props.modeMeta.label} / ${props.dryRun ? "预演" : "真实执行"} / ${props.paths.length || props.mappings.length} 项`}
+            subtitle={props.data.progressText || tNode("bandia", "subtitle.full", "{{label}} / {{mode}} / {{count}} 项", { label: props.modeMeta.label, mode: props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.liveExecute", "真实执行"), count: props.paths.length || props.mappings.length })}
           />
           <div data-testid="bandia-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
@@ -387,8 +389,8 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">任务</div>
-              <div className="text-xs text-muted-foreground">选择解压、压缩或重打包；危险写入默认以预演保护。</div>
+              <div className="text-sm font-semibold">{tNode("bandia", "labels.task", "任务")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("bandia", "labels.taskHint", "选择解压、压缩或重打包；危险写入默认以预演保护。")}</div>
             </div>
             <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
             <PathInput archiveCount={props.archivePaths.length} data={props.data} disabled={props.running} mode={props.mode} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
@@ -397,11 +399,11 @@ function FullView(props: ViewProps) {
             )}
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{tNode("bandia", "labels.switches", "关键开关")}</div>
             <PrimarySwitches data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">高级选项</div>
+            <div className="text-sm font-semibold">{tNode("bandia", "labels.advanced", "高级选项")}</div>
             <OptionsFields data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -430,7 +432,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       {!props.compact && (
         props.running ? (
-          <ActionIconButton destructive icon={Square} label="停止" onClick={props.onStop} />
+          <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} />
         ) : (
           <RunActionButton compact props={props} />
         )
@@ -438,12 +440,12 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton
         disabled={!props.paths.length && !props.mappings.length}
         icon={ExternalLink}
-        label="导出 EFU"
+        label={tNode("bandia", "actions.exportEfu", "导出 EFU")}
         onClick={() => props.onExecute("export_efu")}
       />
-      <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={Archive} label="复制日志" onClick={props.onCopyLogs} />
-      <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("bandia", "copyResults", "复制结果")} onClick={props.onCopyResults} />
+      <ActionIconButton disabled={!props.logs.length} icon={Archive} label={tNode("bandia", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+      <ActionIconButton icon={RotateCcw} label={tNode("bandia", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -463,7 +465,10 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   const disabled = props.running || !canRun(props.mode, props.paths, props.mappings)
   const dangerous = isDangerous(props)
-  const label = `${props.dryRun ? "预演" : "执行"}${props.modeMeta.shortLabel}`
+  const label = tNode("bandia", "actions.runLabel", "{{mode}}{{action}}", {
+    mode: props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.execute", "执行"),
+    action: props.modeMeta.shortLabel,
+  })
   if (dangerous) {
     return (
       <AlertDialog>
@@ -475,14 +480,14 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Bandia？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("bandia", "confirm.title", "确认真实执行 Bandia？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前关闭了预演，并启用了删除源文件相关选项。请确认路径、映射和回收站策略无误后再继续。
+              {tNode("bandia", "confirm.description", "当前关闭了预演，并启用了删除源文件相关选项。请确认路径、映射和回收站策略无误后再继续。")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.mode)}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("bandia", "common:cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.mode)}>{tNode("bandia", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -544,8 +549,8 @@ function buildInput(action: BandiaAction, data: BandiaCardState, paths: string[]
 function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: "运行中",
-      description: "Bandia 正在处理当前队列。",
+      label: tNode("bandia", "status.running", "运行中"),
+      description: tNode("bandia", "desc.running", "Bandia 正在处理当前队列。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -553,8 +558,8 @@ function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusM
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: "上次任务已完成。",
+      label: tNode("bandia", "status.success", "完成"),
+      description: tNode("bandia", "desc.success", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -562,16 +567,16 @@ function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusM
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: "上次任务失败，请查看结果和日志。",
+      label: tNode("bandia", "status.error", "失败"),
+      description: tNode("bandia", "desc.error", "上次任务失败，请查看结果和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴路径或映射后即可预演。",
+    label: tNode("bandia", "status.idle", "就绪"),
+    description: tNode("bandia", "desc.idle", "粘贴路径或映射后即可预演。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -589,10 +594,10 @@ function isDangerous(props: ViewProps): boolean {
 }
 
 function labelForAction(action: BandiaAction): string {
-  if (action === "extract") return "解压"
-  if (action === "compress") return "压缩"
-  if (action === "repack") return "重打包"
-  if (action === "export_efu") return "导出"
+  if (action === "extract") return tNode("bandia", "actionLabel.extract", "解压")
+  if (action === "compress") return tNode("bandia", "actionLabel.compress", "压缩")
+  if (action === "repack") return tNode("bandia", "actionLabel.repack", "重打包")
+  if (action === "export_efu") return tNode("bandia", "actionLabel.export_efu", "导出")
   return action
 }
 
@@ -602,9 +607,10 @@ function resultTarget(item: { outputPath?: string; archivePath?: string }): stri
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.failedCount) return `${props.result.failedCount} 个失败`
-  if (props.mode === "extract") return `${props.archivePaths.length} 个归档 / ${props.dryRun ? "预演" : "真实"}`
-  return `${props.paths.length || props.mappings.length} 项 / ${props.dryRun ? "预演" : "真实"}`
+  if (props.result?.failedCount) return tNode("bandia", "summary.failed", "{{count}} 个失败", { count: props.result.failedCount })
+  const modeLabel = props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.live", "真实")
+  if (props.mode === "extract") return tNode("bandia", "summary.archives", "{{count}} 个归档 / {{mode}}", { count: props.archivePaths.length, mode: modeLabel })
+  return tNode("bandia", "summary.items", "{{count}} 项 / {{mode}}", { count: props.paths.length || props.mappings.length, mode: modeLabel })
 }
 
 function parseRawPaths(text: string): string[] {

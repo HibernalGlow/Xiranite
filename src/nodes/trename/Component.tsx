@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { buildTreeModel } from "./FileTreePanel"
 import { JsonEditorDialog } from "./JsonEditorDialog"
@@ -17,6 +18,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("trename")
   const data = host.getData<TrenameCardState>(compId) ?? {}
   const dataRef = useRef<TrenameCardState>(data)
   dataRef.current = data
@@ -108,24 +110,24 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(action, current, nextJsonText)
 
     if (action === "scan" && !input.paths) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入至少一个扫描路径。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noScanPath", "请先输入至少一个扫描路径。") })
       return
     }
     if ((action === "import" || action === "validate" || action === "rename") && !input.jsonContent) {
-      patch({ phase: "error", progress: 0, progressText: "请先扫描或导入 rename JSON。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noJson", "请先扫描或导入 rename JSON。") })
       return
     }
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: phaseForAction(action), progress: 0, progressText: `${actionLabel(action)}开始`, ...override })
+      patch({ phase: phaseForAction(action), progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(action) }), ...override })
       const response = await run<TrenameInput, TrenameData>("trename", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -372,7 +374,7 @@ function FullView(props: ViewProps) {
     <div data-testid="trename-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/trename:flex-row @4xl/trename:items-center @4xl/trename:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/trename:flex-row @4xl/trename:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.pathCount} 路径 / ${props.tree.ready} 就绪 / ${props.dryRun ? "预演" : "真实执行"}`} />
+          <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("trename", "subtitle.full", "{{paths}} 路径 / {{ready}} 就绪 / {{mode}}", { paths: props.pathCount, ready: props.tree.ready, mode: props.dryRun ? tNode("trename", "mode.dry", "预演") : tNode("trename", "mode.liveExecute", "真实执行") })} />
           <div data-testid="trename-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
           </div>
@@ -384,14 +386,14 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">粘贴目录，扫描成 rename JSON；大 JSON 在弹窗里编辑。</div>
+              <div className="text-sm font-semibold">{tNode("trename", "labels.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("trename", "labels.inputHint", "粘贴目录，扫描成 rename JSON；大 JSON 在弹窗里编辑。")}</div>
             </div>
             <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
             <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
+            <div className="text-sm font-semibold">{tNode("trename", "labels.switches", "关键开关")}</div>
             <KeySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -417,7 +419,7 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <ActionIconButton disabled={props.running || !props.pathCount} icon={ScanSearch} label="扫描路径" onClick={() => props.onExecute("scan")} />
+      <ActionIconButton disabled={props.running || !props.pathCount} icon={ScanSearch} label={tNode("trename", "actions.scanPaths", "扫描路径")} onClick={() => props.onExecute("scan")} />
       <JsonEditorDialog
         disabled={props.running}
         jsonText={props.jsonText}
@@ -429,11 +431,11 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
         onImport={() => props.onExecute("import")}
         onPaste={props.onPasteJson}
       />
-      <ActionIconButton disabled={props.running || !props.jsonText} icon={Search} label="校验冲突" onClick={() => props.onExecute("validate")} />
+      <ActionIconButton disabled={props.running || !props.jsonText} icon={Search} label={tNode("trename", "actions.validate", "校验冲突")} onClick={() => props.onExecute("validate")} />
       {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={props.running} icon={History} label="读取历史" onClick={() => props.onExecute("history")} />
-      <ActionIconButton disabled={!props.jsonText} icon={Copy} label="复制 JSON" onClick={props.onCopyJson} />
-      <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <ActionIconButton disabled={props.running} icon={History} label={tNode("trename", "actions.history", "读取历史")} onClick={() => props.onExecute("history")} />
+      <ActionIconButton disabled={!props.jsonText} icon={Copy} label={tNode("trename", "copyJson", "复制 JSON")} onClick={props.onCopyJson} />
+      <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={tNode("trename", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -453,15 +455,15 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="trename running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("trename", "aria.running", "trename running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{tNode("trename", "status.running", "运行中")}</span>}
       </Button>
     )
   }
 
   const disabled = !props.jsonText
-  const label = props.dryRun ? "预演重命名" : "真实重命名"
+  const label = props.dryRun ? tNode("trename", "actions.dryRename", "预演重命名") : tNode("trename", "actions.liveRename", "真实重命名")
   if (!props.dryRun) {
     return (
       <AlertDialog>
@@ -473,14 +475,14 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实执行 Trename？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("trename", "confirm.title", "确认真实执行 Trename？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前将执行真实文件重命名。计划 {props.result?.operations.length ?? props.tree.ready} 项，冲突 {props.result?.conflicts.length ?? 0} 项，base path 为 {props.data.basePath || props.result?.basePath || "未指定"}。
+              {tNode("trename", "confirm.description", "当前将执行真实文件重命名。计划 {{plan}} 项，冲突 {{conflicts}} 项，base path 为 {{basePath}}。", { plan: props.result?.operations.length ?? props.tree.ready, conflicts: props.result?.conflicts.length ?? 0, basePath: props.data.basePath || props.result?.basePath || "未指定" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("rename")}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{tNode("trename", "common:cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("rename")}>{tNode("trename", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -522,13 +524,14 @@ function StatsPanel(props: {
   result: TrenameData | null
   tree: ReturnType<typeof buildTreeModel>
 }) {
+  const conflictLabel = tNode("trename", "statConflicts", "冲突")
   const stats = [
-    ["总计", props.result?.totalItems ?? props.tree.total],
-    ["待填", props.result?.pendingCount ?? props.tree.pending],
-    ["就绪", props.result?.readyCount ?? props.tree.ready],
-    ["成功", props.result?.successCount ?? 0],
-    ["冲突", props.result?.conflicts.length ?? 0],
-    ["进度", `${props.progress}%`],
+    [tNode("trename", "statTotal", "总计"), props.result?.totalItems ?? props.tree.total],
+    [tNode("trename", "statPending", "待填"), props.result?.pendingCount ?? props.tree.pending],
+    [tNode("trename", "statReady", "就绪"), props.result?.readyCount ?? props.tree.ready],
+    [tNode("trename", "statOk", "成功"), props.result?.successCount ?? 0],
+    [conflictLabel, props.result?.conflicts.length ?? 0],
+    [tNode("trename", "stats.progress", "进度"), `${props.progress}%`],
   ] as const
 
   return (
@@ -536,7 +539,7 @@ function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "冲突" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === conflictLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -566,8 +569,8 @@ function buildInput(action: TrenameAction, data: TrenameCardState, jsonText: str
 function statusFromState(data: TrenameCardState, running: boolean, tree: ReturnType<typeof buildTreeModel>): TrenameStatusMeta {
   if (running || data.phase === "scanning" || data.phase === "validating" || data.phase === "renaming") {
     return {
-      label: "运行中",
-      description: data.progressText || "Trename 正在处理当前任务。",
+      label: tNode("trename", "status.running", "运行中"),
+      description: data.progressText || tNode("trename", "desc.running", "Trename 正在处理当前任务。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -575,8 +578,8 @@ function statusFromState(data: TrenameCardState, running: boolean, tree: ReturnT
   }
   if (data.phase === "error" || data.result?.errors.length) {
     return {
-      label: "失败",
-      description: data.progressText || data.result?.errors[0] || "上次任务失败，请查看冲突和日志。",
+      label: tNode("trename", "status.error", "失败"),
+      description: data.progressText || data.result?.errors[0] || tNode("trename", "desc.error", "上次任务失败，请查看冲突和日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -584,8 +587,8 @@ function statusFromState(data: TrenameCardState, running: boolean, tree: ReturnT
   }
   if (data.result?.conflicts.length) {
     return {
-      label: "有冲突",
-      description: `${data.result.conflicts.length} 个冲突需要处理。`,
+      label: tNode("trename", "status.warning", "有冲突"),
+      description: tNode("trename", "desc.warning", "{{count}} 个冲突需要处理。", { count: data.result.conflicts.length }),
       tone: "warning",
       badgeVariant: "outline",
       iconClass: "bg-secondary text-secondary-foreground",
@@ -593,8 +596,8 @@ function statusFromState(data: TrenameCardState, running: boolean, tree: ReturnT
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("trename", "status.success", "完成"),
+      description: data.progressText || tNode("trename", "desc.success", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -602,16 +605,16 @@ function statusFromState(data: TrenameCardState, running: boolean, tree: ReturnT
   }
   if (tree.total) {
     return {
-      label: "待校验",
-      description: `${tree.total} 项，${tree.ready} 项已准备重命名。`,
+      label: tNode("trename", "status.pending", "待校验"),
+      description: tNode("trename", "desc.pending", "{{total}} 项，{{ready}} 项已准备重命名。", { total: tree.total, ready: tree.ready }),
       tone: "idle",
       badgeVariant: "outline",
       iconClass: "bg-secondary text-secondary-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "粘贴目录并扫描成 rename JSON。",
+    label: tNode("trename", "status.idle", "就绪"),
+    description: tNode("trename", "desc.idle", "粘贴目录并扫描成 rename JSON。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -631,20 +634,20 @@ function phaseForAction(action: TrenameAction): TrenamePhase {
 }
 
 function actionLabel(action: TrenameAction): string {
-  if (action === "scan") return "扫描"
-  if (action === "import") return "导入"
-  if (action === "validate") return "校验"
-  if (action === "rename") return "重命名"
-  if (action === "undo") return "撤销"
-  return "读取历史"
+  if (action === "scan") return tNode("trename", "actionLabel.scan", "扫描")
+  if (action === "import") return tNode("trename", "actionLabel.import", "导入")
+  if (action === "validate") return tNode("trename", "actionLabel.validate", "校验")
+  if (action === "rename") return tNode("trename", "actionLabel.rename", "重命名")
+  if (action === "undo") return tNode("trename", "actionLabel.undo", "撤销")
+  return tNode("trename", "actionLabel.history", "读取历史")
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.conflicts.length) return `${props.result.conflicts.length} 个冲突`
-  if (props.tree.total) return `${props.tree.total} 项 / ${props.tree.ready} 就绪 / ${props.dryRun ? "预演" : "真实"}`
-  if (props.pathCount) return `${props.pathCount} 条路径等待扫描`
-  return "选择目录后扫描 rename JSON"
+  if (props.result?.conflicts.length) return tNode("trename", "summary.conflicts", "{{count}} 个冲突", { count: props.result.conflicts.length })
+  if (props.tree.total) return tNode("trename", "summary.tree", "{{total}} 项 / {{ready}} 就绪 / {{mode}}", { total: props.tree.total, ready: props.tree.ready, mode: props.dryRun ? tNode("trename", "mode.dry", "预演") : tNode("trename", "mode.live", "真实") })
+  if (props.pathCount) return tNode("trename", "summary.waiting", "{{count}} 条路径等待扫描", { count: props.pathCount })
+  return tNode("trename", "summary.empty", "选择目录后扫描 rename JSON")
 }
 
 function parsePathInput(text: string): string[] {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 
 export function WallpaperGallery(props: {
   columns?: number
@@ -18,6 +19,7 @@ export function WallpaperGallery(props: {
   onCopyPath: (path: string) => void
   onToggle: (id: string) => void
 }) {
+  const { t: tNode } = useNodeI18n("enginev")
   const selected = new Set(props.selectedIds)
   const visible = props.wallpapers.slice(0, 120)
   const columns = props.columns && props.columns > 0 ? Math.min(6, Math.max(1, props.columns)) : undefined
@@ -28,8 +30,8 @@ export function WallpaperGallery(props: {
     return (
       <div className={cn("flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background/50 text-center text-muted-foreground", props.compact ? "min-h-16 p-2" : "min-h-48 p-6")}>
         <Image className={props.compact ? "size-6" : "size-8"} />
-        <div className="text-sm font-medium text-foreground">还没有画廊数据</div>
-        <p className={cn("max-w-sm text-xs", props.compact && "hidden")}>选择 Wallpaper Engine 工坊目录后运行扫描，图片预览会直接使用本地文件 URL 显示。</p>
+        <div className="text-sm font-medium text-foreground">{tNode("empty.gallery", "还没有画廊数据")}</div>
+        <p className={cn("max-w-sm text-xs", props.compact && "hidden")}>{tNode("empty.galleryHint", "选择 Wallpaper Engine 工坊目录后运行扫描，图片预览会直接使用本地文件 URL 显示。")}</p>
       </div>
     )
   }
@@ -56,7 +58,7 @@ export function WallpaperGallery(props: {
       </div>
       {props.wallpapers.length > visible.length && (
         <div className="py-3 text-center text-xs text-muted-foreground">
-          仅显示前 {visible.length} 项，共 {props.wallpapers.length} 项。
+          {tNode("empty.truncatedItems", "仅显示前 {{visible}} 项，共 {{total}} 项。", { visible: visible.length, total: props.wallpapers.length })}
         </div>
       )}
     </ScrollArea>
@@ -73,6 +75,7 @@ function WallpaperTile(props: {
   onCopyPath: (path: string) => void
   onToggle: (id: string) => void
 }) {
+  const { t: tNode } = useNodeI18n("enginev")
   const previewPath = resolvePreviewPath(props.item)
   const previewUrl = previewPath
     ? isRemoteUrl(previewPath) ? previewPath : props.host.localFiles?.getUrl?.(previewPath)
@@ -87,7 +90,7 @@ function WallpaperTile(props: {
       )}
     >
       <button
-        aria-label={`选择 ${title}`}
+        aria-label={tNode("aria.selectWallpaper", "选择 {{title}}", { title })}
         className="block w-full text-left"
         type="button"
         onClick={() => props.onToggle(props.item.workshopId)}
@@ -117,7 +120,7 @@ function WallpaperTile(props: {
             <div className="truncate text-xs font-semibold">{title}</div>
             {props.showMeta && (
               <div className="mt-0.5 truncate text-[11px] text-white/75">
-                {props.item.wallpaperType || "unknown"} · {props.item.contentRating || "unrated"} · {formatBytes(props.item.size)}
+                {props.item.wallpaperType || tNode("unknown", "unknown")} · {props.item.contentRating || tNode("unrated", "unrated")} · {formatBytes(props.item.size)}
               </div>
             )}
           </div>
@@ -131,11 +134,11 @@ function WallpaperTile(props: {
         )}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button aria-label={`复制 ${title} 路径`} size="icon-xs" variant="ghost" onClick={() => props.onCopyPath(props.item.path)}>
+            <Button aria-label={tNode("aria.copyWallpaperPath", "复制 {{title}} 路径", { title })} size="icon-xs" variant="ghost" onClick={() => props.onCopyPath(props.item.path)}>
               <Copy />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>复制路径</TooltipContent>
+          <TooltipContent>{tNode("aria.copyPath", "复制路径")}</TooltipContent>
         </Tooltip>
       </div>
     </article>
