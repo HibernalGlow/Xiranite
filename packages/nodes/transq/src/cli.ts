@@ -3,13 +3,33 @@ import { runTransq } from "./core.js"
 import { createNodeTransqRuntime } from "./platform.js"
 
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const json = args.includes("--json")
-  const action = args.includes("run") ? "run" : args.includes("plan") ? "plan" : "status"
-  const paths = args.filter((arg) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg))
-  const result = await runTransq({ action, paths, dryRun: args.includes("--dry-run") }, createNodeTransqRuntime())
+  const passthroughIndex = args.indexOf("--")
+  const commandArgs = passthroughIndex >= 0 ? args.slice(0, passthroughIndex) : args
+  const passthroughArgs = passthroughIndex >= 0 ? args.slice(passthroughIndex + 1) : []
+  const json = commandArgs.includes("--json")
+  const action = commandArgs.includes("run") ? "run" : commandArgs.includes("plan") ? "plan" : "status"
+  const valueOptions = new Set(["--config-path", "--database-path", "--python", "--source-root", "--module-name"])
+  const paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
+  const result = await runTransq({
+    action,
+    paths,
+    args: passthroughArgs,
+    configPath: valueFor(commandArgs, "--config-path"),
+    databasePath: valueFor(commandArgs, "--database-path"),
+    python: valueFor(commandArgs, "--python"),
+    sourceRoot: valueFor(commandArgs, "--source-root"),
+    moduleName: valueFor(commandArgs, "--module-name"),
+    recordRun: commandArgs.includes("--record-run"),
+    dryRun: commandArgs.includes("--dry-run"),
+  }, createNodeTransqRuntime())
   if (json) console.log(JSON.stringify(result, null, 2))
   else console.log(result.message)
   if (!result.success) process.exitCode = 1
 }
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
+
+function valueFor(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag)
+  return index >= 0 ? args[index + 1] : undefined
+}
