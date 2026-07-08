@@ -1,6 +1,8 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
+import { AnimatePresence, motion } from "motion/react"
+import type { NodeHelp, NodeHelpCommand, NodeHelpField, NodeHelpWorkflow } from "@xiranite/contract"
 import { DataViewProvider } from "@hibernalglow/ocean-dataview/providers"
 import { useInfiniteController } from "@hibernalglow/ocean-dataview/hooks"
 import { NotionToolbar } from "@hibernalglow/ocean-dataview/toolbars/notion"
@@ -19,6 +21,7 @@ import type {
 } from "@hibernalglow/ocean-dataview/types"
 import {
   ArrowRight,
+  BookOpen,
   GalleryHorizontalEnd,
   GripVertical,
   KanbanSquare,
@@ -28,6 +31,16 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import * as LucideIcons from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { nodeHelpLoaders } from "@/components/modules/packageModules.generated"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceContext"
 import { setModuleDragData } from "@/lib/moduleDragDrop"
@@ -96,7 +109,15 @@ function ModuleIcon({ icon, className }: { icon: string; className?: string }) {
   return <Icon className={className} />
 }
 
-function ModuleIdentityCell({ item }: { item: ModuleRow }) {
+function ModuleIdentityCell({
+  item,
+  hasHelp,
+  onOpenHelp,
+}: {
+  item: ModuleRow
+  hasHelp: boolean
+  onOpenHelp: (item: ModuleRow) => void
+}) {
   const { t } = useTranslation()
   return (
     <div className="flex min-w-0 items-start gap-2 py-1">
@@ -118,6 +139,38 @@ function ModuleIdentityCell({ item }: { item: ModuleRow }) {
           <span className="block truncate text-[10px] font-mono text-muted-foreground">{item.id}</span>
         </span>
       </div>
+      {hasHelp && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-xs"
+            >
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${item.name} help`}
+                title={`Open ${item.name} help`}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenHelp(item)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onOpenHelp(item)
+                }}
+              >
+                <BookOpen data-icon="inline-start" />
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Node help</TooltipContent>
+        </Tooltip>
+      )}
       <span
         aria-hidden="true"
         className="grid h-7 w-7 shrink-0 place-items-center rounded-sm border border-primary/35 bg-primary/10 text-primary"
@@ -129,7 +182,11 @@ function ModuleIdentityCell({ item }: { item: ModuleRow }) {
   )
 }
 
-function buildProperties(t: TFunction, i18n: ReturnType<typeof useTranslation>["i18n"]): readonly DataViewProperty<ModuleRow>[] {
+function buildProperties(
+  t: TFunction,
+  i18n: ReturnType<typeof useTranslation>["i18n"],
+  onOpenHelp: (item: ModuleRow) => void,
+): readonly DataViewProperty<ModuleRow>[] {
   const categories = Array.from(new Set(MODULE_REGISTRY.map((module) => module.category)))
   return [
     { id: "id", type: "text", key: "id", hidden: true, enableFilter: false, enableGroup: false },
@@ -143,7 +200,13 @@ function buildProperties(t: TFunction, i18n: ReturnType<typeof useTranslation>["
       sortBy: "name",
       enableFilter: false,
       enableGroup: false,
-      value: (_property, item) => <ModuleIdentityCell item={item} />,
+      value: (_property, item) => (
+        <ModuleIdentityCell
+          item={item}
+          hasHelp={Boolean(nodeHelpLoaders[item.id])}
+          onOpenHelp={onOpenHelp}
+        />
+      ),
     },
     {
       id: "name",
@@ -198,13 +261,25 @@ export function ModuleRegistry() {
   const viewMode = useWorkspaceSelector((state) => state.viewMode)
   const workspaceActions = useWorkspaceActions()
   const [catalogView, setCatalogView] = React.useState<CatalogViewMode>("list")
+  const [helpOpen, setHelpOpen] = React.useState(false)
+  const [helpModuleId, setHelpModuleId] = React.useState<string | null>(null)
   const modules = React.useMemo(
     () => MODULE_REGISTRY.map((module) => toModuleRow(module, t, i18n)),
     [t, i18n],
   )
   const modulesRef = React.useRef(modules)
   modulesRef.current = modules
-  const properties = React.useMemo(() => buildProperties(t, i18n), [t, i18n])
+  const openHelp = React.useCallback((item: ModuleRow) => {
+    React.startTransition(() => {
+      setHelpModuleId(item.id)
+      setHelpOpen(true)
+    })
+  }, [])
+  const properties = React.useMemo(() => buildProperties(t, i18n, openHelp), [t, i18n, openHelp])
+  const activeHelpModule = React.useMemo(
+    () => modules.find((module) => module.id === helpModuleId) ?? null,
+    [helpModuleId, modules],
+  )
   const deployToCurrentView = React.useCallback(
     (item: ModuleRow) => workspaceActions.deployComponent(item.id, viewMode),
     [viewMode, workspaceActions],
@@ -282,7 +357,8 @@ export function ModuleRegistry() {
   })()
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+    <TooltipProvider>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <div className="shrink-0 border-b border-border/60 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -319,6 +395,304 @@ export function ModuleRegistry() {
           </DataViewProvider>
         </React.Suspense>
       </div>
+      <NodeHelpSheet
+        open={helpOpen}
+        module={activeHelpModule}
+        onOpenChange={setHelpOpen}
+      />
+      </div>
+    </TooltipProvider>
+  )
+}
+
+type HelpLoadState =
+  | { status: "idle" | "loading" | "missing" }
+  | { status: "loaded"; help: NodeHelp }
+  | { status: "error"; error: string }
+
+function NodeHelpSheet({
+  open,
+  module,
+  onOpenChange,
+}: {
+  open: boolean
+  module: ModuleRow | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const [state, setState] = React.useState<HelpLoadState>({ status: "idle" })
+
+  React.useEffect(() => {
+    if (!open || !module) return
+
+    const loader = nodeHelpLoaders[module.id]
+    if (!loader) {
+      setState({ status: "missing" })
+      return
+    }
+
+    let cancelled = false
+    setState({ status: "loading" })
+    void loader()
+      .then((result) => {
+        if (!cancelled) setState({ status: "loaded", help: result.help })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({ status: "error", error: error instanceof Error ? error.message : String(error) })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [module, open])
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-[min(560px,calc(100vw-1rem))] gap-0 p-0 sm:max-w-[560px]">
+        <SheetHeader className="border-b border-border/60 px-4 py-3 pr-12">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SheetTitle className="truncate text-sm">{module?.name ?? "Node help"}</SheetTitle>
+              <SheetDescription className="mt-1 text-xs">
+                Shared UI and CLI usage notes.
+              </SheetDescription>
+            </div>
+            {module && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Badge variant="outline">{module.category}</Badge>
+                <Badge variant="secondary">{module.id}</Badge>
+              </div>
+            )}
+          </div>
+        </SheetHeader>
+        <ScrollArea className="min-h-0 flex-1">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${module?.id ?? "none"}-${state.status}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
+              className="p-4"
+            >
+              {state.status === "loading" && <NodeHelpLoading />}
+              {state.status === "missing" && <NodeHelpEmpty title="No help entry" description="This module does not expose shared node help yet." />}
+              {state.status === "error" && <NodeHelpEmpty title="Help failed to load" description={state.error} />}
+              {state.status === "loaded" && module && <NodeHelpContent module={module} help={state.help} />}
+            </motion.div>
+          </AnimatePresence>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function NodeHelpLoading() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-5 w-2/3" />
+      <Skeleton className="h-20 w-full" />
+      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  )
+}
+
+function NodeHelpEmpty({ title, description }: { title: string; description: string }) {
+  return (
+    <Empty className="min-h-80 border border-border/60">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <BookOpen />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  )
+}
+
+function NodeHelpContent({ module, help }: { module: ModuleRow; help: NodeHelp }) {
+  const hasFields = Boolean(help.fields?.length)
+  const hasSafety = Boolean(help.safety)
+
+  return (
+    <Tabs defaultValue="overview" className="gap-4">
+      <TabsList variant="line" className="max-w-full overflow-x-auto">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="cli">CLI</TabsTrigger>
+        {(hasFields || hasSafety) && <TabsTrigger value="fields">Fields</TabsTrigger>}
+      </TabsList>
+      <TabsContent value="overview" className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary">{module.version}</Badge>
+            <Badge variant="outline">{module.category}</Badge>
+            {help.safety?.defaultMode && <Badge variant="outline">{help.safety.defaultMode}</Badge>}
+          </div>
+          <p className="text-sm font-medium leading-relaxed text-foreground">{help.short}</p>
+          {help.description && help.description !== help.short && (
+            <p className="text-xs leading-relaxed text-muted-foreground">{help.description}</p>
+          )}
+        </div>
+        {help.whenToUse?.length && (
+          <>
+            <Separator />
+            <HelpSection title="When to use">
+              <HelpList items={help.whenToUse} />
+            </HelpSection>
+          </>
+        )}
+        <Separator />
+        <HelpSection title="Workflows">
+          <div className="flex flex-col gap-3">
+            {help.workflows.map((workflow) => (
+              <WorkflowBlock key={workflow.title} workflow={workflow} />
+            ))}
+          </div>
+        </HelpSection>
+      </TabsContent>
+      <TabsContent value="cli" className="flex flex-col gap-4">
+        {help.commands.map((command) => (
+          <CommandBlock key={command.title} command={command} />
+        ))}
+      </TabsContent>
+      {(hasFields || hasSafety) && (
+        <TabsContent value="fields" className="flex flex-col gap-5">
+          {hasFields && (
+            <HelpSection title="Fields">
+              <div className="flex flex-col gap-3">
+                {help.fields?.map((field) => (
+                  <FieldBlock key={field.name} field={field} />
+                ))}
+              </div>
+            </HelpSection>
+          )}
+          {hasFields && hasSafety && <Separator />}
+          {hasSafety && (
+            <HelpSection title="Safety">
+              <SafetyBlock help={help} />
+            </HelpSection>
+          )}
+        </TabsContent>
+      )}
+    </Tabs>
+  )
+}
+
+function HelpSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function HelpList({ items }: { items: readonly string[] }) {
+  return (
+    <ul className="flex flex-col gap-2 text-sm leading-relaxed text-foreground">
+      {items.map((item) => (
+        <li key={item} className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+          {item}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function WorkflowBlock({ workflow }: { workflow: NodeHelpWorkflow }) {
+  const uiSteps = workflow.ui ?? []
+  const terminalSteps = workflow.terminal ?? []
+  const tips = workflow.tips ?? []
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-background px-3 py-3">
+      <div className="flex flex-col gap-1">
+        <div className="text-sm font-semibold text-foreground">{workflow.title}</div>
+        {workflow.summary && <div className="text-xs leading-relaxed text-muted-foreground">{workflow.summary}</div>}
+      </div>
+      {uiSteps.length > 0 && <StepList label="UI" steps={uiSteps} />}
+      {terminalSteps.length > 0 && <StepList label="CLI" steps={terminalSteps} />}
+      {tips.length > 0 && <StepList label="Tip" steps={tips} />}
+    </div>
+  )
+}
+
+function StepList({ label, steps }: { label: string; steps: readonly string[] }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Badge variant="outline" className="w-fit">{label}</Badge>
+      <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-xs leading-relaxed text-muted-foreground">
+        {steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function CommandBlock({ command }: { command: NodeHelpCommand }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-background px-3 py-3">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{command.title}</span>
+          {command.command && <Badge variant="secondary">{command.command}</Badge>}
+        </div>
+        {command.description && <p className="text-xs leading-relaxed text-muted-foreground">{command.description}</p>}
+      </div>
+      <div className="flex flex-col gap-2">
+        {command.examples.map((example) => (
+          <div key={example.command} className="flex flex-col gap-1.5">
+            {example.label && <div className="text-xs font-medium text-foreground">{example.label}</div>}
+            <CodeLine value={example.command} />
+            {example.description && <p className="text-xs leading-relaxed text-muted-foreground">{example.description}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CodeLine({ value }: { value: string }) {
+  return (
+    <code className="block overflow-x-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground">
+      {value}
+    </code>
+  )
+}
+
+function FieldBlock({ field }: { field: NodeHelpField }) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-background px-3 py-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-sm font-semibold text-foreground">{field.name}</span>
+        {field.type && <Badge variant="secondary">{field.type}</Badge>}
+        {field.required && <Badge variant="outline">required</Badge>}
+        {field.defaultValue && <Badge variant="outline">default: {field.defaultValue}</Badge>}
+      </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">{field.description}</p>
+    </div>
+  )
+}
+
+function SafetyBlock({ help }: { help: NodeHelp }) {
+  const items = [
+    ...(help.safety?.destructive ?? []).map((item) => `Destructive: ${item}`),
+    ...(help.safety?.notes ?? []).map((item) => `Note: ${item}`),
+  ]
+
+  return (
+    <div className="flex flex-col gap-3">
+      {help.safety?.defaultMode && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Default mode</span>
+          <Badge variant="secondary">{help.safety.defaultMode}</Badge>
+        </div>
+      )}
+      {items.length > 0 && <HelpList items={items} />}
     </div>
   )
 }

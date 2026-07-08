@@ -37,6 +37,66 @@ export interface NodeDef {
   keywords?: string[]
 }
 
+export interface NodeHelpExample {
+  label?: string
+  command: string
+  description?: string
+}
+
+export interface NodeHelpCommand {
+  title: string
+  command?: string
+  description?: string
+  examples: readonly NodeHelpExample[]
+}
+
+export interface NodeHelpWorkflow {
+  title: string
+  summary?: string
+  ui?: readonly string[]
+  terminal?: readonly string[]
+  tips?: readonly string[]
+}
+
+export interface NodeHelpField {
+  name: string
+  type?: string
+  required?: boolean
+  description: string
+  defaultValue?: string
+}
+
+export interface NodeHelpSafety {
+  defaultMode?: "preview" | "dry-run" | "guided" | "live" | string
+  destructive?: readonly string[]
+  notes?: readonly string[]
+}
+
+export interface NodeHelpLink {
+  label: string
+  href: string
+  description?: string
+}
+
+/**
+ * Structured node usage documentation shared by the app and CLI.
+ *
+ * Keep this as serializable data only. Node packages should export it from
+ * `./help`; React components, terminal adapters, and host-specific logic stay
+ * outside this contract.
+ */
+export interface NodeHelp {
+  title: string
+  short: string
+  description?: string
+  whenToUse?: readonly string[]
+  workflows: readonly NodeHelpWorkflow[]
+  commands: readonly NodeHelpCommand[]
+  fields?: readonly NodeHelpField[]
+  safety?: NodeHelpSafety
+  links?: readonly NodeHelpLink[]
+}
+
 export interface HostComponentRef {
   id: string
   moduleId: string

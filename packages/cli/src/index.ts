@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import { createCliHost, nodeCliName, normalizeNodeCliName, writeError, writeLine } from "@xiranite/cli-runtime"
+import { createCliHost, normalizeNodeCliName, renderRichPanel, rich, terminalColumns, writeError, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import type { NodeHelp } from "@xiranite/contract"
+import { GENERATED_NODE_CLI_REGISTRY } from "./node-cli-registry.generated.js"
 
 export interface NodeCliRegistration {
   id: string
@@ -14,33 +16,11 @@ interface NodeCliModule {
   cli?: CliCommand
 }
 
-export const NODE_CLI_REGISTRY: NodeCliRegistration[] = [
-  node("bandia", "Batch archive extract, compress, repack, and EFU export."),
-  node("cleanf", "Remove empty folders, backup files, temp folders, and trash patterns."),
-  node("crashu", "Match and move folders by normalized artist/title similarity."),
-  node("dissolvef", "Dissolve nested folder/archive structures with undo support."),
-  node("encodeb", "Recover mojibake file names between encodings."),
-  node("enginev", "Scan and manage Wallpaper Engine workshop folders."),
-  node("findz", "Search filesystem and archive contents with filters."),
-  node("formatv", "Toggle video file suffixes and detect duplicates."),
-  node("kavvka", "Organize artist folders and compare sibling directories."),
-  node("lata", "Run Taskfile-style command workflows."),
-  node("linedup", "Filter source lines by removing matches."),
-  node("linku", "Create and track symlinks from TOML config."),
-  node("lorat", "LoRA trigger sidecar and TriggerDB manager."),
-  node("marku", "Transform Markdown/text files with dry-run and undo."),
-  node("migratef", "Migrate folder contents with history and undo."),
-  node("movea", "Move numbered folders and matching archive files."),
-  node("mvz", "Operate on archive entries from findz-style lines."),
-  node("owithu", "Apply environment and registry operations from config."),
-  node("rawfilter", "Separate raw/translated archive variants."),
-  node("recycleu", "Empty the Windows recycle bin once or on a timer."),
-  node("repacku", "Analyze and repack folders into archive layouts."),
-  node("scoolp", "Manage Scoop package buckets and cache state."),
-  node("seriex", "Plan and apply series folder organization."),
-  node("sleept", "Run sleep/shutdown timers and system monitors."),
-  node("trename", "Plan, validate, rename, and undo ACG file names."),
-]
+interface NodeHelpModule {
+  help?: NodeHelp
+}
+
+export const NODE_CLI_REGISTRY: NodeCliRegistration[] = GENERATED_NODE_CLI_REGISTRY
 
 export function normalizeNodeId(value: string): string {
   return normalizeNodeCliName(value)
@@ -85,12 +65,13 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
   }
 
   if (command === "help") {
-    const nodeId = rest[0]
+    const plain = rest.includes("--plain") || rest.includes("-p")
+    const nodeId = rest.find((arg) => !arg.startsWith("-"))
     if (!nodeId) {
       writeLine(host, formatHelp())
       return
     }
-    await runNodeCli(nodeId, ["--help"], host)
+    await showNodeHelp(nodeId, { plain }, host)
     return
   }
 
@@ -109,6 +90,28 @@ export async function runNodeCli(nodeId: string, args: string[], host: CliHost =
   await cli.run(args, host)
 }
 
+export async function showNodeHelp(
+  nodeId: string,
+  options: { plain?: boolean } = {},
+  host: CliHost = createCliHost(),
+): Promise<void> {
+  const registration = findNodeCli(nodeId)
+  if (!registration) {
+    writeError(host, `Unknown node "${nodeId}". Run \`xiranite list\` to see available commands.`)
+    process.exitCode = 2
+    return
+  }
+
+  const help = await loadNodeHelp(registration)
+  if (!help) {
+    await runNodeCli(nodeId, ["--help"], host)
+    return
+  }
+
+  const useRich = Boolean(host.stdout.isTTY) && !options.plain
+  writeLine(host, useRich ? formatNodeHelpRich(registration, help, host) : formatNodeHelpPlain(registration, help))
+}
+
 async function loadNodeCli(registration: NodeCliRegistration): Promise<CliCommand> {
   const module = await import(`${registration.packageName}/cli`) as NodeCliModule
   if (!module.cli) {
@@ -117,13 +120,154 @@ async function loadNodeCli(registration: NodeCliRegistration): Promise<CliComman
   return module.cli
 }
 
-function node(id: string, description: string): NodeCliRegistration {
-  return {
-    id,
-    packageName: `@xiranite/node-${id}`,
-    bin: nodeCliName(id),
-    description,
+async function loadNodeHelp(registration: NodeCliRegistration): Promise<NodeHelp | undefined> {
+  try {
+    const module = await import(`${registration.packageName}/help`) as NodeHelpModule
+    return module.help
+  } catch {
+    return undefined
   }
+}
+
+export function formatNodeHelpPlain(registration: NodeCliRegistration, help: NodeHelp): string {
+  const lines = [
+    `${help.title} (${registration.id})`,
+    help.short,
+  ]
+  if (help.description && help.description !== help.short) {
+    lines.push("", help.description)
+  }
+
+  if (help.whenToUse?.length) {
+    lines.push("", "When to use:")
+    for (const item of help.whenToUse) lines.push(`  - ${item}`)
+  }
+
+  if (help.workflows.length) {
+    lines.push("", "Workflows:")
+    for (const workflow of help.workflows) {
+      lines.push(`  ${workflow.title}${workflow.summary ? ` - ${workflow.summary}` : ""}`)
+      for (const step of workflow.ui ?? []) lines.push(`    UI: ${step}`)
+      for (const step of workflow.terminal ?? []) lines.push(`    CLI: ${step}`)
+      for (const tip of workflow.tips ?? []) lines.push(`    Tip: ${tip}`)
+    }
+  }
+
+  if (help.commands.length) {
+    lines.push("", "Commands:")
+    for (const command of help.commands) {
+      lines.push(`  ${command.title}${command.command ? ` (${command.command})` : ""}`)
+      if (command.description) lines.push(`    ${command.description}`)
+      for (const example of command.examples) {
+        lines.push(`    $ ${example.command}`)
+        if (example.description) lines.push(`      ${example.description}`)
+      }
+    }
+  }
+
+  if (help.fields?.length) {
+    lines.push("", "Fields:")
+    for (const field of help.fields) {
+      const flags = [field.type, field.required ? "required" : undefined].filter(Boolean).join(", ")
+      lines.push(`  ${field.name}${flags ? ` (${flags})` : ""}: ${field.description}`)
+    }
+  }
+
+  if (help.safety) {
+    lines.push("", "Safety:")
+    if (help.safety.defaultMode) lines.push(`  Default mode: ${help.safety.defaultMode}`)
+    for (const item of help.safety.destructive ?? []) lines.push(`  Destructive: ${item}`)
+    for (const item of help.safety.notes ?? []) lines.push(`  Note: ${item}`)
+  }
+
+  return lines.join("\n")
+}
+
+function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, host: CliHost): string {
+  const columns = terminalColumns(host)
+  const sections = [
+    renderRichPanel(
+      host,
+      `${help.title} / ${registration.bin}`,
+      [
+        rich(host, help.short, "bold"),
+        ...(help.description && help.description !== help.short ? ["", help.description] : []),
+      ],
+      { color: "blue", maxWidth: columns - 2, minWidth: Math.min(72, columns - 6) },
+    ),
+  ]
+
+  if (help.whenToUse?.length) {
+    sections.push(renderRichPanel(host, "When to use", help.whenToUse.map((item) => `- ${item}`), {
+      color: "cyan",
+      maxWidth: columns - 2,
+      minWidth: Math.min(72, columns - 6),
+    }))
+  }
+
+  if (help.workflows.length) {
+    sections.push(renderRichPanel(host, "Workflows", renderWorkflowLines(help), {
+      color: "magenta",
+      maxWidth: columns - 2,
+      minWidth: Math.min(72, columns - 6),
+    }))
+  }
+
+  if (help.commands.length) {
+    sections.push(renderRichPanel(host, "Commands", renderCommandLines(help, host), {
+      color: "green",
+      maxWidth: columns - 2,
+      minWidth: Math.min(72, columns - 6),
+    }))
+  }
+
+  if (help.fields?.length) {
+    sections.push(renderRichPanel(host, "Fields", help.fields.map((field) => {
+      const meta = [field.type, field.required ? "required" : undefined].filter(Boolean).join(", ")
+      return `${field.name}${meta ? ` (${meta})` : ""}: ${field.description}`
+    }), {
+      color: "yellow",
+      maxWidth: columns - 2,
+      minWidth: Math.min(72, columns - 6),
+    }))
+  }
+
+  if (help.safety) {
+    const lines = [
+      ...(help.safety.defaultMode ? [`Default mode: ${help.safety.defaultMode}`] : []),
+      ...(help.safety.destructive ?? []).map((item) => `Destructive: ${item}`),
+      ...(help.safety.notes ?? []).map((item) => `Note: ${item}`),
+    ]
+    if (lines.length) {
+      sections.push(renderRichPanel(host, "Safety", lines, {
+        color: "red",
+        maxWidth: columns - 2,
+        minWidth: Math.min(72, columns - 6),
+      }))
+    }
+  }
+
+  return sections.join("\n\n")
+}
+
+function renderWorkflowLines(help: NodeHelp): string[] {
+  return help.workflows.flatMap((workflow) => [
+    workflow.summary ? `${workflow.title} - ${workflow.summary}` : workflow.title,
+    ...(workflow.ui ?? []).map((step) => `  UI: ${step}`),
+    ...(workflow.terminal ?? []).map((step) => `  CLI: ${step}`),
+    ...(workflow.tips ?? []).map((tip) => `  Tip: ${tip}`),
+  ])
+}
+
+function renderCommandLines(help: NodeHelp, host: CliHost): string[] {
+  return help.commands.flatMap((command) => [
+    command.command ? `${command.title} - ${rich(host, command.command, "cyan")}` : command.title,
+    ...(command.description ? [`  ${command.description}`] : []),
+    ...command.examples.flatMap((example) => [
+      `  $ ${rich(host, example.command, "green")}`,
+      ...(example.description ? [`    ${example.description}`] : []),
+    ]),
+  ])
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

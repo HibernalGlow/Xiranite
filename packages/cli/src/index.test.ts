@@ -2,9 +2,12 @@ import { describe, expect, test } from "vitest"
 import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNodeId } from "./index"
 
 describe("@xiranite/cli registry", () => {
-  test("registers every migrated aestivus node", () => {
-    expect(NODE_CLI_REGISTRY).toHaveLength(25)
+  test("registers generated node CLIs including migrated utility nodes", () => {
+    expect(NODE_CLI_REGISTRY).toHaveLength(40)
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("cleanf")
+    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("envuconfig")
+    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("gifu")
+    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("smartzip")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("trename")
   })
 

@@ -13,6 +13,8 @@ interface NodePackage {
   id: string
   packageName: string
   hasPlatform: boolean
+  hasCli: boolean
+  hasHelp: boolean
   hasAppEntry: boolean
   def: NodeDefLiteral
 }
@@ -41,6 +43,10 @@ await writeIfChanged(
   join(repoRoot, "src", "components", "modules", "packageModules.generated.ts"),
   generatePackageModuleRegistry(nodes),
 )
+await writeIfChanged(
+  join(repoRoot, "packages", "cli", "src", "node-cli-registry.generated.ts"),
+  generateCliRegistry(nodes),
+)
 
 console.log(`Generated node registries for ${nodes.length} node package(s).`)
 
@@ -62,6 +68,8 @@ async function discoverNodePackages(): Promise<NodePackage[]> {
       id: entry.name,
       packageName: pkg.name,
       hasPlatform: Boolean(pkg.exports?.["./platform"]),
+      hasCli: Boolean(pkg.exports?.["./cli"]),
+      hasHelp: Boolean(pkg.exports?.["./help"]) && await fileExists(join(nodesRoot, entry.name, "src", "help.ts")),
       hasAppEntry: await hasCompleteAppEntry(entry.name),
       def,
     })
@@ -116,8 +124,12 @@ function generatePackageModuleRegistry(nodes: NodePackage[]): string {
       return `  ${objectKey(node.id)}: () => import(${stringLiteral(target)}) as Promise<{ default: ${entryType} }>,`
     })
     .join("\n")
+  const helpLoaders = nodes
+    .filter((node) => node.hasHelp)
+    .map((node) => `  ${objectKey(node.id)}: () => import(${stringLiteral(`${node.packageName}/help`)}) as Promise<{ help: NodeHelp }>,`)
+    .join("\n")
 
-  return `${header}import type { AppNodeEntry, NodeDef, NodeEntry } from "@xiranite/contract"
+  return `${header}import type { AppNodeEntry, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
 ${modules}
@@ -126,6 +138,29 @@ ${modules}
 export const packageModuleLoaders = {
 ${loaders}
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry }>>>
+
+export const nodeHelpLoaders = {
+${helpLoaders}
+} satisfies Partial<Record<string, () => Promise<{ help: NodeHelp }>>>
+`
+}
+
+function generateCliRegistry(nodes: NodePackage[]): string {
+  const entries = nodes
+    .filter((node) => node.hasCli)
+    .map((node) => `  {
+    id: ${stringLiteral(node.id)},
+    packageName: ${stringLiteral(node.packageName)},
+    bin: nodeCliName(${stringLiteral(node.id)}),
+    description: ${stringLiteral(node.def.description)},
+  },`)
+    .join("\n")
+
+  return `${header}import { nodeCliName } from "@xiranite/cli-runtime"
+
+export const GENERATED_NODE_CLI_REGISTRY = [
+${entries}
+]
 `
 }
 
