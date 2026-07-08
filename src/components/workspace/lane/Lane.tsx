@@ -23,6 +23,8 @@ import { KanbanColumn, KanbanColumnHandle } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 
 const RATIO_PRESETS = [0.5, 1, 1.5, 2, 3]
+const LANE_WIDTH_UNIT = 320
+const MIN_EXPANDED_LANE_WIDTH = 240
 const formatRatioInput = (ratio: number) => Number(ratio.toFixed(2)).toString()
 
 /** 泳道折叠/展开图标 — 从 Xlchemy LaneDragHandle.svelte 移植的 SVG。
@@ -75,9 +77,10 @@ export function Lane({ lane, components }: Props) {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane", laneId: lane.id })
   }, [lane.id, workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
+  const laneWidth = Math.max(MIN_EXPANDED_LANE_WIDTH, Math.round(lane.widthRatio * LANE_WIDTH_UNIT))
   const columnStyle = lane.collapsed
     ? { flex: "0 0 3rem" }
-    : { flex: `${lane.widthRatio} 1 0` }
+    : { flex: `0 0 ${laneWidth}px`, width: laneWidth }
 
   useEffect(() => {
     widthRatioRef.current = lane.widthRatio

@@ -19,14 +19,14 @@
 import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Columns3 } from "lucide-react"
-import type { UniqueIdentifier } from "@dnd-kit/core"
+import { MouseSensor, TouchSensor, useSensor, useSensors, type UniqueIdentifier } from "@dnd-kit/core"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
 import { Lane } from "./Lane"
-import { LaneCard } from "./LaneCard"
+import { getModule } from "@/components/modules/registry"
 import { cn } from "@/lib/utils"
 
 interface LaneCardItem {
@@ -46,6 +46,10 @@ export function LaneView() {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
+  const laneSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
+  )
 
   // 当前 workspace 的 lanes（隐藏的不渲染）
   const wsLanes = useMemo(
@@ -125,20 +129,22 @@ export function LaneView() {
   }
 
   return (
-    <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange}>
-      <div className="flex-1 ws-canvas-bg flex overflow-hidden" data-testid="lane-drop-target">
-        <KanbanBoard
-          className="min-w-0 flex-1 gap-0 overflow-x-auto overflow-y-hidden"
-          data-lane-board="true"
-        >
-          {wsLanes.map((lane) => (
-            <Lane
-              key={lane.id}
-              lane={lane}
-              components={kanbanValue[lane.id] ?? []}
-            />
-          ))}
-        </KanbanBoard>
+    <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange} sensors={laneSensors}>
+      <div className="flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
+        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+          <KanbanBoard
+            className="h-full w-max min-w-max gap-0 overflow-visible"
+            data-lane-board="true"
+          >
+            {wsLanes.map((lane) => (
+              <Lane
+                key={lane.id}
+                lane={lane}
+                components={kanbanValue[lane.id] ?? []}
+              />
+            ))}
+          </KanbanBoard>
+        </div>
 
         {orphanComponents.length > 0 && (
           <div className="xiranite-ui-copy flex w-72 flex-shrink-0 flex-col border-l border-border/40 bg-card/40">
@@ -177,17 +183,26 @@ export function LaneView() {
             const lane = wsLanes.find((item) => item.id === value)
             if (!lane) return null
             return (
-              <div className="h-[min(72vh,720px)] w-80 overflow-hidden rounded-md border border-border/50 bg-card shadow-2xl">
-                <Lane lane={lane} components={kanbanValue[lane.id] ?? []} />
+              <div className="xiranite-ui-copy h-[min(72vh,720px)] w-80 overflow-hidden rounded-md border border-border/50 bg-card shadow-2xl">
+                <div className="flex h-8 items-center border-b border-border/40 bg-muted/30 px-2 text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
+                  {typeof lane.label === "string" ? lane.label : value}
+                </div>
+                <div className="p-2 text-[10px] font-mono text-muted-foreground">
+                  {(kanbanValue[lane.id] ?? []).length} items
+                </div>
               </div>
             )
           }
 
           const component = laneComponents.find((item) => item.id === value)
           if (!component) return null
+          const mod = getModule(component.moduleId)
           return (
-            <div className="w-80 shadow-2xl">
-              <LaneCard compId={component.id} moduleId={component.moduleId} />
+            <div className="xiranite-ui-copy w-80 rounded-md border border-border/50 bg-card/95 p-3 text-card-foreground shadow-2xl">
+              <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
+                {mod?.name ?? component.moduleId}
+              </div>
+              <div className="mt-2 h-24 rounded-sm bg-muted/30" />
             </div>
           )
         }}
