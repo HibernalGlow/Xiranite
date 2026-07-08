@@ -220,6 +220,10 @@
   --badge-teal-subtle-foreground: oklch(52.08% 0.1251 182.93);
 }
 
+.theme-spatial {
+  color-scheme: light;
+}
+
 /* Spatial Studio dark — 当 ThemeProvider colorMode=dark/system-dark 时应用
    （.dark 加在 <html>）。endfield/wuling 自身就是深色，无需重复覆盖。 */
 :root.dark {
@@ -250,6 +254,7 @@
 
 /* ── ENDFIELD TACTICAL (dark slate + Endfield Green) ── */
 .theme-endfield {
+  color-scheme: dark;
   --background: oklch(0.13 0.025 216);
   --foreground: oklch(0.90 0.04 148);
   --card: oklch(0.17 0.025 216);
@@ -290,6 +295,7 @@
 
 /* ── WULING CITY (dark warm gold/amber — 明日方舟终末地 武陵城) ── */
 .theme-wuling {
+  color-scheme: dark;
   --background: oklch(0.12 0.03 55);
   --foreground: oklch(0.93 0.04 80);
   --card: oklch(0.16 0.04 55);

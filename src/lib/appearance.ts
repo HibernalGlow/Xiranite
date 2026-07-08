@@ -16,6 +16,12 @@ export const AESTIVUS_THEME_NAME_BY_PRESET: Record<AppTheme, string> = {
   wuling: "Wuling",
 }
 
+const THEME_ROOT_CLASSES: Record<AppTheme, string> = {
+  spatial: "theme-spatial",
+  endfield: "theme-endfield",
+  wuling: "theme-wuling",
+}
+
 export const FONT_PRESETS: FontPresetOption[] = [
   {
     key: "xiranite",
@@ -77,6 +83,15 @@ export function applyFontPreset(fontPreset: AppFontPreset): void {
   root.setAttribute("data-custom-font", "enabled")
   root.style.setProperty("--font-custom-sans", preset.sans)
   root.style.setProperty("--font-custom-mono", preset.mono)
+}
+
+export function applyThemePreset(theme: AppTheme): void {
+  if (typeof document === "undefined") return
+
+  const root = document.documentElement
+  root.dataset.appTheme = theme
+  root.classList.remove(...Object.values(THEME_ROOT_CLASSES))
+  root.classList.add(THEME_ROOT_CLASSES[theme])
 }
 
 export function mirrorAestivusThemeStorage(theme: AppTheme, mode: ThemeMode): void {

@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { applyFontPreset, mirrorAestivusThemeStorage, type ThemeMode } from "@/lib/appearance"
+import { applyFontPreset, applyThemePreset, mirrorAestivusThemeStorage, type ThemeMode } from "@/lib/appearance"
 import { useTheme } from "@/components/theme-provider"
 import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 
@@ -13,6 +13,10 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     applyFontPreset(appearance.fontPreset)
   }, [appearance.fontPreset])
+
+  useEffect(() => {
+    applyThemePreset(appearance.theme)
+  }, [appearance.theme])
 
   useEffect(() => {
     mirrorAestivusThemeStorage(appearance.theme, colorMode as ThemeMode)
