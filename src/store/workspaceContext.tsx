@@ -742,6 +742,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setFullscreen: store.setFullscreen,
     raiseComponent: store.raiseComponent,
     toggleCollapse: store.toggleCollapse,
+    duplicateComponent: store.duplicateComponent,
     setOverlay: store.setOverlay,
     setGrain: store.setGrain,
     setVignette: store.setVignette,

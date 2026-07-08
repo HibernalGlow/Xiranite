@@ -134,7 +134,11 @@ export function DockviewView() {
       const compId = props.params?.compId
       if (!moduleId || !compId) return null
       return (
-        <div className="h-full w-full">
+        <div
+          className="h-full w-full"
+          data-context-menu="dockview-panel"
+          data-component-id={compId}
+        >
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         </div>
       )

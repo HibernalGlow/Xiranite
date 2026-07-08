@@ -117,6 +117,7 @@ export function Lane({ lane, components }: Props) {
     return (
       <div
         ref={setNodeRef}
+        data-context-menu="lane"
         data-lane-id={lane.id}
         style={sortableStyle}
         className="xiranite-ui-copy w-12 flex-shrink-0 flex flex-col items-center gap-2 py-3 px-1 border-r border-border/40 bg-muted/20 hover:bg-muted/40 cursor-grab active:cursor-grabbing"
@@ -145,6 +146,7 @@ export function Lane({ lane, components }: Props) {
   return (
     <div
       ref={setNodeRef}
+      data-context-menu="lane"
       data-lane-id={lane.id}
       style={{ flex: lane.widthRatio, minWidth: 240, maxWidth: 720, ...sortableStyle }}
       className="xiranite-ui-copy relative flex flex-col h-full border-r border-border/40 bg-card/40 last:border-r-0 flex-shrink-0"

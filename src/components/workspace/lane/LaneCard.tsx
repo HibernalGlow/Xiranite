@@ -11,12 +11,13 @@
  *
  */
 import { useTranslation } from "react-i18next"
-import { GripVertical, X } from "lucide-react"
+import { X } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { useWorkspaceActions } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
 import { cardDndId } from "./dndIds"
 
 interface Props {
@@ -41,6 +42,31 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
     id: cardDndId(compId),
     data: { type: "card", cardId: compId, laneId },
   })
+  const moduleName = mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
+  const actions: NodeSurfaceChromeAction[] = [
+    {
+      key: "hide",
+      label: t("common:hideIn", { view: t("topbar:viewMode.lane") }),
+      icon: <X className="h-3 w-3" />,
+      danger: true,
+      onClick: (e) => {
+        e.stopPropagation()
+        workspaceActions.toggleComponentVisibility(compId, "lane")
+      },
+    },
+  ]
+  const dragHandle = (
+    <span
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      data-lane-card-drag-handle="true"
+      className="cursor-grab text-muted-foreground/55 active:cursor-grabbing"
+      title={t("common:dragToOtherLane")}
+    >
+      <DefaultNodeDragGrip />
+    </span>
+  )
 
   return (
     <div
@@ -52,35 +78,11 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
         transition,
       }}
       className={[
-        "rounded-md border bg-card overflow-hidden flex flex-col",
-        "border-border/60 shadow-sm",
+        "group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
         isDragging ? "opacity-50 ring-2 ring-primary/40" : "",
       ].join(" ")}
     >
-      <div className="xiranite-ui-copy flex items-center gap-1.5 h-7 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
-        <span
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          data-lane-card-drag-handle="true"
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          title={t("common:dragToOtherLane")}
-        >
-          <GripVertical className="h-3.5 w-3.5 rotate-90" />
-        </span>
-        <span className="text-[10px] font-mono font-semibold tracking-widest text-muted-foreground uppercase truncate flex-1">
-          {mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)}
-        </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            workspaceActions.toggleComponentVisibility(compId, "lane")
-          }}
-          className="grid h-4 w-4 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </div>
+      <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleName={moduleName} version={mod?.version} />
       <div className="flex-1 min-h-0 overflow-hidden">
         <ModuleRenderer moduleId={moduleId} compId={compId} />
       </div>

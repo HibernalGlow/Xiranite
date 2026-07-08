@@ -127,7 +127,7 @@ function moveComponentToLaneState(
       if (index < 0) order.push(componentId)
       else order.splice(insertAfter ? index + 1 : index, 0, componentId)
     }
-    return { ...lane, cardOrder: order, updatedAt: now }
+    return { ...lane, collapsed: false, cardOrder: order, updatedAt: now }
   })
 
   return { ...state, components, lanes }

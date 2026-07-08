@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent } from "react"
+import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
 import {
   HTMLContainer,
@@ -14,12 +14,21 @@ import {
 } from "tldraw"
 import "tldraw/tldraw.css"
 import { X } from "lucide-react"
+import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
 import { useTheme } from "@/components/theme-provider"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import type { ComponentInstance } from "@/types/workspace"
+// Patched zh-cn translation including the 4 keys missing from tldraw's official CDN
+// (action.copy-hovered-styles, action.frame-selection, page-menu.max-pages-reached,
+//  page-menu.resize). Served locally to silence the "missing messages" dev warning.
+import zhCnTranslationUrl from "@/assets/tldraw-zh-cn.json?url"
+
+// assetUrls must be memoized or defined outside of any React component (per tldraw docs).
+const tldrawAssetUrls = { translations: { "zh-cn": zhCnTranslationUrl } }
 
 function isFlowCanvasVisible(component: ComponentInstance) {
   return isComponentVisibleInView(component, "flow")
@@ -102,6 +111,7 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
 }
 
 function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
+  const editor = useEditor()
   const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
@@ -113,33 +123,69 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
     event.preventDefault()
     workspaceActions.setComponentVisibility(compId, "flow", false)
   }
+  const actions: NodeSurfaceChromeAction[] = [
+    {
+      key: "hide",
+      label: t("common:hideIn", { view: t("topbar:viewMode.flow") }),
+      icon: <X className="h-3 w-3" />,
+      danger: true,
+      onClick: handleClose,
+    },
+  ]
+  const handleResizeStart = (event: PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+    event.preventDefault()
+
+    const target = event.currentTarget
+    const pointerId = event.pointerId
+    const startX = event.clientX
+    const startY = event.clientY
+    const startW = w
+    const startH = h
+    const zoom = typeof editor.getZoomLevel === "function" ? editor.getZoomLevel() : 1
+
+    target.setPointerCapture(pointerId)
+
+    const onPointerMove = (moveEvent: globalThis.PointerEvent) => {
+      const nextW = Math.max(240, startW + (moveEvent.clientX - startX) / zoom)
+      const nextH = Math.max(160, startH + (moveEvent.clientY - startY) / zoom)
+      editor.updateShape({
+        id: shape.id,
+        type: "module",
+        props: {
+          ...shape.props,
+          w: nextW,
+          h: nextH,
+        },
+      })
+    }
+
+    const onPointerUp = () => {
+      target.releasePointerCapture(pointerId)
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerUp)
+    }
+
+    window.addEventListener("pointermove", onPointerMove)
+    window.addEventListener("pointerup", onPointerUp, { once: true })
+    window.addEventListener("pointercancel", onPointerUp, { once: true })
+  }
 
   return (
     <HTMLContainer
       data-component-id={compId}
-      className="relative flex flex-col overflow-hidden rounded-md border border-border bg-card shadow-[0_8px_24px_-8px_oklch(0_0_0/0.35)]"
+      data-context-menu="flow-node"
+      className="group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]"
       style={{ width: w, height: h }}
-      onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="xiranite-ui-copy flex h-8 flex-shrink-0 items-center gap-2 border-b border-border/60 bg-muted/30 px-2">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-        <span className="flex-1 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
-          {moduleName}
-        </span>
-        <button
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={handleClose}
-          className="grid h-5 w-5 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title={t("common:hideIn", { view: t("topbar:viewMode.flow") })}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </div>
+      <NodeSurfaceChrome actions={actions} moduleName={moduleName} version={mod?.version} />
       <div className="min-h-0 flex-1 overflow-hidden pointer-events-auto">
         {moduleId && compId && (
           <ModuleRenderer moduleId={moduleId} compId={compId} />
         )}
       </div>
+      <AppleResizeHandle interactive outside onPointerDown={handleResizeStart} />
     </HTMLContainer>
   )
 }
@@ -280,6 +326,7 @@ export function FlowCanvasView() {
     <Tldraw
       shapeUtils={customShapeUtils}
       colorScheme={theme}
+      assetUrls={tldrawAssetUrls}
       options={{ maxPages: 1 }}
       components={{ PageMenu: () => null, MainMenu: () => null }}
     >
