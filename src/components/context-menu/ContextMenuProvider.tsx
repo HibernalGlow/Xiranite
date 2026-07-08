@@ -322,7 +322,7 @@ function MenuController({
         side="bottom"
         sideOffset={0}
         alignOffset={0}
-        className="min-w-48"
+        className="z-[2000] min-w-48"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <MenuItems items={items} runItem={runItem} />
@@ -348,7 +348,7 @@ function ConfirmDialog({
   const destructive = cfg.destructive ?? item.destructive ?? false
   return (
     <AlertDialog open onOpenChange={(next) => { if (!next) onCancel() }}>
-      <AlertDialogContent>
+      <AlertDialogContent className="z-[2001]">
         <AlertDialogTitle>{cfg.title}</AlertDialogTitle>
         {cfg.description && <AlertDialogDescription>{cfg.description}</AlertDialogDescription>}
         <AlertDialogFooter>
@@ -413,7 +413,7 @@ function MenuItems({
                 {item.icon}
                 <span>{item.label}</span>
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="min-w-48">
+              <DropdownMenuSubContent className="z-[2000] min-w-48">
                 <MenuItems items={item.children ?? []} runItem={runItem} />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
