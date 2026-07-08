@@ -670,10 +670,10 @@
 }
 
 .grid-stack.xiranite-bento-grid > .grid-stack-item > .ui-resizable-se {
-  right: -12px !important;
-  bottom: -12px !important;
-  width: 34px !important;
-  height: 34px !important;
+  right: 6px !important;
+  bottom: 6px !important;
+  width: 36px !important;
+  height: 36px !important;
   cursor: nwse-resize !important;
   opacity: 0.92 !important;
   background: transparent !important;
@@ -692,7 +692,7 @@
   background-image: url("data:image/svg+xml,%3Csvg width='44' height='44' viewBox='0 0 44 44' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M9 34 C20.5 32 31.5 20.5 34 9' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M9 34 C20.5 32 31.5 20.5 34 9' stroke='black' stroke-opacity='0.18' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E");
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 34px 34px;
+  background-size: 36px 36px;
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.35));
 }
 

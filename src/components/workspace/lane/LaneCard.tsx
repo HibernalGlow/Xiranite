@@ -78,7 +78,7 @@ export function LaneCard({ compId, moduleId, laneId }: Props) {
         transition,
       }}
       className={[
-        "group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
+        "group relative flex h-[clamp(420px,56vh,620px)] min-h-[420px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
         isDragging ? "opacity-50 ring-2 ring-primary/40" : "",
       ].join(" ")}
     >
