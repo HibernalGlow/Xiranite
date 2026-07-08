@@ -33,4 +33,5 @@ public/.well-known/xiranite/backend.json
 *.sw?
 ref/*
 repacku-direct*/*
+.turbo/
 tmp/*

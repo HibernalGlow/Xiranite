@@ -18,6 +18,8 @@
     "build:nodes": "bun --filter './packages/nodes/*' build",
     "build:packages": "bun run generate:node-registries && bun run build:base-packages && bun run build:nodes && bun --filter @xiranite/runtime build && bun --filter @xiranite/backend build && bun --filter @xiranite/cli build",
     "build:packages:lazy": "bun scripts/build-packages-lazy.ts",
+    "build:packages:turbo": "turbo run build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
+    "test:packages:turbo": "turbo run test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "build:backend:js": "bun scripts/build-backend-js.ts",
     "generate:node-registries": "bun scripts/generate-node-registries.ts",
     "migrate:node-ui": "bun scripts/migrate-node-ui-to-app.ts",
@@ -121,6 +123,7 @@
     "happy-dom": "^20.10.6",
     "msw": "^2.14.6",
     "node-pty": "^1.1.0",
+    "turbo": "^2.10.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.1.10"

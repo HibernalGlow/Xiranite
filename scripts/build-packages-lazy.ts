@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url"
 import { spawn } from "node:child_process"
 
 const repoRoot = resolve(import.meta.dirname, "..")
+const verbose = process.argv.includes("--verbose")
 
 interface PackageEntry {
   name: string
@@ -80,8 +81,7 @@ async function needsBuild(pkgPath: string): Promise<boolean> {
   const tsconfigMtime = (await stat(join(fullPath, "tsconfig.json"))).mtimeMs
 
   const needs = srcMtime > distMtime || pkgJsonMtime > distMtime || tsconfigMtime > distMtime
-  // Debug: log details for packages that look stale
-  if (srcMtime > distMtime) {
+  if (verbose && srcMtime > distMtime) {
     console.log(`[debug] ${pkgPath} srcMtime(${new Date(srcMtime).toISOString()}) > distMtime(${new Date(distMtime).toISOString()})`)
   }
   return needs
