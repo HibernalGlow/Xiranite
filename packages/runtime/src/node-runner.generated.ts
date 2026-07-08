@@ -3,17 +3,47 @@
 import type { NodeSpec } from "./node-runner.js"
 
 export const generatedNodeSpecs: Record<string, NodeSpec> = {
+  audiov: {
+    loadCore: () => import("@xiranite/node-audiov/core"),
+    run: "runAudiov",
+    loadPlatform: () => import("@xiranite/node-audiov/platform"),
+    createRuntime: "createNodeAudiovRuntime",
+  },
   bandia: {
     loadCore: () => import("@xiranite/node-bandia/core"),
     run: "runBandia",
     loadPlatform: () => import("@xiranite/node-bandia/platform"),
     createRuntime: "createNodeBandiaRuntime",
   },
+  bitv: {
+    loadCore: () => import("@xiranite/node-bitv/core"),
+    run: "runBitv",
+    loadPlatform: () => import("@xiranite/node-bitv/platform"),
+    createRuntime: "createNodeBitvRuntime",
+  },
+  classf: {
+    loadCore: () => import("@xiranite/node-classf/core"),
+    run: "runClassf",
+    loadPlatform: () => import("@xiranite/node-classf/platform"),
+    createRuntime: "createNodeClassfRuntime",
+  },
+  classq: {
+    loadCore: () => import("@xiranite/node-classq/core"),
+    run: "runClassq",
+    loadPlatform: () => import("@xiranite/node-classq/platform"),
+    createRuntime: "createNodeClassqRuntime",
+  },
   cleanf: {
     loadCore: () => import("@xiranite/node-cleanf/core"),
     run: "runCleanf",
     loadPlatform: () => import("@xiranite/node-cleanf/platform"),
     createRuntime: "createNodeCleanfRuntime",
+  },
+  coveru: {
+    loadCore: () => import("@xiranite/node-coveru/core"),
+    run: "runCoveru",
+    loadPlatform: () => import("@xiranite/node-coveru/platform"),
+    createRuntime: "createNodeCoveruRuntime",
   },
   crashu: {
     loadCore: () => import("@xiranite/node-crashu/core"),
@@ -39,6 +69,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-enginev/platform"),
     createRuntime: "createNodeEngineVRuntime",
   },
+  envuconfig: {
+    loadCore: () => import("@xiranite/node-envuconfig/core"),
+    run: "runEnvuconfig",
+    loadPlatform: () => import("@xiranite/node-envuconfig/platform"),
+    createRuntime: "createNodeEnvuconfigRuntime",
+  },
   findz: {
     loadCore: () => import("@xiranite/node-findz/core"),
     run: "runFindz",
@@ -50,6 +86,18 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runFormatv",
     loadPlatform: () => import("@xiranite/node-formatv/platform"),
     createRuntime: "createNodeFormatvRuntime",
+  },
+  gifu: {
+    loadCore: () => import("@xiranite/node-gifu/core"),
+    run: "runGifu",
+    loadPlatform: () => import("@xiranite/node-gifu/platform"),
+    createRuntime: "createNodeGifuRuntime",
+  },
+  jellypot: {
+    loadCore: () => import("@xiranite/node-jellypot/core"),
+    run: "runJellypot",
+    loadPlatform: () => import("@xiranite/node-jellypot/platform"),
+    createRuntime: "createNodeJellypotRuntime",
   },
   kavvka: {
     loadCore: () => import("@xiranite/node-kavvka/core"),
@@ -104,6 +152,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-mvz/platform"),
     createRuntime: "createNodeMvzRuntime",
   },
+  nameu: {
+    loadCore: () => import("@xiranite/node-nameu/core"),
+    run: "runNameu",
+    loadPlatform: () => import("@xiranite/node-nameu/platform"),
+    createRuntime: "createNodeNameuRuntime",
+  },
   owithu: {
     loadCore: () => import("@xiranite/node-owithu/core"),
     run: "runOwithu",
@@ -140,11 +194,47 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-seriex/platform"),
     createRuntime: "createNodeSeriexRuntime",
   },
+  simiu: {
+    loadCore: () => import("@xiranite/node-simiu/core"),
+    run: "runSimiu",
+    loadPlatform: () => import("@xiranite/node-simiu/platform"),
+    createRuntime: "createNodeSimiuRuntime",
+  },
   sleept: {
     loadCore: () => import("@xiranite/node-sleept/core"),
     run: "runSleept",
     loadPlatform: () => import("@xiranite/node-sleept/platform"),
     createRuntime: "createNodeSleeptRuntime",
+  },
+  smartzip: {
+    loadCore: () => import("@xiranite/node-smartzip/core"),
+    run: "runSmartzip",
+    loadPlatform: () => import("@xiranite/node-smartzip/platform"),
+    createRuntime: "createNodeSmartzipRuntime",
+  },
+  snf: {
+    loadCore: () => import("@xiranite/node-snf/core"),
+    run: "runSnf",
+    loadPlatform: () => import("@xiranite/node-snf/platform"),
+    createRuntime: "createNodeSnfRuntime",
+  },
+  synct: {
+    loadCore: () => import("@xiranite/node-synct/core"),
+    run: "runSynct",
+    loadPlatform: () => import("@xiranite/node-synct/platform"),
+    createRuntime: "createNodeSynctRuntime",
+  },
+  timeu: {
+    loadCore: () => import("@xiranite/node-timeu/core"),
+    run: "runTimeu",
+    loadPlatform: () => import("@xiranite/node-timeu/platform"),
+    createRuntime: "createNodeTimeuRuntime",
+  },
+  transq: {
+    loadCore: () => import("@xiranite/node-transq/core"),
+    run: "runTransq",
+    loadPlatform: () => import("@xiranite/node-transq/platform"),
+    createRuntime: "createNodeTransqRuntime",
   },
   trename: {
     loadCore: () => import("@xiranite/node-trename/core"),

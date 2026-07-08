@@ -19,14 +19,22 @@
         "@wailsio/runtime": "latest",
         "@xiranite/api": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/node-audiov": "workspace:*",
         "@xiranite/node-bandia": "workspace:*",
+        "@xiranite/node-bitv": "workspace:*",
+        "@xiranite/node-classf": "workspace:*",
+        "@xiranite/node-classq": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
+        "@xiranite/node-coveru": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-enginev": "workspace:*",
+        "@xiranite/node-envuconfig": "workspace:*",
         "@xiranite/node-findz": "workspace:*",
         "@xiranite/node-formatv": "workspace:*",
+        "@xiranite/node-gifu": "workspace:*",
+        "@xiranite/node-jellypot": "workspace:*",
         "@xiranite/node-kavvka": "workspace:*",
         "@xiranite/node-lata": "workspace:*",
         "@xiranite/node-linedup": "workspace:*",
@@ -36,14 +44,22 @@
         "@xiranite/node-migratef": "workspace:*",
         "@xiranite/node-movea": "workspace:*",
         "@xiranite/node-mvz": "workspace:*",
+        "@xiranite/node-nameu": "workspace:*",
         "@xiranite/node-owithu": "workspace:*",
         "@xiranite/node-rawfilter": "workspace:*",
         "@xiranite/node-recycleu": "workspace:*",
         "@xiranite/node-repacku": "workspace:*",
         "@xiranite/node-scoolp": "workspace:*",
         "@xiranite/node-seriex": "workspace:*",
+        "@xiranite/node-simiu": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
+        "@xiranite/node-smartzip": "workspace:*",
+        "@xiranite/node-snf": "workspace:*",
+        "@xiranite/node-synct": "workspace:*",
+        "@xiranite/node-timeu": "workspace:*",
+        "@xiranite/node-transq": "workspace:*",
         "@xiranite/node-trename": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "chrono-node": "^2.9.0",
@@ -207,6 +223,22 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/nodes/audiov": {
+      "name": "@xiranite/node-audiov",
+      "version": "0.1.0",
+      "bin": {
+        "xaudiov": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nodes/bandia": {
       "name": "@xiranite/node-bandia",
       "version": "0.1.0",
@@ -223,6 +255,54 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/nodes/bitv": {
+      "name": "@xiranite/node-bitv",
+      "version": "0.1.0",
+      "bin": {
+        "xbitv": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/classf": {
+      "name": "@xiranite/node-classf",
+      "version": "0.1.0",
+      "bin": {
+        "xclassf": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/classq": {
+      "name": "@xiranite/node-classq",
+      "version": "0.1.0",
+      "bin": {
+        "xclassq": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nodes/cleanf": {
       "name": "@xiranite/node-cleanf",
       "version": "0.1.0",
@@ -236,6 +316,22 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "~5.9.3",
+      },
+    },
+    "packages/nodes/coveru": {
+      "name": "@xiranite/node-coveru",
+      "version": "0.1.0",
+      "bin": {
+        "xcoveru": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/crashu": {
@@ -302,6 +398,21 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/nodes/envuconfig": {
+      "name": "@xiranite/node-envuconfig",
+      "version": "0.1.0",
+      "bin": {
+        "xenvuconfig": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nodes/findz": {
       "name": "@xiranite/node-findz",
       "version": "0.1.0",
@@ -332,6 +443,36 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "~5.9.3",
+      },
+    },
+    "packages/nodes/gifu": {
+      "name": "@xiranite/node-gifu",
+      "version": "0.1.0",
+      "bin": {
+        "xgifu": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/jellypot": {
+      "name": "@xiranite/node-jellypot",
+      "version": "0.1.0",
+      "bin": {
+        "xjellypot": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/kavvka": {
@@ -474,6 +615,22 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/nodes/nameu": {
+      "name": "@xiranite/node-nameu",
+      "version": "0.1.0",
+      "bin": {
+        "xnameu": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nodes/owithu": {
       "name": "@xiranite/node-owithu",
       "version": "0.1.0",
@@ -570,6 +727,21 @@
         "typescript": "~5.9.3",
       },
     },
+    "packages/nodes/simiu": {
+      "name": "@xiranite/node-simiu",
+      "version": "0.1.0",
+      "bin": {
+        "xsimiu": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/nodes/sleept": {
       "name": "@xiranite/node-sleept",
       "version": "0.1.0",
@@ -583,6 +755,85 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "~5.9.3",
+      },
+    },
+    "packages/nodes/smartzip": {
+      "name": "@xiranite/node-smartzip",
+      "version": "0.1.0",
+      "bin": {
+        "xsmartzip": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/snf": {
+      "name": "@xiranite/node-snf",
+      "version": "0.1.0",
+      "bin": {
+        "xsnf": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/synct": {
+      "name": "@xiranite/node-synct",
+      "version": "0.1.0",
+      "bin": {
+        "xsynct": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/timeu": {
+      "name": "@xiranite/node-timeu",
+      "version": "0.1.0",
+      "bin": {
+        "xtimeu": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/transq": {
+      "name": "@xiranite/node-transq",
+      "version": "0.1.0",
+      "bin": {
+        "xtransq": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/packu-node-runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/trename": {
@@ -599,6 +850,18 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "~5.9.3",
+      },
+    },
+    "packages/packu-node-runtime": {
+      "name": "@xiranite/packu-node-runtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
       },
     },
     "packages/repository": {
@@ -1357,9 +1620,19 @@
 
     "@xiranite/contract": ["@xiranite/contract@workspace:packages/contract"],
 
+    "@xiranite/node-audiov": ["@xiranite/node-audiov@workspace:packages/nodes/audiov"],
+
     "@xiranite/node-bandia": ["@xiranite/node-bandia@workspace:packages/nodes/bandia"],
 
+    "@xiranite/node-bitv": ["@xiranite/node-bitv@workspace:packages/nodes/bitv"],
+
+    "@xiranite/node-classf": ["@xiranite/node-classf@workspace:packages/nodes/classf"],
+
+    "@xiranite/node-classq": ["@xiranite/node-classq@workspace:packages/nodes/classq"],
+
     "@xiranite/node-cleanf": ["@xiranite/node-cleanf@workspace:packages/nodes/cleanf"],
+
+    "@xiranite/node-coveru": ["@xiranite/node-coveru@workspace:packages/nodes/coveru"],
 
     "@xiranite/node-crashu": ["@xiranite/node-crashu@workspace:packages/nodes/crashu"],
 
@@ -1369,9 +1642,15 @@
 
     "@xiranite/node-enginev": ["@xiranite/node-enginev@workspace:packages/nodes/enginev"],
 
+    "@xiranite/node-envuconfig": ["@xiranite/node-envuconfig@workspace:packages/nodes/envuconfig"],
+
     "@xiranite/node-findz": ["@xiranite/node-findz@workspace:packages/nodes/findz"],
 
     "@xiranite/node-formatv": ["@xiranite/node-formatv@workspace:packages/nodes/formatv"],
+
+    "@xiranite/node-gifu": ["@xiranite/node-gifu@workspace:packages/nodes/gifu"],
+
+    "@xiranite/node-jellypot": ["@xiranite/node-jellypot@workspace:packages/nodes/jellypot"],
 
     "@xiranite/node-kavvka": ["@xiranite/node-kavvka@workspace:packages/nodes/kavvka"],
 
@@ -1391,6 +1670,8 @@
 
     "@xiranite/node-mvz": ["@xiranite/node-mvz@workspace:packages/nodes/mvz"],
 
+    "@xiranite/node-nameu": ["@xiranite/node-nameu@workspace:packages/nodes/nameu"],
+
     "@xiranite/node-owithu": ["@xiranite/node-owithu@workspace:packages/nodes/owithu"],
 
     "@xiranite/node-rawfilter": ["@xiranite/node-rawfilter@workspace:packages/nodes/rawfilter"],
@@ -1403,9 +1684,23 @@
 
     "@xiranite/node-seriex": ["@xiranite/node-seriex@workspace:packages/nodes/seriex"],
 
+    "@xiranite/node-simiu": ["@xiranite/node-simiu@workspace:packages/nodes/simiu"],
+
     "@xiranite/node-sleept": ["@xiranite/node-sleept@workspace:packages/nodes/sleept"],
 
+    "@xiranite/node-smartzip": ["@xiranite/node-smartzip@workspace:packages/nodes/smartzip"],
+
+    "@xiranite/node-snf": ["@xiranite/node-snf@workspace:packages/nodes/snf"],
+
+    "@xiranite/node-synct": ["@xiranite/node-synct@workspace:packages/nodes/synct"],
+
+    "@xiranite/node-timeu": ["@xiranite/node-timeu@workspace:packages/nodes/timeu"],
+
+    "@xiranite/node-transq": ["@xiranite/node-transq@workspace:packages/nodes/transq"],
+
     "@xiranite/node-trename": ["@xiranite/node-trename@workspace:packages/nodes/trename"],
+
+    "@xiranite/packu-node-runtime": ["@xiranite/packu-node-runtime@workspace:packages/packu-node-runtime"],
 
     "@xiranite/repository": ["@xiranite/repository@workspace:packages/repository"],
 
