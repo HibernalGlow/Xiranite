@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process"
-import { readFile, stat } from "node:fs/promises"
+import { appendFile, mkdir, readFile, stat } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import type { CommandResult, JellyPotCommandPlan, JellyPotRuntime } from "./core.js"
 
 export function createNodeJellyPotRuntime(): JellyPotRuntime {
   return {
     readText: (path) => readFile(path, "utf8"),
+    appendRecord,
     pathExists,
     runCommand,
     dirname,
@@ -32,4 +33,9 @@ async function runCommand(plan: JellyPotCommandPlan): Promise<CommandResult> {
     })
     if (plan.detached) child.unref()
   })
+}
+
+async function appendRecord(path: string, record: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8")
 }
