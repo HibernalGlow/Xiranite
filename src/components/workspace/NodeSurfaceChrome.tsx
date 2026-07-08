@@ -6,6 +6,7 @@ import {
   DynamicIsland,
   DynamicIslandProvider,
   useDynamicIslandSize,
+  type DynamicIslandTransition,
 } from "@/components/ui/dynamic-island"
 import { cn } from "@/lib/utils"
 import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
@@ -26,6 +27,10 @@ export interface ChromeAppearance {
   visible: boolean
   position: "left" | "right" | "island"
   style: "default" | "traffic-light"
+  islandScale: number
+  islandMotion: number
+  islandDelay: number
+  islandIdleOffset: number
 }
 
 /**
@@ -37,6 +42,10 @@ export function useChromeAppearance(): ChromeAppearance {
     visible: store.chromeVisible,
     position: store.chromePosition,
     style: store.chromeStyle,
+    islandScale: store.chromeIslandScale,
+    islandMotion: store.chromeIslandMotion,
+    islandDelay: store.chromeIslandDelay,
+    islandIdleOffset: store.chromeIslandIdleOffset,
   }))
 }
 
@@ -76,7 +85,7 @@ export function NodeSurfaceChrome({
   stateLabel?: string
   version?: string
 }) {
-  const { visible, position, style } = useChromeAppearance()
+  const { visible, position, style, islandScale, islandMotion, islandDelay, islandIdleOffset } = useChromeAppearance()
 
   if (!visible) return null
 
@@ -122,6 +131,10 @@ export function NodeSurfaceChrome({
       <DynamicIslandChrome
         actions={actions}
         dragHandle={dragHandle}
+        delay={islandDelay}
+        idleOffset={islandIdleOffset}
+        motionPercent={islandMotion}
+        scale={islandScale}
       />
     )
   }
@@ -178,20 +191,35 @@ export function NodeSurfaceChrome({
 
 function DynamicIslandChrome({
   actions,
+  delay,
   dragHandle,
+  idleOffset,
+  motionPercent,
+  scale,
 }: {
   actions: NodeSurfaceChromeAction[]
+  delay: number
   dragHandle?: ReactNode
+  idleOffset: number
+  motionPercent: number
+  scale: number
 }) {
   const islandId = useId()
   const hostRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [surfaceSize, setSurfaceSize] = useState({ width: 260, height: 160 })
+  const motionRatio = Math.max(0.1, motionPercent / 100)
   const buttonCount = actions.length + (dragHandle ? 1 : 0)
   const metrics = useMemo(
-    () => getIslandMetrics(surfaceSize.width, surfaceSize.height, buttonCount),
-    [buttonCount, surfaceSize.height, surfaceSize.width],
+    () => getIslandMetrics(surfaceSize.width, surfaceSize.height, buttonCount, scale),
+    [buttonCount, scale, surfaceSize.height, surfaceSize.width],
   )
+  const transition = useMemo<DynamicIslandTransition>(() => ({
+    type: "spring",
+    stiffness: Math.round(520 * motionRatio),
+    damping: Math.round(38 * Math.sqrt(motionRatio)),
+    mass: Number((0.48 / Math.sqrt(motionRatio)).toFixed(2)),
+  }), [motionRatio])
   const presets = useMemo(() => ({
     minimalLeading: {
       width: metrics.idleWidth,
@@ -236,6 +264,7 @@ function DynamicIslandChrome({
       <DynamicIslandProvider initialSize="minimalLeading" presets={presets}>
         <DynamicIsland
           id={`node-operation-island-${islandId}`}
+          transition={transition}
           className={cn(
             "text-foreground transition-[background-color,border-color,box-shadow,backdrop-filter] duration-200",
             expanded
@@ -248,6 +277,9 @@ function DynamicIslandChrome({
             contentScale={metrics.contentScale}
             dragHandle={dragHandle}
             expanded={expanded}
+            idleOffset={idleOffset}
+            motionRatio={motionRatio}
+            revealDelay={delay}
           />
         </DynamicIsland>
       </DynamicIslandProvider>
@@ -260,11 +292,17 @@ function DynamicIslandChromeContent({
   contentScale,
   dragHandle,
   expanded,
+  idleOffset,
+  motionRatio,
+  revealDelay,
 }: {
   actions: NodeSurfaceChromeAction[]
   contentScale: number
   dragHandle?: ReactNode
   expanded: boolean
+  idleOffset: number
+  motionRatio: number
+  revealDelay: number
 }) {
   const { setSize } = useDynamicIslandSize()
 
@@ -286,7 +324,7 @@ function DynamicIslandChromeContent({
               initial={{ opacity: 0, scale: contentScale * 0.96, y: 0, filter: "blur(1px)" }}
               animate={{ opacity: 1, scale: contentScale, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, scale: contentScale * 0.96, y: -1, filter: "blur(1px)" }}
-              transition={{ duration: 0.16, delay: 0.045, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.16 / motionRatio, delay: revealDelay / 1000, ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center justify-center gap-0.5"
               style={{ transformOrigin: "center" }}
             >
@@ -307,9 +345,9 @@ function DynamicIslandChromeContent({
             <motion.div
               key="island-idle"
               initial={{ opacity: 0, scale: 0.86, y: -1, filter: "blur(1.5px)" }}
-              animate={{ opacity: 1, scale: 1, y: -3, filter: "blur(0px)" }}
+              animate={{ opacity: 1, scale: 1, y: idleOffset, filter: "blur(0px)" }}
               exit={{ opacity: 0, scale: 0.82, y: -1, filter: "blur(1px)" }}
-              transition={{ duration: 0.14, delay: expanded ? 0 : 0.06, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.14 / motionRatio, delay: expanded ? 0 : Math.min(0.12, revealDelay / 1000), ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center justify-center gap-0.5"
             >
               <span className="h-1 w-3 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
@@ -322,15 +360,16 @@ function DynamicIslandChromeContent({
   )
 }
 
-function getIslandMetrics(surfaceWidth: number, surfaceHeight: number, buttonCount: number) {
+function getIslandMetrics(surfaceWidth: number, surfaceHeight: number, buttonCount: number, customScale: number) {
   const availableWidth = Math.max(34, surfaceWidth - 16)
   const availableHeight = Math.max(24, surfaceHeight - 12)
-  const desiredContentWidth = Math.min(208, Math.max(128, buttonCount * 28 + 28))
-  const scale = Math.max(0.58, Math.min(0.94, availableWidth / desiredContentWidth, availableHeight / 38))
+  const customScaleRatio = customScale / 100
+  const desiredContentWidth = Math.min(230, Math.max(118, buttonCount * 28 + 28) * customScaleRatio)
+  const scale = Math.max(0.52, Math.min(1, availableWidth / desiredContentWidth, availableHeight / (38 * customScaleRatio)))
   const compactWidth = Math.round(Math.max(48, Math.min(desiredContentWidth * scale, availableWidth)))
-  const compactHeight = Math.round(Math.max(28, Math.min(38 * scale, availableHeight)))
-  const idleWidth = Math.round(Math.max(30, Math.min(44 * scale, availableWidth)))
-  const idleHeight = Math.round(Math.max(22, Math.min(34 * scale, availableHeight)))
+  const compactHeight = Math.round(Math.max(26, Math.min(38 * customScaleRatio * scale, availableHeight)))
+  const idleWidth = Math.round(Math.max(26, Math.min(44 * customScaleRatio * scale, availableWidth)))
+  const idleHeight = Math.round(Math.max(20, Math.min(34 * customScaleRatio * scale, availableHeight)))
 
   return {
     compactWidth,

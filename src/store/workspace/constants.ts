@@ -42,4 +42,8 @@ export const INITIAL_STATE: WSState = {
   chromeVisible: true,
   chromePosition: "right",
   chromeStyle: "default",
+  chromeIslandScale: 90,
+  chromeIslandMotion: 110,
+  chromeIslandDelay: 45,
+  chromeIslandIdleOffset: -3,
 }

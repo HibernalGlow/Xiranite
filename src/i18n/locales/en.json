@@ -212,7 +212,13 @@
       "styleDefault": "Default",
       "styleDefaultDesc": "Pill-shaped buttons, appears on hover",
       "styleTrafficLight": "Traffic Light",
-      "styleTrafficLightDesc": "macOS-style colored dots, always visible, icons on hover"
+      "styleTrafficLightDesc": "macOS-style colored dots, always visible, icons on hover",
+      "islandCustom": "Island Customization",
+      "islandCustomDesc": "Tune the centered operation bar size, motion, and idle mark position.",
+      "islandScale": "Overall Size",
+      "islandMotion": "Motion Speed",
+      "islandDelay": "Button Delay",
+      "islandIdleOffset": "Idle Offset"
     },
     "texture": {
       "title": "Texture Canvas",

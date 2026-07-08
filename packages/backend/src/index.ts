@@ -141,8 +141,9 @@ async function serveLocalFile(request: Request, url: URL): Promise<Response> {
   const info = await stat(resolved).catch(() => null)
   if (!info?.isFile()) return new Response("Local file was not found.", { status: 404 })
 
-  const etag = `"${info.size}-${Math.trunc(info.mtimeMs)}"`
-  const size = info.size
+  const size = toSafeNumber(info.size)
+  const mtimeMs = toSafeNumber(info.mtimeMs)
+  const etag = `"${size}-${Math.trunc(mtimeMs)}"`
   const headers = new Headers({
     "content-type": mimeTypeForPath(resolved),
     "cache-control": "private, max-age=60",
@@ -253,10 +254,16 @@ function toLocalFileEntry(filePath: string, info: Awaited<ReturnType<typeof stat
     name: path.basename(filePath),
     path: filePath,
     isDirectory: false,
-    sizeBytes: info.size,
-    lastModified: info.mtimeMs,
+    sizeBytes: toSafeNumber(info.size),
+    lastModified: toSafeNumber(info.mtimeMs),
     type: mimeTypeForPath(filePath),
   }
+}
+
+function toSafeNumber(value: number | bigint): number {
+  const numberValue = typeof value === "bigint" ? Number(value) : value
+  if (!Number.isFinite(numberValue)) return 0
+  return Math.min(numberValue, Number.MAX_SAFE_INTEGER)
 }
 
 function parseRangeHeader(rangeHeader: string | null, size: number): { start: number; end: number } | "invalid" | null {

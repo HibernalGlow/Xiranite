@@ -12,6 +12,9 @@ declare global {
 
 const PKG = "main.XiraniteService"
 const DEV_BACKEND_MANIFEST_URL = "/.well-known/xiranite/backend.json"
+const CONFIG_HYDRATE_TIMEOUT_MS = 1_500
+
+let hydrateWarningLogged = false
 
 export function resolveLocalBackendConfig(): LocalBackendConfig {
   const injected = typeof window !== "undefined" ? window.__XIRANITE_BACKEND__ : undefined
@@ -28,6 +31,9 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
 export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined") return undefined
 
+  const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
+  if (existingConfig) return existingConfig
+
   const manifestConfig = await loadDevBackendManifest()
   if (manifestConfig) {
     window.__XIRANITE_BACKEND__ = manifestConfig
@@ -42,11 +48,17 @@ export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackend
 
   try {
     const runtime = await import("@wailsio/runtime")
-    const config = await runtime.Call.ByName(`${PKG}.LocalBackendConfig`) as LocalBackendConfig | null
-    if (!config?.baseUrl) return undefined
-    window.__XIRANITE_BACKEND__ = config
-    return config
-  } catch {
+    const config = await withTimeout(
+      runtime.Call.ByName(`${PKG}.LocalBackendConfig`) as Promise<LocalBackendConfig | null>,
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading Wails local backend config after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
+    const normalizedConfig = normalizeLocalBackendConfig(config)
+    if (!normalizedConfig) return undefined
+    window.__XIRANITE_BACKEND__ = normalizedConfig
+    return normalizedConfig
+  } catch (error) {
+    warnHydrateFailure(error)
     return undefined
   }
 }
@@ -55,19 +67,47 @@ async function loadDevBackendManifest(): Promise<LocalBackendConfig | undefined>
   if (!import.meta.env.DEV) return undefined
 
   try {
-    const response = await fetch(`${DEV_BACKEND_MANIFEST_URL}?t=${Date.now()}`, {
-      cache: "no-store",
-    })
+    const response = await withTimeout(
+      fetch(`${DEV_BACKEND_MANIFEST_URL}?t=${Date.now()}`, { cache: "no-store" }),
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
     if (!response.ok) return undefined
     const config = await response.json() as Partial<LocalBackendConfig>
-    if (!config.baseUrl) return undefined
-    return {
-      baseUrl: config.baseUrl,
-      token: config.token,
-    }
-  } catch {
+    return normalizeLocalBackendConfig(config)
+  } catch (error) {
+    warnHydrateFailure(error)
     return undefined
   }
+}
+
+function normalizeLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {
+  if (!config?.baseUrl) return undefined
+  return {
+    baseUrl: config.baseUrl,
+    token: config.token,
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+  }
+}
+
+function warnHydrateFailure(error: unknown): void {
+  if (hydrateWarningLogged) return
+  hydrateWarningLogged = true
+  console.warn("[backend] local backend config hydrate failed:", error)
 }
 
 export function localBackendFileUrl(path: string): string {

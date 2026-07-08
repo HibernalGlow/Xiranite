@@ -31,5 +31,9 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setChromeVisible: (visible) => set({ chromeVisible: visible }, false, "SET_CHROME_VISIBLE"),
     setChromePosition: (position) => set({ chromePosition: position }, false, "SET_CHROME_POSITION"),
     setChromeStyle: (style) => set({ chromeStyle: style }, false, "SET_CHROME_STYLE"),
+    setChromeIslandScale: (chromeIslandScale) => set({ chromeIslandScale }, false, "SET_CHROME_ISLAND_SCALE"),
+    setChromeIslandMotion: (chromeIslandMotion) => set({ chromeIslandMotion }, false, "SET_CHROME_ISLAND_MOTION"),
+    setChromeIslandDelay: (chromeIslandDelay) => set({ chromeIslandDelay }, false, "SET_CHROME_ISLAND_DELAY"),
+    setChromeIslandIdleOffset: (chromeIslandIdleOffset) => set({ chromeIslandIdleOffset }, false, "SET_CHROME_ISLAND_IDLE_OFFSET"),
   }
 }

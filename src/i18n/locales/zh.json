@@ -212,7 +212,13 @@
       "styleDefault": "默认",
       "styleDefaultDesc": "胶囊式按钮，悬停时浮现",
       "styleTrafficLight": "红绿灯",
-      "styleTrafficLightDesc": "macOS 风格彩色圆点，常驻可见，悬停显示图标"
+      "styleTrafficLightDesc": "macOS 风格彩色圆点，常驻可见，悬停显示图标",
+      "islandCustom": "灵动岛自定义",
+      "islandCustomDesc": "调整中间操作栏的尺寸、动画和收起标记位置。",
+      "islandScale": "整体尺寸",
+      "islandMotion": "动画速度",
+      "islandDelay": "按钮延迟",
+      "islandIdleOffset": "横条上移"
     },
     "texture": {
       "title": "纹理画布",

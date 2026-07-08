@@ -15,7 +15,9 @@ const queryClient = new QueryClient({
   },
 })
 
-await hydrateLocalBackendConfig()
+void hydrateLocalBackendConfig().catch((error) => {
+  console.error("[backend] initial config hydrate failed:", error)
+})
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

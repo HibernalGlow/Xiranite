@@ -46,6 +46,10 @@ export interface WSState {
   chromeVisible: boolean
   chromePosition: "left" | "right" | "island"
   chromeStyle: "default" | "traffic-light"
+  chromeIslandScale: number
+  chromeIslandMotion: number
+  chromeIslandDelay: number
+  chromeIslandIdleOffset: number
 }
 
 export type ComponentPatch = {
@@ -80,6 +84,10 @@ export interface WorkspaceUiActions {
   setChromeVisible(visible: boolean): void
   setChromePosition(position: "left" | "right" | "island"): void
   setChromeStyle(style: "default" | "traffic-light"): void
+  setChromeIslandScale(scale: number): void
+  setChromeIslandMotion(motion: number): void
+  setChromeIslandDelay(delay: number): void
+  setChromeIslandIdleOffset(offset: number): void
 }
 
 export interface WorkspaceListActions {
@@ -166,6 +174,10 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeVisible"
   | "chromePosition"
   | "chromeStyle"
+  | "chromeIslandScale"
+  | "chromeIslandMotion"
+  | "chromeIslandDelay"
+  | "chromeIslandIdleOffset"
 >
 
 export type SetWorkspaceStore = (

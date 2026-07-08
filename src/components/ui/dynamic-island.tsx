@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from "react"
-import { motion, useWillChange } from "motion/react"
+import { motion, useWillChange, type Transition } from "motion/react"
 import { cn } from "@/lib/utils"
 
 export type SizePresets = "minimalLeading" | "compact"
+export type DynamicIslandTransition = Transition
 
 type Preset = {
   width: number
@@ -85,10 +86,12 @@ export function DynamicIsland({
   children,
   className,
   id,
+  transition,
 }: {
   children: ReactNode
   className?: string
   id: string
+  transition?: DynamicIslandTransition
 }) {
   const willChange = useWillChange()
   const { presets, state } = useDynamicIslandSize()
@@ -104,7 +107,7 @@ export function DynamicIsland({
         height,
         borderRadius: currentSize.borderRadius,
       }}
-      transition={{ type: "spring", stiffness: 520, damping: 38, mass: 0.48 }}
+      transition={transition ?? { type: "spring", stiffness: 520, damping: 38, mass: 0.48 }}
       style={{ willChange }}
       className={cn("mx-auto flex items-center justify-center overflow-hidden", className)}
     >

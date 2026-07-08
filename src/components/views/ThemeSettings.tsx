@@ -216,6 +216,10 @@ export function ThemeSettings() {
     chromeVisible: workspace.chromeVisible,
     chromePosition: workspace.chromePosition,
     chromeStyle: workspace.chromeStyle,
+    chromeIslandScale: workspace.chromeIslandScale,
+    chromeIslandMotion: workspace.chromeIslandMotion,
+    chromeIslandDelay: workspace.chromeIslandDelay,
+    chromeIslandIdleOffset: workspace.chromeIslandIdleOffset,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -812,6 +816,75 @@ export function ThemeSettings() {
                   })}
                 </div>
               </div>
+
+              {state.chromePosition === "island" && (
+                <>
+                  <Separator className="opacity-50" />
+
+                  <div className={cn("space-y-4 transition-opacity", !state.chromeVisible && "pointer-events-none opacity-40")}>
+                    <div>
+                      <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:chrome.islandCustom")}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{t("settings:chrome.islandCustomDesc")}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground font-mono">{t("settings:chrome.islandScale")}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{state.chromeIslandScale}%</span>
+                      </div>
+                      <Slider
+                        value={[state.chromeIslandScale]}
+                        onValueChange={([v]) => workspaceActions.setChromeIslandScale(v)}
+                        min={70}
+                        max={120}
+                        step={1}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground font-mono">{t("settings:chrome.islandMotion")}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{state.chromeIslandMotion}%</span>
+                      </div>
+                      <Slider
+                        value={[state.chromeIslandMotion]}
+                        onValueChange={([v]) => workspaceActions.setChromeIslandMotion(v)}
+                        min={70}
+                        max={150}
+                        step={1}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground font-mono">{t("settings:chrome.islandDelay")}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{state.chromeIslandDelay}ms</span>
+                      </div>
+                      <Slider
+                        value={[state.chromeIslandDelay]}
+                        onValueChange={([v]) => workspaceActions.setChromeIslandDelay(v)}
+                        min={0}
+                        max={120}
+                        step={5}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground font-mono">{t("settings:chrome.islandIdleOffset")}</span>
+                        <span className="text-xs font-mono text-muted-foreground">{state.chromeIslandIdleOffset}px</span>
+                      </div>
+                      <Slider
+                        value={[state.chromeIslandIdleOffset]}
+                        onValueChange={([v]) => workspaceActions.setChromeIslandIdleOffset(v)}
+                        min={-10}
+                        max={4}
+                        step={1}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Background settings card */}

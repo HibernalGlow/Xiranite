@@ -52,6 +52,10 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     chromeVisible: state.chromeVisible,
     chromePosition: state.chromePosition,
     chromeStyle: state.chromeStyle,
+    chromeIslandScale: state.chromeIslandScale,
+    chromeIslandMotion: state.chromeIslandMotion,
+    chromeIslandDelay: state.chromeIslandDelay,
+    chromeIslandIdleOffset: state.chromeIslandIdleOffset,
   }
 }
 
@@ -722,6 +726,10 @@ function selectWorkspaceState(store: WSStore): WSState {
     chromeVisible: store.chromeVisible,
     chromePosition: store.chromePosition,
     chromeStyle: store.chromeStyle,
+    chromeIslandScale: store.chromeIslandScale,
+    chromeIslandMotion: store.chromeIslandMotion,
+    chromeIslandDelay: store.chromeIslandDelay,
+    chromeIslandIdleOffset: store.chromeIslandIdleOffset,
   }
 }
 
@@ -778,6 +786,10 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setChromeVisible: store.setChromeVisible,
     setChromePosition: store.setChromePosition,
     setChromeStyle: store.setChromeStyle,
+    setChromeIslandScale: store.setChromeIslandScale,
+    setChromeIslandMotion: store.setChromeIslandMotion,
+    setChromeIslandDelay: store.setChromeIslandDelay,
+    setChromeIslandIdleOffset: store.setChromeIslandIdleOffset,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,
