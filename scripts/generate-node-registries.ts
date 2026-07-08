@@ -72,7 +72,7 @@ async function discoverNodePackages(): Promise<NodePackage[]> {
       id: entry.name,
       packageName: pkg.name,
       hasPlatform: Boolean(pkg.exports?.["./platform"]),
-      hasAppEntry: await fileExists(join(repoRoot, "src", "nodes", entry.name, "entry.ts")),
+      hasAppEntry: await hasCompleteAppEntry(entry.name),
       def,
     })
   }
@@ -218,6 +218,11 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function hasCompleteAppEntry(nodeId: string): Promise<boolean> {
+  return await fileExists(join(repoRoot, "src", "nodes", nodeId, "entry.ts"))
+    && await fileExists(join(repoRoot, "src", "nodes", nodeId, "Component.tsx"))
 }
 
 function pascalCase(value: string): string {
