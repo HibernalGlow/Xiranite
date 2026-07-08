@@ -16,12 +16,14 @@
  * - "+ ADD LANE" 按钮：dispatch ADD_LANE
  * - 关闭 card：dispatch TOGGLE_COMPONENT_VISIBILITY(lane) — 仅 lane 模式下隐藏
  */
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Plus, Columns3 } from "lucide-react"
 import { MouseSensor, TouchSensor, useSensor, useSensors, type UniqueIdentifier } from "@dnd-kit/core"
+import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { translateLabel } from "@/lib/i18nLabel"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
@@ -42,6 +44,8 @@ export function LaneView() {
   }))
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
+  const laneScrollRef = useRef<HTMLDivElement | null>(null)
+  const [activeLaneId, setActiveLaneId] = useState<string | null>(null)
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
@@ -99,6 +103,60 @@ export function LaneView() {
     workspaceActions.setLaneBoardLayout(activeWorkspaceId, laneOrder, cardOrderByLane)
   }, [activeWorkspaceId, workspaceActions, wsLanes])
 
+  const updateActiveLane = useCallback(() => {
+    const scroller = laneScrollRef.current
+    if (!scroller) return
+
+    const laneElements = Array.from(scroller.querySelectorAll<HTMLElement>("[data-lane-id]"))
+      .filter((element) => element.closest("[data-lane-board='true']"))
+    if (laneElements.length === 0) {
+      setActiveLaneId(null)
+      return
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect()
+    const viewportCenter = scrollerRect.left + scrollerRect.width / 2
+    const activeElement = laneElements.reduce((best, element) => {
+      const rect = element.getBoundingClientRect()
+      const distance = Math.abs(rect.left + rect.width / 2 - viewportCenter)
+      return distance < best.distance ? { element, distance } : best
+    }, { element: laneElements[0], distance: Number.POSITIVE_INFINITY }).element
+
+    setActiveLaneId(activeElement.dataset.laneId ?? null)
+  }, [])
+
+  useEffect(() => {
+    const scroller = laneScrollRef.current
+    if (!scroller) return
+
+    updateActiveLane()
+    scroller.addEventListener("scroll", updateActiveLane, { passive: true })
+    const observer = new ResizeObserver(updateActiveLane)
+    observer.observe(scroller)
+    return () => {
+      scroller.removeEventListener("scroll", updateActiveLane)
+      observer.disconnect()
+    }
+  }, [updateActiveLane, wsLanes.length])
+
+  const scrollToLane = useCallback((laneId: string) => {
+    const scroller = laneScrollRef.current
+    if (!scroller) return
+
+    const laneElement = Array.from(scroller.querySelectorAll<HTMLElement>("[data-lane-id]"))
+      .find((element) => element.dataset.laneId === laneId && element.closest("[data-lane-board='true']"))
+    if (!laneElement) return
+
+    const scrollerRect = scroller.getBoundingClientRect()
+    const laneRect = laneElement.getBoundingClientRect()
+    scroller.scrollTo({
+      left: scroller.scrollLeft + laneRect.left - scrollerRect.left - (scroller.clientWidth - laneRect.width) / 2,
+      behavior: "smooth",
+    })
+    setActiveLaneId(laneId)
+    window.setTimeout(() => setActiveLaneId(laneId), 360)
+  }, [])
+
   // 没有任何 lane：显示空态 + 创建默认 lane
   if (wsLanes.length === 0) {
     return (
@@ -130,8 +188,8 @@ export function LaneView() {
 
   return (
     <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange} sensors={laneSensors}>
-      <div className="flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
-        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+      <div className="relative flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
+        <div ref={laneScrollRef} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <KanbanBoard
             className="h-full w-max min-w-max gap-0 overflow-visible"
             data-lane-board="true"
@@ -176,6 +234,12 @@ export function LaneView() {
             <Plus className="h-4 w-4" />
           </button>
         </div>
+        <LaneDock
+          lanes={wsLanes}
+          activeLaneId={activeLaneId ?? wsLanes[0]?.id ?? null}
+          cardsByLane={kanbanValue}
+          onSelect={scrollToLane}
+        />
       </div>
       <KanbanOverlay className="z-[1000]">
         {({ value, variant }) => {
@@ -215,6 +279,53 @@ function ModuleDropHint({ label }: { label: string }) {
   return (
     <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
+    </div>
+  )
+}
+
+function LaneDock({
+  lanes,
+  activeLaneId,
+  cardsByLane,
+  onSelect,
+}: {
+  lanes: LaneType[]
+  activeLaneId: string | null
+  cardsByLane: Record<UniqueIdentifier, LaneCardItem[]>
+  onSelect: (laneId: string) => void
+}) {
+  const { t } = useTranslation()
+  if (lanes.length <= 1) return null
+
+  const activeIndex = Math.max(0, lanes.findIndex((lane) => lane.id === activeLaneId))
+
+  return (
+    <div className="xiranite-ui-copy pointer-events-none absolute bottom-4 right-4 z-40 flex max-w-[min(520px,calc(100%-2rem))] items-center gap-2 rounded-full border border-border/45 bg-card/88 px-2.5 py-2 shadow-[0_16px_48px_-28px_oklch(0_0_0/0.5)] backdrop-blur-md">
+      <span className="pointer-events-none min-w-8 text-center text-[10px] font-mono text-muted-foreground">
+        {activeIndex + 1}/{lanes.length}
+      </span>
+      <div className="pointer-events-auto flex max-w-[min(420px,calc(100vw-8rem))] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {lanes.map((lane, index) => {
+          const active = lane.id === activeLaneId
+          const label = translateLabel(lane.label, t)
+          const cardCount = cardsByLane[lane.id]?.length ?? 0
+          return (
+            <button
+              key={lane.id}
+              type="button"
+              aria-label={`${label} (${index + 1}/${lanes.length}, ${cardCount})`}
+              title={`${label} - ${cardCount}`}
+              onClick={() => onSelect(lane.id)}
+              className={cn(
+                "h-2.5 flex-shrink-0 rounded-full border transition-[width,background-color,border-color,opacity] hover:opacity-100",
+                active
+                  ? "w-8 border-primary/55 bg-primary"
+                  : "w-2.5 border-border/60 bg-muted-foreground/35 opacity-70 hover:border-primary/45 hover:bg-primary/45",
+              )}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }

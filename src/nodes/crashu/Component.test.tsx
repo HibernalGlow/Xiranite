@@ -88,6 +88,17 @@ describe("app-owned crashu Component", () => {
     expect(screen.queryByTestId("crashu-compact-view")).toBeNull()
   })
 
+  test("opens advanced options from the compact surface", async () => {
+    setSurface("compact")
+    render(<Component compId="comp-crashu" host={createHost({ sourcePathsText: "D:/source" })} />)
+    const user = userEvent.setup()
+
+    expect(screen.queryByRole("spinbutton")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "crashu advanced options" }))
+
+    expect(screen.getByRole("spinbutton")).toBeTruthy()
+  })
+
   test("pastes source paths from the clipboard", async () => {
     setSurface("compact")
     const host = createHost({})

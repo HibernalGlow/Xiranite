@@ -204,12 +204,13 @@ export function AdvancedOptionsPopover(props: {
   disabled?: boolean
   onPatch: (patch: Partial<CrashuCardState>) => void
 }) {
+  const label = tNode("crashu", "aria.advancedOptions", "crashu advanced options")
   return (
     <Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label={tNode("crashu", "aria.advancedOptions", "crashu advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={label} className="xiranite-no-drag" disabled={props.disabled} size="icon-sm" variant="outline" onPointerDown={(event) => event.stopPropagation()}>
               <ShieldAlert />
               <span className="sr-only">高级选项</span>
             </Button>
@@ -270,12 +271,13 @@ export function ConfigDefaultsPopover(props: {
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
+  const label = tNode("crashu", "aria.defaults", "crashu defaults")
   return (
     <Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label={tNode("crashu", "aria.defaults", "crashu defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={label} className="xiranite-no-drag" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"} onPointerDown={(event) => event.stopPropagation()}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>
