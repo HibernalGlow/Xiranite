@@ -259,7 +259,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
           <ModuleRenderer moduleId={component.moduleId} compId={component.id} />
         </div>
       )}
-      <AppleResizeHandle />
+      <AppleResizeHandle className="bottom-0.5 right-0.5 size-10" />
     </section>
   )
 }
