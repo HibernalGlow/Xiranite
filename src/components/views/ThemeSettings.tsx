@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown, PanelRight, ToggleLeft, Circle } from "lucide-react"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown, PanelRight, ToggleLeft, Circle, Droplets } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
@@ -212,6 +212,10 @@ export function ThemeSettings() {
     bgOpacity: workspace.bgOpacity,
     bgBlur: workspace.bgBlur,
     bgCoverTopBar: workspace.bgCoverTopBar,
+    liquidGlassEnabled: workspace.liquidGlassEnabled,
+    liquidGlassOpacity: workspace.liquidGlassOpacity,
+    liquidGlassBlur: workspace.liquidGlassBlur,
+    liquidGlassDisplacement: workspace.liquidGlassDisplacement,
     grainEnabled: workspace.grainEnabled,
     chromeVisible: workspace.chromeVisible,
     chromePosition: workspace.chromePosition,
@@ -390,6 +394,66 @@ export function ThemeSettings() {
                     </button>
                   )
                 })}
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-sm p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:liquidGlass.title")}</p>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{t("settings:liquidGlass.description")}</p>
+                </div>
+                <Switch
+                  checked={state.liquidGlassEnabled}
+                  onCheckedChange={v => workspaceActions.setLiquidGlassEnabled(v)}
+                />
+              </div>
+
+              <div className={cn("space-y-4 transition-opacity", !state.liquidGlassEnabled && "opacity-45")}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground font-mono">{t("settings:liquidGlass.opacity")}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{state.liquidGlassOpacity}%</span>
+                  </div>
+                  <Slider
+                    value={[state.liquidGlassOpacity]}
+                    onValueChange={([v]) => workspaceActions.setLiquidGlassOpacity(v)}
+                    min={0}
+                    max={72}
+                    step={1}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground font-mono">{t("settings:liquidGlass.blur")}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{state.liquidGlassBlur}px</span>
+                  </div>
+                  <Slider
+                    value={[state.liquidGlassBlur]}
+                    onValueChange={([v]) => workspaceActions.setLiquidGlassBlur(v)}
+                    min={0}
+                    max={12}
+                    step={1}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground font-mono">{t("settings:liquidGlass.displacement")}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{state.liquidGlassDisplacement}</span>
+                  </div>
+                  <Slider
+                    value={[state.liquidGlassDisplacement]}
+                    onValueChange={([v]) => workspaceActions.setLiquidGlassDisplacement(v)}
+                    min={30}
+                    max={180}
+                    step={1}
+                  />
+                </div>
               </div>
             </div>
 
@@ -737,9 +801,10 @@ export function ThemeSettings() {
               <div className={cn("space-y-2 transition-opacity", !state.chromeVisible && "pointer-events-none opacity-40")}>
                 <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:chrome.position")}</p>
                 <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:chrome.positionDesc")}</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {([
                     { key: "left", label: t("settings:chrome.positionLeft"), icon: PanelRight },
+                    { key: "island", label: t("settings:chrome.positionIsland"), icon: CircleDot },
                     { key: "right", label: t("settings:chrome.positionRight"), icon: PanelRight },
                   ] as const).map(({ key, label, icon: Icon }) => {
                     const isActive = state.chromePosition === key

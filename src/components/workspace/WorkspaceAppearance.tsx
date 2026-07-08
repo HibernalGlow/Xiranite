@@ -21,6 +21,15 @@ export function WorkspaceAppearance() {
   }, [appearance.theme])
 
   useEffect(() => {
+    const root = document.documentElement
+    delete root.dataset.liquidGlass
+    root.removeAttribute("rt-liquid-glass")
+    root.removeAttribute("rt-liquid-glass-disable-firefox")
+    root.removeAttribute("rt-liquid-glass-transition-ms")
+    root.removeAttribute("rt-liquid-glass-base-bg")
+  }, [])
+
+  useEffect(() => {
     const mode = colorMode as ThemeMode
     const activeCustomTheme = getActiveCustomTheme(appearance.customThemes, appearance.activeCustomThemeName)
     applyCustomTheme(activeCustomTheme, mode)

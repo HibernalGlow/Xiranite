@@ -39,8 +39,12 @@ export interface WSState {
   bgOpacity: number
   bgBlur: number
   bgCoverTopBar: boolean
+  liquidGlassEnabled: boolean
+  liquidGlassOpacity: number
+  liquidGlassBlur: number
+  liquidGlassDisplacement: number
   chromeVisible: boolean
-  chromePosition: "left" | "right"
+  chromePosition: "left" | "right" | "island"
   chromeStyle: "default" | "traffic-light"
 }
 
@@ -69,8 +73,12 @@ export interface WorkspaceUiActions {
   setBgOpacity(opacity: number): void
   setBgBlur(blur: number): void
   setBgCoverTopBar(cover: boolean): void
+  setLiquidGlassEnabled(enabled: boolean): void
+  setLiquidGlassOpacity(opacity: number): void
+  setLiquidGlassBlur(blur: number): void
+  setLiquidGlassDisplacement(displacement: number): void
   setChromeVisible(visible: boolean): void
-  setChromePosition(position: "left" | "right"): void
+  setChromePosition(position: "left" | "right" | "island"): void
   setChromeStyle(style: "default" | "traffic-light"): void
 }
 
@@ -151,6 +159,10 @@ export type WorkspaceUiPreferences = Pick<
   | "bgOpacity"
   | "bgBlur"
   | "bgCoverTopBar"
+  | "liquidGlassEnabled"
+  | "liquidGlassOpacity"
+  | "liquidGlassBlur"
+  | "liquidGlassDisplacement"
   | "chromeVisible"
   | "chromePosition"
   | "chromeStyle"

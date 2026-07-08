@@ -1,5 +1,12 @@
-import type { MouseEvent, ReactNode } from "react"
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { GripHorizontal } from "lucide-react"
+import {
+  DynamicContainer,
+  DynamicIsland,
+  DynamicIslandProvider,
+  useDynamicIslandSize,
+} from "@/components/ui/dynamic-island"
 import { cn } from "@/lib/utils"
 import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 
@@ -17,7 +24,7 @@ export interface NodeSurfaceChromeAction {
 
 export interface ChromeAppearance {
   visible: boolean
-  position: "left" | "right"
+  position: "left" | "right" | "island"
   style: "default" | "traffic-light"
 }
 
@@ -110,6 +117,15 @@ export function NodeSurfaceChrome({
     )
   }
 
+  if (position === "island") {
+    return (
+      <DynamicIslandChrome
+        actions={actions}
+        dragHandle={dragHandle}
+      />
+    )
+  }
+
   const positionClass = position === "left" ? "left-2 justify-start" : "right-2 justify-end"
 
   if (isTrafficLight) {
@@ -158,6 +174,171 @@ export function NodeSurfaceChrome({
       </div>
     </div>
   )
+}
+
+function DynamicIslandChrome({
+  actions,
+  dragHandle,
+}: {
+  actions: NodeSurfaceChromeAction[]
+  dragHandle?: ReactNode
+}) {
+  const islandId = useId()
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [surfaceSize, setSurfaceSize] = useState({ width: 260, height: 160 })
+  const buttonCount = actions.length + (dragHandle ? 1 : 0)
+  const metrics = useMemo(
+    () => getIslandMetrics(surfaceSize.width, surfaceSize.height, buttonCount),
+    [buttonCount, surfaceSize.height, surfaceSize.width],
+  )
+  const presets = useMemo(() => ({
+    minimalLeading: {
+      width: metrics.idleWidth,
+      aspectRatio: metrics.idleHeight / metrics.idleWidth,
+      borderRadius: metrics.idleHeight / 2,
+    },
+    compact: {
+      width: metrics.compactWidth,
+      aspectRatio: metrics.compactHeight / metrics.compactWidth,
+      borderRadius: metrics.compactHeight / 2,
+    },
+  }), [metrics])
+
+  useEffect(() => {
+    const host = hostRef.current
+    const surface = host?.parentElement
+    if (!surface) return
+
+    function updateSurfaceSize() {
+      const rect = surface.getBoundingClientRect()
+      setSurfaceSize({
+        width: Math.max(1, rect.width),
+        height: Math.max(1, rect.height),
+      })
+    }
+
+    updateSurfaceSize()
+    if (typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(updateSurfaceSize)
+    observer.observe(surface)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={hostRef}
+      className="xiranite-ui-copy absolute left-1/2 top-2 z-20 -translate-x-1/2"
+      onPointerEnter={() => setExpanded(true)}
+      onPointerLeave={() => setExpanded(false)}
+    >
+      <DynamicIslandProvider initialSize="minimalLeading" presets={presets}>
+        <DynamicIsland
+          id={`node-operation-island-${islandId}`}
+          className={cn(
+            "text-foreground transition-[background-color,border-color,box-shadow,backdrop-filter] duration-200",
+            expanded
+              ? "border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
+              : "border border-transparent bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
+          )}
+        >
+          <DynamicIslandChromeContent
+            actions={actions}
+            contentScale={metrics.contentScale}
+            dragHandle={dragHandle}
+            expanded={expanded}
+          />
+        </DynamicIsland>
+      </DynamicIslandProvider>
+    </div>
+  )
+}
+
+function DynamicIslandChromeContent({
+  actions,
+  contentScale,
+  dragHandle,
+  expanded,
+}: {
+  actions: NodeSurfaceChromeAction[]
+  contentScale: number
+  dragHandle?: ReactNode
+  expanded: boolean
+}) {
+  const { setSize } = useDynamicIslandSize()
+
+  useEffect(() => {
+    setSize(expanded ? "compact" : "minimalLeading")
+  }, [expanded, setSize])
+
+  return (
+    <div
+      role="toolbar"
+      aria-label="Node operation island"
+      className="flex h-full w-full items-center justify-center"
+    >
+      <DynamicContainer className={cn("relative flex h-full w-full items-center justify-center", expanded ? "gap-0.5 px-2" : "gap-1")}>
+        <AnimatePresence initial={false} mode="wait">
+          {expanded ? (
+            <motion.div
+              key="island-actions"
+              initial={{ opacity: 0, scale: 0.86, y: 2, filter: "blur(3px)" }}
+              animate={{ opacity: 1, scale: contentScale, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: contentScale * 0.86, y: -2, filter: "blur(3px)" }}
+              transition={{ type: "spring", stiffness: 460, damping: 36, mass: 0.55 }}
+              className="flex items-center justify-center gap-0.5"
+              style={{ transformOrigin: "center" }}
+            >
+              {dragHandle && (
+                <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
+                  {dragHandle}
+                </span>
+              )}
+              {actions.map((action) => (
+                <ChromeActionButton
+                  key={action.key}
+                  action={action}
+                  trafficLight={false}
+                />
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="island-idle"
+              initial={{ opacity: 0, scale: 0.72, y: -1, filter: "blur(2px)" }}
+              animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.7, y: 1, filter: "blur(2px)" }}
+              transition={{ type: "spring", stiffness: 500, damping: 34, mass: 0.45 }}
+              className="flex items-center justify-center gap-1"
+            >
+              <span className="h-1.5 w-5 rounded-full bg-primary/75 shadow-[0_0_14px_var(--ws-accent-glow)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/35" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </DynamicContainer>
+    </div>
+  )
+}
+
+function getIslandMetrics(surfaceWidth: number, surfaceHeight: number, buttonCount: number) {
+  const availableWidth = Math.max(36, surfaceWidth - 16)
+  const availableHeight = Math.max(28, surfaceHeight - 12)
+  const desiredContentWidth = Math.min(235, Math.max(148, buttonCount * 30 + 40))
+  const scale = Math.max(0.62, Math.min(1, availableWidth / desiredContentWidth, availableHeight / 44))
+  const compactWidth = Math.round(Math.max(52, Math.min(desiredContentWidth * scale, availableWidth)))
+  const compactHeight = Math.round(Math.max(32, Math.min(44 * scale, availableHeight)))
+  const idleWidth = Math.round(Math.max(36, Math.min(52 * scale, availableWidth)))
+  const idleHeight = Math.round(Math.max(28, Math.min(44 * scale, availableHeight)))
+
+  return {
+    compactWidth,
+    compactHeight,
+    idleWidth,
+    idleHeight,
+    contentScale: Number(scale.toFixed(3)),
+  }
 }
 
 function ChromeActionButton({

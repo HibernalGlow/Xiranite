@@ -162,6 +162,14 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
     return true
   }
 
+  override hideResizeHandles() {
+    return true
+  }
+
+  override hideRotateHandle() {
+    return true
+  }
+
   override canBind() {
     return false
   }

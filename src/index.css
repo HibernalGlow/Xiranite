@@ -134,6 +134,17 @@
   --radius: 0.375rem;
   --font-app-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-app-mono: "JetBrains Mono", ui-monospace, monospace;
+  --lg-opacity-percent: 24%;
+  --lg-blur: 1px;
+  --lg-displacement: 110;
+  --lg-refraction-ratio: 0.533;
+  --lg-edge-opacity: 0.607;
+  --lg-surface: color-mix(in oklch, var(--card) var(--lg-opacity-percent), transparent);
+  --lg-popover: color-mix(in oklch, var(--popover) var(--lg-opacity-percent), transparent);
+  --lg-muted: color-mix(in oklch, var(--muted) var(--lg-opacity-percent), transparent);
+  --lg-border: color-mix(in oklch, var(--border) 72%, transparent);
+  --lg-highlight: color-mix(in oklch, white 42%, transparent);
+  --lg-shadow: 0 24px 70px -34px oklch(0 0 0 / 0.55), inset 0 1px 0 var(--lg-highlight);
   /* Spatial Studio light (default) */
   --background: oklch(0.975 0.004 148);
   --foreground: oklch(0.12 0.01 148);
@@ -476,6 +487,79 @@
   display: none;
 }
 
+/* Global liquid glass mode. The refraction/filter layer comes from liquid-glass-react;
+   these selectors route Xiranite surfaces into the same translucent material. */
+:root[data-liquid-glass="enabled"] {
+  --ws-canvas: color-mix(in oklch, var(--background) 62%, transparent);
+}
+
+:root[data-liquid-glass="enabled"] .bg-card,
+:root[data-liquid-glass="enabled"] [class*="bg-card/"],
+:root[data-liquid-glass="enabled"] .xiranite-topbar,
+:root[data-liquid-glass="enabled"] .xiranite-ui-copy,
+:root[data-liquid-glass="enabled"] [data-slot="card"],
+:root[data-liquid-glass="enabled"] [data-slot="dialog-content"],
+:root[data-liquid-glass="enabled"] [data-slot="sheet-content"] {
+  background-color: var(--lg-surface) !important;
+  border-color: var(--lg-border) !important;
+  box-shadow: var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.36);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.36);
+}
+
+:root[data-liquid-glass="enabled"] .bg-popover,
+:root[data-liquid-glass="enabled"] [class*="bg-popover/"],
+:root[data-liquid-glass="enabled"] [data-slot="popover-content"],
+:root[data-liquid-glass="enabled"] [data-slot="dropdown-menu-content"],
+:root[data-liquid-glass="enabled"] [data-slot="dropdown-menu-sub-content"],
+:root[data-liquid-glass="enabled"] [data-slot="context-menu-content"],
+:root[data-liquid-glass="enabled"] [data-slot="context-menu-sub-content"],
+:root[data-liquid-glass="enabled"] [data-slot="select-content"],
+:root[data-liquid-glass="enabled"] [data-slot="hover-card-content"] {
+  background-color: var(--lg-popover) !important;
+  border-color: var(--lg-border) !important;
+  box-shadow: var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.4);
+}
+
+:root[data-liquid-glass="enabled"] .btn-primary-glow,
+:root[data-liquid-glass="enabled"] .comp-card--floating,
+:root[data-liquid-glass="enabled"] .grid-stack.xiranite-bento-grid > .grid-stack-item > .grid-stack-item-content {
+  box-shadow: 0 22px 72px -34px var(--ws-accent-glow), inset 0 1px 0 var(--lg-highlight);
+}
+
+:root[data-liquid-glass="enabled"] [data-xiranite-liquid-glass] {
+  background-color: color-mix(in oklch, var(--card) var(--lg-opacity-percent), transparent) !important;
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0 22px 68px -36px oklch(0 0 0 / 0.58),
+    inset 0 1px 0 color-mix(in oklch, white 72%, transparent),
+    inset 0 -1px 0 color-mix(in oklch, var(--foreground) 10%, transparent),
+    inset 1px 0 0 color-mix(in oklch, white 30%, transparent),
+    inset -1px 0 0 color-mix(in oklch, var(--foreground) 8%, transparent) !important;
+}
+
+:root[data-liquid-glass="enabled"] [data-xiranite-liquid-glass]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, color-mix(in oklch, white 44%, transparent), transparent 34%),
+    radial-gradient(circle at 92% 8%, color-mix(in oklch, white 30%, transparent), transparent 32%),
+    radial-gradient(circle at 0% 100%, color-mix(in oklch, white 26%, transparent), transparent 36%);
+  mix-blend-mode: screen;
+  opacity: var(--lg-edge-opacity, 0.72);
+}
+
+:root[data-liquid-glass="enabled"] [data-xiranite-liquid-glass][rt-liquid-glass] {
+  backdrop-filter: var(--rt-liquid-final-filter, blur(var(--lg-blur))) !important;
+  -webkit-backdrop-filter: var(--rt-liquid-final-filter, blur(var(--lg-blur))) !important;
+}
+
 /* ── Dockview 主题桥接 ──
    dockview-react 的 DockviewReact 组件默认 className 是 `dockview-theme-abyss`
    （见 dockview-react.js 源码），它在自己根 div 上写死了：
@@ -530,6 +614,23 @@
 .dv-theme-bridge .dv-groupview {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+:root[data-liquid-glass="enabled"] .dv-theme-bridge .dockview-theme-abyss,
+:root[data-liquid-glass="enabled"] .dv-theme-bridge.dockview-theme-abyss {
+  --dv-group-view-background-color: var(--lg-surface);
+  --dv-tabs-and-actions-container-background-color: var(--lg-muted);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--lg-surface);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--lg-muted);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--lg-surface);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--lg-muted);
+}
+
+:root[data-liquid-glass="enabled"] .dv-theme-bridge .dv-groupview {
+  border-color: var(--lg-border);
+  box-shadow: var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.36);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.36);
 }
 
 /* ── TLDraw 主题桥接 ──
@@ -687,6 +788,28 @@
 .xiranite-tldraw-style-panel-toggle:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+:root[data-liquid-glass="enabled"] .tl-container .tlui-menu-zone,
+:root[data-liquid-glass="enabled"] .tl-container .tlui-main-toolbar__tools,
+:root[data-liquid-glass="enabled"] .tl-container .tlui-main-toolbar__extras__controls,
+:root[data-liquid-glass="enabled"] .tl-container .tlui-style-panel__wrapper,
+:root[data-liquid-glass="enabled"] .tl-container .tlui-popover__content,
+:root[data-liquid-glass="enabled"] .tl-container .xiranite-tldraw-style-panel-toggle,
+:root[data-liquid-glass="enabled"] .tl-container .tlui-navigation-panel::before {
+  background-color: var(--lg-popover) !important;
+  border-color: var(--lg-border) !important;
+  box-shadow: var(--lg-shadow) !important;
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.4);
+}
+
+:root[data-liquid-glass="enabled"] .tl-container .tlui-minimap {
+  background: color-mix(in oklch, var(--background) 58%, transparent) !important;
+  border-color: var(--lg-border) !important;
+  box-shadow: inset 0 1px 0 var(--lg-highlight);
+  backdrop-filter: blur(var(--lg-blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(1.25);
 }
 
 .comp-card--animated {
@@ -898,4 +1021,9 @@
   --badge-teal-foreground: oklch(0.985 0 0);
   --badge-teal-subtle: oklch(31.5% 0.0767 180.99);
   --badge-teal-subtle-foreground: oklch(74.56% 0.1765 182.8);
+}
+
+:root[data-liquid-glass="enabled"] [data-xiranite-liquid-glass][rt-liquid-glass] {
+  backdrop-filter: var(--rt-liquid-final-filter, blur(var(--lg-blur))) !important;
+  -webkit-backdrop-filter: var(--rt-liquid-final-filter, blur(var(--lg-blur))) !important;
 }

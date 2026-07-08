@@ -151,6 +151,13 @@
       "dark": "Dark",
       "darkDesc": "Force dark color scheme"
     },
+    "liquidGlass": {
+      "title": "LIQUID GLASS",
+      "description": "Apply a library-backed glass material across nodes, panels, menus, and workspace chrome.",
+      "opacity": "Opacity",
+      "blur": "Blur",
+      "displacement": "Refraction"
+    },
     "language": {
       "label": "LANGUAGE",
       "subtitle": "Interface language",
@@ -198,6 +205,7 @@
       "position": "Position",
       "positionDesc": "Horizontal position of the bar on a card",
       "positionLeft": "Left",
+      "positionIsland": "Island",
       "positionRight": "Right",
       "style": "Style",
       "styleDesc": "Visual style of the bar, independent of position",

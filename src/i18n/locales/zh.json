@@ -151,6 +151,13 @@
       "dark": "深色",
       "darkDesc": "强制深色方案"
     },
+    "liquidGlass": {
+      "title": "液态玻璃",
+      "description": "用现成库驱动的玻璃材质覆盖节点、面板、菜单和工作区外观。",
+      "opacity": "不透明度",
+      "blur": "模糊度",
+      "displacement": "折射强度"
+    },
     "language": {
       "label": "语言",
       "subtitle": "界面语言",
@@ -198,6 +205,7 @@
       "position": "位置",
       "positionDesc": "操作栏在卡片上的横向位置",
       "positionLeft": "左侧",
+      "positionIsland": "灵动岛",
       "positionRight": "右侧",
       "style": "样式",
       "styleDesc": "操作栏的视觉样式，与位置相互独立",
