@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { access, readFile, rm, writeFile } from "node:fs/promises"
+import { access, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -29,8 +29,9 @@ interface Change {
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
-const nodeId = readArg("--node")
+const nodeId = readArg("--node") ?? ""
 const apply = process.argv.includes("--apply")
+const audit = process.argv.includes("--audit")
 const check = process.argv.includes("--check")
 const keepPackageComponent = process.argv.includes("--keep-package-component")
 const refreshRegistries = process.argv.includes("--refresh-registries")
@@ -38,7 +39,7 @@ const stage = process.argv.includes("--stage")
 
 const helpRequested = process.argv.includes("--help") || process.argv.includes("-h")
 
-if (helpRequested || !nodeId) {
+if (helpRequested || (!nodeId && !audit)) {
   printHelp()
   process.exit(helpRequested ? 0 : 1)
 }
@@ -52,6 +53,11 @@ const appEntryPath = join(appNodeRoot, "entry.ts")
 const appComponentPath = join(appNodeRoot, "Component.tsx")
 const generatedModulesPath = join(repoRoot, "src", "components", "modules", "packageModules.generated.ts")
 const changes: Change[] = []
+
+if (audit) {
+  await auditNodeUiMigration()
+  process.exit()
+}
 
 await assertExists(packageJsonPath, `Unknown node package: ${nodeId}`)
 
@@ -163,6 +169,92 @@ export default {
 } satisfies AppNodeEntry<typeof core>
 `
   await writeIfChanged(appEntryPath, next, "ensure app-owned node entry")
+}
+
+async function auditNodeUiMigration(): Promise<void> {
+  const nodesRoot = join(repoRoot, "packages", "nodes")
+  const appNodesRoot = join(repoRoot, "src", "nodes")
+  const generatedContent = await readFile(generatedModulesPath, "utf8")
+  const nodeDirs = (await readdir(nodesRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right))
+
+  const findings: string[] = []
+
+  for (const id of nodeDirs) {
+    const packageRootForNode = join(nodesRoot, id)
+    const appRootForNode = join(appNodesRoot, id)
+    const packageJson = JSON.parse(await readFile(join(packageRootForNode, "package.json"), "utf8")) as NodePackageJson
+    const forbiddenDeps = collectForbiddenUiDependencies(packageJson)
+
+    if (forbiddenDeps.length) {
+      findings.push(`${id}: package.json still has UI dependencies: ${forbiddenDeps.join(", ")}`)
+    }
+    if (await exists(join(packageRootForNode, "src", "Component.tsx"))) {
+      findings.push(`${id}: package-side src/Component.tsx still exists`)
+    }
+    if (await exists(join(packageRootForNode, "src", "Component.test.tsx"))) {
+      findings.push(`${id}: package-side src/Component.test.tsx still exists`)
+    }
+    if (await exists(join(packageRootForNode, "src", "demo"))) {
+      findings.push(`${id}: package-side src/demo still exists`)
+    }
+
+    const tsconfig = await readJsonIfExists(join(packageRootForNode, "tsconfig.json"))
+    const compilerOptions = tsconfig?.compilerOptions as Record<string, unknown> | undefined
+    if (compilerOptions && "jsx" in compilerOptions) {
+      findings.push(`${id}: package tsconfig still enables jsx`)
+    }
+
+    const indexText = await readFile(join(packageRootForNode, "src", "index.ts"), "utf8")
+    if (/\bComponent\b|\.\/Component/.test(indexText)) {
+      findings.push(`${id}: package index still references Component`)
+    }
+    if (!indexText.includes("HeadlessNodePackage")) {
+      findings.push(`${id}: package index does not declare HeadlessNodePackage`)
+    }
+
+    if (!await exists(join(appRootForNode, "Component.tsx"))) {
+      findings.push(`${id}: app-owned Component.tsx is missing`)
+    }
+    if (!await exists(join(appRootForNode, "entry.ts"))) {
+      findings.push(`${id}: app-owned entry.ts is missing`)
+    }
+    if (!generatedContent.includes(`  ${id}: () => import("@/nodes/${id}/entry") as Promise<{ default: AppNodeEntry }>,`)) {
+      findings.push(`${id}: generated module loader is not using @/nodes/${id}/entry`)
+    }
+  }
+
+  if (findings.length) {
+    console.error("Node UI migration audit failed:")
+    for (const finding of findings) console.error(`  - ${finding}`)
+    process.exitCode = 1
+    return
+  }
+
+  console.log(`Node UI migration audit passed for ${nodeDirs.length} node(s).`)
+}
+
+function collectForbiddenUiDependencies(pkgJson: NodePackageJson): string[] {
+  const forbidden = new Set(["@xiranite/ui", "react", "react-dom", "react-i18next", "lucide-react", "@types/react", "@types/react-dom"])
+  const found: string[] = []
+  for (const section of ["dependencies", "peerDependencies", "devDependencies"] as const) {
+    const deps = pkgJson[section]
+    if (!deps) continue
+    for (const name of Object.keys(deps)) {
+      if (forbidden.has(name)) found.push(`${section}.${name}`)
+    }
+  }
+  return found
+}
+
+async function readJsonIfExists(file: string): Promise<Record<string, unknown> | null> {
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>
+  } catch {
+    return null
+  }
 }
 
 async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
@@ -407,6 +499,7 @@ function relative(file: string): string {
 function printHelp(): void {
   console.log([
     "Usage: bun scripts/migrate-node-ui-to-app.ts --node <node-id> [--apply] [--refresh-registries] [--check] [--stage] [--keep-package-component]",
+    "       bun scripts/migrate-node-ui-to-app.ts --audit",
     "",
     "Automates the mechanical part of moving a node from package-owned React UI to app-owned UI:",
     "- removes React/UI dependencies from packages/nodes/<id>/package.json",
@@ -417,6 +510,7 @@ function printHelp(): void {
     "- optionally refreshes generated registries with --refresh-registries",
     "- optionally runs the app Component test and package validation with --check",
     "- optionally stages only this node package/app files and this node's generated loader line with --stage",
+    "- audits all node UI migration boundaries with --audit",
     "",
     "The script intentionally does not generate the app UI Component. Build that UI deliberately, then run this script.",
     "Dry-run is the default; pass --apply to write changes.",
