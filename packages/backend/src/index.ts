@@ -8,7 +8,7 @@ import {
 } from "@xiranite/repository/libsql"
 import { createXiraniteServices, type NodeRunner } from "@xiranite/services"
 import { createReadStream } from "node:fs"
-import { mkdir, stat } from "node:fs/promises"
+import { mkdir, readdir, stat } from "node:fs/promises"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import { homedir } from "node:os"
@@ -100,6 +100,11 @@ export async function startBackend(options: StartBackendOptions = {}) {
         return
       }
 
+      if (url.pathname === "/local-files/list") {
+        await writeNodeResponse(outgoing, await listLocalFiles(url))
+        return
+      }
+
       if (url.pathname === "/local-files") {
         await writeNodeResponse(outgoing, await serveLocalFile(request, url))
         return
@@ -137,10 +142,13 @@ async function serveLocalFile(request: Request, url: URL): Promise<Response> {
   if (!info?.isFile()) return new Response("Local file was not found.", { status: 404 })
 
   const etag = `"${info.size}-${Math.trunc(info.mtimeMs)}"`
+  const size = info.size
   const headers = new Headers({
     "content-type": mimeTypeForPath(resolved),
     "cache-control": "private, max-age=60",
     "x-content-type-options": "nosniff",
+    "accept-ranges": "bytes",
+    "content-length": String(size),
     "etag": etag,
   })
 
@@ -148,7 +156,155 @@ async function serveLocalFile(request: Request, url: URL): Promise<Response> {
     return new Response(null, { status: 304, headers })
   }
 
+  if (request.method === "HEAD") {
+    return new Response(null, { headers })
+  }
+
+  const range = parseRangeHeader(request.headers.get("range"), size)
+  if (range === "invalid") {
+    headers.set("content-range", `bytes */${size}`)
+    headers.delete("content-length")
+    return new Response("Requested range is not satisfiable.", { status: 416, headers })
+  }
+  if (range) {
+    headers.set("content-range", `bytes ${range.start}-${range.end}/${size}`)
+    headers.set("content-length", String(range.end - range.start + 1))
+    return new Response(Readable.toWeb(createReadStream(resolved, range)) as unknown as BodyInit, {
+      status: 206,
+      headers,
+    })
+  }
+
   return new Response(Readable.toWeb(createReadStream(resolved)) as unknown as BodyInit, { headers })
+}
+
+interface LocalFileEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+  sizeBytes: number
+  lastModified: number
+  type: string
+}
+
+async function listLocalFiles(url: URL): Promise<Response> {
+  const requestedPath = url.searchParams.get("path")
+  if (!requestedPath) return jsonResponse({ error: "Missing local file path." }, 400)
+
+  const resolved = path.resolve(requestedPath)
+  const info = await stat(resolved).catch(() => null)
+  if (!info) return jsonResponse({ error: "Local path was not found." }, 404)
+
+  const recursive = url.searchParams.get("recursive") === "1" || url.searchParams.get("recursive") === "true"
+  const extensionSet = parseExtensionFilter(url.searchParams.get("extensions"))
+  const maxEntries = Math.min(Number(url.searchParams.get("limit") ?? 2000) || 2000, 10_000)
+  const entries: LocalFileEntry[] = []
+
+  if (info.isFile()) {
+    if (matchesExtensionFilter(resolved, extensionSet)) {
+      entries.push(toLocalFileEntry(resolved, info))
+    }
+  } else if (info.isDirectory()) {
+    await collectLocalFiles(resolved, { recursive, extensionSet, entries, maxEntries })
+  } else {
+    return jsonResponse({ error: "Local path is not a file or directory." }, 400)
+  }
+
+  return jsonResponse({
+    root: resolved,
+    truncated: entries.length >= maxEntries,
+    entries,
+  })
+}
+
+async function collectLocalFiles(
+  dirPath: string,
+  options: {
+    recursive: boolean
+    extensionSet: Set<string> | undefined
+    entries: LocalFileEntry[]
+    maxEntries: number
+  },
+): Promise<void> {
+  if (options.entries.length >= options.maxEntries) return
+
+  const dirEntries = await readdir(dirPath, { withFileTypes: true }).catch(() => [])
+  for (const entry of dirEntries) {
+    if (options.entries.length >= options.maxEntries) return
+
+    const entryPath = path.join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      if (options.recursive) {
+        await collectLocalFiles(entryPath, options)
+      }
+      continue
+    }
+    if (!entry.isFile() || !matchesExtensionFilter(entryPath, options.extensionSet)) continue
+
+    const info = await stat(entryPath).catch(() => null)
+    if (info?.isFile()) {
+      options.entries.push(toLocalFileEntry(entryPath, info))
+    }
+  }
+}
+
+function toLocalFileEntry(filePath: string, info: Awaited<ReturnType<typeof stat>>): LocalFileEntry {
+  return {
+    name: path.basename(filePath),
+    path: filePath,
+    isDirectory: false,
+    sizeBytes: info.size,
+    lastModified: info.mtimeMs,
+    type: mimeTypeForPath(filePath),
+  }
+}
+
+function parseRangeHeader(rangeHeader: string | null, size: number): { start: number; end: number } | "invalid" | null {
+  if (!rangeHeader) return null
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
+  if (!match) return "invalid"
+
+  const [, rawStart, rawEnd] = match
+  if (!rawStart && !rawEnd) return "invalid"
+
+  let start: number
+  let end: number
+  if (!rawStart) {
+    const suffixLength = Number(rawEnd)
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) return "invalid"
+    start = Math.max(size - suffixLength, 0)
+    end = size - 1
+  } else {
+    start = Number(rawStart)
+    end = rawEnd ? Number(rawEnd) : size - 1
+  }
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || start >= size) {
+    return "invalid"
+  }
+  return { start, end: Math.min(end, size - 1) }
+}
+
+function parseExtensionFilter(value: string | null): Set<string> | undefined {
+  const extensions = value?.split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .map((item) => item.startsWith(".") ? item : `.${item}`)
+  return extensions?.length ? new Set(extensions) : undefined
+}
+
+function matchesExtensionFilter(filePath: string, extensionSet: Set<string> | undefined): boolean {
+  return !extensionSet || extensionSet.has(path.extname(filePath).toLowerCase())
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  })
 }
 
 function mimeTypeForPath(filePath: string): string {
@@ -161,6 +317,14 @@ function mimeTypeForPath(filePath: string): string {
   if (ext === ".svg") return "image/svg+xml"
   if (ext === ".avif") return "image/avif"
   if (ext === ".jxl") return "image/jxl"
+  if (ext === ".flac") return "audio/flac"
+  if (ext === ".mp3") return "audio/mpeg"
+  if (ext === ".wav") return "audio/wav"
+  if (ext === ".ogg" || ext === ".oga") return "audio/ogg"
+  if (ext === ".m4a") return "audio/mp4"
+  if (ext === ".aac") return "audio/aac"
+  if (ext === ".opus") return "audio/opus"
+  if (ext === ".webm") return "audio/webm"
   return "application/octet-stream"
 }
 

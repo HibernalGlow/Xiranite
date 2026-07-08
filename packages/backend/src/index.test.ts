@@ -11,6 +11,7 @@ const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lV9uKAAAAABJRU5ErkJggg==",
   "base64",
 )
+const TINY_FLAC_HEADER = Buffer.from("fLaC00000000", "utf8")
 
 describe("backend", () => {
   test("serves workspace list through the Elysia app", async () => {
@@ -277,6 +278,43 @@ describe("backend", () => {
       expect(allowed.headers.get("content-type")).toBe("image/png")
       expect(allowed.headers.get("x-content-type-options")).toBe("nosniff")
       expect(Buffer.from(await allowed.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      backend.close()
+      await removeWithWindowsRetry(dataDir)
+    }
+  })
+
+  test("serves local audio files with range support and lists music entries", async () => {
+    const dataDir = await createTempDataDir()
+    const musicDir = join(dataDir, "music")
+    const audioPath = join(musicDir, "track.flac")
+    await mkdir(musicDir, { recursive: true })
+    await writeFile(audioPath, TINY_FLAC_HEADER)
+    await writeFile(join(musicDir, "notes.txt"), "not audio")
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
+    try {
+      const listed = await fetch(`${backend.url}/local-files/list?path=${encodeURIComponent(musicDir)}&recursive=1&extensions=.flac,.mp3&token=test-token`)
+      const body = await listed.json() as {
+        entries: Array<{ name: string; path: string; type: string; sizeBytes: number }>
+      }
+
+      expect(listed.status).toBe(200)
+      expect(body.entries).toEqual([{
+        name: "track.flac",
+        path: audioPath,
+        type: "audio/flac",
+        sizeBytes: TINY_FLAC_HEADER.length,
+      }])
+
+      const range = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(audioPath)}&token=test-token`, {
+        headers: { range: "bytes=0-3" },
+      })
+
+      expect(range.status).toBe(206)
+      expect(range.headers.get("content-type")).toBe("audio/flac")
+      expect(range.headers.get("accept-ranges")).toBe("bytes")
+      expect(range.headers.get("content-range")).toBe(`bytes 0-3/${TINY_FLAC_HEADER.length}`)
+      expect(Buffer.from(await range.arrayBuffer())).toEqual(Buffer.from("fLaC"))
     } finally {
       backend.close()
       await removeWithWindowsRetry(dataDir)
