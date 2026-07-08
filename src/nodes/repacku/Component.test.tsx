@@ -21,6 +21,14 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   }),
 }))
 
+vi.mock("@/store/workspaceContext", () => ({
+  useWorkspaceActions: () => ({ setOverlay: vi.fn() }),
+}))
+
+vi.mock("@/nodes/shared/NodeRunHistoryPopover", () => ({
+  NodeRunHistoryPopover: () => null,
+}))
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()

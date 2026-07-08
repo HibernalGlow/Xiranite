@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeRunHistoryPopover } from "@/nodes/shared/NodeRunHistoryPopover"
+import { useWorkspaceActions } from "@/store/workspaceContext"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
   ActionSelect,
@@ -30,6 +32,7 @@ import type { RepackuCardState, RepackuStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const workspaceActions = useWorkspaceActions()
   const data = host.getData<RepackuCardState>(compId) ?? {}
   const dataRef = useRef<RepackuCardState>(data)
   dataRef.current = data
@@ -110,6 +113,11 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   function resetOverride() {
     patch({ path: undefined, configPath: undefined, typesText: undefined, minCount: undefined, deleteAfter: undefined, dryRun: undefined, action: undefined })
+  }
+
+  function restoreFromHistory(input: unknown) {
+    patch(restoreFromHistoryInput(input))
+    pushLog("已从历史记录恢复参数。")
   }
 
   async function execute(nextAction = action) {
@@ -220,6 +228,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           ) : (
             <FullView
               {...commonProps}
+              componentId={compId}
               logs={logs}
               operationPreview={operationPreview}
               progress={progress}
@@ -228,6 +237,8 @@ export function Component({ compId, host }: NodeComponentProps) {
               types={types}
               onCopyLogs={copyLogs}
               onCopyResults={copyResults}
+              onRestoreHistory={restoreFromHistory}
+              onOpenHistory={() => workspaceActions.setOverlay("history")}
             />
           )}
         </div>
@@ -411,6 +422,7 @@ function FullView(props: {
   action: RepackuAction
   configDirty: boolean
   configFilePath?: string
+  componentId: string
   data: RepackuCardState
   defaults?: Partial<RepackuCardState>
   logs: string[]
@@ -425,10 +437,12 @@ function FullView(props: {
   onCopyResults: () => void
   onExecute: (action?: RepackuAction) => void
   onOpenConfigFile?: () => Promise<void> | void
+  onOpenHistory: () => void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
   onReset: () => void
   onRestoreDefault: () => void
+  onRestoreHistory: (input: unknown) => void
   onSaveDefault: () => void
   onResetOverride: () => void
 }) {
@@ -462,6 +476,13 @@ function FullView(props: {
               </TooltipTrigger>
               <TooltipContent>清空运行状态</TooltipContent>
             </Tooltip>
+            <NodeRunHistoryPopover
+              nodeId="repacku"
+              componentId={props.componentId}
+              disabled={props.running}
+              onRestore={props.onRestoreHistory}
+              onOpenHistory={props.onOpenHistory}
+            />
           </div>
         </div>
         <HeaderStats result={props.result} />
@@ -632,6 +653,33 @@ function buildInput(action: RepackuAction, data: RepackuCardState): RepackuInput
     minCount: data.minCount ?? 2,
     deleteAfter: data.deleteAfter ?? false,
     dryRun: data.dryRun ?? true,
+  }
+}
+
+/** 从历史记录的 input 反序列化为 RepackuCardState 片段。兼容 camelCase / snake_case。 */
+function restoreFromHistoryInput(input: unknown): Partial<RepackuCardState> {
+  if (!input || typeof input !== "object") return {}
+  const record = input as Record<string, unknown>
+  const types = record.types ?? record.targetFileTypes ?? record.target_file_types
+  const typesText = Array.isArray(types)
+    ? types.filter((v): v is string => typeof v === "string").join(", ")
+    : typeof types === "string" ? types : undefined
+  return {
+    action: typeof record.action === "string" ? (record.action as RepackuAction) : undefined,
+    path: typeof record.path === "string" ? record.path : undefined,
+    configPath: typeof record.configPath === "string"
+      ? record.configPath
+      : typeof record.config_path === "string" ? record.config_path : undefined,
+    typesText,
+    minCount: typeof record.minCount === "number"
+      ? record.minCount
+      : typeof record.min_count === "number" ? record.min_count : undefined,
+    deleteAfter: typeof record.deleteAfter === "boolean"
+      ? record.deleteAfter
+      : typeof record.delete_after === "boolean" ? record.delete_after : undefined,
+    dryRun: typeof record.dryRun === "boolean"
+      ? record.dryRun
+      : typeof record.dry_run === "boolean" ? record.dry_run : undefined,
   }
 }
 

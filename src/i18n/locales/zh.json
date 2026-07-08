@@ -426,6 +426,10 @@
       "outputPath": "输出路径",
       "noInput": "未记录输入参数",
       "noResult": "无结果数据",
+      "recent": "最近运行",
+      "openCenter": "打开历史中心",
+      "restoreParams": "恢复参数",
+      "noHistoryHint": "运行此节点后会自动保存。",
       "status": {
         "success": "成功",
         "error": "错误",

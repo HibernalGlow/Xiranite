@@ -426,6 +426,10 @@
       "outputPath": "Output path",
       "noInput": "No input recorded",
       "noResult": "No result data",
+      "recent": "Recent runs",
+      "openCenter": "Open history center",
+      "restoreParams": "Restore parameters",
+      "noHistoryHint": "Run this node to save history.",
       "status": {
         "success": "success",
         "error": "error",
