@@ -676,7 +676,11 @@
   height: 36px !important;
   cursor: nwse-resize !important;
   opacity: 0.92 !important;
-  background: transparent !important;
+  background: none !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  overflow: visible !important;
+  text-indent: 0 !important;
   z-index: 40 !important;
 }
 
