@@ -551,7 +551,7 @@
   --tl-color-low-border: var(--border);
   --tl-color-muted-none: transparent;
   --tl-color-muted-0: var(--muted);
-  --tl-color-muted-1: var(--muted);
+  --tl-color-muted-1: color-mix(in oklch, var(--primary) 18%, transparent);
   --tl-color-muted-2: var(--muted);
   --tl-color-hint: var(--muted);
   --tl-color-overlay: oklch(0 0 0 / 0.2);
@@ -615,6 +615,80 @@
 /* ── Component card visuals ──
    Card geometry is driven by inline transform/size styles; CSS transitions keep
    layout changes smooth without pulling an animation runtime into the main path. */
+/* TLDraw canvas chrome: match Xiranite's frosted workspace surfaces. */
+.tl-container .tlui-menu-zone,
+.tl-container .tlui-main-toolbar__tools,
+.tl-container .tlui-main-toolbar__extras__controls,
+.tl-container .tlui-style-panel__wrapper,
+.tl-container .tlui-popover__content,
+.tl-container .xiranite-tldraw-style-panel-toggle {
+  background-color: color-mix(in oklch, var(--popover) 72%, transparent) !important;
+  border-color: color-mix(in oklch, var(--border) 72%, transparent) !important;
+  box-shadow: 0 18px 50px -36px oklch(0 0 0 / 0.42), inset 0 0 0 1px color-mix(in oklch, var(--border) 45%, transparent) !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.tl-container .tlui-navigation-panel::before {
+  background-color: color-mix(in oklch, var(--popover) 72%, transparent) !important;
+  border-color: color-mix(in oklch, var(--background) 70%, transparent) !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.tl-container .tlui-minimap {
+  background: color-mix(in oklch, var(--background) 76%, transparent);
+}
+
+.tl-container .tlui-minimap__canvas {
+  border-radius: 6px;
+}
+
+.xiranite-tldraw-style-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px;
+  pointer-events: all;
+}
+
+.xiranite-tldraw-style-panel .tlui-style-panel__wrapper {
+  margin: 0 !important;
+}
+
+.xiranite-tldraw-style-panel-toggle {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  margin: 8px;
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  border-radius: 8px;
+  color: var(--foreground);
+  pointer-events: all;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.xiranite-tldraw-style-panel-toggle--open {
+  margin: 0;
+}
+
+.xiranite-tldraw-style-panel-toggle:hover {
+  background-color: color-mix(in oklch, var(--primary) 16%, var(--popover)) !important;
+  border-color: color-mix(in oklch, var(--primary) 58%, var(--border)) !important;
+  color: var(--primary);
+}
+
+.xiranite-tldraw-style-panel-toggle:active {
+  transform: translateY(1px);
+}
+
+.xiranite-tldraw-style-panel-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .comp-card--animated {
   will-change: transform;
 }

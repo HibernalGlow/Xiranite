@@ -1,7 +1,8 @@
-import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react"
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
 import {
   HTMLContainer,
+  DefaultStylePanel,
   Rectangle2d,
   ShapeUtil,
   Tldraw,
@@ -11,9 +12,10 @@ import {
   type TLBaseShape,
   type TLIndicatorPath,
   type TLResizeInfo,
+  type TLUiStylePanelProps,
 } from "tldraw"
 import "tldraw/tldraw.css"
-import { X } from "lucide-react"
+import { Palette, X } from "lucide-react"
 import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
@@ -424,6 +426,39 @@ function FlowCanvas() {
   return null
 }
 
+function CollapsibleStylePanel(props: TLUiStylePanelProps) {
+  const [open, setOpen] = useState(false)
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="xiranite-tldraw-style-panel-toggle"
+        aria-label="展开画布调色盘"
+        title="展开画布调色盘"
+        onClick={() => setOpen(true)}
+      >
+        <Palette className="h-4 w-4" aria-hidden="true" />
+      </button>
+    )
+  }
+
+  return (
+    <div className="xiranite-tldraw-style-panel">
+      <button
+        type="button"
+        className="xiranite-tldraw-style-panel-toggle xiranite-tldraw-style-panel-toggle--open"
+        aria-label="收起画布调色盘"
+        title="收起画布调色盘"
+        onClick={() => setOpen(false)}
+      >
+        <Palette className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <DefaultStylePanel {...props} />
+    </div>
+  )
+}
+
 export function FlowCanvasView() {
   const { theme } = useTheme()
 
@@ -433,7 +468,7 @@ export function FlowCanvasView() {
       colorScheme={theme}
       assetUrls={tldrawAssetUrls}
       options={{ maxPages: 1 }}
-      components={{ PageMenu: () => null, MainMenu: () => null }}
+      components={{ PageMenu: () => null, MainMenu: () => null, StylePanel: CollapsibleStylePanel }}
     >
       <FlowCanvas />
     </Tldraw>

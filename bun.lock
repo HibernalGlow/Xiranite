@@ -55,6 +55,7 @@
         "gridstack": "^12.6.0",
         "i18next": "^26.3.4",
         "lucide-react": "^1.6.0",
+        "media-chrome": "^4.19.2",
         "motion": "^12.42.2",
         "next-themes": "^0.4.6",
         "nuqs": "^2.8.6",
@@ -1451,6 +1452,8 @@
 
     "caniuse-lite": ["caniuse-lite@1.0.30001800", "https://registry.npmmirror.com/caniuse-lite/-/caniuse-lite-1.0.30001800.tgz", {}, "sha512-MMHtuAz9Ys840zAY5F4k6fV5GaivZ9sPk+nz0mY+GYVzRBnYkN0mpqkSR92oWRQ19yQWo4HvBV/FnC16AJX8MA=="],
 
+    "ce-la-react": ["ce-la-react@0.3.2", "https://registry.npmmirror.com/ce-la-react/-/ce-la-react-0.3.2.tgz", { "peerDependencies": { "react": ">=17.0.0" } }, "sha512-QJ6k4lOD/btI08xG8jBPxRCGXvCnusGGkTsiXk0u3NqUu/W+BXRnFD4PYjwtqh8AWmGa5LDbGk0fLQsqr0nSMA=="],
+
     "chai": ["chai@6.2.2", "https://registry.npmmirror.com/chai/-/chai-6.2.2.tgz", {}, "sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg=="],
 
     "chalk": ["chalk@5.6.2", "https://registry.npmmirror.com/chalk/-/chalk-5.6.2.tgz", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
@@ -1698,6 +1701,8 @@
     "lz-string": ["lz-string@1.5.0", "https://registry.npmmirror.com/lz-string/-/lz-string-1.5.0.tgz", { "bin": { "lz-string": "bin/bin.js" } }, "sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ=="],
 
     "magic-string": ["magic-string@0.30.21", "https://registry.npmmirror.com/magic-string/-/magic-string-0.30.21.tgz", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
+
+    "media-chrome": ["media-chrome@4.19.2", "https://registry.npmmirror.com/media-chrome/-/media-chrome-4.19.2.tgz", { "dependencies": { "ce-la-react": "^0.3.2" } }, "sha512-4ai1ITN8wBhwugQcRgqe3tN0z6OSKGOXqHLNrS04MgKFfsLqu6Dm8MPq02pI9Y9ZKoXtFjIl85jOryIW9es3BA=="],
 
     "memoirist": ["memoirist@0.4.0", "https://registry.npmmirror.com/memoirist/-/memoirist-0.4.0.tgz", {}, "sha512-zxTgA0mSYELa66DimuNQDvyLq36AwDlTuVRbnQtB+VuTcKWm5Qc4z3WkSpgsFWHNhexqkIooqpv4hdcqrX5Nmg=="],
 
