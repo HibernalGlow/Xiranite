@@ -6,6 +6,8 @@ import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/work
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { useWindowControls } from "@/hooks/useWindowControls"
+import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
+import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import {
   Maximize2,
   Minimize2,
@@ -34,12 +36,14 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
 }
 
 function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
+  "use memo"
   const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
   const { openComponent } = useWindowControls()
   const mod = getModule(comp.moduleId)
   const moduleId = comp.moduleId
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? comp.moduleId)
+  const surfaceStatus = useComponentSurfaceStatus(comp)
 
   const isFullscreen = layout.state === "fullscreen"
   const isCompact = layout.state === "compact"
@@ -139,6 +143,12 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
         isCompact && "comp-card--compact",
       )}
     >
+      <ComponentProgressStrip
+        status={surfaceStatus}
+        placement={comp.collapsed || isCompact ? "top" : "bottom"}
+        compact={comp.collapsed || isCompact}
+      />
+
       {comp.collapsed ? (
         <div className="xiranite-ui-copy flex h-full min-h-10 select-none items-center gap-2 px-3">
           <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />

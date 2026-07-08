@@ -381,6 +381,8 @@ function toOperationDTO<TData = unknown>(state: NodeOperationState): NodeOperati
   return {
     operationId: state.operationId,
     nodeId: state.nodeId,
+    componentId: state.componentId,
+    workspaceId: state.workspaceId,
     phase: state.phase,
     createdAt: state.createdAt,
     updatedAt: state.updatedAt,

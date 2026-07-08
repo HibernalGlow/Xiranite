@@ -96,6 +96,8 @@ export const nodeOperationPhaseSchema = z.enum(["queued", "running", "completed"
 export const nodeOperationSchema = z.object({
   operationId: z.string().min(1),
   nodeId: z.string().min(1),
+  componentId: z.string().optional(),
+  workspaceId: z.string().optional(),
   phase: nodeOperationPhaseSchema,
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
@@ -213,6 +215,8 @@ export interface NodeRunResponseDTO<TData = unknown> {
 export interface NodeOperationDTO<TData = unknown> {
   operationId: string
   nodeId: string
+  componentId?: string
+  workspaceId?: string
   phase: NodeOperationPhaseDTO
   createdAt: number
   updatedAt: number

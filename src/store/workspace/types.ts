@@ -97,6 +97,7 @@ export interface WorkspaceComponentActions {
   setFullscreen(id: string | null): void
   raiseComponent(id: string): void
   toggleCollapse(id: string): void
+  duplicateComponent(id: string): void
 }
 
 export interface WorkspaceLaneActions {

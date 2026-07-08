@@ -2,15 +2,18 @@ import { useCallback, useLayoutEffect, useMemo, useRef, type DragEvent as ReactD
 import { useTranslation } from "react-i18next"
 import { GridStack, type GridStackNode } from "gridstack"
 import "gridstack/dist/gridstack.min.css"
-import { GripHorizontal, LayoutTemplate, Maximize2, Minus, Plus, X } from "lucide-react"
+import { LayoutTemplate, Maximize2, Minus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
+import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import type { ComponentInstance } from "@/types/workspace"
+import { ComponentProgressStrip } from "./ComponentProgressStrip"
+import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
 
 const GRID_COLUMNS = 12
 const GRID_CELL_HEIGHT = 76
@@ -84,6 +87,7 @@ export function BentoView() {
       minRow: 1,
       draggable: {
         handle: ".xiranite-bento-drag-handle",
+        cancel: "button, input, textarea, select, a, [role='button'], [role='tab'], [contenteditable='true'], .xiranite-no-drag",
       },
       resizable: {
         handles: "e,se,s,w",
@@ -198,6 +202,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
   const moduleName = i18n.exists(`module:${component.moduleId}.name`)
     ? t(`module:${component.moduleId}.name`)
     : (mod?.name ?? component.moduleId)
+  const surfaceStatus = useComponentSurfaceStatus(component)
 
   function toggleCollapse(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
@@ -209,72 +214,51 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
     workspaceActions.setComponentVisibility(component.id, "bento", false)
   }
 
+  const actions: NodeSurfaceChromeAction[] = [
+    {
+      key: "collapse",
+      label: component.collapsed ? t("common:expand") : t("common:collapse"),
+      icon: component.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />,
+      onClick: toggleCollapse,
+    },
+    {
+      key: "hide",
+      label: t("common:hideIn", { view: t("topbar:viewMode.bento") }),
+      icon: <X className="h-3 w-3" />,
+      danger: true,
+      onClick: hideInBento,
+    },
+  ]
+  const dragHandle = (
+    <span className="xiranite-bento-drag-handle cursor-grab text-muted-foreground/55 active:cursor-grabbing">
+      <DefaultNodeDragGrip />
+    </span>
+  )
+
   return (
     <section
       data-component-id={component.id}
-      className="group flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/70 bg-card/95 shadow-[0_18px_45px_-24px_oklch(0_0_0/0.45)] backdrop-blur-sm"
+      data-context-menu="bento-cell"
+      className="xiranite-bento-drag-handle group relative flex h-full min-h-0 cursor-grab flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)] active:cursor-grabbing"
     >
-      <header className="xiranite-ui-copy xiranite-bento-drag-handle flex h-9 shrink-0 cursor-grab items-center gap-2 border-b border-border/60 bg-muted/25 px-2 active:cursor-grabbing">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-        <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground/55" />
-        <span className="min-w-0 flex-1 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
-          {moduleName}
-        </span>
-        {mod && (
-          <span className="hidden shrink-0 font-mono text-[9px] text-muted-foreground/45 sm:inline">
-            {mod.version}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-          <WidgetButton
-            label={component.collapsed ? t("common:expand") : t("common:collapse")}
-            onClick={toggleCollapse}
-          >
-            {component.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-          </WidgetButton>
-          <WidgetButton
-            danger
-            label={t("common:hideIn", { view: t("topbar:viewMode.bento") })}
-            onClick={hideInBento}
-          >
-            <X className="h-3 w-3" />
-          </WidgetButton>
-        </div>
-      </header>
+      <ComponentProgressStrip
+        status={surfaceStatus}
+        placement={component.collapsed ? "top" : "bottom"}
+        compact={component.collapsed}
+      />
+      <NodeSurfaceChrome
+        actions={actions}
+        collapsed={component.collapsed}
+        dragHandle={dragHandle}
+        moduleName={moduleName}
+        version={mod?.version}
+      />
       {!component.collapsed && (
-        <div className="min-h-0 flex-1 overflow-hidden p-2">
+        <div className="min-h-0 flex-1 cursor-auto overflow-hidden">
           <ModuleRenderer moduleId={component.moduleId} compId={component.id} />
         </div>
       )}
     </section>
-  )
-}
-
-function WidgetButton({
-  children,
-  label,
-  onClick,
-  danger,
-}: {
-  children: React.ReactNode
-  label: string
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void
-  danger?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onClick}
-      className={cn(
-        "grid h-6 w-6 place-items-center rounded-[3px] border border-transparent text-muted-foreground transition-colors hover:border-border",
-        danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-muted/60 hover:text-primary",
-      )}
-    >
-      {children}
-    </button>
   )
 }
 

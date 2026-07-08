@@ -8,6 +8,8 @@ const MAX_EVENTS_PER_OPERATION = 80
 export interface TrackedNodeOperation<TData = unknown> {
   operationId: string
   nodeId: string
+  componentId?: string
+  workspaceId?: string
   phase: NodeOperationPhaseDTO
   createdAt: number
   updatedAt: number
