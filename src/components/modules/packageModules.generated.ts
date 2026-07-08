@@ -32,7 +32,7 @@ export const PACKAGE_MODULES = [
 
 export const packageModuleLoaders = {
   bandia: () => import("@/nodes/bandia/entry") as Promise<{ default: AppNodeEntry }>,
-  cleanf: () => import("@xiranite/node-cleanf") as Promise<{ default: NodeEntry }>,
+  cleanf: () => import("@/nodes/cleanf/entry") as Promise<{ default: AppNodeEntry }>,
   crashu: () => import("@xiranite/node-crashu") as Promise<{ default: NodeEntry }>,
   dissolvef: () => import("@xiranite/node-dissolvef") as Promise<{ default: NodeEntry }>,
   encodeb: () => import("@/nodes/encodeb/entry") as Promise<{ default: AppNodeEntry }>,
