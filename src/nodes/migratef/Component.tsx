@@ -27,6 +27,7 @@ import type { MigratefActionMode, MigratefCardState, MigratefPhase, MigratefStat
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<MigratefCardState>(compId) ?? {}
   const dataRef = useRef<MigratefCardState>(data)

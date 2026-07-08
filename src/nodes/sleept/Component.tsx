@@ -30,6 +30,7 @@ import type { SleeptCardState, SleeptPhase, SleeptStats, SleeptStatusMeta, Sleep
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<SleeptCardState>(compId) ?? {}
   const dataRef = useRef<SleeptCardState>(data)

@@ -20,6 +20,7 @@ import type { EncodebCardState, EncodebPhase, EncodebPreset, EncodebStatusMeta, 
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("encodeb")
   const data = host.getData<EncodebCardState>(compId) ?? {}

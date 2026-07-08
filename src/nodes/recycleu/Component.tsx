@@ -22,6 +22,7 @@ import {
 import type { RecycleuCardState, RecycleuStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<RecycleuCardState>(compId) ?? {}
   const dataRef = useRef<RecycleuCardState>(data)

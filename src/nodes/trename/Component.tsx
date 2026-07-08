@@ -18,6 +18,7 @@ import type { TrenameCardState, TrenamePhase, TrenameStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("trename")
   const data = host.getData<TrenameCardState>(compId) ?? {}

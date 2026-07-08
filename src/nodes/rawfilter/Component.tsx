@@ -26,6 +26,7 @@ import type { RawfilterCardState, RawfilterStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use memo"
   const surface = useNodeSurface()
   const data = host.getData<RawfilterCardState>(compId) ?? {}
   const dataRef = useRef<RawfilterCardState>(data)
