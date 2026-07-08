@@ -9,7 +9,6 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "types": [
-      "bun-types",
       "node"
     ]
   },
