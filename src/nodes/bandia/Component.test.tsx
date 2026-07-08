@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
+import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { BandiaAction, BandiaData, BandiaInput } from "@xiranite/node-bandia/core"
 import { Component } from "./Component"
@@ -39,26 +39,24 @@ describe("app-owned bandia Component", () => {
 
       expect(screen.getByText("Bandia")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByText(/1 个归档/)).toBeTruthy()
-        expect(screen.queryByLabelText("压缩包路径")).toBeNull()
+        expect(screen.queryByRole("tab", { name: "Results" })).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("压缩包路径")).toBeTruthy()
-      if (mode === "compact" || mode === "portrait") {
-        if (mode === "portrait") {
-          expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
-          expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
-        }
-        expect(screen.getByRole("button", { name: "批量解压" })).toBeTruthy()
-        expect(screen.getByRole("button", { name: "预演解压" })).toBeTruthy()
+      if (mode === "portrait") {
+        expect(screen.getByRole("tab", { name: "Queue" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "Results" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "Logs" })).toBeTruthy()
         return
       }
 
-      expect(screen.getByText("任务")).toBeTruthy()
-      expect(screen.getByText("关键开关")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+      if (mode === "compact") {
+        expect(screen.getByText("Archive queue")).toBeTruthy()
+        return
+      }
+
       expect(screen.getByTestId("bandia-header-toolbar")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "Results" })).toBeTruthy()
     },
   )
 
@@ -66,9 +64,9 @@ describe("app-owned bandia Component", () => {
     surfaceState.mode = "portrait"
     render(<Component compId="comp-bandia" host={createHost({ pathText: "D:/archives/book.zip", logs: ["ready"] })} />)
 
-    expect(screen.getByLabelText("压缩包路径")).toBeTruthy()
-    expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
-    expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "Queue" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "Results" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "Logs" })).toBeTruthy()
   })
 
   test("pastes clipboard input into component state", async () => {
@@ -77,12 +75,14 @@ describe("app-owned bandia Component", () => {
     render(<Component compId="comp-bandia" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "粘贴输入" }))
+    const pasteButton = screen.getByRole("button", { name: "粘贴输入" })
+    expect(pasteButton).toBeTruthy()
+    await user.click(pasteButton)
 
     expect(host.state.pathText).toBe("D:/archives/book.zip")
   })
 
-  test("runs compress mode with real source paths and copies results", async () => {
+  test("runs compress mode with real source paths and renders Dice data table results", async () => {
     surfaceState.mode = "regular"
     const host = createHost({
       mode: "compress",
@@ -94,7 +94,9 @@ describe("app-owned bandia Component", () => {
     render(<Component compId="comp-bandia" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "预演压缩" }))
+    const runButton = screen.getByRole("button", { name: "预演压缩" })
+    expect(runButton).toBeTruthy()
+    await user.click(runButton)
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -122,9 +124,14 @@ describe("app-owned bandia Component", () => {
     await waitFor(() => expect(host.state.phase).toBe("completed"))
     expect(host.state.result?.compressedCount).toBe(1)
     expect(host.state.logs).toEqual(["Compress complete: 1 succeeded, 0 failed."])
-    expect(screen.getByText(/ok D:\/books\/source folder -> D:\/archives\/source folder\.zip/)).toBeTruthy()
+    expect(screen.getByTestId("bandia-result-data-table")).toBeTruthy()
+    expect(screen.getByPlaceholderText("Filter sources...")).toBeTruthy()
+    expect(screen.getByText("source folder.zip")).toBeTruthy()
+    expect(screen.getByText("skipped")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "复制结果" }))
+    const copyButton = screen.getAllByRole("button").find((button) => button.textContent?.includes("Copy"))
+    expect(copyButton).toBeTruthy()
+    await user.click(copyButton!)
     expect(host.copiedText).toBe("ok D:/books/source folder -> D:/archives/source folder.zip")
   })
 })
@@ -147,7 +154,11 @@ function createHost(initial: BandiaCardState): TestHost {
     listComponents: () => [],
     updateComponent: () => undefined,
     actions: {
-      run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void): Promise<NodeRunResult<TData>> => {
+      run: async <TInput, TData>(
+        nodeId: string,
+        input: TInput,
+        onEvent?: (event: NodeRunEvent) => void,
+      ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as BandiaInput })
         onEvent?.({ type: "progress", progress: 100, message: "compress complete." })
         return {

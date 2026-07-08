@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react"
-import type { BandiaData, BandiaItemResult, BandiaPathMapping } from "@xiranite/node-bandia/core"
+import { useEffect, useMemo, useState } from "react"
+import type { ColumnDef, ColumnFiltersState, SortingState } from "@tanstack/react-table"
+import { getCoreRowModel, getFacetedRowModel, getFacetedUniqueValues, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table"
+import type { BandiaData, BandiaPathMapping } from "@xiranite/node-bandia/core"
 import { Archive, CheckCircle2, Copy, FileArchive, FolderOpen, ListChecks, XCircle } from "lucide-react"
+import { DataTable } from "@/components/data-table/data-table"
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -8,6 +13,17 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import type { BandiaMode } from "./types"
+
+type BandiaResultRow = {
+  command: string
+  duration: number
+  error: string
+  id: string
+  kind: "extract" | "compress" | "export" | "mapping"
+  source: string
+  status: "ok" | "fail" | "skipped" | "mapped"
+  target: string
+}
 
 export function StatsPanel(props: {
   archiveCount: number
@@ -18,11 +34,11 @@ export function StatsPanel(props: {
 }) {
   const done = (props.result?.extractedCount ?? 0) + (props.result?.compressedCount ?? 0)
   const stats = [
-    ["输入", props.archiveCount || props.pathCount],
-    ["映射", props.result?.pathMappings.length ?? props.mappingCount],
-    ["完成", done],
-    ["失败", props.result?.failedCount ?? 0],
-    ["进度", `${props.progress}%`],
+    ["Input", props.archiveCount || props.pathCount],
+    ["Mapping", props.result?.pathMappings.length ?? props.mappingCount],
+    ["Done", done],
+    ["Failed", props.result?.failedCount ?? 0],
+    ["Progress", `${props.progress}%`],
   ] as const
 
   return (
@@ -30,7 +46,7 @@ export function StatsPanel(props: {
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "失败" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", label === "Failed" && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -56,7 +72,7 @@ export function QueuePreview(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2">
           <Icon className="size-4 text-muted-foreground" />
-          <div className="truncate text-xs font-medium">{isExtract ? "待解压文件" : "待压缩映射"}</div>
+          <div className="truncate text-xs font-medium">{isExtract ? "Archive queue" : "Mapping queue"}</div>
         </div>
         <Badge variant="outline">{items.length}</Badge>
       </div>
@@ -84,7 +100,7 @@ export function QueuePreview(props: {
           </div>
         ) : (
           <div className="flex h-full min-h-24 items-center justify-center p-4 text-center text-xs text-muted-foreground">
-            {isExtract ? "粘贴压缩包路径后会显示队列。" : "输入源路径或导入映射后会显示队列。"}
+            {isExtract ? "Paste archive paths to build an extraction queue." : "Paste source paths or mappings to build a compression queue."}
           </div>
         )}
       </ScrollArea>
@@ -105,13 +121,10 @@ export function ResultTabs(props: {
   onCopyResults: () => void
 }) {
   const hasQueue = Boolean(props.mode)
-  const resultLines = [
-    ...(props.result?.pathMappings ?? []).map((mapping) => `map ${mapping.archivePath} -> ${mapping.extractedPath}`),
-    ...(props.result?.results ?? []).map(resultLine),
-  ]
+  const resultRows = createResultRows(props.result)
   const preferredTab = props.running
     ? "queue"
-    : resultLines.length || props.result
+    : resultRows.length || props.result
       ? "results"
       : props.logs.length
         ? "logs"
@@ -125,9 +138,9 @@ export function ResultTabs(props: {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        {hasQueue && <TabsTrigger value="queue">队列</TabsTrigger>}
-        <TabsTrigger value="results">结果</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        {hasQueue && <TabsTrigger value="queue">Queue</TabsTrigger>}
+        <TabsTrigger value="results">Results</TabsTrigger>
+        <TabsTrigger value="logs">Logs</TabsTrigger>
       </TabsList>
       {hasQueue && (
         <TabsContent value="queue" className="min-h-0 flex-1">
@@ -142,18 +155,146 @@ export function ResultTabs(props: {
         </TabsContent>
       )}
       <TabsContent value="results" className="min-h-0 flex-1">
-        <TextPanel
-          compact={props.compact}
-          emptyText="运行后会显示路径映射、命令计划和错误明细。"
-          icon={ListChecks}
-          lines={resultLines}
-          onCopy={props.onCopyResults}
-        />
+        <ResultTablePanel compact={props.compact} rows={resultRows} onCopy={props.onCopyResults} />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" icon={Archive} lines={props.logs} onCopy={props.onCopyLogs} />
+        <TextPanel compact={props.compact} emptyText="Run logs will appear here." icon={Archive} lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
+  )
+}
+
+function ResultTablePanel(props: {
+  compact?: boolean
+  rows: BandiaResultRow[]
+  onCopy: () => void
+}) {
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const columns = useMemo<ColumnDef<BandiaResultRow>[]>(() => [
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      enableColumnFilter: true,
+      filterFn: optionArrayFilter,
+      meta: {
+        label: "Status",
+        variant: "multiSelect",
+        options: [
+          { label: "ok", value: "ok" },
+          { label: "fail", value: "fail" },
+          { label: "skipped", value: "skipped" },
+          { label: "mapped", value: "mapped" },
+        ],
+      },
+    },
+    {
+      accessorKey: "kind",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Kind" />,
+      cell: ({ row }) => <span className="text-xs">{row.original.kind}</span>,
+      enableColumnFilter: true,
+      filterFn: optionArrayFilter,
+      meta: {
+        label: "Kind",
+        variant: "multiSelect",
+        options: [
+          { label: "extract", value: "extract" },
+          { label: "compress", value: "compress" },
+          { label: "export", value: "export" },
+          { label: "mapping", value: "mapping" },
+        ],
+      },
+    },
+    {
+      accessorKey: "source",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Source" />,
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium" title={row.original.source}>{basename(row.original.source)}</div>
+          <div className="truncate text-[10px] text-muted-foreground" title={row.original.source}>{row.original.source}</div>
+        </div>
+      ),
+      enableColumnFilter: true,
+      meta: {
+        label: "Source",
+        placeholder: "Filter sources...",
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "target",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Target" />,
+      cell: ({ row }) => row.original.target ? (
+        <div className="min-w-0">
+          <div className="truncate text-xs" title={row.original.target}>{basename(row.original.target)}</div>
+          <div className="truncate text-[10px] text-muted-foreground" title={row.original.target}>{row.original.target}</div>
+        </div>
+      ) : <span className="text-xs text-muted-foreground">-</span>,
+      enableColumnFilter: true,
+      meta: {
+        label: "Target",
+        placeholder: "Filter targets...",
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "error",
+      header: ({ column }) => <DataTableColumnHeader column={column} label="Error" />,
+      cell: ({ row }) => row.original.error ? (
+        <span className="line-clamp-2 text-xs text-destructive" title={row.original.error}>{row.original.error}</span>
+      ) : <span className="text-xs text-muted-foreground">-</span>,
+      enableColumnFilter: true,
+      meta: {
+        label: "Error",
+        placeholder: "Filter errors...",
+        variant: "text",
+      },
+    },
+  ], [])
+  const table = useReactTable({
+    data: props.rows,
+    columns,
+    getRowId: (row) => row.id,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    initialState: {
+      pagination: {
+        pageIndex: 0,
+        pageSize: props.compact ? 8 : 12,
+      },
+    },
+  })
+
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <ListChecks className="size-3.5" />
+          <span>{props.rows.length ? `${props.rows.length} row(s)` : "Waiting for a run"}</span>
+        </div>
+        <Button disabled={!props.rows.length} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          Copy
+        </Button>
+      </div>
+      <Separator />
+      <div className="min-h-0 flex-1 overflow-hidden p-2">
+        <DataTable table={table} className="h-full min-h-0" data-testid="bandia-result-data-table">
+          <DataTableToolbar table={table} className="p-0 pb-2" />
+        </DataTable>
+      </div>
+    </section>
   )
 }
 
@@ -170,17 +311,17 @@ function TextPanel(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Icon className="size-3.5" />
-          <span>{props.lines.length ? `${props.lines.length} 项` : "等待运行"}</span>
+          <span>{props.lines.length ? `${props.lines.length} line(s)` : "Waiting for a run"}</span>
         </div>
         <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onCopy}>
           <Copy data-icon="inline-start" />
-          复制
+          Copy
         </Button>
       </div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
         {props.lines.length ? (
-          <pre className={props.compact ? "p-2 text-xs leading-5 text-muted-foreground" : "p-3 text-xs leading-5 text-muted-foreground"}>
+          <pre className={props.compact ? "whitespace-pre-wrap p-2 text-xs leading-5 text-muted-foreground" : "whitespace-pre-wrap p-3 text-xs leading-5 text-muted-foreground"}>
             {props.lines.join("\n")}
           </pre>
         ) : (
@@ -190,6 +331,22 @@ function TextPanel(props: {
         )}
       </ScrollArea>
     </section>
+  )
+}
+
+function StatusBadge({ status }: { status: BandiaResultRow["status"] }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "shrink-0 text-[10px]",
+        status === "ok" && "border-primary/40 text-primary",
+        status === "fail" && "border-destructive/40 text-destructive",
+        status === "skipped" && "text-muted-foreground",
+      )}
+    >
+      {status}
+    </Badge>
   )
 }
 
@@ -206,9 +363,33 @@ function resultOk(result: BandiaData | null, sourcePath: string): boolean | unde
   return match?.success
 }
 
-function resultLine(item: BandiaItemResult): string {
-  const target = item.outputPath ?? item.archivePath
-  return `${item.success ? "ok" : "fail"} ${item.sourcePath}${target ? ` -> ${target}` : ""}${item.error ? ` / ${item.error}` : ""}`
+function createResultRows(result: BandiaData | null): BandiaResultRow[] {
+  const mappings = (result?.pathMappings ?? []).map((mapping, index) => ({
+    command: "",
+    duration: 0,
+    error: "",
+    id: `mapping:${index}:${mapping.archivePath}:${mapping.extractedPath}`,
+    kind: "mapping" as const,
+    source: mapping.archivePath,
+    status: "mapped" as const,
+    target: mapping.extractedPath,
+  }))
+  const rows = (result?.results ?? []).map((item, index) => ({
+    command: item.command ?? "",
+    duration: item.durationMs,
+    error: item.error ?? "",
+    id: `result:${index}:${item.sourcePath}:${item.archivePath ?? item.outputPath ?? ""}`,
+    kind: item.kind,
+    source: item.sourcePath,
+    status: item.skipped ? "skipped" as const : item.success ? "ok" as const : "fail" as const,
+    target: item.outputPath ?? item.archivePath ?? "",
+  }))
+  return [...mappings, ...rows]
+}
+
+function optionArrayFilter(row: { getValue: (columnId: string) => unknown }, columnId: string, value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return true
+  return value.includes(String(row.getValue(columnId)))
 }
 
 function basename(value: string): string {
