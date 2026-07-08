@@ -11,6 +11,8 @@ export interface SmartZipInput {
   autohotkeyExe?: string
   iniPath?: string
   iniText?: string
+  databasePath?: string
+  recordRun?: boolean
   dryRun?: boolean
 }
 
@@ -35,8 +37,16 @@ export interface SmartZipConfig {
   sendTo: boolean
 }
 
+export interface SmartZipDatabase {
+  path: string
+  enabled: boolean
+  mode: "jsonl"
+  defaultPath: boolean
+}
+
 export interface SmartZipData {
   config: SmartZipConfig
+  database?: SmartZipDatabase
   command?: SmartZipCommandPlan
   commandResult?: CommandResult
   selectedPaths: string[]
@@ -46,6 +56,7 @@ export interface SmartZipData {
 
 export interface SmartZipRuntime {
   readText: (path: string) => Promise<string>
+  appendRecord: (path: string, record: unknown) => Promise<void>
   pathExists: (path: string) => Promise<boolean>
   runCommand: (plan: SmartZipCommandPlan) => Promise<CommandResult>
 }
@@ -64,6 +75,8 @@ export function normalizeSmartZipInput(input: SmartZipInput): Required<SmartZipI
     autohotkeyExe: clean(input.autohotkeyExe) || "AutoHotkey.exe",
     iniPath: clean(input.iniPath),
     iniText: input.iniText ?? "",
+    databasePath: clean(input.databasePath),
+    recordRun: input.recordRun ?? Boolean(input.databasePath),
     dryRun: input.dryRun ?? false,
   }
 }
@@ -78,25 +91,33 @@ export async function runSmartZip(
     onEvent({ type: "progress", progress: 20, message: "Loading SmartZip config." })
     const config = parseSmartZipIni(normalized.iniText || (normalized.iniPath ? await runtime.readText(normalized.iniPath) : ""))
     const selectedPaths = normalized.paths
+    const database = buildSmartZipDatabase(normalized)
     if (normalized.action === "status") {
       const executable = await resolveSmartZipExecutable(normalized, runtime)
+      const command = executable ? buildSmartZipCommand(normalized, executable) : undefined
+      await writeSmartZipRecordIfEnabled("status", normalized, config, selectedPaths, command, undefined, database, runtime)
       return success(`SmartZip status loaded: ${config.archiveExtensions.length} archive extension(s).`, {
         config,
+        database,
         selectedPaths,
-        command: executable ? buildSmartZipCommand(normalized, executable) : undefined,
+        command,
       })
     }
     const executable = await resolveSmartZipExecutable(normalized, runtime)
     if (!executable) return failure("SmartZip executable or AHK script is required.")
     const command = buildSmartZipCommand(normalized, executable)
-    if (normalized.dryRun) return success(`SmartZip dry-run: ${command.command} ${command.args.join(" ")}`, { config, selectedPaths, command })
+    if (normalized.dryRun) {
+      await writeSmartZipRecordIfEnabled(normalized.action, normalized, config, selectedPaths, command, undefined, database, runtime)
+      return success(`SmartZip dry-run: ${command.command} ${command.args.join(" ")}`, { config, database, selectedPaths, command })
+    }
 
     onEvent({ type: "progress", progress: 75, message: command.label })
     const commandResult = await runtime.runCommand(command)
+    await writeSmartZipRecordIfEnabled(normalized.action, normalized, config, selectedPaths, command, commandResult, database, runtime)
     return {
       success: commandResult.code === 0,
       message: commandResult.code === 0 ? "SmartZip command launched." : "SmartZip command failed.",
-      data: data({ config, selectedPaths, command, commandResult, errors: commandResult.code === 0 ? [] : [commandResult.stderr || commandResult.stdout] }),
+      data: data({ config, database, selectedPaths, command, commandResult, errors: commandResult.code === 0 ? [] : [commandResult.stderr || commandResult.stdout] }),
     }
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
@@ -146,6 +167,67 @@ export function isArchivePath(path: string, extensions = SMARTZIP_ARCHIVE_EXTENS
   return extensions.some((extension) => lower.endsWith(`.${extension.toLowerCase().replace(/^\./, "")}`))
 }
 
+export function buildSmartZipDatabase(input: Required<SmartZipInput>): SmartZipDatabase | undefined {
+  const path = input.databasePath || defaultSmartZipDatabasePath(input)
+  if (!path) return undefined
+  return {
+    path,
+    enabled: input.recordRun,
+    mode: "jsonl",
+    defaultPath: !input.databasePath,
+  }
+}
+
+export function defaultSmartZipDatabasePath(input: Pick<Required<SmartZipInput>, "paths" | "iniPath">): string {
+  const base = input.paths[0] ? pathBaseFor(input.paths[0]!) : input.iniPath ? dirnameLike(input.iniPath) : ""
+  return base ? joinLike(base, ".xiranite", "smartzip-runs.jsonl") : ""
+}
+
+export function buildSmartZipRunRecord(
+  action: SmartZipAction,
+  input: Pick<Required<SmartZipInput>, "paths" | "iniPath" | "dryRun">,
+  config: SmartZipConfig,
+  selectedPaths: string[],
+  command: SmartZipCommandPlan | undefined,
+  commandResult?: CommandResult,
+): Record<string, unknown> {
+  return {
+    toolId: "smartzip",
+    action,
+    iniPath: input.iniPath || undefined,
+    dryRun: input.dryRun,
+    selectedPaths,
+    archiveCount: selectedPaths.filter((path) => isArchivePath(path, config.archiveExtensions.length ? config.archiveExtensions : SMARTZIP_ARCHIVE_EXTENSIONS)).length,
+    config: {
+      sevenZipDir: config.sevenZipDir,
+      archiveExtensions: config.archiveExtensions,
+      passwordCount: config.passwords.length,
+      contextMenu: config.contextMenu,
+      sendTo: config.sendTo,
+    },
+    command,
+    success: commandResult ? commandResult.code === 0 : true,
+    code: commandResult?.code,
+    stdoutLength: commandResult?.stdout.length,
+    stderrLength: commandResult?.stderr.length,
+    at: new Date().toISOString(),
+  }
+}
+
+async function writeSmartZipRecordIfEnabled(
+  action: SmartZipAction,
+  input: Required<SmartZipInput>,
+  config: SmartZipConfig,
+  selectedPaths: string[],
+  command: SmartZipCommandPlan | undefined,
+  commandResult: CommandResult | undefined,
+  database: SmartZipDatabase | undefined,
+  runtime: Pick<SmartZipRuntime, "appendRecord">,
+): Promise<void> {
+  if (!database?.enabled) return
+  await runtime.appendRecord(database.path, buildSmartZipRunRecord(action, input, config, selectedPaths, command, commandResult))
+}
+
 function parseIni(text: string): Record<string, Record<string, string>> {
   const sections: Record<string, Record<string, string>> = {}
   let current = "set"
@@ -177,6 +259,28 @@ function numberedValues(section?: Record<string, string>): string[] {
 function boolValue(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback
   return value === "1" || value.toLowerCase() === "true"
+}
+
+function pathBaseFor(path: string): string {
+  return isArchivePath(path) || /\.[^\\/]+$/.test(path) ? dirnameLike(path) : path
+}
+
+function dirnameLike(path: string): string {
+  const normalized = path.replace(/\\/g, "/")
+  const index = normalized.lastIndexOf("/")
+  if (index > 0) return normalized.slice(0, index)
+  if (index === 0) return "/"
+  return "."
+}
+
+function joinLike(...parts: string[]): string {
+  return parts
+    .map((part, index) => {
+      const value = index === 0 ? clean(part).replace(/[\\/]+$/g, "") : clean(part).replace(/^[\\/]+|[\\/]+$/g, "")
+      return value === "." ? "" : value
+    })
+    .filter(Boolean)
+    .join("/")
 }
 
 function data(partial: Partial<SmartZipData>): SmartZipData {
