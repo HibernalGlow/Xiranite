@@ -89,7 +89,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     name: "MUSIC PLAYER",
     version: "v0.1.0",
     category: "MEDIA",
-    description: "Shadcn-compatible music player card backed by Media Chrome. Default track metadata: 焚蝶 / MSR.",
+    description: "Local music player backed by Xiranite runtime file service and react-modern-audio-player. Supports FLAC folders and playlists.",
     icon: "Music2",
   },
 ]

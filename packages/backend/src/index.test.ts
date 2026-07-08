@@ -299,11 +299,12 @@ describe("backend", () => {
       }
 
       expect(listed.status).toBe(200)
-      expect(body.entries).toEqual([{
+      expect(body.entries).toMatchObject([{
         name: "track.flac",
         path: audioPath,
         type: "audio/flac",
         sizeBytes: TINY_FLAC_HEADER.length,
+        isDirectory: false,
       }])
 
       const range = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(audioPath)}&token=test-token`, {

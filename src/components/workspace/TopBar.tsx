@@ -10,8 +10,9 @@ import { useTheme } from "@/components/theme-provider"
 import { FONT_PRESETS, getActiveCustomTheme } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
+import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMusicDock"
 import {
-  Activity, Settings, Search, Grid, SplitSquareVertical, AlignJustify, Target,
+  Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
   LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
   CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile, Type,
@@ -342,12 +343,7 @@ export function TopBar() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Search (装饰) */}
-      <button className="xiranite-app-region-no-drag hidden h-8 w-48 items-center gap-2 rounded border border-border/60 bg-muted/30 px-3 text-xs font-mono text-muted-foreground transition-colors hover:border-border hover:text-foreground xl:flex">
-        <Search className="h-3.5 w-3.5" />
-        <span>{t("topbar:search")}</span>
-        <kbd className="ml-auto text-[9px] bg-muted px-1 rounded">⌘K</kbd>
-      </button>
+      <WorkspaceMusicDockTopBarSlot />
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">

@@ -3,7 +3,7 @@ import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { TopBar } from "./TopBar"
 import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
-import { WorkspaceMusicDock } from "./WorkspaceMusicDock"
+import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { useDefaultContextMenuItems } from "@/components/context-menu/defaults"
@@ -40,27 +40,29 @@ export function WorkspaceLayout() {
       className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
-      <WorkspaceUrlState />
-      <TopBar />
-      <BackendStatusBanner />
+      <WorkspaceMusicDockProvider>
+        <WorkspaceUrlState />
+        <TopBar />
+        <BackendStatusBanner />
 
-      <main className="relative flex min-h-0 flex-1 overflow-hidden">
-        <div
-          key={chrome.viewMode}
-          data-context-menu="workspace-canvas"
-          className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
-        >
-          <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
-            {chrome.viewMode === "cards" && <CardView />}
-            {chrome.viewMode === "dockview" && <DockviewView />}
-            {chrome.viewMode === "flow" && <FlowView />}
-            {chrome.viewMode === "lane" && <LaneView />}
-            {chrome.viewMode === "bento" && <BentoView />}
-          </Suspense>
-        </div>
-        <OverlayHost />
-        <WorkspaceMusicDock />
-      </main>
+        <main className="relative flex min-h-0 flex-1 overflow-hidden">
+          <div
+            key={chrome.viewMode}
+            data-context-menu="workspace-canvas"
+            className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
+          >
+            <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
+              {chrome.viewMode === "cards" && <CardView />}
+              {chrome.viewMode === "dockview" && <DockviewView />}
+              {chrome.viewMode === "flow" && <FlowView />}
+              {chrome.viewMode === "lane" && <LaneView />}
+              {chrome.viewMode === "bento" && <BentoView />}
+            </Suspense>
+          </div>
+          <OverlayHost />
+          <WorkspaceMusicDockPanel />
+        </main>
+      </WorkspaceMusicDockProvider>
     </div>
   )
 }
