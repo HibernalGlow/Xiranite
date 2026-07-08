@@ -1,21 +1,21 @@
-import type { NodeEntry } from "@xiranite/contract"
-import { Component } from "./Component.js"
+import type { HeadlessNodePackage, NodeDef } from "@xiranite/contract"
 import * as core from "./core.js"
 
-const entry: NodeEntry<typeof core> = {
-  def: {
-    id: "mvz",
-    name: "MVZ",
-    version: "0.1.0",
-    category: "file",
-    description: "Delete, extract, move, or rename files inside archives from findz output.",
-    icon: "Package",
-    keywords: ["archive", "7z", "findz", "extract", "rename"],
-  },
-  Component,
-  core,
-}
+export const def = {
+  id: "mvz",
+  name: "MVZ",
+  version: "0.1.0",
+  category: "file",
+  description: "Delete, extract, move, or rename files inside archives from findz output.",
+  icon: "Package",
+  keywords: ["archive", "7z", "findz", "extract", "rename"],
+} satisfies NodeDef
 
-export { Component }
+const entry = {
+  def,
+  core,
+} satisfies HeadlessNodePackage<typeof core>
+
+export { core }
 export * from "./core.js"
 export default entry
