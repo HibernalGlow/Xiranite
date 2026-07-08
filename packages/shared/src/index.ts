@@ -33,6 +33,7 @@ export const componentSchema = z.object({
     w: z.number().int().positive(),
     h: z.number().int().positive(),
   }).optional(),
+  laneSize: z.object({ height: z.number().positive() }).optional(),
   dockPanel: z.string().optional(),
   laneId: z.string().optional(),
   hiddenIn: z.object({

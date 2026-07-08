@@ -43,15 +43,14 @@ scripts/generate-node-registries.ts
 scripts/migrate-node-ui-to-app.ts
 ```
 
-Both use:
+Both previously used the TypeScript compiler API to parse node package
+`src/index.ts` files and extract literal `NodeDef` metadata. That blocker has
+been removed: both scripts now go through `scripts/lib/read-node-def.ts`, which
+uses `oxc-parser` instead of `import * as ts from "typescript"`.
 
-```ts
-import * as ts from "typescript"
-```
-
-They parse node package `src/index.ts` files to extract literal `NodeDef` metadata. This is the hard migration blocker because TypeScript 7.0 RC does not provide a stable programmatic API.
-
-Do not replace the root `typescript` package with TypeScript 7 until this is handled, unless you also keep a TypeScript 6 API package for these scripts.
+Do not replace the root `typescript` package with TypeScript 7 until downstream
+tools that still require the classic TypeScript package have a confirmed
+compatibility path.
 
 ## Phase 0: measure current TS 5.9 baseline
 
@@ -59,14 +58,14 @@ Run from repo root:
 
 ```powershell
 Measure-Command { bun run typecheck }
-Measure-Command { bun run build:packages:lazy }
+Measure-Command { bun run build:packages:turbo }
 Measure-Command { bun run build }
 ```
 
 Record:
 
 - total wall time;
-- number of packages rebuilt by `build:packages:lazy`;
+- number of Turbo package tasks rebuilt by `build:packages:turbo`;
 - whether `generate-node-registries` runs cleanly;
 - whether package declaration emit remains stable.
 
@@ -247,27 +246,10 @@ This is acceptable as a short-term validation strategy, but it is not a full mig
 
 Current package builds:
 
-- `packages/*/package.json` all use `tsc -p tsconfig.json`.
-- `packages/nodes/*/package.json` all use `tsc -p tsconfig.json`.
-- `scripts/build-packages-lazy.ts` sequentially runs each package build when stale.
-
-Once script API blockers are removed, add experimental TS7 scripts rather than replacing current scripts immediately:
-
-```json
-{
-  "scripts": {
-    "build:packages:tsgo": "bun scripts/build-packages-lazy.ts --compiler tsgo",
-    "build:packages:tsc7": "bun scripts/build-packages-lazy.ts --compiler tsc"
-  }
-}
-```
-
-Then modify `scripts/build-packages-lazy.ts` to accept a compiler argument:
-
-```ts
-const compiler = readArg("--compiler") ?? "tsc"
-const script = `${compiler} -p tsconfig.json`
-```
+- `packages/*/package.json` all use `tsgo -p tsconfig.json`.
+- `packages/nodes/*/package.json` all use `tsgo -p tsconfig.json`.
+- `build:packages:turbo` is the default package build path.
+- `build:packages:legacy` keeps `scripts/build-packages-lazy.ts` available as a manual fallback.
 
 Better long-term plan:
 
@@ -369,7 +351,7 @@ Run each row before changing default scripts:
 |---|---:|---:|---|
 | `bun run generate:node-registries` | yes | after Phase 2 | generated files unchanged |
 | `bun run typecheck` | yes | `bun run typecheck:tsgo` | no new diagnostics |
-| `bun run build:packages:lazy` | yes | experimental compiler script | same dist declarations |
+| `bun run build:packages:turbo` | yes | default tsgo package scripts | same dist declarations |
 | `bun run test:unit` | yes | yes | pass |
 | `bun run test:packages` | yes | after package build switch | pass |
 | `bun run build` | yes | after package build switch | pass |
@@ -400,8 +382,8 @@ If dist files are not tracked, compare file counts and selected public `.d.ts` c
 
 ### PR 3: package emit experiment
 
-- Add compiler flag support to `scripts/build-packages-lazy.ts`.
-- Run package builds with current `tsc` and tsgo/TS7.
+- Use `build:packages:turbo` for default tsgo package emit.
+- Keep `build:packages:tsc` as the rollback path.
 - Compare declaration output.
 
 ### PR 4: full default switch
@@ -417,11 +399,11 @@ If dist files are not tracked, compare file counts and selected public `.d.ts` c
 - Root `build:packages:turbo` uses tsgo via the package `build` scripts; `build:packages:tsc` is the rollback.
 - `turbo.json` defines a `build:tsc` task (`dependsOn: ["^build:tsc"]`) for the rollback path.
 - The root app `build` still uses `tsc -b` before Vite; switching it to `tsgo -b` is deferred until the pre-existing `NodeStateCapability` project-reference errors (unrelated to tsgo) are resolved.
-- No CI workflows exist in this repo, so nothing to update there.
+- CI now exists at `.github/workflows/ci.yml` and caches both Bun install cache and `.turbo`.
 
 ## Do not do
 
-- Do not replace root `typescript` with `typescript@rc` while `scripts/generate-node-registries.ts` or `scripts/migrate-node-ui-to-app.ts` still import `typescript`.
+- Do not replace root `typescript` with `typescript@rc` until downstream tools that still require the classic TypeScript package have a confirmed compatibility path.
 - Do not assume `tsgo -b` covers all packages; root project references currently do not include package tsconfigs.
 - Do not introduce regex parsing for TypeScript source. Use `oxc-parser`.
 - Do not combine TS7 migration with React Compiler, Vite chunk changes, or node contract refactors.

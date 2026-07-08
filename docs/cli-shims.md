@@ -5,8 +5,12 @@
 该脚本将受管理的 shim 文件写入目标目录：
 
 - `xiranite.cmd`
+- `xr.cmd`：在仓库根目录运行 `bun run dev`，一键启动后端 + 前端开发服务器
+- `xrd.cmd`：在仓库根目录运行 `bun run dev:desktop`，启动 Wails 桌面开发模式
 - 根据当前 CLI 命名策略，每个已迁移节点包对应一个 `x<node>.cmd`
 - 可选的旧版别名：`anode.cmd`、`aestiv.cmd`、`aestiva.cmd`
+
+`xr`/`xrd` 通过 `bun --cwd <repoRoot> run <script>` 启动，因此可从任意目录调用，无需先 `cd` 到仓库。这两个 shim 仅校验仓库根目录存在 `package.json`，不依赖 `dist` 产物；首次运行时 `dev`/`dev:desktop` 脚本内部会自行执行 `generate:node-registries` 与 `build:packages:turbo`。
 
 默认目标：
 

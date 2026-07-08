@@ -145,4 +145,4 @@ if (!nodesResult.ok) process.exit(1)
 const extraResult = await buildPackages(extraPackages, "extra", forceDownstream)
 if (!extraResult.ok) process.exit(1)
 
-console.log("[build:packages:lazy] Done.")
+console.log("[build:packages:legacy] Done.")

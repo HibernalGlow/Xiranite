@@ -15,9 +15,15 @@ interface Options {
 
 interface ShimSpec {
   name: string
+  /**
+   * For kind="js": path to the JS file to run with `bun "<target>"`.
+   * For kind="script": the npm script name to run with `bun run <target>`.
+   */
   target: string
   args?: string[]
   legacy?: boolean
+  kind?: "js" | "script"
+  cwd?: string
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -82,6 +88,18 @@ function createShimSpecs(options: Options): ShimSpec[] {
   const aggregate = join(repoRoot, "packages", "cli", "dist", "index.js")
   const shims: ShimSpec[] = [
     { name: "xiranite", target: aggregate },
+    {
+      name: "xr",
+      target: "dev",
+      kind: "script",
+      cwd: repoRoot,
+    },
+    {
+      name: "xrd",
+      target: "dev:desktop",
+      kind: "script",
+      cwd: repoRoot,
+    },
     ...NODE_CLI_REGISTRY.map((node) => ({
       name: node.bin,
       target: join(repoRoot, "packages", "nodes", node.id, "dist", "cli.js"),
@@ -102,10 +120,13 @@ function createShimSpecs(options: Options): ShimSpec[] {
 async function assertBuildOutputs(shims: ShimSpec[]): Promise<void> {
   const missing: string[] = []
   for (const shim of shims) {
+    const path = shim.kind === "script"
+      ? join(shim.cwd ?? repoRoot, "package.json")
+      : shim.target
     try {
-      await access(shim.target)
+      await access(path)
     } catch {
-      missing.push(shim.target)
+      missing.push(path)
     }
   }
 
@@ -157,29 +178,45 @@ async function readExisting(path: string): Promise<string | null> {
 
 function renderCmdShim(shim: ShimSpec): string {
   const args = shim.args?.join(" ") ?? ""
-  return [
+  const header: string[] = [
     "@echo off",
     `REM ${managedMarker}`,
     `REM command: ${shim.name}`,
-    `REM target: ${shim.target}`,
-    shim.legacy ? "REM legacy-alias: true" : "REM legacy-alias: false",
-    "chcp 65001 >nul",
-    `bun "${shim.target}"${args ? ` ${args}` : ""} %*`,
-    "",
-  ].join("\r\n")
+  ]
+  if (shim.kind === "script") {
+    header.push(`REM script: ${shim.target}`)
+    header.push(`REM cwd: ${shim.cwd ?? repoRoot}`)
+  } else {
+    header.push(`REM target: ${shim.target}`)
+  }
+  header.push(shim.legacy ? "REM legacy-alias: true" : "REM legacy-alias: false")
+  header.push("chcp 65001 >nul")
+  const invocation = shim.kind === "script"
+    ? `bun --cwd "${shim.cwd ?? repoRoot}" run ${shim.target}${args ? ` ${args}` : ""} %*`
+    : `bun "${shim.target}"${args ? ` ${args}` : ""} %*`
+  header.push(invocation)
+  return header.join("\r\n") + "\r\n"
 }
 
 function renderPosixShim(shim: ShimSpec): string {
   const args = shim.args?.map(shellQuote).join(" ") ?? ""
-  return [
+  const lines: string[] = [
     "#!/usr/bin/env sh",
     `# ${managedMarker}`,
     `# command: ${shim.name}`,
-    `# target: ${shim.target}`,
-    shim.legacy ? "# legacy-alias: true" : "# legacy-alias: false",
-    `exec bun ${shellQuote(shim.target)}${args ? ` ${args}` : ""} "$@"`,
-    "",
-  ].join("\n")
+  ]
+  if (shim.kind === "script") {
+    lines.push(`# script: ${shim.target}`)
+    lines.push(`# cwd: ${shim.cwd ?? repoRoot}`)
+  } else {
+    lines.push(`# target: ${shim.target}`)
+  }
+  lines.push(shim.legacy ? "# legacy-alias: true" : "# legacy-alias: false")
+  const invocation = shim.kind === "script"
+    ? `exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.target}${args ? ` ${args}` : ""} "$@"`
+    : `exec bun ${shellQuote(shim.target)}${args ? ` ${args}` : ""} "$@"`
+  lines.push(invocation)
+  return lines.join("\n") + "\n"
 }
 
 function shellQuote(value: string): string {

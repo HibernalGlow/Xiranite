@@ -42,6 +42,7 @@ const components = sqliteTable("components", {
   data: text("data"),
   flowPosition: text("flow_position"),
   flowSize: text("flow_size"),
+  laneSize: text("lane_size"),
   dockPanel: text("dock_panel"),
   laneId: text("lane_id"),
   hiddenIn: text("hidden_in"),
@@ -167,6 +168,7 @@ async function ensureSchema(client: Client): Promise<void> {
       data TEXT,
       flow_position TEXT,
       flow_size TEXT,
+      lane_size TEXT,
       dock_panel TEXT,
       lane_id TEXT,
       hidden_in TEXT,
@@ -198,6 +200,16 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
   ], "write")
+  await addColumnIfMissing(client, "components", "lane_size", "TEXT")
+}
+
+async function addColumnIfMissing(client: Client, table: string, column: string, type: string): Promise<void> {
+  try {
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+  } catch (error) {
+    if (error instanceof Error && /duplicate column/i.test(error.message)) return
+    throw error
+  }
 }
 
 async function replaceRows(db: WorkspaceDb, snapshot: WorkspaceSnapshotDTO): Promise<void> {
@@ -296,6 +308,7 @@ function fromComponentDTO(component: ComponentDTO): typeof components.$inferInse
     data: serialize(component.data),
     flowPosition: serialize(component.flowPosition),
     flowSize: serialize(component.flowSize),
+    laneSize: serialize(component.laneSize),
     dockPanel: component.dockPanel ?? null,
     laneId: component.laneId ?? null,
     hiddenIn: serialize(component.hiddenIn),
@@ -315,6 +328,7 @@ function toComponentDTO(row: typeof components.$inferSelect): ComponentDTO {
     data: deserialize<Record<string, unknown>>(row.data),
     flowPosition: deserialize<{ x: number; y: number }>(row.flowPosition),
     flowSize: deserialize<{ width: number; height: number }>(row.flowSize),
+    laneSize: deserialize<{ height: number }>(row.laneSize),
     dockPanel: row.dockPanel ?? undefined,
     laneId: row.laneId ?? undefined,
     hiddenIn: deserialize<ComponentDTO["hiddenIn"]>(row.hiddenIn),
