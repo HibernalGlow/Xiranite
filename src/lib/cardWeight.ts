@@ -90,8 +90,10 @@ export function getCardWeight(args: {
 }
 
 /**
- * 按权重 + recency 排序，hero/large 在前，idle 在后。
+ * 按权重排序，hero/large 在前，idle 在后。
  * 用于 grid/stack 模式让重要卡片先被摆放。
+ * 同权重内保持插入顺序（依赖 ES2019+ sort 稳定性），
+ * 避免 raiseComponent 改 z 触发位置跳动。
  */
 export function sortByWeightDesc(
   components: ComponentInstance[],
@@ -102,10 +104,7 @@ export function sortByWeightDesc(
     const wa = weights[a.id]?.weight ?? "normal"
     const wb = weights[b.id]?.weight ?? "normal"
     if (wa !== wb) return weightRank[wa] - weightRank[wb]
-    // 同权重按 z 降序，再按 id 稳定
-    const za = a.z ?? 1
-    const zb = b.z ?? 1
-    if (za !== zb) return zb - za
+    // 同权重保持原始顺序：z 仅用于视觉叠层，不参与布局排序
     return 0
   })
 }

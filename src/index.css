@@ -505,12 +505,14 @@
   --dv-icon-hover-background-color: var(--muted);
   --dv-floating-box-shadow: 0 8px 32px oklch(0 0 0 / 0.2);
 
-  --dv-group-view-background-color: var(--card);
-  --dv-tabs-and-actions-container-background-color: var(--muted);
-  --dv-activegroup-visiblepanel-tab-background-color: var(--card);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--muted);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--card);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--muted);
+  /* 半透明背景 + backdrop-filter 实现 Dock 视图的磨砂质感，
+     与 CardView 的 bg-card/72 backdrop-blur-md 保持一致。 */
+  --dv-group-view-background-color: color-mix(in oklch, var(--card) 72%, transparent);
+  --dv-tabs-and-actions-container-background-color: color-mix(in oklch, var(--muted) 72%, transparent);
+  --dv-activegroup-visiblepanel-tab-background-color: color-mix(in oklch, var(--card) 72%, transparent);
+  --dv-activegroup-hiddenpanel-tab-background-color: color-mix(in oklch, var(--muted) 72%, transparent);
+  --dv-inactivegroup-visiblepanel-tab-background-color: color-mix(in oklch, var(--card) 72%, transparent);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: color-mix(in oklch, var(--muted) 72%, transparent);
   --dv-activegroup-visiblepanel-tab-color: var(--foreground);
   --dv-activegroup-hiddenpanel-tab-color: var(--muted-foreground);
   --dv-inactivegroup-visiblepanel-tab-color: var(--muted-foreground);
@@ -521,6 +523,13 @@
   --dv-paneview-header-border-color: var(--border);
   --dv-scrollbar-background-color: var(--muted-foreground);
   --dv-tabs-container-scrollbar-color: var(--muted-foreground);
+}
+
+/* 在 groupview 上应用磨砂模糊，让半透明背景透出画布纹理。
+   backdrop-filter 必须设在有 background-color 的元素上才生效。 */
+.dv-theme-bridge .dv-groupview {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* ── TLDraw 主题桥接 ──
