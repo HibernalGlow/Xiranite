@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { TrenameAction, TrenameData, TrenameInput, TrenameScanMode } from "@xiranite/node-trename/core"
-import { Copy, FilePenLine, History, Play, RotateCcw, ScanSearch, Search, ShieldAlert, Square, Upload } from "lucide-react"
+import { Copy, FilePenLine, History, Play, RotateCcw, ScanSearch, Search, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

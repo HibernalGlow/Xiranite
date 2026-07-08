@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, FolderInput, Info, Settings2, ShieldAlert, SlidersHorizontal, Trash2, Zap } from "lucide-react"
+import { Clipboard, DatabaseZap, FolderInput, Info, ShieldAlert, SlidersHorizontal, Trash2, Zap } from "lucide-react"
 import type { BandiaArchiveFormat, BandiaExtractMode, BandiaOverwriteMode } from "@xiranite/node-bandia/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

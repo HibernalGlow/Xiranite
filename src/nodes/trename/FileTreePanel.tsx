@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import type { TrenameDirNode, TrenameJson, TrenameNode } from "@xiranite/node-trename/core"
+import type { TrenameJson, TrenameNode } from "@xiranite/node-trename/core"
 import { parseRenameJson } from "@xiranite/node-trename/core"
 import { FolderOpen, Maximize2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"

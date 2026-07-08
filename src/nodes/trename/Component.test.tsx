@@ -296,7 +296,7 @@ function createHost(initial: TrenameCardState, options: HostOptions = {}): TestH
       theme: "light",
       platform: "web",
     },
-    getNodeConfig: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+    getNodeConfig: async <T,>() => ({ config: options.config as T | undefined, path: "D:/config/xiranite.config.toml" }),
     saveNodeConfig: async (config) => {
       host.savedConfig = config as Partial<TrenameCardState>
     },
