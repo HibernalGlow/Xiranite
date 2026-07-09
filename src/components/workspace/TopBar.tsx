@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react"
+import { useState, type ComponentType, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
@@ -424,7 +424,7 @@ export function TopBar() {
               variant="ghost"
               size="sm"
               title={t("topbar:theme.label")}
-              className={cn("h-8 shrink-0 gap-1.5 px-2 font-mono text-xs text-muted-foreground hover:text-foreground", TOPBAR_STACKED_ACTION_CLASS)}
+              className="h-8 shrink-0 gap-1.5 px-2 font-mono text-xs text-muted-foreground hover:text-foreground"
             >
               {activeThemeColors.length > 0 ? (
                 <span className="grid h-4 w-4 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/60">
@@ -618,6 +618,128 @@ export function TopBar() {
       ) : null}
 
     </header>
+  )
+}
+
+function TopBarActionDock({
+  activeOperations,
+  devRuntimeActive,
+  devRuntimeLabel,
+  historyLabel,
+  operationsLabel,
+  registryLabel,
+  onOpenDevRuntime,
+  onOpenHistory,
+  onOpenOperations,
+  onOpenRegistry,
+}: {
+  activeOperations: number
+  devRuntimeActive: boolean
+  devRuntimeLabel: string
+  historyLabel: string
+  operationsLabel: string
+  registryLabel: string
+  onOpenDevRuntime: () => void
+  onOpenHistory: () => void
+  onOpenOperations: () => void
+  onOpenRegistry: () => void
+}) {
+  const { setSize } = useDynamicIslandSize()
+
+  function expand() {
+    setSize("compact")
+  }
+
+  function collapse() {
+    setSize("minimalLeading")
+  }
+
+  function collapseWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget
+    if (!(next instanceof Node) || !event.currentTarget.contains(next)) collapse()
+  }
+
+  return (
+    <div onMouseEnter={expand} onMouseLeave={collapse} onFocus={expand} onBlur={collapseWhenFocusLeaves}>
+      <DynamicIsland
+        id="topbar-action-dock"
+        className="mx-0 justify-start border border-border/60 bg-muted/20 shadow-xs"
+      >
+        <Dock
+          iconSize={28}
+          iconMagnification={38}
+          iconDistance={72}
+          className="mx-0 mt-0 h-9 gap-1 border-0 bg-transparent p-1 backdrop-blur-none supports-backdrop-blur:bg-transparent supports-backdrop-blur:dark:bg-transparent"
+        >
+          <TopBarDockIcon label={registryLabel} onSelect={onOpenRegistry}>
+            <Plus className="h-4 w-4" />
+          </TopBarDockIcon>
+          <TopBarDockIcon
+            label={devRuntimeLabel}
+            onSelect={onOpenDevRuntime}
+            className={devRuntimeActive ? "text-primary hover:text-primary" : undefined}
+          >
+            <span className="relative grid place-items-center">
+              <Code2 className="h-4 w-4" />
+              <span
+                className={cn(
+                  "absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full",
+                  devRuntimeActive ? "bg-primary" : "bg-muted-foreground/40",
+                )}
+              />
+            </span>
+          </TopBarDockIcon>
+          <TopBarDockIcon label={operationsLabel} onSelect={onOpenOperations}>
+            <span className="relative grid place-items-center">
+              <Activity className="h-4 w-4" />
+              {activeOperations > 0 && (
+                <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-mono leading-none text-destructive-foreground">
+                  {activeOperations > 9 ? "9+" : activeOperations}
+                </span>
+              )}
+            </span>
+          </TopBarDockIcon>
+          <TopBarDockIcon label={historyLabel} onSelect={onOpenHistory}>
+            <History className="h-4 w-4" />
+          </TopBarDockIcon>
+        </Dock>
+      </DynamicIsland>
+    </div>
+  )
+}
+
+function TopBarDockIcon({
+  children,
+  className,
+  label,
+  onSelect,
+}: {
+  children: ReactNode
+  className?: string
+  label: string
+  onSelect: () => void
+}) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onSelect()
+  }
+
+  return (
+    <DockIcon
+      role="button"
+      tabIndex={0}
+      title={label}
+      aria-label={label}
+      onClick={onSelect}
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "relative text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        className,
+      )}
+    >
+      {children}
+    </DockIcon>
   )
 }
 

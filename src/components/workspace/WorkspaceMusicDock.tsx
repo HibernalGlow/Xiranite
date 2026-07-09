@@ -189,6 +189,8 @@ export function WorkspaceMusicDockPanel() {
     </div>
   ) : undefined
 
+  if (dock.collapsed) return null
+
   return (
     <div ref={dragBoundsRef} className="pointer-events-none fixed inset-3 z-[71]">
       <motion.div
@@ -205,13 +207,11 @@ export function WorkspaceMusicDockPanel() {
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
         data-music-dock="panel"
         data-music-dock-mode={dock.mode}
-        aria-hidden={dock.collapsed}
         className={cn(
           "pointer-events-auto absolute bottom-0 overflow-hidden",
           dock.mode === "bottom"
             ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
             : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
-          dock.collapsed && "pointer-events-none translate-y-3 opacity-0"
         )}
       >
         <div className={cn(
