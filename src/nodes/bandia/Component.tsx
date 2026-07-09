@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { BandiaAction, BandiaData, BandiaInput, BandiaPathMapping } from "@xiranite/node-bandia/core"
 import { mappingsToText, parseBandiaPaths, parsePathMappings } from "@xiranite/node-bandia/core"
-import { Archive, Copy, ExternalLink, FileArchive, Play, RotateCcw, Square } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { Archive, ArrowRight, Boxes, Copy, ExternalLink, FileArchive, Gauge, PackageOpen, Play, RotateCcw, Route, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
 import { Badge } from "@/components/ui/badge"
+import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
+import { GridPattern } from "@/components/ui/grid-pattern"
+import { MagicCard } from "@/components/ui/magic-card"
+import { NumberTicker } from "@/components/ui/number-ticker"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
@@ -108,14 +115,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(action, dataRef.current, paths, mappings)
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
+      patch({ phase: "error", progress: 0, progressText: t("error.noRunEnv", "Native execution is unavailable in this host. Use desktop mode or CLI.") })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
     try {
-      patch({ phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: labelForAction(action) }), result: null })
+      patch({ phase: "running", progress: 0, progressText: t("progress.start", "{{action}} started", { action: labelForAction(action) }), result: null })
       const response = await run<BandiaInput, BandiaData>("bandia", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -145,7 +152,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function requestStop() {
     if (!running) return
     await host.actions?.run?.("bandia", { action: "stop" })
-    patch({ phase: "error", progressText: t("error.stopRequested", "已请求停止") })
+    patch({ phase: "error", progressText: t("error.stopRequested", "Stop requested") })
     pushLog("Stop requested.")
   }
 
@@ -284,40 +291,47 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   const Icon = props.modeMeta.icon
+  const isRunning = props.status.tone === "running"
   return (
-    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <FileArchive />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Bandia</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+    <div data-testid="bandia-collapsed-view" className="relative h-full min-h-0 w-full p-1">
+      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in oklch, var(--chart-3) 45%, transparent)">
+        <GridPattern width={24} height={24} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
+        <RunningTint tone={props.status.tone} />
+        {isRunning && <BorderBeam size={30} duration={5} colorFrom="var(--chart-3)" colorTo="var(--primary)" />}
+        <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+          <FileArchive />
         </div>
-        <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-          <Icon className="size-3.5 shrink-0" />
-          <span className="truncate">{summaryText(props)}</span>
+        <div className="relative min-w-0 flex-1">
+          <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+            <span>Bandia</span>
+            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+            <Icon className="size-3.5 shrink-0" />
+            <span className="truncate">{summaryText(props)}</span>
+          </div>
         </div>
-      </div>
-      <RunActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+        <RunActionButton compact props={props} />
+        {isRunning && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+      </MagicCard>
     </div>
   )
 }
 
 function CompactView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-testid="bandia-compact-view" className="relative flex min-h-0 flex-1 flex-col">
+      <GridPattern width={28} height={28} className="fill-muted-foreground/[0.035] stroke-muted-foreground/[0.07]" />
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine modeMeta={props.modeMeta} status={props.status} subtitle={props.data.progressText || props.modeMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
-          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
+          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "Stop")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
+      <div className="relative flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
         <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
+        <MiniPipeline props={props} />
         <PathInput compact archiveCount={props.archivePaths.length} data={props.data} disabled={props.running} mode={props.mode} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
         {props.mode !== "extract" && (
           <MappingInput compact data={props.data} disabled={props.running} mappingCount={props.mappings.length} mode={props.mode} onPatch={props.onPatch} />
@@ -337,21 +351,26 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
+    <div data-testid="bandia-portrait-view" className="relative flex h-full min-h-0 flex-col gap-2 p-2">
+      <GridPattern width={30} height={30} className="fill-muted-foreground/[0.035] stroke-muted-foreground/[0.07]" />
+      <div className="relative flex shrink-0 items-start justify-between gap-2">
         <HeaderLine modeMeta={props.modeMeta} status={props.status} subtitle={props.data.progressText || props.modeMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
-          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
+          {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "Stop")} onClick={props.onStop} /> : <RunActionButton compact props={props} />}
         </div>
       </div>
-      <div className="grid shrink-0 gap-2">
+      <div className="relative grid shrink-0 gap-2">
         <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
+        <VerticalPipeline props={props} />
         <PathInput compact archiveCount={props.archivePaths.length} data={props.data} disabled={props.running} mode={props.mode} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
         <PrimarySwitches compact data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
-      <div className="min-h-0 flex-1">
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
+      <div className="relative min-h-0 flex-1">
         <ResultTabs
           compact
           archivePaths={props.archivePaths}
@@ -371,69 +390,252 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/bandia:flex-row @4xl/bandia:items-center @4xl/bandia:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/bandia:flex-row @4xl/bandia:items-center">
+    <div data-testid="bandia-full-view" className="relative flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <GridPattern width={34} height={34} className="fill-muted-foreground/[0.03] stroke-muted-foreground/[0.06]" />
+      <div className="relative flex shrink-0 flex-col gap-3 @4xl/bandia:flex-row @4xl/bandia:items-start @4xl/bandia:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
           <HeaderLine
             modeMeta={props.modeMeta}
             status={props.status}
-            subtitle={props.data.progressText || tNode("bandia", "subtitle.full", "{{label}} / {{mode}} / {{count}} 项", { label: props.modeMeta.label, mode: props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.liveExecute", "真实执行"), count: props.paths.length || props.mappings.length })}
+            subtitle={props.data.progressText || tNode("bandia", "subtitle.full", "{{label}} / {{mode}} / {{count}} items", {
+              label: props.modeMeta.label,
+              mode: props.dryRun ? tNode("bandia", "mode.dry", "Dry run") : tNode("bandia", "mode.liveExecute", "Live run"),
+              count: props.paths.length || props.mappings.length,
+            })}
           />
-          <div data-testid="bandia-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
-          </div>
+          <PipelineRibbon props={props} />
         </div>
         <StatsPanel archiveCount={props.archivePaths.length} mappingCount={props.mappings.length} pathCount={props.paths.length} progress={props.progress} result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/bandia:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{tNode("bandia", "labels.task", "任务")}</div>
-              <div className="text-xs text-muted-foreground">{tNode("bandia", "labels.taskHint", "选择解压、压缩或重打包；危险写入默认以预演保护。")}</div>
-            </div>
-            <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
-            <PathInput archiveCount={props.archivePaths.length} data={props.data} disabled={props.running} mode={props.mode} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
-            {props.mode !== "extract" && (
-              <MappingInput data={props.data} disabled={props.running} mappingCount={props.mappings.length} mode={props.mode} onPatch={props.onPatch} />
-            )}
+      <div className="relative grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/bandia:grid-cols-[minmax(240px,0.9fr)_minmax(280px,1fr)_minmax(320px,1.25fr)]">
+        <InputSilo props={props} />
+        <ProcessingChamber props={props} />
+        <MappingOutput props={props} />
+      </div>
+      <LogsRail props={props} />
+    </div>
+  )
+}
+
+function PipelineRibbon({ props }: { props: ViewProps }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+      <PipelinePill icon={PackageOpen} label="Input" value={String(props.paths.length || props.archivePaths.length)} />
+      <ArrowRight className="size-3.5 shrink-0" />
+      <PipelinePill icon={Gauge} label={props.dryRun ? "Plan" : "Commit"} value={props.status.label} />
+      <ArrowRight className="size-3.5 shrink-0" />
+      <PipelinePill icon={Route} label="Output" value={String(props.result?.results.length ?? props.mappings.length)} />
+    </div>
+  )
+}
+
+function MiniPipeline({ props }: { props: ViewProps }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-1 rounded-lg border bg-background/65 p-1.5">
+      <MiniStage icon={PackageOpen} label="In" value={props.paths.length || props.archivePaths.length} />
+      <ArrowRight className="size-3.5 text-muted-foreground" />
+      <MiniStage icon={Gauge} label={props.dryRun ? "Plan" : "Run"} value={props.progress} suffix="%" />
+      <ArrowRight className="size-3.5 text-muted-foreground" />
+      <MiniStage icon={Route} label="Out" value={props.result?.results.length ?? props.mappings.length} />
+    </div>
+  )
+}
+
+function VerticalPipeline({ props }: { props: ViewProps }) {
+  return (
+    <div className="grid gap-1.5 rounded-lg border bg-background/65 p-2">
+      <VerticalStage icon={PackageOpen} label="Input queue" value={`${props.paths.length || props.archivePaths.length}`} />
+      <VerticalStage icon={Gauge} label={props.dryRun ? "Command plan" : "Live execution"} value={`${props.progress}%`} />
+      <VerticalStage icon={Route} label="Mapping output" value={`${props.result?.results.length ?? props.mappings.length}`} />
+    </div>
+  )
+}
+
+function PipelinePanel(props: {
+  children: ReactNode
+  className?: string
+  icon: LucideIcon
+  subtitle: string
+  title: string
+}) {
+  const Icon = props.icon
+  return (
+    <MagicCard className={cn("relative flex min-h-0 flex-col rounded-xl bg-background/80", props.className)} gradientColor="color-mix(in oklch, var(--chart-3) 25%, transparent)">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b bg-muted/20 px-3 py-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon className="size-4 shrink-0 text-muted-foreground" />
+            <div className="truncate text-sm font-semibold">{props.title}</div>
           </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("bandia", "labels.switches", "关键开关")}</div>
+          <div className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</div>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 p-3">{props.children}</div>
+    </MagicCard>
+  )
+}
+
+function InputSilo({ props }: { props: ViewProps }) {
+  return (
+    <PipelinePanel
+      icon={PackageOpen}
+      title="Input silo"
+      subtitle={`${props.mode === "extract" ? props.archivePaths.length : props.paths.length} queued / ${props.mappings.length} mappings`}
+    >
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
+        <PathInput archiveCount={props.archivePaths.length} data={props.data} disabled={props.running} mode={props.mode} pathCount={props.paths.length} onPaste={props.onPaste} onPatch={props.onPatch} />
+        {props.mode !== "extract" && (
+          <MappingInput data={props.data} disabled={props.running} mappingCount={props.mappings.length} mode={props.mode} onPatch={props.onPatch} />
+        )}
+        <div className="min-h-0 flex-1">
+          <QueuePreview compact archivePaths={props.archivePaths} mappings={props.mappings} mode={props.mode} paths={props.paths} result={props.result} />
+        </div>
+      </div>
+    </PipelinePanel>
+  )
+}
+
+function ProcessingChamber({ props }: { props: ViewProps }) {
+  return (
+    <PipelinePanel
+      icon={Boxes}
+      title="Command chamber"
+      subtitle={props.dryRun ? "Planning commands without file writes" : "Live file operations are armed"}
+    >
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="grid shrink-0 place-items-center rounded-xl border bg-muted/20 py-3">
+          <AnimatedCircularProgressBar
+            value={props.progress}
+            className="size-24 text-lg"
+            gaugePrimaryColor={props.status.tone === "error" ? "var(--destructive)" : "var(--primary)"}
+            gaugeSecondaryColor="color-mix(in oklch, var(--muted-foreground) 18%, transparent)"
+          />
+          <div className="mt-2 text-xs font-medium text-muted-foreground">{props.status.description}</div>
+        </div>
+        <ScrollArea className="min-h-0 flex-1 pr-1">
+          <div className="grid gap-3">
             <PrimarySwitches data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("bandia", "labels.advanced", "高级选项")}</div>
             <OptionsFields data={props.data} disabled={props.running} mode={props.mode} onPatch={props.onPatch} />
           </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
-
-        <div className="min-h-0">
-          <ResultTabs
-            archivePaths={props.archivePaths}
-            logs={props.logs}
-            mappings={props.mappings}
-            mode={props.mode}
-            paths={props.paths}
-            result={props.result}
-            running={props.running}
-            onCopyLogs={props.onCopyLogs}
-            onCopyResults={props.onCopyResults}
-          />
+        </ScrollArea>
+        <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t pt-3">
+          <div className="min-w-0 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{props.dryRun ? "Dry run" : "Live run"}</span>
+            <span className="mx-1">/</span>
+            <span>{canRun(props.mode, props.paths, props.mappings) ? "ready" : "waiting for input"}</span>
+          </div>
+          <div data-testid="bandia-header-toolbar" className="flex items-center gap-1">
+            {props.running ? <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "Stop")} onClick={props.onStop} /> : <RunActionButton props={props} />}
+            <ToolbarActions {...props} hidePrimaryAction />
+          </div>
         </div>
+      </div>
+    </PipelinePanel>
+  )
+}
+
+function MappingOutput({ props }: { props: ViewProps }) {
+  const failureCount = props.result?.failedCount ?? 0
+  return (
+    <PipelinePanel
+      icon={Route}
+      title="Mapping output"
+      subtitle={failureCount ? `${failureCount} failed item(s)` : "Rows, mappings, and run artifacts"}
+    >
+      <ResultTabs
+        archivePaths={props.archivePaths}
+        logs={props.logs}
+        mappings={props.mappings}
+        mode={props.mode}
+        paths={props.paths}
+        result={props.result}
+        running={props.running}
+        onCopyLogs={props.onCopyLogs}
+        onCopyResults={props.onCopyResults}
+      />
+    </PipelinePanel>
+  )
+}
+
+function LogsRail({ props }: { props: ViewProps }) {
+  const recentLogs = props.logs.slice(-4)
+  return (
+    <div className="relative grid shrink-0 gap-2 rounded-xl border bg-background/75 px-3 py-2 @4xl/bandia:grid-cols-[auto_minmax(0,1fr)_auto] @4xl/bandia:items-center">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Archive className="size-3.5" />
+        <span>Recent log</span>
+        <Badge variant="outline">{props.logs.length}</Badge>
+      </div>
+      <ScrollArea className="max-h-16 min-h-0">
+        <div className="grid gap-1 text-xs text-muted-foreground">
+          {recentLogs.length ? recentLogs.map((line, index) => <div key={`${index}:${line}`} className="truncate font-mono">{line}</div>) : <div>No run output yet.</div>}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopyLogs}>
+        <Copy data-icon="inline-start" />
+        Copy
+      </Button>
+    </div>
+  )
+}
+
+function PipelinePill({ icon: Icon, label, value }: {
+  icon: LucideIcon
+  label: string
+  value: string
+}) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1 rounded-md border bg-background/70 px-2 py-1">
+      <Icon className="size-3.5 shrink-0" />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-28 truncate font-medium text-foreground">{value}</span>
+    </span>
+  )
+}
+
+function MiniStage({ icon: Icon, label, suffix = "", value }: {
+  icon: LucideIcon
+  label: string
+  suffix?: string
+  value: number
+}) {
+  return (
+    <div className="min-w-0 text-center">
+      <div className="mx-auto grid size-7 place-items-center rounded-md bg-muted/50 text-muted-foreground">
+        <Icon className="size-3.5" />
+      </div>
+      <div className="mt-1 truncate text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div className="text-xs font-semibold tabular-nums">
+        <NumberTicker value={value} className="text-inherit" />
+        {suffix}
       </div>
     </div>
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function VerticalStage({ icon: Icon, label, value }: {
+  icon: LucideIcon
+  label: string
+  value: string
+}) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md bg-muted/30 px-2 py-1.5">
+      <Icon className="size-4 text-muted-foreground" />
+      <span className="truncate text-xs font-medium">{label}</span>
+      <Badge variant="outline" className="shrink-0">{value}</Badge>
+    </div>
+  )
+}
+
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {!props.compact && (
+      {!props.compact && !props.hidePrimaryAction && (
         props.running ? (
-          <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "停止")} onClick={props.onStop} />
+          <ActionIconButton destructive icon={Square} label={tNode("bandia", "actions.stop", "Stop")} onClick={props.onStop} />
         ) : (
           <RunActionButton compact props={props} />
         )
@@ -441,12 +643,12 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton
         disabled={!props.paths.length && !props.mappings.length}
         icon={ExternalLink}
-        label={tNode("bandia", "actions.exportEfu", "导出 EFU")}
+        label={tNode("bandia", "actions.exportEfu", "Export EFU")}
         onClick={() => props.onExecute("export_efu")}
       />
-      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("bandia", "copyResults", "复制结果")} onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={Archive} label={tNode("bandia", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
-      <ActionIconButton icon={RotateCcw} label={tNode("bandia", "actions.clearState", "清空状态")} onClick={props.onReset} />
+      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("bandia", "copyResults", "Copy results")} onClick={props.onCopyResults} />
+      <ActionIconButton disabled={!props.logs.length} icon={Archive} label={tNode("bandia", "copyLogs", "Copy logs")} onClick={props.onCopyLogs} />
+      <ActionIconButton icon={RotateCcw} label={tNode("bandia", "actions.clearState", "Clear state")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
           configDirty={props.configDirty}
@@ -462,12 +664,11 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
     </div>
   )
 }
-
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   const disabled = props.running || !canRun(props.mode, props.paths, props.mappings)
   const dangerous = isDangerous(props)
   const label = tNode("bandia", "actions.runLabel", "{{mode}}{{action}}", {
-    mode: props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.execute", "执行"),
+    mode: props.dryRun ? tNode("bandia", "mode.dry", "Dry run") : tNode("bandia", "mode.execute", "Run"),
     action: props.modeMeta.shortLabel,
   })
   if (dangerous) {
@@ -481,14 +682,14 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{tNode("bandia", "confirm.title", "确认真实执行 Bandia？")}</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("bandia", "confirm.title", "Confirm live Bandia execution?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {tNode("bandia", "confirm.description", "当前关闭了预演，并启用了删除源文件相关选项。请确认路径、映射和回收站策略无误后再继续。")}
+              {tNode("bandia", "confirm.description", "Dry run is disabled and a source deletion option is enabled. Confirm paths, mappings, and trash policy before continuing.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{tNode("bandia", "common:cancel", "取消")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.mode)}>{tNode("bandia", "actions.confirmExecute", "确认执行")}</AlertDialogAction>
+            <AlertDialogCancel>{tNode("bandia", "common:cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.mode)}>{tNode("bandia", "actions.confirmExecute", "Run live")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -550,8 +751,8 @@ function buildInput(action: BandiaAction, data: BandiaCardState, paths: string[]
 function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: tNode("bandia", "status.running", "运行中"),
-      description: tNode("bandia", "desc.running", "Bandia 正在处理当前队列。"),
+      label: tNode("bandia", "status.running", "Running"),
+      description: tNode("bandia", "desc.running", "Bandia is processing the current queue."),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -559,8 +760,8 @@ function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusM
   }
   if (data.phase === "completed") {
     return {
-      label: tNode("bandia", "status.success", "完成"),
-      description: tNode("bandia", "desc.success", "上次任务已完成。"),
+      label: tNode("bandia", "status.success", "Done"),
+      description: tNode("bandia", "desc.success", "The previous task completed."),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -568,16 +769,16 @@ function statusFromState(data: BandiaCardState, running: boolean): BandiaStatusM
   }
   if (data.phase === "error") {
     return {
-      label: tNode("bandia", "status.error", "失败"),
-      description: tNode("bandia", "desc.error", "上次任务失败，请查看结果和日志。"),
+      label: tNode("bandia", "status.error", "Failed"),
+      description: tNode("bandia", "desc.error", "The previous task failed. Check results and logs."),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: tNode("bandia", "status.idle", "就绪"),
-    description: tNode("bandia", "desc.idle", "粘贴路径或映射后即可预演。"),
+    label: tNode("bandia", "status.idle", "Ready"),
+    description: tNode("bandia", "desc.idle", "Paste paths or mappings to preview a run."),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -595,10 +796,10 @@ function isDangerous(props: ViewProps): boolean {
 }
 
 function labelForAction(action: BandiaAction): string {
-  if (action === "extract") return tNode("bandia", "actionLabel.extract", "解压")
-  if (action === "compress") return tNode("bandia", "actionLabel.compress", "压缩")
-  if (action === "repack") return tNode("bandia", "actionLabel.repack", "重打包")
-  if (action === "export_efu") return tNode("bandia", "actionLabel.export_efu", "导出")
+  if (action === "extract") return tNode("bandia", "actionLabel.extract", "Extract")
+  if (action === "compress") return tNode("bandia", "actionLabel.compress", "Compress")
+  if (action === "repack") return tNode("bandia", "actionLabel.repack", "Repack")
+  if (action === "export_efu") return tNode("bandia", "actionLabel.export_efu", "Export")
   return action
 }
 
@@ -608,10 +809,10 @@ function resultTarget(item: { outputPath?: string; archivePath?: string }): stri
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.failedCount) return tNode("bandia", "summary.failed", "{{count}} 个失败", { count: props.result.failedCount })
-  const modeLabel = props.dryRun ? tNode("bandia", "mode.dry", "预演") : tNode("bandia", "mode.live", "真实")
-  if (props.mode === "extract") return tNode("bandia", "summary.archives", "{{count}} 个归档 / {{mode}}", { count: props.archivePaths.length, mode: modeLabel })
-  return tNode("bandia", "summary.items", "{{count}} 项 / {{mode}}", { count: props.paths.length || props.mappings.length, mode: modeLabel })
+  if (props.result?.failedCount) return tNode("bandia", "summary.failed", "{{count}} failed", { count: props.result.failedCount })
+  const modeLabel = props.dryRun ? tNode("bandia", "mode.dry", "Dry run") : tNode("bandia", "mode.live", "Live")
+  if (props.mode === "extract") return tNode("bandia", "summary.archives", "{{count}} archives / {{mode}}", { count: props.archivePaths.length, mode: modeLabel })
+  return tNode("bandia", "summary.items", "{{count}} items / {{mode}}", { count: props.paths.length || props.mappings.length, mode: modeLabel })
 }
 
 function parseRawPaths(text: string): string[] {

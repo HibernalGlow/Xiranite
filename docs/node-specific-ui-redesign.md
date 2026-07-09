@@ -2,17 +2,20 @@
 
 This document is the implementation contract for redesigning the remaining Xiranite node frontends and removing Python-wrapper PackU nodes.
 
-It supersedes ad-hoc node UI notes when they conflict on scope. `trename` and the shared `PackuWorkbench` redesign may continue in parallel, but completion of the overall goal still requires every node to have a function-specific UI and every PackU-derived node to be native TypeScript rather than a Python module wrapper.
+It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the only node currently allowed to remain largely as-is. Every other node, including nodes already touched by parallel work, must be treated as unfinished until it passes the function-specific UI and responsive acceptance checks below.
 
 ## Non-negotiable requirements
 
-- Every node must keep `collapsed`, `compact`, `portrait`, and `full` layouts. Use the existing `useNodeSurface()` pattern and container queries.
+- Every node except `trename` must be rewritten or re-audited against this document. Existing partial rewrites are evidence to inspect, not completion proof.
+- Every rewritten node must keep `collapsed`, `compact`, `portrait`, and `full` layouts. Use the existing `useNodeSurface()` pattern and container queries.
 - A larger card must not be a stretched version of the small card. It must expose a richer information architecture for that node's actual workflow.
 - Do not use the generic "toolbar + input panel + result tabs" template as the final full layout.
 - Keep dangerous operations gated by explicit confirmation. Icon-only buttons are acceptable for clear tools, not for destructive commits.
 - Short mode sets use `ToggleGroup` / `ToggleGroupItem`, not dropdowns.
 - Long content is locally scrollable. Primary action, current status, and risk controls remain visible.
 - `Component.tsx` stays UI orchestration only. File system, shell, registry, network, and native execution remain in `platform.ts` or host runtime paths.
+- Actively use or add higher-quality UI primitives when the existing shadcn primitives produce generic layouts. Prefer components that serve the node domain: data tables, file trees, timelines, command consoles, galleries, diff viewers, animated progress, and compact visual meters.
+- Any new component must be checked into `src/components/ui/` or a node-local `parts/` folder with clear ownership. Avoid adding dependencies only for decoration.
 - Existing user or parallel-model edits must be preserved unless they directly block the implementation.
 
 ## PackU rewrite requirement
@@ -58,6 +61,9 @@ Good full layouts:
 - Console: command/config -> live output -> result artifact
 - Monitor: timer/signal -> current state -> intervention controls
 - Relationship map: source path -> link/target -> recovery list
+- Archive pipeline: input queue -> command chamber -> mapping/result output
+- Diff bench: source -> transform -> output with highlighted changes
+- Timeline/ledger: events or timestamps as the primary navigation structure
 
 Avoid:
 
@@ -95,7 +101,7 @@ Full layout: rule board plus execution gate.
 - Preview board: removable items grouped by preset, skipped items, errors.
 - Execution gate: big preview/live state, progress, delete confirmation.
 
-Existing parallel work has started here. Review it against this brief before further edits.
+Existing parallel work has started here, but it must still be re-audited. Do not mark it complete unless collapsed/compact/portrait/full all preserve primary controls and the full view is clearly a deletion rule board.
 
 ### `coveru` - cover extraction gallery
 
@@ -119,7 +125,7 @@ Full layout: matching cockpit.
 - Center: match lanes with source folder on one side and target candidate on the other.
 - Right: conflict policy, selected move summary, destructive gate.
 
-Existing parallel work has started here. Review conflict visibility and destructive confirmation carefully.
+Existing parallel work has started here, but it must still be re-audited. Review conflict visibility and destructive confirmation carefully.
 
 ### `dissolvef` - folder dissolve planner
 
@@ -132,7 +138,7 @@ Full layout: dissolve blueprint.
 - Right: conflict policy, direct/dry-run switch, execution gate.
 - Bottom: history/log strip.
 
-Existing parallel work has started here. Make sure overwrite mode is visually risky.
+Existing parallel work has started here, but it must still be re-audited. Make sure overwrite mode is visually risky.
 
 ### `encodeb` - mojibake repair desk
 
@@ -412,7 +418,7 @@ Full layout: image grouping grid.
 - Center: groups with representative thumbnail placeholders and file counts.
 - Right: selected group detail, move/copy/link gate.
 
-Existing work already moved this toward a workbench; keep improving toward visual grouping.
+Existing work already moved this toward a workbench, but it still needs review under the full rewrite standard. Keep improving toward visual grouping.
 
 ### `sleept` - power action scheduler
 
@@ -424,7 +430,7 @@ Full layout: scheduler monitor.
 - Center: large countdown/signal monitor.
 - Right: power action selection and confirmation.
 
-This node is already close to target; only adjust if it fails responsive or clarity checks.
+This node is close to target, but still needs review under the full rewrite standard. Only `trename` is exempt from broad rewrite.
 
 ### `smartzip` - archive command deck
 
@@ -488,7 +494,7 @@ Parallel work has already expanded the UI. It still must remove Python/module fi
 
 ## Implementation batches
 
-Batch A, already touched by parallel work:
+Batch A, already touched by parallel work but still not accepted:
 
 - `cleanf`
 - `coveru`
@@ -496,7 +502,7 @@ Batch A, already touched by parallel work:
 - `dissolvef`
 - `transq`
 
-Before editing these again, run a focused review and typecheck. Do not overwrite their current work.
+Before editing these again, run a focused review and typecheck. Work with their current diffs, but rewrite again when the design is still generic.
 
 Batch B, high UI value and not currently dirty:
 
@@ -570,8 +576,9 @@ rg -n "packu-node-runtime|runPackuTool|python -m|sourceRoot|moduleName|data\.pyt
 
 Completion evidence must include:
 
-- No remaining generic full layouts for redesigned nodes.
+- No remaining generic full layouts for any node except `trename`.
 - No text overflow or incoherent overlap in collapsed/compact/portrait/full.
 - Dangerous actions still gated.
 - PackU rewrite search returns no Python wrapper references for rewritten nodes.
 - Targeted tests and typecheck pass for the touched batch.
+- Existing Bento/card screenshot tooling has been used for visual checks where available. Capture, inspect, adjust, and repeat until the layout is coherent without browser-driven QA.
