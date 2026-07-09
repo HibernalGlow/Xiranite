@@ -19,6 +19,7 @@ export function WorkspaceLayout() {
   useDefaultContextMenuItems()
   const chrome = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
+    activeCustomThemeName: state.activeCustomThemeName,
     viewMode: state.viewMode,
     bgMode: state.bgMode,
     bgImageUrl: state.bgImageUrl,
@@ -26,7 +27,7 @@ export function WorkspaceLayout() {
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,
   }))
-  const themeClass = chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
+  const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
   const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
 

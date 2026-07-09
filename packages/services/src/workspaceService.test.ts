@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createMemoryNodeRunHistoryRepository, createMemoryWorkspaceRepository } from "@xiranite/repository"
@@ -179,6 +179,73 @@ describe("ConfigService", () => {
       expect(ensured.path).toBe(join(tempDir, "xiranite.config.toml"))
       expect(ensured.created).toBe(true)
     } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("migrates legacy Roaming config and artifacts into the database directory", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-migrate-"))
+    const previousAppData = process.env.APPDATA
+    const previousLocalAppData = process.env.LOCALAPPDATA
+    const legacyDataDir = join(tempDir, "Roaming", "Xiranite")
+    const targetDataDir = join(tempDir, "Local", "Xiranite")
+    const legacyConfigPath = join(legacyDataDir, "xiranite.config.toml")
+    const targetConfigPath = join(targetDataDir, "xiranite.config.toml")
+    const legacyArtifactPath = join(legacyDataDir, "artifacts", "undo", "migratef.undo.json")
+    const targetArtifactPath = join(targetDataDir, "artifacts", "undo", "migratef.undo.json")
+
+    process.env.APPDATA = join(tempDir, "Roaming")
+    process.env.LOCALAPPDATA = join(tempDir, "Local")
+
+    try {
+      await mkdir(join(legacyDataDir, "artifacts", "undo"), { recursive: true })
+      await mkdir(targetDataDir, { recursive: true })
+      await writeFile(legacyConfigPath, [
+        "[nodes.enginev]",
+        "workshopPath = \"E:/SteamLibrary\"",
+        "",
+        "[nodes.enginev.ui]",
+        "galleryColumns = 3",
+        "",
+        "[nodes.repacku]",
+        "deleteAfter = true",
+      ].join("\n"), "utf8")
+      await writeFile(targetConfigPath, [
+        "[app.ui]",
+        "version = 1",
+        "",
+        "[nodes.enginev.ui]",
+        "galleryColumns = 5",
+      ].join("\n"), "utf8")
+      await writeFile(legacyArtifactPath, "{\"items\":[]}", "utf8")
+
+      const service = new ConfigService({
+        databasePath: join(targetDataDir, "xiranite.db"),
+      })
+      const ensured = await service.ensureConfigFile()
+      const merged = await readFile(targetConfigPath, "utf8")
+      const backup = await readFile(join(targetDataDir, "migration-backups", "xiranite.config.legacy.toml"), "utf8")
+      const artifact = await readFile(targetArtifactPath, "utf8")
+
+      expect(ensured).toEqual({ path: targetConfigPath, created: false })
+      expect(merged).toContain("workshopPath = \"E:/SteamLibrary\"")
+      expect(merged).toContain("galleryColumns = 5")
+      expect(merged).toContain("deleteAfter = true")
+      expect(backup).toContain("galleryColumns = 3")
+      expect(artifact).toBe("{\"items\":[]}")
+      await expect(readFile(legacyConfigPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(readFile(legacyArtifactPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      if (previousAppData === undefined) {
+        delete process.env.APPDATA
+      } else {
+        process.env.APPDATA = previousAppData
+      }
+      if (previousLocalAppData === undefined) {
+        delete process.env.LOCALAPPDATA
+      } else {
+        process.env.LOCALAPPDATA = previousLocalAppData
+      }
       await rm(tempDir, { recursive: true, force: true })
     }
   })

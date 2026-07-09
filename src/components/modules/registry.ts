@@ -89,7 +89,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     name: "MUSIC PLAYER",
     version: "v0.1.0",
     category: "MEDIA",
-    description: "Local music player backed by Xiranite runtime file service and react-modern-audio-player. Supports FLAC folders and playlists.",
+    description: "Local music player backed by Xiranite runtime file service. Supports FLAC folders, playlists, and themed dock playback.",
     icon: "Music2",
   },
 ]

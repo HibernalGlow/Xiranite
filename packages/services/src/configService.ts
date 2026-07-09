@@ -1,15 +1,18 @@
-import { access, mkdir, writeFile } from "node:fs/promises"
-import { dirname, extname } from "node:path"
+import { access, copyFile, cp, mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises"
+import { dirname, extname, join } from "node:path"
 import {
   getAppConfig,
   getNodeConfig,
   loadXiraniteConfig,
   parseToml,
+  pathExists,
+  resolveLegacyXiraniteDataDirs,
   resolveXiraniteConfigPath,
   saveXiraniteConfig,
   stripBom,
   updateAppConfig,
   updateNodeConfig,
+  XIRANITE_CONFIG_FILENAME,
   type XiraniteConfig,
   type ResolveConfigPathOptions,
 } from "@xiranite/config"
@@ -100,6 +103,9 @@ export class ConfigService {
   private readonly configPath: string | undefined
   private readonly databasePath: string | undefined
   private readonly dataDir: string | undefined
+  private readonly env: NodeJS.ProcessEnv | undefined
+  private readonly platform: NodeJS.Platform | undefined
+  private readonly homeDir: string | undefined
   private readonly openPath: OpenPathHandler
   private readonly history?: NodeRunHistoryService
 
@@ -107,12 +113,18 @@ export class ConfigService {
     configPath?: string
     databasePath?: string
     dataDir?: string
+    env?: NodeJS.ProcessEnv
+    platform?: NodeJS.Platform
+    homeDir?: string
     openPath?: OpenPathHandler
     history?: NodeRunHistoryService
   } = {}) {
     this.configPath = options.configPath
     this.databasePath = options.databasePath
     this.dataDir = options.dataDir
+    this.env = options.env
+    this.platform = options.platform
+    this.homeDir = options.homeDir
     this.openPath = options.openPath ?? openPathWithSystemDefaultApp
     this.history = options.history
   }
@@ -182,6 +194,7 @@ export class ConfigService {
   async ensureConfigFile(): Promise<EnsureConfigFileResult> {
     const startedAt = Date.now()
     const path = this.getConfigPath()
+    await this.migrateLegacyData(path)
     try {
       await access(path)
       return { path, created: false }
@@ -268,11 +281,27 @@ export class ConfigService {
     return { imported: true, config: nodeValue, path }
   }
 
+  private async migrateLegacyData(targetConfigPath: string): Promise<void> {
+    const targetDataDir = dirname(targetConfigPath)
+    const legacyDataDirs = resolveLegacyXiraniteDataDirs(this.resolveOptions())
+    for (const legacyDataDir of legacyDataDirs) {
+      const info = await stat(legacyDataDir).catch(() => null)
+      if (!info?.isDirectory()) continue
+
+      await migrateLegacyConfigFile(join(legacyDataDir, XIRANITE_CONFIG_FILENAME), targetConfigPath, targetDataDir)
+      await migrateLegacyArtifactsDir(join(legacyDataDir, "artifacts"), join(targetDataDir, "artifacts"), targetDataDir)
+      await removeDirectoryIfEmpty(legacyDataDir)
+    }
+  }
+
   private resolveOptions(): ResolveConfigPathOptions {
     return {
       configPath: this.configPath,
       databasePath: this.databasePath,
       dataDir: this.dataDir,
+      env: this.env,
+      platform: this.platform,
+      homeDir: this.homeDir,
     }
   }
 }
@@ -289,6 +318,109 @@ function parseLegacyConfig(content: string, legacyPath: string): Record<string, 
   }
 
   return parseToml(stripped) as Record<string, unknown>
+}
+
+async function migrateLegacyConfigFile(legacyConfigPath: string, targetConfigPath: string, targetDataDir: string): Promise<void> {
+  const legacyInfo = await stat(legacyConfigPath).catch(() => null)
+  if (!legacyInfo?.isFile()) return
+
+  if (!await pathExists(targetConfigPath)) {
+    await movePath(legacyConfigPath, targetConfigPath)
+    return
+  }
+
+  const backupPath = await uniquePath(join(targetDataDir, "migration-backups", "xiranite.config.legacy.toml"))
+  try {
+    const legacyConfig = parseToml(stripBom(await readFile(legacyConfigPath, "utf8"))) as XiraniteConfig
+    const { config: currentConfig } = await loadXiraniteConfig({ configPath: targetConfigPath })
+    const merged = mergeConfigRecords(legacyConfig, currentConfig) as XiraniteConfig
+    await saveXiraniteConfig(merged, { configPath: targetConfigPath })
+  } catch {
+    // Keep an unmerged copy under the active data dir rather than leaving Roaming as a live source.
+  }
+  await movePath(legacyConfigPath, backupPath)
+}
+
+async function migrateLegacyArtifactsDir(legacyArtifactsDir: string, targetArtifactsDir: string, targetDataDir: string): Promise<void> {
+  const legacyInfo = await stat(legacyArtifactsDir).catch(() => null)
+  if (!legacyInfo?.isDirectory()) return
+
+  if (!await pathExists(targetArtifactsDir)) {
+    await movePath(legacyArtifactsDir, targetArtifactsDir)
+    return
+  }
+
+  const backupDir = await uniquePath(join(targetDataDir, "migration-backups", "artifacts-legacy"))
+  await moveDirectoryContents(legacyArtifactsDir, targetArtifactsDir, backupDir)
+  await rm(legacyArtifactsDir, { recursive: true, force: true })
+}
+
+async function moveDirectoryContents(sourceDir: string, targetDir: string, backupDir: string): Promise<void> {
+  await mkdir(targetDir, { recursive: true })
+  const entries = await readdir(sourceDir, { withFileTypes: true })
+  for (const entry of entries) {
+    const sourcePath = join(sourceDir, entry.name)
+    const targetPath = join(targetDir, entry.name)
+    const targetInfo = await stat(targetPath).catch(() => null)
+    if (!targetInfo) {
+      await movePath(sourcePath, targetPath)
+      continue
+    }
+    if (entry.isDirectory() && targetInfo.isDirectory()) {
+      await moveDirectoryContents(sourcePath, targetPath, join(backupDir, entry.name))
+      continue
+    }
+
+    const backupPath = await uniquePath(join(backupDir, entry.name))
+    await movePath(sourcePath, backupPath)
+  }
+}
+
+async function movePath(sourcePath: string, targetPath: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true })
+  try {
+    await rename(sourcePath, targetPath)
+    return
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error
+  }
+
+  const info = await stat(sourcePath)
+  if (info.isDirectory()) {
+    await cp(sourcePath, targetPath, { recursive: true, errorOnExist: true, force: false })
+  } else {
+    await copyFile(sourcePath, targetPath)
+  }
+  await rm(sourcePath, { recursive: true, force: true })
+}
+
+async function uniquePath(path: string): Promise<string> {
+  if (!await pathExists(path)) return path
+
+  const ext = extname(path)
+  const stem = ext ? path.slice(0, -ext.length) : path
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = ext ? `${stem}.${index}${ext}` : `${stem}.${index}`
+    if (!await pathExists(candidate)) return candidate
+  }
+  return `${stem}.${Date.now()}${ext}`
+}
+
+async function removeDirectoryIfEmpty(path: string): Promise<void> {
+  try {
+    await rmdir(path)
+  } catch {
+    // The legacy app directory may still contain user files; only remove it when empty.
+  }
+}
+
+function mergeConfigRecords(base: unknown, overlay: unknown): unknown {
+  if (!isRecord(base) || !isRecord(overlay)) return overlay
+  const merged: Record<string, unknown> = { ...base }
+  for (const [key, value] of Object.entries(overlay)) {
+    merged[key] = mergeConfigRecords(merged[key], value)
+  }
+  return merged
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

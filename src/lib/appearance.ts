@@ -1044,7 +1044,10 @@ export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: Theme
   }
   const normalizedCssVars = Object.fromEntries(
     Object.entries(cssVars)
-      .map(([key, value]) => [normalizeCssVarName(key), value] as const)
+      .map(([key, value]) => {
+        const cssVarName = normalizeCssVarName(key)
+        return [cssVarName, normalizeCssVarValue(cssVarName, value)] as const
+      })
       .filter((entry): entry is [string, string] => Boolean(entry[0])),
   )
   const derivedCssVars = deriveCustomThemeVars(normalizedCssVars)

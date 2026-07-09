@@ -163,6 +163,31 @@ export function WorkspaceMusicDockPanel() {
   }
 
   const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : "浮动窗口"
+  const bottomActions = dock.mode === "bottom" ? (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => dock.setMode("floating")}
+        title="切换为浮动窗口"
+        aria-label="切换为浮动窗口"
+      >
+        <Maximize2 />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="hover:text-destructive"
+        onClick={() => dock.setCollapsed(true)}
+        title="收起音乐 dock"
+        aria-label="收起音乐 dock"
+      >
+        <X />
+      </Button>
+    </div>
+  ) : undefined
 
   return (
     <div ref={dragBoundsRef} className="pointer-events-none fixed inset-3 z-[71]">
@@ -184,52 +209,56 @@ export function WorkspaceMusicDockPanel() {
         className={cn(
           "pointer-events-auto absolute bottom-0 overflow-hidden",
           dock.mode === "bottom"
-            ? "left-0 right-0 mx-auto h-[clamp(150px,22vh,190px)] max-w-6xl"
+            ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
             : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
           dock.collapsed && "pointer-events-none translate-y-3 opacity-0"
         )}
       >
-        <div className="xiranite-app-region-no-drag flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-background/95 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-2 text-muted-foreground backdrop-blur">
-            <div
-              data-music-dock-part="drag-handle"
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1",
-                dock.mode === "floating" && "cursor-grab touch-none active:cursor-grabbing"
-              )}
-              onPointerDown={handleDragStart}
-            >
-              <GripHorizontal className="size-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold leading-none text-foreground">音乐播放器</p>
-                <p className="mt-0.5 truncate text-[10px] leading-none">{dockModeLabel} · 后端文件服务</p>
+        <div className={cn(
+          "xiranite-app-region-no-drag flex h-full min-h-0 flex-col overflow-hidden rounded-xl backdrop-blur-xl",
+          dock.mode === "bottom"
+            ? "bg-background/92 shadow-xl shadow-black/20"
+            : "border border-border/70 bg-background/95 shadow-2xl shadow-black/30"
+        )}>
+          {dock.mode === "floating" && (
+            <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 bg-background/75 px-2 text-muted-foreground backdrop-blur">
+              <div
+                data-music-dock-part="drag-handle"
+                className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-2 rounded-md px-1.5 py-1 active:cursor-grabbing"
+                onPointerDown={handleDragStart}
+              >
+                <GripHorizontal className="size-4 shrink-0" />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold leading-none text-foreground">音乐播放器</p>
+                  <p className="mt-0.5 truncate text-[10px] leading-none">{dockModeLabel} · 后端文件服务</p>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1" onPointerDown={(event) => event.stopPropagation()}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => dock.setMode("bottom")}
+                  title="固定到底栏"
+                  aria-label="固定到底栏"
+                >
+                  <PanelBottom />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="hover:text-destructive"
+                  onClick={() => dock.setCollapsed(true)}
+                  title="收起音乐 dock"
+                  aria-label="收起音乐 dock"
+                >
+                  <X />
+                </Button>
               </div>
             </div>
-
-            <div className="flex shrink-0 items-center gap-1" onPointerDown={(event) => event.stopPropagation()}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => dock.setMode(dock.mode === "bottom" ? "floating" : "bottom")}
-                title={dock.mode === "bottom" ? "切换为浮动窗口" : "固定到底栏"}
-                aria-label={dock.mode === "bottom" ? "切换为浮动窗口" : "固定到底栏"}
-              >
-                {dock.mode === "bottom" ? <Maximize2 /> : <PanelBottom />}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="hover:text-destructive"
-                onClick={() => dock.setCollapsed(true)}
-                title="收起音乐 dock"
-                aria-label="收起音乐 dock"
-              >
-                <X />
-              </Button>
-            </div>
-          </div>
+          )}
 
           <MusicPlayerSurface
             savedTracks={dock.savedTracks}
@@ -237,6 +266,7 @@ export function WorkspaceMusicDockPanel() {
             onSavedTracksChange={dock.setSavedTracks}
             onSourcePathChange={dock.setSourcePath}
             variant={dock.mode === "bottom" ? "dock" : "module"}
+            actions={bottomActions}
             className="flex-1"
           />
         </div>

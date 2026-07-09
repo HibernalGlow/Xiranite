@@ -1,18 +1,50 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react"
-import AudioPlayer from "react-modern-audio-player"
-import { Clipboard, Disc3, FolderOpen, Library, ListMusic, Loader2, Music2 } from "lucide-react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+} from "react"
+import {
+  MediaController,
+  MediaDurationDisplay,
+  MediaMuteButton,
+  MediaPlayButton,
+  MediaTimeDisplay,
+  MediaTimeRange,
+  MediaVolumeRange,
+} from "media-chrome/react"
+import {
+  Clipboard,
+  Disc3,
+  FolderOpen,
+  Library,
+  ListMusic,
+  Loader2,
+  Music2,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  Volume1,
+  Volume2,
+} from "lucide-react"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { resolveLocalAudioTracks, type LocalAudioTrack } from "@/backend/localFilesClient"
-import { useTheme } from "@/components/theme-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 export interface PersistedTrack {
   name: string
   writer?: string
+  lyricLine?: string
   fileName?: string
   path?: string
   relativePath?: string
@@ -28,12 +60,18 @@ interface RuntimeTrack extends PersistedTrack {
   description?: string
 }
 
+interface LyricLine {
+  time: number
+  text: string
+}
+
 export interface MusicPlayerSurfaceProps {
   savedTracks?: PersistedTrack[]
   savedSourcePath?: string
   onSavedTracksChange?: (tracks: PersistedTrack[]) => void
   onSourcePathChange?: (path: string) => void
   variant?: "module" | "dock"
+  actions?: ReactNode
   className?: string
 }
 
@@ -41,51 +79,34 @@ const DEFAULT_LOCAL_PATH = "E:\\1Hub\\Music\\焚蝶 - 铁痕电台-MSR&Aurora Sk
 const DEFAULT_TRACK_NAME = "焚蝶"
 const DEFAULT_COVER_URL = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/68/6b/51/686b5103-f58d-3ba6-4f20-3bb55b482078/4711720299471.jpg/600x600bb.jpg"
 
-const PLAYER_VARIABLES = {
-  "--rm-audio-player-text-color": "hsl(var(--foreground))",
-  "--rm-audio-player-shadow": "none",
-  "--rm-audio-player-interface-container": "hsl(var(--muted) / 0.35)",
-  "--rm-audio-player-volume-background": "hsl(var(--muted))",
-  "--rm-audio-player-volume-panel-background": "hsl(var(--popover))",
-  "--rm-audio-player-volume-panel-border": "hsl(var(--border))",
-  "--rm-audio-player-volume-thumb": "hsl(var(--primary))",
-  "--rm-audio-player-volume-fill": "hsl(var(--primary) / 0.72)",
-  "--rm-audio-player-volume-track": "hsl(var(--muted-foreground) / 0.35)",
-  "--rm-audio-player-track-current-time": "hsl(var(--primary))",
-  "--rm-audio-player-track-duration": "hsl(var(--muted-foreground))",
-  "--rm-audio-player-progress-bar": "hsl(var(--primary))",
-  "--rm-audio-player-progress-bar-background": "hsl(var(--muted-foreground) / 0.24)",
-  "--rm-audio-player-waveform-cursor": "hsl(var(--primary))",
-  "--rm-audio-player-waveform-background": "hsl(var(--muted-foreground) / 0.24)",
-  "--rm-audio-player-waveform-bar": "hsl(var(--primary))",
-  "--rm-audio-player-sortable-list": "hsl(var(--card))",
-  "--rm-audio-player-sortable-list-button-active": "hsl(var(--primary))",
-  "--rm-audio-player-selected-list-item-background": "hsl(var(--accent))",
+const MEDIA_CHROME_STYLE = {
+  "--media-font-family": "inherit",
+  "--media-primary-color": "hsl(var(--foreground))",
+  "--media-secondary-color": "transparent",
+  "--media-text-color": "hsl(var(--muted-foreground))",
+  "--media-icon-color": "hsl(var(--foreground))",
+  "--media-control-background": "transparent",
+  "--media-control-hover-background": "hsl(var(--accent) / 0.72)",
+  "--media-control-padding": "0",
+  "--media-control-height": "1.25rem",
+  "--media-button-padding": "0",
+  "--media-button-icon-width": "1rem",
+  "--media-button-icon-height": "1rem",
+  "--media-range-padding": "0",
+  "--media-range-track-height": "4px",
+  "--media-range-track-border-radius": "999px",
+  "--media-range-track-background": "hsl(var(--muted-foreground) / 0.22)",
+  "--media-time-range-buffered-color": "hsl(var(--muted-foreground) / 0.18)",
+  "--media-range-bar-color": "hsl(var(--primary))",
+  "--media-range-thumb-width": "8px",
+  "--media-range-thumb-height": "8px",
+  "--media-range-thumb-background": "hsl(var(--primary))",
+  "--media-range-thumb-box-shadow": "0 0 0 3px hsl(var(--background))",
+  "--media-font-size": "11px",
+  "--media-focus-box-shadow": "0 0 0 2px hsl(var(--ring) / 0.38)",
 } as CSSProperties
 
-const COMPACT_ACTIVE_UI = {
-  all: false,
-  artwork: false,
-  trackInfo: false,
-  trackTime: false,
-  progress: "bar",
-  repeatType: true,
-  volume: true,
-  volumeSlider: true,
-  playButton: true,
-  prevNnext: true,
-  playList: false,
-  playbackRate: false,
-} as const
-
-const FULL_ACTIVE_UI = {
-  all: true,
-  artwork: true,
-  progress: "bar",
-  playList: "sortable",
-  prevNnext: true,
-  playbackRate: true,
-} as const
+const AUDIO_ELEMENT_STYLE = { display: "none" } as CSSProperties
 
 export function MusicPlayerSurface({
   savedTracks = [],
@@ -93,22 +114,35 @@ export function MusicPlayerSurface({
   onSavedTracksChange,
   onSourcePathChange,
   variant = "module",
+  actions,
   className,
 }: MusicPlayerSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const autoplayAfterTrackChangeRef = useRef(false)
   const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 })
   const responsiveCompact = surfaceSize.width > 0 && (surfaceSize.width < 560 || surfaceSize.height < 300)
   const compact = variant === "dock" || responsiveCompact
   const [sourcePath, setSourcePath] = useState(savedSourcePath || DEFAULT_LOCAL_PATH)
   const [tracks, setTracks] = useState<RuntimeTrack[]>([])
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [lyricsByPath, setLyricsByPath] = useState<Record<string, LyricLine[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { resolvedTheme, theme } = useTheme()
-  const colorScheme = resolvedTheme === "light" || theme === "light" ? "light" : "dark"
+
+  const activeTrack = tracks[activeIndex] ?? tracks[0]
+  const activeLyrics = activeTrack ? lyricsByPath[activeTrack.path] ?? [] : []
+  const lyricLine = isPlaying ? currentLyricLine(activeLyrics, currentTime) : undefined
+  const supportLine = activeTrack
+    ? activeSupportLine(activeTrack, isPlaying, lyricLine)
+    : "后端文件服务"
+  const showLibraryToolbar = !compact || tracks.length === 0 || Boolean(error)
 
   useEffect(() => {
     if (savedSourcePath && savedSourcePath !== sourcePath) setSourcePath(savedSourcePath)
-  }, [savedSourcePath])
+  }, [savedSourcePath, sourcePath])
 
   useEffect(() => {
     const el = surfaceRef.current
@@ -133,17 +167,47 @@ export function MusicPlayerSurface({
   useEffect(() => {
     if (tracks.length || !savedTracks.length) return
     const restored = restoreTracks(savedTracks)
-    if (restored.length) setTracks(restored)
+    if (!restored.length) return
+    setTracks(restored)
+    setActiveIndex(0)
   }, [savedTracks, tracks.length])
 
-  const playList = useMemo(() => tracks.map((track) => ({
-    id: track.id,
-    src: track.src,
-    name: track.name,
-    writer: track.writer,
-    img: track.img,
-    description: track.description,
-  })), [tracks])
+  useEffect(() => {
+    if (!tracks.length) {
+      setActiveIndex(0)
+      return
+    }
+    setActiveIndex((index) => clamp(index, 0, tracks.length - 1))
+  }, [tracks.length])
+
+  useEffect(() => {
+    if (!activeTrack) return
+    if (Object.prototype.hasOwnProperty.call(lyricsByPath, activeTrack.path)) return
+
+    let cancelled = false
+    void loadTrackLyrics(activeTrack).then((lines) => {
+      if (cancelled) return
+      setLyricsByPath((current) => ({ ...current, [activeTrack.path]: lines }))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTrack, lyricsByPath])
+
+  useEffect(() => {
+    if (!activeTrack || !autoplayAfterTrackChangeRef.current) return
+    autoplayAfterTrackChangeRef.current = false
+    const audio = audioRef.current
+    if (!audio) return
+    void audio.play().catch(() => setIsPlaying(false))
+  }, [activeTrack?.src])
+
+  const libraryLabel = useMemo(() => {
+    if (tracks.length > 0) return `${tracks.length} 首`
+    if (savedTracks.length > 0) return `上次 ${savedTracks.length} 首`
+    return "待载入"
+  }, [savedTracks.length, tracks.length])
 
   async function loadSource(nextSourcePath = sourcePath) {
     const trimmed = nextSourcePath.trim()
@@ -159,6 +223,9 @@ export function MusicPlayerSurface({
 
       const nextTracks = toRuntimeTracks(localTracks)
       setTracks(nextTracks)
+      setActiveIndex(0)
+      setCurrentTime(0)
+      setLyricsByPath({})
       onSourcePathChange?.(trimmed)
       onSavedTracksChange?.(nextTracks.map(toPersistedTrack))
     } catch (loadError) {
@@ -179,60 +246,82 @@ export function MusicPlayerSurface({
     void loadSource()
   }
 
+  function selectTrack(index: number, autoplay = isPlaying) {
+    if (!tracks.length) return
+    const nextIndex = wrapIndex(index, tracks.length)
+    autoplayAfterTrackChangeRef.current = autoplay
+    setCurrentTime(0)
+    setActiveIndex(nextIndex)
+  }
+
+  function playPrevious() {
+    selectTrack(activeIndex - 1, isPlaying)
+  }
+
+  function playNext(autoplay = isPlaying) {
+    if (tracks.length <= 1) {
+      const audio = audioRef.current
+      if (audio) {
+        audio.currentTime = 0
+        if (autoplay) void audio.play().catch(() => setIsPlaying(false))
+      }
+      return
+    }
+    selectTrack(activeIndex + 1, autoplay)
+  }
+
   return (
     <div
       ref={surfaceRef}
       data-music-player-surface={variant}
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground",
-        compact ? "gap-2 p-2" : "gap-3 p-3",
+        "flex h-full min-h-0 flex-col overflow-hidden text-foreground",
+        compact ? "gap-2 bg-transparent p-2" : "gap-3 bg-background/80 p-3",
         className
       )}
     >
-      <MusicLibraryToolbar
-        compact={compact}
-        loading={loading}
-        sourcePath={sourcePath}
-        trackCount={tracks.length}
-        savedTrackCount={savedTracks.length}
-        onLoad={() => void loadSource()}
-        onPastePath={() => void pastePath()}
-        onSourcePathChange={setSourcePath}
-        onSubmit={handleSubmit}
-      />
+      {showLibraryToolbar && (
+        <MusicLibraryToolbar
+          compact={compact}
+          loading={loading}
+          sourcePath={sourcePath}
+          libraryLabel={libraryLabel}
+          onLoad={() => void loadSource()}
+          onPastePath={() => void pastePath()}
+          onSourcePathChange={setSourcePath}
+          onSubmit={handleSubmit}
+        />
+      )}
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+        <div className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
           {error}
         </div>
       )}
 
-      <div className={cn("min-h-0 flex-1 overflow-hidden border bg-card/60", compact ? "rounded-md" : "rounded-lg")}>
-        {tracks.length > 0 ? (
-          <AudioPlayer
-            playList={playList}
-            colorScheme={colorScheme}
-            audioInitialState={{
-              curPlayId: playList[0]?.id ?? 1,
-              repeatType: "ALL",
-              volume: 0.85,
-              playListExpanded: !compact,
-            }}
-            activeUI={compact ? COMPACT_ACTIVE_UI : FULL_ACTIVE_UI}
-            placement={{
-              player: "static",
-              playList: "bottom",
-              volumeSlider: "top",
-              speedSelector: "top",
-            }}
-            coverImgsCss={{
-              artwork: { borderRadius: "8px", objectFit: "cover" },
-              listThumbnail: { borderRadius: "6px", objectFit: "cover" },
-            }}
-            rootContainerProps={{
-              className: "h-full rounded-lg border-0 bg-transparent",
-              style: PLAYER_VARIABLES,
-            }}
+      <div className={cn(
+        "min-h-0 flex-1 overflow-hidden",
+        compact ? "rounded-lg bg-transparent" : "rounded-xl bg-card/50"
+      )}>
+        {activeTrack ? (
+          <ThemedAudioPlayer
+            audioRef={audioRef}
+            compact={compact}
+            activeIndex={activeIndex}
+            activeTrack={activeTrack}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            loading={loading}
+            actions={actions}
+            supportLine={supportLine}
+            tracks={tracks}
+            onEnded={() => playNext(true)}
+            onLoad={() => void loadSource()}
+            onPlayNext={() => playNext()}
+            onPlayPrevious={playPrevious}
+            onPlayingChange={setIsPlaying}
+            onSelectTrack={selectTrack}
+            onTimeChange={setCurrentTime}
           />
         ) : (
           <EmptyLibrary
@@ -255,8 +344,7 @@ function MusicLibraryToolbar({
   compact,
   loading,
   sourcePath,
-  trackCount,
-  savedTrackCount,
+  libraryLabel,
   onLoad,
   onPastePath,
   onSourcePathChange,
@@ -265,25 +353,25 @@ function MusicLibraryToolbar({
   compact: boolean
   loading: boolean
   sourcePath: string
-  trackCount: number
-  savedTrackCount: number
+  libraryLabel: string
   onLoad(): void
   onPastePath(): void
   onSourcePathChange(path: string): void
   onSubmit(event: FormEvent<HTMLFormElement>): void
 }) {
-  const countLabel = trackCount > 0 ? `${trackCount} 首` : savedTrackCount > 0 ? `上次 ${savedTrackCount} 首` : "待载入"
-
   return (
-    <div className={cn("flex min-w-0 items-center gap-3", compact ? "min-h-9" : "min-h-12")}>
+    <div className={cn("flex min-w-0 items-center gap-3", compact ? "min-h-9" : "min-h-11")}>
       <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("flex shrink-0 items-center justify-center rounded-md border bg-muted/55 text-primary", compact ? "size-8" : "size-10")}>
+        <div className={cn(
+          "flex shrink-0 items-center justify-center rounded-md bg-muted/55 text-primary",
+          compact ? "size-8" : "size-10"
+        )}>
           <Disc3 className={compact ? "size-4" : "size-5"} />
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className={cn("truncate font-semibold leading-tight", compact ? "text-sm" : "text-lg")}>本地音乐库</h3>
-            <Badge variant="secondary" className="shrink-0 text-[10px]">{countLabel}</Badge>
+            <h3 className={cn("truncate font-semibold leading-tight", compact ? "text-sm" : "text-base")}>本地音乐库</h3>
+            <Badge variant="secondary" className="shrink-0 text-[10px]">{libraryLabel}</Badge>
           </div>
           {!compact && (
             <p className="truncate text-xs text-muted-foreground">后端文件服务播放，不走浏览器上传。</p>
@@ -299,14 +387,247 @@ function MusicLibraryToolbar({
           placeholder="输入本地音频文件或文件夹路径"
           aria-label="本地音乐路径"
         />
-        <Button type="button" size="icon-sm" variant="outline" onClick={onPastePath} title="粘贴路径" aria-label="粘贴路径">
+        <Button type="button" size="icon-sm" variant="ghost" onClick={onPastePath} title="粘贴路径" aria-label="粘贴路径">
           <Clipboard />
         </Button>
-        <Button type="button" size="sm" className="h-8 gap-1.5" disabled={loading} onClick={onLoad}>
+        <Button type="button" size={compact ? "icon-sm" : "sm"} variant={compact ? "ghost" : "secondary"} disabled={loading} onClick={onLoad} title="载入路径" aria-label="载入路径">
           {loading ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FolderOpen data-icon="inline-start" />}
-          载入
+          {!compact && "载入"}
         </Button>
       </form>
+    </div>
+  )
+}
+
+function ThemedAudioPlayer({
+  audioRef,
+  compact,
+  activeIndex,
+  activeTrack,
+  actions,
+  currentTime,
+  isPlaying,
+  loading,
+  supportLine,
+  tracks,
+  onEnded,
+  onLoad,
+  onPlayNext,
+  onPlayPrevious,
+  onPlayingChange,
+  onSelectTrack,
+  onTimeChange,
+}: {
+  audioRef: RefObject<HTMLAudioElement | null>
+  compact: boolean
+  activeIndex: number
+  activeTrack: RuntimeTrack
+  actions?: ReactNode
+  currentTime: number
+  isPlaying: boolean
+  loading: boolean
+  supportLine: string
+  tracks: RuntimeTrack[]
+  onEnded(): void
+  onLoad(): void
+  onPlayNext(): void
+  onPlayPrevious(): void
+  onPlayingChange(playing: boolean): void
+  onSelectTrack(index: number, autoplay?: boolean): void
+  onTimeChange(time: number): void
+}) {
+  const showQueue = !compact && tracks.length > 1
+
+  return (
+    <MediaController
+      style={MEDIA_CHROME_STYLE}
+      className={cn(
+        "flex h-full min-h-0 flex-col text-foreground",
+        compact ? "justify-center gap-2 px-1 py-1" : "gap-3 p-3"
+      )}
+    >
+      <audio
+        key={activeTrack.path}
+        ref={audioRef}
+        slot="media"
+        preload="metadata"
+        style={AUDIO_ELEMENT_STYLE}
+        onEnded={onEnded}
+        onLoadedMetadata={(event) => onTimeChange(event.currentTarget.currentTime)}
+        onPause={() => onPlayingChange(false)}
+        onPlay={() => onPlayingChange(true)}
+        onTimeUpdate={(event) => onTimeChange(event.currentTarget.currentTime)}
+      >
+        <source src={activeTrack.src} type={activeTrack.type} />
+      </audio>
+
+      <div className={cn(
+        "grid min-w-0 items-center gap-3",
+        compact
+          ? "grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(220px,0.95fr)_minmax(260px,1.35fr)_auto]"
+          : "grid-cols-[minmax(230px,0.9fr)_minmax(280px,1.4fr)_auto]"
+      )}>
+        <TrackIdentity
+          compact={compact}
+          isPlaying={isPlaying}
+          supportLine={supportLine}
+          track={activeTrack}
+        />
+
+        <div className={cn(
+          "min-w-0",
+          compact && "order-last col-span-2 xl:order-none xl:col-span-1"
+        )}>
+          <div className="flex items-center justify-center gap-1.5">
+            <Button type="button" variant="ghost" size={compact ? "icon-sm" : "icon"} className="rounded-full" onClick={onPlayPrevious} aria-label="上一首" title="上一首">
+              <SkipBack />
+            </Button>
+            <MediaPlayButton
+              noTooltip
+              className={cn(
+                "grid place-items-center rounded-full bg-foreground text-background shadow-sm transition-colors hover:bg-foreground/90",
+                compact ? "size-9" : "size-10",
+                "[--media-icon-color:hsl(var(--background))] [--media-control-hover-background:transparent]"
+              )}
+            >
+              <Play slot="play" className="size-4 fill-current" />
+              <Pause slot="pause" className="size-4 fill-current" />
+            </MediaPlayButton>
+            <Button type="button" variant="ghost" size={compact ? "icon-sm" : "icon"} className="rounded-full" onClick={onPlayNext} aria-label="下一首" title="下一首">
+              <SkipForward />
+            </Button>
+          </div>
+
+          <div className={cn("mt-2 grid grid-cols-[2.8rem_minmax(0,1fr)_2.8rem] items-center gap-2", compact && "mt-1.5")}>
+            <MediaTimeDisplay noToggle className="justify-end text-[10px] font-medium text-muted-foreground" />
+            <MediaTimeRange className="w-full min-w-0 [--media-control-display:flex]" />
+            <MediaDurationDisplay className="text-[10px] font-medium text-muted-foreground" />
+          </div>
+        </div>
+
+        <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+          <Button type="button" variant="ghost" size="icon-sm" disabled={loading} onClick={onLoad} title="载入音乐" aria-label="载入音乐">
+            {loading ? <Loader2 className="animate-spin" /> : <Library />}
+          </Button>
+          <div className={cn("hidden items-center gap-1 sm:flex", compact && "xl:flex")}>
+            <MediaMuteButton noTooltip className="grid size-8 place-items-center rounded-md transition-colors hover:bg-accent">
+              <Volume1 slot="low" className="size-4" />
+              <Volume1 slot="medium" className="size-4" />
+              <Volume2 slot="high" className="size-4" />
+              <Volume1 slot="off" className="size-4 opacity-55" />
+            </MediaMuteButton>
+            <MediaVolumeRange className="w-20 [--media-control-display:flex] [--media-range-thumb-width:7px] [--media-range-thumb-height:7px]" />
+          </div>
+          {actions}
+        </div>
+      </div>
+
+      {showQueue && (
+        <TrackQueue
+          activeIndex={activeIndex}
+          currentTime={currentTime}
+          tracks={tracks}
+          onSelectTrack={onSelectTrack}
+        />
+      )}
+    </MediaController>
+  )
+}
+
+function TrackIdentity({
+  compact,
+  isPlaying,
+  supportLine,
+  track,
+}: {
+  compact: boolean
+  isPlaying: boolean
+  supportLine: string
+  track: RuntimeTrack
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <TrackArtwork compact={compact} track={track} />
+      <div className="min-w-0 flex-1">
+        <div className={cn("truncate font-semibold leading-tight", compact ? "text-sm" : "text-base")} title={track.name}>
+          {track.name}
+        </div>
+        <div
+          className={cn(
+            "mt-1 truncate text-xs leading-tight",
+            isPlaying ? "text-primary" : "text-muted-foreground"
+          )}
+          title={supportLine}
+        >
+          {supportLine}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TrackArtwork({ compact, track }: { compact: boolean; track: RuntimeTrack }) {
+  const sizeClass = compact ? "size-12" : "size-16"
+
+  return (
+    <div className={cn("relative shrink-0 overflow-hidden rounded-lg bg-muted", sizeClass)}>
+      {track.img ? (
+        <img src={track.img} alt={track.name} className="size-full object-cover" draggable={false} />
+      ) : (
+        <div className="grid size-full place-items-center bg-muted text-primary">
+          <Disc3 className={compact ? "size-5" : "size-6"} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TrackQueue({
+  activeIndex,
+  currentTime,
+  tracks,
+  onSelectTrack,
+}: {
+  activeIndex: number
+  currentTime: number
+  tracks: RuntimeTrack[]
+  onSelectTrack(index: number, autoplay?: boolean): void
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background/45">
+      <div className="flex h-8 items-center justify-between px-2">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <ListMusic className="size-3.5" />
+          <span>播放队列</span>
+        </div>
+        <span className="text-[10px] text-muted-foreground">{tracks.length} 首</span>
+      </div>
+      <ScrollArea className="h-[calc(100%-2rem)]">
+        <div className="flex flex-col gap-0.5 px-1 pb-1">
+          {tracks.map((track, index) => (
+            <button
+              key={track.path}
+              type="button"
+              className={cn(
+                "grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/60",
+                index === activeIndex && "bg-accent text-accent-foreground"
+              )}
+              onClick={() => onSelectTrack(index, true)}
+            >
+              <span className="text-[10px] tabular-nums text-muted-foreground">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{track.name}</span>
+                <span className="block truncate text-[10px] text-muted-foreground">{track.writer ?? track.relativePath ?? track.fileName}</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {index === activeIndex ? formatTimeLabel(currentTime) : formatFileSize(track.size)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   )
 }
@@ -326,14 +647,14 @@ function EmptyLibrary({
 }) {
   if (compact) {
     return (
-      <div className="flex h-full min-h-[96px] items-center gap-3 p-3 text-left">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border bg-muted/60">
+      <div className="flex h-full min-h-[84px] items-center gap-3 p-2 text-left">
+        <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-muted/60">
           <ListMusic className="size-5 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">输入文件或文件夹路径后开始播放</p>
+          <p className="truncate text-sm font-medium">载入本地音乐后开始播放</p>
           <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-            FLAC、MP3、WAV、OGG、M4A 等格式会通过本地后端文件服务流式播放。
+            支持 FLAC、MP3、WAV、OGG、M4A 等常见格式。
           </p>
         </div>
         <Button size="sm" disabled={loading} onClick={onLoad} className="hidden h-8 gap-1.5 sm:inline-flex">
@@ -346,13 +667,13 @@ function EmptyLibrary({
 
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-4 p-4 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full border bg-muted/60">
+      <div className="grid size-14 place-items-center rounded-full bg-muted/60">
         <ListMusic className="text-primary" />
       </div>
       <div className="max-w-md">
         <p className="text-sm font-medium">载入本地音乐文件或整个文件夹</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          使用 react-modern-audio-player 负责播放器和歌单；本地文件由 Xiranite 后端文件服务提供 URL 与 Range 流。
+          音频文件由 Xiranite 后端文件服务提供 URL 与 Range 流。
         </p>
       </div>
       <div className="flex items-center gap-2">
@@ -369,7 +690,7 @@ function EmptyLibrary({
         <>
           <Separator className="max-w-sm" />
           <p className="max-w-sm text-[11px] text-muted-foreground">
-            已保存 {savedTracks.length} 首的路径元数据。后端服务可用时会自动恢复播放 URL。
+            已保存 {savedTracks.length} 首的路径元数据，后端服务可用时会自动恢复播放 URL。
           </p>
         </>
       )}
@@ -410,10 +731,90 @@ function toPersistedTrack(track: RuntimeTrack): PersistedTrack {
   return {
     name: track.name,
     writer: track.writer,
+    lyricLine: track.lyricLine,
     fileName: track.fileName,
     path: track.path,
     relativePath: track.relativePath,
     size: track.size,
     type: track.type,
   }
+}
+
+function activeSupportLine(track: RuntimeTrack, isPlaying: boolean, lyricLine: string | undefined): string {
+  if (isPlaying) {
+    if (lyricLine) return lyricLine
+    if (track.lyricLine) return track.lyricLine
+    if (track.writer) return `正在播放 · ${track.writer}`
+    if (track.relativePath) return `正在播放 · ${track.relativePath}`
+    return "正在播放"
+  }
+
+  return track.writer ?? track.relativePath ?? track.fileName ?? "本地音频"
+}
+
+async function loadTrackLyrics(track: RuntimeTrack): Promise<LyricLine[]> {
+  for (const candidate of lyricPathCandidates(track.path)) {
+    try {
+      const response = await fetch(localBackendFileUrl(candidate), { cache: "no-store" })
+      if (!response.ok) continue
+      const lines = parseLrc(await response.text())
+      if (lines.length) return lines
+    } catch {
+      continue
+    }
+  }
+  return []
+}
+
+function lyricPathCandidates(filePath: string): string[] {
+  const base = filePath.replace(/\.[^./\\]+$/, "")
+  return Array.from(new Set([`${base}.lrc`, `${base}.LRC`]))
+}
+
+function parseLrc(text: string): LyricLine[] {
+  const lines: LyricLine[] = []
+  for (const rawLine of text.split(/\r?\n/)) {
+    const stamps = [...rawLine.matchAll(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g)]
+    if (!stamps.length) continue
+    const lyricText = rawLine.replace(/\[[^\]]+\]/g, "").trim()
+    if (!lyricText) continue
+
+    for (const stamp of stamps) {
+      const minutes = Number(stamp[1])
+      const seconds = Number(stamp[2])
+      const fraction = stamp[3] ? Number(`0.${stamp[3].padEnd(3, "0").slice(0, 3)}`) : 0
+      const time = minutes * 60 + seconds + fraction
+      if (Number.isFinite(time)) lines.push({ time, text: lyricText })
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time)
+}
+
+function currentLyricLine(lines: LyricLine[], currentTime: number): string | undefined {
+  if (!lines.length) return undefined
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (currentTime + 0.25 >= lines[index].time) return lines[index].text
+  }
+  return undefined
+}
+
+function wrapIndex(index: number, length: number): number {
+  return ((index % length) + length) % length
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function formatTimeLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0:00"
+  const minutes = Math.floor(seconds / 60)
+  const rest = Math.floor(seconds % 60)
+  return `${minutes}:${String(rest).padStart(2, "0")}`
+}
+
+function formatFileSize(size: number | undefined): string {
+  if (!size || !Number.isFinite(size)) return ""
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
+  return `${(size / 1024 / 1024).toFixed(size > 100 * 1024 * 1024 ? 0 : 1)} MB`
 }

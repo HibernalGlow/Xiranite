@@ -11,6 +11,7 @@ import {
   loadXiraniteConfig,
   resolveNodeConfig,
   resolveXiraniteConfigPath,
+  resolveLegacyXiraniteDataDirs,
   saveXiraniteConfig,
   stripBom,
   updateAppConfig,
@@ -63,6 +64,47 @@ describe("resolveXiraniteConfigPath", () => {
     const root = join(tmpdir(), "xiranite-data-option-test", randomUUID())
     const path = resolveXiraniteConfigPath({ dataDir: root })
     expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
+  })
+
+  test("falls back to the local data directory on Windows", () => {
+    const root = join(tmpdir(), "xiranite-win-data-test", randomUUID())
+    const localAppData = join(root, "Local")
+    const path = resolveXiraniteConfigPath({
+      env: {
+        APPDATA: join(root, "Roaming"),
+        LOCALAPPDATA: localAppData,
+      },
+      platform: "win32",
+      homeDir: root,
+    })
+    expect(norm(path)).toBe(`${norm(localAppData)}/Xiranite/${XIRANITE_CONFIG_FILENAME}`)
+  })
+
+  test("reports the previous Roaming config directory as a legacy data directory", () => {
+    const root = join(tmpdir(), "xiranite-win-legacy-test", randomUUID())
+    const dirs = resolveLegacyXiraniteDataDirs({
+      env: {
+        APPDATA: join(root, "Roaming"),
+        LOCALAPPDATA: join(root, "Local"),
+      },
+      platform: "win32",
+      homeDir: root,
+    })
+    expect(dirs.map(norm)).toEqual([`${norm(root)}/Roaming/Xiranite`])
+  })
+
+  test("does not report legacy directories for explicit config paths", () => {
+    const root = join(tmpdir(), "xiranite-explicit-legacy-test", randomUUID())
+    const dirs = resolveLegacyXiraniteDataDirs({
+      configPath: join(root, "custom.toml"),
+      env: {
+        APPDATA: join(root, "Roaming"),
+        LOCALAPPDATA: join(root, "Local"),
+      },
+      platform: "win32",
+      homeDir: root,
+    })
+    expect(dirs).toEqual([])
   })
 })
 

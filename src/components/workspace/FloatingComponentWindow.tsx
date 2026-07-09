@@ -18,7 +18,8 @@ interface Props {
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
   const { t, i18n } = useTranslation()
   const comp = useWorkspaceComponent(compId)
-  const { activeWorkspaceId, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
+  const { activeCustomThemeName, activeWorkspaceId, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
+    activeCustomThemeName: state.activeCustomThemeName,
     activeWorkspaceId: state.activeWorkspaceId,
     theme: state.theme,
     zCounter: state.zCounter,
@@ -33,7 +34,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
     || moduleId
     || t("view:floating.title")
 
-  const themeClass = theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
+  const themeClass = activeCustomThemeName ? "" : theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
 
   const detail = useMemo(() => {
     if (!moduleId) return t("view:floating.missingModule")

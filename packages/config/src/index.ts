@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir, access } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
-import { homedir, platform } from "node:os"
+import { homedir, platform as osPlatform } from "node:os"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 import { z } from "zod"
 
@@ -17,6 +17,10 @@ export interface ResolveConfigPathOptions {
   dataDir?: string
   /** Optional fallback database path; if set, look for config in its directory. */
   databasePath?: string
+  /** Test seam for platform-specific default path behavior. */
+  platform?: NodeJS.Platform
+  /** Test seam for platform-specific default path behavior. */
+  homeDir?: string
 }
 
 export function resolveXiraniteConfigPath(options: ResolveConfigPathOptions = {}): string {
@@ -31,17 +35,58 @@ export function resolveXiraniteConfigPath(options: ResolveConfigPathOptions = {}
   if (options.databasePath) return join(dirname(resolve(cwd, options.databasePath)), XIRANITE_CONFIG_FILENAME)
   if (options.dataDir) return join(resolve(cwd, options.dataDir), XIRANITE_CONFIG_FILENAME)
 
-  const systemDir = defaultSystemConfigDir()
-  return join(systemDir, "Xiranite", XIRANITE_CONFIG_FILENAME)
+  return join(defaultSystemDataDir(options), XIRANITE_CONFIG_FILENAME)
 }
 
-function defaultSystemConfigDir(): string {
-  const env = process.env
-  if (platform() === "win32") {
+export function resolveXiraniteDataDir(options: ResolveConfigPathOptions = {}): string {
+  return dirname(resolveXiraniteConfigPath(options))
+}
+
+export function resolveLegacyXiraniteDataDirs(options: ResolveConfigPathOptions = {}): string[] {
+  const env = options.env ?? process.env
+  if (options.configPath || env.XIRANITE_CONFIG_PATH) return []
+
+  const targetDir = resolveXiraniteDataDir(options)
+  const legacyDir = join(legacySystemConfigDir(options), "Xiranite")
+  return samePath(targetDir, legacyDir, options) ? [] : [legacyDir]
+}
+
+function defaultSystemDataDir(options: ResolveConfigPathOptions): string {
+  const env = options.env ?? process.env
+  const home = options.homeDir ?? homedir()
+  const runtimePlatform = options.platform ?? osPlatform()
+
+  if (runtimePlatform === "win32") {
+    const base = env.LOCALAPPDATA ?? env.APPDATA ?? join(home, "AppData", "Local")
+    return join(base, "Xiranite")
+  }
+  if (runtimePlatform === "darwin") {
+    return join(home, "Library", "Application Support", "Xiranite")
+  }
+
+  const base = env.XDG_DATA_HOME ?? join(home, ".local", "share")
+  return join(base, "xiranite")
+}
+
+function legacySystemConfigDir(options: ResolveConfigPathOptions): string {
+  const env = options.env ?? process.env
+  const home = options.homeDir ?? homedir()
+  const runtimePlatform = options.platform ?? osPlatform()
+
+  if (runtimePlatform === "win32") {
     if (env.APPDATA) return env.APPDATA
   }
   if (env.XDG_CONFIG_HOME) return env.XDG_CONFIG_HOME
-  return join(homedir(), ".config")
+  return join(home, ".config")
+}
+
+function samePath(left: string, right: string, options: ResolveConfigPathOptions): boolean {
+  const runtimePlatform = options.platform ?? osPlatform()
+  const normalizedLeft = resolve(left)
+  const normalizedRight = resolve(right)
+  return runtimePlatform === "win32"
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight
 }
 
 export const xiraniteConfigSchema = z.object({
