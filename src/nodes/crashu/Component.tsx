@@ -13,14 +13,12 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { BorderBeam } from "@/components/ui/border-beam"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { RunningTint } from "@/nodes/shared/controls"
 import { DEFAULT_THRESHOLD, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, ConflictPicker, DirectionPicker, LogPanel, MatchList, PrimarySwitches, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, ConflictPicker, DirectionPicker, MatchPlanBoard, PrimarySwitches, RichLogPanel, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
 import type { CrashuAction, CrashuCardState, CrashuPhase, CrashuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -187,6 +185,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     dryRun,
     host,
     logs,
+    phase,
     progress,
     result,
     running,
@@ -207,9 +206,8 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/crashu relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-2)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
+      <div ref={surface.ref} className="@container/crashu flex h-full min-h-0 w-full overflow-hidden bg-card">
+        <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
           ) : compactSurface ? (
@@ -234,6 +232,7 @@ function createViewProps(props: {
   dryRun: boolean
   host: NodeComponentProps["host"]
   logs: string[]
+  phase: CrashuPhase
   progress: number
   result: CrashuData | null
   running: boolean
@@ -259,12 +258,11 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="crashu-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+    <div data-testid="crashu-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+      <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>
-      <div className="relative min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
           <span>Crashu</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
@@ -272,7 +270,7 @@ function CollapsedView(props: ViewProps) {
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
       <PrimaryActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+      {props.status.tone === "running" && <div className="text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
     </div>
   )
 }
@@ -356,7 +354,7 @@ function FullView(props: ViewProps) {
       {/* Main 3-zone pipeline grid: Input → Results → Execution Gate */}
       <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @2xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] @2xl/crashu:grid-rows-1 @4xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(240px,300px)]">
         {/* Zone 1: Input */}
-        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-background/60 p-2">
+        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
           <ZoneLabel icon={FolderSearch} label={tNode("crashu", "zone.input", "匹配输入")} />
           <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
           <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
@@ -386,8 +384,7 @@ function FullView(props: ViewProps) {
 function ExecutionGate(props: ViewProps) {
   const live = !props.dryRun
   return (
-    <section className={cn("relative flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-background/70 p-2", live && "border-destructive/40 bg-destructive/5")}>
-      {live && <BorderBeam size={80} duration={8} colorFrom="var(--destructive)" colorTo="var(--chart-2)" />}
+    <section className={cn("flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
       <div className="flex shrink-0 items-center justify-between gap-2">
         <ZoneLabel icon={ShieldAlert} label={tNode("crashu", "zone.gate", "执行闸门")} tone={live ? "danger" : "default"} />
         <Badge variant={live ? "destructive" : "outline"}>{props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.live", "真实")}</Badge>
@@ -501,7 +498,7 @@ function LogsStrip(props: {
 }) {
   if (!props.logs.length) return null
   return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
       <Archive className="size-3.5 shrink-0 text-muted-foreground" />
       <ScrollArea className="min-w-0 flex-1">
         <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -713,10 +710,10 @@ function CrashuDisplayTabs(props: {
         <TabsTrigger value="logs">{tNode("crashu", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="results" className="min-h-0 flex-1">
-        <MatchList compact={props.compact} result={props.result} />
+        <MatchPlanBoard compact={props.compact} result={props.result} />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <LogPanel compact={props.compact} logs={props.logs} onCopy={props.onCopyLogs} />
+        <RichLogPanel compact={props.compact} logs={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
   )

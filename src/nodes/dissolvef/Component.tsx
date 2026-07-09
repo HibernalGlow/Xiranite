@@ -4,10 +4,6 @@ import type { DissolvefConflictMode, DissolvefData, DissolvefInput } from "@xira
 import type { LucideIcon } from "lucide-react"
 import { ArrowRight, History, RotateCcw, Square, Undo2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
-import { BorderBeam } from "@/components/ui/border-beam"
-import { GridPattern } from "@/components/ui/grid-pattern"
-import { MagicCard } from "@/components/ui/magic-card"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,9 +13,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { RunningTint } from "@/nodes/shared/controls"
 import { BUNDLE_MODES, DEFAULT_THRESHOLD, DIRECT_ICON, DISSOLVE_ICON, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, HistoryPanel, LogPanel, ModePicker, PathInput, PlanList, PrimarySwitches, StatusStrip } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, DissolveHistoryBoard, DissolvePlanBoard, ModePicker, PathInput, PrimarySwitches, RichLogPanel, StatusStrip } from "./controls"
 import type { DissolvefAction, DissolvefCardState, DissolvefPhase, DissolvefStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -225,9 +220,8 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/dissolvef relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-5)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
+      <div ref={surface.ref} className="@container/dissolvef flex h-full min-h-0 w-full overflow-hidden bg-card">
+        <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
           ) : compactSurface ? (
@@ -274,30 +268,19 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
-  const isRunning = props.status.tone === "running"
   return (
-    <div data-testid="dissolvef-collapsed-view" className="relative h-full min-h-0 w-full p-1">
-      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in_oklch, var(--primary) 60%, transparent)">
-        <GridPattern width={22} height={22} className="fill-muted-foreground/5 stroke-muted-foreground/10" />
-        <RunningTint tone={props.status.tone} />
-        {isRunning && <BorderBeam size={28} duration={5} colorFrom="var(--primary)" colorTo="var(--chart-5)" />}
-        <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-          <Icon />
+    <div data-testid="dissolvef-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+      <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+        <Icon />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+          <span>Dissolvef</span>
+          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
-        <div className="relative min-w-0 flex-1">
-          <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-            <span>Dissolvef</span>
-            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-          </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
-        </div>
-        <PrimaryActionButton compact props={props} />
-        {isRunning && (
-          <div className="relative grid size-8 shrink-0 place-items-center">
-            <AnimatedCircularProgressBar value={props.progress} className="size-8 text-[10px] font-semibold" gaugePrimaryColor="var(--primary)" gaugeSecondaryColor="var(--muted-foreground)" />
-          </div>
-        )}
-      </MagicCard>
+        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
+      </div>
+      <PrimaryActionButton compact props={props} />
     </div>
   )
 }
@@ -332,16 +315,15 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div data-testid="dissolvef-portrait-view" className="relative flex h-full min-h-0 flex-col gap-2 p-2">
-      <GridPattern width={28} height={28} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
-      <div className="relative flex shrink-0 items-start justify-between gap-2">
+    <div data-testid="dissolvef-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="relative grid shrink-0 gap-2">
+      <div className="grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
         <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
         <PrimarySwitches compact data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
@@ -350,7 +332,7 @@ function PortraitCompactView(props: ViewProps) {
       {(props.status.tone === "running" || props.status.tone === "error") && (
         <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
       )}
-      <div className="relative min-h-0 flex-1">
+      <div className="min-h-0 flex-1">
         <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
       </div>
     </div>
@@ -360,6 +342,7 @@ function PortraitCompactView(props: ViewProps) {
 function FullView(props: ViewProps) {
   const isRunning = props.status.tone === "running"
   const isError = props.status.tone === "error"
+  const live = !props.preview
   return (
     <div data-testid="dissolvef-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <div className="flex shrink-0 flex-col gap-2 @3xl/dissolvef:flex-row @3xl/dissolvef:items-center @3xl/dissolvef:justify-between">
@@ -389,8 +372,7 @@ function FullView(props: ViewProps) {
           onSetDirect={props.onSetDirect}
           onToggleMode={props.onToggleMode}
         />
-        <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
-          {isRunning && <BorderBeam size={36} duration={4} colorFrom="var(--primary)" colorTo="var(--chart-5)" />}
+        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">{tNode("dissolvef", "labels.switches", "关键开关")}</span>
             <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
@@ -404,7 +386,7 @@ function FullView(props: ViewProps) {
         <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background/60">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card">
         <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
       </div>
 
@@ -421,12 +403,9 @@ function InputDropZone(props: {
   onPaste: () => void
 }) {
   return (
-    <MagicCard className="relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background/50" gradientColor="color-mix(in oklch, var(--primary) 40%, transparent)" gradientSize={260}>
-      <GridPattern width={32} height={32} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
-      <div className="relative p-2">
-        <PathInput compact disabled={props.disabled} value={props.value} onChange={props.onChange} onClear={props.onClear} onPaste={props.onPaste} />
-      </div>
-    </MagicCard>
+    <div className="shrink-0 overflow-hidden rounded-lg border bg-card p-2">
+      <PathInput compact disabled={props.disabled} value={props.value} onChange={props.onChange} onClear={props.onClear} onPaste={props.onPaste} />
+    </div>
   )
 }
 
@@ -442,7 +421,7 @@ function ModePipeline(props: {
   if (props.direct) {
     const directCount = (props.result?.directFiles ?? 0) + (props.result?.directDirs ?? 0)
     return (
-      <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
+      <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
           <Badge variant="secondary">{tNode("dissolvef", "mode.direct", "直提")}</Badge>
@@ -464,7 +443,7 @@ function ModePipeline(props: {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
+    <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
         <Badge variant="outline">{tNode("dissolvef", "mode.bundle", "捆绑")}</Badge>
@@ -518,8 +497,8 @@ function PipelineStage(props: {
           className={cn(
             "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border px-1.5 py-1.5 transition-colors",
             props.active
-              ? "border-primary/40 bg-primary/8"
-              : "border-border bg-background/50 opacity-50 hover:opacity-90",
+              ? "border-primary/40 bg-primary/[0.08]"
+              : "border-border bg-card opacity-50 hover:opacity-90",
           )}
         >
           <Icon className="size-3.5 text-muted-foreground" />
@@ -540,7 +519,7 @@ function LogsStrip(props: {
 }) {
   if (!props.logs.length) return null
   return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
       <History className="size-3.5 shrink-0 text-muted-foreground" />
       <ScrollArea className="min-w-0 flex-1">
         <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -703,13 +682,13 @@ function DissolvefDisplayTabs(props: {
         <TabsTrigger value="logs">{tNode("dissolvef", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1">
-        <PlanList compact={props.compact} result={props.result} />
+        <DissolvePlanBoard compact={props.compact} result={props.result} />
       </TabsContent>
       <TabsContent value="history" className="min-h-0 flex-1">
-        <HistoryPanel compact={props.compact} result={props.result} onUndo={props.onUndo} />
+        <DissolveHistoryBoard compact={props.compact} result={props.result} onUndo={props.onUndo} />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
-        <LogPanel compact={props.compact} logs={props.logs} onCopy={props.onCopyLogs} />
+        <RichLogPanel compact={props.compact} logs={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
   )

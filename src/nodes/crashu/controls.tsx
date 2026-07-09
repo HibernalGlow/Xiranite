@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, Eraser, Info, ShieldAlert, Zap } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clipboard, Copy, DatabaseZap, Eraser, Folder, GitCompareArrows, Info, ListChecks, ShieldAlert, Terminal, XCircle, Zap } from "lucide-react"
 import type { CrashuConflictPolicy, CrashuMoveDirection } from "@xiranite/node-crashu/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -321,7 +321,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -341,7 +341,7 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-background/60 px-2 py-1.5">
+    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-card px-2 py-1.5">
       <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
@@ -364,7 +364,7 @@ export function MatchList(props: {
     ? plan.map((item) => `${item.status} ${Math.round(item.similarity * 100)}% ${item.sourcePath}${item.destinationPath ? ` -> ${item.destinationPath}` : ` / ${item.reason}`}`)
     : matches.map((item) => `${Math.round(item.similarity * 100)}% ${item.name} -> ${item.target}`)
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{lines.length ? `${lines.length} 项` : "等待运行"}</span>
@@ -393,7 +393,7 @@ export function LogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
@@ -416,6 +416,152 @@ export function LogPanel(props: {
       </ScrollArea>
     </section>
   )
+}
+
+export function MatchPlanBoard(props: {
+  compact?: boolean
+  result: CrashuCardState["result"]
+}) {
+  const matches = props.result?.similarFolders ?? []
+  const plan = props.result?.plan ?? []
+  const total = plan.length || matches.length
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <ListChecks className="size-3.5 shrink-0" />
+          <span>{total ? `${total} 项` : "等待运行"}</span>
+        </div>
+        <Badge variant="outline">匹配 {matches.length}</Badge>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {total ? (
+          <div className={cn("grid gap-1.5", props.compact ? "p-2" : "p-3")}>
+            {plan.length
+              ? plan.slice(0, 120).map((item, index) => (
+                <CrashuPlanRow key={`${item.sourcePath}:${item.destinationPath}:${index}`} compact={props.compact} item={item} />
+              ))
+              : matches.slice(0, 120).map((item, index) => (
+                <CrashuMatchRow key={`${item.path}:${item.target}:${index}`} compact={props.compact} item={item} />
+              ))}
+          </div>
+        ) : (
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+            运行后显示匹配通道、相似度和移动计划。
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+export function RichLogPanel(props: {
+  compact?: boolean
+  logs: string[]
+  onCopy: () => void
+}) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Terminal className="size-3.5 shrink-0" />
+          <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
+        </div>
+        <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          复制
+        </Button>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.logs.length ? (
+          <pre className={props.compact ? "p-2 text-xs leading-5 text-muted-foreground" : "p-3 text-xs leading-5 text-muted-foreground"}>
+            {props.logs.join("\n")}
+          </pre>
+        ) : (
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+            运行日志会显示在这里。
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function CrashuMatchRow(props: {
+  compact?: boolean
+  item: NonNullable<CrashuCardState["result"]>["similarFolders"][number]
+}) {
+  const score = Math.round(props.item.similarity * 100)
+  return (
+    <div className="grid gap-1.5 rounded-md border px-2 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <GitCompareArrows className="size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+            <span className="truncate">{props.item.name}</span>
+            <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+            <span className="truncate">{props.item.target}</span>
+          </div>
+          {!props.compact && (
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{props.item.matchSrc} / {props.item.matchTgt}</div>
+          )}
+        </div>
+        <Badge variant={score >= 85 ? "default" : "outline"}>{score}%</Badge>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function CrashuPlanRow(props: {
+  compact?: boolean
+  item: NonNullable<CrashuCardState["result"]>["plan"][number]
+}) {
+  const score = Math.round(props.item.similarity * 100)
+  const meta = crashuPlanStatusMeta(props.item.status)
+  const StatusIcon = meta.icon
+  return (
+    <div className={cn("grid gap-1.5 rounded-md border px-2 py-2", props.item.status === "error" && "border-destructive/40", props.item.status === "skipped" && "opacity-75")}>
+      <div className="flex min-w-0 items-center gap-2">
+        <Folder className="size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+            <span className="truncate">{baseName(props.item.sourcePath)}</span>
+            <ArrowRight className="size-3 shrink-0 text-muted-foreground" />
+            <span className="truncate">{baseName(props.item.destinationPath || props.item.targetName)}</span>
+          </div>
+          {!props.compact && (
+            <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+              {props.item.sourcePath}{props.item.destinationPath ? ` -> ${props.item.destinationPath}` : ""}
+            </div>
+          )}
+        </div>
+        <Badge variant={meta.variant} className="gap-1">
+          <StatusIcon className="size-3" />
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="truncate">{props.item.reason || props.item.direction}</span>
+        <span className="shrink-0 tabular-nums">{score}%</span>
+      </div>
+    </div>
+  )
+}
+
+function crashuPlanStatusMeta(status: NonNullable<CrashuCardState["result"]>["plan"][number]["status"]) {
+  if (status === "success") return { icon: CheckCircle2, label: "完成", variant: "default" as const }
+  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const }
+  if (status === "skipped") return { icon: AlertTriangle, label: "跳过", variant: "outline" as const }
+  return { icon: CircleDashed, label: "待执行", variant: "secondary" as const }
+}
+
+function baseName(path: string) {
+  return path.split(/[\\/]/).filter(Boolean).pop() || path || "未指定"
 }
 
 function ConfigPreview(props: {

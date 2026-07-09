@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, Eraser, FolderInput, Info, Layers, PackageOpen, ShieldAlert } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clipboard, Clock3, Copy, DatabaseZap, Eraser, FileSymlink, FolderInput, Info, Layers, ListChecks, PackageOpen, ShieldAlert, Terminal, Trash2, Undo2, XCircle } from "lucide-react"
 import type { DissolvefConflictMode } from "@xiranite/node-dissolvef/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -299,7 +299,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -319,7 +319,7 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-background/60 px-2 py-1.5">
+    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-card px-2 py-1.5">
       <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
@@ -339,7 +339,7 @@ export function PlanList(props: {
   const plan = props.result?.plan ?? []
   const lines = plan.map((item) => `${item.status} ${item.mode} ${item.operation} ${item.sourcePath}${item.targetPath ? ` -> ${item.targetPath}` : item.reason ? ` / ${item.reason}` : ""}`)
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{lines.length ? `${lines.length} 项` : "等待运行"}</span>
@@ -369,7 +369,7 @@ export function HistoryPanel(props: {
 }) {
   const history = props.result?.history ?? []
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{history.length ? `${history.length} 条` : "无历史"}</span>
@@ -409,7 +409,7 @@ export function LogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
@@ -432,6 +432,173 @@ export function LogPanel(props: {
       </ScrollArea>
     </section>
   )
+}
+
+export function DissolvePlanBoard(props: {
+  compact?: boolean
+  result: DissolvefCardState["result"]
+}) {
+  const plan = props.result?.plan ?? []
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <ListChecks className="size-3.5 shrink-0" />
+          <span>{plan.length ? `${plan.length} 项` : "等待运行"}</span>
+        </div>
+        <Badge variant="outline">总计 {props.result?.totalCount ?? 0}</Badge>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {plan.length ? (
+          <div className={cn("grid gap-1.5", props.compact ? "p-2" : "p-3")}>
+            {plan.slice(0, 140).map((item, index) => (
+              <DissolvePlanRow key={`${item.sourcePath}:${item.targetPath}:${index}`} compact={props.compact} item={item} />
+            ))}
+          </div>
+        ) : (
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+            运行后显示上提、删除空壳和冲突跳过项。
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+export function DissolveHistoryBoard(props: {
+  compact?: boolean
+  result: DissolvefCardState["result"]
+  onUndo: (id: string) => void
+}) {
+  const history = props.result?.history ?? []
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Clock3 className="size-3.5 shrink-0" />
+          <span>{history.length ? `${history.length} 条` : "无历史"}</span>
+        </div>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {history.length ? (
+          <div className={cn("grid gap-1.5", props.compact ? "p-2" : "p-3")}>
+            {history.map((item) => (
+              <div key={item.id} className={cn("flex min-w-0 items-center gap-2 rounded-md border px-2 py-2", item.undone && "opacity-70")}>
+                <Clock3 className="size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                    <span className="truncate">{item.mode}</span>
+                    <Badge variant={item.undone ? "outline" : "secondary"}>{item.count} 项</Badge>
+                  </div>
+                  <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{item.id} / {item.path}</div>
+                </div>
+                {!item.undone && (
+                  <Button aria-label={`撤销 ${item.id}`} disabled={props.result === undefined} size="xs" variant="ghost" onClick={() => props.onUndo(item.id)}>
+                    <Undo2 data-icon="inline-start" />
+                    撤销
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+            执行操作后会记录历史，可用于撤销。
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+export function RichLogPanel(props: {
+  compact?: boolean
+  logs: string[]
+  onCopy: () => void
+}) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Terminal className="size-3.5 shrink-0" />
+          <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
+        </div>
+        <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          复制
+        </Button>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.logs.length ? (
+          <pre className={props.compact ? "p-2 text-xs leading-5 text-muted-foreground" : "p-3 text-xs leading-5 text-muted-foreground"}>
+            {props.logs.join("\n")}
+          </pre>
+        ) : (
+          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+            运行日志会显示在这里。
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function DissolvePlanRow(props: {
+  compact?: boolean
+  item: NonNullable<DissolvefCardState["result"]>["plan"][number]
+}) {
+  const StatusIcon = dissolveStatusMeta(props.item.status).icon
+  const status = dissolveStatusMeta(props.item.status)
+  const ModeIcon = dissolveModeIcon(props.item.mode)
+  const OperationIcon = props.item.operation === "delete_dir" ? Trash2 : FileSymlink
+  return (
+    <div className={cn("grid gap-1.5 rounded-md border px-2 py-2", props.item.status === "error" && "border-destructive/40", props.item.status === "skipped" && "opacity-75")}>
+      <div className="flex min-w-0 items-center gap-2">
+        <ModeIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="sr-only">{props.item.status} {props.item.mode} {props.item.operation}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+            <OperationIcon className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{baseName(props.item.sourcePath)}</span>
+            {props.item.operation === "move" && <ArrowRight className="size-3 shrink-0 text-muted-foreground" />}
+            {props.item.operation === "move" && <span className="truncate">{baseName(props.item.targetPath)}</span>}
+          </div>
+          {!props.compact && (
+            <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+              {props.item.sourcePath}{props.item.targetPath ? ` -> ${props.item.targetPath}` : ""}
+            </div>
+          )}
+        </div>
+        <Badge variant={status.variant} className="gap-1">
+          <StatusIcon className="size-3" />
+          {status.label}
+        </Badge>
+      </div>
+      <div className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="truncate">{props.item.reason || props.item.mode}</span>
+        {props.item.similarity !== undefined && <span className="shrink-0 tabular-nums">{Math.round(props.item.similarity * 100)}%</span>}
+      </div>
+    </div>
+  )
+}
+
+function dissolveStatusMeta(status: NonNullable<DissolvefCardState["result"]>["plan"][number]["status"]) {
+  if (status === "success") return { icon: CheckCircle2, label: "完成", variant: "default" as const }
+  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const }
+  if (status === "skipped") return { icon: AlertTriangle, label: "跳过", variant: "outline" as const }
+  return { icon: CircleDashed, label: "待执行", variant: "secondary" as const }
+}
+
+function dissolveModeIcon(mode: NonNullable<DissolvefCardState["result"]>["plan"][number]["mode"]) {
+  if (mode === "direct") return PackageOpen
+  return BUNDLE_MODES.find((item) => item.value === mode)?.icon ?? Layers
+}
+
+function baseName(path: string) {
+  return path.split(/[\\/]/).filter(Boolean).pop() || path || "未指定"
 }
 
 function ConfigPreview(props: {
