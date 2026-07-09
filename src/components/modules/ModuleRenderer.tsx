@@ -33,6 +33,10 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   database:     lazy(() => import("./DatabaseModule")),
   blocknote:    lazy(() => import("./BlockNoteModule")),
   "music-player": lazy(() => import("./MusicPlayerModule")),
+  "settings":          lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.SettingsModule }))),
+  "module-registry":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.ModuleRegistryModule }))),
+  "node-history":      lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.NodeHistoryModule }))),
+  "node-operations":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.NodeOperationsModule }))),
 }
 
 export interface ModuleProps {

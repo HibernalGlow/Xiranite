@@ -92,6 +92,38 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     description: "Local music player backed by Xiranite runtime file service. Supports FLAC folders, playlists, and themed dock playback.",
     icon: "Music2",
   },
+  {
+    id: "settings",
+    name: "SETTINGS",
+    version: "v1.0.0",
+    category: "SYSTEM",
+    description: "Universal project settings: appearance, background, runtime, and local data configuration.",
+    icon: "Settings",
+  },
+  {
+    id: "module-registry",
+    name: "MODULE REGISTRY",
+    version: "v1.0.0",
+    category: "SYSTEM",
+    description: "Browse, search, and deploy all available modules into the workspace.",
+    icon: "PackageOpen",
+  },
+  {
+    id: "node-history",
+    name: "RUN HISTORY",
+    version: "v1.0.0",
+    category: "META",
+    description: "Runtime history of node, workspace, config, and system events with filtering.",
+    icon: "History",
+  },
+  {
+    id: "node-operations",
+    name: "NODE OPERATIONS",
+    version: "v1.0.0",
+    category: "META",
+    description: "Live backend node runs: active, recent, and finished operations with stream events.",
+    icon: "Activity",
+  },
 ]
 
 export function getModule(id: string): ModuleDef | undefined {

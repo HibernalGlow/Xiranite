@@ -821,6 +821,22 @@
       "loadEditor": "Open editor",
       "loading": "Loading editor"
     },
+    "settings": {
+      "name": "SETTINGS",
+      "description": "Universal project settings: appearance, background, runtime, and local data configuration."
+    },
+    "module-registry": {
+      "name": "MODULE REGISTRY",
+      "description": "Browse, search, and deploy all available modules into the workspace."
+    },
+    "node-history": {
+      "name": "RUN HISTORY",
+      "description": "Runtime history of node, workspace, config, and system events with filtering."
+    },
+    "node-operations": {
+      "name": "NODE OPERATIONS",
+      "description": "Live backend node runs: active, recent, and finished operations with stream events."
+    },
     "enginev": {
       "name": "EngineV",
       "description": "Scan, filter, rename, delete, and export Wallpaper Engine workshop folders.",

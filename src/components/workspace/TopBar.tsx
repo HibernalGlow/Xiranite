@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { useState, type ComponentType, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
@@ -34,7 +34,6 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Dock, DockIcon } from "@/components/ui/dock"
-import { DynamicIsland, DynamicIslandProvider, useDynamicIslandSize } from "@/components/ui/dynamic-island"
 
 const TITLEBAR_NO_DRAG_SELECTOR = [
   ".xiranite-app-region-no-drag",
@@ -397,26 +396,18 @@ export function TopBar() {
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">
-        <DynamicIslandProvider
-          initialSize="minimalLeading"
-          presets={{
-            minimalLeading: { width: 42, aspectRatio: 38 / 42, borderRadius: 9 },
-            compact: { width: 148, aspectRatio: 38 / 148, borderRadius: 9 },
-          }}
-        >
-          <TopBarActionDock
-            activeOperations={activeOperations}
-            devRuntimeActive={runtimeInfo.frontendSource === "vite-dev"}
-            devRuntimeLabel={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
-            historyLabel={t("topbar:history")}
-            operationsLabel={t("topbar:operations")}
-            registryLabel={t("overlay:registry")}
-            onOpenDevRuntime={() => workspaceActions.setOverlay("settings")}
-            onOpenHistory={() => workspaceActions.setOverlay("history")}
-            onOpenOperations={() => workspaceActions.setOverlay("operations")}
-            onOpenRegistry={() => workspaceActions.setOverlay("registry")}
-          />
-        </DynamicIslandProvider>
+        <TopBarActionDock
+          activeOperations={activeOperations}
+          devRuntimeActive={runtimeInfo.frontendSource === "vite-dev"}
+          devRuntimeLabel={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
+          historyLabel={t("topbar:history")}
+          operationsLabel={t("topbar:operations")}
+          registryLabel={t("overlay:registry")}
+          onOpenDevRuntime={() => workspaceActions.setOverlay("settings")}
+          onOpenHistory={() => workspaceActions.setOverlay("history")}
+          onOpenOperations={() => workspaceActions.setOverlay("operations")}
+          onOpenRegistry={() => workspaceActions.setOverlay("registry")}
+        />
         {/* ── 主题快速切换下拉 ── */}
         <Popover open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
           <PopoverTrigger asChild>
@@ -644,66 +635,62 @@ function TopBarActionDock({
   onOpenOperations: () => void
   onOpenRegistry: () => void
 }) {
-  const { setSize } = useDynamicIslandSize()
-
-  function expand() {
-    setSize("compact")
-  }
-
-  function collapse() {
-    setSize("minimalLeading")
-  }
-
-  function collapseWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
-    const next = event.relatedTarget
-    if (!(next instanceof Node) || !event.currentTarget.contains(next)) collapse()
-  }
-
   return (
-    <div onMouseEnter={expand} onMouseLeave={collapse} onFocus={expand} onBlur={collapseWhenFocusLeaves}>
-      <DynamicIsland
-        id="topbar-action-dock"
-        className="mx-0 justify-start border border-border/60 bg-muted/20 shadow-xs"
+    <div data-testid="topbar-action-stack" className="relative flex h-10 items-center overflow-visible">
+      <Dock
+        iconSize={34}
+        iconMagnification={34}
+        disableMagnification
+        iconDistance={64}
+        className="group/topbar-actions mx-0 mt-0 h-10 gap-0 overflow-visible rounded-lg border-0 bg-transparent p-0 backdrop-blur-none supports-backdrop-blur:bg-transparent supports-backdrop-blur:dark:bg-transparent"
       >
-        <Dock
-          iconSize={28}
-          iconMagnification={38}
-          iconDistance={72}
-          className="mx-0 mt-0 h-9 gap-1 border-0 bg-transparent p-1 backdrop-blur-none supports-backdrop-blur:bg-transparent supports-backdrop-blur:dark:bg-transparent"
+        <TopBarDockIcon
+          label={registryLabel}
+          onSelect={onOpenRegistry}
+          className="z-40 text-foreground shadow-sm"
         >
-          <TopBarDockIcon label={registryLabel} onSelect={onOpenRegistry}>
-            <Plus className="h-4 w-4" />
-          </TopBarDockIcon>
-          <TopBarDockIcon
-            label={devRuntimeLabel}
-            onSelect={onOpenDevRuntime}
-            className={devRuntimeActive ? "text-primary hover:text-primary" : undefined}
-          >
-            <span className="relative grid place-items-center">
-              <Code2 className="h-4 w-4" />
-              <span
-                className={cn(
-                  "absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full",
-                  devRuntimeActive ? "bg-primary" : "bg-muted-foreground/40",
-                )}
-              />
-            </span>
-          </TopBarDockIcon>
-          <TopBarDockIcon label={operationsLabel} onSelect={onOpenOperations}>
-            <span className="relative grid place-items-center">
-              <Activity className="h-4 w-4" />
-              {activeOperations > 0 && (
-                <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-mono leading-none text-destructive-foreground">
-                  {activeOperations > 9 ? "9+" : activeOperations}
-                </span>
+          <Plus className="h-4 w-4" />
+        </TopBarDockIcon>
+        <TopBarDockIcon
+          label={devRuntimeLabel}
+          onSelect={onOpenDevRuntime}
+          className={cn(
+            "z-30 -ml-2.5 shadow-xs group-hover/topbar-actions:ml-1 group-focus-within/topbar-actions:ml-1",
+            devRuntimeActive ? "text-primary hover:text-primary" : undefined,
+          )}
+        >
+          <span className="relative grid place-items-center">
+            <Code2 className="h-4 w-4" />
+            <span
+              className={cn(
+                "absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full",
+                devRuntimeActive ? "bg-primary" : "bg-muted-foreground/40",
               )}
-            </span>
-          </TopBarDockIcon>
-          <TopBarDockIcon label={historyLabel} onSelect={onOpenHistory}>
-            <History className="h-4 w-4" />
-          </TopBarDockIcon>
-        </Dock>
-      </DynamicIsland>
+            />
+          </span>
+        </TopBarDockIcon>
+        <TopBarDockIcon
+          label={operationsLabel}
+          onSelect={onOpenOperations}
+          className="z-20 -ml-2.5 shadow-xs group-hover/topbar-actions:ml-1 group-focus-within/topbar-actions:ml-1"
+        >
+          <span className="relative grid place-items-center">
+            <Activity className="h-4 w-4" />
+            {activeOperations > 0 && (
+              <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-mono leading-none text-destructive-foreground">
+                {activeOperations > 9 ? "9+" : activeOperations}
+              </span>
+            )}
+          </span>
+        </TopBarDockIcon>
+        <TopBarDockIcon
+          label={historyLabel}
+          onSelect={onOpenHistory}
+          className="z-10 -ml-2.5 shadow-xs group-hover/topbar-actions:ml-1 group-focus-within/topbar-actions:ml-1"
+        >
+          <History className="h-4 w-4" />
+        </TopBarDockIcon>
+      </Dock>
     </div>
   )
 }
@@ -734,7 +721,7 @@ function TopBarDockIcon({
       onClick={onSelect}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "relative rounded-lg border border-border/60 bg-background text-muted-foreground transition-[margin,transform,color,background-color,box-shadow] duration-200 ease-out hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         className,
       )}
     >

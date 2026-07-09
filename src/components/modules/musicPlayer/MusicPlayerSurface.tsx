@@ -32,6 +32,7 @@ import {
   Volume1,
   Volume2,
 } from "lucide-react"
+import { parseWebStream } from "music-metadata"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { resolveLocalAudioTracks, type LocalAudioTrack } from "@/backend/localFilesClient"
 import { Badge } from "@/components/ui/badge"
@@ -764,6 +765,9 @@ function activeSupportLine(track: RuntimeTrack, isPlaying: boolean, lyricLine: s
 }
 
 async function loadTrackLyrics(track: RuntimeTrack): Promise<LyricLine[]> {
+  const embedded = await loadEmbeddedLyrics(track)
+  if (embedded.length) return embedded
+
   for (const candidate of lyricPathCandidates(track.path)) {
     try {
       const response = await fetch(localBackendFileUrl(candidate), { cache: "no-store" })
@@ -775,6 +779,43 @@ async function loadTrackLyrics(track: RuntimeTrack): Promise<LyricLine[]> {
     }
   }
   return []
+}
+
+async function loadEmbeddedLyrics(track: RuntimeTrack): Promise<LyricLine[]> {
+  try {
+    const response = await fetch(localBackendFileUrl(track.path))
+    if (!response.ok || !response.body) return []
+
+    const metadata = await parseWebStream(response.body, track.type, {
+      skipPostHeaders: true,
+      skipCovers: true,
+    })
+    const tags = metadata.common.lyrics
+    if (!tags?.length) return []
+
+    for (const tag of tags) {
+      if (tag.text) {
+        const lines = parseLrc(tag.text)
+        if (lines.length) return lines
+      }
+      const syncLines = tag.syncText
+        ?.filter((entry) => entry.timestamp != null && entry.text)
+        .map((entry) => ({ time: entry.timestamp! / 1000, text: entry.text! }))
+        .sort((a, b) => a.time - b.time)
+      if (syncLines?.length) return syncLines
+    }
+
+    for (const tag of tags) {
+      if (tag.text) {
+        const firstLine = tag.text.split(/\r?\n/).find((line) => line.trim())
+        if (firstLine) return [{ time: 0, text: firstLine.trim() }]
+      }
+    }
+
+    return []
+  } catch {
+    return []
+  }
 }
 
 function lyricPathCandidates(filePath: string): string[] {
