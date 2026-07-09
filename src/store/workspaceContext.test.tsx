@@ -36,12 +36,28 @@ describe("workspace UI preference persistence", () => {
     expect(persisted.state?.activeCustomThemeName).toBe("Imported")
     expect(persisted.state?.fontPreset).toBe("aestivus")
     expect(persisted.state?.bgMode).toBe("image")
+    expect(persisted.state?.bgImageUrl).toBe("D:/Images/background.jpg")
     expect(persisted.state?.bgOpacity).toBe(55)
     expect(persisted.state?.workspaces).toBeUndefined()
     expect(persisted.state?.components).toBeUndefined()
     expect(localStorage.getItem("xiranite-bg-mode")).toBeNull()
 
     await user.click(screen.getByRole("button", { name: "reset persisted prefs" }))
+  })
+
+  test("persists inline background images", async () => {
+    localStorage.clear()
+    const user = userEvent.setup()
+
+    render(<WorkspacePreferenceProbe />)
+
+    await user.click(screen.getByRole("button", { name: "set inline background" }))
+    await waitFor(() => {
+      const persisted = JSON.parse(localStorage.getItem("xiranite-workspace-ui") ?? "{}") as {
+        state?: Record<string, unknown>
+      }
+      expect(persisted.state?.bgImageUrl).toBe("data:image/png;base64,abc")
+    })
   })
 
   test("switching theme presets preserves user background and chrome settings", async () => {
@@ -90,6 +106,7 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setActiveCustomThemeName("Imported")
           workspaceActions.setFontPreset("aestivus")
           workspaceActions.setBgMode("image")
+          workspaceActions.setBgImageUrl("D:/Images/background.jpg")
           workspaceActions.setBgOpacity(55)
         }}
       >
@@ -113,11 +130,21 @@ function WorkspacePreferenceProbe() {
       <button
         type="button"
         onClick={() => {
+          workspaceActions.setBgMode("image")
+          workspaceActions.setBgImageUrl("data:image/png;base64,abc")
+        }}
+      >
+        set inline background
+      </button>
+      <button
+        type="button"
+        onClick={() => {
           workspaceActions.setTheme("spatial")
           workspaceActions.setCustomThemes([])
           workspaceActions.setActiveCustomThemeName(null)
           workspaceActions.setFontPreset("xiranite")
           workspaceActions.setBgMode("dot-grid")
+          workspaceActions.setBgImageUrl("")
           workspaceActions.setBgOpacity(30)
           workspaceActions.setBgBlur(5)
           workspaceActions.setBgCoverTopBar(false)

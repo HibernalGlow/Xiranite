@@ -7,6 +7,7 @@ import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./Workspace
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { useDefaultContextMenuItems } from "@/components/context-menu/defaults"
+import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
 
 const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
@@ -32,7 +33,7 @@ export function WorkspaceLayout() {
   const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
 
   const bgStyles = {
-    "--ws-bg-image-url": chrome.bgImageUrl ? `url(${JSON.stringify(chrome.bgImageUrl)})` : "none",
+    "--ws-bg-image-url": chrome.bgImageUrl ? `url(${JSON.stringify(toBackgroundImageCssUrl(chrome.bgImageUrl))})` : "none",
     "--ws-bg-opacity": String((chrome.bgOpacity ?? 30) / 100),
     "--ws-bg-blur": `${chrome.bgBlur ?? 5}px`,
   } as React.CSSProperties

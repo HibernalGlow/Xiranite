@@ -138,7 +138,7 @@ export function getNodeConfig<NodeConfig = unknown>(config: XiraniteConfig, node
 
 export function updateNodeConfig<NodeConfig>(config: XiraniteConfig, nodeId: string, patch: NodeConfig): XiraniteConfig {
   const next: XiraniteConfig = { ...config }
-  const nodes = { ...(next.nodes ?? {}) }
+  const nodes = { ...next.nodes }
   nodes[nodeId] = mergeConfigValue(nodes[nodeId], patch)
   next.nodes = nodes
   return next
@@ -150,7 +150,7 @@ export function getAppConfig<AppConfig = unknown>(config: XiraniteConfig, sectio
 
 export function updateAppConfig<AppConfig>(config: XiraniteConfig, section: string, patch: AppConfig): XiraniteConfig {
   const next: XiraniteConfig = { ...config }
-  const app = { ...(next.app ?? {}) }
+  const app = { ...next.app }
   app[section] = mergeConfigValue(app[section], patch)
   next.app = app
   return next

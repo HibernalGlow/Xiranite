@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { getAppConfigFromBackend, saveAppConfigToBackend } from "@/backend/configRpcClient"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
+import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/theme-provider"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
@@ -237,7 +238,7 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     actionGlow: state.actionGlow,
     cardElevation: state.cardElevation,
     bgMode: state.bgMode,
-    bgImageUrl: state.bgImageUrl,
+    bgImageUrl: sanitizePersistedBackgroundImageUrl(state.bgImageUrl),
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,
@@ -264,7 +265,7 @@ function buildAppUiConfig(
 ): AppUiConfig {
   return pruneUndefined({
     version: APP_UI_CONFIG_VERSION,
-    workspace,
+    workspace: sanitizeWorkspaceConfig(workspace),
     appearance: { colorMode },
     i18n: { language },
     overlay: legacy.overlay,
@@ -317,7 +318,10 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (typeof value.actionGlow === "boolean") next.actionGlow = value.actionGlow
   if (typeof value.cardElevation === "boolean") next.cardElevation = value.cardElevation
   if (isOneOf(value.bgMode, BG_MODES)) next.bgMode = value.bgMode
-  if (typeof value.bgImageUrl === "string") next.bgImageUrl = value.bgImageUrl
+  if (typeof value.bgImageUrl === "string") {
+    const bgImageUrl = normalizePersistedBackgroundImageUrl(value.bgImageUrl)
+    if (bgImageUrl !== undefined) next.bgImageUrl = bgImageUrl
+  }
   if (typeof value.bgOpacity === "number") next.bgOpacity = value.bgOpacity
   if (typeof value.bgBlur === "number") next.bgBlur = value.bgBlur
   if (typeof value.bgCoverTopBar === "boolean") next.bgCoverTopBar = value.bgCoverTopBar
@@ -338,6 +342,13 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
 function normalizeAppearanceConfig(value: unknown): AppUiConfig["appearance"] {
   if (!isRecord(value)) return undefined
   return isThemeMode(value.colorMode) ? { colorMode: value.colorMode } : undefined
+}
+
+function sanitizeWorkspaceConfig(workspace: WorkspaceUiPreferences): WorkspaceUiPreferences {
+  return {
+    ...workspace,
+    bgImageUrl: sanitizePersistedBackgroundImageUrl(workspace.bgImageUrl),
+  }
 }
 
 function normalizeI18nConfig(value: unknown): AppUiConfig["i18n"] {

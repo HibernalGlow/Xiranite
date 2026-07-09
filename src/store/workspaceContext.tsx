@@ -10,6 +10,7 @@ import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { createWorkspaceActions } from "@/store/workspace/actions"
 import { INITIAL_STATE } from "@/store/workspace/constants"
 import type { WorkspaceActions, WorkspaceUiPreferences, WSState, WSStore } from "@/store/workspace/types"
+import { sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 
 type WorkspaceSnapshot = WorkspaceSnapshotDTO
@@ -41,7 +42,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     actionGlow: state.actionGlow,
     cardElevation: state.cardElevation,
     bgMode: state.bgMode,
-    bgImageUrl: state.bgImageUrl,
+    bgImageUrl: sanitizePersistedBackgroundImageUrl(state.bgImageUrl),
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,

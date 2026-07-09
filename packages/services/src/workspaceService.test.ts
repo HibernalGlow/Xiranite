@@ -171,6 +171,12 @@ describe("ConfigService", () => {
     const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-db-"))
     const service = new ConfigService({
       databasePath: join(tempDir, "xiranite.db"),
+      env: {
+        APPDATA: join(tempDir, "Roaming"),
+        LOCALAPPDATA: join(tempDir, "Local"),
+      },
+      platform: "win32",
+      homeDir: tempDir,
     })
 
     try {
@@ -185,17 +191,12 @@ describe("ConfigService", () => {
 
   test("migrates legacy Roaming config and artifacts into the database directory", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-migrate-"))
-    const previousAppData = process.env.APPDATA
-    const previousLocalAppData = process.env.LOCALAPPDATA
     const legacyDataDir = join(tempDir, "Roaming", "Xiranite")
     const targetDataDir = join(tempDir, "Local", "Xiranite")
     const legacyConfigPath = join(legacyDataDir, "xiranite.config.toml")
     const targetConfigPath = join(targetDataDir, "xiranite.config.toml")
     const legacyArtifactPath = join(legacyDataDir, "artifacts", "undo", "migratef.undo.json")
     const targetArtifactPath = join(targetDataDir, "artifacts", "undo", "migratef.undo.json")
-
-    process.env.APPDATA = join(tempDir, "Roaming")
-    process.env.LOCALAPPDATA = join(tempDir, "Local")
 
     try {
       await mkdir(join(legacyDataDir, "artifacts", "undo"), { recursive: true })
@@ -221,6 +222,12 @@ describe("ConfigService", () => {
 
       const service = new ConfigService({
         databasePath: join(targetDataDir, "xiranite.db"),
+        env: {
+          APPDATA: join(tempDir, "Roaming"),
+          LOCALAPPDATA: join(tempDir, "Local"),
+        },
+        platform: "win32",
+        homeDir: tempDir,
       })
       const ensured = await service.ensureConfigFile()
       const merged = await readFile(targetConfigPath, "utf8")
@@ -236,16 +243,6 @@ describe("ConfigService", () => {
       await expect(readFile(legacyConfigPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
       await expect(readFile(legacyArtifactPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
     } finally {
-      if (previousAppData === undefined) {
-        delete process.env.APPDATA
-      } else {
-        process.env.APPDATA = previousAppData
-      }
-      if (previousLocalAppData === undefined) {
-        delete process.env.LOCALAPPDATA
-      } else {
-        process.env.LOCALAPPDATA = previousLocalAppData
-      }
       await rm(tempDir, { recursive: true, force: true })
     }
   })

@@ -1004,8 +1004,8 @@ export function ThemeSettings() {
                           if (!file) return
                           const reader = new FileReader()
                           reader.onload = (event) => {
-                            const dataUrl = event.target?.result as string
-                            workspaceActions.setBgImageUrl(dataUrl)
+                            const dataUrl = event.target?.result
+                            if (typeof dataUrl === "string") workspaceActions.setBgImageUrl(dataUrl)
                           }
                           reader.readAsDataURL(file)
                         }}
