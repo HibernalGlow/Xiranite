@@ -222,7 +222,7 @@ function DynamicIslandChrome({
 
   return (
     <div
-      className="xiranite-ui-copy absolute left-1/2 top-2 z-20 -translate-x-1/2"
+      className="xiranite-ui-copy pointer-events-auto absolute left-1/2 top-2 z-20 -translate-x-1/2"
       onPointerEnter={() => setExpanded(true)}
       onPointerLeave={() => setExpanded(false)}
     >
