@@ -9,12 +9,28 @@ type ModuleShapeStub = { type: string; props: { compId?: string } }
 type DeleteShapeHandler = (shape: ModuleShapeStub, source: string) => void
 
 const setComponentVisibilityMock = vi.hoisted(() => vi.fn())
+const setWorkspaceFlowCanvasMock = vi.hoisted(() => vi.fn())
 const visibleComponentsMock = vi.hoisted(() => vi.fn<() => ComponentInstance[]>(() => []))
+const tldrawPropsMock = vi.hoisted(() => vi.fn())
+const storeListenerRef = vi.hoisted(() => ({
+  current: undefined as ((entry: unknown) => void) | undefined,
+}))
+const workspaceStateMock = vi.hoisted(() => vi.fn(() => ({
+  activeWorkspaceId: "ws-test",
+  workspaces: [{ id: "ws-test", label: "Test" }],
+})))
 const editorMock = vi.hoisted(() => ({
   getCurrentPageShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
   deleteShapes: vi.fn<(shapeIds: unknown[]) => void>(),
   createShapes: vi.fn<(shapes: unknown[]) => void>(),
   updateShapes: vi.fn<(shapes: unknown[]) => void>(),
+  store: {
+    getStoreSnapshot: vi.fn<() => Record<string, unknown>>(() => ({ store: {}, schema: {} })),
+    listen: vi.fn((listener: (entry: unknown) => void) => {
+      storeListenerRef.current = listener
+      return vi.fn()
+    }),
+  },
   sideEffects: {
     registerAfterChangeHandler: vi.fn<(typeName: string, handler: unknown) => () => void>(() => vi.fn()),
     registerAfterDeleteHandler: vi.fn<(typeName: string, handler: DeleteShapeHandler) => () => void>(() => vi.fn()),
@@ -26,7 +42,9 @@ vi.mock("@/store/workspaceContext", () => ({
     setComponentFlowPos: vi.fn(),
     setComponentFlowSize: vi.fn(),
     setComponentVisibility: setComponentVisibilityMock,
+    setWorkspaceFlowCanvas: setWorkspaceFlowCanvasMock,
   }),
+  useWorkspaceShallowSelector: (selector: (state: ReturnType<typeof workspaceStateMock>) => unknown) => selector(workspaceStateMock()),
   useWorkspaceVisibleComponents: visibleComponentsMock,
 }))
 
@@ -38,7 +56,10 @@ vi.mock("tldraw", () => ({
   HTMLContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Rectangle2d: class Rectangle2d {},
   ShapeUtil: class ShapeUtil {},
-  Tldraw: ({ children }: { children: ReactNode }) => <div data-testid="mock-tldraw">{children}</div>,
+  Tldraw: (props: { children: ReactNode; snapshot?: unknown }) => {
+    tldrawPropsMock(props)
+    return <div data-testid="mock-tldraw">{props.children}</div>
+  },
   createShapeId: (id: string) => `shape:${id}`,
   defaultShapeUtils: [],
   useEditor: () => editorMock,
@@ -48,9 +69,16 @@ vi.mock("tldraw/tldraw.css", () => ({}))
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
+  storeListenerRef.current = undefined
+  workspaceStateMock.mockReturnValue({
+    activeWorkspaceId: "ws-test",
+    workspaces: [{ id: "ws-test", label: "Test" }],
+  })
   visibleComponentsMock.mockReturnValue([])
   editorMock.getCurrentPageShapes.mockReturnValue([])
+  editorMock.store.getStoreSnapshot.mockReturnValue({ store: {}, schema: {} })
 })
 
 describe("FlowCanvasView", () => {
@@ -103,6 +131,69 @@ describe("FlowCanvasView", () => {
         props: expect.objectContaining({ compId: "comp-new" }),
       }),
     ])
+  })
+
+  test("does not delete ordinary tldraw shapes while syncing module shapes", () => {
+    editorMock.getCurrentPageShapes.mockReturnValue([
+      { id: "shape:stale-module", type: "module", props: { compId: "comp-stale" } },
+      { id: "shape:free-note", type: "note", props: {} },
+    ] as unknown as ModuleShapeStub[])
+
+    render(<FlowCanvasView />)
+
+    expect(editorMock.deleteShapes).toHaveBeenCalledWith(["shape:stale-module"])
+  })
+
+  test("passes the active workspace canvas snapshot into tldraw", () => {
+    const flowCanvas = { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } }
+    workspaceStateMock.mockReturnValue({
+      activeWorkspaceId: "ws-test",
+      workspaces: [{ id: "ws-test", label: "Test", flowCanvas }],
+    })
+
+    render(<FlowCanvasView />)
+
+    expect(tldrawPropsMock).toHaveBeenCalledWith(expect.objectContaining({ snapshot: flowCanvas }))
+  })
+
+  test("persists ordinary tldraw document changes to the active workspace", () => {
+    vi.useFakeTimers()
+    const flowCanvas = { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } }
+    editorMock.store.getStoreSnapshot.mockReturnValue(flowCanvas)
+
+    render(<FlowCanvasView />)
+
+    act(() => {
+      storeListenerRef.current?.({
+        changes: {
+          added: { "shape:box": { typeName: "shape", type: "geo" } },
+          updated: {},
+          removed: {},
+        },
+      })
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(setWorkspaceFlowCanvasMock).toHaveBeenCalledWith("ws-test", flowCanvas)
+  })
+
+  test("ignores module-only tldraw document changes because component layout owns them", () => {
+    vi.useFakeTimers()
+
+    render(<FlowCanvasView />)
+
+    act(() => {
+      storeListenerRef.current?.({
+        changes: {
+          added: { "shape:comp-alpha": { typeName: "shape", type: "module" } },
+          updated: {},
+          removed: {},
+        },
+      })
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(setWorkspaceFlowCanvasMock).not.toHaveBeenCalled()
   })
 })
 

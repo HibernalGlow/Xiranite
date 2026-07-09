@@ -1,3 +1,4 @@
+import type { FlowCanvasSnapshot } from "@/types/workspace"
 import type { WorkspaceListActions, WorkspaceStoreUpdater, WSState } from "./types"
 
 export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceListActions {
@@ -7,6 +8,8 @@ export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceLi
     removeWorkspace: (id) => update("REMOVE_WORKSPACE", (state) => removeWorkspaceState(state, id)),
     renameWorkspace: (id, label) => update("RENAME_WORKSPACE", (state) => renameWorkspaceState(state, id, label)),
     setWorkspaceIcon: (id, icon) => update("SET_WORKSPACE_ICON", (state) => setWorkspaceIconState(state, id, icon)),
+    setWorkspaceFlowCanvas: (id, flowCanvas) =>
+      update("SET_WORKSPACE_FLOW_CANVAS", (state) => setWorkspaceFlowCanvasState(state, id, flowCanvas)),
   }
 }
 
@@ -48,4 +51,17 @@ function setWorkspaceIconState(state: WSState, id: string, icon: string | undefi
       workspace.id === id ? { ...workspace, icon, updatedAt: Date.now() } : workspace,
     ),
   }
+}
+
+function setWorkspaceFlowCanvasState(state: WSState, id: string, flowCanvas: FlowCanvasSnapshot | undefined): WSState {
+  let changed = false
+  const now = Date.now()
+  const workspaces = state.workspaces.map((workspace) => {
+    if (workspace.id !== id) return workspace
+    if (workspace.flowCanvas === flowCanvas) return workspace
+    changed = true
+    return { ...workspace, flowCanvas, updatedAt: now }
+  })
+
+  return changed ? { ...state, workspaces } : state
 }

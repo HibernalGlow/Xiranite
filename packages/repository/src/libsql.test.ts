@@ -18,7 +18,13 @@ describe("createLibsqlWorkspaceRepository", () => {
       clients.push(repository)
 
       const snapshot = {
-        workspaces: [{ id: "ws-alpha", label: "Alpha", createdAt: 100, updatedAt: 100 }],
+        workspaces: [{
+          id: "ws-alpha",
+          label: "Alpha",
+          flowCanvas: { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } },
+          createdAt: 100,
+          updatedAt: 100,
+        }],
         lanes: [
           {
             id: "lane-alpha",

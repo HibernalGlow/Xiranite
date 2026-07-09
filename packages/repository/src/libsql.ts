@@ -24,6 +24,7 @@ const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
   label: text("label").notNull(),
   icon: text("icon"),
+  flowCanvas: text("flow_canvas"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 })
@@ -127,6 +128,7 @@ export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRe
         set: {
           label: workspace.label,
           icon: workspace.icon ?? null,
+          flowCanvas: serialize(workspace.flowCanvas),
           createdAt: workspace.createdAt,
           updatedAt: workspace.updatedAt,
         },
@@ -173,6 +175,7 @@ async function ensureSchema(client: Client): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL,
       label TEXT NOT NULL,
       icon TEXT,
+      flow_canvas TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
@@ -228,6 +231,7 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
     ...runtimeHistorySchemaSql(),
   ], "write")
+  await addColumnIfMissing(client, "workspaces", "flow_canvas", "TEXT")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")
 }
 
@@ -259,6 +263,7 @@ async function replaceRows(db: WorkspaceDb, snapshot: WorkspaceSnapshotDTO): Pro
       set: {
         label: workspace.label,
         icon: workspace.icon ?? null,
+        flowCanvas: serialize(workspace.flowCanvas),
         createdAt: workspace.createdAt,
         updatedAt: workspace.updatedAt,
       },
@@ -285,16 +290,19 @@ function fromWorkspaceDTO(workspace: WorkspaceDTO): typeof workspaces.$inferInse
     id: workspace.id,
     label: workspace.label,
     icon: workspace.icon ?? null,
+    flowCanvas: serialize(workspace.flowCanvas),
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
   }
 }
 
 function toWorkspaceDTO(row: typeof workspaces.$inferSelect): WorkspaceDTO {
+  const flowCanvas = deserialize<Record<string, unknown>>(row.flowCanvas)
   return {
     id: row.id,
     label: row.label,
     icon: row.icon ?? undefined,
+    ...(flowCanvas === undefined ? {} : { flowCanvas }),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

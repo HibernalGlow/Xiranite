@@ -353,6 +353,7 @@ func (s *XiraniteService) SubprocessSpawn(payloadJSON string) (string, error) {
 	}
 
 	cmd := exec.Command(request.Cmd, request.Args...)
+	configureHiddenSubprocess(cmd)
 	if request.Cwd != "" {
 		cmd.Dir = request.Cwd
 	}
@@ -420,6 +421,7 @@ func (s *XiraniteService) NodeRun(nodeID string, inputJSON string) (string, erro
 	root := findProjectRoot()
 	payload := fmt.Sprintf(`{"nodeId":%s,"input":%s}`, quoteJSON(nodeID), inputJSON)
 	cmd := exec.Command(bun, "desktop/node-runner-cli.ts")
+	configureHiddenSubprocess(cmd)
 	cmd.Dir = root
 	cmd.Stdin = strings.NewReader(payload)
 

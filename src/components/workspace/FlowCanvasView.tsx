@@ -12,6 +12,7 @@ import {
   type TLBaseShape,
   type TLIndicatorPath,
   type TLResizeInfo,
+  type TLStoreSnapshot,
   type TLUiStylePanelProps,
 } from "tldraw"
 import "tldraw/tldraw.css"
@@ -22,8 +23,8 @@ import { getModule } from "@/components/modules/registry"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
 import { useTheme } from "@/components/theme-provider"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
-import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
-import type { ComponentInstance } from "@/types/workspace"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import type { ComponentInstance, FlowCanvasSnapshot } from "@/types/workspace"
 // Patched zh-cn translation including the 4 keys missing from tldraw's official CDN
 // (action.copy-hovered-styles, action.frame-selection, page-menu.max-pages-reached,
 //  page-menu.resize). Served locally to silence the "missing messages" dev warning.
@@ -31,6 +32,50 @@ import zhCnTranslationUrl from "@/assets/tldraw-zh-cn.json?url"
 
 // assetUrls must be memoized or defined outside of any React component (per tldraw docs).
 const tldrawAssetUrls = { translations: { "zh-cn": zhCnTranslationUrl } }
+const FLOW_CANVAS_SAVE_DELAY_MS = 350
+
+type FlowCanvasChangeRecord = {
+  typeName?: string
+  type?: string
+}
+
+type FlowCanvasChangeEntry = {
+  changes: {
+    added: Record<string, unknown>
+    updated: Record<string, [unknown, unknown]>
+    removed: Record<string, unknown>
+  }
+}
+
+function isChangeRecord(value: unknown): value is FlowCanvasChangeRecord {
+  return typeof value === "object" && value !== null
+}
+
+function isModuleShapeRecord(value: unknown): boolean {
+  return isChangeRecord(value) && value.typeName === "shape" && value.type === ModuleShapeUtil.type
+}
+
+function isPersistableFlowCanvasRecord(value: unknown): boolean {
+  return isChangeRecord(value) && !isModuleShapeRecord(value)
+}
+
+function hasPersistableFlowCanvasChange(entry: FlowCanvasChangeEntry): boolean {
+  const { added, updated, removed } = entry.changes
+  return Object.values(added).some(isPersistableFlowCanvasRecord)
+    || Object.values(removed).some(isPersistableFlowCanvasRecord)
+    || Object.values(updated).some(([from, to]) =>
+      isPersistableFlowCanvasRecord(from) || isPersistableFlowCanvasRecord(to)
+    )
+}
+
+function getSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string {
+  if (!snapshot) return ""
+  try {
+    return JSON.stringify(snapshot)
+  } catch {
+    return ""
+  }
+}
 
 function resolveRootColor(cssValue: string, fallback: string) {
   if (typeof document === "undefined") return fallback
@@ -349,12 +394,12 @@ function useSyncShapesFromStore(
     if (sig === lastSigRef.current) return
     lastSigRef.current = sig
 
-    const current = editor.getCurrentPageShapes()
-    const currentIds = new Set(current.map((shape) => shape.id))
+    const currentModuleShapes = editor.getCurrentPageShapes().filter((shape): shape is ModuleShape => shape.type === ModuleShapeUtil.type)
+    const currentIds = new Set(currentModuleShapes.map((shape) => shape.id))
     const desiredIds = new Set(desired.map((shape) => shape.id))
     const previousDesiredIds = previousDesiredIdsRef.current
 
-    const toRemove = current.filter((shape) => !desiredIds.has(shape.id)).map((shape) => shape.id)
+    const toRemove = currentModuleShapes.filter((shape) => !desiredIds.has(shape.id)).map((shape) => shape.id)
     if (toRemove.length) {
       syncingShapeDeletesRef.current = true
       try {
@@ -434,9 +479,55 @@ function useSyncDeletedShapesToStore(
   }, [editor, syncingShapeDeletesRef, workspaceActions])
 }
 
+function usePersistFlowCanvasToWorkspace(
+  editor: ReturnType<typeof useEditor> | null,
+  workspaceId: string,
+  flowCanvas: FlowCanvasSnapshot | undefined,
+) {
+  const workspaceActions = useWorkspaceActions()
+  const persistedSignatureRef = useRef(getSnapshotSignature(flowCanvas))
+
+  useEffect(() => {
+    persistedSignatureRef.current = getSnapshotSignature(flowCanvas)
+  }, [flowCanvas])
+
+  useEffect(() => {
+    if (!editor) return undefined
+
+    let saveTimer: ReturnType<typeof setTimeout> | undefined
+
+    const persistSnapshot = () => {
+      saveTimer = undefined
+      const snapshot = editor.store.getStoreSnapshot("document") as FlowCanvasSnapshot
+      const signature = getSnapshotSignature(snapshot)
+      if (!signature || signature === persistedSignatureRef.current) return
+
+      persistedSignatureRef.current = signature
+      workspaceActions.setWorkspaceFlowCanvas(workspaceId, snapshot)
+    }
+
+    const schedulePersist = () => {
+      if (saveTimer !== undefined) clearTimeout(saveTimer)
+      saveTimer = setTimeout(persistSnapshot, FLOW_CANVAS_SAVE_DELAY_MS)
+    }
+
+    const dispose = editor.store.listen((entry) => {
+      if (!hasPersistableFlowCanvasChange(entry as FlowCanvasChangeEntry)) return
+      schedulePersist()
+    }, { source: "user", scope: "document" })
+
+    return () => {
+      dispose()
+      if (saveTimer === undefined) return
+      clearTimeout(saveTimer)
+      persistSnapshot()
+    }
+  }, [editor, workspaceActions, workspaceId])
+}
+
 const customShapeUtils = [...defaultShapeUtils, ModuleShapeUtil]
 
-function FlowCanvas() {
+function FlowCanvas({ workspaceId, flowCanvas }: { workspaceId: string; flowCanvas?: FlowCanvasSnapshot }) {
   const editor = useEditor()
   const syncingShapeDeletesRef = useRef(false)
 
@@ -444,6 +535,7 @@ function FlowCanvas() {
   useSyncShapesFromStore(editor, syncingShapeDeletesRef)
   useSyncChangesToStore(editor)
   useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
+  usePersistFlowCanvasToWorkspace(editor, workspaceId, flowCanvas)
 
   return null
 }
@@ -483,16 +575,25 @@ function CollapsibleStylePanel(props: TLUiStylePanelProps) {
 
 export function FlowCanvasView() {
   const { theme } = useTheme()
+  const { activeWorkspaceId, flowCanvas } = useWorkspaceShallowSelector((state) => {
+    const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)
+    return {
+      activeWorkspaceId: state.activeWorkspaceId,
+      flowCanvas: activeWorkspace?.flowCanvas,
+    }
+  })
 
   return (
     <Tldraw
+      key={activeWorkspaceId}
       shapeUtils={customShapeUtils}
       colorScheme={theme}
       assetUrls={tldrawAssetUrls}
+      snapshot={flowCanvas as TLStoreSnapshot | undefined}
       options={{ maxPages: 1 }}
       components={{ PageMenu: () => null, MainMenu: () => null, StylePanel: CollapsibleStylePanel }}
     >
-      <FlowCanvas />
+      <FlowCanvas workspaceId={activeWorkspaceId} flowCanvas={flowCanvas} />
     </Tldraw>
   )
 }

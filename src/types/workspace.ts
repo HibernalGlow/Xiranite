@@ -7,6 +7,8 @@ export type OverlayKind = "registry" | "settings" | "operations" | "history" | n
 /** 侧栏面板的展现模式：docked 为推开式固定侧栏，floating 为悬浮遮罩。 */
 export type OverlayMode = "docked" | "floating"
 
+export type FlowCanvasSnapshot = Record<string, unknown>
+
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
 export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
 export type AppFontPreset = "xiranite" | "system" | "aestivus" | "industrial" | "display" | "editorial" | "poster" | "terminal" | "machina" | "sketch" | "workshop" | "canvas" | "serif" | "mono"
@@ -25,6 +27,7 @@ export interface WorkspaceItem {
   id: string
   label: string
   icon?: string
+  flowCanvas?: FlowCanvasSnapshot
   createdAt?: number
   updatedAt?: number
 }

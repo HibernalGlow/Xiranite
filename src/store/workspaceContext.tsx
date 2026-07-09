@@ -85,6 +85,7 @@ function toWorkspaceDTO(workspace: WorkspaceItem, now: number): WorkspaceDTO {
     id: workspace.id,
     label: workspace.label,
     icon: workspace.icon,
+    flowCanvas: workspace.flowCanvas,
     createdAt: workspace.createdAt ?? now,
     updatedAt: workspace.updatedAt ?? now,
   }
@@ -752,6 +753,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     removeWorkspace: store.removeWorkspace,
     renameWorkspace: store.renameWorkspace,
     setWorkspaceIcon: store.setWorkspaceIcon,
+    setWorkspaceFlowCanvas: store.setWorkspaceFlowCanvas,
     deployComponent: store.deployComponent,
     ensureComponent: store.ensureComponent,
     removeComponent: store.removeComponent,

@@ -52,6 +52,7 @@ func StartLocalBackend() (*LocalBackend, error) {
 	}
 
 	cmd := exec.Command(command, args...)
+	configureHiddenSubprocess(cmd)
 	if cwd != "" {
 		cmd.Dir = cwd
 	}

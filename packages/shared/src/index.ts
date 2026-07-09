@@ -4,6 +4,7 @@ export const workspaceSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   icon: z.string().optional(),
+  flowCanvas: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 })

@@ -117,7 +117,6 @@
   button,
   [role="button"],
   [data-slot="button"],
-  [data-slot="tabs-trigger"],
   [data-slot="select-trigger"],
   input,
   textarea,
@@ -136,12 +135,20 @@
 :root[data-custom-theme="enabled"] .xiranite-node-surface :where(
   [data-slot="badge"],
   [data-slot="tabs-list"],
-  [data-slot="tabs-trigger"][data-state="active"],
   [data-slot="progress"]
 ) {
   background: color-mix(in oklch, var(--primary) 12%, var(--node-panel-bg));
   color: var(--primary);
   border-color: color-mix(in oklch, var(--primary) 42%, var(--node-panel-border));
+}
+
+:root[data-custom-theme="enabled"] .xiranite-node-surface :where(
+  [data-slot="tabs-trigger"][data-state="active"]
+) {
+  background: var(--node-panel-bg);
+  color: var(--node-surface-fg);
+  border-color: color-mix(in oklch, var(--primary) 42%, var(--node-panel-border));
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--primary) 18%, transparent);
 }
 
 :root[data-custom-theme="enabled"] .xiranite-node-surface :where([data-slot="badge"]) {
