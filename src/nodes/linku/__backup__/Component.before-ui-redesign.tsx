@@ -1,0 +1,606 @@
+import { useEffect, useRef, useState } from "react"
+import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
+import type { LinkuAction, LinkuData, LinkuInput } from "@xiranite/node-linku/core"
+import { Copy, Link2, RotateCcw, Square } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { RunningTint } from "@/nodes/shared/controls"
+import {
+  ActionBar,
+  ActionIconButton,
+  AdvancedOptionsPopover,
+  ConfigDefaultsPopover,
+  LinkuIcon,
+  PathField,
+  StatusStrip,
+} from "./controls"
+import { ACTIONS, type LinkuActionMeta } from "./constants"
+import { LinkuDisplayTabs, StatsPanel } from "./ResultPanels"
+import type { LinkuCardState, LinkuPhase, LinkuStatusMeta } from "./types"
+import { CONFIG_FIELDS } from "./types"
+
+export function Component({ compId, host }: NodeComponentProps) {
+  const surface = useNodeSurface()
+  const data = host.getData<LinkuCardState>(compId) ?? {}
+  const dataRef = useRef<LinkuCardState>(data)
+  dataRef.current = data
+
+  const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<LinkuCardState> | undefined>(undefined)
+  const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
+  const [configDirty, setConfigDirty] = useState(false)
+  const [pendingAction, setPendingAction] = useState<LinkuActionMeta | null>(null)
+
+  const logs = data.logs ?? []
+  const result = data.result ?? null
+  const links = result?.links ?? []
+  const phase = phaseFromState(data, running)
+  const progress = data.progress ?? 0
+  const status = statusFromState(data, running, links.length)
+  const action = data.action
+  const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
+  const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
+  const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
+
+  useEffect(() => {
+    host.getNodeConfig?.<Partial<LinkuCardState>>()
+      .then((response) => {
+        setDefaults(response.config)
+        setConfigFilePath(response.path)
+      })
+      .catch(() => undefined)
+  }, [host])
+
+  useEffect(() => {
+    if (!defaults) return
+    setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
+  }, [data.path, data.target, data.configPath, defaults])
+
+  function patch(patchData: Partial<LinkuCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
+    host.patchData(compId, patchData)
+  }
+
+  function pushLog(message: string) {
+    const nextLogs = [...(dataRef.current.logs ?? []), message].slice(-120)
+    patch({ logs: nextLogs })
+  }
+
+  async function paste(field: "path" | "target" | "configPath") {
+    const text = await host.clipboard?.readText?.()
+    if (text) patch({ [field]: text.trim() })
+  }
+
+  function runAction(nextAction: LinkuAction) {
+    if (running) return
+    const meta = ACTIONS.find((item) => item.value === nextAction)
+    if (meta?.destructive) {
+      setPendingAction(meta)
+      return
+    }
+    void execute(nextAction)
+  }
+
+  async function execute(nextAction: LinkuAction, override: Partial<LinkuCardState> = {}) {
+    const current = { ...dataRef.current, ...override }
+    const input = buildInput(nextAction, current)
+
+    if ((nextAction === "info" || nextAction === "create" || nextAction === "move_link") && !input.path) {
+      patch({ phase: "error", progress: 0, progressText: "请先输入源路径。" })
+      return
+    }
+    if ((nextAction === "create" || nextAction === "move_link") && !input.target) {
+      patch({ phase: "error", progress: 0, progressText: "请先输入目标路径。" })
+      return
+    }
+
+    const run = host.actions?.run
+    if (!run) {
+      patch({ phase: "error", progress: 0, progressText: "当前环境没有本地运行能力，请使用桌面模式或 CLI。" })
+      pushLog("Native action is unavailable in this host.")
+      return
+    }
+
+    setRunning(true)
+    try {
+      patch({ phase: "running", action: nextAction, progress: 0, progressText: `${actionLabel(nextAction)}开始`, ...override })
+      const response = await run<LinkuInput, LinkuData>("linku", input, (event) => {
+        if (event.type === "progress") {
+          patch({ progress: event.progress ?? 0, progressText: event.message })
+          pushLog(`[${event.progress ?? 0}%] ${event.message}`)
+        } else {
+          pushLog(event.message)
+        }
+      }) as NodeRunResult<LinkuData>
+
+      patch({
+        phase: response.success ? "completed" : "error",
+        progress: response.success ? 100 : 0,
+        progressText: response.message,
+        result: response.data ?? null,
+      })
+      pushLog(response.message)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      patch({ phase: "error", progress: 0, progressText: message })
+      pushLog(message)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  function reset() {
+    patch({ phase: "idle", progress: 0, progressText: "", result: null, logs: [] })
+  }
+
+  async function saveAsDefault() {
+    const config: Partial<LinkuCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() {
+    if (defaults) patch(defaults)
+  }
+
+  function resetOverride() {
+    patch({ path: undefined, target: undefined, configPath: undefined })
+  }
+
+  async function copyLogs() {
+    await host.clipboard?.writeText?.(logs.join("\n"))
+  }
+
+  async function copyResults() {
+    await host.clipboard?.writeText?.(resultLines(result).join("\n"))
+  }
+
+  const commonProps = createViewProps({
+    action,
+    configDirty,
+    configFilePath,
+    data,
+    defaults,
+    host,
+    links,
+    logs,
+    onCopyLogs: copyLogs,
+    onCopyResults: copyResults,
+    onExecute: execute,
+    onPatch: patch,
+    onPastePath: () => paste("path"),
+    onPasteTarget: () => paste("target"),
+    onReset: reset,
+    onResetOverride: resetOverride,
+    onRestoreDefault: restoreDefault,
+    onRunAction: runAction,
+    onSaveDefault: saveAsDefault,
+    phase,
+    progress,
+    result,
+    running,
+    status,
+  })
+
+  return (
+    <TooltipProvider>
+      <div ref={surface.ref} className="@container/linku relative flex h-full min-h-0 w-full overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-2)_14%,transparent),transparent_34%)]" />
+        <div className="relative flex min-h-0 w-full flex-col">
+          {surface.mode === "collapsed" || forceCollapsedSurface ? (
+            <CollapsedView {...commonProps} />
+          ) : compactSurface ? (
+            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
+          ) : (
+            <FullView {...commonProps} />
+          )}
+        </div>
+      </div>
+
+      <DangerConfirmDialog
+        action={pendingAction}
+        running={running}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => {
+          const next = pendingAction
+          setPendingAction(null)
+          if (next) void execute(next.value)
+        }}
+      />
+    </TooltipProvider>
+  )
+}
+
+type ViewProps = ReturnType<typeof createViewProps>
+
+function createViewProps(props: {
+  action?: LinkuAction
+  configDirty: boolean
+  configFilePath?: string
+  data: LinkuCardState
+  defaults?: Partial<LinkuCardState>
+  host: NodeComponentProps["host"]
+  links: LinkuData["links"]
+  logs: string[]
+  onCopyLogs: () => void
+  onCopyResults: () => void
+  onExecute: (action: LinkuAction, override?: Partial<LinkuCardState>) => void
+  onPatch: (patch: Partial<LinkuCardState>) => void
+  onPastePath: () => void
+  onPasteTarget: () => void
+  onReset: () => void
+  onResetOverride: () => void
+  onRestoreDefault: () => void
+  onRunAction: (action: LinkuAction) => void
+  onSaveDefault: () => void
+  phase: LinkuPhase
+  progress: number
+  result: LinkuData | null
+  running: boolean
+  status: LinkuStatusMeta
+}) {
+  return props
+}
+
+function CollapsedView(props: ViewProps) {
+  return (
+    <div data-testid="linku-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
+      <RunningTint tone={props.status.tone} />
+      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+        <Link2 />
+      </div>
+      <div className="relative min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+          <span>Linku</span>
+          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+        </div>
+        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
+      </div>
+      {props.running ? (
+        <Button aria-label="linku running" disabled size="icon-sm" variant="secondary">
+          <Square />
+        </Button>
+      ) : (
+        <ActionIconButton destructive icon={Link2} label="创建链接" onClick={() => props.onRunAction("create")} />
+      )}
+      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+    </div>
+  )
+}
+
+function CompactView(props: ViewProps) {
+  return (
+    <div data-testid="linku-compact-view" className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+        <div className="flex shrink-0 items-center gap-1">
+          <AdvancedOptionsPopover configPath={props.data.configPath ?? ""} disabled={props.running} onPatch={props.onPatch} />
+          {props.running ? (
+            <Button aria-label="linku running" disabled size="icon-sm" variant="secondary">
+              <Square />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
+        <div className="grid gap-2">
+          <PathField
+            compact
+            disabled={props.running}
+            id="linku-path-compact"
+            label="源路径"
+            placeholder="D:/actual"
+            value={props.data.path ?? ""}
+            onChange={(path) => props.onPatch({ path })}
+            onClear={() => props.onPatch({ path: "" })}
+            onPaste={props.onPastePath}
+          />
+          <PathField
+            compact
+            disabled={props.running}
+            id="linku-target-compact"
+            label="目标/链接"
+            placeholder="D:/link"
+            value={props.data.target ?? ""}
+            onChange={(target) => props.onPatch({ target })}
+            onClear={() => props.onPatch({ target: "" })}
+            onPaste={props.onPasteTarget}
+          />
+        </div>
+        <ActionBar disabled={props.running} onRun={props.onRunAction} />
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+        <div className="min-h-0 flex-1">
+          <LinkuDisplayTabs
+            compact
+            logs={props.logs}
+            phase={props.phase}
+            result={props.result}
+            running={props.running}
+            onCopyLogs={props.onCopyLogs}
+            onCopyResults={props.onCopyResults}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PortraitCompactView(props: ViewProps) {
+  return (
+    <div data-testid="linku-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+        <div className="flex shrink-0 items-center gap-1">
+          <AdvancedOptionsPopover configPath={props.data.configPath ?? ""} disabled={props.running} onPatch={props.onPatch} />
+        </div>
+      </div>
+      <div className="grid shrink-0 gap-2">
+        <PathField
+          compact
+          disabled={props.running}
+          id="linku-path-portrait"
+          label="源路径"
+          placeholder="D:/actual"
+          value={props.data.path ?? ""}
+          onChange={(path) => props.onPatch({ path })}
+          onClear={() => props.onPatch({ path: "" })}
+          onPaste={props.onPastePath}
+        />
+        <PathField
+          compact
+          disabled={props.running}
+          id="linku-target-portrait"
+          label="目标/链接"
+          placeholder="D:/link"
+          value={props.data.target ?? ""}
+          onChange={(target) => props.onPatch({ target })}
+          onClear={() => props.onPatch({ target: "" })}
+          onPaste={props.onPasteTarget}
+        />
+        <ActionBar disabled={props.running} onRun={props.onRunAction} />
+      </div>
+      <div className="min-h-0 flex-1">
+        <LinkuDisplayTabs
+          compact
+          logs={props.logs}
+          phase={props.phase}
+          result={props.result}
+          running={props.running}
+          onCopyLogs={props.onCopyLogs}
+          onCopyResults={props.onCopyResults}
+        />
+      </div>
+    </div>
+  )
+}
+
+function FullView(props: ViewProps) {
+  return (
+    <div data-testid="linku-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex shrink-0 flex-col gap-3 @4xl/linku:flex-row @4xl/linku:items-center @4xl/linku:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @4xl/linku:flex-row @4xl/linku:items-center">
+          <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+          <div data-testid="linku-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+            <ActionBar disabled={props.running} onRun={props.onRunAction} />
+            <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
+            <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ConfigDefaultsPopover
+              configDirty={props.configDirty}
+              configFilePath={props.configFilePath}
+              defaults={props.defaults}
+              disabled={props.running}
+              onOpenConfigFile={props.host.openConfigFile}
+              onResetOverride={props.onResetOverride}
+              onRestoreDefault={props.onRestoreDefault}
+              onSaveDefault={props.onSaveDefault}
+            />
+          </div>
+        </div>
+        <StatsPanel progress={props.progress} result={props.result} />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/linku:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
+          <div className="grid gap-3 border-b pb-3">
+            <div>
+              <div className="text-sm font-semibold">输入路径</div>
+              <div className="text-xs text-muted-foreground">源是实际文件/目录，目标是符号链接位置。</div>
+            </div>
+            <PathField
+              disabled={props.running}
+              id="linku-path-full"
+              label="源路径"
+              placeholder="D:/actual"
+              value={props.data.path ?? ""}
+              onChange={(path) => props.onPatch({ path })}
+              onClear={() => props.onPatch({ path: "" })}
+              onPaste={props.onPastePath}
+            />
+            <PathField
+              disabled={props.running}
+              id="linku-target-full"
+              label="目标/链接"
+              placeholder="D:/link"
+              value={props.data.target ?? ""}
+              onChange={(target) => props.onPatch({ target })}
+              onClear={() => props.onPatch({ target: "" })}
+              onPaste={props.onPasteTarget}
+            />
+          </div>
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+        </section>
+
+        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/linku:h-full">
+          <LinkuDisplayTabs
+            logs={props.logs}
+            phase={props.phase}
+            result={props.result}
+            running={props.running}
+            onCopyLogs={props.onCopyLogs}
+            onCopyResults={props.onCopyResults}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HeaderLine({ status, subtitle }: {
+  status: LinkuStatusMeta
+  subtitle: string
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
+          <Link2 />
+        </div>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate text-sm font-semibold leading-none">Linku</h3>
+            <Badge variant={status.badgeVariant}>{status.label}</Badge>
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DangerConfirmDialog(props: {
+  action: LinkuActionMeta | null
+  running: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  if (!props.action) return null
+  const meta = props.action
+  const Icon = meta.icon
+  return (
+    <AlertDialog open={Boolean(props.action)} onOpenChange={(open) => { if (!open) props.onCancel() }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认执行「{meta.label}」？</AlertDialogTitle>
+          <AlertDialogDescription>
+            {meta.description} 此操作会改动文件系统，请确认路径无误。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={props.onConfirm}>
+            <Icon className="size-4" />
+            确认执行
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+function buildInput(action: LinkuAction, data: LinkuCardState): LinkuInput {
+  return {
+    action,
+    path: data.path,
+    target: data.target,
+    configPath: data.configPath,
+  }
+}
+
+function statusFromState(data: LinkuCardState, running: boolean, linkCount: number): LinkuStatusMeta {
+  if (running || data.phase === "running") {
+    return {
+      label: "运行中",
+      description: data.progressText || "Linku 正在处理当前任务。",
+      tone: "running",
+      badgeVariant: "secondary",
+      iconClass: "bg-primary text-primary-foreground",
+    }
+  }
+  if (data.phase === "error" || (data.result?.failedCount ?? 0) > 0) {
+    return {
+      label: "失败",
+      description: data.progressText || `上次任务失败，失败 ${data.result?.failedCount ?? 0} 项。`,
+      tone: "error",
+      badgeVariant: "destructive",
+      iconClass: "bg-destructive text-destructive-foreground",
+    }
+  }
+  if (data.phase === "completed") {
+    return {
+      label: "完成",
+      description: data.progressText || "上次任务已完成。",
+      tone: "success",
+      badgeVariant: "default",
+      iconClass: "bg-primary text-primary-foreground",
+    }
+  }
+  if (linkCount) {
+    return {
+      label: "有记录",
+      description: `已记录 ${linkCount} 个符号链接。`,
+      tone: "idle",
+      badgeVariant: "outline",
+      iconClass: "bg-secondary text-secondary-foreground",
+    }
+  }
+  return {
+    label: "就绪",
+    description: "粘贴源路径，创建或恢复符号链接。",
+    tone: "idle",
+    badgeVariant: "outline",
+    iconClass: "bg-secondary text-secondary-foreground",
+  }
+}
+
+function phaseFromState(data: LinkuCardState, running: boolean): LinkuPhase {
+  if (running) return data.phase ?? "running"
+  return data.phase ?? "idle"
+}
+
+function actionLabel(action: LinkuAction): string {
+  const meta = ACTIONS.find((item) => item.value === action)
+  return meta?.label ?? "操作"
+}
+
+function summaryText(props: ViewProps): string {
+  if (props.data.progressText) return props.data.progressText
+  if (props.result?.failedCount) return `${props.result.failedCount} 项失败`
+  if (props.links.length) return `${props.links.length} 条链接记录`
+  if (props.data.path) return `源：${basename(props.data.path)}`
+  return "粘贴源路径后创建或恢复链接"
+}
+
+function basename(value: string): string {
+  const normalized = value.replace(/\\/g, "/")
+  return normalized.split("/").filter(Boolean).at(-1) ?? value
+}
+
+function resultLines(result: LinkuData | null): string[] {
+  if (!result) return []
+  const lines: string[] = []
+  if (result.pathInfo) {
+    lines.push(`path ${result.pathInfo.path}`)
+    lines.push(`exists ${result.pathInfo.exists} / kind ${result.pathInfo.kind} / symlink ${result.pathInfo.isSymlink}`)
+    if (result.pathInfo.linkTarget) lines.push(`target ${result.pathInfo.linkTarget}`)
+  }
+  for (const record of result.links) {
+    lines.push(`link ${record.link} -> ${record.target}`)
+  }
+  if (result.created) lines.push("created yes")
+  if (result.recoveredCount) lines.push(`recovered ${result.recoveredCount}`)
+  if (result.failedCount) lines.push(`failed ${result.failedCount}`)
+  return lines
+}
+
+export { LinkuIcon }

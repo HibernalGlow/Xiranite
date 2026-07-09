@@ -1,3 +1,5 @@
+Before editing any node UI, back up the current node files in that node directory first.
+
 # Node-specific UI redesign and PackU rewrite plan
 
 This document is the implementation contract for redesigning the remaining Xiranite node frontends and removing Python-wrapper PackU nodes.
@@ -7,6 +9,7 @@ It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the
 ## Non-negotiable requirements
 
 - Every node except `trename` must be rewritten or re-audited against this document. Existing partial rewrites are evidence to inspect, not completion proof.
+- Before changing a node UI, create same-directory backups under `src/nodes/<node>/__backup__/` from the current committed version, for example `Component.before-ui-redesign.tsx` and `controls.before-ui-redesign.tsx`. Keep these backups committed with the redesign work so the old UI can be restored or compared later.
 - Every rewritten node must keep `collapsed`, `compact`, `portrait`, and `full` layouts. Use the existing `useNodeSurface()` pattern and container queries.
 - A larger card must not be a stretched version of the small card. It must expose a richer information architecture for that node's actual workflow.
 - Do not use the generic "toolbar + input panel + result tabs" template as the final full layout.
@@ -23,6 +26,18 @@ It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the
 - Large gradients, radial blobs, and random accent washes are not allowed as default node backgrounds. Use accent color only for state, selection, risk, progress, and a small number of meaningful highlights.
 - Do not replace a dense, efficient original UI with a lower-density redesign. A rewrite is accepted only when it improves task clarity, scan speed, or responsive behavior without burying primary controls.
 - Labels should use direct tool language. Avoid metaphor labels such as lens, ledger, bay, cockpit, or other decorative names unless the actual domain uses that term. Prefer "输入路径", "筛选", "结果", "日志", "配置", "预览", "计划", "执行".
+
+## Action placement rules
+
+Execution controls are part of the workflow, not a loose toolbar.
+
+- Put the primary action in the same visual zone as the current mode, required inputs, and status. The user should be able to answer "what will run?" and press the action without scanning across unrelated panels.
+- While running, stop/cancel/disabled-running state must replace the primary action or sit directly beside it. Do not leave a stale run button elsewhere.
+- Keep secondary actions as one compact cluster: copy result, copy log, export, open config, reset view. They can sit near the header or result panel, but should not interrupt the primary execution path.
+- Separate destructive actions from utility actions. Delete/apply/write actions need explicit confirmation, a direct label, and destructive styling only at the actual gate.
+- In compact and portrait layouts, prefer icon buttons with tooltip and `aria-label`, but keep the primary action visually obvious through position, variant, and icon. Do not distribute action buttons across all four corners.
+- Risk mode switches such as dry-run/live, overwrite, delete-after, and move/copy belong beside the execution gate or immediately before it. Avoid hiding them in low-frequency settings.
+- Avoid full-width action rows with unrelated commands. Group by intent: execute, configure, inspect/copy, reset/recover.
 
 ## PackU rewrite requirement
 
