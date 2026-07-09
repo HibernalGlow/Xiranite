@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -58,21 +59,24 @@ export function ModePicker(props: {
   onModeChange: (mode: BandiaMode) => void
 }) {
   return (
-    <div className="grid grid-cols-3 gap-1">
-      {MODES.map((item) => (
-        <Button
-          key={item.value}
-          aria-label={item.label}
-          disabled={props.disabled}
-          size="sm"
-          variant={props.mode === item.value ? "secondary" : "outline"}
-          onClick={() => props.onModeChange(item.value)}
-        >
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </Button>
-      ))}
-    </div>
+    <Tabs value={props.mode} onValueChange={(v) => v && props.onModeChange(v as BandiaMode)}>
+      <TabsList className="grid w-full grid-cols-3">
+        {MODES.map((item) => {
+          const Icon = item.icon
+          return (
+            <TabsTrigger
+              key={item.value}
+              aria-label={item.label}
+              disabled={props.disabled}
+              value={item.value}
+            >
+              <Icon />
+              <span className="truncate">{item.shortLabel}</span>
+            </TabsTrigger>
+          )
+        })}
+      </TabsList>
+    </Tabs>
   )
 }
 

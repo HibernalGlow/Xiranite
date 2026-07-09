@@ -76,8 +76,8 @@
     "cardLayout": {
       "grid": "GRID",
       "gridHint": "auto tile",
-      "stack": "STACK",
-      "stackHint": "cascade",
+      "stack": "MASONRY",
+      "stackHint": "waterfall columns",
       "split": "SPLIT",
       "splitHint": "two columns",
       "focus": "FOCUS",

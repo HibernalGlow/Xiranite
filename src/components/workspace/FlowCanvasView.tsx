@@ -24,6 +24,7 @@ import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
+import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
 import { useTheme } from "@/components/theme-provider"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
@@ -276,6 +277,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       danger: true,
       onClick: handleClose,
     },
+    createMoveToViewAction({ componentId: compId, currentMode: "flow", workspaceActions, t }),
   ]
   const startResize = (target: HTMLDivElement, originX: number, originY: number, pointerId?: number) => {
     if (resizingRef.current) return

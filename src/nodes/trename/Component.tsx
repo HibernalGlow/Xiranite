@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
-import type { TrenameAction, TrenameData, TrenameInput, TrenameScanMode } from "@xiranite/node-trename/core"
-import { Copy, FilePenLine, History, Play, RotateCcw, ScanSearch, Search, ShieldAlert, Square } from "lucide-react"
+import type { TrenameAction, TrenameConflict, TrenameData, TrenameInput, TrenameOperation, TrenameScanMode } from "@xiranite/node-trename/core"
+import { AlertTriangle, Archive, CheckCircle2, Copy, FilePenLine, GitCompare, History, Play, RotateCcw, ScanSearch, Search, ShieldAlert, Square, Zap } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
-import { buildTreeModel } from "./FileTreePanel"
+import { buildTreeModel, FileTreePanel } from "./FileTreePanel"
 import { JsonEditorDialog } from "./JsonEditorDialog"
 import { TrenameDisplayTabs } from "./ResultPanels"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, KeySwitches, ModePicker, PathInput, StatusStrip } from "./controls"
@@ -372,52 +375,217 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="trename-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/trename:flex-row @4xl/trename:items-center @4xl/trename:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/trename:flex-row @4xl/trename:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("trename", "subtitle.full", "{{paths}} 路径 / {{ready}} 就绪 / {{mode}}", { paths: props.pathCount, ready: props.tree.ready, mode: props.dryRun ? tNode("trename", "mode.dry", "预演") : tNode("trename", "mode.liveExecute", "真实执行") })} />
-          <div data-testid="trename-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
+    <div data-testid="trename-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      <div className="flex shrink-0 flex-col gap-2 @3xl/trename:flex-row @3xl/trename:items-center @3xl/trename:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @3xl/trename:flex-row @3xl/trename:items-center">
+          <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+          <div data-testid="trename-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
+            <ToolbarActions {...props} hidePrimaryAction />
           </div>
         </div>
         <StatsPanel progress={props.progress} result={props.result} tree={props.tree} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/trename:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{tNode("trename", "labels.input", "输入")}</div>
-              <div className="text-xs text-muted-foreground">{tNode("trename", "labels.inputHint", "粘贴目录，扫描成 rename JSON；大 JSON 在弹窗里编辑。")}</div>
-            </div>
-            <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-            <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("trename", "labels.switches", "关键开关")}</div>
-            <KeySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/trename:h-full">
-          <TrenameDisplayTabs
-            jsonText={props.jsonText}
-            logs={props.logs}
-            phase={props.phase}
-            result={props.result}
-            running={props.running}
-            onCopyLogs={props.onCopyLogs}
-            onCopyResults={props.onCopyResults}
-            onUndoBatch={(batchId) => props.onExecute("undo", { batchId })}
-          />
+      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @2xl/trename:grid-cols-[minmax(180px,220px)_minmax(0,1fr)] @2xl/trename:grid-rows-1 @4xl/trename:grid-cols-[minmax(200px,240px)_minmax(0,1fr)_minmax(220px,280px)]">
+        <div className="grid min-h-0 gap-2 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+          <ConflictHotZone conflicts={props.result?.conflicts ?? []} onCopy={props.onCopyResults} />
+          <FileTreePanel jsonText={props.jsonText} />
+        </div>
+
+        <div className="grid min-h-0 gap-2 grid-rows-[minmax(0,1fr)_auto] @4xl/trename:contents">
+          <ReviewDiffQueue operations={props.result?.operations ?? []} conflicts={props.result?.conflicts ?? []} onCopy={props.onCopyResults} />
+          <ReviewExecutionGate {...props} />
         </div>
       </div>
+
+      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ConflictHotZone(props: {
+  conflicts: TrenameConflict[]
+  onCopy: () => void
+}) {
+  const count = props.conflicts.length
+  const groups = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of props.conflicts) map.set(c.type, (map.get(c.type) ?? 0) + 1)
+    return [...map.entries()].map(([type, n]) => ({ type, count: n }))
+  }, [props.conflicts])
+
+  return (
+    <section className={cn("flex h-full min-h-0 flex-col rounded-lg border bg-background/70", count > 0 && "border-destructive/40 bg-destructive/5")}>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {count > 0 ? <AlertTriangle className="size-4 text-destructive" /> : <CheckCircle2 className="size-4 text-primary" />}
+          <span className="truncate text-xs font-medium">{count > 0 ? "冲突热区" : "冲突"}</span>
+          <Badge variant={count > 0 ? "destructive" : "outline"}>{count}</Badge>
+        </div>
+        <Button disabled={!count} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          复制
+        </Button>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {count > 0 ? (
+          <div className="grid gap-2 p-2">
+            <div className="flex flex-wrap gap-1">
+              {groups.map((group) => (
+                <Badge key={group.type} variant="destructive">{group.type} × {group.count}</Badge>
+              ))}
+            </div>
+            <div className="grid gap-1">
+              {props.conflicts.slice(0, 80).map((item, index) => (
+                <div key={`${item.type}:${item.srcPath}:${index}`} className="grid gap-0.5 rounded-md bg-destructive/5 px-2 py-1">
+                  <div className="truncate text-xs font-medium">{basename(item.srcPath)} → {basename(item.tgtPath)}</div>
+                  <div className="truncate text-[11px] text-destructive">{item.message}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground">
+            暂无冲突，可安全执行
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function ReviewDiffQueue(props: {
+  operations: TrenameOperation[]
+  conflicts: TrenameConflict[]
+  onCopy: () => void
+}) {
+  const conflictPaths = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of props.conflicts) {
+      set.add(c.srcPath)
+      set.add(c.tgtPath)
+    }
+    return set
+  }, [props.conflicts])
+
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <GitCompare className="size-4 text-muted-foreground" />
+          <span className="truncate text-xs font-medium">差异队列</span>
+          <Badge variant="outline">{props.operations.length}</Badge>
+        </div>
+        <Button disabled={!props.operations.length} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          复制
+        </Button>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.operations.length ? (
+          <div className="grid gap-1 p-2">
+            {props.operations.slice(0, 200).map((item, index) => {
+              const hasConflict = conflictPaths.has(item.originalPath) || conflictPaths.has(item.newPath)
+              return (
+                <div key={`${item.originalPath}:${item.newPath}:${index}`} className={cn("grid gap-0.5 rounded-md px-2 py-1.5", hasConflict ? "bg-destructive/5" : "hover:bg-muted/45")}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="w-6 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">{index + 1}</span>
+                    <span className="truncate text-xs font-medium">{basename(item.originalPath)}</span>
+                    <span className="shrink-0 text-primary">→</span>
+                    <span className="truncate text-xs font-medium">{basename(item.newPath)}</span>
+                    {hasConflict && <AlertTriangle className="size-3 shrink-0 text-destructive" />}
+                  </div>
+                  <div className="truncate pl-8 font-mono text-[11px] text-muted-foreground">{item.originalPath} → {item.newPath}</div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex min-h-36 items-center justify-center p-3 text-center text-xs text-muted-foreground">
+            扫描并校验后，这里会显示 src → tgt 差异队列
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function ReviewExecutionGate(props: ViewProps) {
+  return (
+    <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-background/70 p-2">
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="size-4 text-muted-foreground" />
+            <span className="text-xs font-semibold">执行闸门</span>
+          </div>
+          <Badge variant={props.dryRun ? "outline" : "destructive"}>{props.dryRun ? "预演" : "真实"}</Badge>
+        </div>
+        <ToggleGroup
+          type="single"
+          value={props.dryRun ? "dry" : "live"}
+          onValueChange={(value) => { if (value) props.onPatch({ dryRun: value === "dry" }) }}
+          className="grid w-full grid-cols-2"
+          size="sm"
+        >
+          <ToggleGroupItem value="dry" className="min-w-0 gap-1">
+            <ShieldAlert className="size-3.5" />
+            <span className="truncate text-xs">预演</span>
+          </ToggleGroupItem>
+          <ToggleGroupItem value="live" className="min-w-0 gap-1">
+            <Zap className="size-3.5" />
+            <span className="truncate text-xs">真实</span>
+          </ToggleGroupItem>
+        </ToggleGroup>
+        <PrimaryActionButton props={props} />
+      </div>
+
+      <Separator />
+
+      <div className="grid gap-1.5">
+        <div className="text-xs font-semibold">关键开关</div>
+        <KeySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      </div>
+
+      <Separator />
+
+      <div className="grid gap-1.5">
+        <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
+        <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
+      </div>
+    </section>
+  )
+}
+
+function LogsStrip(props: {
+  logs: string[]
+  onCopy: () => void
+}) {
+  if (!props.logs.length) return null
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+      <Archive className="size-3.5 shrink-0 text-muted-foreground" />
+      <ScrollArea className="min-w-0 flex-1">
+        <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
+          {props.logs.slice(-5).map((line, index) => (
+            <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>
+          ))}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+        <Copy data-icon="inline-start" />
+      </Button>
+    </div>
+  )
+}
+
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       <ActionIconButton disabled={props.running || !props.pathCount} icon={ScanSearch} label={tNode("trename", "actions.scanPaths", "扫描路径")} onClick={() => props.onExecute("scan")} />
@@ -433,7 +601,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
         onPaste={props.onPasteJson}
       />
       <ActionIconButton disabled={props.running || !props.jsonText} icon={Search} label={tNode("trename", "actions.validate", "校验冲突")} onClick={() => props.onExecute("validate")} />
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={props.running} icon={History} label={tNode("trename", "actions.history", "读取历史")} onClick={() => props.onExecute("history")} />
       <ActionIconButton disabled={!props.jsonText} icon={Copy} label={tNode("trename", "copyJson", "复制 JSON")} onClick={props.onCopyJson} />
       <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={tNode("trename", "actions.clearState", "清空状态")} onClick={props.onReset} />
@@ -649,6 +817,11 @@ function summaryText(props: ViewProps): string {
   if (props.tree.total) return tNode("trename", "summary.tree", "{{total}} 项 / {{ready}} 就绪 / {{mode}}", { total: props.tree.total, ready: props.tree.ready, mode: props.dryRun ? tNode("trename", "mode.dry", "预演") : tNode("trename", "mode.live", "真实") })
   if (props.pathCount) return tNode("trename", "summary.waiting", "{{count}} 条路径等待扫描", { count: props.pathCount })
   return tNode("trename", "summary.empty", "选择目录后扫描 rename JSON")
+}
+
+function basename(value: string): string {
+  const normalized = value.replace(/\\/g, "/")
+  return normalized.split("/").filter(Boolean).at(-1) ?? value
 }
 
 function parsePathInput(text: string): string[] {

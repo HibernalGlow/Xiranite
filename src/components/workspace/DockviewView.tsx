@@ -8,8 +8,15 @@ import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { cn } from "@/lib/utils"
-import { Plus, X, LayoutPanelTop } from "lucide-react"
+import { Plus, X, LayoutPanelTop, Share2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { COMPONENT_VIEW_MODES } from "@/store/workspace/constants"
 import type { ComponentInstance } from "@/types/workspace"
 
 /**
@@ -153,6 +160,33 @@ export function DockviewView() {
         <div className="xiranite-ui-copy flex items-center gap-2 px-1 group/tab">
           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           <span className="text-[10px] font-mono font-semibold tracking-widest uppercase">{title}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="grid h-4 w-4 place-items-center rounded opacity-0 group-hover/tab:opacity-100 hover:bg-accent hover:text-accent-foreground transition-opacity"
+              >
+                <Share2 className="h-3 w-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              {COMPONENT_VIEW_MODES
+                .filter((mode) => mode !== "dockview")
+                .map((mode) => (
+                  <DropdownMenuItem
+                    key={mode}
+                    onClick={() => {
+                      workspaceActions.setComponentVisibility(props.api.id, "dockview", false)
+                      workspaceActions.setComponentVisibility(props.api.id, mode, true)
+                      workspaceActions.setViewMode(mode)
+                    }}
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    {t(`topbar:viewMode.${mode}`)}
+                  </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -165,7 +199,7 @@ export function DockviewView() {
         </div>
       )
     },
-  }), [workspaceActions])
+  }), [workspaceActions, t])
 
   return (
     <div

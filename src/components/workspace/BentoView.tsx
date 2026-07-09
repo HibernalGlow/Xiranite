@@ -15,6 +15,7 @@ import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/work
 import type { ComponentInstance } from "@/types/workspace"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
+import { createMoveToViewAction } from "./createMoveToViewAction"
 
 const GRID_COLUMNS = 12
 const GRID_CELL_HEIGHT = 76
@@ -229,6 +230,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
       danger: true,
       onClick: hideInBento,
     },
+    createMoveToViewAction({ componentId: component.id, currentMode: "bento", workspaceActions, t }),
   ]
   const dragHandle = (
     <span className="xiranite-bento-drag-handle cursor-grab text-muted-foreground/55 active:cursor-grabbing">

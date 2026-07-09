@@ -54,21 +54,26 @@ describe("app-owned trename Component", () => {
       }
 
       expect(screen.getByLabelText("trename scan paths")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: /文件/ })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: /计划/ })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: /冲突/ })).toBeTruthy()
 
       if (mode === "compact") {
         expect(screen.getByTestId("trename-compact-view")).toBeTruthy()
         expect(screen.getByRole("button", { name: "trename advanced options" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /文件/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /计划/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /冲突/ })).toBeTruthy()
       } else if (mode === "portrait") {
         expect(screen.getByTestId("trename-portrait-view")).toBeTruthy()
         expect(screen.getByTestId("trename-key-switches")).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /文件/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /计划/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /冲突/ })).toBeTruthy()
       } else {
         expect(screen.getByTestId("trename-full-view")).toBeTruthy()
         expect(screen.getByText("关键开关")).toBeTruthy()
         expect(screen.getByText("总计")).toBeTruthy()
         expect(screen.getByTestId("trename-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("执行闸门")).toBeTruthy()
+        expect(screen.getByText("差异队列")).toBeTruthy()
       }
     },
   )

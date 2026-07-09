@@ -137,6 +137,7 @@
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.69.0",
     "react-i18next": "^17.0.8",
+    "react-masonry-virtualized": "^2.3.2",
     "react-modern-audio-player": "^2.3.2",
     "react-resizable-panels": "^4.7.6",
     "react-rnd": "^10.5.3",

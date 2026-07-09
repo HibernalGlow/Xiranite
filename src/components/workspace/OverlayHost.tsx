@@ -10,7 +10,7 @@ import {
 } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Rnd, type RndDragCallback, type RndResizeCallback } from "react-rnd"
-import { Dock, GripHorizontal, PictureInPicture2, X } from "lucide-react"
+import { GripHorizontal, PanelRightClose, PictureInPicture2, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceContext"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { OverlayFloatingMetrics } from "@/store/workspace/types"
-import type { OverlayMode } from "@/types/workspace"
 
 const ModuleRegistry = lazy(() =>
   import("@/components/views/ModuleRegistry").then((module) => ({ default: module.ModuleRegistry })),
@@ -308,11 +307,12 @@ function OverlayPanelFrame({
             variant="ghost"
             size="icon-sm"
             onClick={onModeToggle}
-            className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
+            className="border border-border/60 bg-background/60 text-muted-foreground shadow-xs transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+            data-testid="workspace-overlay-mode-toggle"
             title={modeToggleLabel}
             aria-label={modeToggleLabel}
           >
-            {floating ? <Dock className="size-4" /> : <PictureInPicture2 className="size-4" />}
+            {floating ? <PanelRightClose className="size-4" /> : <PictureInPicture2 className="size-4" />}
           </Button>
           <Button
             type="button"

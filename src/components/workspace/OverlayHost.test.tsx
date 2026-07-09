@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { OverlayHost } from "./OverlayHost"
 
@@ -133,5 +134,28 @@ describe("OverlayHost", () => {
     expect(panel.style.height).toBe("384px")
     expect(panel.style.transform).toContain("translate(")
     expect(screen.getByTestId("workspace-overlay-backdrop")).toBeTruthy()
+  })
+
+  test("uses one mode toggle button for docked and floating overlay modes", async () => {
+    const user = userEvent.setup()
+    overlayState.value = "registry"
+
+    const { unmount } = render(<OverlayHost />)
+
+    const dockedToggle = await screen.findByTestId("workspace-overlay-mode-toggle")
+    expect(dockedToggle.getAttribute("aria-label")).toBe("overlay:floatingMode")
+    await user.click(dockedToggle)
+    expect(setOverlayModeMock).toHaveBeenLastCalledWith("floating")
+
+    unmount()
+    setOverlayModeMock.mockClear()
+    overlayState.mode = "floating"
+
+    render(<OverlayHost />)
+
+    const floatingToggle = await screen.findByTestId("workspace-overlay-mode-toggle")
+    expect(floatingToggle.getAttribute("aria-label")).toBe("overlay:dockMode")
+    await user.click(floatingToggle)
+    expect(setOverlayModeMock).toHaveBeenLastCalledWith("docked")
   })
 })

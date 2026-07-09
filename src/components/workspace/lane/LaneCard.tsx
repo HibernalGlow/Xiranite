@@ -18,6 +18,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { KanbanItem, KanbanItemHandle } from "@/components/ui/kanban"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
+import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
 
 interface Props {
   compId: string
@@ -43,6 +44,7 @@ export function LaneCard({ compId, moduleId }: Props) {
         workspaceActions.toggleComponentVisibility(compId, "lane")
       },
     },
+    createMoveToViewAction({ componentId: compId, currentMode: "lane", workspaceActions, t }),
   ]
   const dragHandle = (
     <KanbanItemHandle

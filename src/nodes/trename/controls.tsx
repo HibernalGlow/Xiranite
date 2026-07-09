@@ -11,8 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
@@ -53,25 +53,31 @@ export function ModePicker(props: {
   onModeChange: (mode: TrenameScanMode) => void
 }) {
   return (
-    <ToggleGroup
-      aria-label={tNode("trename", "aria.scanMode", "trename scan mode")}
-      className="grid w-full grid-cols-2"
-      disabled={props.disabled}
-      size="sm"
-      type="single"
+    <Tabs
       value={props.mode}
-      variant="outline"
-      onValueChange={(value) => {
-        if (value) props.onModeChange(value as TrenameScanMode)
+      aria-label={tNode("trename", "aria.scanMode", "trename scan mode")}
+      onValueChange={(v) => {
+        if (v) props.onModeChange(v as TrenameScanMode)
       }}
     >
-      {SCAN_MODES.map((item) => (
-        <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+      <TabsList className="grid w-full grid-cols-2">
+        {SCAN_MODES.map((item) => {
+          const Icon = item.icon
+          return (
+            <TabsTrigger
+              key={item.value}
+              aria-label={item.label}
+              className="min-w-0"
+              disabled={props.disabled}
+              value={item.value}
+            >
+              <Icon />
+              <span className="truncate">{item.shortLabel}</span>
+            </TabsTrigger>
+          )
+        })}
+      </TabsList>
+    </Tabs>
   )
 }
 

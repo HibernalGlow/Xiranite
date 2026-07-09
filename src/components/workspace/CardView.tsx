@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { MasonryGrid } from "react-masonry-virtualized"
 import { useTranslation } from "react-i18next"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import { ComponentCard } from "./ComponentCard"
@@ -10,6 +11,18 @@ import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { ComponentInstance, ComputedLayout } from "@/types/workspace"
+
+const MASONRY_BASE_WIDTH = 360
+const MASONRY_MIN_WIDTH = 320
+const MASONRY_GAP = 16
+const MASONRY_MAX_COLUMNS = 4
+const MASONRY_HORIZONTAL_PADDING = 32
+const MASONRY_COLLAPSED_HEIGHT = 40
+const MASONRY_DEFAULT_HEIGHT = 380
+const MASONRY_FOCUSED_HEIGHT = 560
+const MASONRY_MIN_HEIGHT = 260
+const MASONRY_MAX_HEIGHT = 720
 
 /**
  * CardView — 卡片形态渲染器。
@@ -148,11 +161,13 @@ export function CardView() {
   )
 
   const isEmpty = cardComponents.length === 0
+  const isMasonryLayout = cardLayout === "stack" && !fullscreenComponentId
 
   return (
     <div
       className={cn(
         "flex-1 ws-canvas-bg overflow-hidden relative transition-colors",
+        isMasonryLayout && !isEmpty && "overflow-y-auto",
         isEmpty && "flex items-center justify-center",
         isResizing && "ws-canvas-bg--resizing",
         isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
@@ -186,18 +201,29 @@ export function CardView() {
         </div>
       ) : (
         <>
-          {cardComponents.map(comp => (
-            <ComponentCard
-              key={comp.id}
-              comp={comp}
-              layout={layouts[comp.id]}
+          {isMasonryLayout ? (
+            <MasonryCardGrid
+              cardComponents={cardComponents}
               canvasRef={canvasRef}
-              isFocused={focusedComponentId === comp.id}
-              hasFocused={focusedComponentId !== null}
+              focusedComponentId={focusedComponentId}
               cardLayout={cardLayout}
               isLayoutResizing={isResizing}
+              width={size.w}
             />
-          ))}
+          ) : (
+            cardComponents.map(comp => (
+              <ComponentCard
+                key={comp.id}
+                comp={comp}
+                layout={layouts[comp.id]}
+                canvasRef={canvasRef}
+                isFocused={focusedComponentId === comp.id}
+                hasFocused={focusedComponentId !== null}
+                cardLayout={cardLayout}
+                isLayoutResizing={isResizing}
+              />
+            ))
+          )}
 
           {fullscreenComponentId && (
             <button
@@ -211,6 +237,142 @@ export function CardView() {
       )}
     </div>
   )
+}
+
+function MasonryCardGrid({
+  cardComponents,
+  canvasRef,
+  focusedComponentId,
+  cardLayout,
+  isLayoutResizing,
+  width,
+}: {
+  cardComponents: ComponentInstance[]
+  canvasRef: RefObject<HTMLDivElement | null>
+  focusedComponentId: string | null
+  cardLayout: "stack"
+  isLayoutResizing: boolean
+  width: number
+}) {
+  const columnCount = useMemo(() => getMasonryColumnCount(width), [width])
+  const getItemSize = useCallback(
+    (component: ComponentInstance) => Promise.resolve(resolveMasonryItemSize(component, focusedComponentId)),
+    [focusedComponentId],
+  )
+
+  return (
+    <div className="relative mx-auto w-full max-w-[1680px] px-4 py-4">
+      <MasonryGrid
+        items={cardComponents}
+        renderItem={(comp, index) => (
+          <ComponentCard
+            comp={comp}
+            layout={getMasonryCardLayout(comp, index, focusedComponentId)}
+            canvasRef={canvasRef}
+            isFocused={focusedComponentId === comp.id}
+            hasFocused={focusedComponentId !== null}
+            cardLayout={cardLayout}
+            isLayoutResizing={isLayoutResizing}
+            positioning="masonry"
+          />
+        )}
+        getItemSize={getItemSize}
+        baseWidth={MASONRY_BASE_WIDTH}
+        minWidth={MASONRY_MIN_WIDTH}
+        gap={MASONRY_GAP}
+        columnCount={columnCount}
+        bufferMultiplier={1.5}
+        scrollContainer={canvasRef as RefObject<HTMLElement>}
+      />
+    </div>
+  )
+}
+
+function getMasonryColumnCount(width: number): number {
+  const availableWidth = Math.max(0, Math.min(1680, width) - MASONRY_HORIZONTAL_PADDING)
+  if (availableWidth <= 0) return 1
+  return clampNumber(
+    Math.floor((availableWidth + MASONRY_GAP) / (MASONRY_MIN_WIDTH + MASONRY_GAP)),
+    1,
+    MASONRY_MAX_COLUMNS,
+  )
+}
+
+function getMasonryCardLayout(
+  component: ComponentInstance,
+  index: number,
+  focusedComponentId: string | null,
+): ComputedLayout {
+  const size = resolveMasonryItemSize(component, focusedComponentId)
+  const isFocused = focusedComponentId === component.id
+  return {
+    x: 0,
+    y: 0,
+    w: size.width,
+    h: size.height,
+    scale: 1,
+    opacity: 1,
+    z: component.z ?? index + 1,
+    state: component.collapsed ? "compact" : (isFocused ? "focused" : "docked"),
+    interactive: true,
+  }
+}
+
+function resolveMasonryItemSize(
+  component: ComponentInstance,
+  focusedComponentId?: string | null,
+): { width: number; height: number } {
+  if (component.collapsed) {
+    return { width: MASONRY_BASE_WIDTH, height: MASONRY_COLLAPSED_HEIGHT }
+  }
+
+  const persistedSize = getPersistedComponentSize(component)
+  if (persistedSize) {
+    return normalizeMasonrySize(persistedSize)
+  }
+
+  return {
+    width: MASONRY_BASE_WIDTH,
+    height: focusedComponentId === component.id ? MASONRY_FOCUSED_HEIGHT : MASONRY_DEFAULT_HEIGHT,
+  }
+}
+
+function getPersistedComponentSize(component: ComponentInstance): { width: number; height: number } | null {
+  if (component.size) {
+    return { width: component.size.w, height: component.size.h }
+  }
+  if (component.flowSize) {
+    return { width: component.flowSize.width, height: component.flowSize.height }
+  }
+  if (component.laneSize) {
+    return { width: MASONRY_BASE_WIDTH, height: component.laneSize.height }
+  }
+  if (component.bentoLayout) {
+    return {
+      width: Math.max(MASONRY_BASE_WIDTH, component.bentoLayout.w * 96),
+      height: component.bentoLayout.h * 86,
+    }
+  }
+  return null
+}
+
+function normalizeMasonrySize(size: { width: number; height: number }): { width: number; height: number } {
+  if (!Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0) {
+    return { width: MASONRY_BASE_WIDTH, height: MASONRY_DEFAULT_HEIGHT }
+  }
+
+  return {
+    width: MASONRY_BASE_WIDTH,
+    height: clampNumber(
+      Math.round(size.height * (MASONRY_BASE_WIDTH / size.width)),
+      MASONRY_MIN_HEIGHT,
+      MASONRY_MAX_HEIGHT,
+    ),
+  }
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function ModuleDropHint({ label }: { label: string }) {

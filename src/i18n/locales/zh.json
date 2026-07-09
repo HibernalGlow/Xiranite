@@ -76,8 +76,8 @@
     "cardLayout": {
       "grid": "网格",
       "gridHint": "自动平铺",
-      "stack": "堆叠",
-      "stackHint": "层叠",
+      "stack": "瀑布流",
+      "stackHint": "多列瀑布",
       "split": "分屏",
       "splitHint": "两列",
       "focus": "聚焦",

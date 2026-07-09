@@ -70,7 +70,6 @@ function LaneModeIcon({ className }: { className?: string }) {
 }
 
 const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: ComponentType<{ className?: string }> }[] = [
-  { key: "dashboard", labelKey: "topbar:viewMode.dashboard", hintKey: "topbar:viewMode.dashboardHint", icon: Gauge },
   { key: "cards",    labelKey: "topbar:viewMode.cards",    hintKey: "topbar:viewMode.cardsHint",    icon: LayoutDashboard },
   { key: "dockview", labelKey: "topbar:viewMode.dockview", hintKey: "topbar:viewMode.dockviewHint", icon: Share2 },
   { key: "flow",     labelKey: "topbar:viewMode.flow",     hintKey: "topbar:viewMode.flowHint",     icon: Workflow },
@@ -398,11 +397,14 @@ export function TopBar() {
       <div className="xiranite-app-region-no-drag flex items-center gap-1">
         <TopBarActionDock
           activeOperations={activeOperations}
+          dashboardActive={state.viewMode === "dashboard"}
+          dashboardLabel={t("topbar:viewMode.dashboard")}
           devRuntimeActive={runtimeInfo.frontendSource === "vite-dev"}
           devRuntimeLabel={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
           historyLabel={t("topbar:history")}
           operationsLabel={t("topbar:operations")}
           registryLabel={t("overlay:registry")}
+          onToggleDashboard={() => workspaceActions.setViewMode(state.viewMode === "dashboard" ? "cards" : "dashboard")}
           onOpenDevRuntime={() => workspaceActions.setOverlay("settings")}
           onOpenHistory={() => workspaceActions.setOverlay("history")}
           onOpenOperations={() => workspaceActions.setOverlay("operations")}
@@ -614,22 +616,28 @@ export function TopBar() {
 
 function TopBarActionDock({
   activeOperations,
+  dashboardActive,
+  dashboardLabel,
   devRuntimeActive,
   devRuntimeLabel,
   historyLabel,
   operationsLabel,
   registryLabel,
+  onToggleDashboard,
   onOpenDevRuntime,
   onOpenHistory,
   onOpenOperations,
   onOpenRegistry,
 }: {
   activeOperations: number
+  dashboardActive: boolean
+  dashboardLabel: string
   devRuntimeActive: boolean
   devRuntimeLabel: string
   historyLabel: string
   operationsLabel: string
   registryLabel: string
+  onToggleDashboard: () => void
   onOpenDevRuntime: () => void
   onOpenHistory: () => void
   onOpenOperations: () => void
@@ -689,6 +697,16 @@ function TopBarActionDock({
           className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <History className="h-4 w-4" />
+        </TopBarDockIcon>
+        <TopBarDockIcon
+          label={dashboardLabel}
+          onSelect={onToggleDashboard}
+          className={cn(
+            "z-0 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
+            dashboardActive ? "text-primary hover:text-primary" : undefined,
+          )}
+        >
+          <Gauge className="h-4 w-4" />
         </TopBarDockIcon>
       </Dock>
     </div>
