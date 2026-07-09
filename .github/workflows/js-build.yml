@@ -7,6 +7,10 @@ on:
       - "v*.*.*"
       - "*.*.*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-js:
     name: Build JS bundles
@@ -52,7 +56,7 @@ jobs:
         run: bun run build:packages:turbo
 
       - name: Typecheck app
-        run: bun run typecheck
+        run: bun run typecheck:app
 
       - name: Build frontend JS
         run: bunx vite build

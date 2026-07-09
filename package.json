@@ -38,6 +38,7 @@
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:packages": "bun run generate:node-registries && bun run build:base-packages && bun run build:nodes && bun run audit:node-architecture && bun --filter @xiranite/runtime build && bun --filter @xiranite/backend build && bun --filter './packages/*' test && bun --filter './packages/nodes/*' test",
     "typecheck": "bun run generate:node-registries && tsc --noEmit",
+    "typecheck:app": "tsgo --noEmit",
     "typecheck:tsc": "bun run typecheck",
     "build:refs": "tsc -b",
     "preview": "vite preview",
