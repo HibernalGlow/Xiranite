@@ -2,26 +2,32 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
-import { Copy, FileText, Languages, RotateCcw, ScanSearch, ShieldAlert, Square, Zap } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { ArrowRight, Clipboard, Copy, DatabaseZap, Eraser, FileText, Gauge, Languages, Radar, RotateCcw, ScanSearch, ShieldAlert, Square, WandSparkles } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
+import { GridPattern } from "@/components/ui/grid-pattern"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { MagicCard } from "@/components/ui/magic-card"
+import { NumberTicker } from "@/components/ui/number-ticker"
+import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
-import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
-import { ACTIONS, PRESETS } from "./constants"
-import { ActionIconButton, ConfigDefaultsPopover, EncodingFields, OptionsPopover, PathInput, PresetPicker, StatusStrip, StrategyPicker } from "./controls"
+import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { ACTIONS, PRESETS, STRATEGIES } from "./constants"
 import type { EncodebCardState, EncodebPhase, EncodebPreset, EncodebStatusMeta, EncodebStrategy } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
-  const { t: tNode } = useNodeI18n("encodeb")
   const data = host.getData<EncodebCardState>(compId) ?? {}
   const dataRef = useRef<EncodebCardState>(data)
   dataRef.current = data
@@ -31,10 +37,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
+  const paths = useMemo(() => parseEncodebPaths(data.pathText ?? ""), [data.pathText])
   const logs = data.logs ?? []
   const mappings = data.mappings ?? []
   const matches = data.matches ?? []
-  const pathCount = useMemo(() => parseEncodebPaths(data.pathText ?? "").length, [data.pathText])
   const preset = data.preset ?? "cn"
   const presetMeta = PRESETS.find((item) => item.value === preset) ?? PRESETS[0]!
   const srcEncoding = data.srcEncoding ?? presetMeta.srcEncoding ?? "cp437"
@@ -42,8 +48,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   const strategy = data.strategy ?? "replace"
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running, tNode)
+  const status = statusFromState(data, running)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
+  const squeezedRegularSurface = surface.mode === "regular" && (surface.width < 760 || surface.height < 560)
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
@@ -67,8 +74,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function pushLog(message: string) {
-    const nextLogs = [...(dataRef.current.logs ?? []), message].slice(-100)
-    patch({ logs: nextLogs })
+    patch({ logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
   }
 
   async function pastePath() {
@@ -77,11 +83,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   async function copyResults() {
-    const lines = [
-      ...mappings.map((item) => `map ${item.src} -> ${item.dst}`),
-      ...matches.map((item) => `match ${item}`),
-    ]
-    await host.clipboard?.writeText?.(lines.join("\n"))
+    await host.clipboard?.writeText?.(resultLines(mappings, matches).join("\n"))
   }
 
   async function copyLogs() {
@@ -99,22 +101,22 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(action: EncodebAction) {
     if (running) return
-    const paths = parseEncodebPaths(dataRef.current.pathText ?? "")
-    if (!paths.length) {
-      patch({ phase: "error", progress: 0, progressText: tNode("pathRequired", "请先输入至少一个源路径。") })
+    const nextPaths = parseEncodebPaths(dataRef.current.pathText ?? "")
+    if (!nextPaths.length) {
+      patch({ phase: "error", progress: 0, progressText: "请先放入至少一个文件或目录路径。" })
       return
     }
 
     const run = host.actions?.run
     if (!run) {
-      patch({ phase: "error", progress: 0, progressText: tNode("noNative", "当前环境没有本地运行能力，请使用桌面模式或 CLI。") })
+      patch({ phase: "error", progress: 0, progressText: "当前宿主没有本地运行能力，请使用桌面模式或 CLI。" })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     const input: EncodebInput = {
       action,
-      paths,
+      paths: nextPaths,
       srcEncoding,
       dstEncoding,
       strategy,
@@ -122,7 +124,13 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     setRunning(true)
     try {
-      patch({ phase: phaseForAction(action), progress: 0, progressText: tNode("actionStart", `${actionLabel(action, tNode)}开始`, { action: actionLabel(action, tNode) }), mappings: [], matches: [] })
+      patch({
+        phase: phaseForAction(action),
+        progress: 0,
+        progressText: `${labelForAction(action)}开始。`,
+        mappings: action === "recover" ? dataRef.current.mappings : [],
+        matches: action === "recover" ? dataRef.current.matches : [],
+      })
       const response = await run<EncodebInput, EncodebData>("encodeb", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -179,19 +187,18 @@ export function Component({ compId, host }: NodeComponentProps) {
     data,
     defaults,
     dstEncoding,
-    host,
     logs,
     mappings,
     matches,
-    pathCount,
+    paths,
     phase,
     preset,
+    presetMeta,
     progress,
     running,
     srcEncoding,
     status,
     strategy,
-    tNode,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -203,18 +210,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
-    onStrategyChange: (next: EncodebStrategy) => patch({ strategy: next }),
+    onStrategyChange: (next) => patch({ strategy: next }),
   })
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/encodeb relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-2)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
+      <div ref={surface.ref} className="@container/encodeb relative h-full min-h-0 w-full overflow-hidden">
+        <GridPattern
+          className="pointer-events-none absolute inset-0 opacity-45 [mask-image:radial-gradient(circle_at_32%_18%,black,transparent_72%)]"
+          width={22}
+          height={22}
+          x={-1}
+          y={-1}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_14%_0%,color-mix(in_oklch,var(--primary)_18%,transparent),transparent_34%),radial-gradient(circle_at_86%_10%,color-mix(in_oklch,var(--chart-3)_20%,transparent),transparent_38%)]" />
+        <div className="relative flex h-full min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
-          ) : compactSurface ? (
-            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
+          ) : compactSurface || squeezedRegularSurface ? (
+            portraitCompact ? <PortraitView {...commonProps} /> : <CompactView {...commonProps} />
           ) : (
             <FullView {...commonProps} />
           )}
@@ -232,19 +246,18 @@ function createViewProps(props: {
   data: EncodebCardState
   defaults?: Partial<EncodebCardState>
   dstEncoding: string
-  host: NodeComponentProps["host"]
   logs: string[]
-  mappings: EncodebCardState["mappings"]
+  mappings: NonNullable<EncodebCardState["mappings"]>
   matches: string[]
-  pathCount: number
+  paths: string[]
   phase: EncodebPhase
   preset: EncodebPreset
+  presetMeta: (typeof PRESETS)[number]
   progress: number
   running: boolean
   srcEncoding: string
   status: EncodebStatusMeta
   strategy: EncodebStrategy
-  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action: EncodebAction) => void
@@ -263,86 +276,46 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   return (
-    <div data-testid="encodeb-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
+    <div data-testid="encodeb-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/88 px-3 py-2 shadow-sm">
       <RunningTint tone={props.status.tone} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Languages />
       </div>
       <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+        <div className="flex min-w-0 items-center gap-1 text-xs font-semibold leading-none">
           <span>Encodeb</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <PrimaryActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+      <PrimaryAction compact props={props} />
+      {props.running && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
     </div>
   )
 }
 
 function CompactView(props: ViewProps) {
   return (
-    <div data-testid="encodeb-compact-view" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover
-            data={props.data}
-            disabled={props.running}
-            preset={props.preset}
-            srcEncoding={props.srcEncoding}
-            dstEncoding={props.dstEncoding}
-            strategy={props.strategy}
-            onPatch={props.onPatch}
-            onPresetChange={props.onPresetChange}
-            onStrategyChange={props.onStrategyChange}
-          />
-          <PrimaryActionButton compact props={props} />
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <PresetPicker disabled={props.running} preset={props.preset} onPresetChange={props.onPresetChange} />
-        <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPaste} />
-        <ToolbarActions {...props} compact />
-        {(props.status.tone === "running" || props.status.tone === "error") && (
-          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
-        )}
-        <div className="min-h-0 flex-1">
-          <ResultTabs compact logs={props.logs} mappings={props.mappings} matches={props.matches} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
-      </div>
+    <div data-testid="encodeb-compact-view" className="flex h-full min-h-0 flex-col gap-2 p-3">
+      <HeaderBar compact props={props} />
+      <CodecRail compact props={props} />
+      <PathChamber compact props={props} />
+      <CommandDeck compact props={props} />
+      <MiniEvidence props={props} />
     </div>
   )
 }
 
-function PortraitCompactView(props: ViewProps) {
+function PortraitView(props: ViewProps) {
   return (
     <div data-testid="encodeb-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover
-            data={props.data}
-            disabled={props.running}
-            preset={props.preset}
-            srcEncoding={props.srcEncoding}
-            dstEncoding={props.dstEncoding}
-            strategy={props.strategy}
-            onPatch={props.onPatch}
-            onPresetChange={props.onPresetChange}
-            onStrategyChange={props.onStrategyChange}
-          />
-          <PrimaryActionButton compact props={props} />
-        </div>
-      </div>
-      <div className="grid shrink-0 gap-2">
-        <PresetPicker disabled={props.running} preset={props.preset} onPresetChange={props.onPresetChange} />
-        <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPaste} />
-        <ToolbarActions {...props} compact />
-      </div>
+      <HeaderBar compact props={props} />
+      <StatusMeter compact props={props} />
+      <CodecRail compact vertical props={props} />
+      <PathChamber compact props={props} />
+      <CommandDeck compact props={props} />
       <div className="min-h-0 flex-1">
-        <ResultTabs compact logs={props.logs} mappings={props.mappings} matches={props.matches} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <EvidenceLedger compact props={props} />
       </div>
     </div>
   )
@@ -350,221 +323,412 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="encodeb-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/encodeb:flex-row @4xl/encodeb:items-center @4xl/encodeb:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/encodeb:flex-row @4xl/encodeb:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.pathCount} ${props.tNode("paths", "路径")} / ${props.srcEncoding} -> ${props.dstEncoding} / ${props.strategy === "copy" ? props.tNode("strategyCopy", "复制") : props.tNode("strategyReplace", "重命名")}`} />
-          <div data-testid="encodeb-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
-          </div>
-        </div>
-        <StatsPanel mappings={props.mappings} matches={props.matches} progress={props.progress} />
+    <div data-testid="encodeb-full-view" className="flex h-full min-h-0 flex-col gap-3 p-3">
+      <div className="grid shrink-0 gap-3 @5xl/encodeb:grid-cols-[minmax(0,1fr)_auto] @5xl/encodeb:items-start">
+        <HeaderBar props={props} />
+        <StatsDeck props={props} />
       </div>
+      <CommandDeck props={props} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/encodeb:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{props.tNode("sections.input", "输入")}</div>
-              <div className="text-xs text-muted-foreground">{props.tNode("sections.inputDesc", "粘贴包含乱码文件名的目录，选择编码预设后预览或修复。")}</div>
-            </div>
-            <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPaste} />
-            <PresetPicker disabled={props.running} preset={props.preset} onPresetChange={props.onPresetChange} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{props.tNode("sections.encoding", "编码与策略")}</div>
-            <EncodingFields disabled={props.running} preset={props.preset} srcEncoding={props.srcEncoding} dstEncoding={props.dstEncoding} onPatch={props.onPatch} />
-            <StrategyPicker disabled={props.running} strategy={props.strategy} onStrategyChange={props.onStrategyChange} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @6xl/encodeb:grid-cols-[minmax(260px,0.9fr)_minmax(320px,1fr)_minmax(320px,1.15fr)]">
+        <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
+          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
+            <PanelTitle icon={Clipboard} title="输入路径" subtitle="添加需要检查或修复的文件和目录" />
+            <PathChamber props={props} />
+            <StatusMeter props={props} />
+          </section>
+        </MagicCard>
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/encodeb:h-full">
-          <ResultTabs logs={props.logs} mappings={props.mappings} matches={props.matches} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
+        <MagicCard className="relative min-h-0 overflow-hidden rounded-xl border bg-background/76">
+          {props.running && <BorderBeam size={90} duration={7} />}
+          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
+            <PanelTitle icon={Gauge} title="编码设置" subtitle="选择源编码、目标编码和修复策略" />
+            <CodecRail props={props} />
+            <EncodingConsole props={props} />
+            <DefaultsTools props={props} />
+          </section>
+        </MagicCard>
+
+        <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
+          <section className="flex h-full min-h-0 flex-col gap-3 p-3">
+            <PanelTitle icon={FileText} title="结果与日志" subtitle="查看扫描命中、预览映射和运行日志" />
+            <EvidenceLedger props={props} />
+          </section>
+        </MagicCard>
       </div>
     </div>
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function HeaderBar({ compact, props }: { compact?: boolean; props: ViewProps }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <ActionIconButton disabled={props.running || !props.pathCount} icon={ScanSearch} label={props.tNode("buttons.scanGarbled", "扫描乱码")} onClick={() => props.onExecute("find")} />
-      <ActionIconButton disabled={props.running || !props.pathCount} icon={FileText} label={props.tNode("buttons.previewConvert", "预览转换")} onClick={() => props.onExecute("preview")} />
-      {!props.compact && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={props.running || (!props.mappings.length && !props.matches.length)} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={RotateCcw} label={props.tNode("buttons.clearState", "清空状态")} onClick={props.onReset} />
-      {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
-      )}
-    </div>
-  )
-}
-
-function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
-  if (props.running) {
-    return (
-      <Button aria-label={props.tNode("aria.running", "encodeb running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
-        <Square />
-        {!compact && <span>{props.tNode("buttons.running", "运行中")}</span>}
-      </Button>
-    )
-  }
-
-  const disabled = !props.pathCount
-  const label = props.tNode("buttons.execute", "执行修复")
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
-          <ShieldAlert />
-          {!compact && <span>{label}</span>}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{props.tNode("dialog.confirmTitle", "确认执行 Encodeb 修复？")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {props.tNode("dialog.confirmDesc", "当前将对 {{count}} 个路径执行真实文件名修复，策略为 {{strategy}}，编码 {{src}} -> {{dst}}。该操作不可撤销，请确认路径无误。", { count: props.pathCount, strategy: props.strategy === "copy" ? props.tNode("strategyCopy", "复制副本") : props.tNode("strategyReplace", "原地重命名"), src: props.srcEncoding, dst: props.dstEncoding })}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{props.tNode("buttons.cancel", "取消")}</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => props.onExecute("recover")}>{props.tNode("buttons.confirmExecute", "确认执行")}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
-function HeaderLine({ status, subtitle }: {
-  status: EncodebStatusMeta
-  subtitle: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
-          <Languages />
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <div className={cn("grid shrink-0 place-items-center rounded-xl", compact ? "size-9" : "size-10", props.status.iconClass)}>
+          <Languages className={compact ? "size-4" : "size-5"} />
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">Encodeb</h3>
-            <Badge variant={status.badgeVariant}>{status.label}</Badge>
+            <h3 className={cn("truncate font-semibold leading-none", compact ? "text-sm" : "text-base")}>Encodeb</h3>
+            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{props.data.progressText || summaryText(props)}</p>
         </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <ToolButton disabled={!props.logs.length && !props.mappings.length && !props.matches.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       </div>
     </div>
   )
 }
 
-function StatsPanel(props: {
-  mappings: EncodebCardState["mappings"]
-  matches: string[]
-  progress: number
-}) {
-  const { t: tNode } = useNodeI18n("encodeb")
+function StatsDeck({ props }: { props: ViewProps }) {
   const stats = [
-    [tNode("stats.preview", "预览"), props.mappings?.length ?? 0],
-    [tNode("stats.garbled", "乱码"), props.matches.length],
-    [tNode("stats.progress", "进度"), `${props.progress}%`],
-  ] as const
-
+    { label: "路径", value: props.paths.length },
+    { label: "映射", value: props.mappings.length },
+    { label: "疑似", value: props.matches.length },
+    { label: "进度", value: `${props.progress}%` },
+  ]
   return (
-    <div className="grid shrink-0 grid-cols-3 gap-1">
-      {stats.map(([label, value]) => (
-        <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className="text-sm font-semibold tabular-nums">{value}</div>
+    <div className="grid grid-cols-4 gap-1.5">
+      {stats.map((item) => (
+        <div key={item.label} className="min-w-0 rounded-lg border bg-background/70 px-3 py-2 text-center">
+          <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
+          <div className="text-sm font-semibold tabular-nums">
+            {typeof item.value === "number" ? <NumberTicker value={item.value} /> : item.value}
+          </div>
         </div>
       ))}
     </div>
   )
 }
 
-function ResultTabs(props: {
-  compact?: boolean
-  logs: string[]
-  mappings: EncodebCardState["mappings"]
-  matches: string[]
-  running?: boolean
-  onCopyLogs: () => void
-  onCopyResults: () => void
-}) {
-  const { t: tNode } = useNodeI18n("encodeb")
-  const mappingLines = (props.mappings ?? []).map((item) => `map ${item.src} -> ${item.dst}`)
-  const matchLines = props.matches.map((item) => `match ${item}`)
-  const resultLines = [...mappingLines, ...matchLines]
-  const preferredTab = props.running
-    ? "results"
-    : resultLines.length
-      ? "results"
-      : props.logs.length
-        ? "logs"
-        : "results"
-
+function PanelTitle({ icon: Icon, subtitle, title }: { icon: LucideIcon; subtitle: string; title: string }) {
   return (
-    <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
-        <TabsTrigger value="results">{tNode("tabs.results", "结果")}</TabsTrigger>
-        <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
-      </TabsList>
-      <TabsContent value="results" className="min-h-0 flex-1">
-        <TextPanel
-          compact={props.compact}
-          emptyText={tNode("empty.results", "扫描或预览后会显示乱码匹配和转码映射。")}
-          icon={FileText}
-          lines={resultLines}
-          onCopy={props.onCopyResults}
-        />
-      </TabsContent>
-      <TabsContent value="logs" className="min-h-0 flex-1">
-        <TextPanel compact={props.compact} emptyText={tNode("empty.logs", "运行日志会显示在这里。")} icon={Zap} lines={props.logs} onCopy={props.onCopyLogs} />
-      </TabsContent>
-    </Tabs>
+    <div className="flex min-w-0 items-start gap-2">
+      <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold leading-none">{title}</div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+    </div>
   )
 }
 
-function TextPanel(props: {
-  compact?: boolean
-  emptyText: string
-  icon: typeof FileText
-  lines: string[]
-  onCopy: () => void
+function CodecRail({ compact, vertical, props }: { compact?: boolean; vertical?: boolean; props: ViewProps }) {
+  const stages = [
+    { key: "input", label: "输入", value: `${props.paths.length} 条路径`, active: props.phase === "idle" },
+    { key: "encoding", label: props.srcEncoding, value: props.presetMeta.label, active: props.phase === "scanning" || props.phase === "previewing" },
+    { key: "output", label: props.dstEncoding, value: props.strategy === "copy" ? "复制副本" : "原地重命名", active: props.phase === "executing" || props.phase === "completed" },
+  ]
+
+  return (
+    <div className={cn("grid gap-1.5", vertical ? "grid-cols-1" : "grid-cols-[1fr_auto_1fr_auto_1fr]")}>
+      {stages.map((stage, index) => (
+        <div key={stage.key} className="contents">
+          <div className={cn(
+            "min-w-0 rounded-lg border bg-background/74 px-2 py-2",
+            stage.active && "border-primary/45 bg-primary/8",
+            compact && "py-1.5",
+          )}>
+            <div className="truncate text-[11px] font-medium uppercase text-muted-foreground">{stage.label}</div>
+            <div className="truncate text-xs font-semibold">{stage.value}</div>
+          </div>
+          {index < stages.length - 1 && !vertical && (
+            <div className="grid place-items-center text-muted-foreground">
+              <ArrowRight className="size-4" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function PathChamber({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="encodeb-paths" className="text-xs font-semibold">源路径</Label>
+        <Badge variant="outline" className="shrink-0">{props.paths.length} 条</Badge>
+      </div>
+      <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+        <Textarea
+          id="encodeb-paths"
+          aria-label="encodeb source paths"
+          className={cn("min-h-0 resize-none rounded-lg bg-background/78 font-mono text-xs", compact ? "h-16" : "h-32")}
+          disabled={props.running}
+          placeholder="每行一个乱码文件或目录路径"
+          value={props.data.pathText ?? ""}
+          onChange={(event) => props.onPatch({ pathText: event.currentTarget.value })}
+        />
+        <div className="grid content-start gap-1.5">
+          <ToolButton disabled={props.running} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+          <ToolButton disabled={props.running || !props.data.pathText} icon={Eraser} label="清空路径" onClick={() => props.onPatch({ pathText: "" })} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EncodingConsole({ props }: { props: ViewProps }) {
+  const locked = props.preset !== "custom"
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs font-semibold">编码预设</Label>
+          <span className="truncate text-[11px] text-muted-foreground">{props.presetMeta.description}</span>
+        </div>
+        <ToggleGroup
+          aria-label="编码预设"
+          className="grid w-full grid-cols-4"
+          disabled={props.running}
+          size="sm"
+          type="single"
+          value={props.preset}
+          variant="outline"
+          onValueChange={(value) => {
+            if (value) props.onPresetChange(value as EncodebPreset)
+          }}
+        >
+          {PRESETS.map((item) => (
+            <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
+              <span className="truncate">{item.shortLabel}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+
+      <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+        <EncodingField disabled={props.running || locked} label="源编码" value={props.srcEncoding} onChange={(srcEncoding) => props.onPatch({ srcEncoding })} />
+        <div className="grid h-9 place-items-center text-muted-foreground">
+          <ArrowRight className="size-4" />
+        </div>
+        <EncodingField disabled={props.running || locked} label="目标编码" value={props.dstEncoding} onChange={(dstEncoding) => props.onPatch({ dstEncoding })} />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label className="text-xs font-semibold">修复策略</Label>
+        <ToggleGroup
+          aria-label="修复策略"
+          className="grid w-full grid-cols-2"
+          disabled={props.running}
+          size="sm"
+          type="single"
+          value={props.strategy}
+          variant="outline"
+          onValueChange={(value) => {
+            if (value) props.onStrategyChange(value as EncodebStrategy)
+          }}
+        >
+          {STRATEGIES.map((item) => (
+            <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
+              <span className="truncate">{item.shortLabel}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+    </div>
+  )
+}
+
+function EncodingField(props: {
+  disabled?: boolean
+  label: string
+  value: string
+  onChange: (value: string) => void
 }) {
-  const { t: tNode } = useNodeI18n("encodeb")
+  return (
+    <div className="min-w-0">
+      <Label className="mb-1 block text-[11px] text-muted-foreground">{props.label}</Label>
+      <Input
+        disabled={props.disabled}
+        className="h-9 font-mono text-xs"
+        value={props.value}
+        onChange={(event) => props.onChange(event.currentTarget.value)}
+      />
+    </div>
+  )
+}
+
+function CommandDeck({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  return (
+    <div className={cn("grid gap-2", compact ? "grid-cols-3" : "grid-cols-1 @4xl/encodeb:grid-cols-3")}>
+      <CommandButton compact={compact} disabled={props.running || !props.paths.length} icon={ScanSearch} label="扫描乱码" onClick={() => props.onExecute("find")} />
+      <CommandButton compact={compact} disabled={props.running || !props.paths.length} icon={FileText} label="预览映射" onClick={() => props.onExecute("preview")} />
+      <PrimaryAction props={props} />
+    </div>
+  )
+}
+
+function CommandButton(props: {
+  compact?: boolean
+  disabled?: boolean
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}) {
   const Icon = props.icon
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
-      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
-        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Icon className="size-3.5" />
-          <span>{props.lines.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.lines.length }) : tNode("empty.waitingRun", "等待运行")}</span>
-        </div>
-        <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onCopy}>
-          <Copy data-icon="inline-start" />
-          {tNode("buttons.copy", "复制")}
+    <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onClick}>
+      <Icon />
+      <span className="truncate">{props.label}</span>
+    </Button>
+  )
+}
+
+function PrimaryAction({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  if (props.running) {
+    return (
+      <Button aria-label="encodeb running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+        <Square />
+        {!compact && <span>运行中</span>}
+      </Button>
+    )
+  }
+
+  const disabled = !props.paths.length
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button aria-label="执行修复" disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
+          <ShieldAlert />
+          {!compact && <span>执行修复</span>}
         </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认执行 Encodeb 修复？</AlertDialogTitle>
+          <AlertDialogDescription>
+            将对 {props.paths.length} 条路径执行真实文件名修复，编码方向为 {props.srcEncoding} -&gt; {props.dstEncoding}，策略为
+            {props.strategy === "copy" ? " 复制副本" : " 原地重命名"}。建议先运行预览映射。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => props.onExecute("recover")}>确认执行</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+function StatusMeter({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  return (
+    <div className={cn("rounded-lg border bg-background/70 p-2", compact && "p-1.5")}>
+      <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
+        <div className="truncate text-xs font-medium">{props.data.progressText || props.status.description}</div>
+        <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
+      </div>
+      <Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} />
+    </div>
+  )
+}
+
+function DefaultsTools({ props }: { props: ViewProps }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-background/62 px-2 py-1.5">
+      <div className="min-w-0">
+        <div className="text-xs font-medium">默认配置</div>
+        <div className="truncate text-[11px] text-muted-foreground">{props.configFilePath ?? "未连接配置文件"}</div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <ToolButton active={props.configDirty} disabled={props.running} icon={DatabaseZap} label="保存默认" onClick={props.onSaveDefault} />
+        <ToolButton disabled={props.running || !props.defaults} icon={WandSparkles} label="恢复默认" onClick={props.onRestoreDefault} />
+        <ToolButton disabled={props.running} icon={Eraser} label="清除覆盖" onClick={props.onResetOverride} />
+        <ToolButton disabled={!props.onOpenConfigFile} icon={FileText} label="打开配置" onClick={() => void props.onOpenConfigFile?.()} />
+      </div>
+    </div>
+  )
+}
+
+function MiniEvidence({ props }: { props: ViewProps }) {
+  const lines = resultLines(props.mappings, props.matches)
+  return (
+    <div className="min-h-0 flex-1 rounded-lg border bg-background/70">
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+          <Radar className="size-3.5" />
+          <span className="truncate">{lines.length ? `${lines.length} 条结果` : "等待扫描"}</span>
+        </div>
+        <ToolButton disabled={!lines.length} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
+      </div>
+      <Separator />
+      <ScrollArea className="h-[calc(100%-2.25rem)]">
+        {lines.length ? (
+          <pre className="p-2 text-xs leading-5 text-muted-foreground">{lines.slice(0, 12).join("\n")}</pre>
+        ) : (
+          <div className="flex min-h-20 items-center justify-center p-3 text-center text-xs text-muted-foreground">扫描或预览后显示疑似乱码文件名和转码映射。</div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+}
+
+function EvidenceLedger({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  const lines = resultLines(props.mappings, props.matches)
+  return (
+    <div className="grid h-full min-h-0 gap-2">
+      <div className="grid min-h-0 gap-2 @4xl/encodeb:grid-cols-2">
+        <LedgerPanel
+          compact={compact}
+          icon={FileText}
+          title="映射预览"
+          emptyText="运行预览映射后，这里会显示旧路径到新路径的对应关系。"
+          lines={props.mappings.map((item) => `${item.src}\n  -> ${item.dst}`)}
+          onCopy={props.onCopyResults}
+        />
+        <LedgerPanel
+          compact={compact}
+          icon={Radar}
+          title="疑似乱码"
+          emptyText="运行扫描后，这里会列出疑似乱码文件名。"
+          lines={props.matches}
+          onCopy={props.onCopyResults}
+        />
+      </div>
+      <LedgerPanel
+        compact={compact}
+        icon={Gauge}
+        title="运行日志"
+        emptyText={lines.length ? "暂无日志。" : "命令执行过程会记录在这里。"}
+        lines={props.logs}
+        onCopy={props.onCopyLogs}
+      />
+    </div>
+  )
+}
+
+function LedgerPanel(props: {
+  compact?: boolean
+  emptyText: string
+  icon: LucideIcon
+  lines: string[]
+  title: string
+  onCopy: () => void
+}) {
+  const Icon = props.icon
+  return (
+    <section className="flex min-h-0 flex-col rounded-lg border bg-background/66">
+      <div className={cn("flex shrink-0 items-center justify-between gap-2", props.compact ? "px-2 py-1.5" : "px-3 py-2")}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
+          <Icon className="size-3.5 text-muted-foreground" />
+          <span className="truncate">{props.title}</span>
+          <Badge variant="outline" className="shrink-0">{props.lines.length}</Badge>
+        </div>
+        <ToolButton disabled={!props.lines.length} icon={Copy} label={`复制${props.title}`} onClick={props.onCopy} />
       </div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
         {props.lines.length ? (
-          <pre className={props.compact ? "p-2 text-xs leading-5 text-muted-foreground" : "p-3 text-xs leading-5 text-muted-foreground"}>
+          <pre className={cn("whitespace-pre-wrap break-all font-mono text-xs leading-5 text-muted-foreground", props.compact ? "p-2" : "p-3")}>
             {props.lines.join("\n")}
           </pre>
         ) : (
-          <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
+          <div className={cn("flex items-center justify-center p-4 text-center text-xs text-muted-foreground", props.compact ? "min-h-16" : "min-h-28")}>
             {props.emptyText}
           </div>
         )}
@@ -573,11 +737,32 @@ function TextPanel(props: {
   )
 }
 
-function statusFromState(data: EncodebCardState, running: boolean, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): EncodebStatusMeta {
+function ToolButton(props: {
+  active?: boolean
+  disabled?: boolean
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}) {
+  const Icon = props.icon
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant={props.active ? "secondary" : "outline"} onClick={props.onClick}>
+          <Icon />
+          <span className="sr-only">{props.label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{props.label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function statusFromState(data: EncodebCardState, running: boolean): EncodebStatusMeta {
   if (running || data.phase === "scanning" || data.phase === "previewing" || data.phase === "executing") {
     return {
-      label: tNode("status.running", "运行中"),
-      description: data.progressText || tNode("statusDesc.running", "Encodeb 正在处理文件名。"),
+      label: "运行中",
+      description: data.progressText || "正在扫描、预览或修复文件名。",
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -585,8 +770,8 @@ function statusFromState(data: EncodebCardState, running: boolean, tNode: (key: 
   }
   if (data.phase === "error") {
     return {
-      label: tNode("status.error", "失败"),
-      description: data.progressText || tNode("statusDesc.error", "上次任务失败，请查看日志。"),
+      label: "失败",
+      description: data.progressText || "上次任务失败，请查看日志。",
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
@@ -594,16 +779,16 @@ function statusFromState(data: EncodebCardState, running: boolean, tNode: (key: 
   }
   if (data.phase === "completed") {
     return {
-      label: tNode("status.completed", "完成"),
-      description: data.progressText || tNode("statusDesc.completed", "上次任务已完成。"),
+      label: "完成",
+      description: data.progressText || "上次任务已完成。",
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
     }
   }
   return {
-    label: tNode("status.idle", "就绪"),
-    description: tNode("statusDesc.idle", "粘贴路径后扫描乱码或预览转码。"),
+    label: "就绪",
+    description: "放入路径后扫描乱码或预览转码映射。",
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -621,16 +806,21 @@ function phaseForAction(action: EncodebAction): EncodebPhase {
   return "executing"
 }
 
-function actionLabel(action: EncodebAction, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): string {
-  if (action === "find") return tNode("find", "扫描")
-  if (action === "preview") return tNode("preview", "预览")
-  return tNode("recover", "修复")
+function labelForAction(action: EncodebAction): string {
+  return ACTIONS.find((item) => item.value === action)?.label ?? action
+}
+
+function resultLines(mappings: NonNullable<EncodebCardState["mappings"]>, matches: string[]): string[] {
+  return [
+    ...mappings.map((item) => `map ${item.src} -> ${item.dst}`),
+    ...matches.map((item) => `match ${item}`),
+  ]
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.mappings?.length) return props.tNode("summary.mappings", "{{count}} 个转码映射", { count: props.mappings.length })
-  if (props.matches.length) return props.tNode("summary.matches", "{{count}} 个乱码", { count: props.matches.length })
-  if (props.pathCount) return props.tNode("summary.pathWaiting", "{{count}} 条路径等待扫描", { count: props.pathCount })
-  return props.tNode("summary.pasteHint", "粘贴路径后扫描乱码文件名")
+  if (props.mappings.length) return `${props.mappings.length} 条转码映射等待确认`
+  if (props.matches.length) return `${props.matches.length} 个疑似乱码文件名`
+  if (props.paths.length) return `${props.paths.length} 条路径等待扫描`
+  return "粘贴路径，选择编码方向，然后扫描或预览"
 }

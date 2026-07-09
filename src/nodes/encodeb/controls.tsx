@@ -50,7 +50,7 @@ export function PresetPicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="encodeb preset"
+      aria-label="编码预设"
       className="grid w-full grid-cols-4"
       disabled={props.disabled}
       size="sm"
@@ -78,7 +78,7 @@ export function StrategyPicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="encodeb strategy"
+      aria-label="修复策略"
       className="grid w-full grid-cols-2"
       disabled={props.disabled}
       size="sm"
@@ -121,7 +121,7 @@ export function PathInput(props: {
           aria-label="encodeb source paths"
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-24")}
           disabled={props.disabled}
-          placeholder={"每行一个目录或文件路径"}
+          placeholder="每行一个目录或文件路径"
           value={props.value}
           onChange={(event) => props.onChange(event.currentTarget.value)}
         />
@@ -302,7 +302,7 @@ function ConfigPreview(props: {
   )
 }
 
-function InfoHint({ description, label }: { description: string; label: string }) {
+export function InfoHint({ description, label }: { description: string; label: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

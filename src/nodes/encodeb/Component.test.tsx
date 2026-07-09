@@ -53,18 +53,20 @@ describe("app-owned encodeb Component", () => {
       }
 
       expect(screen.getByLabelText("encodeb source paths")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getAllByText(/输入/).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/cp437/).length).toBeGreaterThan(0)
 
-      if (mode === "compact") {
+      if (mode === "compact" || mode === "regular") {
         expect(screen.getByTestId("encodeb-compact-view")).toBeTruthy()
-        expect(screen.getByRole("button", { name: "encodeb options" })).toBeTruthy()
+        expect(screen.getByText("等待扫描")).toBeTruthy()
       } else if (mode === "portrait") {
         expect(screen.getByTestId("encodeb-portrait-view")).toBeTruthy()
+        expect(screen.getByText("映射预览")).toBeTruthy()
       } else {
         expect(screen.getByTestId("encodeb-full-view")).toBeTruthy()
-        expect(screen.getByText("编码与策略")).toBeTruthy()
-        expect(screen.getByTestId("encodeb-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("输入路径")).toBeTruthy()
+        expect(screen.getByText("编码设置")).toBeTruthy()
+        expect(screen.getByText("结果与日志")).toBeTruthy()
       }
     },
   )
