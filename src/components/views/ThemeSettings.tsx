@@ -1,5 +1,6 @@
 import { useMemo, useState, type ComponentType } from "react"
 import { motion } from "motion/react"
+import { restartLocalBackend, type LocalBackendControlRestartResult } from "@/backend/localBackendControl"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
@@ -40,6 +41,7 @@ const THEME_ICONS: Record<AppTheme, ComponentType<{ className?: string }>> = {
 }
 
 const THEMES: ThemePresetOption[] = THEME_PRESET_OPTIONS
+const CUSTOM_THEME_ACTIVE_VALUE = "__custom_theme_active__"
 
 const THEME_SOURCE_KIND_LABEL_KEYS: Record<ThemePresetOption["source"]["kind"], string> = {
   internal: "settings:themeSource.kindInternal",
@@ -177,6 +179,8 @@ export function ThemeSettings() {
   const runtimeInfo = getRuntimeConnectionInfo()
   const backendStatus = useLocalBackendStatus()
   const [copiedCommand, setCopiedCommand] = useState<"attach" | "start" | null>(null)
+  const [backendRestarting, setBackendRestarting] = useState(false)
+  const [backendRestartResult, setBackendRestartResult] = useState<LocalBackendControlRestartResult | null>(null)
   const [section, setSection] = useState<SettingsSection>("appearance")
   const [themeJson, setThemeJson] = useState("")
   const [themeImportError, setThemeImportError] = useState<string | null>(null)
@@ -255,6 +259,25 @@ export function ThemeSettings() {
   function openExternalUrl(url?: string) {
     if (!url) return
     window.open(url, "_blank", "noopener,noreferrer")
+  }
+
+  async function restartBackendFromSettings() {
+    setBackendRestarting(true)
+    setBackendRestartResult(null)
+    try {
+      const result = await restartLocalBackend()
+      setBackendRestartResult(result)
+      await backendStatus.refetch()
+    } catch (error) {
+      setBackendRestartResult({
+        restarted: false,
+        supported: false,
+        source: "none",
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBackendRestarting(false)
+    }
   }
 
   return (
@@ -351,12 +374,25 @@ export function ThemeSettings() {
                   {THEMES.length}
                 </Badge>
               </div>
-              <Select value={state.theme} onValueChange={(value) => selectPreset(value as AppTheme)}>
+              <Select
+                value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : state.theme}
+                onValueChange={(value) => {
+                  if (value !== CUSTOM_THEME_ACTIVE_VALUE) selectPreset(value as AppTheme)
+                }}
+              >
                 <SelectTrigger className="w-full bg-background/60 font-mono text-xs" size="sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   <SelectGroup>
+                    {activeCustomTheme && (
+                      <SelectItem value={CUSTOM_THEME_ACTIVE_VALUE}>
+                        <Palette className="text-primary" />
+                        <span className="min-w-0 truncate">
+                          {t("settings:themeImport.activeImported", "Imported theme active")}
+                        </span>
+                      </SelectItem>
+                    )}
                     {THEMES.map((th) => {
                       const Icon = THEME_ICONS[th.key]
                       return (
@@ -627,6 +663,17 @@ export function ThemeSettings() {
                 </div>
               )}
 
+              {backendRestartResult && (
+                <div className={cn(
+                  "rounded-sm border px-3 py-2 text-[11px] leading-relaxed",
+                  backendRestartResult.restarted
+                    ? "border-primary/25 bg-primary/8 text-foreground"
+                    : "border-muted-foreground/25 bg-muted/20 text-muted-foreground",
+                )}>
+                  {backendRestartResult.message}
+                </div>
+              )}
+
               <div className="flex items-start gap-2 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
                 <Server className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -642,6 +689,10 @@ export function ThemeSettings() {
                 <Button variant="outline" size="sm" className="font-mono text-xs" disabled={backendStatus.isFetching} onClick={() => backendStatus.refetch()}>
                   <Server className="h-3.5 w-3.5" />
                   {backendStatus.isFetching ? t("settings:developerRuntime.statusChecking") : t("settings:developerRuntime.refreshStatus")}
+                </Button>
+                <Button variant="outline" size="sm" className="font-mono text-xs" disabled={backendRestarting} onClick={restartBackendFromSettings}>
+                  <RefreshCcw className={cn("h-3.5 w-3.5", backendRestarting && "animate-spin")} />
+                  {backendRestarting ? t("settings:developerRuntime.restartingBackend") : t("settings:developerRuntime.restartBackend")}
                 </Button>
                 <Button variant="outline" size="sm" className="font-mono text-xs" onClick={() => copyDevCommand("attach")}>
                   <Copy className="h-3.5 w-3.5" />

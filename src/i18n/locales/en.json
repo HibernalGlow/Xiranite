@@ -378,6 +378,8 @@
       "hotSwitchHint": "During development, run bun run dev first, then bun run dev:desktop:attach to make the desktop shell attach to the existing Vite/Elysia ports. Use bun run dev:desktop when you want one command to start everything.",
       "reload": "Reload WebView",
       "refreshStatus": "Refresh status",
+      "restartBackend": "Restart backend",
+      "restartingBackend": "Restarting backend",
       "copyAttach": "Copy attach command",
       "copyStart": "Copy one-shot command",
       "copied": "Copied",

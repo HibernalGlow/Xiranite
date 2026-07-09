@@ -378,6 +378,8 @@
       "hotSwitchHint": "开发时先运行 bun run dev，再运行 bun run dev:desktop:attach，让桌面壳附着到现有 Vite/Elysia 端口。需要一个命令启动全部时使用 bun run dev:desktop。",
       "reload": "重载 WebView",
       "refreshStatus": "刷新状态",
+      "restartBackend": "重启后端",
+      "restartingBackend": "后端重启中",
       "copyAttach": "复制附着命令",
       "copyStart": "复制一键命令",
       "copied": "已复制",

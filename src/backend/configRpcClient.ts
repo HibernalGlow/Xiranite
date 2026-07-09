@@ -25,7 +25,11 @@ export async function saveNodeConfigToBackend<T = unknown>(
   nodeId: string,
   config: T,
 ): Promise<void> {
-  await getConfigClient().updateNodeConfig<T>(nodeId, config)
+  const current = await getNodeConfigFromBackend<Record<string, unknown>>(nodeId)
+  const nextConfig = isRecord(current.config) && isRecord(config)
+    ? { ...current.config, ...config }
+    : config
+  await getConfigClient().updateNodeConfig(nodeId, nextConfig)
 }
 
 export async function getNodeUiConfigFromBackend<T = unknown>(

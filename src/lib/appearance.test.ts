@@ -24,6 +24,9 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-theme-surface")
   document.documentElement.removeAttribute("data-theme-depth")
   document.documentElement.removeAttribute("data-theme-node-interior")
+  document.documentElement.removeAttribute("data-custom-theme")
+  document.documentElement.removeAttribute("data-custom-theme-name")
+  document.documentElement.removeAttribute("data-theme-visual-source")
   document.documentElement.removeAttribute("data-font-preset")
   document.documentElement.removeAttribute("data-custom-font")
   document.documentElement.removeAttribute("style")
@@ -417,10 +420,15 @@ describe("appearance bridge", () => {
       },
     }))
 
+    applyThemePreset("wuling")
+    expect(document.documentElement.classList.contains("theme-wuling")).toBe(true)
+
     applyCustomTheme(theme, "light")
 
     expect(document.documentElement.getAttribute("data-custom-theme")).toBe("enabled")
+    expect(document.documentElement.getAttribute("data-theme-visual-source")).toBe("custom")
     expect(document.documentElement.dataset.customThemeName).toBe("Imported")
+    expect(document.documentElement.classList.contains("theme-wuling")).toBe(false)
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("oklch(0.99 0 0)")
     expect(document.documentElement.style.getPropertyValue("--primary")).toBe("oklch(0.55 0.16 240)")
     expect(document.documentElement.style.getPropertyValue("--popover")).toContain("oklch(0.99 0 0)")
@@ -441,11 +449,32 @@ describe("appearance bridge", () => {
 
     expect(document.documentElement.getAttribute("data-custom-theme")).toBeNull()
     expect(document.documentElement.getAttribute("data-custom-theme-name")).toBeNull()
+    expect(document.documentElement.getAttribute("data-theme-visual-source")).toBeNull()
+    expect(document.documentElement.classList.contains("theme-wuling")).toBe(true)
     expect(document.documentElement.style.getPropertyValue("--background")).toBe("")
     expect(document.documentElement.style.getPropertyValue("--primary")).toBe("")
     expect(document.documentElement.style.getPropertyValue("--ws-canvas")).toBe("")
     expect(document.documentElement.style.getPropertyValue("--node-surface-bg")).toBe("")
     expect(document.documentElement.style.getPropertyValue("--node-chrome-accent")).toBe("")
+  })
+
+  test("normalizes tweakcn hsl channel colors on import", () => {
+    const [theme] = parseImportedThemeJson(JSON.stringify({
+      name: "TweakCN",
+      cssVars: {
+        light: {
+          background: "0 0% 100%",
+          foreground: "240 10% 3.9%",
+          primary: "262.1 83.3% 57.8%",
+          border: "240 5.9% 90%",
+        },
+      },
+    }))
+
+    expect(theme.cssVars.light.background).toBe("hsl(0 0% 100%)")
+    expect(theme.cssVars.light.foreground).toBe("hsl(240 10% 3.9%)")
+    expect(theme.cssVars.light.primary).toBe("hsl(262.1 83.3% 57.8%)")
+    expect(theme.cssVars.light.border).toBe("hsl(240 5.9% 90%)")
   })
 
   test("mirrors imported themes to aestivus-compatible custom theme storage", () => {

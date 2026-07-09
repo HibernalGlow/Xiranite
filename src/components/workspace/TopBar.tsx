@@ -85,6 +85,7 @@ const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string;
 ]
 
 const THEME_PRESETS = THEME_PRESET_OPTIONS
+const CUSTOM_THEME_ACTIVE_VALUE = "__custom_theme_active__"
 
 function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
   const colors = theme.cssVars.light
@@ -491,12 +492,23 @@ export function TopBar() {
                     <p className="text-[9px] font-mono tracking-widest text-muted-foreground">{t("topbar:theme.preset")}</p>
                     {!activeCustomTheme && <Check className="h-3 w-3 text-primary" />}
                   </div>
-                  <Select value={state.theme} onValueChange={(value) => selectPreset(value as AppTheme)}>
+                  <Select
+                    value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : state.theme}
+                    onValueChange={(value) => {
+                      if (value !== CUSTOM_THEME_ACTIVE_VALUE) selectPreset(value as AppTheme)
+                    }}
+                  >
                     <SelectTrigger className="w-full bg-background/65 font-mono text-xs" size="sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
                       <SelectGroup>
+                        {activeCustomTheme && (
+                          <SelectItem value={CUSTOM_THEME_ACTIVE_VALUE}>
+                            <Palette className="text-primary" />
+                            <span className="min-w-0 truncate">Imported theme active</span>
+                          </SelectItem>
+                        )}
                         {THEME_PRESETS.map((preset) => (
                           <SelectItem key={preset.key} value={preset.key}>
                             <span
