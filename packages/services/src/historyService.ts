@@ -208,18 +208,48 @@ export function sanitizeInput(input: unknown): unknown {
 // ── 摘要 ──────────────────────────────────────────────────────────
 
 const SUMMARY_KEYS = [
+  "action",
+  "command",
+  "operation",
+  "task",
+  "taskName",
+  "mode",
   "path",
+  "paths",
+  "folder",
+  "folderPath",
+  "directory",
   "rootPath",
+  "basePath",
   "sourcePath",
   "sourcePaths",
+  "sources",
   "targetPath",
+  "target",
+  "targetFolder",
+  "targetFolders",
   "destinationPath",
-  "action",
-  "mode",
+  "archivePath",
+  "archivePaths",
+  "archives",
+  "inputPath",
+  "inputPaths",
+  "output",
+  "outputPath",
+  "configPath",
   "dryRun",
+  "dryrun",
+  "recursive",
+  "deleteAfter",
   "pattern",
+  "replacement",
+  "prefix",
   "ext",
   "extensions",
+  "limit",
+  "seconds",
+  "timerMode",
+  "powerMode",
 ]
 
 /**
@@ -233,10 +263,30 @@ export function summarizeInput(input: unknown): string {
   for (const key of SUMMARY_KEYS) {
     const value = record[key]
     if (value === undefined || value === null) continue
-    const text = Array.isArray(value) ? value.join(",") : String(value)
+    const text = summarizeValue(value)
     if (!text) continue
     parts.push(`${key}: ${text}`)
     if (parts.join(" · ").length > 240) break
   }
   return parts.join(" · ").slice(0, 240)
+}
+
+function summarizeValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    const visible = value.slice(0, 4).map((item) => summarizeScalar(item)).filter(Boolean)
+    const suffix = value.length > visible.length ? ` +${value.length - visible.length}` : ""
+    return `${visible.join(", ")}${suffix}`
+  }
+  return summarizeScalar(value)
+}
+
+function summarizeScalar(value: unknown): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (!value || typeof value !== "object") return ""
+
+  const record = value as Record<string, unknown>
+  const label = record.name ?? record.label ?? record.path ?? record.sourcePath ?? record.targetPath
+  if (typeof label === "string" && label.trim()) return label
+  return JSON.stringify(value).slice(0, 80)
 }

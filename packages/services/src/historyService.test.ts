@@ -214,7 +214,7 @@ describe("sanitizeInput", () => {
 describe("summarizeInput", () => {
   test("extracts known useful keys joined with ·", () => {
     expect(summarizeInput({ path: "D:/foo", mode: "scan", dryRun: true })).toBe(
-      "path: D:/foo · mode: scan · dryRun: true",
+      "mode: scan · path: D:/foo · dryRun: true",
     )
   })
 
@@ -230,8 +230,12 @@ describe("summarizeInput", () => {
     expect(summary.length).toBeLessThanOrEqual(240)
   })
 
-  test("joins array values with comma", () => {
-    expect(summarizeInput({ sourcePaths: ["a", "b", "c"] })).toBe("sourcePaths: a,b,c")
+  test("summarizes common node arrays and object labels", () => {
+    expect(summarizeInput({
+      action: "compress",
+      archivePaths: ["a.zip", "b.zip", "c.zip", "d.zip", "e.zip"],
+      targetFolders: [{ path: "D:/target" }],
+    })).toBe("action: compress · targetFolders: D:/target · archivePaths: a.zip, b.zip, c.zip, d.zip +1")
   })
 })
 

@@ -86,8 +86,10 @@ export function AppConfigSync() {
   const migratedFromRef = useRef<AppUiConfig["migratedFrom"] | undefined>(undefined)
   const [legacyVersion, setLegacyVersion] = useState(0)
   const currentRef = useRef({ workspace, colorMode, language })
+  const syncActionsRef = useRef({ workspaceActions, setTheme })
 
   currentRef.current = { workspace, colorMode, language }
+  syncActionsRef.current = { workspaceActions, setTheme }
 
   const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
     ? `${backendStatus.data.config.baseUrl}\n${backendStatus.data.config.token ?? ""}`
@@ -125,7 +127,11 @@ export function AppConfigSync() {
           await saveAppConfigToBackend(APP_UI_SECTION, migrated)
           if (cancelled) return
           applyingRef.current = true
-          applyAppUiConfig(migrated, workspaceActions, setTheme)
+          applyAppUiConfig(
+            migrated,
+            syncActionsRef.current.workspaceActions,
+            syncActionsRef.current.setTheme,
+          )
           migratedFromRef.current = migrated.migratedFrom
           lastSavedKeyRef.current = stableStringify(migrated)
           loadedRef.current = true
@@ -137,7 +143,11 @@ export function AppConfigSync() {
 
         migratedFromRef.current = existing.migratedFrom
         applyingRef.current = true
-        applyAppUiConfig(existing, workspaceActions, setTheme)
+        applyAppUiConfig(
+          existing,
+          syncActionsRef.current.workspaceActions,
+          syncActionsRef.current.setTheme,
+        )
         lastSavedKeyRef.current = stableStringify(buildAppUiConfig(
           {
             ...currentRef.current.workspace,
@@ -162,7 +172,7 @@ export function AppConfigSync() {
     return () => {
       cancelled = true
     }
-  }, [backendKey, setTheme, workspaceActions])
+  }, [backendKey])
 
   useEffect(() => {
     const refreshLegacyConfig = () => {

@@ -135,22 +135,7 @@ export class WorkspaceService {
 
   async saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO> {
     const parsed = workspaceSnapshotSchema.parse(snapshot)
-    const startedAt = this.now()
     const saved = await this.repository.saveSnapshot(parsed)
-    void this.history?.record({
-      kind: "workspace",
-      operation: "workspace.snapshot.save",
-      title: "Workspace snapshot",
-      message: "Saved workspace snapshot.",
-      inputSummary: `${parsed.workspaces.length} workspaces, ${parsed.lanes.length} lanes, ${parsed.components.length} components`,
-      metadata: {
-        workspaceCount: parsed.workspaces.length,
-        laneCount: parsed.lanes.length,
-        componentCount: parsed.components.length,
-      },
-      startedAt,
-      finishedAt: this.now(),
-    })
     return saved
   }
 }

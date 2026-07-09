@@ -67,14 +67,14 @@ describe("WorkspaceService", () => {
     expect(await service.getSnapshot()).toEqual(nextSnapshot)
   })
 
-  test("records workspace write operations into runtime history", async () => {
+  test("records explicit workspace operations but not snapshot autosaves", async () => {
     const repository = createMemoryWorkspaceRepository()
     const historyRepository = createMemoryNodeRunHistoryRepository()
-    const history = new NodeRunHistoryService({ repository: historyRepository, createId: fixedIds(["hist-create", "hist-save"]) })
+    const history = new NodeRunHistoryService({ repository: historyRepository, createId: fixedIds(["hist-create"]) })
     const service = new WorkspaceService({
       repository,
       history,
-      now: fixedClock([100, 101, 200, 201]),
+      now: fixedClock([100, 101, 200]),
       createId: () => "alpha",
     })
 
@@ -87,7 +87,6 @@ describe("WorkspaceService", () => {
 
     const list = await history.listRuntime({})
     expect(list.items.map((item) => [item.id, item.kind, item.operation])).toEqual([
-      ["hist-save", "workspace", "workspace.snapshot.save"],
       ["hist-create", "workspace", "workspace.create"],
     ])
   })

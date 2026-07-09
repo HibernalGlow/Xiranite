@@ -137,6 +137,13 @@ export function PackuWorkbench({ compId, host, meta }: NodeComponentProps<PackuC
     if (running) return
     const current = dataRef.current
 
+    if (nextAction !== "status" && !clean(current.pathsText)) {
+      const message = "请先输入至少一个归档或目录路径。"
+      patch({ phase: "error", progress: 0, progressText: message })
+      pushLog(message)
+      return
+    }
+
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
       const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
@@ -348,13 +355,13 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">归档</div>
-              <div className="text-xs text-muted-foreground">每行一个归档或目录路径，状态检查、计划和运行都会用到。</div>
+              <div className="text-sm font-semibold">路径</div>
+              <div className="text-xs text-muted-foreground">归档或目录，每行一条。status 不需要路径。</div>
             </div>
             <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">路径</div>
+            <div className="text-sm font-semibold">可执行文件</div>
             <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
@@ -401,7 +408,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认运行</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认执行</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

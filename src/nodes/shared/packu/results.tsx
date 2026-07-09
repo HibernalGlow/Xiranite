@@ -49,9 +49,18 @@ export function PackuResultTabs(props: {
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
       <TabsList className="shrink-0">
-        <TabsTrigger value="command">命令</TabsTrigger>
-        <TabsTrigger value="integration">集成</TabsTrigger>
-        <TabsTrigger value="logs">日志</TabsTrigger>
+        <TabsTrigger value="command">
+          <Terminal />
+          命令
+        </TabsTrigger>
+        <TabsTrigger value="integration">
+          <Settings2 />
+          集成
+        </TabsTrigger>
+        <TabsTrigger value="logs">
+          <ScrollText />
+          日志
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="command" className="min-h-0 flex-1">
         <CommandPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} />
