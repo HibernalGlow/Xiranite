@@ -1,50 +1,50 @@
 #!/usr/bin/env node
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSynct } from "./core.js"
+import type { SynctAction, SynctFormatKey, SynctInput, SynctSourceMode } from "./core.js"
 import { createNodeSynctRuntime } from "./platform.js"
 
 interface SynctNodeConfig {
-  config_path?: string
-  database_path?: string
-  python?: string
-  source_root?: string
-  module_name?: string
-  record_run?: boolean
+  source_mode?: SynctSourceMode
+  format_key?: SynctFormatKey
+  recursive?: boolean
+  archive_folder?: boolean
+  fallback_to_created_time?: boolean
+  sync_folder_file_times?: boolean
   dry_run?: boolean
 }
 
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const passthroughIndex = args.indexOf("--")
-  const commandArgs = passthroughIndex >= 0 ? args.slice(0, passthroughIndex) : args
-  const passthroughArgs = passthroughIndex >= 0 ? args.slice(passthroughIndex + 1) : []
-  const json = commandArgs.includes("--json")
-  const action = commandArgs.includes("run") ? "run" : commandArgs.includes("plan") ? "plan" : "status"
-  const valueOptions = new Set(["--config-path", "--database-path", "--python", "--source-root", "--module-name"])
-  const paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
-
-  const { config: nodeConfig } = await loadNodeConfigWithHints<SynctNodeConfig>("synct", {
-    hintSink: { stderr: process.stderr },
-    jsonMode: json,
-  })
-
-  const result = await runSynct({
+  const json = args.includes("--json")
+  const action: SynctAction = args.includes("archive") || args.includes("run") ? "archive" : args.includes("scan") ? "scan" : "plan"
+  const { config } = await loadNodeConfigWithHints<SynctNodeConfig>("synct", { hintSink: { stderr: process.stderr }, jsonMode: json })
+  const input: SynctInput = {
     action,
-    paths,
-    args: passthroughArgs,
-    configPath: valueFor(commandArgs, "--config-path") ?? nodeConfig?.config_path,
-    databasePath: valueFor(commandArgs, "--database-path") ?? nodeConfig?.database_path,
-    python: valueFor(commandArgs, "--python") ?? nodeConfig?.python,
-    sourceRoot: valueFor(commandArgs, "--source-root") ?? nodeConfig?.source_root,
-    moduleName: valueFor(commandArgs, "--module-name") ?? nodeConfig?.module_name,
-    recordRun: commandArgs.includes("--record-run") || nodeConfig?.record_run === true,
-    dryRun: commandArgs.includes("--dry-run") || nodeConfig?.dry_run === true,
-  }, createNodeSynctRuntime())
+    paths: pathArgs(args),
+    sourceMode: valueFor(args, "--source-mode") as SynctSourceMode | undefined ?? config?.source_mode,
+    formatKey: valueFor(args, "--format") as SynctFormatKey | undefined ?? config?.format_key,
+    recursive: args.includes("--recursive") || config?.recursive === true,
+    archiveFolder: args.includes("--archive-folder") || config?.archive_folder === true,
+    fallbackToCreatedTime: args.includes("--no-fallback") ? false : config?.fallback_to_created_time,
+    syncFolderFileTimes: args.includes("--no-sync-file-times") ? false : config?.sync_folder_file_times,
+    dryRun: action !== "archive" || args.includes("--dry-run") || config?.dry_run === true,
+  }
+  const result = await runSynct(input, createNodeSynctRuntime())
   if (json) console.log(JSON.stringify(result, null, 2))
-  else console.log(result.message)
+  else {
+    console.log(result.message)
+    for (const item of result.data?.items.slice(0, 80) ?? []) console.log(`${item.status}\t${item.sourceName}\t->\t${item.targetRelative}`)
+  }
   if (!result.success) process.exitCode = 1
 }
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
+
+function pathArgs(args: string[]): string[] {
+  const commands = new Set(["scan", "plan", "archive", "run"])
+  const valueOptions = new Set(["--source-mode", "--format"])
+  return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
+}
 
 function valueFor(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)

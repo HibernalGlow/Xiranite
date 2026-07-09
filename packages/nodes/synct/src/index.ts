@@ -6,9 +6,9 @@ export const def = {
   name: "Synct",
   version: "0.1.0",
   category: "file",
-  description: "Archive folders and files by extracted timestamps with PackU Synct.",
+  description: "Archive files and folders into date-based paths from extracted timestamps.",
   icon: "CalendarClock",
-  keywords: ["packu", "timestamp", "archive", "sync"],
+  keywords: ["timestamp", "archive", "sync", "date"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

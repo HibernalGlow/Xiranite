@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { SynctData, SynctInput } from "@xiranite/node-synct/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
-import { NODE_META } from "./constants"
+import { ACTIONS } from "./constants"
+import type { SynctCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
 
@@ -37,110 +37,112 @@ afterEach(() => {
 
 describe("app-owned synct Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)(
-    "renders the %s surface with Synct-specific UI",
+    "renders the %s surface with native Synct UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-synct" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-synct" host={createHost({ pathsText: "D:/downloads" })} />)
 
       expect(screen.getByText("Synct")).toBeTruthy()
+
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("synct-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("synct paths")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("synct paths")).toBeTruthy()
+      expect(screen.getAllByRole("tab")).toHaveLength(3)
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("synct-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("synct-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("synct-full-view")).toBeTruthy()
+        expect(screen.getByTestId("synct-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("Sources and format")).toBeTruthy()
+        expect(screen.getByText("Archive path plan")).toBeTruthy()
+        expect(screen.getByRole("button", { name: ACTIONS[1]!.label })).toBeTruthy()
       }
     },
   )
 
-  test("runs plan through host.runner.run and stores command results", async () => {
+  test("runs plan through host.runner.run and stores archive rows", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({
+      action: "plan",
+      pathsText: "D:/downloads",
+      sourceMode: "files",
+      formatKey: "year_month",
+      dryRun: true,
+      logs: [],
+    })
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "生成计划" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
       nodeId: "synct",
       input: {
         action: "plan",
-        paths: ["D:/archives/a.zip"],
-        args: [],
-        configPath: undefined,
-        databasePath: undefined,
-        python: undefined,
-        sourceRoot: NODE_META.spec.sourceRoot,
-        moduleName: NODE_META.spec.moduleName,
+        paths: ["D:/downloads"],
+        sourceMode: "files",
+        formatKey: "year_month",
+        recursive: false,
+        archiveFolder: false,
+        fallbackToCreatedTime: true,
+        syncFolderFileTimes: true,
         dryRun: true,
-        recordRun: false,
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.cardState.result?.command).toBeTruthy()
-
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    expect(host.cardState.result?.items[0]?.targetRelative).toBe("2026-07/photo_2026-07-10.jpg")
   })
 
-  test("requires confirmation before real run execution", async () => {
+  test("requires confirmation before live archive execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "archive", pathsText: "D:/downloads", dryRun: false, logs: [] })
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[2]!.label }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    const dialog = screen.getByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Confirm archive" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("run")
+    expect(host.runCalls[0]?.input.action).toBe("archive")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
   test("marks the card as error when run has no paths", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", logs: [] })
+    const host = createHost({ action: "plan", logs: [] })
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("source path")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<SynctCardState, Partial<SynctCardState>> & {
   copiedText: string
-  runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  runCalls: Array<{ nodeId: string; input: SynctInput }>
+  savedConfig: Partial<SynctCardState> | undefined
+  cardState: SynctCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: SynctCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<SynctCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -164,17 +166,17 @@ function createHost(initial: PackuCardState): TestHost {
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        host.runCalls.push({ nodeId, input: input as SynctInput })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning timestamp archive rows." })
         return {
           success: true,
-          message: "PackU synct planned.",
-          data: packuData as TData,
+          message: "Synct planned 1 item.",
+          data: synctData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/downloads",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -188,7 +190,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<SynctCardState> },
     openConfigFile: () => undefined,
   }
   return host
@@ -203,22 +205,26 @@ function setSurfaceSize(size: { height: number; width: number }) {
   surfaceState.height = size.height
 }
 
-const packuData: PackuToolData = {
-  spec: NODE_META.spec,
-  command: {
-    label: "python -m synct",
-    command: "python",
-    args: ["-m", "synct", "D:/archives/a.zip"],
-    cwd: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src",
-    env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src" },
-  },
-  integration: {
-    sourceRoot: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src",
-    moduleName: "synct",
-    configCandidates: [],
-    recordRun: false,
-    recordFormat: "jsonl",
-  },
-  selectedPaths: ["D:/archives/a.zip"],
+const synctData: SynctData = {
+  action: "plan",
+  sourceMode: "files",
+  formatKey: "year_month",
+  items: [
+    {
+      sourcePath: "D:/downloads/photo_2026-07-10.jpg",
+      targetPath: "D:/downloads/2026-07/photo_2026-07-10.jpg",
+      sourceName: "photo_2026-07-10.jpg",
+      targetRelative: "2026-07/photo_2026-07-10.jpg",
+      kind: "file",
+      timestamp: "2026-07-10T00:00:00.000Z",
+      status: "ready",
+    },
+  ],
+  scannedCount: 1,
+  readyCount: 1,
+  movedCount: 0,
+  skippedCount: 0,
+  conflictCount: 0,
+  errorCount: 0,
   errors: [],
 }
