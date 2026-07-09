@@ -6,9 +6,9 @@ export const def = {
   name: "SNF",
   version: "0.1.0",
   category: "file",
-  description: "Repair numbered folder sequence order with PackU SNF.",
+  description: "Repair numbered folder sequence order with native renames.",
   icon: "ListOrdered",
-  keywords: ["packu", "sequence", "folder", "rename"],
+  keywords: ["sequence", "folder", "rename", "numbered"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

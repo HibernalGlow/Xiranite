@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "PackU SNF folder sequence repair node.",
+  "description": "Native SNF folder sequence repair node.",
   "license": "UNLICENSED",
   "bin": {
     "xsnf": "./dist/cli.js"
@@ -38,8 +38,7 @@
   },
   "dependencies": {
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*",
-    "@xiranite/packu-node-runtime": "workspace:*"
+    "@xiranite/contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

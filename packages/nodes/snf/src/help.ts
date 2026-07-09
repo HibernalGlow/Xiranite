@@ -1,60 +1,37 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "SNF",
-  "short": "Repair numbered folder sequence order with PackU SNF.",
-  "description": "Repair numbered folder sequence order with PackU SNF.",
-  "whenToUse": [
-    "Use SNF when you need this node's file workflow from either the workspace UI or CLI."
+  title: "SNF",
+  short: "Repair numbered folder sequences inside artist folders.",
+  description: "Scan numbered subfolders, detect sequence gaps, reorder by priority keywords, and apply safe native renames.",
+  whenToUse: [
+    "Use SNF when artist folders contain numbered categories such as 1. CG, 3. Commercial and the sequence needs to be continuous.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy SNF from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy SNF to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Preview sequence repair",
+      summary: "Build a renumbering plan without changing folders.",
+      ui: [
+        "Paste a library root or artist folder.",
+        "Choose whether paths are library roots or direct artist folders.",
+        "Review conflicts before running live rename.",
+      ],
     },
-    {
-      "title": "CLI",
-      "summary": "Run SNF directly from a terminal.",
-      "cli": [
-        "Run `xiranite snf` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite snf --help` for the node command's exact flags and subcommands."
-      ]
-    }
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite snf",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
-        {
-          "label": "Guided mode",
-          "command": "xiranite snf",
-          "description": "Start the node's interactive terminal workflow."
-        },
-        {
-          "label": "Command flags",
-          "command": "xiranite snf --help",
-          "description": "Show the node CLI's subcommands and options."
-        },
-        {
-          "label": "Shared help",
-          "command": "xiranite help snf",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      title: "Preview library",
+      command: "xiranite snf plan D:/archives --mode library",
+      description: "Preview sequence repairs for every artist folder under a library root.",
+      examples: [
+        { label: "Single artist", command: "xiranite snf plan D:/archives/Artist --mode artist", description: "Preview one artist folder." },
+        { label: "Apply rename", command: "xiranite snf rename D:/archives --mode library", description: "Apply live sequence repairs." },
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  safety: {
+    defaultMode: "dry-run",
+    destructive: ["rename"],
+    notes: ["Conflicting target folder names are reported and skipped.", "Live rename keeps folder timestamps by default."],
+  },
 } satisfies NodeHelp
