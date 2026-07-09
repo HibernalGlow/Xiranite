@@ -7,10 +7,13 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { NameuCardState } from "./types"
 import { NODE_META } from "./constants"
 
-const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
+const surfaceState = vi.hoisted(() => ({
+  height: 420,
+  width: 720,
+}))
 
 vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/nodes/shared/useNodeSurface")>()
@@ -40,48 +43,53 @@ describe("app-owned nameu Component", () => {
     "renders the %s surface with NameU-specific UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-nameu" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-nameu" host={createHost({ pathsText: "D:/Archives/pack1" })} />)
 
       expect(screen.getByText("NameU")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("nameu-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("nameu 归档目录")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
+      expect(screen.getByLabelText("nameu 归档目录")).toBeTruthy()
       expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("nameu-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("nameu-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("nameu-full-view")).toBeTruthy()
+        expect(screen.getByTestId("nameu-header-toolbar")).toBeTruthy()
         expect(screen.getByText("路径")).toBeTruthy()
         expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByText("运行选项")).toBeTruthy()
       }
     },
   )
 
   test("runs plan through host.runner.run and stores command results", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({
+      action: "plan",
+      pathsText: "D:/Archives/pack1",
+      dryRun: true,
+      logs: [],
+    })
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "生成计划" }))
+    await user.click(screen.getByRole("button", { name: "预览重命名" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
       nodeId: "nameu",
       input: {
         action: "plan",
-        paths: ["D:/archives/a.zip"],
+        paths: ["D:/Archives/pack1"],
         args: [],
         configPath: undefined,
         databasePath: undefined,
@@ -101,15 +109,20 @@ describe("app-owned nameu Component", () => {
 
   test("requires confirmation before real run execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({
+      action: "run",
+      pathsText: "D:/Archives/pack1",
+      dryRun: false,
+      logs: [],
+    })
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "执行重命名" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认执行重命名？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    await user.click(screen.getByRole("button", { name: "确认重命名" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("run")
@@ -122,25 +135,25 @@ describe("app-owned nameu Component", () => {
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "执行重命名" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("归档目录")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<NameuCardState, Partial<NameuCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<NameuCardState> | undefined
+  cardState: NameuCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: NameuCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<NameuCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -165,16 +178,16 @@ function createHost(initial: PackuCardState): TestHost {
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning nameu tool." })
         return {
           success: true,
-          message: "PackU nameu planned.",
+          message: "NameU planned 1 command(s).",
           data: packuData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/Archives/pack1",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -188,7 +201,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<NameuCardState> },
     openConfigFile: () => undefined,
   }
   return host
@@ -208,7 +221,7 @@ const packuData: PackuToolData = {
   command: {
     label: "python -m nameu",
     command: "python",
-    args: ["-m", "nameu", "D:/archives/a.zip"],
+    args: ["-m", "nameu", "D:/Archives/pack1"],
     cwd: "D:/1VSCODE/Projects/PackU/NameU/src",
     env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/NameU/src" },
   },
@@ -219,6 +232,6 @@ const packuData: PackuToolData = {
     recordRun: false,
     recordFormat: "jsonl",
   },
-  selectedPaths: ["D:/archives/a.zip"],
+  selectedPaths: ["D:/Archives/pack1"],
   errors: [],
 }

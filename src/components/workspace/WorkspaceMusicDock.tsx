@@ -378,7 +378,7 @@ export function WorkspaceMusicDockPanel() {
     }))
   }
 
-  const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : "浮动窗口"
+  const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : dock.mode === "fullscreen" ? "全屏 dock" : "浮动窗口"
   const bottomActions = dock.mode === "bottom" ? (
     <div className="flex shrink-0 items-center gap-1">
       <Button
@@ -388,6 +388,16 @@ export function WorkspaceMusicDockPanel() {
         onClick={() => dock.setMode("floating")}
         title="切换为浮动窗口"
         aria-label="切换为浮动窗口"
+      >
+        <PictureInPicture2 />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => dock.setMode("fullscreen")}
+        title="切换为全屏 dock"
+        aria-label="切换为全屏 dock"
       >
         <Maximize2 />
       </Button>
@@ -425,7 +435,7 @@ export function WorkspaceMusicDockPanel() {
         dragElastic={0.02}
         dragConstraints={dragBoundsRef}
         onDragEnd={handleDragEnd}
-        animate={!backgroundMode && dock.mode === "bottom" ? { x: 0, y: 0 } : undefined}
+        animate={!backgroundMode && dock.mode !== "floating" ? { x: 0, y: 0 } : undefined}
         style={!backgroundMode && dock.mode === "floating" ? dock.floatingOffset : undefined}
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
         data-music-dock="panel"
@@ -438,21 +448,26 @@ export function WorkspaceMusicDockPanel() {
               "pointer-events-auto opacity-100 transition-opacity duration-200",
               dock.mode === "bottom"
                 ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
-                : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
+                : dock.mode === "fullscreen"
+                  ? "inset-0"
+                  : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
             ),
         )}
       >
         <div className={cn(
           "xiranite-app-region-no-drag relative isolate flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/[0.16] backdrop-blur-2xl backdrop-saturate-150",
           MUSIC_DOCK_GLASS_SHADOW_CLASS,
-          dock.mode === "floating" && "border-border/65 shadow-[0_26px_90px_rgba(0,0,0,0.26)] dark:shadow-[0_30px_96px_rgba(0,0,0,0.52)]"
+          dock.mode !== "bottom" && "border-border/65 shadow-[0_26px_90px_rgba(0,0,0,0.26)] dark:shadow-[0_30px_96px_rgba(0,0,0,0.52)]"
         )}>
           <MusicDockAmbientLayer />
-          {dock.mode === "floating" && (
+          {dock.mode !== "bottom" && (
             <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-border/30 bg-background/[0.14] px-2 text-muted-foreground backdrop-blur-2xl backdrop-saturate-150">
               <div
                 data-music-dock-part="drag-handle"
-                className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-2 rounded-md px-1.5 py-1 active:cursor-grabbing"
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1",
+                  dock.mode === "floating" && "cursor-grab touch-none active:cursor-grabbing",
+                )}
                 onPointerDown={handleDragStart}
               >
                 <GripHorizontal className="size-4 shrink-0" />
@@ -477,6 +492,16 @@ export function WorkspaceMusicDockPanel() {
                   type="button"
                   variant="ghost"
                   size="icon-xs"
+                  onClick={() => dock.setMode(dock.mode === "fullscreen" ? "floating" : "fullscreen")}
+                  title={dock.mode === "fullscreen" ? "切换为浮动窗口" : "切换为全屏 dock"}
+                  aria-label={dock.mode === "fullscreen" ? "切换为浮动窗口" : "切换为全屏 dock"}
+                >
+                  {dock.mode === "fullscreen" ? <Minimize2 /> : <Maximize2 />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   className="hover:text-destructive"
                   onClick={() => dock.setCollapsed(true)}
                   title="隐藏音乐 dock，继续后台播放"
@@ -489,6 +514,7 @@ export function WorkspaceMusicDockPanel() {
           )}
 
           <MusicPlayerSurface
+            audioRef={dock.audioRef}
             savedTracks={dock.savedTracks}
             savedSourcePath={dock.sourcePath}
             onSavedTracksChange={dock.setSavedTracks}
@@ -524,7 +550,7 @@ function useMusicDock(): MusicDockContextValue {
 function readDockMode(): DockMode {
   if (typeof window === "undefined") return "bottom"
   const stored = window.localStorage.getItem(MUSIC_DOCK_MODE_STORAGE_KEY)
-  return stored === "floating" ? "floating" : "bottom"
+  return stored === "floating" || stored === "fullscreen" ? stored : "bottom"
 }
 
 function writeDockMode(mode: DockMode) {
