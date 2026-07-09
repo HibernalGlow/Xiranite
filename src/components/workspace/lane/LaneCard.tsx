@@ -34,6 +34,7 @@ export function LaneCard({ compId, moduleId }: Props) {
   const laneHeight = component?.laneSize?.height ?? 420
   const moduleName = mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
   const actions: NodeSurfaceChromeAction[] = [
+    createMoveToViewAction({ componentId: compId, currentMode: "lane", workspaceActions, t }),
     {
       key: "hide",
       label: t("common:hideIn", { view: t("topbar:viewMode.lane") }),
@@ -44,7 +45,6 @@ export function LaneCard({ compId, moduleId }: Props) {
         workspaceActions.toggleComponentVisibility(compId, "lane")
       },
     },
-    createMoveToViewAction({ componentId: compId, currentMode: "lane", workspaceActions, t }),
   ]
   const dragHandle = (
     <KanbanItemHandle

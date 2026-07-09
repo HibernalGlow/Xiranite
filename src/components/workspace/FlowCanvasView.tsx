@@ -270,6 +270,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
     workspaceActions.setComponentVisibility(compId, "flow", false)
   }
   const actions: NodeSurfaceChromeAction[] = [
+    createMoveToViewAction({ componentId: compId, currentMode: "flow", workspaceActions, t }),
     {
       key: "hide",
       label: t("common:hideIn", { view: t("topbar:viewMode.flow") }),
@@ -277,7 +278,6 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       danger: true,
       onClick: handleClose,
     },
-    createMoveToViewAction({ componentId: compId, currentMode: "flow", workspaceActions, t }),
   ]
   const startResize = (target: HTMLDivElement, originX: number, originY: number, pointerId?: number) => {
     if (resizingRef.current) return

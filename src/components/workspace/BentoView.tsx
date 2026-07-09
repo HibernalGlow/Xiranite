@@ -223,6 +223,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
       icon: component.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />,
       onClick: toggleCollapse,
     },
+    createMoveToViewAction({ componentId: component.id, currentMode: "bento", workspaceActions, t }),
     {
       key: "hide",
       label: t("common:hideIn", { view: t("topbar:viewMode.bento") }),
@@ -230,7 +231,6 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
       danger: true,
       onClick: hideInBento,
     },
-    createMoveToViewAction({ componentId: component.id, currentMode: "bento", workspaceActions, t }),
   ]
   const dragHandle = (
     <span className="xiranite-bento-drag-handle cursor-grab text-muted-foreground/55 active:cursor-grabbing">
