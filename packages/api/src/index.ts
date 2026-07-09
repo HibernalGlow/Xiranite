@@ -16,6 +16,18 @@ import {
 export function createXiraniteApp(services: XiraniteServices) {
   return new Elysia({ name: "xiranite-api" })
     .get("/health", () => ({ ok: true }))
+    .post("/system/restart", async ({ set }) => {
+      const restartBackend = services.system?.restartBackend
+      if (!restartBackend) {
+        set.status = 501
+        return {
+          restarted: false,
+          supported: false,
+          message: "Local backend restart is not supported by this runtime.",
+        }
+      }
+      return await restartBackend()
+    })
     .post("/nodes/:id/operations", ({ body, params }) => {
       const operation = services.nodes.startOperation(params.id, body.input, body.context)
       return { operation }
@@ -192,6 +204,17 @@ export function createXiraniteApp(services: XiraniteServices) {
     .put("/config/nodes/:nodeId", async ({ body, params }) => {
       const { config } = body as { config: unknown }
       return await services.config.updateNodeConfig(params.nodeId, config)
+    }, {
+      body: t.Object({
+        config: t.Any(),
+      }),
+    })
+    .get("/config/app/:section", async ({ params }) => {
+      return await services.config.getAppConfig(params.section)
+    })
+    .put("/config/app/:section", async ({ body, params }) => {
+      const { config } = body as { config: unknown }
+      return await services.config.updateAppConfig(params.section, config)
     }, {
       body: t.Object({
         config: t.Any(),

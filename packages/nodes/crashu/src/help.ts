@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Crashu directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite crashu` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite crashu --help` for the node command's exact flags and subcommands."
       ]

@@ -13,6 +13,8 @@ export interface ResolveConfigPathOptions {
   env?: NodeJS.ProcessEnv
   /** Current working directory for relative paths (defaults to process.cwd()). */
   cwd?: string
+  /** Optional fallback data directory; if set, look for config inside it. */
+  dataDir?: string
   /** Optional fallback database path; if set, look for config in its directory. */
   databasePath?: string
 }
@@ -27,6 +29,7 @@ export function resolveXiraniteConfigPath(options: ResolveConfigPathOptions = {}
   if (env.XIRANITE_DATA_DIR) return join(resolve(cwd, env.XIRANITE_DATA_DIR), XIRANITE_CONFIG_FILENAME)
 
   if (options.databasePath) return join(dirname(resolve(cwd, options.databasePath)), XIRANITE_CONFIG_FILENAME)
+  if (options.dataDir) return join(resolve(cwd, options.dataDir), XIRANITE_CONFIG_FILENAME)
 
   const systemDir = defaultSystemConfigDir()
   return join(systemDir, "Xiranite", XIRANITE_CONFIG_FILENAME)
@@ -47,8 +50,9 @@ export const xiraniteConfigSchema = z.object({
     data_dir: z.string().optional(),
     database: z.string().optional(),
   }).optional(),
+  app: z.record(z.string(), z.unknown()).optional(),
   nodes: z.record(z.string(), z.unknown()).optional(),
-})
+}).passthrough()
 
 export type XiraniteConfig = z.infer<typeof xiraniteConfigSchema>
 
@@ -90,8 +94,20 @@ export function getNodeConfig<NodeConfig = unknown>(config: XiraniteConfig, node
 export function updateNodeConfig<NodeConfig>(config: XiraniteConfig, nodeId: string, patch: NodeConfig): XiraniteConfig {
   const next: XiraniteConfig = { ...config }
   const nodes = { ...(next.nodes ?? {}) }
-  nodes[nodeId] = patch
+  nodes[nodeId] = mergeConfigValue(nodes[nodeId], patch)
   next.nodes = nodes
+  return next
+}
+
+export function getAppConfig<AppConfig = unknown>(config: XiraniteConfig, section: string): AppConfig | undefined {
+  return config.app?.[section] as AppConfig | undefined
+}
+
+export function updateAppConfig<AppConfig>(config: XiraniteConfig, section: string, patch: AppConfig): XiraniteConfig {
+  const next: XiraniteConfig = { ...config }
+  const app = { ...(next.app ?? {}) }
+  app[section] = mergeConfigValue(app[section], patch)
+  next.app = app
   return next
 }
 
@@ -106,6 +122,18 @@ export async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function mergeConfigValue(current: unknown, patch: unknown): unknown {
+  if (!isPlainRecord(current) || !isPlainRecord(patch)) return patch
+  return {
+    ...current,
+    ...patch,
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 export interface NodeConfigResult<NodeConfig> {

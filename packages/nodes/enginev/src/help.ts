@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run EngineV directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite enginev` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite enginev --help` for the node command's exact flags and subcommands."
       ]

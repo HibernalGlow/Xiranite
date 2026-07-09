@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Synct directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite synct` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite synct --help` for the node command's exact flags and subcommands."
       ]

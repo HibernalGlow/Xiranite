@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Lata directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite lata` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite lata --help` for the node command's exact flags and subcommands."
       ]

@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Seriex directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite seriex` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite seriex --help` for the node command's exact flags and subcommands."
       ]

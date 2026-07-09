@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run SNF directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite snf` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite snf --help` for the node command's exact flags and subcommands."
       ]

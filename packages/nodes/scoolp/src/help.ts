@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Scoolp directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite scoolp` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite scoolp --help` for the node command's exact flags and subcommands."
       ]

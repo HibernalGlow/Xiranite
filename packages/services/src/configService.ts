@@ -1,14 +1,17 @@
 import { access, mkdir, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { dirname, extname } from "node:path"
 import {
+  getAppConfig,
   getNodeConfig,
   loadXiraniteConfig,
   parseToml,
   resolveXiraniteConfigPath,
   saveXiraniteConfig,
   stripBom,
+  updateAppConfig,
   updateNodeConfig,
   type XiraniteConfig,
+  type ResolveConfigPathOptions,
 } from "@xiranite/config"
 import type { NodeRunHistoryService } from "./historyService.js"
 
@@ -18,6 +21,16 @@ export interface GetNodeConfigResult {
 }
 
 export interface UpdateNodeConfigResult {
+  config: unknown
+  path: string
+}
+
+export interface GetAppConfigResult {
+  config: unknown | undefined
+  path: string
+}
+
+export interface UpdateAppConfigResult {
   config: unknown
   path: string
 }
@@ -85,30 +98,41 @@ default = "ws-default"
 
 export class ConfigService {
   private readonly configPath: string | undefined
+  private readonly databasePath: string | undefined
+  private readonly dataDir: string | undefined
   private readonly openPath: OpenPathHandler
   private readonly history?: NodeRunHistoryService
 
-  constructor(options: { configPath?: string; openPath?: OpenPathHandler; history?: NodeRunHistoryService } = {}) {
+  constructor(options: {
+    configPath?: string
+    databasePath?: string
+    dataDir?: string
+    openPath?: OpenPathHandler
+    history?: NodeRunHistoryService
+  } = {}) {
     this.configPath = options.configPath
+    this.databasePath = options.databasePath
+    this.dataDir = options.dataDir
     this.openPath = options.openPath ?? openPathWithSystemDefaultApp
     this.history = options.history
   }
 
   async getConfig(): Promise<GetConfigResult> {
-    const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
     return { config, path }
   }
 
   async getNodeConfig(nodeId: string): Promise<GetNodeConfigResult> {
-    const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
     return { config: getNodeConfig(config, nodeId), path }
   }
 
   async updateNodeConfig(nodeId: string, patch: unknown): Promise<UpdateNodeConfigResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
     const updated = updateNodeConfig(config, nodeId, patch)
-    await saveXiraniteConfig(updated, { configPath: this.configPath })
+    await saveXiraniteConfig(updated, this.resolveOptions())
+    const nextNodeConfig = getNodeConfig(updated, nodeId)
     void this.history?.record({
       kind: "config",
       operation: "config.node.update",
@@ -122,11 +146,37 @@ export class ConfigService {
       startedAt,
       finishedAt: Date.now(),
     })
-    return { config: patch, path }
+    return { config: nextNodeConfig, path }
+  }
+
+  async getAppConfig(section: string): Promise<GetAppConfigResult> {
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    return { config: getAppConfig(config, section), path }
+  }
+
+  async updateAppConfig(section: string, patch: unknown): Promise<UpdateAppConfigResult> {
+    const startedAt = Date.now()
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    const updated = updateAppConfig(config, section, patch)
+    await saveXiraniteConfig(updated, this.resolveOptions())
+    const nextAppConfig = getAppConfig(updated, section)
+    void this.history?.record({
+      kind: "config",
+      operation: "config.app.update",
+      title: section,
+      message: `Updated app config: ${section}`,
+      target: { type: "app-config", id: section, label: section },
+      input: patch,
+      result: { path },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
+    return { config: nextAppConfig, path }
   }
 
   getConfigPath(): string {
-    return resolveXiraniteConfigPath({ configPath: this.configPath })
+    return resolveXiraniteConfigPath(this.resolveOptions())
   }
 
   async ensureConfigFile(): Promise<EnsureConfigFileResult> {
@@ -155,8 +205,8 @@ export class ConfigService {
 
   async openConfigFile(): Promise<OpenConfigFileResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
-    await saveXiraniteConfig(config, { configPath: this.configPath })
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    await saveXiraniteConfig(config, this.resolveOptions())
     await this.openPath(path)
     void this.history?.record({
       kind: "config",
@@ -195,12 +245,12 @@ export class ConfigService {
       return { imported: false, config: undefined, path: legacyPath }
     }
 
-    const parsed = parseToml(stripBom(content)) as Record<string, unknown>
+    const parsed = parseLegacyConfig(content, legacyPath)
     const nodeValue = (parsed.nodes as Record<string, unknown> | undefined)?.[nodeId] ?? parsed[nodeId] ?? parsed
 
-    const { config, path } = await loadXiraniteConfig({ configPath: this.configPath })
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
     const updated = updateNodeConfig(config, nodeId, nodeValue)
-    await saveXiraniteConfig(updated, { configPath: this.configPath })
+    await saveXiraniteConfig(updated, this.resolveOptions())
 
     void this.history?.record({
       kind: "config",
@@ -217,6 +267,32 @@ export class ConfigService {
     })
     return { imported: true, config: nodeValue, path }
   }
+
+  private resolveOptions(): ResolveConfigPathOptions {
+    return {
+      configPath: this.configPath,
+      databasePath: this.databasePath,
+      dataDir: this.dataDir,
+    }
+  }
+}
+
+function parseLegacyConfig(content: string, legacyPath: string): Record<string, unknown> {
+  const stripped = stripBom(content)
+  const ext = extname(legacyPath).toLowerCase()
+  const trimmed = stripped.trimStart()
+
+  if (ext === ".json" || trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const parsed = JSON.parse(stripped) as unknown
+    if (isRecord(parsed)) return parsed
+    return { value: parsed }
+  }
+
+  return parseToml(stripped) as Record<string, unknown>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 async function openPathWithSystemDefaultApp(filePath: string): Promise<void> {

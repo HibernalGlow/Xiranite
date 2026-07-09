@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Marku directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite marku` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite marku --help` for the node command's exact flags and subcommands."
       ]

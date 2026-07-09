@@ -6,12 +6,14 @@ import { tmpdir } from "node:os"
 
 const norm = (p: string): string => p.replace(/\\/g, "/")
 import {
+  getAppConfig,
   getNodeConfig,
   loadXiraniteConfig,
   resolveNodeConfig,
   resolveXiraniteConfigPath,
   saveXiraniteConfig,
   stripBom,
+  updateAppConfig,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
 } from "./index.js"
@@ -56,6 +58,12 @@ describe("resolveXiraniteConfigPath", () => {
     const path = resolveXiraniteConfigPath({ databasePath: join(root, "xiranite.db") })
     expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
   })
+
+  test("falls back to dataDir option when no env or database path", () => {
+    const root = join(tmpdir(), "xiranite-data-option-test", randomUUID())
+    const path = resolveXiraniteConfigPath({ dataDir: root })
+    expect(norm(path)).toBe(`${norm(root)}/${XIRANITE_CONFIG_FILENAME}`)
+  })
 })
 
 describe("loadXiraniteConfig", () => {
@@ -81,6 +89,9 @@ describe("loadXiraniteConfig", () => {
       '[paths]',
       'data_dir = "/data"',
       '',
+      '[app.ui]',
+      'theme = "wuling"',
+      '',
       '[nodes.linku]',
       'enabled = true',
       '',
@@ -94,6 +105,7 @@ describe("loadXiraniteConfig", () => {
     expect(loadedPath).toBe(path)
     expect(config.workspace?.default).toBe("ws1")
     expect(config.paths?.data_dir).toBe("/data")
+    expect(config.app?.ui).toEqual({ theme: "wuling" })
     expect(config.nodes?.linku).toEqual({
       enabled: true,
       links: [{ name: "example", source: "E:/Source", target: "D:/Links/example" }],
@@ -119,6 +131,12 @@ describe("saveXiraniteConfig", () => {
     const original = {
       workspace: { default: "ws" },
       paths: { data_dir: "/data", database: "/db/x.db" },
+      app: {
+        ui: {
+          theme: "wuling",
+          colorMode: "dark",
+        },
+      },
       nodes: {
         linku: { enabled: true, links: [{ name: "a", source: "s", target: "t" }] },
       },
@@ -138,11 +156,26 @@ describe("getNodeConfig / updateNodeConfig", () => {
     expect(getNodeConfig(config, "missing")).toBeUndefined()
   })
 
-  test("updateNodeConfig replaces node section immutably", () => {
-    const original = { nodes: { linku: { enabled: false } } }
+  test("updateNodeConfig merges object node sections immutably", () => {
+    const original = { nodes: { linku: { enabled: false, links: [{ source: "s", target: "t" }] } } }
     const updated = updateNodeConfig(original, "linku", { enabled: true })
-    expect(updated.nodes?.linku).toEqual({ enabled: true })
-    expect(original.nodes?.linku).toEqual({ enabled: false })
+    expect(updated.nodes?.linku).toEqual({ enabled: true, links: [{ source: "s", target: "t" }] })
+    expect(original.nodes?.linku).toEqual({ enabled: false, links: [{ source: "s", target: "t" }] })
+  })
+})
+
+describe("getAppConfig / updateAppConfig", () => {
+  test("getAppConfig returns an app section", () => {
+    const config = { app: { ui: { theme: "wuling" } } }
+    expect(getAppConfig(config, "ui")).toEqual({ theme: "wuling" })
+    expect(getAppConfig(config, "missing")).toBeUndefined()
+  })
+
+  test("updateAppConfig merges app sections immutably", () => {
+    const original = { app: { ui: { theme: "spatial", colorMode: "light" } } }
+    const updated = updateAppConfig(original, "ui", { colorMode: "dark" })
+    expect(updated.app?.ui).toEqual({ theme: "spatial", colorMode: "dark" })
+    expect(original.app?.ui).toEqual({ theme: "spatial", colorMode: "light" })
   })
 })
 

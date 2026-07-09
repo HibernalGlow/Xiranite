@@ -2,6 +2,7 @@
 import { pathToFileURL } from "node:url"
 import { createCliHost, normalizeNodeCliName, renderRichPanel, rich, terminalColumns, writeError, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { localizeNodeHelp } from "@xiranite/contract"
 import type { NodeHelp } from "@xiranite/contract"
 import { GENERATED_NODE_CLI_REGISTRY } from "./node-cli-registry.generated.js"
 
@@ -18,6 +19,19 @@ interface NodeCliModule {
 
 interface NodeHelpModule {
   help?: NodeHelp
+}
+
+interface NodeHelpLabels {
+  whenToUse: string
+  workflows: string
+  commands: string
+  fields: string
+  safety: string
+  required: string
+  defaultMode: string
+  destructive: string
+  note: string
+  tip: string
 }
 
 export const NODE_CLI_REGISTRY: NodeCliRegistration[] = GENERATED_NODE_CLI_REGISTRY
@@ -66,12 +80,13 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 
   if (command === "help") {
     const plain = rest.includes("--plain") || rest.includes("-p")
-    const nodeId = rest.find((arg) => !arg.startsWith("-"))
+    const locale = readLangArg(rest) ?? detectCliLocale(host)
+    const nodeId = readHelpNodeArg(rest)
     if (!nodeId) {
       writeLine(host, formatHelp())
       return
     }
-    await showNodeHelp(nodeId, { plain }, host)
+    await showNodeHelp(nodeId, { plain, locale }, host)
     return
   }
 
@@ -92,7 +107,7 @@ export async function runNodeCli(nodeId: string, args: string[], host: CliHost =
 
 export async function showNodeHelp(
   nodeId: string,
-  options: { plain?: boolean } = {},
+  options: { plain?: boolean; locale?: string } = {},
   host: CliHost = createCliHost(),
 ): Promise<void> {
   const registration = findNodeCli(nodeId)
@@ -108,8 +123,10 @@ export async function showNodeHelp(
     return
   }
 
+  const localizedHelp = localizeNodeHelp(help, options.locale ?? detectCliLocale(host))
+  const labels = nodeHelpLabels(options.locale ?? detectCliLocale(host))
   const useRich = Boolean(host.stdout.isTTY) && !options.plain
-  writeLine(host, useRich ? formatNodeHelpRich(registration, help, host) : formatNodeHelpPlain(registration, help))
+  writeLine(host, useRich ? formatNodeHelpRich(registration, localizedHelp, host, labels) : formatNodeHelpPlain(registration, localizedHelp, labels))
 }
 
 async function loadNodeCli(registration: NodeCliRegistration): Promise<CliCommand> {
@@ -129,7 +146,7 @@ async function loadNodeHelp(registration: NodeCliRegistration): Promise<NodeHelp
   }
 }
 
-export function formatNodeHelpPlain(registration: NodeCliRegistration, help: NodeHelp): string {
+export function formatNodeHelpPlain(registration: NodeCliRegistration, help: NodeHelp, labels: NodeHelpLabels = nodeHelpLabels()): string {
   const lines = [
     `${help.title} (${registration.id})`,
     help.short,
@@ -139,22 +156,22 @@ export function formatNodeHelpPlain(registration: NodeCliRegistration, help: Nod
   }
 
   if (help.whenToUse?.length) {
-    lines.push("", "When to use:")
+    lines.push("", `${labels.whenToUse}:`)
     for (const item of help.whenToUse) lines.push(`  - ${item}`)
   }
 
   if (help.workflows.length) {
-    lines.push("", "Workflows:")
+    lines.push("", `${labels.workflows}:`)
     for (const workflow of help.workflows) {
       lines.push(`  ${workflow.title}${workflow.summary ? ` - ${workflow.summary}` : ""}`)
       for (const step of workflow.ui ?? []) lines.push(`    UI: ${step}`)
-      for (const step of workflow.terminal ?? []) lines.push(`    CLI: ${step}`)
-      for (const tip of workflow.tips ?? []) lines.push(`    Tip: ${tip}`)
+      for (const step of workflow.cli ?? []) lines.push(`    CLI: ${step}`)
+      for (const tip of workflow.tips ?? []) lines.push(`    ${labels.tip}: ${tip}`)
     }
   }
 
   if (help.commands.length) {
-    lines.push("", "Commands:")
+    lines.push("", `${labels.commands}:`)
     for (const command of help.commands) {
       lines.push(`  ${command.title}${command.command ? ` (${command.command})` : ""}`)
       if (command.description) lines.push(`    ${command.description}`)
@@ -166,24 +183,24 @@ export function formatNodeHelpPlain(registration: NodeCliRegistration, help: Nod
   }
 
   if (help.fields?.length) {
-    lines.push("", "Fields:")
+    lines.push("", `${labels.fields}:`)
     for (const field of help.fields) {
-      const flags = [field.type, field.required ? "required" : undefined].filter(Boolean).join(", ")
+      const flags = [field.type, field.required ? labels.required : undefined].filter(Boolean).join(", ")
       lines.push(`  ${field.name}${flags ? ` (${flags})` : ""}: ${field.description}`)
     }
   }
 
   if (help.safety) {
-    lines.push("", "Safety:")
-    if (help.safety.defaultMode) lines.push(`  Default mode: ${help.safety.defaultMode}`)
-    for (const item of help.safety.destructive ?? []) lines.push(`  Destructive: ${item}`)
-    for (const item of help.safety.notes ?? []) lines.push(`  Note: ${item}`)
+    lines.push("", `${labels.safety}:`)
+    if (help.safety.defaultMode) lines.push(`  ${labels.defaultMode}: ${help.safety.defaultMode}`)
+    for (const item of help.safety.destructive ?? []) lines.push(`  ${labels.destructive}: ${item}`)
+    for (const item of help.safety.notes ?? []) lines.push(`  ${labels.note}: ${item}`)
   }
 
   return lines.join("\n")
 }
 
-function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, host: CliHost): string {
+function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, host: CliHost, labels: NodeHelpLabels = nodeHelpLabels()): string {
   const columns = terminalColumns(host)
   const sections = [
     renderRichPanel(
@@ -198,7 +215,7 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
   ]
 
   if (help.whenToUse?.length) {
-    sections.push(renderRichPanel(host, "When to use", help.whenToUse.map((item) => `- ${item}`), {
+    sections.push(renderRichPanel(host, labels.whenToUse, help.whenToUse.map((item) => `- ${item}`), {
       color: "cyan",
       maxWidth: columns - 2,
       minWidth: Math.min(72, columns - 6),
@@ -206,7 +223,7 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
   }
 
   if (help.workflows.length) {
-    sections.push(renderRichPanel(host, "Workflows", renderWorkflowLines(help), {
+    sections.push(renderRichPanel(host, labels.workflows, renderWorkflowLines(help, labels), {
       color: "magenta",
       maxWidth: columns - 2,
       minWidth: Math.min(72, columns - 6),
@@ -214,7 +231,7 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
   }
 
   if (help.commands.length) {
-    sections.push(renderRichPanel(host, "Commands", renderCommandLines(help, host), {
+    sections.push(renderRichPanel(host, labels.commands, renderCommandLines(help, host), {
       color: "green",
       maxWidth: columns - 2,
       minWidth: Math.min(72, columns - 6),
@@ -222,8 +239,8 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
   }
 
   if (help.fields?.length) {
-    sections.push(renderRichPanel(host, "Fields", help.fields.map((field) => {
-      const meta = [field.type, field.required ? "required" : undefined].filter(Boolean).join(", ")
+    sections.push(renderRichPanel(host, labels.fields, help.fields.map((field) => {
+      const meta = [field.type, field.required ? labels.required : undefined].filter(Boolean).join(", ")
       return `${field.name}${meta ? ` (${meta})` : ""}: ${field.description}`
     }), {
       color: "yellow",
@@ -234,12 +251,12 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
 
   if (help.safety) {
     const lines = [
-      ...(help.safety.defaultMode ? [`Default mode: ${help.safety.defaultMode}`] : []),
-      ...(help.safety.destructive ?? []).map((item) => `Destructive: ${item}`),
-      ...(help.safety.notes ?? []).map((item) => `Note: ${item}`),
+      ...(help.safety.defaultMode ? [`${labels.defaultMode}: ${help.safety.defaultMode}`] : []),
+      ...(help.safety.destructive ?? []).map((item) => `${labels.destructive}: ${item}`),
+      ...(help.safety.notes ?? []).map((item) => `${labels.note}: ${item}`),
     ]
     if (lines.length) {
-      sections.push(renderRichPanel(host, "Safety", lines, {
+      sections.push(renderRichPanel(host, labels.safety, lines, {
         color: "red",
         maxWidth: columns - 2,
         minWidth: Math.min(72, columns - 6),
@@ -250,12 +267,12 @@ function formatNodeHelpRich(registration: NodeCliRegistration, help: NodeHelp, h
   return sections.join("\n\n")
 }
 
-function renderWorkflowLines(help: NodeHelp): string[] {
+function renderWorkflowLines(help: NodeHelp, labels: NodeHelpLabels): string[] {
   return help.workflows.flatMap((workflow) => [
     workflow.summary ? `${workflow.title} - ${workflow.summary}` : workflow.title,
     ...(workflow.ui ?? []).map((step) => `  UI: ${step}`),
-    ...(workflow.terminal ?? []).map((step) => `  CLI: ${step}`),
-    ...(workflow.tips ?? []).map((tip) => `  Tip: ${tip}`),
+    ...(workflow.cli ?? []).map((step) => `  CLI: ${step}`),
+    ...(workflow.tips ?? []).map((tip) => `  ${labels.tip}: ${tip}`),
   ])
 }
 
@@ -268,6 +285,64 @@ function renderCommandLines(help: NodeHelp, host: CliHost): string[] {
       ...(example.description ? [`    ${example.description}`] : []),
     ]),
   ])
+}
+
+function readLangArg(args: string[]): string | undefined {
+  const index = args.findIndex((arg) => arg === "--lang" || arg === "--locale")
+  if (index >= 0) return args[index + 1]
+  const inline = args.find((arg) => arg.startsWith("--lang=") || arg.startsWith("--locale="))
+  return inline?.split("=", 2)[1]
+}
+
+function readHelpNodeArg(args: string[]): string | undefined {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (!arg) continue
+    if (arg === "--plain" || arg === "-p" || arg.startsWith("--lang=") || arg.startsWith("--locale=")) continue
+    if (arg === "--lang" || arg === "--locale") {
+      index += 1
+      continue
+    }
+    if (!arg.startsWith("-")) return arg
+  }
+  return undefined
+}
+
+function detectCliLocale(host: CliHost): string | undefined {
+  return host.env.XIRANITE_LANG
+    ?? host.env.LC_ALL
+    ?? host.env.LC_MESSAGES
+    ?? host.env.LANG
+}
+
+function nodeHelpLabels(locale?: string): NodeHelpLabels {
+  const normalized = (locale ?? "").toLowerCase()
+  if (normalized.startsWith("zh")) {
+    return {
+      whenToUse: "适用场景",
+      workflows: "工作流",
+      commands: "命令",
+      fields: "字段",
+      safety: "安全提示",
+      required: "必填",
+      defaultMode: "默认模式",
+      destructive: "危险操作",
+      note: "提示",
+      tip: "建议",
+    }
+  }
+  return {
+    whenToUse: "When to use",
+    workflows: "Workflows",
+    commands: "Commands",
+    fields: "Fields",
+    safety: "Safety",
+    required: "required",
+    defaultMode: "Default mode",
+    destructive: "Destructive",
+    note: "Note",
+    tip: "Tip",
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

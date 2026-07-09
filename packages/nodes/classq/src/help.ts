@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run ClassQ directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite classq` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite classq --help` for the node command's exact flags and subcommands."
       ]

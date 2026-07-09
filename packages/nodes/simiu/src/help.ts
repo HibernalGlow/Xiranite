@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Simiu directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite simiu` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite simiu --help` for the node command's exact flags and subcommands."
       ]

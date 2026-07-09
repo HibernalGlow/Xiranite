@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import type { NodeRunEventDTO } from "@xiranite/shared"
 import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, resolveBackendDatabaseConfig, resolveBackendDataDir, startBackend } from "./index.js"
 
-const RUN_ROOT = fileURLToPath(new URL("../../../artifacts/test-runs/backend/", import.meta.url))
+const RUN_ROOT = join(process.cwd(), "../../artifacts/test-runs/backend")
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lV9uKAAAAABJRU5ErkJggg==",
   "base64",
@@ -184,6 +184,8 @@ describe("backend", () => {
       expect(config.path).toBe(join(dataDir, "xiranite.db"))
 
       const first = await createDefaultBackend({ dataDir, now: 100 })
+      const configFilePath = join(dataDir, "xiranite.config.toml")
+      await expect(readFile(configFilePath, "utf8")).resolves.toContain("[workspace]")
       await first.repository.renameWorkspace("ws-default", "Persisted", 200)
       first.close()
 
@@ -242,6 +244,7 @@ describe("backend", () => {
       hostname: "0.0.0.0",
       port: 8123,
       token: "dev-token",
+      configPath: undefined,
       databaseUrl: undefined,
       databasePath: undefined,
       dataDir: "portable-data",

@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run EnvU Config directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite envuconfig` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite envuconfig --help` for the node command's exact flags and subcommands."
       ]

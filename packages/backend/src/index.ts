@@ -6,7 +6,7 @@ import {
   type LibsqlNodeRunHistoryRepository,
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
-import { createXiraniteServices, type NodeRunner } from "@xiranite/services"
+import { createXiraniteServices, type NodeRunner, type XiraniteSystemService } from "@xiranite/services"
 import { createReadStream } from "node:fs"
 import { mkdir, readdir, stat } from "node:fs/promises"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
@@ -22,11 +22,13 @@ export interface CreateDefaultBackendOptions {
   now?: number
   repository?: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
+  configPath?: string
   databaseUrl?: string
   databasePath?: string
   databaseAuthToken?: string
   dataDir?: string
   nodeRunner?: NodeRunner
+  system?: XiraniteSystemService
 }
 
 export interface StartBackendOptions extends CreateDefaultBackendOptions {
@@ -59,13 +61,18 @@ export async function createDefaultBackendApp(options: CreateDefaultBackendOptio
 }
 
 export async function createDefaultBackend(options: CreateDefaultBackendOptions = {}): Promise<XiraniteBackendApp> {
+  const database = options.repository ? undefined : resolveBackendDatabaseConfig(options)
   const repository = options.repository ?? await createDefaultRepository(options)
-  const historyRepository = options.historyRepository ?? await createDefaultHistoryRepository(options)
+  const historyRepository = options.historyRepository ?? (options.repository ? undefined : await createDefaultHistoryRepository(options))
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
 
   const services = createXiraniteServices(repository, {
     nodeRunner: options.nodeRunner ?? createBackendNodeRunner(),
+    configPath: options.configPath,
+    databasePath: database?.path,
+    dataDir: options.dataDir,
     historyRepository,
+    system: options.system,
   })
   await services.config.ensureConfigFile()
 
@@ -73,7 +80,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     app: createXiraniteApp(services),
     repository,
     historyRepository,
-    database: options.repository ? undefined : resolveBackendDatabaseConfig(options),
+    database,
     close() {
       closeRepository(repository)
       closeHistoryRepository(historyRepository)
@@ -414,7 +421,8 @@ function closeRepository(repository: WorkspaceRepository): void {
   maybeLibsql.client?.close()
 }
 
-function closeHistoryRepository(repository: NodeRunHistoryRepository): void {
+function closeHistoryRepository(repository: NodeRunHistoryRepository | undefined): void {
+  if (!repository) return
   const maybeLibsql = repository as Partial<LibsqlNodeRunHistoryRepository>
   maybeLibsql.client?.close()
 }
@@ -492,6 +500,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
       hostname: { type: "string" },
       port: { type: "string" },
       token: { type: "string" },
+      config: { type: "string" },
       "database-url": { type: "string" },
       "database-path": { type: "string" },
       "data-dir": { type: "string" },
@@ -509,6 +518,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
     hostname: values.hostname ?? values.host,
     port,
     token: values.token,
+    configPath: values.config,
     databaseUrl: values["database-url"],
     databasePath: values["database-path"],
     dataDir: values["data-dir"],
@@ -522,6 +532,7 @@ Options:
   --host, --hostname <host>              Bind host. Default: 127.0.0.1
   --port <port>                          Bind port. Default: random free port
   --token <token>                        Local service auth token
+  --config <path>                        xiranite.config.toml path override
   --database-url <url>                   libSQL URL. Supports file: and remote libSQL URLs
   --database-path <path>                 Local database file path
   --data-dir <path>                      App data directory. Uses xiranite.db inside it

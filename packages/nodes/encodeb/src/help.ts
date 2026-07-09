@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Encodeb directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite encodeb` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite encodeb --help` for the node command's exact flags and subcommands."
       ]

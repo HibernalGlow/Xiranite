@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Kavvka directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite kavvka` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite kavvka --help` for the node command's exact flags and subcommands."
       ]

@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Lorat directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite lorat` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite lorat --help` for the node command's exact flags and subcommands."
       ]

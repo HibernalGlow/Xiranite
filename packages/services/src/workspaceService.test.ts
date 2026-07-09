@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createMemoryNodeRunHistoryRepository, createMemoryWorkspaceRepository } from "@xiranite/repository"
@@ -167,6 +167,58 @@ describe("NodeRunnerService", () => {
 })
 
 describe("ConfigService", () => {
+  test("uses database path as the config location fallback", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-db-"))
+    const service = new ConfigService({
+      databasePath: join(tempDir, "xiranite.db"),
+    })
+
+    try {
+      expect(service.getConfigPath()).toBe(join(tempDir, "xiranite.config.toml"))
+      const ensured = await service.ensureConfigFile()
+      expect(ensured.path).toBe(join(tempDir, "xiranite.config.toml"))
+      expect(ensured.created).toBe(true)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("reads and merges app config sections", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-app-"))
+    const configPath = join(tempDir, "xiranite.config.toml")
+    const service = new ConfigService({ configPath })
+
+    try {
+      await service.updateAppConfig("ui", { theme: "spatial", colorMode: "light" })
+      const result = await service.updateAppConfig("ui", { colorMode: "dark" })
+      const loaded = await service.getAppConfig("ui")
+
+      expect(result.config).toEqual({ theme: "spatial", colorMode: "dark" })
+      expect(loaded.config).toEqual({ theme: "spatial", colorMode: "dark" })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("imports legacy JSON files into node config", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-json-"))
+    const configPath = join(tempDir, "xiranite.config.toml")
+    const legacyPath = join(tempDir, "legacy.json")
+    const service = new ConfigService({ configPath })
+
+    try {
+      await writeFile(legacyPath, JSON.stringify({ nodes: { enginev: { workshop_root: "E:/Steam" } } }), "utf8")
+      const imported = await service.importLegacy(legacyPath, "enginev")
+      const loaded = await service.getNodeConfig("enginev")
+
+      expect(imported.imported).toBe(true)
+      expect(imported.config).toEqual({ workshop_root: "E:/Steam" })
+      expect(loaded.config).toEqual({ workshop_root: "E:/Steam" })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   test("creates the明文 config file before opening it through the injected opener", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-"))
     const configPath = join(tempDir, "xiranite.config.toml")

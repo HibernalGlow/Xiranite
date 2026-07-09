@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run MigrateF directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite migratef` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite migratef --help` for the node command's exact flags and subcommands."
       ]

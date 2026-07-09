@@ -25,8 +25,21 @@ export interface XiraniteClientOptions {
   token?: string
 }
 
+export interface LocalBackendRestartConfig {
+  baseUrl: string
+  token?: string
+}
+
+export interface LocalBackendRestartResult {
+  restarted: boolean
+  supported: boolean
+  message: string
+  config?: LocalBackendRestartConfig
+}
+
 export interface XiraniteSystemClient {
   health(): Promise<{ ok: boolean }>
+  restartBackend(): Promise<LocalBackendRestartResult>
 }
 
 export interface XiraniteWorkspaceClient {
@@ -64,6 +77,8 @@ export interface XiraniteConfigClient {
   getConfigPath(): Promise<string>
   getNodeConfig<T = unknown>(nodeId: string): Promise<{ config: T | undefined; path: string }>
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
+  getAppConfig<T = unknown>(section: string): Promise<{ config: T | undefined; path: string }>
+  updateAppConfig<T = unknown>(section: string, config: T): Promise<{ config: T; path: string }>
   openConfigFile(): Promise<{ opened: boolean; path: string }>
   importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
 }
@@ -111,6 +126,20 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       if (!response.ok) throw new Error(`Node config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
     },
+    async getAppConfig<T = unknown>(section: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/app/${encodeURIComponent(section)}`), { headers })
+      if (!response.ok) throw new Error(`App config load failed: ${response.status}`)
+      return await response.json() as { config: T | undefined; path: string }
+    },
+    async updateAppConfig<T = unknown>(section: string, config: T) {
+      const response = await fetch(apiUrl(baseUrl, `/config/app/${encodeURIComponent(section)}`), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ config }),
+      })
+      if (!response.ok) throw new Error(`App config save failed: ${response.status}`)
+      return await response.json() as { config: T; path: string }
+    },
     async openConfigFile() {
       const response = await fetch(apiUrl(baseUrl, "/config/open"), {
         method: "POST",
@@ -137,12 +166,27 @@ export function createXiraniteClient(baseUrl: string, options: XiraniteClientOpt
 
 export function createXiraniteSystemClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteSystemClient {
   const client = createXiraniteClient(baseUrl, options)
+  const headers = requestHeaders(options)
 
   return {
     async health() {
       const result = await client.health.get()
       if (result.error) throw new Error(`Local backend health check failed: ${result.status}`)
       return result.data
+    },
+    async restartBackend() {
+      const response = await fetch(apiUrl(baseUrl, "/system/restart"), {
+        method: "POST",
+        headers,
+      })
+      const data = await response.json().catch(() => undefined) as LocalBackendRestartResult | undefined
+      if (!response.ok && !data) throw new Error(`Local backend restart failed: ${response.status}`)
+      if (data) return data
+      return {
+        restarted: false,
+        supported: false,
+        message: `Local backend restart failed: ${response.status}`,
+      }
     },
   }
 }

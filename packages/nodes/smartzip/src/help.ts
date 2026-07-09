@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run SmartZip directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite smartzip` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite smartzip --help` for the node command's exact flags and subcommands."
       ]

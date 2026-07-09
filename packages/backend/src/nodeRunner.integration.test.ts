@@ -2,13 +2,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest"
 import { randomUUID } from "node:crypto"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { fileURLToPath } from "node:url"
 import { createXiraniteNodeClient, type XiraniteNodeClient } from "@xiranite/api/client"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import type { NodeRunEventDTO } from "@xiranite/shared"
 import { startBackend } from "./index.js"
 
-const RUN_ROOT = fileURLToPath(new URL("../../../artifacts/test-runs/backend-node-runner/", import.meta.url))
+const RUN_ROOT = join(process.cwd(), "../../artifacts/test-runs/backend-node-runner")
 const cases = new Set<string>()
 
 let backend: Awaited<ReturnType<typeof startBackend>>

@@ -20,7 +20,7 @@ export const help = {
     {
       "title": "CLI",
       "summary": "Run Repacku directly from a terminal.",
-      "terminal": [
+      "cli": [
         "Run `xiranite repacku` for the guided mode when the command supports interactive prompts.",
         "Run `xiranite repacku --help` for the node command's exact flags and subcommands."
       ]

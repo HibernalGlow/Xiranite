@@ -476,12 +476,32 @@ export interface XiraniteServices {
   nodes: NodeRunnerService
   config: ConfigService
   history?: NodeRunHistoryService
+  system?: XiraniteSystemService
+}
+
+export interface LocalBackendRestartConfig {
+  baseUrl: string
+  token?: string
+}
+
+export interface LocalBackendRestartResult {
+  restarted: boolean
+  supported: boolean
+  message: string
+  config?: LocalBackendRestartConfig
+}
+
+export interface XiraniteSystemService {
+  restartBackend?: () => Promise<LocalBackendRestartResult>
 }
 
 export interface CreateXiraniteServicesOptions {
   nodeRunner?: NodeRunner
   configPath?: string
+  databasePath?: string
+  dataDir?: string
   historyRepository?: NodeRunHistoryRepository
+  system?: XiraniteSystemService
 }
 
 export function createXiraniteServices(repository: WorkspaceRepository, options: CreateXiraniteServicesOptions = {}): XiraniteServices {
@@ -491,12 +511,27 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
   return {
     workspace: new WorkspaceService({ repository, history }),
     nodes: new NodeRunnerService({ runner: options.nodeRunner, history }),
-    config: new ConfigService({ configPath: options.configPath, history }),
+    config: new ConfigService({
+      configPath: options.configPath,
+      databasePath: options.databasePath,
+      dataDir: options.dataDir,
+      history,
+    }),
     history,
+    system: options.system,
   }
 }
 
 export { ConfigService } from "./configService.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
-export type { EnsureConfigFileResult, GetConfigResult, GetNodeConfigResult, ImportLegacyResult, OpenConfigFileResult, UpdateNodeConfigResult } from "./configService.js"
+export type {
+  EnsureConfigFileResult,
+  GetAppConfigResult,
+  GetConfigResult,
+  GetNodeConfigResult,
+  ImportLegacyResult,
+  OpenConfigFileResult,
+  UpdateAppConfigResult,
+  UpdateNodeConfigResult,
+} from "./configService.js"
 export type { NodeRunHistoryServiceOptions } from "./historyService.js"

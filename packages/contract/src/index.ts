@@ -54,7 +54,7 @@ export interface NodeHelpWorkflow {
   title: string
   summary?: string
   ui?: readonly string[]
-  terminal?: readonly string[]
+  cli?: readonly string[]
   tips?: readonly string[]
 }
 
@@ -78,6 +78,18 @@ export interface NodeHelpLink {
   description?: string
 }
 
+export interface NodeHelpTranslation {
+  title?: string
+  short?: string
+  description?: string
+  whenToUse?: readonly string[]
+  workflows?: readonly NodeHelpWorkflow[]
+  commands?: readonly NodeHelpCommand[]
+  fields?: readonly NodeHelpField[]
+  safety?: NodeHelpSafety
+  links?: readonly NodeHelpLink[]
+}
+
 /**
  * Structured node usage documentation shared by the app and CLI.
  *
@@ -95,6 +107,35 @@ export interface NodeHelp {
   fields?: readonly NodeHelpField[]
   safety?: NodeHelpSafety
   links?: readonly NodeHelpLink[]
+  translations?: Readonly<Record<string, NodeHelpTranslation>>
+}
+
+export function localizeNodeHelp(help: NodeHelp, locale: string | undefined): NodeHelp {
+  const translation = findNodeHelpTranslation(help, locale)
+  if (!translation) return help
+  return {
+    ...help,
+    ...translation,
+    translations: help.translations,
+  }
+}
+
+function findNodeHelpTranslation(help: NodeHelp, locale: string | undefined): NodeHelpTranslation | undefined {
+  const translations = help.translations
+  if (!translations || !locale) return undefined
+
+  const normalized = normalizeNodeHelpLocale(locale)
+  return translations[normalized]
+    ?? translations[normalized.split("-")[0] ?? ""]
+    ?? (normalized.startsWith("zh") ? translations["zh-CN"] : undefined)
+}
+
+function normalizeNodeHelpLocale(locale: string): string {
+  const normalized = locale.split(".")[0]?.replace(/_/g, "-").toLowerCase() ?? ""
+  if (normalized === "zh" || normalized.startsWith("zh-cn") || normalized.startsWith("zh-hans")) return "zh-CN"
+  if (normalized.startsWith("zh-tw") || normalized.startsWith("zh-hk") || normalized.startsWith("zh-hant")) return "zh-TW"
+  if (normalized.startsWith("en")) return "en"
+  return normalized
 }
 
 export interface HostComponentRef {
@@ -167,6 +208,8 @@ export interface NodeLocalFilesCapability {
 export interface NodeConfigCapability<TConfig = unknown> {
   get: () => Promise<{ config: TConfig | undefined; path: string }>
   save: (config: TConfig) => Promise<void>
+  getUi?: <TUiConfig = unknown>() => Promise<{ config: TUiConfig | undefined; path: string }>
+  saveUi?: <TUiConfig = unknown>(config: TUiConfig) => Promise<void>
   openFile?: () => Promise<void> | void
 }
 
@@ -244,6 +287,10 @@ export type NodeHostApi<
   getNodeConfig?: <T = TConfig>() => Promise<{ config: T | undefined; path: string }>
   /** @deprecated use host.config */
   saveNodeConfig?: <T = TConfig>(config: T) => Promise<void>
+  /** @deprecated use host.config */
+  getNodeUiConfig?: <T = unknown>() => Promise<{ config: T | undefined; path: string }>
+  /** @deprecated use host.config */
+  saveNodeUiConfig?: <T = unknown>(config: T) => Promise<void>
   /** @deprecated use host.config */
   openConfigFile?: () => Promise<void> | void
 }
