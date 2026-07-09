@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { getAppConfigFromBackend, saveAppConfigToBackend } from "@/backend/configRpcClient"
+import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemesFromBackend, saveAppConfigToBackend, saveBackgroundImageToBackend, saveCustomThemesToBackend } from "@/backend/configRpcClient"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
@@ -77,6 +77,12 @@ export function AppConfigSync() {
   const applyingRef = useRef(false)
   const lastSavedKeyRef = useRef("")
   const migratedFromRef = useRef<AppUiConfig["migratedFrom"] | undefined>(undefined)
+  const themesLoadedRef = useRef(false)
+  const themesApplyingRef = useRef(false)
+  const lastSavedThemesKeyRef = useRef("")
+  const bgImageLoadedRef = useRef(false)
+  const bgImageApplyingRef = useRef(false)
+  const lastSavedBgImageKeyRef = useRef("")
   const [legacyVersion, setLegacyVersion] = useState(0)
   const currentRef = useRef({ workspace, colorMode, language })
   const syncActionsRef = useRef({ workspaceActions, setTheme })
@@ -166,6 +172,145 @@ export function AppConfigSync() {
       cancelled = true
     }
   }, [backendKey])
+
+  // customThemes 独立加载（走 /config/themes，不进 TOML）
+  useEffect(() => {
+    if (!backendKey) return
+
+    let cancelled = false
+    themesLoadedRef.current = false
+    themesApplyingRef.current = false
+    lastSavedThemesKeyRef.current = ""
+
+    async function loadCustomThemes() {
+      try {
+        const response = await getCustomThemesFromBackend<AppCustomTheme>()
+        if (cancelled) return
+        const themes = Array.isArray(response.themes) ? response.themes.filter(isCustomTheme) : []
+        themesApplyingRef.current = true
+        syncActionsRef.current.workspaceActions.setCustomThemes(themes)
+        lastSavedThemesKeyRef.current = stableStringify(themes)
+        themesLoadedRef.current = true
+        queueMicrotask(() => {
+          themesApplyingRef.current = false
+        })
+      } catch (error) {
+        console.warn("[config] custom themes sync failed:", error)
+      }
+    }
+
+    void loadCustomThemes()
+
+    return () => {
+      cancelled = true
+    }
+  }, [backendKey])
+
+  // customThemes 独立保存（走 /config/themes，不进 TOML）
+  const customThemesKey = useMemo(
+    () => stableStringify(workspace.customThemes),
+    [workspace.customThemes],
+  )
+
+  useEffect(() => {
+    if (!backendKey || !themesLoadedRef.current || themesApplyingRef.current) return
+    if (customThemesKey === lastSavedThemesKeyRef.current) return
+
+    const timer = window.setTimeout(() => {
+      const themes = currentRef.current.workspace.customThemes
+      const nextKey = stableStringify(themes)
+      if (nextKey === lastSavedThemesKeyRef.current) return
+
+      saveCustomThemesToBackend(themes)
+        .then(() => {
+          lastSavedThemesKeyRef.current = nextKey
+        })
+        .catch((error) => {
+          console.warn("[config] custom themes save failed:", error)
+        })
+    }, 600)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [backendKey, customThemesKey])
+
+  // bg-image data: URL 独立加载（走 /config/bg-image，不进 TOML）
+  useEffect(() => {
+    if (!backendKey) return
+
+    let cancelled = false
+    bgImageLoadedRef.current = false
+    bgImageApplyingRef.current = false
+    lastSavedBgImageKeyRef.current = ""
+
+    async function loadBgImage() {
+      try {
+        const response = await getBackgroundImageFromBackend()
+        if (cancelled) return
+        if (typeof response.url === "string" && response.url) {
+          bgImageApplyingRef.current = true
+          syncActionsRef.current.workspaceActions.setBgImageUrl(response.url)
+          lastSavedBgImageKeyRef.current = response.url
+          queueMicrotask(() => {
+            bgImageApplyingRef.current = false
+          })
+        }
+        bgImageLoadedRef.current = true
+      } catch (error) {
+        console.warn("[config] bg-image sync failed:", error)
+      }
+    }
+
+    void loadBgImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [backendKey])
+
+  // bg-image data: URL 独立保存（走 /config/bg-image，不进 TOML）
+  const bgImageUrl = workspace.bgImageUrl
+  const isBgImageDataUrl = bgImageUrl.startsWith("data:")
+  const bgImageSyncKey = isBgImageDataUrl ? bgImageUrl : ""
+
+  useEffect(() => {
+    if (!backendKey || !bgImageLoadedRef.current || bgImageApplyingRef.current) return
+    if (bgImageSyncKey === lastSavedBgImageKeyRef.current) return
+
+    const timer = window.setTimeout(() => {
+      const currentUrl = currentRef.current.workspace.bgImageUrl
+      const currentIsDataUrl = currentUrl.startsWith("data:")
+
+      // data: URL → 存数据库
+      if (currentIsDataUrl) {
+        if (currentUrl === lastSavedBgImageKeyRef.current) return
+        saveBackgroundImageToBackend(currentUrl)
+          .then(() => {
+            lastSavedBgImageKeyRef.current = currentUrl
+          })
+          .catch((error) => {
+            console.warn("[config] bg-image save failed:", error)
+          })
+        return
+      }
+
+      // 非 data: URL → 清空数据库中的旧 data: URL
+      if (lastSavedBgImageKeyRef.current) {
+        saveBackgroundImageToBackend(null)
+          .then(() => {
+            lastSavedBgImageKeyRef.current = ""
+          })
+          .catch((error) => {
+            console.warn("[config] bg-image clear failed:", error)
+          })
+      }
+    }, 600)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [backendKey, bgImageSyncKey, isBgImageDataUrl])
 
   useEffect(() => {
     const refreshLegacyConfig = () => {
@@ -312,7 +457,6 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (!isRecord(value)) return undefined
   const next: Partial<WorkspaceUiPreferences> = {}
   if (isOneOf(value.theme, APP_THEMES)) next.theme = value.theme
-  if (Array.isArray(value.customThemes)) next.customThemes = value.customThemes.filter(isCustomTheme)
   if (typeof value.activeCustomThemeName === "string" || value.activeCustomThemeName === null) next.activeCustomThemeName = value.activeCustomThemeName
   if (isOneOf(value.fontPreset, FONT_PRESETS)) next.fontPreset = value.fontPreset
   if (isOneOf(value.cardLayout, CARD_LAYOUTS)) next.cardLayout = value.cardLayout
@@ -330,7 +474,8 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.bgMode, BG_MODES)) next.bgMode = value.bgMode
   if (typeof value.bgImageUrl === "string") {
     const bgImageUrl = normalizePersistedBackgroundImageUrl(value.bgImageUrl)
-    if (bgImageUrl !== undefined) next.bgImageUrl = bgImageUrl
+    // data: URL (base64) 存数据库，不从 TOML 加载
+    if (bgImageUrl !== undefined && !bgImageUrl.startsWith("data:")) next.bgImageUrl = bgImageUrl
   }
   if (typeof value.bgOpacity === "number") next.bgOpacity = value.bgOpacity
   if (typeof value.bgBlur === "number") next.bgBlur = value.bgBlur
@@ -355,9 +500,12 @@ function normalizeAppearanceConfig(value: unknown): AppUiConfig["appearance"] {
 }
 
 function sanitizeWorkspaceConfig(workspace: WorkspaceUiPreferences): WorkspaceUiPreferences {
+  const { customThemes: _customThemes, ...rest } = workspace
+  // data: URL (base64) 存数据库，不写 TOML
+  const rawBgImageUrl = workspace.bgImageUrl.startsWith("data:") ? "" : workspace.bgImageUrl
   return {
-    ...workspace,
-    bgImageUrl: sanitizePersistedBackgroundImageUrl(workspace.bgImageUrl),
+    ...rest,
+    bgImageUrl: sanitizePersistedBackgroundImageUrl(rawBgImageUrl),
   }
 }
 

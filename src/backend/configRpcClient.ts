@@ -73,6 +73,22 @@ export async function saveAppConfigToBackend<T = unknown>(
   await getConfigClient().updateAppConfig<T>(section, config)
 }
 
+export async function getCustomThemesFromBackend<T = unknown>(): Promise<{ themes: T[]; path: string }> {
+  return getConfigClient().getCustomThemes() as Promise<{ themes: T[]; path: string }>
+}
+
+export async function saveCustomThemesToBackend<T = unknown>(themes: T[]): Promise<void> {
+  await getConfigClient().saveCustomThemes(themes)
+}
+
+export async function getBackgroundImageFromBackend(): Promise<{ url: string | null; path: string }> {
+  return getConfigClient().getBackgroundImage()
+}
+
+export async function saveBackgroundImageToBackend(url: string | null): Promise<void> {
+  await getConfigClient().saveBackgroundImage(url)
+}
+
 export async function getConfigFilePath(): Promise<string> {
   return getConfigClient().getConfigPath()
 }
