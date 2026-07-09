@@ -1,19 +1,16 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { NameuData, NameuInput } from "@xiranite/node-nameu/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
+import { ACTIONS } from "./constants"
 import type { NameuCardState } from "./types"
-import { NODE_META } from "./constants"
 
-const surfaceState = vi.hoisted(() => ({
-  height: 420,
-  width: 720,
-}))
+const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
 
 vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/nodes/shared/useNodeSurface")>()
@@ -40,22 +37,22 @@ afterEach(() => {
 
 describe("app-owned nameu Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)(
-    "renders the %s surface with NameU-specific UI",
+    "renders the %s surface with native NameU UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-nameu" host={createHost({ pathsText: "D:/Archives/pack1" })} />)
+      render(<Component compId="comp-nameu" host={createHost({ pathsText: "D:/archives" })} />)
 
       expect(screen.getByText("NameU")).toBeTruthy()
       if (mode === "collapsed") {
         expect(screen.getByTestId("nameu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("nameu 归档目录")).toBeNull()
+        expect(screen.queryByLabelText("nameu paths")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("nameu 归档目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("nameu paths")).toBeTruthy()
+      expect(screen.getAllByRole("tab")).toHaveLength(3)
+      expect(screen.queryByText(/python/i)).toBeNull()
+      expect(screen.queryByText(/sourceRoot|moduleName/)).toBeNull()
 
       if (mode === "compact") {
         expect(screen.getByTestId("nameu-compact-view")).toBeTruthy()
@@ -64,88 +61,71 @@ describe("app-owned nameu Component", () => {
       } else {
         expect(screen.getByTestId("nameu-full-view")).toBeTruthy()
         expect(screen.getByTestId("nameu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行选项")).toBeTruthy()
+        expect(screen.getByRole("button", { name: ACTIONS[1]!.label })).toBeTruthy()
       }
     },
   )
 
-  test("runs plan through host.runner.run and stores command results", async () => {
+  test("runs plan through host.runner.run and stores rename items", async () => {
     setSurface("regular")
-    const host = createHost({
-      action: "plan",
-      pathsText: "D:/Archives/pack1",
-      dryRun: true,
-      logs: [],
-    })
+    const host = createHost({ action: "plan", pathsText: "D:/archives", mode: "multi", dryRun: true, logs: [] })
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "预览重命名" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
       nodeId: "nameu",
       input: {
         action: "plan",
-        paths: ["D:/Archives/pack1"],
-        args: [],
-        configPath: undefined,
-        databasePath: undefined,
-        python: undefined,
-        sourceRoot: NODE_META.spec.sourceRoot,
-        moduleName: NODE_META.spec.moduleName,
+        paths: ["D:/archives"],
+        mode: "multi",
+        recursive: true,
+        addArtistName: true,
+        normalizeFolders: true,
+        keepTimestamp: true,
         dryRun: true,
-        recordRun: false,
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.cardState.result?.command).toBeTruthy()
-
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    expect(host.cardState.result?.items[0]?.targetName).toBe("BookArtist.zip")
   })
 
-  test("requires confirmation before real run execution", async () => {
+  test("requires confirmation before live rename execution", async () => {
     setSurface("regular")
-    const host = createHost({
-      action: "run",
-      pathsText: "D:/Archives/pack1",
-      dryRun: false,
-      logs: [],
-    })
+    const host = createHost({ action: "rename", pathsText: "D:/archives", dryRun: false, logs: [] })
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行重命名" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[2]!.label }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行重命名？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认重命名" }))
+    const dialog = screen.getByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "确认执行" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("run")
+    expect(host.runCalls[0]?.input.action).toBe("rename")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
   test("marks the card as error when run has no paths", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", logs: [] })
+    const host = createHost({ action: "plan", logs: [] })
     render(<Component compId="comp-nameu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行重命名" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档目录")
+    expect(host.cardState.progressText).toBeTruthy()
   })
 })
 
 type TestHost = NodeHostApi<NameuCardState, Partial<NameuCardState>> & {
   copiedText: string
-  runCalls: Array<{ nodeId: string; input: PackuToolInput }>
+  runCalls: Array<{ nodeId: string; input: NameuInput }>
   savedConfig: Partial<NameuCardState> | undefined
   cardState: NameuCardState
 }
@@ -177,17 +157,17 @@ function createHost(initial: NameuCardState): TestHost {
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning nameu tool." })
+        host.runCalls.push({ nodeId, input: input as NameuInput })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning rename items." })
         return {
           success: true,
-          message: "NameU planned 1 command(s).",
-          data: packuData as TData,
+          message: "NameU planned 1 item.",
+          data: nameuData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/Archives/pack1",
+      readText: async () => "D:/archives",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -216,22 +196,26 @@ function setSurfaceSize(size: { height: number; width: number }) {
   surfaceState.height = size.height
 }
 
-const packuData: PackuToolData = {
-  spec: NODE_META.spec,
-  command: {
-    label: "python -m nameu",
-    command: "python",
-    args: ["-m", "nameu", "D:/Archives/pack1"],
-    cwd: "D:/1VSCODE/Projects/PackU/NameU/src",
-    env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/NameU/src" },
-  },
-  integration: {
-    sourceRoot: "D:/1VSCODE/Projects/PackU/NameU/src",
-    moduleName: "nameu",
-    configCandidates: [],
-    recordRun: false,
-    recordFormat: "jsonl",
-  },
-  selectedPaths: ["D:/Archives/pack1"],
+const nameuData: NameuData = {
+  action: "plan",
+  mode: "multi",
+  items: [
+    {
+      sourcePath: "D:/archives/Artist/Book [cbr].zip",
+      targetPath: "D:/archives/Artist/BookArtist.zip",
+      sourceName: "Book [cbr].zip",
+      targetName: "BookArtist.zip",
+      artistName: "Artist",
+      kind: "archive",
+      status: "ready",
+    },
+  ],
+  scannedCount: 1,
+  readyCount: 1,
+  renamedCount: 0,
+  unchangedCount: 0,
+  skippedCount: 0,
+  conflictCount: 0,
+  errorCount: 0,
   errors: [],
 }

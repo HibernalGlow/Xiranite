@@ -1,8 +1,6 @@
-import { FilePenLine, Play, Route, ScanLine } from "lucide-react"
+import { ClipboardList, FilePenLine, FolderTree, Play, ScanLine } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import type { PackuToolAction, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-
-export type NameuAction = PackuToolAction
+import type { NameuAction } from "@xiranite/node-nameu/core"
 
 export interface NameuActionMeta {
   value: NameuAction
@@ -15,41 +13,34 @@ export interface NameuActionMeta {
 
 export const ACTIONS: NameuActionMeta[] = [
   {
-    value: "status",
-    label: "查看配置",
-    shortLabel: "配置",
-    description: "检查 nameu.toml 配置文件、模块路径和数据库标签。",
+    value: "scan",
+    label: "扫描文件",
+    shortLabel: "扫描",
+    description: "读取艺术家目录和归档文件，不生成改名计划。",
     icon: ScanLine,
     destructive: false,
   },
   {
     value: "plan",
-    label: "预览重命名",
+    label: "预览改名",
     shortLabel: "预览",
-    description: "生成重命名计划，不执行实际重命名。",
-    icon: Route,
+    description: "生成文件名清理和艺术家名补全计划。",
+    icon: ClipboardList,
     destructive: false,
   },
   {
-    value: "run",
-    label: "执行重命名",
-    shortLabel: "重命名",
-    description: "调用 NameU 模块执行真实重命名，需要关闭预演。",
+    value: "rename",
+    label: "执行改名",
+    shortLabel: "改名",
+    description: "按当前计划重命名文件和目录，需要确认。",
     icon: Play,
     destructive: true,
   },
 ]
 
-export const NODE_META = {
-  id: "nameu",
-  title: "NameU",
-  description: "按 NameU 规则重命名画师归档目录，并记录运行结果。",
-  icon: FilePenLine,
-  spec: {
-    id: "nameu",
-    moduleName: "nameu",
-    sourceRoot: "D:/1VSCODE/Projects/PackU/NameU/src",
-    configFiles: ["nameu/nameu.toml"],
-    databaseLabel: "archive_id",
-  } satisfies PackuToolSpec,
-}
+export const MODES = [
+  { value: "multi", label: "库目录", icon: FolderTree },
+  { value: "single", label: "单个作者", icon: FilePenLine },
+] as const
+
+export const NODE_ICON = FilePenLine

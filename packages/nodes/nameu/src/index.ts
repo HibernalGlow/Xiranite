@@ -6,9 +6,9 @@ export const def = {
   name: "NameU",
   version: "0.1.0",
   category: "file",
-  description: "Rename artist archive folders with PackU NameU, TOML config, and run records.",
+  description: "Preview and apply archive filename cleanup for artist folders.",
   icon: "FilePenLine",
-  keywords: ["packu", "rename", "archive", "artist"],
+  keywords: ["rename", "archive", "artist", "filename"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

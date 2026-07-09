@@ -1,60 +1,64 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "NameU",
-  "short": "Rename artist archive folders with PackU NameU, TOML config, and run records.",
-  "description": "Rename artist archive folders with PackU NameU, TOML config, and run records.",
-  "whenToUse": [
-    "Use NameU when you need this node's file workflow from either the workspace UI or CLI."
+  title: "NameU",
+  short: "Preview and apply archive filename cleanup for artist folders.",
+  description: "Scan artist archive folders, normalize archive and folder names, append artist names when needed, and apply the rename plan natively.",
+  whenToUse: [
+    "Use NameU when archive filenames need consistent brackets, spacing, event tags, and artist suffixes before long-term storage.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy NameU from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy NameU to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Preview",
+      summary: "Build a rename plan without changing files.",
+      ui: [
+        "Paste one library root or one artist folder.",
+        "Choose multi-folder or single-folder mode.",
+        "Review ready, unchanged, skipped, and conflict rows before applying.",
+      ],
     },
     {
-      "title": "CLI",
-      "summary": "Run NameU directly from a terminal.",
-      "cli": [
-        "Run `xiranite nameu` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite nameu --help` for the node command's exact flags and subcommands."
-      ]
-    }
+      title: "Apply",
+      summary: "Run the same plan as a native filesystem rename.",
+      ui: [
+        "Keep dry-run on until the plan looks correct.",
+        "Turn dry-run off and confirm the rename action.",
+        "Check conflicts and errors after execution.",
+      ],
+    },
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite nameu",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
+      title: "Preview library",
+      command: "xiranite nameu plan D:/archives --mode multi",
+      description: "Preview all artist folders under a library root.",
+      examples: [
         {
-          "label": "Guided mode",
-          "command": "xiranite nameu",
-          "description": "Start the node's interactive terminal workflow."
+          label: "Single artist folder",
+          command: "xiranite nameu plan D:/archives/Artist --mode single",
+          description: "Preview one artist folder.",
         },
         {
-          "label": "Command flags",
-          "command": "xiranite nameu --help",
-          "description": "Show the node CLI's subcommands and options."
+          label: "Apply rename",
+          command: "xiranite nameu rename D:/archives --mode multi --no-artist",
+          description: "Apply a live rename plan without appending artist names.",
         },
-        {
-          "label": "Shared help",
-          "command": "xiranite help nameu",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  fields: [
+    { name: "paths", type: "string[]", required: true, description: "Library roots or artist folders to scan." },
+    { name: "mode", type: "multi | single", description: "Whether paths are library roots or direct artist folders.", defaultValue: "multi" },
+    { name: "dryRun", type: "boolean", description: "Preview without writing changes.", defaultValue: "true" },
+    { name: "addArtistName", type: "boolean", description: "Append the artist folder name when it is missing.", defaultValue: "true" },
+  ],
+  safety: {
+    defaultMode: "dry-run",
+    destructive: ["rename"],
+    notes: [
+      "Live rename is gated by confirmation in the UI.",
+      "Conflicting target names are reported and not renamed.",
+      "Archive ID database/comment support from the Python tool is not invoked by this native node.",
+    ],
+  },
 } satisfies NodeHelp

@@ -1,19 +1,17 @@
-import type { PackuToolAction, PackuToolData } from "@xiranite/packu-node-runtime/core"
+import type { NameuAction, NameuData, NameuMode } from "@xiranite/node-nameu/core"
 
 export type NameuPhase = "idle" | "running" | "completed" | "error"
 
 export interface NameuCardState {
-  action?: PackuToolAction
+  action?: NameuAction
   pathsText?: string
-  configPath?: string
-  databasePath?: string
-  argsText?: string
-  python?: string
-  sourceRoot?: string
-  moduleName?: string
+  mode?: NameuMode
+  recursive?: boolean
+  addArtistName?: boolean
+  normalizeFolders?: boolean
+  keepTimestamp?: boolean
   dryRun?: boolean
-  recordRun?: boolean
-  result?: PackuToolData | null
+  result?: NameuData | null
   logs?: string[]
   phase?: NameuPhase
   progress?: number
@@ -28,13 +26,12 @@ export interface NameuStatusMeta {
   iconClass: string
 }
 
-export const CONFIG_FIELDS: Array<keyof NameuCardState> = [
-  "configPath",
-  "databasePath",
-  "argsText",
-  "python",
-  "sourceRoot",
-  "moduleName",
+export const CONFIG_FIELDS = [
+  "pathsText",
+  "mode",
+  "recursive",
+  "addArtistName",
+  "normalizeFolders",
+  "keepTimestamp",
   "dryRun",
-  "recordRun",
-]
+] as const satisfies Array<keyof NameuCardState>
