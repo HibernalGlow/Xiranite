@@ -125,7 +125,7 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
 
 export function WorkspaceMusicDockTopBarSlot() {
   return (
-    <div data-music-dock="topbar-slot" className="xiranite-app-region-no-drag hidden xl:block">
+    <div data-music-dock="topbar-slot" className="xiranite-app-region-no-drag relative z-[80] hidden h-12 w-[226px] xl:block">
       <DynamicIslandProvider
         initialSize="minimalLeading"
         presets={{
@@ -182,7 +182,7 @@ function MusicDockIsland() {
     <DynamicIsland
       id="music-dock-topbar-island"
       className={cn(
-        "mx-0 border border-white/12 bg-neutral-950 text-white shadow-[0_16px_42px_rgba(0,0,0,0.28)] backdrop-blur-2xl backdrop-saturate-150",
+        "absolute right-0 top-[5px] mx-0 border border-white/12 bg-neutral-950 text-white shadow-[0_16px_42px_rgba(0,0,0,0.28)] backdrop-blur-2xl backdrop-saturate-150",
         expanded && "border-white/18 shadow-[0_22px_62px_rgba(0,0,0,0.34)]",
         !dock.collapsed && "ring-1 ring-white/14",
       )}
