@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { FormatvAction, FormatvInput, FormatvResult, FormatvRuntime } from "./core.js"
 import { DEFAULT_PREFIXES, normalizeFormatvInput, runFormatv } from "./core.js"
@@ -71,10 +71,14 @@ const DEFAULT_FORMATV_DEFAULTS: FormatvDefaults = {
   overwrite: true,
 }
 
-async function resolveFormatvDefaults(host: CliHost): Promise<FormatvDefaults> {
+async function resolveFormatvDefaults(host: CliHost, json: boolean): Promise<FormatvDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ cwd: host.cwd, env: host.env })
-    const nodeConfig = getNodeConfig<{ output?: FormatvOutputConfig }>(config, "formatv")
+    const { config: nodeConfig } = await loadNodeConfigWithHints<{ output?: FormatvOutputConfig }>("formatv", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     const output = nodeConfig?.output ?? {}
     return {
       reportNameTemplate: output.report_name_template ?? DEFAULT_FORMATV_DEFAULTS.reportNameTemplate,
@@ -93,12 +97,12 @@ function resolveReportPath(defaults: FormatvDefaults, prefixName: string, paths:
   return join(dir, name)
 }
 
-async function applyFormatvDefaults(input: FormatvInput & { action: FormatvAction }, host: CliHost): Promise<void> {
+async function applyFormatvDefaults(input: FormatvInput & { action: FormatvAction }, host: CliHost, json: boolean): Promise<void> {
   if (input.action !== "check_duplicates") return
   const normalized = normalizeFormatvInput(input)
   if (normalized.reportPath) return
 
-  const defaults = await resolveFormatvDefaults(host)
+  const defaults = await resolveFormatvDefaults(host, json)
   const resolved = resolveReportPath(defaults, normalized.prefixName, normalized.paths)
   if (!resolved) return
 
@@ -230,7 +234,7 @@ function inputFromArgs(args: FormatvCliOptions): FormatvInput {
 }
 
 async function runAction(input: FormatvInput & { action: FormatvAction }, json: boolean, host: CliHost): Promise<FormatvResult> {
-  await applyFormatvDefaults(input, host)
+  await applyFormatvDefaults(input, host, json)
   let progressActive = false
   const result = await runFormatv(input, createNodeFormatvRuntime(), (event) => {
     if (json) return

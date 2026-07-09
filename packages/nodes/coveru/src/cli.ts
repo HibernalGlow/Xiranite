@@ -1,6 +1,17 @@
 #!/usr/bin/env node
 import { runCoveru } from "./core.js"
 import { createNodeCoveruRuntime } from "./platform.js"
+import { loadNodeConfigWithHints } from "@xiranite/config"
+
+interface CoveruNodeConfig {
+  config_path?: string
+  database_path?: string
+  python?: string
+  source_root?: string
+  module_name?: string
+  record_run?: boolean
+  dry_run?: boolean
+}
 
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const passthroughIndex = args.indexOf("--")
@@ -10,17 +21,21 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const action = commandArgs.includes("run") ? "run" : commandArgs.includes("plan") ? "plan" : "status"
   const valueOptions = new Set(["--config-path", "--database-path", "--python", "--source-root", "--module-name"])
   const paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
+  const { config: nodeConfig } = await loadNodeConfigWithHints<CoveruNodeConfig>("coveru", {
+    hintSink: { stderr: process.stderr },
+    jsonMode: json,
+  })
   const result = await runCoveru({
     action,
     paths,
     args: passthroughArgs,
-    configPath: valueFor(commandArgs, "--config-path"),
-    databasePath: valueFor(commandArgs, "--database-path"),
-    python: valueFor(commandArgs, "--python"),
-    sourceRoot: valueFor(commandArgs, "--source-root"),
-    moduleName: valueFor(commandArgs, "--module-name"),
-    recordRun: commandArgs.includes("--record-run"),
-    dryRun: commandArgs.includes("--dry-run"),
+    configPath: valueFor(commandArgs, "--config-path") ?? nodeConfig?.config_path,
+    databasePath: valueFor(commandArgs, "--database-path") ?? nodeConfig?.database_path,
+    python: valueFor(commandArgs, "--python") ?? nodeConfig?.python,
+    sourceRoot: valueFor(commandArgs, "--source-root") ?? nodeConfig?.source_root,
+    moduleName: valueFor(commandArgs, "--module-name") ?? nodeConfig?.module_name,
+    recordRun: commandArgs.includes("--record-run") || nodeConfig?.record_run === true,
+    dryRun: commandArgs.includes("--dry-run") || nodeConfig?.dry_run === true,
   }, createNodeCoveruRuntime())
   if (json) console.log(JSON.stringify(result, null, 2))
   else console.log(result.message)

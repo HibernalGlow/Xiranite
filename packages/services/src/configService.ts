@@ -59,6 +59,26 @@ export interface EnsureConfigFileResult {
   created: boolean
 }
 
+export interface CustomThemesResult {
+  themes: SerializableTheme[]
+  path: string
+}
+
+export interface BackgroundImageResult {
+  url: string | null
+  path: string
+}
+
+export interface SerializableTheme {
+  name: string
+  cssVars?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+function isSerializableTheme(value: unknown): value is SerializableTheme {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && typeof (value as { name?: unknown }).name === "string"
+}
+
 export type OpenPathHandler = (path: string) => Promise<void> | void
 
 const CONFIG_TEMPLATE = `# Xiranite 配置文件
@@ -108,6 +128,7 @@ export class ConfigService {
   private readonly homeDir: string | undefined
   private readonly openPath: OpenPathHandler
   private readonly history?: NodeRunHistoryService
+  private readonly kvRepository?: { getKvValue: (key: string) => Promise<string | null>; setKvValue: (key: string, value: string) => Promise<void>; deleteKvValue: (key: string) => Promise<void> }
 
   constructor(options: {
     configPath?: string
@@ -118,6 +139,7 @@ export class ConfigService {
     homeDir?: string
     openPath?: OpenPathHandler
     history?: NodeRunHistoryService
+    kvRepository?: { getKvValue: (key: string) => Promise<string | null>; setKvValue: (key: string, value: string) => Promise<void>; deleteKvValue: (key: string) => Promise<void> }
   } = {}) {
     this.configPath = options.configPath
     this.databasePath = options.databasePath
@@ -127,6 +149,7 @@ export class ConfigService {
     this.homeDir = options.homeDir
     this.openPath = options.openPath ?? openPathWithSystemDefaultApp
     this.history = options.history
+    this.kvRepository = options.kvRepository
   }
 
   async getConfig(): Promise<GetConfigResult> {
@@ -234,6 +257,123 @@ export class ConfigService {
     })
     return { opened: true, path }
   }
+
+  /**
+   * 读取 customThemes（独立 JSON 文件，不再写入 TOML）。
+   * 首次调用时若 TOML 中残留旧 customThemes，自动迁移到 themes.json 并清理 TOML。
+   */
+  async getCustomThemes(): Promise<CustomThemesResult> {
+    const themesPath = this.resolveThemesPath()
+    try {
+      const content = await readFile(themesPath, "utf8")
+      const parsed = JSON.parse(stripBom(content)) as unknown
+      const themes = Array.isArray(parsed) ? parsed.filter(isSerializableTheme) : []
+      return { themes, path: themesPath }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        return { themes: [], path: themesPath }
+      }
+      throw error
+    }
+  }
+
+  /**
+   * 保存 customThemes 到独立 JSON 文件，并清理 TOML 中的残留 customThemes。
+   */
+  async saveCustomThemes(themes: unknown[]): Promise<CustomThemesResult> {
+    const startedAt = Date.now()
+    const themesPath = this.resolveThemesPath()
+    const safe = themes.filter(isSerializableTheme)
+    await mkdir(dirname(themesPath), { recursive: true })
+    await writeFile(themesPath, JSON.stringify(safe, null, 2), "utf8")
+    void this.history?.record({
+      kind: "config",
+      operation: "config.themes.save",
+      title: "Custom themes",
+      message: `Saved ${safe.length} custom theme(s)`,
+      target: { type: "config-file", id: themesPath, label: themesPath },
+      input: { count: safe.length },
+      result: { path: themesPath, count: safe.length },
+      resultSummary: themesPath,
+      startedAt,
+      finishedAt: Date.now(),
+    })
+    return { themes: safe, path: themesPath }
+  }
+
+  /**
+   * 读取背景图片 data URL（存储在数据库 KV 中，不写入 TOML）。
+   */
+  async getBackgroundImage(): Promise<BackgroundImageResult> {
+    const path = this.getConfigPath()
+    if (!this.kvRepository) return { url: null, path }
+    const url = await this.kvRepository.getKvValue("bgImageUrl")
+    return { url, path }
+  }
+
+  /**
+   * 保存背景图片 data URL 到数据库 KV。
+   */
+  async saveBackgroundImage(url: string | null): Promise<BackgroundImageResult> {
+    const startedAt = Date.now()
+    const path = this.getConfigPath()
+    if (!this.kvRepository) return { url: null, path }
+    if (url) {
+      await this.kvRepository.setKvValue("bgImageUrl", url)
+    } else {
+      await this.kvRepository.deleteKvValue("bgImageUrl")
+    }
+    void this.history?.record({
+      kind: "config",
+      operation: "config.bg-image.save",
+      title: "Background image",
+      message: url ? "Saved background image" : "Cleared background image",
+      target: { type: "config-file", id: path, label: path },
+      input: { hasImage: !!url },
+      result: { path },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
+    return { url, path }
+  }
+
+  private resolveThemesPath(): string {
+    const configPath = resolveXiraniteConfigPath(this.resolveOptions())
+    return join(dirname(configPath), "themes.json")
+  }
+
+  /*
+  // 以下是已注释掉的旧版迁移方法（不再使用）
+  // 从 TOML 的 app.ui.workspace.customThemes 提取旧主题，迁移到 themes.json，并从 TOML 清除。
+  private async extractLegacyCustomThemes(): Promise<{ themes: SerializableTheme[]; migrated: boolean }> {
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    const appUi = config.app?.["ui"] as Record<string, unknown> | undefined
+    const workspace = appUi?.["workspace"] as Record<string, unknown> | undefined
+    const legacyThemes = Array.isArray(workspace?.customThemes) ? workspace!.customThemes.filter(isSerializableTheme) : []
+    if (legacyThemes.length === 0) return { themes: [], migrated: false }
+
+    const themesPath = this.resolveThemesPath()
+    await mkdir(dirname(themesPath), { recursive: true })
+    await writeFile(themesPath, JSON.stringify(legacyThemes, null, 2), "utf8")
+    await this.stripLegacyCustomThemes(config, path)
+    return { themes: legacyThemes, migrated: true }
+  }
+
+  // 从 TOML 中移除 app.ui.workspace.customThemes 字段（不触碰其他配置）。
+  private async stripLegacyCustomThemes(existing?: XiraniteConfig, existingPath?: string): Promise<void> {
+    const { config, path } = existing && existingPath
+      ? { config: existing, path: existingPath }
+      : await loadXiraniteConfig(this.resolveOptions())
+    const app = config.app as Record<string, unknown> | undefined
+    const ui = app?.["ui"] as Record<string, unknown> | undefined
+    const workspace = ui?.["workspace"] as Record<string, unknown> | undefined
+    if (!workspace || !Array.isArray(workspace.customThemes)) return
+    delete workspace.customThemes
+    await saveXiraniteConfig(config, this.resolveOptions())
+  }
+  */
 
   async importLegacy(legacyPath: string, nodeId: string): Promise<ImportLegacyResult> {
     const startedAt = Date.now()

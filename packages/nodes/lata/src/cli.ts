@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 import type { LataInput, LataRuntime, LataTaskInfo } from "./core.js"
 import { runLata } from "./core.js"
 import { createNodeLataRuntime } from "./platform.js"
@@ -130,16 +130,18 @@ function createProgram(host: CliHost = createDefaultHost()) {
 export async function resolveLataTaskfilePath(
   args: LataCliOptions,
   host: CliHost,
+  json: boolean,
 ): Promise<string | undefined> {
   const explicit = args.taskfile || args.path
   if (explicit) return explicit
 
   try {
-    const { config } = await loadXiraniteConfig({
+    const { config: lataNode } = await loadNodeConfigWithHints<LataNodeConfig>("lata", {
       env: host.env,
       cwd: args.cwd || host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
     })
-    const lataNode = getNodeConfig<LataNodeConfig>(config, "lata")
     if (lataNode?.taskfile) return lataNode.taskfile
   } catch {
     // Ignore config errors; fall through to cwd auto-discovery.
@@ -150,7 +152,7 @@ export async function resolveLataTaskfilePath(
 
 async function runLataAction(args: LataCliOptions, action: "list" | "plan" | "execute", host: CliHost): Promise<void> {
   const input: LataInput = { action, ...inputFromArgs(args) }
-  const resolved = await resolveLataTaskfilePath(args, host)
+  const resolved = await resolveLataTaskfilePath(args, host, Boolean(args.json))
   if (resolved) input.taskfilePath = resolved
   await runAction(input, Boolean(args.json), host)
 }

@@ -39,6 +39,7 @@
     "test": "vitest run src"
   },
   "dependencies": {
+    "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*"
   },
   "devDependencies": {

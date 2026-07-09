@@ -21,6 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { CleanfInput, CleanfPresetId, CleanfResult } from "./core.js"
 import { CLEANING_PRESETS, getDefaultPresets, parseCleanfPaths, parseExcludeKeywords, PRESET_COMBINATIONS, runCleanf } from "./core.js"
@@ -38,8 +39,41 @@ interface CleanfCliOptions {
   json?: boolean
 }
 
+interface CleanfNodeConfig {
+  presets?: string[]
+  exclude?: string
+  preview?: boolean
+}
+
+interface CleanfDefaults {
+  presets?: string[]
+  exclude?: string
+  preview?: boolean
+}
+
 type PathSource = "clipboard" | "manual" | "exit"
 type ModeChoice = "preset" | "custom" | "default" | "exit"
+
+/**
+ * Resolve cleanf defaults from xiranite.config.toml [nodes.cleanf].
+ */
+async function resolveCleanfDefaults(host: CliHost, json = false): Promise<CleanfDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<CleanfNodeConfig>("cleanf", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      presets: config?.presets,
+      exclude: config?.exclude,
+      preview: config?.preview,
+    }
+  } catch {
+    return {}
+  }
+}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -80,14 +114,17 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "preview", description: "Preview cleanup targets without deleting." },
         args: cleanfArgs(true),
         async run({ args }) {
-          await runAction(inputFromArgs(args as CleanfCliOptions, true), Boolean(args.json), host)
+          const defaults = await resolveCleanfDefaults(host, Boolean(args.json))
+          await runAction(inputFromArgs(args as CleanfCliOptions, true, defaults), Boolean(args.json), host)
         },
       }),
       run: defineCommand({
         meta: { name: "run", description: "Execute cleanup." },
         args: cleanfArgs(false),
         async run({ args }) {
-          await runAction(inputFromArgs(args as CleanfCliOptions, Boolean(args.preview)), Boolean(args.json), host)
+          const defaults = await resolveCleanfDefaults(host, Boolean(args.json))
+          const preview = args.preview || defaults.preview || false
+          await runAction(inputFromArgs(args as CleanfCliOptions, preview, defaults), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -103,18 +140,23 @@ function createProgram(host: CliHost = createDefaultHost()) {
 function cleanfArgs(previewDefault: boolean) {
   return {
     paths: { type: "string", description: "Paths separated by semicolon or new lines." },
-    presets: { type: "string", default: getDefaultPresets().join(","), description: "Comma-separated presets." },
+    presets: { type: "string", description: "Comma-separated presets." },
     exclude: { type: "string", description: "Comma-separated exclude keywords." },
     preview: { type: "boolean", default: previewDefault, description: "Preview mode." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
 
-function inputFromArgs(args: CleanfCliOptions, preview: boolean): CleanfInput {
+function inputFromArgs(args: CleanfCliOptions, preview: boolean, defaults: CleanfDefaults = {}): CleanfInput {
+  const presets = args.presets
+    ? args.presets.split(",").map((item) => item.trim()).filter(Boolean) as CleanfPresetId[]
+    : defaults.presets?.length
+      ? [...defaults.presets] as CleanfPresetId[]
+      : getDefaultPresets()
   return {
     paths: parseCleanfPaths(args.paths),
-    presets: (args.presets ?? getDefaultPresets().join(",")).split(",").map((item) => item.trim()).filter(Boolean) as CleanfPresetId[],
-    exclude: args.exclude,
+    presets,
+    exclude: args.exclude ?? defaults.exclude,
     preview,
   }
 }
@@ -161,10 +203,11 @@ async function runGuided(host: CliHost): Promise<void> {
       const paths = await resolvePaths(host)
       if (!paths.length) continue
 
-      const presets = await resolvePresets(host)
+      const defaults = await resolveCleanfDefaults(host)
+      const presets = await resolvePresets(host, defaults)
       if (!presets.length) continue
 
-      const exclude = await resolveExcludeKeywords(host)
+      const exclude = await resolveExcludeKeywords(host, defaults.exclude)
 
       writeLine(host)
       writeSelectedPresets(host, presets, exclude)
@@ -278,7 +321,7 @@ async function resolvePaths(host: CliHost): Promise<string[]> {
   return verified
 }
 
-async function resolvePresets(host: CliHost): Promise<CleanfPresetId[]> {
+async function resolvePresets(host: CliHost, defaults: CleanfDefaults = {}): Promise<CleanfPresetId[]> {
   const mode = await selectRich<ModeChoice>(
     host,
     "选择清理模式",
@@ -297,7 +340,7 @@ async function resolvePresets(host: CliHost): Promise<CleanfPresetId[]> {
   }
 
   if (mode === "default") {
-    return getDefaultPresets()
+    return defaults.presets?.length ? [...defaults.presets] as CleanfPresetId[] : getDefaultPresets()
   }
 
   if (mode === "preset") {
@@ -329,10 +372,10 @@ async function resolvePresets(host: CliHost): Promise<CleanfPresetId[]> {
   return indices.map((index) => PRESET_LIST[index - 1]!.id)
 }
 
-async function resolveExcludeKeywords(host: CliHost): Promise<string | undefined> {
-  const wantsExclude = await confirmRich(host, "是否要排除某些文件夹/文件?", false)
+async function resolveExcludeKeywords(host: CliHost, defaultExclude?: string): Promise<string | undefined> {
+  const wantsExclude = await confirmRich(host, "是否要排除某些文件夹/文件?", Boolean(defaultExclude))
   if (!wantsExclude) return undefined
-  const answer = (await promptRich(host, "输入排除关键词，多个关键词用逗号分隔", "")).trim()
+  const answer = (await promptRich(host, "输入排除关键词，多个关键词用逗号分隔", defaultExclude ?? "")).trim()
   return answer || undefined
 }
 

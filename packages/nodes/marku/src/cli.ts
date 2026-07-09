@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, resolveXiraniteConfigPath } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { MarkuAction, MarkuInput, MarkuModuleId } from "./core.js"
 import { MARKU_MODULES, runMarku } from "./core.js"
@@ -71,11 +71,14 @@ interface MarkuDefaults {
  * is missing. The `--historyPath` CLI flag and platform default still take
  * precedence when this returns undefined for `historyPath`.
  */
-async function resolveMarkuDefaults(host: CliHost): Promise<MarkuDefaults> {
-  const configPath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
+async function resolveMarkuDefaults(host: CliHost, json: boolean): Promise<MarkuDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ configPath, env: host.env, cwd: host.cwd })
-    const marku = getNodeConfig<MarkuNodeConfig>(config, "marku")
+    const { config: marku } = await loadNodeConfigWithHints<MarkuNodeConfig>("marku", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     const historyPath = marku?.history_path?.trim() || undefined
     const defaultModule = marku?.default_module?.trim() || undefined
     return {
@@ -124,28 +127,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "text", description: "Process inline text or an input file." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "text", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "text", ...await inputFromArgs(args as MarkuCliOptions, host, Boolean(args.json)) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       run: defineCommand({
         meta: { name: "run", description: "Process Markdown files or folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "run", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "run", ...await inputFromArgs(args as MarkuCliOptions, host, Boolean(args.json)) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       history: defineCommand({
         meta: { name: "history", description: "Show undo history." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "history", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "history", ...await inputFromArgs(args as MarkuCliOptions, host, Boolean(args.json)) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       undo: defineCommand({
         meta: { name: "undo", description: "Undo the latest or selected write run." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "undo", ...await inputFromArgs(args as MarkuCliOptions, host) }, Boolean(args.json), host, args as MarkuCliOptions)
+          await runAction({ action: "undo", ...await inputFromArgs(args as MarkuCliOptions, host, Boolean(args.json)) }, Boolean(args.json), host, args as MarkuCliOptions)
         },
       }),
       guided: defineCommand({
@@ -177,8 +180,8 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(args: MarkuCliOptions, host: CliHost): Promise<MarkuInput> {
-  const defaults = await resolveMarkuDefaults(host)
+async function inputFromArgs(args: MarkuCliOptions, host: CliHost, json: boolean): Promise<MarkuInput> {
+  const defaults = await resolveMarkuDefaults(host, json)
   const inputText = args.inputFile ? await readFile(args.inputFile, "utf8") : args.input
   const module = args.module
     ? (isMarkuModule(args.module) ? args.module : "markt")
@@ -231,7 +234,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeMarkuRuntime()
-  const defaults = await resolveMarkuDefaults(host)
+  const defaults = await resolveMarkuDefaults(host, false)
   const initialModule = defaults.defaultModule && isMarkuModule(defaults.defaultModule) ? defaults.defaultModule : "markt"
   let firstRender = true
 

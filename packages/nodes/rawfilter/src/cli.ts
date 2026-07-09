@@ -20,12 +20,49 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { RawfilterAction, RawfilterInput, RawfilterPlanItem, RawfilterResult, RawfilterRuntime } from "./core.js"
 import { runRawfilter } from "./core.js"
 import { createNodeRawfilterRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("rawfilter")
+
+interface RawfilterNodeConfig {
+  name_only_mode?: boolean
+  create_shortcuts?: boolean
+  trash_only?: boolean
+  min_similarity?: number
+  dry_run?: boolean
+}
+
+interface RawfilterDefaults {
+  nameOnlyMode?: boolean
+  createShortcuts?: boolean
+  trashOnly?: boolean
+  minSimilarity?: number
+  dryRun?: boolean
+}
+
+async function resolveRawfilterDefaults(host: CliHost, json = false): Promise<RawfilterDefaults> {
+  try {
+    const { config: nodeConfig } = await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      nameOnlyMode: nodeConfig?.name_only_mode,
+      createShortcuts: nodeConfig?.create_shortcuts,
+      trashOnly: nodeConfig?.trash_only,
+      minSimilarity: nodeConfig?.min_similarity,
+      dryRun: nodeConfig?.dry_run,
+    }
+  } catch {
+    return {}
+  }
+}
 
 interface RawfilterCliOptions {
   path?: string
@@ -115,21 +152,27 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan and group archives without changing files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs(args as RawfilterCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveRawfilterDefaults(host, json)
+          await runAction({ action: "scan", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
         },
       }),
       plan: defineCommand({
         meta: { name: "plan", description: "Preview file operations." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as RawfilterCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveRawfilterDefaults(host, json)
+          await runAction({ action: "plan", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
         },
       }),
       execute: defineCommand({
         meta: { name: "execute", description: "Move duplicate/raw versions according to the plan." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "execute", ...inputFromArgs(args as RawfilterCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveRawfilterDefaults(host, json)
+          await runAction({ action: "execute", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
         },
       }),
       guided: defineCommand({
@@ -155,14 +198,14 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: RawfilterCliOptions): RawfilterInput {
+function inputFromArgs(args: RawfilterCliOptions, defaults: RawfilterDefaults = {}): RawfilterInput {
   return {
     path: args.path,
-    nameOnlyMode: Boolean(args.nameOnly || args.nameOnlyMode),
-    createShortcuts: args.createShortcuts,
-    trashOnly: args.trashOnly,
-    minSimilarity: numberArg(args.minSimilarity),
-    dryRun: args.dryRun,
+    nameOnlyMode: args.nameOnly ?? args.nameOnlyMode ?? defaults.nameOnlyMode ?? false,
+    createShortcuts: args.createShortcuts ?? defaults.createShortcuts,
+    trashOnly: args.trashOnly ?? defaults.trashOnly,
+    minSimilarity: args.minSimilarity !== undefined ? numberArg(args.minSimilarity) : defaults.minSimilarity,
+    dryRun: args.dryRun ?? defaults.dryRun,
   }
 }
 
@@ -200,6 +243,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeRawfilterRuntime()
+  const defaults = await resolveRawfilterDefaults(host, false)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
 
@@ -227,7 +271,7 @@ async function runGuided(host: CliHost): Promise<void> {
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
       for (const path of paths) {
-        const ok = await runGuidedTask(choice.task, path, host)
+        const ok = await runGuidedTask(choice.task, path, host, defaults)
         if (!ok) break
       }
 
@@ -301,8 +345,8 @@ async function resolveGuidedPaths(host: CliHost, runtime: RawfilterRuntime): Pro
   return await validDirectoryPaths(splitPaths(answer), runtime)
 }
 
-async function runGuidedTask(task: GuidedTask, path: string, host: CliHost): Promise<boolean> {
-  const input: RawfilterInput = { ...task.input, path }
+async function runGuidedTask(task: GuidedTask, path: string, host: CliHost, defaults: RawfilterDefaults = {}): Promise<boolean> {
+  const input: RawfilterInput = { ...defaults, ...task.input, path }
   let progressActive = false
   const result = await runRawfilter(input, createNodeRawfilterRuntime(), (event) => {
     if (event.type === "progress") {

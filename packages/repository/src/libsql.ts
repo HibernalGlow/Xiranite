@@ -97,6 +97,12 @@ const runtimeHistory = sqliteTable("runtime_history", {
   durationMs: integer("duration_ms").notNull(),
 })
 
+const kvStore = sqliteTable("kv_store", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+})
+
 export interface LibsqlWorkspaceRepositoryOptions {
   url: string
   authToken?: string
@@ -166,6 +172,20 @@ export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRe
       })
       return snapshot
     },
+    async getKvValue(key) {
+      const rows = await db.select().from(kvStore).where(eq(kvStore.key, key)).limit(1)
+      return rows[0]?.value ?? null
+    },
+    async setKvValue(key, value) {
+      const now = Date.now()
+      await db.insert(kvStore).values({ key, value, updatedAt: now }).onConflictDoUpdate({
+        target: kvStore.key,
+        set: { value, updatedAt: now },
+      })
+    },
+    async deleteKvValue(key) {
+      await db.delete(kvStore).where(eq(kvStore.key, key))
+    },
   }
 }
 
@@ -230,6 +250,11 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS node_run_history_workspace_id_idx ON node_run_history (workspace_id, finished_at DESC)`,
     `CREATE INDEX IF NOT EXISTS node_run_history_finished_at_idx ON node_run_history (finished_at DESC)`,
     ...runtimeHistorySchemaSql(),
+    `CREATE TABLE IF NOT EXISTS kv_store (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
   ], "write")
   await addColumnIfMissing(client, "workspaces", "flow_canvas", "TEXT")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")

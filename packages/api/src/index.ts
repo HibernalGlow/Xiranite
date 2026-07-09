@@ -220,6 +220,28 @@ export function createXiraniteApp(services: XiraniteServices) {
         config: t.Any(),
       }),
     })
+    .get("/config/themes", async () => {
+      return await services.config.getCustomThemes()
+    })
+    .put("/config/themes", async ({ body }) => {
+      const { themes } = body as { themes: unknown[] }
+      return await services.config.saveCustomThemes(themes)
+    }, {
+      body: t.Object({
+        themes: t.Array(t.Any()),
+      }),
+    })
+    .get("/config/bg-image", async () => {
+      return await services.config.getBackgroundImage()
+    })
+    .put("/config/bg-image", async ({ body }) => {
+      const { url } = body as { url: string | null }
+      return await services.config.saveBackgroundImage(url)
+    }, {
+      body: t.Object({
+        url: t.Union([t.String(), t.Null()]),
+      }),
+    })
     .post("/config/import-legacy", async ({ body }) => {
       const { legacyPath, nodeId } = body as { legacyPath: string; nodeId: string }
       return await services.config.importLegacy(legacyPath, nodeId)

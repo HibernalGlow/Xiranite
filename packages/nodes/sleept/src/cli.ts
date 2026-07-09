@@ -18,12 +18,70 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult } from "./core.js"
 import { runSleept } from "./core.js"
 import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("sleept")
+
+interface SleeptNodeConfig {
+  power_mode?: PowerMode
+  dryrun?: boolean
+  hours?: number
+  minutes?: number
+  seconds?: number
+  target_datetime?: string
+  upload_threshold?: number
+  download_threshold?: number
+  net_duration?: number
+  net_trigger_mode?: NetTriggerMode
+  cpu_threshold?: number
+  cpu_duration?: number
+}
+
+interface SleeptDefaults {
+  powerMode?: PowerMode
+  dryrun?: boolean
+  hours?: number
+  minutes?: number
+  seconds?: number
+  targetDatetime?: string
+  uploadThreshold?: number
+  downloadThreshold?: number
+  netDuration?: number
+  netTriggerMode?: NetTriggerMode
+  cpuThreshold?: number
+  cpuDuration?: number
+}
+
+async function resolveSleeptDefaults(host: CliHost, json = false): Promise<SleeptDefaults> {
+  try {
+    const { config: nodeConfig } = await loadNodeConfigWithHints<SleeptNodeConfig>("sleept", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      powerMode: nodeConfig?.power_mode,
+      dryrun: nodeConfig?.dryrun,
+      hours: nodeConfig?.hours,
+      minutes: nodeConfig?.minutes,
+      seconds: nodeConfig?.seconds,
+      targetDatetime: nodeConfig?.target_datetime?.trim() || undefined,
+      uploadThreshold: nodeConfig?.upload_threshold,
+      downloadThreshold: nodeConfig?.download_threshold,
+      netDuration: nodeConfig?.net_duration,
+      netTriggerMode: nodeConfig?.net_trigger_mode,
+      cpuThreshold: nodeConfig?.cpu_threshold,
+      cpuDuration: nodeConfig?.cpu_duration,
+    }
+  } catch {
+    return {}
+  }
+}
 
 type GuidedAction = "countdown" | "specific_time" | "netspeed" | "cpu" | "status" | "exit"
 type PowerChoice = PowerMode | "exit"
@@ -87,26 +145,30 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "countdown", description: "Run a countdown timer." },
         args: timerArgs(),
         async run({ args }) {
-          await runAction(inputFromCountdownArgs(args as SleeptCliOptions), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveSleeptDefaults(host, json)
+          await runAction(inputFromCountdownArgs(args as SleeptCliOptions, defaults), json, host)
         },
       }),
       at: defineCommand({
         meta: { name: "at", description: "Run at a specific datetime." },
         args: {
           target: { type: "string", required: true, description: "Target datetime: YYYY-MM-DD HH:MM:SS." },
-          power: { type: "string", default: "sleep", description: "sleep, shutdown, or restart." },
-          dryrun: { type: "boolean", default: true, description: "Simulate the power action." },
+          power: { type: "string", description: "sleep, shutdown, or restart." },
+          dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
+          const json = Boolean(args.json)
+          const defaults = await resolveSleeptDefaults(host, json)
           await runAction(
             {
               action: "specific_time",
               targetDatetime: String(args.target),
-              powerMode: powerMode(args.power),
-              dryrun: Boolean(args.dryrun),
+              powerMode: powerMode(args.power ?? defaults.powerMode),
+              dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
             },
-            Boolean(args.json),
+            json,
             host,
           )
         },
@@ -114,26 +176,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
       netspeed: defineCommand({
         meta: { name: "netspeed", description: "Trigger after sustained low network throughput." },
         args: {
-          upload: { type: "string", default: "242", description: "Upload threshold in KB/s." },
-          download: { type: "string", default: "242", description: "Download threshold in KB/s." },
-          duration: { type: "string", default: "2", description: "Low-speed duration in minutes." },
-          trigger: { type: "string", default: "both", description: "both or any." },
-          power: { type: "string", default: "sleep", description: "sleep, shutdown, or restart." },
-          dryrun: { type: "boolean", default: true, description: "Simulate the power action." },
+          upload: { type: "string", description: "Upload threshold in KB/s." },
+          download: { type: "string", description: "Download threshold in KB/s." },
+          duration: { type: "string", description: "Low-speed duration in minutes." },
+          trigger: { type: "string", description: "both or any." },
+          power: { type: "string", description: "sleep, shutdown, or restart." },
+          dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
+          const json = Boolean(args.json)
+          const defaults = await resolveSleeptDefaults(host, json)
           await runAction(
             {
               action: "netspeed",
-              uploadThreshold: Number(args.upload),
-              downloadThreshold: Number(args.download),
-              netDuration: Number(args.duration),
-              netTriggerMode: args.trigger === "any" ? "any" : "both",
-              powerMode: powerMode(args.power),
-              dryrun: Boolean(args.dryrun),
+              uploadThreshold: Number(args.upload ?? defaults.uploadThreshold ?? 242),
+              downloadThreshold: Number(args.download ?? defaults.downloadThreshold ?? 242),
+              netDuration: Number(args.duration ?? defaults.netDuration ?? 2),
+              netTriggerMode: (args.trigger ?? defaults.netTriggerMode ?? "both") === "any" ? "any" : "both",
+              powerMode: powerMode(args.power ?? defaults.powerMode),
+              dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
             },
-            Boolean(args.json),
+            json,
             host,
           )
         },
@@ -141,22 +205,24 @@ function createProgram(host: CliHost = createDefaultHost()) {
       cpu: defineCommand({
         meta: { name: "cpu", description: "Trigger after sustained low CPU usage." },
         args: {
-          threshold: { type: "string", default: "10", description: "CPU threshold percentage." },
-          duration: { type: "string", default: "2", description: "Low-CPU duration in minutes." },
-          power: { type: "string", default: "sleep", description: "sleep, shutdown, or restart." },
-          dryrun: { type: "boolean", default: true, description: "Simulate the power action." },
+          threshold: { type: "string", description: "CPU threshold percentage." },
+          duration: { type: "string", description: "Low-CPU duration in minutes." },
+          power: { type: "string", description: "sleep, shutdown, or restart." },
+          dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
         },
         async run({ args }) {
+          const json = Boolean(args.json)
+          const defaults = await resolveSleeptDefaults(host, json)
           await runAction(
             {
               action: "cpu",
-              cpuThreshold: Number(args.threshold),
-              cpuDuration: Number(args.duration),
-              powerMode: powerMode(args.power),
-              dryrun: Boolean(args.dryrun),
+              cpuThreshold: Number(args.threshold ?? defaults.cpuThreshold ?? 10),
+              cpuDuration: Number(args.duration ?? defaults.cpuDuration ?? 2),
+              powerMode: powerMode(args.power ?? defaults.powerMode),
+              dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
             },
-            Boolean(args.json),
+            json,
             host,
           )
         },
@@ -173,23 +239,23 @@ function createProgram(host: CliHost = createDefaultHost()) {
 
 function timerArgs() {
   return {
-    hours: { type: "string", default: "0", description: "Hours." },
-    minutes: { type: "string", default: "0", description: "Minutes." },
-    seconds: { type: "string", default: "5", description: "Seconds." },
-    power: { type: "string", default: "sleep", description: "sleep, shutdown, or restart." },
-    dryrun: { type: "boolean", default: true, description: "Simulate the power action." },
+    hours: { type: "string", description: "Hours." },
+    minutes: { type: "string", description: "Minutes." },
+    seconds: { type: "string", description: "Seconds." },
+    power: { type: "string", description: "sleep, shutdown, or restart." },
+    dryrun: { type: "boolean", description: "Simulate the power action." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
 
-function inputFromCountdownArgs(args: SleeptCliOptions): SleeptInput {
+function inputFromCountdownArgs(args: SleeptCliOptions, defaults: SleeptDefaults = {}): SleeptInput {
   return {
     action: "countdown",
-    hours: nonNegativeNumber(args.hours, 0),
-    minutes: nonNegativeNumber(args.minutes, 0),
-    seconds: nonNegativeNumber(args.seconds, 5),
-    powerMode: powerMode(args.power),
-    dryrun: Boolean(args.dryrun ?? true),
+    hours: nonNegativeNumber(args.hours, defaults.hours ?? 0),
+    minutes: nonNegativeNumber(args.minutes, defaults.minutes ?? 0),
+    seconds: nonNegativeNumber(args.seconds, defaults.seconds ?? 5),
+    powerMode: powerMode(args.power ?? defaults.powerMode),
+    dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
   }
 }
 
@@ -237,6 +303,7 @@ async function runGuided(host: CliHost): Promise<void> {
     return
   }
 
+  const defaults = await resolveSleeptDefaults(host, false)
   let firstRender = true
   try {
     while (true) {
@@ -249,7 +316,7 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      const input = await buildInputForAction(host, action)
+      const input = await buildInputForAction(host, action, defaults)
       if (!input) {
         if (!await confirmRich(host, "重新开始?", false)) return
         continue
@@ -302,7 +369,7 @@ async function resolveAction(host: CliHost): Promise<GuidedAction | null> {
   return choice
 }
 
-async function buildInputForAction(host: CliHost, action: GuidedAction): Promise<SleeptInput | null> {
+async function buildInputForAction(host: CliHost, action: GuidedAction, defaults: SleeptDefaults = {}): Promise<SleeptInput | null> {
   if (action === "status") {
     return { action: "get_stats" }
   }
@@ -313,18 +380,19 @@ async function buildInputForAction(host: CliHost, action: GuidedAction): Promise
   let input: SleeptInput = { action }
 
   if (action === "countdown") {
-    const hours = await promptRich(host, "倒计时小时数", "0")
-    const minutes = await promptRich(host, "倒计时分钟数", "0")
-    const seconds = await promptRich(host, "倒计时秒数", "5")
+    const hours = await promptRich(host, "倒计时小时数", String(defaults.hours ?? 0))
+    const minutes = await promptRich(host, "倒计时分钟数", String(defaults.minutes ?? 0))
+    const seconds = await promptRich(host, "倒计时秒数", String(defaults.seconds ?? 5))
     input = {
       ...input,
-      hours: nonNegativeNumber(hours, 0),
-      minutes: nonNegativeNumber(minutes, 0),
-      seconds: nonNegativeNumber(seconds, 5),
+      hours: nonNegativeNumber(hours, defaults.hours ?? 0),
+      minutes: nonNegativeNumber(minutes, defaults.minutes ?? 0),
+      seconds: nonNegativeNumber(seconds, defaults.seconds ?? 5),
     }
   } else if (action === "specific_time") {
     const clipboardText = (await readClipboardText()).trim()
-    const defaultTarget = looksLikeDatetime(clipboardText) ? clipboardText : ""
+    const clipboardTarget = looksLikeDatetime(clipboardText) ? clipboardText : ""
+    const defaultTarget = clipboardTarget || defaults.targetDatetime || ""
     const target = await promptRich(host, "目标时间 (YYYY-MM-DD HH:MM:SS)", defaultTarget)
     if (!target) {
       writeRichPanel(host, "Target", "未提供目标时间。", { color: "yellow", minWidth: 40 })
@@ -332,9 +400,9 @@ async function buildInputForAction(host: CliHost, action: GuidedAction): Promise
     }
     input = { ...input, targetDatetime: target }
   } else if (action === "netspeed") {
-    const upload = await promptRich(host, "上传阈值 (KB/s)", "242")
-    const download = await promptRich(host, "下载阈值 (KB/s)", "242")
-    const duration = await promptRich(host, "持续低速时长 (分钟)", "2")
+    const upload = await promptRich(host, "上传阈值 (KB/s)", String(defaults.uploadThreshold ?? 242))
+    const download = await promptRich(host, "下载阈值 (KB/s)", String(defaults.downloadThreshold ?? 242))
+    const duration = await promptRich(host, "持续低速时长 (分钟)", String(defaults.netDuration ?? 2))
     const trigger = await selectRich<TriggerChoice>(
       host,
       "触发条件",
@@ -343,7 +411,7 @@ async function buildInputForAction(host: CliHost, action: GuidedAction): Promise
         { value: "any", label: "任一满足", hint: "上传或下载低于阈值" },
         { value: "exit", label: "退出", hint: "取消本次操作" },
       ],
-      { initialValue: "both", maxItems: 3 },
+      { initialValue: defaults.netTriggerMode ?? "both", maxItems: 3 },
     )
     if (trigger === "exit") {
       writeLine(host, rich(host, "已退出。", "yellow"))
@@ -351,26 +419,26 @@ async function buildInputForAction(host: CliHost, action: GuidedAction): Promise
     }
     input = {
       ...input,
-      uploadThreshold: nonNegativeNumber(upload, 242),
-      downloadThreshold: nonNegativeNumber(download, 242),
-      netDuration: nonNegativeNumber(duration, 2),
+      uploadThreshold: nonNegativeNumber(upload, defaults.uploadThreshold ?? 242),
+      downloadThreshold: nonNegativeNumber(download, defaults.downloadThreshold ?? 242),
+      netDuration: nonNegativeNumber(duration, defaults.netDuration ?? 2),
       netTriggerMode: trigger,
     }
   } else if (action === "cpu") {
-    const threshold = await promptRich(host, "CPU 阈值百分比", "10")
-    const duration = await promptRich(host, "持续低 CPU 时长 (分钟)", "2")
+    const threshold = await promptRich(host, "CPU 阈值百分比", String(defaults.cpuThreshold ?? 10))
+    const duration = await promptRich(host, "持续低 CPU 时长 (分钟)", String(defaults.cpuDuration ?? 2))
     input = {
       ...input,
-      cpuThreshold: nonNegativeNumber(threshold, 10),
-      cpuDuration: nonNegativeNumber(duration, 2),
+      cpuThreshold: nonNegativeNumber(threshold, defaults.cpuThreshold ?? 10),
+      cpuDuration: nonNegativeNumber(duration, defaults.cpuDuration ?? 2),
     }
   }
 
-  const power = await selectPowerMode(host)
+  const power = await selectPowerMode(host, defaults.powerMode ?? "sleep")
   if (!power) return null
   input = { ...input, powerMode: power }
 
-  const dryrun = await confirmRich(host, "使用 dry-run 模拟电源动作?", true)
+  const dryrun = await confirmRich(host, "使用 dry-run 模拟电源动作?", defaults.dryrun ?? true)
   input = { ...input, dryrun }
 
   writeLine(host)
@@ -384,7 +452,7 @@ async function buildInputForAction(host: CliHost, action: GuidedAction): Promise
   return input
 }
 
-async function selectPowerMode(host: CliHost): Promise<PowerMode | null> {
+async function selectPowerMode(host: CliHost, initialValue: PowerMode = "sleep"): Promise<PowerMode | null> {
   const choice = await selectRich<PowerChoice>(
     host,
     "选择电源动作",
@@ -394,7 +462,7 @@ async function selectPowerMode(host: CliHost): Promise<PowerMode | null> {
       { value: "restart", label: "重启", hint: "shutdown /r" },
       { value: "exit", label: "退出", hint: "取消本次操作" },
     ],
-    { initialValue: "sleep", maxItems: 4 },
+    { initialValue, maxItems: 4 },
   )
   if (choice === "exit") {
     writeLine(host, rich(host, "已退出。", "yellow"))

@@ -20,6 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { MvzAction, MvzInput, MvzResult } from "./core.js"
 import { parseMvzEntries, runMvz } from "./core.js"
@@ -27,6 +28,45 @@ import { createNodeMvzRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("mvz")
 const PREVIEW_LIMIT = 50
+
+interface MvzNodeConfig {
+  output?: string
+  near?: boolean
+  auto_dir?: boolean
+  flatten?: boolean
+  separator?: string
+  dry_run?: boolean
+}
+
+interface MvzDefaults {
+  output?: string
+  near?: boolean
+  autoDir?: boolean
+  flatten?: boolean
+  separator?: string
+  dryRun?: boolean
+}
+
+async function resolveMvzDefaults(host: CliHost, json = false): Promise<MvzDefaults> {
+  try {
+    const { config: nodeConfig } = await loadNodeConfigWithHints<MvzNodeConfig>("mvz", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      output: nodeConfig?.output?.trim() || undefined,
+      near: nodeConfig?.near,
+      autoDir: nodeConfig?.auto_dir,
+      flatten: nodeConfig?.flatten,
+      separator: nodeConfig?.separator?.trim() || undefined,
+      dryRun: nodeConfig?.dry_run,
+    }
+  } catch {
+    return {}
+  }
+}
 
 interface MvzCliOptions {
   entry?: string
@@ -92,28 +132,36 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "extract", description: "Extract matching archive-internal files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("extract", await inputFromArgs(args as MvzCliOptions), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMvzDefaults(host, json)
+          await runAction("extract", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Extract matching files, then delete them from archives." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("move", await inputFromArgs(args as MvzCliOptions), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMvzDefaults(host, json)
+          await runAction("move", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
         },
       }),
       delete: defineCommand({
         meta: { name: "delete", description: "Delete matching archive-internal files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("delete", await inputFromArgs(args as MvzCliOptions), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMvzDefaults(host, json)
+          await runAction("delete", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
         },
       }),
       rename: defineCommand({
         meta: { name: "rename", description: "Rename matching archive-internal files with a regex replacement." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("rename", await inputFromArgs(args as MvzCliOptions), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMvzDefaults(host, json)
+          await runAction("rename", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
         },
       }),
       guided: defineCommand({
@@ -143,19 +191,19 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(args: MvzCliOptions): Promise<MvzInput> {
+async function inputFromArgs(args: MvzCliOptions, defaults: MvzDefaults = {}): Promise<MvzInput> {
   const fileText = args.file ? await readFile(args.file, "utf8") : undefined
   return {
     fileText,
     files: splitArg(args.entries, args.entry ? [args.entry] : []),
-    output: args.output,
+    output: args.output ?? defaults.output,
     pattern: args.pattern,
     replacement: args.replacement,
-    separator: args.separator,
-    near: args.near,
-    autoDir: args.autoDir,
-    flatten: args.flatten,
-    dryRun: args.dryRun,
+    separator: args.separator ?? defaults.separator,
+    near: args.near ?? defaults.near,
+    autoDir: args.autoDir ?? defaults.autoDir,
+    flatten: args.flatten ?? defaults.flatten,
+    dryRun: args.dryRun ?? defaults.dryRun,
   }
 }
 
@@ -232,6 +280,8 @@ async function runGuided(host: CliHost): Promise<void> {
 
   let firstRender = true
 
+  const defaults = await resolveMvzDefaults(host, false)
+
   try {
     while (true) {
       renderGuidedIntro(host, firstRender)
@@ -265,7 +315,7 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      await runGuidedAction(action, entries, options, host)
+      await runGuidedAction(action, entries, options, host, defaults)
 
       if (!await confirmRich(host, "继续处理其他条目?", false)) return
     }
@@ -416,7 +466,7 @@ function writeGuidedSummary(host: CliHost, action: MvzAction, entries: string[],
   writeRichPanel(host, "将执行以下操作", lines, { color: "cyan", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
 }
 
-async function runGuidedAction(action: MvzAction, entries: string[], options: MvzGuidedOptions, host: CliHost): Promise<void> {
+async function runGuidedAction(action: MvzAction, entries: string[], options: MvzGuidedOptions, host: CliHost, defaults: MvzDefaults = {}): Promise<void> {
   const input: MvzInput = {
     action,
     files: entries,
@@ -426,6 +476,7 @@ async function runGuidedAction(action: MvzAction, entries: string[], options: Mv
     flatten: options.flatten,
     pattern: options.pattern,
     replacement: options.replacement,
+    separator: defaults.separator,
     dryRun: options.dryRun,
   }
   await runAction(action, input, false, host)

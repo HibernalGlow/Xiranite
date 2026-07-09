@@ -19,6 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { LinkuAction, LinkuInput, LinkuPathKind, LinkuResult } from "./core.js"
 import { runLinku } from "./core.js"
@@ -31,6 +32,36 @@ interface LinkuCliOptions {
   target?: string
   configPath?: string
   json?: boolean
+}
+
+interface LinkuNodeConfig {
+  default_path?: string
+  default_target?: string
+}
+
+interface LinkuDefaults {
+  defaultPath?: string
+  defaultTarget?: string
+}
+
+/**
+ * Resolve linku defaults from xiranite.config.toml [nodes.linku].
+ */
+async function resolveLinkuDefaults(host: CliHost, json = false): Promise<LinkuDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<LinkuNodeConfig>("linku", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      defaultPath: config?.default_path,
+      defaultTarget: config?.default_target,
+    }
+  } catch {
+    return {}
+  }
 }
 
 interface GuidedTask {
@@ -121,35 +152,40 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "info", description: "Show file, directory, or symlink information." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "info", ...inputFromArgs(args as LinkuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
+          await runAction({ action: "info", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       create: defineCommand({
         meta: { name: "create", description: "Create a symlink from --target to --path." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "create", ...inputFromArgs(args as LinkuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
+          await runAction({ action: "create", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move --path to --target and create a link at the original path." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "move_link", ...inputFromArgs(args as LinkuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
+          await runAction({ action: "move_link", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       list: defineCommand({
         meta: { name: "list", description: "List recorded links." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "list", ...inputFromArgs(args as LinkuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
+          await runAction({ action: "list", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       recover: defineCommand({
         meta: { name: "recover", description: "Recover missing or incorrect recorded symlinks." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "recover", ...inputFromArgs(args as LinkuCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
+          await runAction({ action: "recover", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -171,8 +207,12 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: LinkuCliOptions): LinkuInput {
-  return { path: args.path, target: args.target, configPath: args.configPath }
+function inputFromArgs(args: LinkuCliOptions, defaults: LinkuDefaults = {}): LinkuInput {
+  return {
+    path: args.path ?? defaults.defaultPath,
+    target: args.target ?? defaults.defaultTarget,
+    configPath: args.configPath,
+  }
 }
 
 async function runGuided(host: CliHost): Promise<void> {
@@ -196,7 +236,8 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const ok = await runGuidedTask(choice.task, host)
+      const defaults = await resolveLinkuDefaults(host)
+      const ok = await runGuidedTask(choice.task, host, defaults)
       if (!ok) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
@@ -244,7 +285,7 @@ async function readGuidedChoice(host: CliHost, defaultTask: GuidedTask): Promise
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? defaultTask }
 }
 
-async function resolvePaths(host: CliHost, label: string, mustExist: boolean): Promise<string | undefined> {
+async function resolvePaths(host: CliHost, label: string, mustExist: boolean, defaultPath?: string): Promise<string | undefined> {
   const clipboard = (await readClipboardText()).trim()
   if (clipboard) {
     const info = await createNodeLinkuRuntime().pathInfo(clipboard)
@@ -254,7 +295,7 @@ async function resolvePaths(host: CliHost, label: string, mustExist: boolean): P
     }
   }
 
-  const answer = (await promptRich(host, `输入${label}（留空取消）`, "")).trim()
+  const answer = (await promptRich(host, `输入${label}（留空取消）`, defaultPath ?? "")).trim()
   if (!answer) {
     writeLine(host, rich(host, "未输入路径。", "yellow"))
     return undefined
@@ -267,8 +308,8 @@ async function resolvePaths(host: CliHost, label: string, mustExist: boolean): P
   return info.path
 }
 
-async function resolveTarget(host: CliHost, label: string): Promise<string | undefined> {
-  const answer = (await promptRich(host, `输入${label}（留空取消）`, "")).trim()
+async function resolveTarget(host: CliHost, label: string, defaultTarget?: string): Promise<string | undefined> {
+  const answer = (await promptRich(host, `输入${label}（留空取消）`, defaultTarget ?? "")).trim()
   if (!answer) {
     writeLine(host, rich(host, "未输入目标路径。", "yellow"))
     return undefined
@@ -276,17 +317,17 @@ async function resolveTarget(host: CliHost, label: string): Promise<string | und
   return answer
 }
 
-async function runGuidedTask(task: GuidedTask, host: CliHost): Promise<boolean> {
+async function runGuidedTask(task: GuidedTask, host: CliHost, defaults: LinkuDefaults = {}): Promise<boolean> {
   let path: string | undefined
   let target: string | undefined
 
   if (task.needsPath) {
-    path = await resolvePaths(host, task.action === "info" ? "要查看的路径" : "源路径", true)
+    path = await resolvePaths(host, task.action === "info" ? "要查看的路径" : "源路径", true, defaults.defaultPath)
     if (!path) return false
   }
   if (task.needsTarget) {
     const label = task.action === "create" ? "链接路径（软链接位置）" : "目标路径（移动到的位置）"
-    target = await resolveTarget(host, label)
+    target = await resolveTarget(host, label, defaults.defaultTarget)
     if (!target) return false
   }
 

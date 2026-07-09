@@ -1,23 +1,39 @@
 #!/usr/bin/env node
+import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSmartZip } from "./core.js"
 import { createNodeSmartZipRuntime } from "./platform.js"
 
+interface SmartzipNodeConfig {
+  ini_path?: string
+  database_path?: string
+  smartzip_exe?: string
+  smartzip_ahk?: string
+  autohotkey_exe?: string
+  record_run?: boolean
+  dry_run?: boolean
+}
+
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
-  const dryRun = args.includes("--dry-run")
   const action = args.includes("x") ? "extract" : args.includes("xc") ? "extract_codepage" : args.includes("o") ? "open" : args.includes("a") ? "archive" : "status"
   const valueOptions = new Set(["--ini-path", "--database-path", "--smartzip-exe", "--smartzip-ahk", "--autohotkey-exe"])
   const paths = args.filter((arg, index) => !arg.startsWith("--") && !["x", "xc", "o", "a", "status"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+
+  const { config: nodeConfig } = await loadNodeConfigWithHints<SmartzipNodeConfig>("smartzip", {
+    hintSink: { stderr: process.stderr },
+    jsonMode: json,
+  })
+
   const result = await runSmartZip({
     action,
     paths,
-    iniPath: valueFor(args, "--ini-path"),
-    databasePath: valueFor(args, "--database-path"),
-    smartZipExe: valueFor(args, "--smartzip-exe"),
-    smartZipAhk: valueFor(args, "--smartzip-ahk"),
-    autohotkeyExe: valueFor(args, "--autohotkey-exe"),
-    recordRun: args.includes("--record-run"),
-    dryRun,
+    iniPath: valueFor(args, "--ini-path") ?? nodeConfig?.ini_path,
+    databasePath: valueFor(args, "--database-path") ?? nodeConfig?.database_path,
+    smartZipExe: valueFor(args, "--smartzip-exe") ?? nodeConfig?.smartzip_exe,
+    smartZipAhk: valueFor(args, "--smartzip-ahk") ?? nodeConfig?.smartzip_ahk,
+    autohotkeyExe: valueFor(args, "--autohotkey-exe") ?? nodeConfig?.autohotkey_exe,
+    recordRun: args.includes("--record-run") || nodeConfig?.record_run === true,
+    dryRun: args.includes("--dry-run") || nodeConfig?.dry_run === true,
   }, createNodeSmartZipRuntime())
   if (json) console.log(JSON.stringify(result, null, 2))
   else console.log(result.message)

@@ -19,7 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, pathExists, resolveXiraniteConfigPath, stringifyToml } from "@xiranite/config"
+import { loadNodeConfigWithHints, stringifyToml } from "@xiranite/config"
 
 import type { ScoolpAction, ScoolpInput, ScoolpResult } from "./core.js"
 import { formatSize, runScoolp } from "./core.js"
@@ -168,7 +168,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const opts = args as ScoolpCliOptions
-          const resolved = await resolveScoolpSyncConfig(opts, host)
+          const resolved = await resolveScoolpSyncConfig(opts, host, Boolean(args.json))
           await runAction({ action: "show_config", ...resolved }, Boolean(args.json), host)
         },
       }),
@@ -177,7 +177,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const opts = args as ScoolpCliOptions
-          const resolved = await resolveScoolpSyncConfig(opts, host)
+          const resolved = await resolveScoolpSyncConfig(opts, host, Boolean(args.json))
           await runAction({ action: "sync", ...resolved, dryRun: Boolean(opts.dryRun) }, Boolean(args.json), host)
         },
       }),
@@ -252,6 +252,7 @@ interface ScoolpSyncTomlShape {
 async function resolveScoolpSyncConfig(
   args: ScoolpCliOptions,
   host: CliHost,
+  json: boolean,
 ): Promise<{ configPath?: string; configText?: string }> {
   const explicitConfig = args.config ?? args.path
   if (explicitConfig) {
@@ -259,14 +260,15 @@ async function resolveScoolpSyncConfig(
   }
 
   try {
-    const xiranitePath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
-    if (await pathExists(xiranitePath)) {
-      const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-      const scoolpNode = getNodeConfig<{ sync?: ScoolpSyncTomlShape }>(config, "scoolp")
-      const sync = scoolpNode?.sync
-      if (sync && Object.keys(sync).length > 0) {
-        return { configText: stringifyToml(sync) }
-      }
+    const { config: scoolpNode } = await loadNodeConfigWithHints<{ sync?: ScoolpSyncTomlShape }>("scoolp", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    const sync = scoolpNode?.sync
+    if (sync && Object.keys(sync).length > 0) {
+      return { configText: stringifyToml(sync) }
     }
   } catch {
     // ignore errors, fall through to default

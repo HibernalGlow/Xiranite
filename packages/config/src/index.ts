@@ -237,4 +237,72 @@ export async function resolveNodeConfig<NodeConfig>(
   return { config: undefined, source: "default", configPath: xiranitePath }
 }
 
+export interface NodeConfigHintSink {
+  stderr?: { write: (chunk: string) => unknown }
+  stdout?: { write: (chunk: string) => unknown }
+}
+
+export interface LoadNodeConfigHintOptions extends ResolveConfigPathOptions {
+  /** Optional sink for emitting hints. When omitted, no hints are written. */
+  hintSink?: NodeConfigHintSink
+  /** Disable hint output even when sink is provided. */
+  silent?: boolean
+  /** When true, suppress hints (e.g. in --json output mode). */
+  jsonMode?: boolean
+}
+
+export interface LoadNodeConfigHintResult<T> {
+  config: T | undefined
+  path: string
+  source: "xiranite-config" | "default"
+  /** Field keys present in the loaded node section (empty when no section found). */
+  fields: string[]
+}
+
+/**
+ * 从 xiranite.config.toml 读取 [nodes.<nodeId>] 段，并通过 hintSink 输出提示。
+ *
+ * 提示策略（输出到 stderr，避免污染 stdout/JSON）：
+ * - 配置文件不存在：不输出
+ * - 文件存在但无 [nodes.<nodeId>] 段：不输出
+ * - 文件存在且有该段：输出 `ℹ 配置: 从 <path> 加载 [nodes.<nodeId>] — 覆盖字段: a, b, c`
+ *
+ * `silent` 或 `jsonMode` 为 true 时不输出。
+ */
+export async function loadNodeConfigWithHints<T = unknown>(
+  nodeId: string,
+  options: LoadNodeConfigHintOptions = {},
+): Promise<LoadNodeConfigHintResult<T>> {
+  const path = resolveXiraniteConfigPath(options)
+
+  let content: string
+  try {
+    content = await readFile(path, "utf8")
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      return { config: undefined, path, source: "default", fields: [] }
+    }
+    throw error
+  }
+
+  const parsed = parseToml(stripBom(content)) as Record<string, unknown>
+  const nodes = parsed.nodes as Record<string, unknown> | undefined
+  const nodeConfig = nodes?.[nodeId] as T | undefined
+
+  if (nodeConfig === undefined) {
+    return { config: undefined, path, source: "xiranite-config", fields: [] }
+  }
+
+  const fields = isPlainRecord(nodeConfig) ? Object.keys(nodeConfig) : []
+
+  if (!options.silent && !options.jsonMode && options.hintSink?.stderr) {
+    const fieldList = fields.length > 0 ? ` — 覆盖字段: ${fields.join(", ")}` : ""
+    const hint = `ℹ 配置: 从 ${path} 加载 [nodes.${nodeId}]${fieldList}\n`
+    options.hintSink.stderr.write(hint)
+  }
+
+  return { config: nodeConfig, path, source: "xiranite-config", fields }
+}
+
 export { parseToml, stringifyToml }

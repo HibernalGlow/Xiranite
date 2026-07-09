@@ -79,6 +79,10 @@ export interface XiraniteConfigClient {
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
   getAppConfig<T = unknown>(section: string): Promise<{ config: T | undefined; path: string }>
   updateAppConfig<T = unknown>(section: string, config: T): Promise<{ config: T; path: string }>
+  getCustomThemes(): Promise<{ themes: unknown[]; path: string }>
+  saveCustomThemes(themes: unknown[]): Promise<{ themes: unknown[]; path: string }>
+  getBackgroundImage(): Promise<{ url: string | null; path: string }>
+  saveBackgroundImage(url: string | null): Promise<{ url: string | null; path: string }>
   openConfigFile(): Promise<{ opened: boolean; path: string }>
   importLegacy(legacyPath: string, nodeId: string): Promise<{ imported: boolean; config: unknown; path: string }>
 }
@@ -139,6 +143,34 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`App config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
+    },
+    async getCustomThemes() {
+      const response = await fetch(apiUrl(baseUrl, "/config/themes"), { headers })
+      if (!response.ok) throw new Error(`Custom themes load failed: ${response.status}`)
+      return await response.json() as { themes: unknown[]; path: string }
+    },
+    async saveCustomThemes(themes: unknown[]) {
+      const response = await fetch(apiUrl(baseUrl, "/config/themes"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ themes }),
+      })
+      if (!response.ok) throw new Error(`Custom themes save failed: ${response.status}`)
+      return await response.json() as { themes: unknown[]; path: string }
+    },
+    async getBackgroundImage() {
+      const response = await fetch(apiUrl(baseUrl, "/config/bg-image"), { headers })
+      if (!response.ok) throw new Error(`Background image load failed: ${response.status}`)
+      return await response.json() as { url: string | null; path: string }
+    },
+    async saveBackgroundImage(url: string | null) {
+      const response = await fetch(apiUrl(baseUrl, "/config/bg-image"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      })
+      if (!response.ok) throw new Error(`Background image save failed: ${response.status}`)
+      return await response.json() as { url: string | null; path: string }
     },
     async openConfigFile() {
       const response = await fetch(apiUrl(baseUrl, "/config/open"), {

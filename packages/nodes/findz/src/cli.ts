@@ -22,7 +22,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, pathExists } from "@xiranite/config"
+import { loadNodeConfigWithHints, pathExists } from "@xiranite/config"
 
 import type { FindzAction, FindzData, FindzInput, FindzOutputFormat, FindzResult } from "./core.js"
 import { runFindz } from "./core.js"
@@ -127,10 +127,14 @@ const EMPTY_DEFAULTS: FindzDefaults = {}
  * - [nodes.findz.defaults]：默认查询参数（size_min、ext 等）
  * 配置缺失或解析失败时返回空对象，保证不破坏无 TOML 的现有行为。
  */
-export async function resolveFindzDefaults(host: CliHost): Promise<FindzDefaults> {
+export async function resolveFindzDefaults(host: CliHost, json: boolean): Promise<FindzDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const nodeConfig = getNodeConfig<FindzNodeConfig>(config, "findz")
+    const { config: nodeConfig } = await loadNodeConfigWithHints<FindzNodeConfig>("findz", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     if (!nodeConfig) return EMPTY_DEFAULTS
     return {
       output: nodeConfig.output,
@@ -201,7 +205,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "search", description: "Search files and optional archive members." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveFindzDefaults(host)
+          const defaults = await resolveFindzDefaults(host, Boolean(args.json))
           await runAction("search", await inputFromArgs(args as FindzCliOptions, "search", defaults, host), host)
         },
       }),
@@ -209,7 +213,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "archives-only", description: "Return archive files themselves, without entering them." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveFindzDefaults(host)
+          const defaults = await resolveFindzDefaults(host, Boolean(args.json))
           await runAction("archives_only", await inputFromArgs(args as FindzCliOptions, "archives_only", defaults, host), host)
         },
       }),
@@ -217,7 +221,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "nested", description: "Find archives containing nested archive files." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveFindzDefaults(host)
+          const defaults = await resolveFindzDefaults(host, Boolean(args.json))
           await runAction("nested", await inputFromArgs(args as FindzCliOptions, "nested", defaults, host), host)
         },
       }),
@@ -225,7 +229,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "refine", description: "Search, group, and apply a secondary group filter." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveFindzDefaults(host)
+          const defaults = await resolveFindzDefaults(host, Boolean(args.json))
           const input = await inputFromArgs(args as FindzCliOptions, "search", defaults, host)
           await runAction("search", { ...input, groupBy: (args as FindzCliOptions).groupBy || "archive" }, host)
         },
@@ -758,7 +762,7 @@ function writeQuerySummary(host: CliHost, query: GuidedQuery): void {
 }
 
 async function runGuidedTask(host: CliHost, query: GuidedQuery): Promise<void> {
-  const defaults = await resolveFindzDefaults(host)
+  const defaults = await resolveFindzDefaults(host, false)
   const baseInput: FindzInput = {
     action: query.action,
     where: query.where,

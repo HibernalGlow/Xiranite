@@ -8,6 +8,7 @@ const norm = (p: string): string => p.replace(/\\/g, "/")
 import {
   getAppConfig,
   getNodeConfig,
+  loadNodeConfigWithHints,
   loadXiraniteConfig,
   resolveNodeConfig,
   resolveXiraniteConfigPath,
@@ -291,5 +292,112 @@ describe("stripBom", () => {
   test("strips BOM prefix", () => {
     expect(stripBom("\uFEFFcontent")).toBe("content")
     expect(stripBom("content")).toBe("content")
+  })
+})
+
+describe("loadNodeConfigWithHints", () => {
+  test("returns default source when config file missing", async () => {
+    const dir = join(RUN_ROOT, "hints-missing", randomUUID())
+    const result = await loadNodeConfigWithHints("cleanf", { configPath: join(dir, "missing.toml") })
+    expect(result.source).toBe("default")
+    expect(result.config).toBeUndefined()
+    expect(result.fields).toEqual([])
+  })
+
+  test("returns empty fields when node section missing", async () => {
+    const dir = join(RUN_ROOT, "hints-no-section", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, '[nodes.linku]\nenabled = true\n', "utf8")
+
+    const result = await loadNodeConfigWithHints("cleanf", { configPath: path })
+    expect(result.source).toBe("xiranite-config")
+    expect(result.config).toBeUndefined()
+    expect(result.fields).toEqual([])
+  })
+
+  test("returns config and fields when node section exists", async () => {
+    const dir = join(RUN_ROOT, "hints-found", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, [
+      '[nodes.cleanf]',
+      'presets = ["empty_folders", "backup_files"]',
+      'exclude = "temp"',
+    ].join("\n"), "utf8")
+
+    const result = await loadNodeConfigWithHints<{ presets: string[]; exclude: string }>("cleanf", { configPath: path })
+    expect(result.source).toBe("xiranite-config")
+    expect(result.config?.presets).toEqual(["empty_folders", "backup_files"])
+    expect(result.config?.exclude).toBe("temp")
+    expect(result.fields).toEqual(["presets", "exclude"])
+  })
+
+  test("emits hint to stderr when sink provided and node section exists", async () => {
+    const dir = join(RUN_ROOT, "hints-emit", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, '[nodes.cleanf]\npresets = ["empty_folders"]\n', "utf8")
+
+    const chunks: string[] = []
+    const result = await loadNodeConfigWithHints("cleanf", {
+      configPath: path,
+      hintSink: { stderr: { write: (c: string) => { chunks.push(c); return true } } },
+    })
+    expect(result.fields).toEqual(["presets"])
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toContain("[nodes.cleanf]")
+    expect(chunks[0]).toContain("presets")
+  })
+
+  test("does not emit hint when silent", async () => {
+    const dir = join(RUN_ROOT, "hints-silent", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, '[nodes.cleanf]\npresets = ["empty_folders"]\n', "utf8")
+
+    const chunks: string[] = []
+    const result = await loadNodeConfigWithHints("cleanf", {
+      configPath: path,
+      silent: true,
+      hintSink: { stderr: { write: (c: string) => { chunks.push(c); return true } } },
+    })
+    expect(result.config).toBeDefined()
+    expect(chunks).toHaveLength(0)
+  })
+
+  test("does not emit hint in jsonMode", async () => {
+    const dir = join(RUN_ROOT, "hints-json", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, '[nodes.cleanf]\npresets = ["empty_folders"]\n', "utf8")
+
+    const chunks: string[] = []
+    await loadNodeConfigWithHints("cleanf", {
+      configPath: path,
+      jsonMode: true,
+      hintSink: { stderr: { write: (c: string) => { chunks.push(c); return true } } },
+    })
+    expect(chunks).toHaveLength(0)
+  })
+
+  test("does not emit hint when node section missing", async () => {
+    const dir = join(RUN_ROOT, "hints-no-section-emit", randomUUID())
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, '[nodes.linku]\nenabled = true\n', "utf8")
+
+    const chunks: string[] = []
+    await loadNodeConfigWithHints("cleanf", {
+      configPath: path,
+      hintSink: { stderr: { write: (c: string) => { chunks.push(c); return true } } },
+    })
+    expect(chunks).toHaveLength(0)
   })
 })

@@ -25,7 +25,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import type { DissolvefAction, DissolvefConflictMode, DissolvefInput, DissolvefMediaType, DissolvefPlanItem, DissolvefResult } from "./core.js"
 import { runDissolvef } from "./core.js"
 import { createNodeDissolvefRuntime, readClipboardText } from "./platform.js"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 const CLI_NAME = nodeCliName("dissolvef")
 const PREVIEW_LIMIT = 40
@@ -46,13 +46,17 @@ interface DissolvefDefaults {
  * Read dissolvef defaults from xiranite.config.toml [nodes.dissolvef] section.
  * Falls back to safe defaults when the config file or section is missing.
  */
-async function resolveDissolvefDefaults(host: CliHost): Promise<DissolvefDefaults> {
+async function resolveDissolvefDefaults(host: CliHost, json: boolean): Promise<DissolvefDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const node = getNodeConfig<DissolvefNodeConfig>(config, "dissolvef") ?? {}
+    const { config: node } = await loadNodeConfigWithHints<DissolvefNodeConfig>("dissolvef", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     return {
-      enableUndo: node.enable_undo ?? true,
-      historyPath: node.history_path,
+      enableUndo: node?.enable_undo ?? true,
+      historyPath: node?.history_path,
     }
   } catch {
     return { enableUndo: true, historyPath: undefined }
@@ -250,7 +254,7 @@ function inputFromArgs(args: DissolvefCliOptions): DissolvefInput {
 
 async function runAction(input: DissolvefInput & { action: DissolvefAction }, json: boolean, host: CliHost): Promise<void> {
   if (!input.historyPath) {
-    const defaults = await resolveDissolvefDefaults(host)
+    const defaults = await resolveDissolvefDefaults(host, json)
     if (defaults.historyPath) input.historyPath = defaults.historyPath
   }
   let progressActive = false
@@ -590,7 +594,7 @@ function writeSelectedConfig(host: CliHost, path: string, config: GuidedConfig):
 
 async function runGuidedAction(input: DissolvefInput & { action: DissolvefAction }, host: CliHost): Promise<DissolvefResult> {
   if (!input.historyPath) {
-    const defaults = await resolveDissolvefDefaults(host)
+    const defaults = await resolveDissolvefDefaults(host, false)
     if (defaults.historyPath) input.historyPath = defaults.historyPath
   }
   let progressActive = false

@@ -20,7 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, pathExists, resolveXiraniteConfigPath } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { runRepacku } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
@@ -63,13 +63,15 @@ interface RepackuDefaults {
  * 从 xiranite.config.toml 的 [nodes.repacku] 段读取常用默认参数。
  * 文件不存在或解析失败时返回空对象，guided 流程继续使用内置默认值。
  */
-async function resolveRepackuDefaults(host: CliHost): Promise<RepackuDefaults> {
+async function resolveRepackuDefaults(host: CliHost, json: boolean): Promise<RepackuDefaults> {
   try {
-    const xiranitePath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
-    if (await pathExists(xiranitePath)) {
-      const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-      return getNodeConfig<RepackuDefaults>(config, "repacku") ?? {}
-    }
+    const { config } = await loadNodeConfigWithHints<RepackuDefaults>("repacku", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return config ?? {}
   } catch {
     // ignore: 配置缺失或解析失败时回退到内置默认值
   }
@@ -220,7 +222,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeRepackuRuntime()
-  const defaults = await resolveRepackuDefaults(host)
+  const defaults = await resolveRepackuDefaults(host, false)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
   try {

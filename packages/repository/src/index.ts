@@ -23,6 +23,9 @@ export interface WorkspaceRepository {
   listLanes(): Promise<LaneDTO[]>
   listComponents(): Promise<ComponentDTO[]>
   saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
+  getKvValue(key: string): Promise<string | null>
+  setKvValue(key: string, value: string): Promise<void>
+  deleteKvValue(key: string): Promise<void>
 }
 
 export interface RuntimeHistoryRepository {
@@ -51,6 +54,7 @@ export function createMemoryWorkspaceRepository(options: MemoryWorkspaceReposito
   let workspaces = [...(options.workspaces ?? [])]
   let lanes = [...(options.lanes ?? [])]
   let components = [...(options.components ?? [])]
+  let kvStore = new Map<string, string>()
 
   return {
     async listWorkspaces() {
@@ -84,6 +88,15 @@ export function createMemoryWorkspaceRepository(options: MemoryWorkspaceReposito
       lanes = clone(snapshot.lanes)
       components = clone(snapshot.components)
       return clone(snapshot)
+    },
+    async getKvValue(key) {
+      return kvStore.get(key) ?? null
+    },
+    async setKvValue(key, value) {
+      kvStore.set(key, value)
+    },
+    async deleteKvValue(key) {
+      kvStore.delete(key)
     },
   }
 }

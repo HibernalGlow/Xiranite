@@ -20,7 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, stringifyToml } from "@xiranite/config"
+import { loadNodeConfigWithHints, stringifyToml } from "@xiranite/config"
 
 import type { SeriexInput, SeriexResult } from "./core.js"
 import { runSeriex } from "./core.js"
@@ -81,6 +81,7 @@ export interface ResolvedSeriexConfig {
 export async function resolveSeriexConfig(
   args: { config?: string },
   host: CliHost,
+  json: boolean,
 ): Promise<ResolvedSeriexConfig> {
   // Priority 1: --config explicit
   if (args.config) {
@@ -89,8 +90,12 @@ export async function resolveSeriexConfig(
 
   // Priority 2: xiranite.config.toml [nodes.seriex]
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const seriexNode = getNodeConfig<Record<string, unknown>>(config, "seriex")
+    const { config: seriexNode } = await loadNodeConfigWithHints<Record<string, unknown>>("seriex", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     if (seriexNode && Object.keys(seriexNode).length > 0) {
       return { configText: stringifyToml(seriexNode) }
     }
@@ -139,7 +144,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const input: SeriexInput = { action: "plan", ...inputFromArgs(args as SeriexCliOptions) }
-          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host)
+          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host, Boolean(args.json))
           if (resolved.configText) input.configText = resolved.configText
           await runAction(input, Boolean(args.json), host)
         },
@@ -149,7 +154,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const input: SeriexInput = { action: "execute", ...inputFromArgs(args as SeriexCliOptions) }
-          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host)
+          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host, Boolean(args.json))
           if (resolved.configText) input.configText = resolved.configText
           await runAction(input, Boolean(args.json), host)
         },
@@ -430,7 +435,7 @@ async function resolveSeriexOptions(host: CliHost): Promise<GuidedSeriexOptions>
 
   // Fall back to xiranite.config.toml [nodes.seriex] when no explicit config path is set
   if (!options.configPath) {
-    const resolved = await resolveSeriexConfig({}, host)
+    const resolved = await resolveSeriexConfig({}, host, false)
     if (resolved.configText) options.configText = resolved.configText
   }
 

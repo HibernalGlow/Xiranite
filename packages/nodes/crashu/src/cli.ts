@@ -19,7 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { CrashuAction, CrashuConflictPolicy, CrashuInput, CrashuMoveDirection } from "./core.js"
 import { runCrashu } from "./core.js"
@@ -138,15 +138,19 @@ function createDefaultHost(): CliHost {
  * Resolve crashu default output parameters from xiranite.config.toml [nodes.crashu.output].
  * Falls back to hardcoded defaults when the config file or section is missing.
  */
-async function resolveCrashuDefaults(host: CliHost): Promise<CrashuOutputDefaults> {
+async function resolveCrashuDefaults(host: CliHost, json: boolean): Promise<CrashuOutputDefaults> {
   const fallback: CrashuOutputDefaults = {
     pairsFileName: DEFAULT_PAIRS_FILE,
     directory: undefined,
     overwrite: false,
   }
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const nodeConfig = getNodeConfig<CrashuNodeConfig>(config, "crashu")
+    const { config: nodeConfig } = await loadNodeConfigWithHints<CrashuNodeConfig>("crashu", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     const output = nodeConfig?.output
     if (!output) return fallback
     return {
@@ -167,7 +171,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Find similar folders." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveCrashuDefaults(host)
+          const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
           await runAction({ action: "scan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
@@ -175,7 +179,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "plan", description: "Preview move operations." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveCrashuDefaults(host)
+          const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
           await runAction({ action: "plan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
@@ -183,7 +187,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "move", description: "Move matched folders." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveCrashuDefaults(host)
+          const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
           await runAction({ action: "move", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
@@ -191,7 +195,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "execute", description: "Alias for move." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveCrashuDefaults(host)
+          const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
           await runAction({ action: "execute", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
@@ -433,7 +437,7 @@ async function resolveGuidedPaths(host: CliHost, runtime: CrashuRuntimeLike): Pr
 }
 
 async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost): Promise<boolean> {
-  const defaults = await resolveCrashuDefaults(host)
+  const defaults = await resolveCrashuDefaults(host, false)
   const targetPath = paths[0]!
   const sourcePaths = paths
   let destinationPath: string | undefined

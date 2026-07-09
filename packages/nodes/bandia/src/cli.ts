@@ -22,7 +22,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { BandiaAction, BandiaArchiveFormat, BandiaExtractMode, BandiaInput, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
 import { mappingsToText, parseBandiaPaths, parsePathMappings, runBandia } from "./core.js"
@@ -109,28 +109,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "extract", description: "Extract archive paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("extract", await inputFromArgs("extract", args as unknown as BandiaCliOptions, host), Boolean(args.json), host)
+          await runAction("extract", await inputFromArgs("extract", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       compress: defineCommand({
         meta: { name: "compress", description: "Compress source paths to archives." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("compress", await inputFromArgs("compress", args as unknown as BandiaCliOptions, host), Boolean(args.json), host)
+          await runAction("compress", await inputFromArgs("compress", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       repack: defineCommand({
         meta: { name: "repack", description: "Compress extracted folders back through archive mappings." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("repack", await inputFromArgs("repack", args as unknown as BandiaCliOptions, host), Boolean(args.json), host)
+          await runAction("repack", await inputFromArgs("repack", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       "export-efu": defineCommand({
         meta: { name: "export-efu", description: "Export archive or extracted paths to Everything EFU." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("export_efu", await inputFromArgs("export_efu", args as unknown as BandiaCliOptions, host), Boolean(args.json), host)
+          await runAction("export_efu", await inputFromArgs("export_efu", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -171,8 +171,8 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(action: BandiaAction, args: BandiaCliOptions, host: CliHost): Promise<BandiaInput> {
-  const resolvedMappings = await resolveBandiaMappings(args, host)
+async function inputFromArgs(action: BandiaAction, args: BandiaCliOptions, host: CliHost, json: boolean): Promise<BandiaInput> {
+  const resolvedMappings = await resolveBandiaMappings(args, host, json)
   const mappingText = resolvedMappings.mappingText
   let paths = splitArg(args.paths, args.path ? [args.path] : [])
   if (args.clipboard && !paths.length && !mappingText) {
@@ -213,7 +213,7 @@ async function inputFromArgs(action: BandiaAction, args: BandiaCliOptions, host:
  * 3. xiranite.config.toml [[nodes.bandia.mappings]] array (small mappings)
  * 4. No mappings
  */
-async function resolveBandiaMappings(args: BandiaCliOptions, host: CliHost): Promise<{ mappingText?: string; mappings?: BandiaPathMapping[] }> {
+async function resolveBandiaMappings(args: BandiaCliOptions, host: CliHost, json: boolean): Promise<{ mappingText?: string; mappings?: BandiaPathMapping[] }> {
   // Priority 1: --mappingFile explicit JSON file (large mappings stay external)
   if (args.mappingFile) {
     const text = await readFile(args.mappingFile, "utf8")
@@ -227,8 +227,12 @@ async function resolveBandiaMappings(args: BandiaCliOptions, host: CliHost): Pro
 
   // Priority 3: xiranite.config.toml [[nodes.bandia.mappings]] array (small mappings)
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const bandiaNode = getNodeConfig<BandiaNodeConfig>(config, "bandia")
+    const { config: bandiaNode } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     if (bandiaNode?.mappings?.length) {
       const text = JSON.stringify({ mappings: bandiaNode.mappings }, null, 2)
       return { mappingText: text, mappings: parsePathMappings(text) }

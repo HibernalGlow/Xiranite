@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, resolveXiraniteConfigPath } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { OwithuAction, OwithuEntry, OwithuInput, OwithuResult, RegistryHive } from "./core.js"
 import { runOwithu } from "./core.js"
@@ -179,7 +179,7 @@ async function runGuided(host: CliHost): Promise<void> {
   let firstRender = true
   try {
     while (true) {
-      const defaultConfig = await detectDefaultConfig(host)
+      const defaultConfig = await detectDefaultConfig(host, false)
       renderGuidedIntro(host, firstRender, defaultConfig)
       firstRender = false
 
@@ -412,18 +412,20 @@ function writeOwithuSummary(host: CliHost, result: OwithuResult, action: OwithuA
   }
 }
 
-async function detectDefaultConfig(host: CliHost): Promise<string | undefined> {
+async function detectDefaultConfig(host: CliHost, json: boolean): Promise<string | undefined> {
   // Prefer xiranite.config.toml when it contains a [nodes.owithu] section
-  const xiranitePath = resolveXiraniteConfigPath({ cwd: host.cwd, env: host.env })
-  if (await pathExists(xiranitePath)) {
-    try {
-      const { config } = await loadXiraniteConfig({ configPath: xiranitePath })
-      if (getNodeConfig(config, "owithu") !== undefined) {
-        return xiranitePath
-      }
-    } catch {
-      // xiranite.config.toml exists but failed to parse; fall through to legacy paths
+  try {
+    const { config: owithuNode, path: xiranitePath } = await loadNodeConfigWithHints<Record<string, unknown>>("owithu", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    if (owithuNode !== undefined && xiranitePath) {
+      return xiranitePath
     }
+  } catch {
+    // xiranite.config.toml exists but failed to parse; fall through to legacy paths
   }
 
   // Backward-compatible fallback: legacy standalone owithu.toml locations

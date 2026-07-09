@@ -22,6 +22,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths, runEncodeb } from "./core.js"
@@ -38,6 +39,45 @@ interface EncodebCliOptions {
   strategy?: string
   limit?: string
   json?: boolean
+}
+
+interface EncodebNodeConfig {
+  preset?: string
+  src_encoding?: string
+  dst_encoding?: string
+  strategy?: string
+  limit?: number
+}
+
+interface EncodebDefaults {
+  preset?: string
+  srcEncoding?: string
+  dstEncoding?: string
+  strategy?: EncodebStrategy
+  limit?: number
+}
+
+/**
+ * Resolve encodeb defaults from xiranite.config.toml [nodes.encodeb].
+ */
+async function resolveEncodebDefaults(host: CliHost, json = false): Promise<EncodebDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      preset: config?.preset,
+      srcEncoding: config?.src_encoding,
+      dstEncoding: config?.dst_encoding,
+      strategy: config?.strategy === "copy" ? "copy" : config?.strategy === "replace" ? "replace" : undefined,
+      limit: typeof config?.limit === "number" ? config.limit : undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 interface GuidedTask {
@@ -114,21 +154,24 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "find", description: "Find suspicious garbled filenames." },
         args: encodebArgs(),
         async run({ args }) {
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions), action: "find" }, Boolean(args.json), host)
+          const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
+          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "find" }, Boolean(args.json), host)
         },
       }),
       preview: defineCommand({
         meta: { name: "preview", description: "Preview filename re-encoding mappings." },
         args: encodebArgs(),
         async run({ args }) {
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions), action: "preview" }, Boolean(args.json), host)
+          const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
+          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "preview" }, Boolean(args.json), host)
         },
       }),
       recover: defineCommand({
         meta: { name: "recover", description: "Apply filename recovery." },
         args: encodebArgs(),
         async run({ args }) {
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions), action: "recover" }, Boolean(args.json), host)
+          const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
+          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "recover" }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -144,23 +187,25 @@ function createProgram(host: CliHost = createDefaultHost()) {
 function encodebArgs() {
   return {
     paths: { type: "string", description: "Paths separated by semicolon or new lines." },
-    preset: { type: "string", default: "cn", description: "cn, jp, kr, or custom." },
+    preset: { type: "string", description: "cn, jp, kr, or custom." },
     srcEncoding: { type: "string", description: "Source encoding, e.g. cp437." },
     dstEncoding: { type: "string", description: "Destination encoding, e.g. cp936." },
-    strategy: { type: "string", default: "replace", description: "replace or copy." },
-    limit: { type: "string", default: "200", description: "Maximum preview/find results." },
+    strategy: { type: "string", description: "replace or copy." },
+    limit: { type: "string", description: "Maximum preview/find results." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
 
-function inputFromArgs(args: EncodebCliOptions): EncodebInput {
-  const preset = ENCODEB_PRESETS[args.preset as keyof typeof ENCODEB_PRESETS]
+function inputFromArgs(args: EncodebCliOptions, defaults: EncodebDefaults = {}): EncodebInput {
+  const presetId = args.preset ?? defaults.preset ?? "cn"
+  const preset = ENCODEB_PRESETS[presetId as keyof typeof ENCODEB_PRESETS]
+  const strategy = args.strategy ?? defaults.strategy ?? "replace"
   return {
     paths: parseEncodebPaths((args.paths ?? "").split(";")),
-    srcEncoding: args.srcEncoding ?? preset?.srcEncoding ?? "cp437",
-    dstEncoding: args.dstEncoding ?? preset?.dstEncoding ?? "cp936",
-    strategy: args.strategy === "copy" ? "copy" : "replace",
-    limit: Number(args.limit ?? 200),
+    srcEncoding: args.srcEncoding ?? defaults.srcEncoding ?? preset?.srcEncoding ?? "cp437",
+    dstEncoding: args.dstEncoding ?? defaults.dstEncoding ?? preset?.dstEncoding ?? "cp936",
+    strategy: strategy === "copy" ? "copy" : "replace",
+    limit: Number(args.limit ?? defaults.limit ?? 200),
   }
 }
 
@@ -228,6 +273,8 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
+      const defaults = await resolveEncodebDefaults(host)
+
       let strategy: EncodebStrategy | undefined
       if (choice.task.name === "recover") {
         strategy = await resolveStrategy(host)
@@ -244,7 +291,7 @@ async function runGuided(host: CliHost): Promise<void> {
         ...(choice.task.name === "recover" ? [`strategy: ${strategy}`] : []),
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
-      const ok = await runGuidedTask(choice.task, paths, preset, strategy, host)
+      const ok = await runGuidedTask(choice.task, paths, preset, strategy, host, defaults)
       if (!ok) process.exitCode = 1
       if (!await confirmRich(host, "继续选择其他任务?", false)) return
     }
@@ -406,12 +453,12 @@ async function resolveStrategy(host: CliHost): Promise<EncodebStrategy | undefin
   return strategy
 }
 
-async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPresetInfo, strategy: EncodebStrategy | undefined, host: CliHost): Promise<boolean> {
+async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPresetInfo, strategy: EncodebStrategy | undefined, host: CliHost, defaults: EncodebDefaults = {}): Promise<boolean> {
   const baseInput: EncodebInput = {
     paths,
     srcEncoding: preset.srcEncoding,
     dstEncoding: preset.dstEncoding,
-    limit: 200,
+    limit: defaults.limit ?? 200,
   }
 
   if (task.action === "find") {
@@ -445,7 +492,7 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
     return true
   }
 
-  const result = await runWithProgress({ ...baseInput, action: "recover", strategy: strategy ?? "replace" }, host)
+  const result = await runWithProgress({ ...baseInput, action: "recover", strategy: strategy ?? defaults.strategy ?? "replace" }, host)
   writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
   writeEncodebSummary(host, "Recover Summary", result, "recover", strategy)
   return result.success

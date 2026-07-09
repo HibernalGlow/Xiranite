@@ -18,12 +18,43 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { RecycleuAction, RecycleuInput, RecycleuResult } from "./core.js"
 import { normalizeDriveLetter, runRecycleu } from "./core.js"
 import { createNodeRecycleuRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("recycleu")
+
+interface RecycleuNodeConfig {
+  interval?: number
+  max_cycles?: number
+  drive_letter?: string
+}
+
+interface RecycleuDefaults {
+  interval?: number
+  maxCycles?: number
+  driveLetter?: string
+}
+
+async function resolveRecycleuDefaults(host: CliHost, json = false): Promise<RecycleuDefaults> {
+  try {
+    const { config: nodeConfig } = await loadNodeConfigWithHints<RecycleuNodeConfig>("recycleu", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      interval: nodeConfig?.interval,
+      maxCycles: nodeConfig?.max_cycles,
+      driveLetter: nodeConfig?.drive_letter?.trim() || undefined,
+    }
+  } catch {
+    return {}
+  }
+}
 
 interface RecycleuCliOptions {
   drive?: string
@@ -103,14 +134,18 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "clean", description: "Empty the recycle bin once." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(inputFromArgs(args as RecycleuCliOptions, "clean_now"), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveRecycleuDefaults(host, json)
+          await runAction(inputFromArgs(args as RecycleuCliOptions, "clean_now", defaults), json, host)
         },
       }),
       start: defineCommand({
         meta: { name: "start", description: "Run auto-clean for a bounded number of cycles." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(inputFromArgs(args as RecycleuCliOptions, "start"), Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveRecycleuDefaults(host, json)
+          await runAction(inputFromArgs(args as RecycleuCliOptions, "start", defaults), json, host)
         },
       }),
       guided: defineCommand({
@@ -126,18 +161,18 @@ function createProgram(host: CliHost = createDefaultHost()) {
 function commonArgs() {
   return {
     drive: { type: "string", description: "Limit cleanup to one drive letter, for example C." },
-    interval: { type: "string", default: "10", description: "Clean interval in seconds, minimum 5." },
-    cycles: { type: "string", default: "360", description: "Maximum clean cycles." },
+    interval: { type: "string", description: "Clean interval in seconds, minimum 5." },
+    cycles: { type: "string", description: "Maximum clean cycles." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
 
-function inputFromArgs(args: RecycleuCliOptions, action: RecycleuAction): RecycleuInput {
+function inputFromArgs(args: RecycleuCliOptions, action: RecycleuAction, defaults: RecycleuDefaults = {}): RecycleuInput {
   return {
     action,
-    interval: Number(args.interval ?? 10),
-    maxCycles: Number(args.cycles ?? 360),
-    driveLetter: String(args.drive ?? ""),
+    interval: Number(args.interval ?? defaults.interval ?? 10),
+    maxCycles: Number(args.cycles ?? defaults.maxCycles ?? 360),
+    driveLetter: String(args.drive ?? defaults.driveLetter ?? ""),
   }
 }
 
@@ -148,6 +183,7 @@ async function runGuided(host: CliHost): Promise<void> {
     return
   }
 
+  const defaults = await resolveRecycleuDefaults(host, false)
   let firstRender = true
   try {
     while (true) {
@@ -160,7 +196,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const input = await resolveTaskInput(host, choice.task)
+      const input = await resolveTaskInput(host, choice.task, defaults)
 
       writeRichPanel(host, "Run", [
         `task: ${choice.task.name}`,
@@ -216,11 +252,11 @@ async function readGuidedChoice(host: CliHost): Promise<ResolvedGuidedChoice> {
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? GUIDED_TASKS[0]! }
 }
 
-async function resolveTaskInput(host: CliHost, task: GuidedTask): Promise<RecycleuInput> {
+async function resolveTaskInput(host: CliHost, task: GuidedTask, defaults: RecycleuDefaults = {}): Promise<RecycleuInput> {
   const input: RecycleuInput = { ...task.input }
   if (task.name === "auto-clean") {
-    input.interval = await resolveInterval(host, task.input.interval ?? 10)
-    input.maxCycles = await resolveCycles(host, task.input.maxCycles ?? 360)
+    input.interval = await resolveInterval(host, defaults.interval ?? task.input.interval ?? 10)
+    input.maxCycles = await resolveCycles(host, defaults.maxCycles ?? task.input.maxCycles ?? 360)
   }
   input.driveLetter = await resolveDriveLetter(host)
   return input

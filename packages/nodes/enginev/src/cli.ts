@@ -20,7 +20,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig, resolveXiraniteConfigPath } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type {
   EngineVAction,
@@ -255,15 +255,18 @@ interface EnginevDefaults {
  * Returns empty defaults when the config file or section is missing.
  * wallpapersFile is intentionally NOT read from TOML (large scan results stay external).
  */
-async function resolveEnginevDefaults(host: CliHost): Promise<EnginevDefaults> {
+async function resolveEnginevDefaults(host: CliHost, json: boolean): Promise<EnginevDefaults> {
   try {
-    const configPath = resolveXiraniteConfigPath({ env: host.env, cwd: host.cwd })
-    const { config } = await loadXiraniteConfig({ configPath, env: host.env, cwd: host.cwd })
-    const nodeConfig = getNodeConfig<EnginevNodeConfig>(config, "enginev") ?? {}
+    const { config: nodeConfig } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     return {
-      workshopRoot: nodeConfig.workshop_root?.trim() || undefined,
-      exportPath: nodeConfig.export_path?.trim() || undefined,
-      exportFormat: nodeConfig.export_format,
+      workshopRoot: nodeConfig?.workshop_root?.trim() || undefined,
+      exportPath: nodeConfig?.export_path?.trim() || undefined,
+      exportFormat: nodeConfig?.export_format,
     }
   } catch {
     return {}
@@ -278,7 +281,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeEngineVRuntime()
-  const defaults = await resolveEnginevDefaults(host)
+  const defaults = await resolveEnginevDefaults(host, false)
   let firstRender = true
   try {
     while (true) {

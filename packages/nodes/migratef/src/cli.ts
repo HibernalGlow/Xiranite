@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { MigratefAction, MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
 import type { MigratePlanItem } from "./core.js"
@@ -57,10 +57,14 @@ interface MigratefDefaults {
  * Falls back to safe defaults (enable_undo=true, no history_path override) when the
  * config file is missing or unreadable.
  */
-async function resolveMigratefDefaults(host: CliHost): Promise<MigratefDefaults> {
+async function resolveMigratefDefaults(host: CliHost, json: boolean): Promise<MigratefDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd, allowMissing: true })
-    const nodeConfig = getNodeConfig<MigratefNodeConfig>(config, "migratef")
+    const { config: nodeConfig } = await loadNodeConfigWithHints<MigratefNodeConfig>("migratef", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     return {
       enableUndo: nodeConfig?.enable_undo ?? true,
       historyPath: nodeConfig?.history_path,
@@ -150,7 +154,7 @@ function createDefaultHost(): CliHost {
 }
 
 async function runSubcommand(action: MigratefAction, args: MigratefCliOptions, host: CliHost): Promise<void> {
-  const defaults = await resolveMigratefDefaults(host)
+  const defaults = await resolveMigratefDefaults(host, Boolean(args.json))
   await runAction({ action, ...inputFromArgs(args, defaults) }, Boolean(args.json), host)
 }
 
@@ -251,7 +255,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeMigratefRuntime()
-  const defaults = await resolveMigratefDefaults(host)
+  const defaults = await resolveMigratefDefaults(host, false)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
 

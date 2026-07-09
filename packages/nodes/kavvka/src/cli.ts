@@ -21,6 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { KavvkaAction, KavvkaInput, KavvkaResult } from "./core.js"
 import { DEFAULT_KAVVKA_KEYWORDS, parseKavvkaKeywords, parseKavvkaPaths, runKavvka } from "./core.js"
@@ -43,8 +44,41 @@ interface KavvkaCliOptions {
   json?: boolean
 }
 
+interface KavvkaNodeConfig {
+  keywords?: string[]
+  scan_depth?: number
+  strict_artist?: boolean
+}
+
+interface KavvkaDefaults {
+  keywords?: string[]
+  scanDepth?: number
+  strictArtist?: boolean
+}
+
 type PathSource = "clipboard" | "manual" | "exit"
 type ActionChoice = KavvkaAction | "exit"
+
+/**
+ * Resolve kavvka defaults from xiranite.config.toml [nodes.kavvka].
+ */
+async function resolveKavvkaDefaults(host: CliHost, json = false): Promise<KavvkaDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<KavvkaNodeConfig>("kavvka", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      keywords: config?.keywords,
+      scanDepth: typeof config?.scan_depth === "number" ? config.scan_depth : undefined,
+      strictArtist: typeof config?.strict_artist === "boolean" ? config.strict_artist : undefined,
+    }
+  } catch {
+    return {}
+  }
+}
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -82,21 +116,24 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "process", description: "Move sibling folders into #compare and print Czkawka paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "process", ...inputFromArgs(args as KavvkaCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
+          await runAction({ action: "process", ...inputFromArgs(args as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       plan: defineCommand({
         meta: { name: "plan", description: "Preview process results without moving folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as KavvkaCliOptions), dryRun: true }, Boolean(args.json), host)
+          const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
+          await runAction({ action: "plan", ...inputFromArgs(args as KavvkaCliOptions, defaults), dryRun: true }, Boolean(args.json), host)
         },
       }),
       scan: defineCommand({
         meta: { name: "scan", description: "Find folders whose names contain gallery keywords." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs(args as KavvkaCliOptions) }, Boolean(args.json), host)
+          const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
+          await runAction({ action: "scan", ...inputFromArgs(args as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -125,15 +162,16 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: KavvkaCliOptions): KavvkaInput {
+function inputFromArgs(args: KavvkaCliOptions, defaults: KavvkaDefaults = {}): KavvkaInput {
+  const keywordText = args.keywords || args.keyword
   return {
     paths: parseList(args.paths || args.path),
     scanRoots: parseList(args.roots || args.root),
-    keywords: parseKavvkaKeywords(args.keywords || args.keyword),
-    scanDepth: parseDepth(args.depth),
+    keywords: keywordText ? parseKavvkaKeywords(keywordText) : defaults.keywords,
+    scanDepth: parseDepth(args.depth ?? defaults.scanDepth),
     force: args.force ?? true,
     dryRun: Boolean(args.dryRun),
-    strictArtist: Boolean(args.strictArtist),
+    strictArtist: args.strictArtist ?? defaults.strictArtist ?? false,
   }
 }
 
@@ -182,7 +220,8 @@ async function runGuided(host: CliHost): Promise<void> {
         continue
       }
 
-      const input = await resolveInput(host, action)
+      const defaults = await resolveKavvkaDefaults(host)
+      const input = await resolveInput(host, action, defaults)
       if (!input) {
         if (!await confirmRich(host, "重新开始?", false)) return
         continue
@@ -243,25 +282,25 @@ async function resolveAction(host: CliHost): Promise<KavvkaAction | undefined> {
   return action
 }
 
-async function resolveInput(host: CliHost, action: KavvkaAction): Promise<KavvkaInput | undefined> {
-  if (action === "scan") return await resolveScanInput(host)
-  return await resolveProcessInput(host, action)
+async function resolveInput(host: CliHost, action: KavvkaAction, defaults: KavvkaDefaults = {}): Promise<KavvkaInput | undefined> {
+  if (action === "scan") return await resolveScanInput(host, defaults)
+  return await resolveProcessInput(host, action, defaults)
 }
 
-async function resolveScanInput(host: CliHost): Promise<KavvkaInput | undefined> {
+async function resolveScanInput(host: CliHost, defaults: KavvkaDefaults = {}): Promise<KavvkaInput | undefined> {
   const roots = await resolvePaths(host, "扫描根目录")
   if (!roots.length) return undefined
 
-  const keywords = await resolveKeywords(host)
-  const depth = await resolveDepth(host)
+  const keywords = await resolveKeywords(host, defaults.keywords)
+  const depth = await resolveDepth(host, defaults.scanDepth)
   return { action: "scan", scanRoots: roots, keywords, scanDepth: depth }
 }
 
-async function resolveProcessInput(host: CliHost, action: KavvkaAction): Promise<KavvkaInput | undefined> {
+async function resolveProcessInput(host: CliHost, action: KavvkaAction, defaults: KavvkaDefaults = {}): Promise<KavvkaInput | undefined> {
   const paths = await resolvePaths(host, "源目录")
   if (!paths.length) return undefined
 
-  const strictArtist = await confirmRich(host, "要求源目录存在 [] 画师标记?", false)
+  const strictArtist = await confirmRich(host, "要求源目录存在 [] 画师标记?", Boolean(defaults.strictArtist))
   return {
     action,
     paths,
@@ -322,19 +361,19 @@ async function resolvePaths(host: CliHost, label: string): Promise<string[]> {
   return verified
 }
 
-async function resolveKeywords(host: CliHost): Promise<string[]> {
+async function resolveKeywords(host: CliHost, configKeywords?: string[]): Promise<string[]> {
   const useDefault = await confirmRich(host, "使用内置画集关键词?", true)
-  if (useDefault) return [...DEFAULT_KAVVKA_KEYWORDS]
+  if (useDefault) return [...(configKeywords?.length ? configKeywords : DEFAULT_KAVVKA_KEYWORDS)]
   const answer = (await promptRich(host, "输入扫描关键词，多个用逗号分隔", "")).trim()
-  if (!answer) return [...DEFAULT_KAVVKA_KEYWORDS]
+  if (!answer) return [...(configKeywords?.length ? configKeywords : DEFAULT_KAVVKA_KEYWORDS)]
   const parsed = parseKavvkaKeywords(answer)
-  return parsed.length ? parsed : [...DEFAULT_KAVVKA_KEYWORDS]
+  return parsed.length ? parsed : [...(configKeywords?.length ? configKeywords : DEFAULT_KAVVKA_KEYWORDS)]
 }
 
-async function resolveDepth(host: CliHost): Promise<number> {
-  const answer = (await promptRich(host, "扫描深度", "3")).trim()
+async function resolveDepth(host: CliHost, defaultDepth?: number): Promise<number> {
+  const answer = (await promptRich(host, "扫描深度", String(defaultDepth ?? 3))).trim()
   const value = Number(answer)
-  return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 3
+  return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : (defaultDepth ?? 3)
 }
 
 function writeSelectedPlan(host: CliHost, action: KavvkaAction, input: KavvkaInput): void {

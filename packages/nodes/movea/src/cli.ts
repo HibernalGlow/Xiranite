@@ -19,6 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { MoveaInput, MoveaResult, MoveaScanItem } from "./core.js"
 import { matchMoveaArchiveToFolders, runMovea } from "./core.js"
@@ -26,6 +27,48 @@ import { createNodeMoveaRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("movea")
 const DEFAULT_ROOT_PATH = "E:\\1Hub\\EH\\1EHV"
+
+interface MoveaNodeConfig {
+  root_path?: string
+  regex_patterns?: string[]
+  priority_keywords?: string[]
+  blacklist?: string[]
+  allow_move_to_unnumbered?: boolean
+  enable_folder_moving?: boolean
+  dry_run?: boolean
+}
+
+interface MoveaDefaults {
+  rootPath?: string
+  regexPatterns?: string[]
+  priorityKeywords?: string[]
+  blacklist?: string[]
+  allowMoveToUnnumbered?: boolean
+  enableFolderMoving?: boolean
+  dryRun?: boolean
+}
+
+async function resolveMoveaDefaults(host: CliHost, json = false): Promise<MoveaDefaults> {
+  try {
+    const { config: nodeConfig } = await loadNodeConfigWithHints<MoveaNodeConfig>("movea", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      rootPath: nodeConfig?.root_path?.trim() || undefined,
+      regexPatterns: nodeConfig?.regex_patterns,
+      priorityKeywords: nodeConfig?.priority_keywords,
+      blacklist: nodeConfig?.blacklist,
+      allowMoveToUnnumbered: nodeConfig?.allow_move_to_unnumbered,
+      enableFolderMoving: nodeConfig?.enable_folder_moving,
+      dryRun: nodeConfig?.dry_run,
+    }
+  } catch {
+    return {}
+  }
+}
 
 interface MoveaCliOptions {
   path?: string
@@ -98,21 +141,27 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a root path for movable archives and folders." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs(args as MoveaCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMoveaDefaults(host, json)
+          await runAction({ action: "scan", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
         },
       }),
       match: defineCommand({
         meta: { name: "match", description: "Preview target folders for an archive name." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "match", ...inputFromArgs(args as MoveaCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMoveaDefaults(host, json)
+          await runAction({ action: "match", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move items according to --plan JSON inside --level1." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "move_single", ...inputFromArgs(args as MoveaCliOptions) }, Boolean(args.json), host)
+          const json = Boolean(args.json)
+          const defaults = await resolveMoveaDefaults(host, json)
+          await runAction({ action: "move_single", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
         },
       }),
       guided: defineCommand({
@@ -139,15 +188,20 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: MoveaCliOptions): MoveaInput {
+function inputFromArgs(args: MoveaCliOptions, defaults: MoveaDefaults = {}): MoveaInput {
+  const regexPatterns = splitArg(args.regex)
   return {
-    rootPath: args.root || args.path,
+    rootPath: args.root || args.path || defaults.rootPath,
     level1Name: args.level1,
     archiveName: args.archive,
     subfolders: splitArg(args.folders),
-    regexPatterns: splitArg(args.regex),
+    regexPatterns: regexPatterns.length ? regexPatterns : defaults.regexPatterns,
+    priorityKeywords: defaults.priorityKeywords,
+    blacklist: defaults.blacklist,
+    allowMoveToUnnumbered: defaults.allowMoveToUnnumbered,
+    enableFolderMoving: defaults.enableFolderMoving,
     movePlan: parsePlan(args.plan),
-    dryRun: Boolean(args.dryRun),
+    dryRun: args.dryRun ?? defaults.dryRun,
   }
 }
 
@@ -227,10 +281,13 @@ async function runGuided(host: CliHost): Promise<void> {
     return
   }
 
+  const defaults = await resolveMoveaDefaults(host, false)
+  const defaultRoot = defaults.rootPath ?? DEFAULT_ROOT_PATH
+
   let firstRender = true
   try {
     while (true) {
-      renderGuidedIntro(host, firstRender)
+      renderGuidedIntro(host, firstRender, defaultRoot)
       firstRender = false
 
       const choice = await readGuidedChoice(host)
@@ -239,7 +296,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
 
-      const rootPath = choice.kind === "path" ? choice.path : await resolveRootPath(host)
+      const rootPath = choice.kind === "path" ? choice.path : await resolveRootPath(host, defaultRoot)
       if (!rootPath) {
         writeRichPanel(host, "Path", "未提供有效根路径。可以复制路径到剪贴板，或在选择处直接粘贴路径。", { color: "yellow", minWidth: 56 })
         continue
@@ -264,7 +321,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 }
 
-function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
+function renderGuidedIntro(host: CliHost, includeHeader: boolean, defaultRoot = DEFAULT_ROOT_PATH): void {
   if (!includeHeader) writeLine(host)
   const columns = terminalColumns(host)
   const taskLines = GUIDED_TASKS.map((task) => `${rich(host, "•", "cyan")} ${rich(host, task.name, "magenta")}  ${task.description}`)
@@ -277,7 +334,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
     ...taskLines,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
-  writeLine(host, rich(host, `提示: guided 默认根路径 ${DEFAULT_ROOT_PATH}；需要预演请用 \`${CLI_NAME} move --dry-run\`。`, "grey"))
+  writeLine(host, rich(host, `提示: guided 默认根路径 ${defaultRoot}；需要预演请用 \`${CLI_NAME} move --dry-run\`。`, "grey"))
 }
 
 async function readGuidedChoice(host: CliHost): Promise<ResolvedGuidedChoice> {
@@ -315,14 +372,14 @@ async function readGuidedChoice(host: CliHost): Promise<ResolvedGuidedChoice> {
   return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? DEFAULT_TASK }
 }
 
-async function resolveRootPath(host: CliHost): Promise<string> {
+async function resolveRootPath(host: CliHost, defaultRoot = DEFAULT_ROOT_PATH): Promise<string> {
   const clipboard = cleanPath(await readClipboardText())
   if (clipboard && await verifyDirectory(clipboard)) {
     writeLine(host, rich(host, `已从剪贴板读取根路径: ${clipboard}`, "yellow"))
     return clipboard
   }
 
-  const answer = await promptRich(host, "输入根路径", DEFAULT_ROOT_PATH)
+  const answer = await promptRich(host, "输入根路径", defaultRoot)
   const path = cleanPath(answer)
   if (!path) return ""
   if (!await verifyDirectory(path)) {

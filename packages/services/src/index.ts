@@ -501,6 +501,7 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
       databasePath: options.databasePath,
       dataDir: options.dataDir,
       history,
+      kvRepository: repository,
     }),
     history,
     system: options.system,
@@ -508,6 +509,7 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
 }
 
 export { ConfigService } from "./configService.js"
+export type { BackgroundImageResult, CustomThemesResult, SerializableTheme } from "./configService.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export type {
   EnsureConfigFileResult,

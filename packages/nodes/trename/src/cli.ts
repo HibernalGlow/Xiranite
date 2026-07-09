@@ -21,7 +21,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { getNodeConfig, loadXiraniteConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { runTrename } from "./core.js"
@@ -45,10 +45,14 @@ interface TrenameDefaults {
  * - undo_path: default undo store path when --undoPath is not provided
  * Missing config file or section is treated as defaults (enableUndo=true, no override).
  */
-async function resolveTrenameDefaults(host: CliHost): Promise<TrenameDefaults> {
+async function resolveTrenameDefaults(host: CliHost, json: boolean): Promise<TrenameDefaults> {
   try {
-    const { config } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd })
-    const nodeConfig = getNodeConfig<TrenameNodeConfig>(config, "trename")
+    const { config: nodeConfig } = await loadNodeConfigWithHints<TrenameNodeConfig>("trename", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
     return {
       enableUndo: nodeConfig?.enable_undo !== false,
       undoPath: nodeConfig?.undo_path?.trim() || undefined,
@@ -231,7 +235,7 @@ function commonArgs() {
 }
 
 async function runSingleAction(action: TrenameAction, args: TrenameCliOptions, host: CliHost): Promise<boolean> {
-  const defaults = await resolveTrenameDefaults(host)
+  const defaults = await resolveTrenameDefaults(host, Boolean(args.json))
 
   if (!defaults.enableUndo && (action === "undo" || action === "history")) {
     writeLine(host, rich(host, "Undo 功能已被配置禁用（[nodes.trename] enable_undo = false）。", "yellow"))
@@ -312,7 +316,7 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   const runtime = createNodeTrenameRuntime()
-  const defaults = await resolveTrenameDefaults(host)
+  const defaults = await resolveTrenameDefaults(host, false)
   const defaultTask = GUIDED_TASKS[0]!
   let firstRender = true
   try {

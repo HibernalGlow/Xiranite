@@ -18,6 +18,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import {
   analyzeReadLines,
@@ -41,6 +42,45 @@ interface FilterOptions {
   json?: boolean
   caseInsensitive?: boolean
   preserveOrder?: boolean
+}
+
+interface LinedupNodeConfig {
+  source_file?: string
+  filter_file?: string
+  output_file?: string
+  case_insensitive?: boolean
+  preserve_order?: boolean
+}
+
+interface LinedupDefaults {
+  sourceFile?: string
+  filterFile?: string
+  outputFile?: string
+  caseInsensitive?: boolean
+  preserveOrder?: boolean
+}
+
+/**
+ * Resolve linedup defaults from xiranite.config.toml [nodes.linedup].
+ */
+async function resolveLinedupDefaults(host: CliHost, json = false): Promise<LinedupDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<LinedupNodeConfig>("linedup", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      sourceFile: config?.source_file,
+      filterFile: config?.filter_file,
+      outputFile: config?.output_file,
+      caseInsensitive: typeof config?.case_insensitive === "boolean" ? config.case_insensitive : undefined,
+      preserveOrder: typeof config?.preserve_order === "boolean" ? config.preserve_order : undefined,
+    }
+  } catch {
+    return {}
+  }
 }
 
 export const cli: CliCommand = {
@@ -95,7 +135,8 @@ function createProgram(host: CliHost = createDefaultHost()) {
           preserveOrder: { type: "boolean", description: "Preserve source order instead of sorting output." },
         },
         async run({ args }) {
-          await runFilter(args as FilterOptions, host)
+          const defaults = await resolveLinedupDefaults(host, Boolean(args.json))
+          await runFilter(args as FilterOptions, host, defaults)
         },
       }),
       guided: defineCommand({
@@ -119,7 +160,8 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   try {
-    const preset = await detectPresetFiles(host.cwd)
+    const defaults = await resolveLinedupDefaults(host)
+    const preset = await detectPresetFiles(host.cwd, defaults)
     renderGuidedIntro(host, preset)
 
     const mode = await selectRich<GuidedMode>(
@@ -134,7 +176,7 @@ async function runGuided(host: CliHost): Promise<void> {
       return
     }
 
-    await runGuidedMode(mode, preset, host)
+    await runGuidedMode(mode, preset, host, defaults)
   } catch (error) {
     if (error instanceof CliPromptExitError) {
       writeLine(host, rich(host, "已取消。", "yellow"))
@@ -168,7 +210,7 @@ function renderGuidedIntro(host: CliHost, preset: GuidedPresetFiles): void {
   writeLine(host)
 }
 
-async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: CliHost): Promise<void> {
+async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: CliHost, defaults: LinedupDefaults = {}): Promise<void> {
   if (mode === "preset-files") {
     await runGuidedFilter({
       host,
@@ -177,6 +219,8 @@ async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: 
       outputFile: preset.outputFile,
       sourceLabel: preset.sourceFile,
       filterLabel: preset.filterFile,
+      caseInsensitive: defaults.caseInsensitive,
+      preserveOrder: defaults.preserveOrder,
     })
     return
   }
@@ -185,7 +229,7 @@ async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: 
     const sourceFile = (await promptRich(host, "Source file path", preset.sourceFile)).trim() || preset.sourceFile
     const filterFile = (await promptRich(host, "Filter file path", preset.filterFile)).trim() || preset.filterFile
     const outputFile = (await promptRich(host, "Output file path (留空则只输出到终端)", preset.outputFile)).trim() || undefined
-    await runGuidedFilter({ host, sourceFile, filterFile, outputFile, sourceLabel: sourceFile, filterLabel: filterFile })
+    await runGuidedFilter({ host, sourceFile, filterFile, outputFile, sourceLabel: sourceFile, filterLabel: filterFile, caseInsensitive: defaults.caseInsensitive, preserveOrder: defaults.preserveOrder })
     return
   }
 
@@ -200,14 +244,14 @@ async function runGuidedMode(mode: GuidedMode, preset: GuidedPresetFiles, host: 
     }
     const filterText = await promptRich(host, "Filter token(s)，用 \\n 表示多个", "")
     const outputFile = (await promptRich(host, "可选输出文件路径 (留空只输出到终端)", "")).trim() || undefined
-    await runGuidedText({ host, sourceText, filterText, outputFile })
+    await runGuidedText({ host, sourceText, filterText, outputFile, caseInsensitive: defaults.caseInsensitive, preserveOrder: defaults.preserveOrder })
     return
   }
 
   const sourceText = await promptRich(host, "Source text，用 \\n 表示多行", "")
   const filterText = await promptRich(host, "Filter token(s)，用 \\n 表示多行", "")
   const outputFile = (await promptRich(host, "可选输出文件路径 (留空只输出到终端)", "")).trim() || undefined
-  await runGuidedText({ host, sourceText, filterText, outputFile })
+  await runGuidedText({ host, sourceText, filterText, outputFile, caseInsensitive: defaults.caseInsensitive, preserveOrder: defaults.preserveOrder })
 }
 
 interface GuidedFilterInput {
@@ -217,6 +261,8 @@ interface GuidedFilterInput {
   outputFile?: string
   sourceLabel: string
   filterLabel: string
+  caseInsensitive?: boolean
+  preserveOrder?: boolean
 }
 
 async function runGuidedFilter(input: GuidedFilterInput): Promise<void> {
@@ -231,6 +277,8 @@ async function runGuidedFilter(input: GuidedFilterInput): Promise<void> {
     outputFile: input.outputFile,
     sourceLabel: input.sourceLabel,
     filterLabel: input.filterLabel,
+    caseInsensitive: input.caseInsensitive,
+    preserveOrder: input.preserveOrder,
   })
 }
 
@@ -241,6 +289,8 @@ interface GuidedTextInput {
   outputFile?: string
   sourceLabel?: string
   filterLabel?: string
+  caseInsensitive?: boolean
+  preserveOrder?: boolean
 }
 
 async function runGuidedText(input: GuidedTextInput): Promise<void> {
@@ -265,7 +315,12 @@ async function runGuidedText(input: GuidedTextInput): Promise<void> {
 
   writeLine(input.host, rich(input.host, "▸ 开始过滤...", "cyan"))
 
-  const result = filterLines({ sourceLines: sourceTextLines, filterLines: filterTextLines })
+  const result = filterLines({
+    sourceLines: sourceTextLines,
+    filterLines: filterTextLines,
+    caseSensitive: !input.caseInsensitive,
+    sort: !input.preserveOrder,
+  })
   const details = explainRemovals(sourceTextLines, filterTextLines)
   reportFilterStats(input.host, sourceStats, filterStats, details)
 
@@ -348,7 +403,7 @@ async function readGuidedFile(host: CliHost, filePath: string, kind: "source" | 
   }
 }
 
-async function runFilter(options: FilterOptions, host: CliHost): Promise<void> {
+async function runFilter(options: FilterOptions, host: CliHost, defaults: LinedupDefaults = {}): Promise<void> {
   const sourceText = await readInput(options.source, options.sourceFile)
   const filterText = await readInput(options.filter, options.filterFile)
 
@@ -356,15 +411,19 @@ async function runFilter(options: FilterOptions, host: CliHost): Promise<void> {
     throw new Error("Missing source content. Use --source or --sourceFile, or run guided mode.")
   }
 
+  const caseInsensitive = options.caseInsensitive ?? defaults.caseInsensitive ?? false
+  const preserveOrder = options.preserveOrder ?? defaults.preserveOrder ?? false
+
   const result = filterLines({
     sourceLines: splitLines(sourceText),
     filterLines: splitLines(filterText),
-    caseSensitive: !options.caseInsensitive,
-    sort: !options.preserveOrder,
+    caseSensitive: !caseInsensitive,
+    sort: !preserveOrder,
   })
 
-  if (options.outputFile) {
-    await writeFile(options.outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
+  const outputFile = options.outputFile ?? defaults.outputFile
+  if (outputFile) {
+    await writeFile(outputFile, `${result.filteredLines.join("\n")}\n`, "utf8")
   }
 
   if (options.json) {
@@ -408,10 +467,10 @@ function guidedModeOptions(preset: GuidedPresetFiles) {
   return preset.available ? [presetOption, ...activeOptions, exitOption] : [...activeOptions, presetOption, exitOption]
 }
 
-async function detectPresetFiles(cwd: string): Promise<GuidedPresetFiles> {
-  const sourceFile = join(cwd, "source.txt")
-  const filterFile = join(cwd, "filter.txt")
-  const outputFile = join(cwd, "output.txt")
+async function detectPresetFiles(cwd: string, defaults: LinedupDefaults = {}): Promise<GuidedPresetFiles> {
+  const sourceFile = join(cwd, defaults.sourceFile ?? "source.txt")
+  const filterFile = join(cwd, defaults.filterFile ?? "filter.txt")
+  const outputFile = join(cwd, defaults.outputFile ?? "output.txt")
   const [sourceExists, filterExists] = await Promise.all([isFile(sourceFile), isFile(filterFile)])
   return {
     sourceFile,

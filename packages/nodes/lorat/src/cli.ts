@@ -19,6 +19,7 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { loadNodeConfigWithHints } from "@xiranite/config"
 import type { LoratAction, LoratInput, LoratResult, LoratRow, LoratStatusFilter } from "./core.js"
 import { DEFAULT_LORA_FOLDER, collectTriggerDb, filterLoratRows, parseTriggerDb, runLorat, summarizeLoratRows } from "./core.js"
 import { createNodeLoratRuntime, readClipboardText, readTextFile, writeTextFile } from "./platform.js"
@@ -36,6 +37,39 @@ interface LoratCliOptions {
   search?: string
   output?: string
   json?: boolean
+}
+
+interface LoratNodeConfig {
+  lora_folder?: string
+  status_filter?: string
+  search?: string
+}
+
+interface LoratDefaults {
+  loraFolder?: string
+  statusFilter?: LoratStatusFilter
+  search?: string
+}
+
+/**
+ * Resolve lorat defaults from xiranite.config.toml [nodes.lorat].
+ */
+async function resolveLoratDefaults(host: CliHost, json = false): Promise<LoratDefaults> {
+  try {
+    const { config } = await loadNodeConfigWithHints<LoratNodeConfig>("lorat", {
+      env: host.env,
+      cwd: host.cwd,
+      hintSink: { stderr: host.stderr },
+      jsonMode: json,
+    })
+    return {
+      loraFolder: config?.lora_folder,
+      statusFilter: normalizeStatus(config?.status_filter),
+      search: config?.search,
+    }
+  } catch {
+    return {}
+  }
 }
 
 type GuidedSelection = "scan" | "write-missing" | "export-db" | "exit"
@@ -70,35 +104,40 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a LoRA folder and infer trigger rows." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(await inputFromArgs("scan", args as LoratCliOptions), Boolean(args.json), host)
+          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
+          await runAction(await inputFromArgs("scan", args as LoratCliOptions, defaults), Boolean(args.json), host)
         },
       }),
       "apply-db": defineCommand({
         meta: { name: "apply-db", description: "Apply TriggerDB JSON to existing rows JSON." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(await inputFromArgs("apply_db", args as LoratCliOptions), Boolean(args.json), host)
+          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
+          await runAction(await inputFromArgs("apply_db", args as LoratCliOptions, defaults), Boolean(args.json), host)
         },
       }),
       write: defineCommand({
         meta: { name: "write", description: "Write selected rows as .trigger.txt sidecars." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(await inputFromArgs("write_triggers", args as LoratCliOptions), Boolean(args.json), host)
+          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
+          await runAction(await inputFromArgs("write_triggers", args as LoratCliOptions, defaults), Boolean(args.json), host)
         },
       }),
       "no-trigger": defineCommand({
         meta: { name: "no-trigger", description: "Write selected rows as .notrigger.txt sidecars." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction(await inputFromArgs("mark_no_trigger", args as LoratCliOptions), Boolean(args.json), host)
+          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
+          await runAction(await inputFromArgs("mark_no_trigger", args as LoratCliOptions, defaults), Boolean(args.json), host)
         },
       }),
       "export-db": defineCommand({
         meta: { name: "export-db", description: "Export rows to TriggerDB JSON." },
         args: commonArgs(),
         async run({ args }) {
-          const result = await runAction(await inputFromArgs("export_db", args as LoratCliOptions), Boolean(args.json), host)
+          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
+          const result = await runAction(await inputFromArgs("export_db", args as LoratCliOptions, defaults), Boolean(args.json), host)
           const output = (args as LoratCliOptions).output
           if (output && result.success) await writeTextFile(output, result.data?.triggerDbJson ?? "{}\n")
         },
@@ -128,17 +167,17 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(action: LoratAction, args: LoratCliOptions): Promise<LoratInput> {
+async function inputFromArgs(action: LoratAction, args: LoratCliOptions, defaults: LoratDefaults = {}): Promise<LoratInput> {
   const triggerDbJson = args.db ?? await readTextFile(args.dbFile)
   const rows = parseRows(args.rows ?? await readTextFile(args.rowsFile))
   return {
     action,
-    folderPath: args.folder,
+    folderPath: args.folder ?? defaults.loraFolder,
     triggerDbJson,
     rows,
     selectedKeys: splitKeys(args.keys),
-    statusFilter: normalizeStatus(args.status),
-    search: args.search,
+    statusFilter: normalizeStatus(args.status) ?? defaults.statusFilter,
+    search: args.search ?? defaults.search,
   }
 }
 
@@ -177,8 +216,9 @@ async function runGuided(host: CliHost): Promise<void> {
   }
 
   try {
+    const defaults = await resolveLoratDefaults(host)
     const clipboard = cleanPath(await readClipboardText())
-    const folder = await promptRich(host, "LoRA folder", clipboard || DEFAULT_LORA_FOLDER)
+    const folder = await promptRich(host, "LoRA folder", clipboard || defaults.loraFolder || DEFAULT_LORA_FOLDER)
     const choice = await selectRich<GuidedSelection>(
       host,
       "Lorat action",
@@ -192,7 +232,7 @@ async function runGuided(host: CliHost): Promise<void> {
     )
     if (choice === "exit") return
 
-    const scan = await runAction({ action: "scan", folderPath: folder }, false, host)
+    const scan = await runAction({ action: "scan", folderPath: folder, search: defaults.search, statusFilter: defaults.statusFilter }, false, host)
     if (!scan.success || !scan.data) return
     if (choice === "scan") return
 
@@ -203,7 +243,7 @@ async function runGuided(host: CliHost): Promise<void> {
         return
       }
       const ok = await confirmRich(host, `Write inferred triggers for ${rows.length} missing row(s)?`, false)
-      if (ok) await runAction({ action: "write_triggers", folderPath: folder, rows }, false, host)
+      if (ok) await runAction({ action: "write_triggers", folderPath: folder, rows, search: defaults.search, statusFilter: defaults.statusFilter }, false, host)
       return
     }
 
