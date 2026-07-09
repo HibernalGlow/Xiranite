@@ -10,7 +10,6 @@ import {
 } from "react"
 import { motion, useDragControls, type PanInfo } from "motion/react"
 import { AudioLines, Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, PictureInPicture2, X } from "lucide-react"
-import { Bar3 } from "waviz"
 import { MusicPlayerSurface, type MusicPlaybackState, type PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
 import { DynamicIsland, DynamicIslandProvider, useDynamicIslandSize } from "@/components/ui/dynamic-island"
 import { Button } from "@/components/ui/button"
@@ -126,9 +125,11 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
 }
 
 export function WorkspaceMusicDockTopBarSlot() {
-  return (
-    <>
-      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[1500] hidden h-12 w-[226px] shrink-0 overflow-visible xl:block">
+  const variant = useTopBarMusicIslandVariant()
+
+  if (variant === "full") {
+    return (
+      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[1500] h-12 w-[226px] shrink-0 overflow-visible">
         <DynamicIslandProvider
           initialSize="minimalLeading"
           presets={{
@@ -139,20 +140,38 @@ export function WorkspaceMusicDockTopBarSlot() {
           <MusicDockIsland variant="full" />
         </DynamicIslandProvider>
       </div>
+    )
+  }
 
-      <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[1500] block h-12 w-10 shrink-0 overflow-visible xl:hidden">
-        <DynamicIslandProvider
-          initialSize="minimalLeading"
-          presets={{
-            minimalLeading: { width: 40, aspectRatio: 1, borderRadius: 20 },
-            compact: { width: 312, aspectRatio: 108 / 312, borderRadius: 27 },
-          }}
-        >
-          <MusicDockIsland variant="mini" />
-        </DynamicIslandProvider>
-      </div>
-    </>
+  return (
+    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[1500] h-12 w-10 shrink-0 overflow-visible">
+      <DynamicIslandProvider
+        initialSize="minimalLeading"
+        presets={{
+          minimalLeading: { width: 40, aspectRatio: 1, borderRadius: 20 },
+          compact: { width: 312, aspectRatio: 108 / 312, borderRadius: 27 },
+        }}
+      >
+        <MusicDockIsland variant="mini" />
+      </DynamicIslandProvider>
+    </div>
   )
+}
+
+function useTopBarMusicIslandVariant(): MusicDockIslandVariant {
+  const [variant, setVariant] = useState<MusicDockIslandVariant>(() => (
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches ? "full" : "mini"
+  ))
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1280px)")
+    const updateVariant = () => setVariant(query.matches ? "full" : "mini")
+    updateVariant()
+    query.addEventListener("change", updateVariant)
+    return () => query.removeEventListener("change", updateVariant)
+  }, [])
+
+  return variant
 }
 
 function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
@@ -243,9 +262,7 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
               </div>
               <MusicIslandSpectrum
                 key={dock.playback.trackName ?? "empty"}
-                audioRef={dock.audioRef}
                 isPlaying={dock.playback.isPlaying}
-                trackLabel={trackLabel}
               />
             </>
           )}
@@ -312,77 +329,14 @@ function MusicIslandArtwork({
   )
 }
 
-function useThemeCssColor(variableName: string, fallback: string) {
-  const [color, setColor] = useState(() => readThemeCssColor(variableName, fallback))
-
-  useEffect(() => {
-    const updateColor = () => setColor(readThemeCssColor(variableName, fallback))
-    updateColor()
-
-    let observer: MutationObserver | null = null
-    if (typeof MutationObserver !== "undefined") {
-      observer = new MutationObserver(updateColor)
-      observer.observe(document.documentElement, { attributes: true })
-    }
-
-    window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, updateColor)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener(LEGACY_CONFIG_CHANGED_EVENT, updateColor)
-    }
-  }, [fallback, variableName])
-
-  return color
-}
-
-function readThemeCssColor(variableName: string, fallback: string) {
-  if (typeof window === "undefined") return fallback
-  const value = window.getComputedStyle(document.documentElement).getPropertyValue(variableName).trim()
-  return value || fallback
-}
-
 function MusicIslandSpectrum({
-  audioRef,
   isPlaying,
-  trackLabel,
 }: {
-  audioRef: RefObject<HTMLAudioElement | null>
   isPlaying: boolean
-  trackLabel: string
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const primaryColor = useThemeCssColor("--primary", "rgba(255,255,255,0.96)")
-  const accentColor = useThemeCssColor("--accent", "rgba(125,211,252,0.82)")
-  const hasAudio = Boolean(audioRef.current)
-
-  useEffect(() => {
-    if (!isPlaying || !audioRef.current) return
-    const frame = window.requestAnimationFrame(() => {
-      audioRef.current?.dispatchEvent(new Event("play"))
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [audioRef, isPlaying, trackLabel])
-
   return (
     <span className="relative grid h-6 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-border/45 bg-muted/65">
-      {hasAudio ? (
-        <>
-          <Bar3
-            srcAudio={audioRef}
-            srcCanvas={canvasRef}
-            options={[primaryColor, accentColor]}
-          />
-          <canvas
-            ref={canvasRef}
-            width={72}
-            height={32}
-            className={cn("h-full w-full", !isPlaying && "opacity-45")}
-            aria-hidden
-          />
-        </>
-      ) : (
-        <AudioLines className="size-4 text-primary/70" aria-hidden />
-      )}
+      <AudioLines className={cn("size-4 text-primary/70", isPlaying && "text-primary")} aria-hidden />
     </span>
   )
 }
