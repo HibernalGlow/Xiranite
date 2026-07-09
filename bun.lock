@@ -247,6 +247,7 @@
         "xaudiov": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -279,6 +280,7 @@
         "xbitv": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -295,6 +297,7 @@
         "xclassf": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -311,6 +314,7 @@
         "xclassq": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -342,6 +346,7 @@
         "xcoveru": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -639,6 +644,7 @@
         "xnameu": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -751,6 +757,7 @@
         "xsimiu": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {
@@ -781,6 +788,7 @@
         "xsmartzip": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {
@@ -796,6 +804,7 @@
         "xsnf": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -812,6 +821,7 @@
         "xsynct": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -828,6 +838,7 @@
         "xtimeu": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
@@ -844,6 +855,7 @@
         "xtransq": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
       },
