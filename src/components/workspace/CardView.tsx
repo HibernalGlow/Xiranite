@@ -11,18 +11,55 @@ import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getModule } from "@/components/modules/registry"
 import type { ComponentInstance, ComputedLayout } from "@/types/workspace"
 
-const MASONRY_BASE_WIDTH = 360
-const MASONRY_MIN_WIDTH = 320
+const MASONRY_BASE_WIDTH = 420
+const MASONRY_MIN_WIDTH = 360
 const MASONRY_GAP = 16
 const MASONRY_MAX_COLUMNS = 4
 const MASONRY_HORIZONTAL_PADDING = 32
 const MASONRY_COLLAPSED_HEIGHT = 40
-const MASONRY_DEFAULT_HEIGHT = 380
-const MASONRY_FOCUSED_HEIGHT = 560
-const MASONRY_MIN_HEIGHT = 260
-const MASONRY_MAX_HEIGHT = 720
+const MASONRY_DEFAULT_HEIGHT = 420
+const MASONRY_FOCUSED_HEIGHT = 680
+const MASONRY_MIN_HEIGHT = 240
+const MASONRY_MAX_HEIGHT = 860
+const MASONRY_MEASURE_TOLERANCE = 12
+
+const MODULE_MASONRY_HEIGHTS: Record<string, number> = {
+  database: 640,
+  blocknote: 620,
+  kanban: 540,
+  terminal: 500,
+  "module-registry": 560,
+  "node-history": 520,
+  "node-operations": 500,
+  "music-player": 340,
+  settings: 420,
+  scratch: 360,
+  tasks: 440,
+  calculator: 300,
+  clock: 280,
+  counter: 260,
+  "acid-mixer": 440,
+}
+
+const CATEGORY_MASONRY_HEIGHTS: Record<string, number> = {
+  file: 520,
+  image: 560,
+  video: 520,
+  text: 460,
+  system: 400,
+  dev: 430,
+  meta: 540,
+  utility: 340,
+  state: 300,
+  organize: 500,
+  process: 460,
+  media: 380,
+}
+
+const MASONRY_HEIGHT_OFFSETS = [-56, -24, 0, 32, 64, 96] as const
 
 /**
  * CardView — 卡片形态渲染器。

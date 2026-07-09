@@ -7,7 +7,7 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { AudiovCardState } from "./types"
 import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -40,37 +40,33 @@ describe("app-owned audiov Component", () => {
     "renders the %s surface with AudioV-specific UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-audiov" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-audiov" host={createHost({ pathsText: "D:/Video/clip.mp4" })} />)
 
       expect(screen.getByText("AudioV")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("audiov-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("audiov 视频路径")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("audiov 视频路径")).toBeTruthy()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("audiov-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("audiov-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("audiov-full-view")).toBeTruthy()
+        expect(screen.getByTestId("audiov-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("命令预览")).toBeTruthy()
+        expect(screen.getByText("输出")).toBeTruthy()
       }
     },
   )
 
   test("runs plan through host.runner.run and stores command results", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({ action: "plan", pathsText: "D:/Video/clip.mp4", dryRun: true, logs: [] })
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
@@ -81,7 +77,7 @@ describe("app-owned audiov Component", () => {
       nodeId: "audiov",
       input: {
         action: "plan",
-        paths: ["D:/archives/a.zip"],
+        paths: ["D:/Video/clip.mp4"],
         args: [],
         configPath: undefined,
         databasePath: undefined,
@@ -95,21 +91,20 @@ describe("app-owned audiov Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command).toBeTruthy()
 
-    await user.click(screen.getByRole("tab", { name: "命令" }))
     expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
   })
 
   test("requires confirmation before real run execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "run", pathsText: "D:/Video/clip.mp4", dryRun: false, logs: [] })
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "提取音轨" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认提取音轨？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    await user.click(screen.getByRole("button", { name: "确认提取" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("run")
@@ -122,25 +117,25 @@ describe("app-owned audiov Component", () => {
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "提取音轨" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("视频")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<AudiovCardState, Partial<AudiovCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<AudiovCardState> | undefined
+  cardState: AudiovCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: AudiovCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<AudiovCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -165,7 +160,7 @@ function createHost(initial: PackuCardState): TestHost {
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning audiov tool." })
         return {
           success: true,
           message: "PackU audiov planned.",
@@ -174,7 +169,7 @@ function createHost(initial: PackuCardState): TestHost {
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/Video/clip.mp4",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -188,7 +183,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<AudiovCardState> },
     openConfigFile: () => undefined,
   }
   return host
@@ -208,7 +203,7 @@ const packuData: PackuToolData = {
   command: {
     label: "python -m audiov.audiov_cli",
     command: "python",
-    args: ["-m", "audiov.audiov_cli", "D:/archives/a.zip"],
+    args: ["-m", "audiov.audiov_cli", "D:/Video/clip.mp4"],
     cwd: "D:/1VSCODE/Projects/PackU/VideoBrake/src",
     env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/VideoBrake/src" },
   },
@@ -219,6 +214,6 @@ const packuData: PackuToolData = {
     recordRun: false,
     recordFormat: "jsonl",
   },
-  selectedPaths: ["D:/archives/a.zip"],
+  selectedPaths: ["D:/Video/clip.mp4"],
   errors: [],
 }

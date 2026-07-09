@@ -7,7 +7,7 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { BitvCardState } from "./types"
 import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -44,26 +44,22 @@ describe("app-owned bitv Component", () => {
 
       expect(screen.getByText("BitV")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("bitv-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("bitv 视频路径")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("bitv 视频路径")).toBeTruthy()
+      expect(screen.getAllByText("分析报告").length).toBeGreaterThanOrEqual(1)
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("bitv-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("bitv-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
+        expect(screen.getByTestId("bitv-full-view")).toBeTruthy()
+        expect(screen.getByTestId("bitv-header-toolbar")).toBeTruthy()
         expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
       }
     },
   )
@@ -95,8 +91,9 @@ describe("app-owned bitv Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command).toBeTruthy()
 
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => {
+      expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    })
   })
 
   test("requires confirmation before real run execution", async () => {
@@ -105,11 +102,11 @@ describe("app-owned bitv Component", () => {
     render(<Component compId="comp-bitv" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "分析码率" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认分析码率？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    await user.click(screen.getByRole("button", { name: "确认分析" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("run")
@@ -122,25 +119,25 @@ describe("app-owned bitv Component", () => {
     render(<Component compId="comp-bitv" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "分析码率" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("视频路径")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<BitvCardState, Partial<BitvCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<BitvCardState> | undefined
+  cardState: BitvCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: BitvCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<BitvCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -165,10 +162,10 @@ function createHost(initial: PackuCardState): TestHost {
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning bitv tool." })
         return {
           success: true,
-          message: "PackU bitv planned.",
+          message: "BitV planned 1 command(s).",
           data: packuData as TData,
         }
       },
@@ -188,7 +185,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<BitvCardState> },
     openConfigFile: () => undefined,
   }
   return host

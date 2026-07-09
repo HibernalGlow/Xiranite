@@ -2,6 +2,7 @@ import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import {
   Copy,
+  CopyX,
   Trash2,
   Maximize2,
   Minimize2,
@@ -239,6 +240,25 @@ export function useDefaultContextMenuItems() {
       })
 
       items.push({ type: "separator" })
+
+      // Delete duplicates — remove all components sharing the same module id.
+      // Hidden when the current card is the only instance of its module.
+      const duplicateCount = state.components.filter((c) => c.moduleId === moduleName).length
+      items.push({
+        id: "delete-duplicates",
+        label: t("contextMenu:deleteDuplicates"),
+        icon: <CopyX />,
+        destructive: true,
+        hidden: duplicateCount <= 1,
+        confirm: {
+          title: t("contextMenu:deleteDuplicatesConfirmTitle"),
+          description: t("contextMenu:deleteDuplicatesConfirmDescription", { count: duplicateCount }),
+          confirmLabel: t("common:confirm"),
+          cancelLabel: t("common:cancel"),
+          destructive: true,
+        },
+        onSelect: () => actions.removeComponentsByModule(moduleName),
+      })
 
       // Delete — with confirmation
       items.push({

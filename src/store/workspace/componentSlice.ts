@@ -9,6 +9,8 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
       update("DEPLOY_COMPONENT", (state) => deployComponentState(state, moduleId, normalizeDeployOptions(viewModeOrOptions))),
     ensureComponent: (component) => update("ENSURE_COMPONENT", (state) => ensureComponentState(state, component)),
     removeComponent: (id) => update("REMOVE_COMPONENT", (state) => removeComponentState(state, id)),
+    removeComponentsByModule: (moduleId) =>
+      update("REMOVE_COMPONENTS_BY_MODULE", (state) => removeComponentsByModuleState(state, moduleId)),
     setComponentState: (id, state) => update("SET_COMPONENT_STATE", (store) => setComponentRuntimeState(store, id, state)),
     setComponentPosition: (id, x, y) => update("SET_COMPONENT_POSITION", (state) => setComponentPositionState(state, id, x, y)),
     moveComponent: (id, x, y) => update("MOVE_COMPONENT", (state) => setComponentPositionState(state, id, x, y)),
@@ -120,6 +122,29 @@ function removeComponentState(state: WSState, id: string): WSState {
     })),
     focusedComponentId: state.focusedComponentId === id ? null : state.focusedComponentId,
     fullscreenComponentId: state.fullscreenComponentId === id ? null : state.fullscreenComponentId,
+  }
+}
+
+function removeComponentsByModuleState(state: WSState, moduleId: string): WSState {
+  const now = Date.now()
+  const idsToRemove = new Set(
+    state.components.filter((component) => component.moduleId === moduleId).map((component) => component.id),
+  )
+  if (idsToRemove.size === 0) return state
+  return {
+    ...state,
+    components: state.components.filter((component) => !idsToRemove.has(component.id)),
+    lanes: state.lanes.map((lane) => {
+      const hadAny = lane.cardOrder?.some((cardId) => idsToRemove.has(cardId))
+      if (!hadAny) return lane
+      return {
+        ...lane,
+        cardOrder: lane.cardOrder?.filter((cardId) => !idsToRemove.has(cardId)),
+        updatedAt: now,
+      }
+    }),
+    focusedComponentId: state.focusedComponentId && idsToRemove.has(state.focusedComponentId) ? null : state.focusedComponentId,
+    fullscreenComponentId: state.fullscreenComponentId && idsToRemove.has(state.fullscreenComponentId) ? null : state.fullscreenComponentId,
   }
 }
 

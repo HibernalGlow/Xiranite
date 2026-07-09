@@ -763,6 +763,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     deployComponent: store.deployComponent,
     ensureComponent: store.ensureComponent,
     removeComponent: store.removeComponent,
+    removeComponentsByModule: store.removeComponentsByModule,
     setComponentState: store.setComponentState,
     setComponentPosition: store.setComponentPosition,
     moveComponent: store.moveComponent,

@@ -7,7 +7,7 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { ClassqCardState } from "./types"
 import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -44,26 +44,28 @@ describe("app-owned classq Component", () => {
 
       expect(screen.getByText("ClassQ")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("classq-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("classq 归档或目录")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("classq 归档或目录")).toBeTruthy()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("classq-compact-view")).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("classq-portrait-view")).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("classq-full-view")).toBeTruthy()
+        expect(screen.getByTestId("classq-header-toolbar")).toBeTruthy()
+        expect(screen.getAllByText("待分拣").length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText("已分拣").length).toBeGreaterThanOrEqual(1)
       }
     },
   )
@@ -95,8 +97,7 @@ describe("app-owned classq Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command).toBeTruthy()
 
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1))
   })
 
   test("requires confirmation before real run execution", async () => {
@@ -105,9 +106,9 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "执行分类" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认执行分类？")).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "确认执行" }))
 
@@ -122,7 +123,7 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "执行分类" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
@@ -130,17 +131,17 @@ describe("app-owned classq Component", () => {
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<ClassqCardState, Partial<ClassqCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<ClassqCardState> | undefined
+  cardState: ClassqCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: ClassqCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<ClassqCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -165,10 +166,10 @@ function createHost(initial: PackuCardState): TestHost {
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning classq tool." })
         return {
           success: true,
-          message: "PackU classq planned.",
+          message: "ClassQ planned classification.",
           data: packuData as TData,
         }
       },
@@ -188,7 +189,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<ClassqCardState> },
     openConfigFile: () => undefined,
   }
   return host

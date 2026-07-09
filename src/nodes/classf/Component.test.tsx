@@ -7,7 +7,7 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { ClassfCardState } from "./types"
 import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -44,26 +44,24 @@ describe("app-owned classf Component", () => {
 
       expect(screen.getByText("ClassF")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("classf-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("classf 归档或目录")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("classf 归档或目录")).toBeTruthy()
+      expect(screen.getByText("命令终端")).toBeTruthy()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("classf-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("classf-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("classf-full-view")).toBeTruthy()
+        expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("路径输入")).toBeTruthy()
+        expect(screen.getByText("运行选项")).toBeTruthy()
+        expect(screen.getByText("日志尾条")).toBeTruthy()
       }
     },
   )
@@ -95,8 +93,7 @@ describe("app-owned classf Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command).toBeTruthy()
 
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1))
   })
 
   test("requires confirmation before real run execution", async () => {
@@ -130,17 +127,17 @@ describe("app-owned classf Component", () => {
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<ClassfCardState, Partial<ClassfCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<ClassfCardState> | undefined
+  cardState: ClassfCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: ClassfCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<ClassfCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -188,7 +185,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<ClassfCardState> },
     openConfigFile: () => undefined,
   }
   return host

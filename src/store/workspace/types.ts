@@ -124,6 +124,7 @@ export interface WorkspaceComponentActions {
   deployComponent(moduleId: string, viewModeOrOptions?: ViewMode | DeployComponentOptions): void
   ensureComponent(component: ComponentInstance): void
   removeComponent(id: string): void
+  removeComponentsByModule(moduleId: string): void
   setComponentState(id: string, state: ComponentState): void
   setComponentPosition(id: string, x: number, y: number): void
   moveComponent(id: string, x: number, y: number): void
