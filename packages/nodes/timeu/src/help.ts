@@ -1,60 +1,51 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "TimeU",
-  "short": "Back up and restore file timestamps with PackU TimeU.",
-  "description": "Back up and restore file timestamps with PackU TimeU.",
-  "whenToUse": [
-    "Use TimeU when you need this node's file workflow from either the workspace UI or CLI."
+  title: "TimeU",
+  short: "Back up and restore file timestamps from JSON records.",
+  description: "Scan file timestamps, write JSON backup records, and restore atime/mtime later without a Python adapter.",
+  whenToUse: [
+    "Use TimeU before archive moves, renames, or recovery jobs when file modified/accessed times must be preserved.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy TimeU from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy TimeU to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Backup",
+      summary: "Record timestamps before a batch operation.",
+      ui: [
+        "Paste file or folder paths.",
+        "Preview timestamp records.",
+        "Run backup with dry-run off to write the JSON record file.",
+      ],
     },
     {
-      "title": "CLI",
-      "summary": "Run TimeU directly from a terminal.",
-      "cli": [
-        "Run `xiranite timeu` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite timeu --help` for the node command's exact flags and subcommands."
-      ]
-    }
+      title: "Restore",
+      summary: "Apply stored atime/mtime values back to existing files.",
+      cli: [
+        "Run `xiranite timeu restore D:/folder --record D:/folder/timeu-timestamps.json`.",
+        "Run with `--dry-run` first to preview missing paths and changed timestamps.",
+      ],
+    },
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite timeu",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
+      title: "Backup timestamps",
+      command: "xiranite timeu backup D:/archive --record D:/archive/timeu-timestamps.json",
+      description: "Write a JSON timestamp record for files under a folder.",
+      examples: [
         {
-          "label": "Guided mode",
-          "command": "xiranite timeu",
-          "description": "Start the node's interactive terminal workflow."
+          label: "Restore timestamps",
+          command: "xiranite timeu restore D:/archive --record D:/archive/timeu-timestamps.json",
+          description: "Restore stored access and modified times.",
         },
-        {
-          "label": "Command flags",
-          "command": "xiranite timeu --help",
-          "description": "Show the node CLI's subcommands and options."
-        },
-        {
-          "label": "Shared help",
-          "command": "xiranite help timeu",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  safety: {
+    defaultMode: "preview",
+    notes: [
+      "Dry-run is enabled by default.",
+      "Birth and change times are recorded for reference; the native runtime restores access and modified times.",
+      "Missing paths are reported and skipped.",
+    ],
+  },
 } satisfies NodeHelp

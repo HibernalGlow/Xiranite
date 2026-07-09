@@ -1,19 +1,37 @@
-import { Clock3 } from "lucide-react"
-import type { PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-import type { PackuNodeMeta } from "@/nodes/shared/packu/types"
+import { Clock3, History, RotateCcw } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import type { TimeuAction } from "@xiranite/node-timeu/core"
 
-export const NODE_META: PackuNodeMeta = {
-  id: "timeu",
-  title: "TimeU",
-  description: "备份或恢复文件时间戳，适合归档整理前后的时间记录。",
-  icon: Clock3,
-  spec: {
-    id: "timeu",
-    moduleName: "timeu",
-    sourceRoot: "D:/1VSCODE/Projects/PackU/NameU/src",
-    configFiles: ["timeu/timestamp_backups"],
-    databaseLabel: "timestamps",
-  } satisfies PackuToolSpec,
+export interface TimeuActionMeta {
+  value: TimeuAction
+  label: string
+  shortLabel: string
+  description: string
+  icon: LucideIcon
 }
 
-export { ACTIONS } from "@/nodes/shared/packu/constants"
+export const ACTIONS: TimeuActionMeta[] = [
+  {
+    value: "scan",
+    label: "扫描时间",
+    shortLabel: "扫描",
+    description: "读取当前时间戳并生成记录预览。",
+    icon: Clock3,
+  },
+  {
+    value: "backup",
+    label: "备份时间",
+    shortLabel: "备份",
+    description: "写入 JSON 时间戳记录，供后续恢复。",
+    icon: History,
+  },
+  {
+    value: "restore",
+    label: "恢复时间",
+    shortLabel: "恢复",
+    description: "按记录恢复访问时间和修改时间。",
+    icon: RotateCcw,
+  },
+]
+
+export const NODE_ICON = Clock3

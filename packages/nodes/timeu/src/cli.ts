@@ -1,50 +1,44 @@
 #!/usr/bin/env node
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runTimeu } from "./core.js"
+import type { TimeuAction, TimeuInput } from "./core.js"
 import { createNodeTimeuRuntime } from "./platform.js"
 
 interface TimeuNodeConfig {
-  config_path?: string
-  database_path?: string
-  python?: string
-  source_root?: string
-  module_name?: string
-  record_run?: boolean
+  record_path?: string
+  recursive?: boolean
+  include_directories?: boolean
   dry_run?: boolean
 }
 
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const passthroughIndex = args.indexOf("--")
-  const commandArgs = passthroughIndex >= 0 ? args.slice(0, passthroughIndex) : args
-  const passthroughArgs = passthroughIndex >= 0 ? args.slice(passthroughIndex + 1) : []
-  const json = commandArgs.includes("--json")
-  const action = commandArgs.includes("run") ? "run" : commandArgs.includes("plan") ? "plan" : "status"
-  const valueOptions = new Set(["--config-path", "--database-path", "--python", "--source-root", "--module-name"])
-  const paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
-
-  const { config: nodeConfig } = await loadNodeConfigWithHints<TimeuNodeConfig>("timeu", {
+  const json = args.includes("--json")
+  const action: TimeuAction = args.includes("restore") ? "restore" : args.includes("backup") ? "backup" : "scan"
+  const { config } = await loadNodeConfigWithHints<TimeuNodeConfig>("timeu", {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
-
-  const result = await runTimeu({
+  const input: TimeuInput = {
     action,
-    paths,
-    args: passthroughArgs,
-    configPath: valueFor(commandArgs, "--config-path") ?? nodeConfig?.config_path,
-    databasePath: valueFor(commandArgs, "--database-path") ?? nodeConfig?.database_path,
-    python: valueFor(commandArgs, "--python") ?? nodeConfig?.python,
-    sourceRoot: valueFor(commandArgs, "--source-root") ?? nodeConfig?.source_root,
-    moduleName: valueFor(commandArgs, "--module-name") ?? nodeConfig?.module_name,
-    recordRun: commandArgs.includes("--record-run") || nodeConfig?.record_run === true,
-    dryRun: commandArgs.includes("--dry-run") || nodeConfig?.dry_run === true,
-  }, createNodeTimeuRuntime())
+    paths: pathArgs(args),
+    recordPath: valueFor(args, "--record") ?? config?.record_path,
+    recursive: args.includes("--no-recursive") ? false : config?.recursive,
+    includeDirectories: args.includes("--include-directories") || config?.include_directories === true,
+    dryRun: args.includes("--dry-run") || config?.dry_run === true,
+  }
+  const result = await runTimeu(input, createNodeTimeuRuntime())
   if (json) console.log(JSON.stringify(result, null, 2))
   else console.log(result.message)
   if (!result.success) process.exitCode = 1
 }
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
+
+function pathArgs(args: string[]): string[] {
+  const commands = new Set(["scan", "backup", "restore"])
+  const valueOptions = new Set(["--record"])
+  return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
+}
 
 function valueFor(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)

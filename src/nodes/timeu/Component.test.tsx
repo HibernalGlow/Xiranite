@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { TimeuData, TimeuInput } from "@xiranite/node-timeu/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
-import { NODE_META } from "./constants"
+import { ACTIONS } from "./constants"
+import type { TimeuCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
 
@@ -37,110 +37,107 @@ afterEach(() => {
 
 describe("app-owned timeu Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)(
-    "renders the %s surface with TimeU-specific UI",
+    "renders the %s surface with native TimeU UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-timeu" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-timeu" host={createHost({ pathsText: "D:/files/a.txt" })} />)
 
       expect(screen.getByText("TimeU")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("timeu-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("timeu paths")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("timeu paths")).toBeTruthy()
+      expect(screen.getAllByRole("tab")).toHaveLength(3)
+      expect(screen.queryByText(/python/i)).toBeNull()
+      expect(screen.queryByText(/sourceRoot|moduleName/)).toBeNull()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("timeu-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("timeu-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("timeu-full-view")).toBeTruthy()
+        expect(screen.getByTestId("timeu-header-toolbar")).toBeTruthy()
+        expect(screen.getByRole("button", { name: ACTIONS[0]!.label })).toBeTruthy()
       }
     },
   )
 
-  test("runs plan through host.runner.run and stores command results", async () => {
+  test("runs scan through host.runner.run and stores timestamp rows", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({
+      action: "scan",
+      pathsText: "D:/files/a.txt",
+      recordPath: "D:/files/timeu.json",
+      dryRun: true,
+      logs: [],
+    })
     render(<Component compId="comp-timeu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "生成计划" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
       nodeId: "timeu",
       input: {
-        action: "plan",
-        paths: ["D:/archives/a.zip"],
-        args: [],
-        configPath: undefined,
-        databasePath: undefined,
-        python: undefined,
-        sourceRoot: NODE_META.spec.sourceRoot,
-        moduleName: NODE_META.spec.moduleName,
+        action: "scan",
+        paths: ["D:/files/a.txt"],
+        recordPath: "D:/files/timeu.json",
+        recursive: true,
+        includeDirectories: false,
         dryRun: true,
-        recordRun: false,
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.cardState.result?.command).toBeTruthy()
-
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    expect(host.cardState.result?.records[0]?.path).toBe("D:/files/a.txt")
   })
 
-  test("requires confirmation before real run execution", async () => {
+  test("requires confirmation before live backup or restore execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "backup", pathsText: "D:/files/a.txt", dryRun: false, logs: [] })
     render(<Component compId="comp-timeu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    const dialog = screen.getByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: /confirm|执行|確認|确认/i }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("run")
+    expect(host.runCalls[0]?.input.action).toBe("backup")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
   test("marks the card as error when run has no paths", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", logs: [] })
+    const host = createHost({ action: "scan", logs: [] })
     render(<Component compId="comp-timeu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toBeTruthy()
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<TimeuCardState, Partial<TimeuCardState>> & {
   copiedText: string
-  runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  runCalls: Array<{ nodeId: string; input: TimeuInput }>
+  savedConfig: Partial<TimeuCardState> | undefined
+  cardState: TimeuCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: TimeuCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<TimeuCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -164,17 +161,17 @@ function createHost(initial: PackuCardState): TestHost {
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        host.runCalls.push({ nodeId, input: input as TimeuInput })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning timestamp rows." })
         return {
           success: true,
-          message: "PackU timeu planned.",
-          data: packuData as TData,
+          message: "TimeU planned 1 item.",
+          data: timeuData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/files/a.txt",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -188,7 +185,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<TimeuCardState> },
     openConfigFile: () => undefined,
   }
   return host
@@ -203,22 +200,37 @@ function setSurfaceSize(size: { height: number; width: number }) {
   surfaceState.height = size.height
 }
 
-const packuData: PackuToolData = {
-  spec: NODE_META.spec,
-  command: {
-    label: "python -m timeu",
-    command: "python",
-    args: ["-m", "timeu", "D:/archives/a.zip"],
-    cwd: "D:/1VSCODE/Projects/PackU/NameU/src",
-    env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/NameU/src" },
-  },
-  integration: {
-    sourceRoot: "D:/1VSCODE/Projects/PackU/NameU/src",
-    moduleName: "timeu",
-    configCandidates: [],
-    recordRun: false,
-    recordFormat: "jsonl",
-  },
-  selectedPaths: ["D:/archives/a.zip"],
+const timeuData: TimeuData = {
+  plan: [
+    {
+      path: "D:/files/a.txt",
+      operation: "backup",
+      status: "pending",
+      current: {
+        path: "D:/files/a.txt",
+        atimeMs: 1000,
+        mtimeMs: 2000,
+        ctimeMs: 3000,
+        birthtimeMs: 4000,
+        backedUpAt: "2026-01-01T00:00:00.000Z",
+      },
+    },
+  ],
+  records: [
+    {
+      path: "D:/files/a.txt",
+      atimeMs: 1000,
+      mtimeMs: 2000,
+      ctimeMs: 3000,
+      birthtimeMs: 4000,
+      backedUpAt: "2026-01-01T00:00:00.000Z",
+    },
+  ],
+  recordPath: "D:/files/timeu.json",
+  scannedCount: 1,
+  backupCount: 0,
+  restoredCount: 0,
+  skippedCount: 0,
+  errorCount: 0,
   errors: [],
 }
