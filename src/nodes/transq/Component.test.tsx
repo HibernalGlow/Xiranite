@@ -7,7 +7,7 @@ import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
+import type { TransqCardState } from "./types"
 import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -44,26 +44,25 @@ describe("app-owned transq Component", () => {
 
       expect(screen.getByText("TransQ")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("transq-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("transq 翻译文件路径")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByLabelText("transq 翻译文件路径")).toBeTruthy()
+      expect(screen.getAllByText("队列").length).toBeGreaterThanOrEqual(1)
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("transq-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("transq-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("transq-full-view")).toBeTruthy()
+        expect(screen.getByTestId("transq-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("transq-queue-board")).toBeTruthy()
+        expect(screen.getByText("命令预览")).toBeTruthy()
+        expect(screen.getByText("预演")).toBeTruthy()
+        expect(screen.getByText("记录运行")).toBeTruthy()
       }
     },
   )
@@ -95,7 +94,6 @@ describe("app-owned transq Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command).toBeTruthy()
 
-    await user.click(screen.getByRole("tab", { name: "命令" }))
     expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
   })
 
@@ -105,11 +103,11 @@ describe("app-owned transq Component", () => {
     render(<Component compId="comp-transq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "整理队列" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认整理队列？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    await user.click(screen.getByRole("button", { name: "确认整理" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("run")
@@ -122,25 +120,25 @@ describe("app-owned transq Component", () => {
     render(<Component compId="comp-transq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "整理队列" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("翻译文件路径")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<TransqCardState, Partial<TransqCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  savedConfig: Partial<TransqCardState> | undefined
+  cardState: TransqCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: TransqCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<TransqCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -188,7 +186,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<TransqCardState> },
     openConfigFile: () => undefined,
   }
   return host

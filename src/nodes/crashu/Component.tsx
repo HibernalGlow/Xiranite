@@ -1,18 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
-import type { CrashuConflictPolicy, CrashuData, CrashuInput, CrashuMoveDirection } from "@xiranite/node-crashu/core"
-import { Copy, MoveRight, RotateCcw, Search, Square } from "lucide-react"
+import type { CrashuData, CrashuInput } from "@xiranite/node-crashu/core"
+import type { LucideIcon } from "lucide-react"
+import { Archive, Copy, FolderSearch, MoveRight, RotateCcw, Search, ShieldAlert, Square, Zap } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { BorderBeam } from "@/components/ui/border-beam"
+import { NumberTicker } from "@/components/ui/number-ticker"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { DEFAULT_THRESHOLD, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, MatchList, PrimarySwitches, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, ConflictPicker, DirectionPicker, LogPanel, MatchList, PrimarySwitches, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
 import type { CrashuAction, CrashuCardState, CrashuPhase, CrashuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -246,6 +254,8 @@ function createViewProps(props: {
   return props
 }
 
+// ==================== VIEW: COLLAPSED ====================
+
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
@@ -267,6 +277,8 @@ function CollapsedView(props: ViewProps) {
   )
 }
 
+// ==================== VIEW: COMPACT (landscape) ====================
+
 function CompactView(props: ViewProps) {
   return (
     <div data-testid="crashu-compact-view" className="flex min-h-0 flex-1 flex-col">
@@ -278,8 +290,10 @@ function CompactView(props: ViewProps) {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <SourcePathsInput compact disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
-        <TargetNamesInput compact disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
+        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+          <SourcePathsInput compact disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
+          <TargetNamesInput compact disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
+        </div>
         <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
         {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -292,6 +306,8 @@ function CompactView(props: ViewProps) {
     </div>
   )
 }
+
+// ==================== VIEW: PORTRAIT COMPACT (tall narrow) ====================
 
 function PortraitCompactView(props: ViewProps) {
   return (
@@ -316,130 +332,247 @@ function PortraitCompactView(props: ViewProps) {
   )
 }
 
+// ==================== VIEW: FULL (pipeline 3-zone layout) ====================
+
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="crashu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/crashu:flex-row @4xl/crashu:items-center @4xl/crashu:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/crashu:flex-row @4xl/crashu:items-center">
+    <div data-testid="crashu-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      {/* Top bar: header + pipeline + toolbar + stats */}
+      <div className="flex shrink-0 flex-col gap-2 @3xl/crashu:flex-row @3xl/crashu:items-center @3xl/crashu:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @3xl/crashu:flex-row @3xl/crashu:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("crashu", "subtitle.full", "{{sources}} 源 / {{targets}} 目标 / {{mode}}", { sources: props.sourcePaths.length, targets: props.targetNames.length, mode: props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.liveExecute", "真实执行") })} />
-          <div data-testid="crashu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
+          <PipelineIndicator phase={props.phase} />
+          <div data-testid="crashu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
+            <ToolbarActions {...props} hidePrimaryAction />
           </div>
         </div>
         <StatsPanel progress={props.progress} result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/crashu:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{tNode("crashu", "labels.input", "输入")}</div>
-              <div className="text-xs text-muted-foreground">{tNode("crashu", "labels.inputHint", "源目录与目标名称用于相似度匹配；目标目录可自动读取子文件夹。")}</div>
-            </div>
-            <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
-            <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("crashu", "labels.switches", "关键开关")}</div>
-            <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("crashu", "labels.advanced", "高级选项")}</div>
-            <AdvancedOptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
+
+      {/* Main 3-zone pipeline grid: Input → Results → Execution Gate */}
+      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @2xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] @2xl/crashu:grid-rows-1 @4xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(240px,300px)]">
+        {/* Zone 1: Input */}
+        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-background/60 p-2">
+          <ZoneLabel icon={FolderSearch} label={tNode("crashu", "zone.input", "匹配输入")} />
+          <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
+          <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
+          <Separator />
+          <div className="text-xs font-semibold">{tNode("crashu", "labels.switches", "关键开关")}</div>
+          <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </section>
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/crashu:h-full">
-          <CrashuDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        {/* Zone 2 + 3: Results and Execution Gate */}
+        <div className="grid min-h-0 gap-2 grid-rows-[minmax(0,1fr)_auto] @4xl/crashu:contents">
+          {/* Zone 2: Results */}
+          <div className="min-h-0">
+            <CrashuDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+          </div>
+          {/* Zone 3: Execution Gate */}
+          <ExecutionGate {...props} />
         </div>
       </div>
+
+      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
 
-function AdvancedOptionsFields(props: {
-  data: CrashuCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<CrashuCardState>) => void
-}) {
-  return (
-    <div className="grid gap-3" data-testid="crashu-options-fields">
-      <DirectionField disabled={props.disabled} value={props.data.moveDirection ?? "to_target"} onChange={(moveDirection) => props.onPatch({ moveDirection: moveDirection as CrashuMoveDirection })} />
-      <ConflictField disabled={props.disabled} value={props.data.conflictPolicy ?? "skip"} onChange={(conflictPolicy) => props.onPatch({ conflictPolicy: conflictPolicy as CrashuConflictPolicy })} />
-    </div>
-  )
-}
+// ==================== LOCAL HELPERS ====================
 
-function DirectionField(props: {
-  disabled?: boolean
-  value: CrashuMoveDirection
-  onChange: (value: CrashuMoveDirection) => void
-}) {
+function ExecutionGate(props: ViewProps) {
+  const live = !props.dryRun
   return (
-    <div className="grid gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</div>
-      <div className="grid grid-cols-2 gap-1">
-        {MOVE_DIRECTION_OPTIONS.map((item) => (
-          <Button
-            key={item.value}
-            aria-label={item.label}
-            disabled={props.disabled}
-            size="sm"
-            variant={props.value === item.value ? "secondary" : "outline"}
-            onClick={() => props.onChange(item.value)}
-          >
-            <span className="truncate">{item.label}</span>
-          </Button>
-        ))}
+    <section className={cn("relative flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-background/70 p-2", live && "border-destructive/40 bg-destructive/5")}>
+      {live && <BorderBeam size={80} duration={8} colorFrom="var(--destructive)" colorTo="var(--chart-2)" />}
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        <ZoneLabel icon={ShieldAlert} label={tNode("crashu", "zone.gate", "执行闸门")} tone={live ? "danger" : "default"} />
+        <Badge variant={live ? "destructive" : "outline"}>{props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.live", "真实")}</Badge>
       </div>
-    </div>
+
+      <ToggleGroup
+        type="single"
+        value={props.dryRun ? "dry" : "live"}
+        onValueChange={(value) => { if (value) props.onPatch({ dryRun: value === "dry" }) }}
+        className="grid w-full grid-cols-2"
+        size="sm"
+      >
+        <ToggleGroupItem value="dry" className="min-w-0 gap-1">
+          <ShieldAlert className="size-3.5" />
+          <span className="truncate text-xs">{tNode("crashu", "mode.dry", "预演")}</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="live" className="min-w-0 gap-1">
+          <Zap className="size-3.5" />
+          <span className="truncate text-xs">{tNode("crashu", "mode.live", "真实")}</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
+
+      <Separator />
+
+      <div className="grid gap-2">
+        <GateTextField
+          disabled={props.running}
+          label={tNode("crashu", "labels.destination", "移动目标根目录")}
+          placeholder="D:/destination"
+          value={props.data.destinationPath ?? ""}
+          onChange={(destinationPath) => props.onPatch({ destinationPath })}
+        />
+        <GateNumberField
+          disabled={props.running}
+          label={tNode("crashu", "labels.threshold", "相似度阈值")}
+          min={0}
+          max={1}
+          step={0.05}
+          value={props.data.similarityThreshold ?? DEFAULT_THRESHOLD}
+          onChange={(similarityThreshold) => props.onPatch({ similarityThreshold })}
+        />
+      </div>
+
+      <Separator />
+
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</Label>
+        <DirectionPicker disabled={props.running} value={props.data.moveDirection ?? "to_target"} onChange={(moveDirection) => props.onPatch({ moveDirection })} />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">{tNode("crashu", "labels.conflictPolicy", "冲突策略")}</Label>
+        <ConflictPicker disabled={props.running} value={props.data.conflictPolicy ?? "skip"} onChange={(conflictPolicy) => props.onPatch({ conflictPolicy })} />
+      </div>
+
+      <Separator />
+
+      <PrimaryActionButton props={props} />
+    </section>
   )
 }
 
-function ConflictField(props: {
+function GateTextField(props: {
   disabled?: boolean
-  value: CrashuConflictPolicy
-  onChange: (value: CrashuConflictPolicy) => void
+  label: string
+  onChange: (value: string) => void
+  placeholder?: string
+  value: string
 }) {
   return (
-    <div className="grid gap-1.5">
-      <div className="text-xs font-medium text-muted-foreground">{tNode("crashu", "labels.conflictPolicy", "冲突策略")}</div>
-      <div className="grid grid-cols-3 gap-1">
-        {CONFLICT_POLICY_OPTIONS.map((item) => (
-          <Button
-            key={item.value}
-            aria-label={item.label}
-            disabled={props.disabled}
-            size="sm"
-            variant={props.value === item.value ? "secondary" : "outline"}
-            onClick={() => props.onChange(item.value)}
-          >
-            <span className="truncate">{item.label}</span>
-          </Button>
-        ))}
-      </div>
+    <div className="flex min-w-0 flex-col gap-1">
+      <Label className="text-xs text-muted-foreground">{props.label}</Label>
+      <Input
+        disabled={props.disabled}
+        placeholder={props.placeholder}
+        value={props.value}
+        onChange={(event) => props.onChange(event.currentTarget.value)}
+      />
     </div>
   )
 }
 
-const MOVE_DIRECTION_OPTIONS: Array<{ value: CrashuMoveDirection; label: string }> = [
-  { value: "to_target", label: tNode("crashu", "moveDirection.toTarget", "源→目标") },
-  { value: "to_source", label: tNode("crashu", "moveDirection.toSource", "目标→源") },
-]
+function GateNumberField(props: {
+  disabled?: boolean
+  label: string
+  max?: number
+  min?: number
+  onChange: (value: number) => void
+  step?: number
+  value: number
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Label className="text-xs text-muted-foreground">{props.label}</Label>
+      <Input
+        disabled={props.disabled}
+        max={props.max}
+        min={props.min}
+        step={props.step}
+        type="number"
+        value={props.value}
+        onChange={(event) => props.onChange(Number(event.currentTarget.value))}
+      />
+    </div>
+  )
+}
 
-const CONFLICT_POLICY_OPTIONS: Array<{ value: CrashuConflictPolicy; label: string }> = [
-  { value: "skip", label: tNode("crashu", "conflictPolicy.skip", "跳过") },
-  { value: "rename", label: tNode("crashu", "conflictPolicy.rename", "改名") },
-  { value: "overwrite", label: tNode("crashu", "conflictPolicy.overwrite", "覆盖") },
-]
+function LogsStrip(props: {
+  logs: string[]
+  onCopy: () => void
+}) {
+  if (!props.logs.length) return null
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+      <Archive className="size-3.5 shrink-0 text-muted-foreground" />
+      <ScrollArea className="min-w-0 flex-1">
+        <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
+          {props.logs.slice(-5).map((line, index) => (
+            <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>
+          ))}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+        <Copy data-icon="inline-start" />
+      </Button>
+    </div>
+  )
+}
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ZoneLabel({ icon: Icon, label, tone }: {
+  icon: LucideIcon
+  label: string
+  tone?: "default" | "danger"
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <Icon className={cn("size-3.5", tone === "danger" ? "text-destructive" : "text-muted-foreground")} />
+      <span className="text-xs font-semibold">{label}</span>
+    </div>
+  )
+}
+
+function PipelineIndicator({ phase }: { phase: CrashuPhase }) {
+  const steps = [
+    tNode("crashu", "pipeline.input", "输入"),
+    tNode("crashu", "pipeline.match", "匹配"),
+    tNode("crashu", "pipeline.plan", "计划"),
+    tNode("crashu", "pipeline.execute", "执行"),
+  ]
+  const activeIndex = phase === "idle" ? 0
+    : phase === "scanning" ? 1
+    : phase === "planning" ? 2
+    : phase === "moving" || phase === "completed" ? 3
+    : 0
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      {steps.map((label, index) => {
+        const isActive = index === activeIndex
+        const isDone = (index < activeIndex) || (phase === "completed" && index < 3)
+        return (
+          <div key={label} className="flex items-center gap-0.5">
+            {index > 0 && <div className={cn("h-px w-3", isDone ? "bg-primary/50" : "bg-border")} />}
+            <div className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
+              isActive ? "bg-primary text-primary-foreground" : isDone ? "text-primary" : "text-muted-foreground",
+            )}>
+              <span className="tabular-nums">{index + 1}</span>
+              <span className="hidden @3xl/crashu:inline">{label}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ==================== SHARED COMPONENTS ====================
+
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label={tNode("crashu", "actions.scanMatch", "扫描匹配")} onClick={() => props.onExecute("scan")} />
       <ActionIconButton disabled={props.running || !props.sourcePaths.length} icon={Search} label={tNode("crashu", "actions.plan", "生成计划")} onClick={() => props.onExecute("plan")} />
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("crashu", "copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton icon={RotateCcw} label={tNode("crashu", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
@@ -531,22 +664,27 @@ function StatsPanel(props: {
   progress: number
   result: CrashuData | null
 }) {
-  const errorLabel = tNode("crashu", "stats.error", "错误")
   const stats = [
-    [tNode("crashu", "stats.sources", "源"), props.result?.sourceCount ?? 0],
-    [tNode("crashu", "stats.targets", "目标"), props.result?.targetCount ?? 0],
-    [tNode("crashu", "stats.matches", "匹配"), props.result?.similarFound ?? 0],
-    [tNode("crashu", "stats.moved", "移动"), props.result?.movedCount ?? 0],
-    [tNode("crashu", "stats.skipped", "跳过"), props.result?.skippedCount ?? 0],
-    [tNode("crashu", "stats.progress", "进度"), `${props.progress}%`],
-  ] as const
+    { label: tNode("crashu", "stats.sources", "源"), value: props.result?.sourceCount ?? 0, numeric: true },
+    { label: tNode("crashu", "stats.targets", "目标"), value: props.result?.targetCount ?? 0, numeric: true },
+    { label: tNode("crashu", "stats.matches", "匹配"), value: props.result?.similarFound ?? 0, numeric: true },
+    { label: tNode("crashu", "stats.moved", "移动"), value: props.result?.movedCount ?? 0, numeric: true },
+    { label: tNode("crashu", "stats.skipped", "跳过"), value: props.result?.skippedCount ?? 0, numeric: true },
+    { label: tNode("crashu", "stats.progress", "进度"), value: props.progress, numeric: false, suffix: "%" },
+  ]
 
   return (
     <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/crashu:grid-cols-6">
-      {stats.map(([label, value]) => (
-        <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === errorLabel && Number(value) > 0 && "text-destructive")}>{value}</div>
+      {stats.map((stat) => (
+        <div key={stat.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
+          <div className="truncate text-[11px] text-muted-foreground">{stat.label}</div>
+          <div className="text-sm font-semibold tabular-nums">
+            {stat.numeric ? (
+              <NumberTicker value={stat.value} className="text-foreground dark:text-foreground" />
+            ) : (
+              <span>{stat.value}{stat.suffix}</span>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -583,6 +721,8 @@ function CrashuDisplayTabs(props: {
     </Tabs>
   )
 }
+
+// ==================== LOGIC FUNCTIONS ====================
 
 function statusFromState(data: CrashuCardState, running: boolean, result: CrashuData | null): CrashuStatusMeta {
   if (running || data.phase === "scanning" || data.phase === "planning" || data.phase === "moving") {

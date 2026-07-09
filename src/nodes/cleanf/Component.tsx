@@ -2,12 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { CleanfData, CleanfInput, CleanfPresetId } from "@xiranite/node-cleanf/core"
 import { parseCleanfPaths } from "@xiranite/node-cleanf/core"
-import { Brush, Copy, Eye, Play, RotateCcw, ShieldAlert, Square, Trash2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { Copy, Eye, FileSearch, FolderSearch, Gauge, ListChecks, Play, RotateCcw, ShieldAlert, Square, Trash2, Zap } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
+import { BorderBeam } from "@/components/ui/border-beam"
+import { GridPattern } from "@/components/ui/grid-pattern"
+import { MagicCard } from "@/components/ui/magic-card"
+import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -250,21 +255,30 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
+  const isRunning = props.status.tone === "running"
   return (
-    <div data-testid="cleanf-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <Icon />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Cleanf</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+    <div data-testid="cleanf-collapsed-view" className="relative h-full min-h-0 w-full p-1">
+      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in oklch, var(--primary) 60%, transparent)">
+        <GridPattern width={22} height={22} className="fill-muted-foreground/5 stroke-muted-foreground/10" />
+        <RunningTint tone={props.status.tone} />
+        {isRunning && <BorderBeam size={28} duration={5} colorFrom="var(--primary)" colorTo="var(--chart-4)" />}
+        <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+          <Icon />
         </div>
-        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
-      </div>
-      <PrimaryActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+        <div className="relative min-w-0 flex-1">
+          <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+            <span>Cleanf</span>
+            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+          </div>
+          <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
+        </div>
+        <PrimaryActionButton compact props={props} />
+        {isRunning && (
+          <div className="relative grid size-8 shrink-0 place-items-center">
+            <AnimatedCircularProgressBar value={props.progress} className="size-8 text-[10px] font-semibold" gaugePrimaryColor="var(--primary)" gaugeSecondaryColor="var(--muted-foreground)" />
+          </div>
+        )}
+      </MagicCard>
     </div>
   )
 }
@@ -296,20 +310,24 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div data-testid="cleanf-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
+    <div data-testid="cleanf-portrait-view" className="relative flex h-full min-h-0 flex-col gap-2 p-2">
+      <GridPattern width={28} height={28} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
+      <div className="relative flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="grid shrink-0 gap-2">
+      <div className="relative grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
         <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
-      <div className="min-h-0 flex-1">
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
+      <div className="relative min-h-0 flex-1">
         <CleanfDisplayTabs compact logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
       </div>
     </div>
@@ -319,48 +337,140 @@ function PortraitCompactView(props: ViewProps) {
 function FullView(props: ViewProps) {
   return (
     <div data-testid="cleanf-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/cleanf:flex-row @4xl/cleanf:items-center @4xl/cleanf:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/cleanf:flex-row @4xl/cleanf:items-center">
+      <div className="flex shrink-0 flex-col gap-3 @3xl/cleanf:flex-row @3xl/cleanf:items-center @3xl/cleanf:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @3xl/cleanf:flex-row @3xl/cleanf:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("cleanf", "subtitle.full", "{{paths}} 路径 / {{presets}} 预设 / {{mode}}", { paths: props.pathCount, presets: props.selectedPresets.length, mode: props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.liveExecute", "真实执行") })} />
           <div data-testid="cleanf-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
+            <ToolbarActions {...props} hidePrimaryAction />
           </div>
         </div>
-        <StatsPanel progress={props.progress} result={props.result} />
+        <StatsPanel progress={props.progress} result={props.result} selectedPresets={props.selectedPresets.length} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/cleanf:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{tNode("cleanf", "labels.input", "输入")}</div>
-              <div className="text-xs text-muted-foreground">{tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")}</div>
-            </div>
-            <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("cleanf", "labels.presets", "清理预设")}</div>
-            <PresetPicker disabled={props.running} selected={props.selectedPresets} onToggle={props.onTogglePreset} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("cleanf", "labels.switches", "关键开关")}</div>
-            <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
-
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/cleanf:h-full">
-          <CleanfDisplayTabs logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
+      <div className="grid min-h-0 flex-1 gap-3 grid-cols-1 @2xl/cleanf:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] @4xl/cleanf:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(240px,290px)]">
+        <PresetRulePanel {...props} />
+        <PreviewDeletionPanel {...props} />
+        <ExecutionGatePanel {...props} />
       </div>
+
+      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function PresetRulePanel(props: ViewProps) {
+  return (
+    <section className="relative flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-background/60 p-3 @2xl/cleanf:max-h-full">
+      <div className="grid gap-3 border-b pb-3">
+        <SectionTitle icon={FolderSearch} title={tNode("cleanf", "labels.input", "输入")} hint={tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")} />
+        <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
+      </div>
+      <div className="grid gap-2 border-b pb-3">
+        <SectionTitle icon={ListChecks} title={tNode("cleanf", "labels.presets", "清理预设")} />
+        <PresetPicker disabled={props.running} selected={props.selectedPresets} onToggle={props.onTogglePreset} />
+      </div>
+      <div className="grid gap-2">
+        <SectionTitle icon={ShieldAlert} title={tNode("cleanf", "labels.switches", "关键开关")} />
+        <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      </div>
+    </section>
+  )
+}
+
+function PreviewDeletionPanel(props: ViewProps) {
+  return (
+    <section className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background/60 @2xl/cleanf:max-h-full">
+      <SectionTitle icon={FileSearch} title={tNode("cleanf", "labels.preview", "待删预览")} hint={tNode("cleanf", "labels.previewHint", "预演或清理后，这里列出将被删除的文件和分类统计。")} className="px-3 pt-3" />
+      <div className="min-h-0 flex-1 px-3 pb-3">
+        <CleanfDisplayTabs logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+      </div>
+    </section>
+  )
+}
+
+function ExecutionGatePanel(props: ViewProps) {
+  const isRunning = props.status.tone === "running"
+  const isError = props.status.tone === "error"
+  return (
+    <section className={cn(
+      "relative col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-background/60 p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
+      !props.previewMode && !props.running && "border-destructive/30 bg-destructive/[0.04]",
+    )}>
+      {isRunning && <BorderBeam size={36} duration={4} colorFrom="var(--primary)" colorTo="var(--chart-4)" />}
+      <SectionTitle
+        icon={Gauge}
+        title={tNode("cleanf", "labels.gate", "执行闸门")}
+        hint={props.previewMode ? tNode("cleanf", "gate.previewHint", "预演模式：仅扫描不删除。") : tNode("cleanf", "gate.liveHint", "真实模式：将永久删除扫描到的文件。")}
+      />
+      <div className="flex items-center justify-center gap-3">
+        <AnimatedCircularProgressBar
+          value={props.progress}
+          className="size-24 text-base font-semibold"
+          gaugePrimaryColor={isError ? "var(--destructive)" : "var(--primary)"}
+          gaugeSecondaryColor="var(--muted-foreground)"
+        />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Badge variant={props.previewMode ? "outline" : "destructive"} className="w-fit">
+            {props.previewMode ? <ShieldAlert className="size-3" /> : <Zap className="size-3" />}
+            {props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.live", "真实")}
+          </Badge>
+          <div className="text-xs text-muted-foreground">
+            {tNode("cleanf", "gate.presetsCount", "{{count}} 预设", { count: props.selectedPresets.length })}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {tNode("cleanf", "gate.pathsCount", "{{count}} 路径", { count: props.pathCount })}
+          </div>
+        </div>
+      </div>
+      <PrimaryActionButton props={props} />
+      <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+    </section>
+  )
+}
+
+function LogsStrip(props: {
+  logs: string[]
+  onCopy: () => void
+}) {
+  if (!props.logs.length) return null
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+      <Gauge className="size-3.5 shrink-0 text-muted-foreground" />
+      <ScrollArea className="min-w-0 flex-1">
+        <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
+          {props.logs.slice(-5).map((line, index) => (
+            <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>
+          ))}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+        <Copy data-icon="inline-start" />
+        {tNode("cleanf", "copyLogs", "复制日志")}
+      </Button>
+    </div>
+  )
+}
+
+function SectionTitle(props: {
+  icon: LucideIcon
+  title: string
+  hint?: string
+  className?: string
+}) {
+  const Icon = props.icon
+  return (
+    <div className={cn("flex min-w-0 items-center gap-1.5", props.className)}>
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate text-sm font-semibold">{props.title}</span>
+      {props.hint && <span className="ml-auto hidden truncate text-[11px] text-muted-foreground @3xl/cleanf:block">{props.hint}</span>}
+    </div>
+  )
+}
+
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("cleanf", "actions.copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label={tNode("cleanf", "actions.clearState", "清空状态")} onClick={props.onReset} />
@@ -451,20 +561,26 @@ function HeaderLine({ status, subtitle }: {
 function StatsPanel(props: {
   progress: number
   result: CleanfData | null
+  selectedPresets: number
 }) {
+  const removed = props.result?.totalRemoved ?? 0
+  const skipped = props.result?.skipped ?? 0
+  const preview = props.result?.previewFiles.length ?? 0
   const stats = [
-    [tNode("cleanf", "stats.total", "总计"), props.result?.totalRemoved ?? 0],
-    [tNode("cleanf", "stats.skipped", "跳过"), props.result?.skipped ?? 0],
-    [tNode("cleanf", "stats.preview", "预演项"), props.result?.previewFiles.length ?? 0],
-    [tNode("cleanf", "stats.progress", "进度"), `${props.progress}%`],
+    { label: tNode("cleanf", "stats.total", "总计"), value: removed },
+    { label: tNode("cleanf", "stats.skipped", "跳过"), value: skipped },
+    { label: tNode("cleanf", "stats.preview", "预演项"), value: preview },
+    { label: tNode("cleanf", "stats.presets", "预设"), value: props.selectedPresets },
   ] as const
 
   return (
     <div className="grid shrink-0 grid-cols-2 gap-1 @3xl/cleanf:grid-cols-4">
-      {stats.map(([label, value]) => (
-        <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className="text-sm font-semibold tabular-nums">{value}</div>
+      {stats.map((stat) => (
+        <div key={stat.label} className="relative min-w-0 overflow-hidden rounded-md bg-muted/35 px-2 py-1.5 text-center">
+          <div className="truncate text-[11px] text-muted-foreground">{stat.label}</div>
+          <div className="text-sm font-semibold tabular-nums">
+            <NumberTicker value={stat.value} className="text-foreground" />
+          </div>
         </div>
       ))}
     </div>

@@ -1,17 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { DissolvefConflictMode, DissolvefData, DissolvefInput } from "@xiranite/node-dissolvef/core"
-import { Copy, History, RotateCcw, Square, Undo2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { ArrowRight, History, RotateCcw, Square, Undo2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
+import { BorderBeam } from "@/components/ui/border-beam"
+import { GridPattern } from "@/components/ui/grid-pattern"
+import { MagicCard } from "@/components/ui/magic-card"
+import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
-import { DEFAULT_THRESHOLD, DISSOLVE_ICON, NODE_ICON } from "./constants"
+import { BUNDLE_MODES, DEFAULT_THRESHOLD, DIRECT_ICON, DISSOLVE_ICON, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, HistoryPanel, LogPanel, ModePicker, PathInput, PlanList, PrimarySwitches, StatusStrip } from "./controls"
 import type { DissolvefAction, DissolvefCardState, DissolvefPhase, DissolvefStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
@@ -267,21 +274,30 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
+  const isRunning = props.status.tone === "running"
   return (
-    <div data-testid="dissolvef-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <Icon />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Dissolvef</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+    <div data-testid="dissolvef-collapsed-view" className="relative h-full min-h-0 w-full p-1">
+      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in_oklch, var(--primary) 60%, transparent)">
+        <GridPattern width={22} height={22} className="fill-muted-foreground/5 stroke-muted-foreground/10" />
+        <RunningTint tone={props.status.tone} />
+        {isRunning && <BorderBeam size={28} duration={5} colorFrom="var(--primary)" colorTo="var(--chart-5)" />}
+        <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+          <Icon />
         </div>
-        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
-      </div>
-      <PrimaryActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
+        <div className="relative min-w-0 flex-1">
+          <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+            <span>Dissolvef</span>
+            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+          </div>
+          <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
+        </div>
+        <PrimaryActionButton compact props={props} />
+        {isRunning && (
+          <div className="relative grid size-8 shrink-0 place-items-center">
+            <AnimatedCircularProgressBar value={props.progress} className="size-8 text-[10px] font-semibold" gaugePrimaryColor="var(--primary)" gaugeSecondaryColor="var(--muted-foreground)" />
+          </div>
+        )}
+      </MagicCard>
     </div>
   )
 }
@@ -297,8 +313,10 @@ function CompactView(props: ViewProps) {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-        <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
+        <div className="grid shrink-0 gap-2 @[280px]/dissolvef:grid-cols-2">
+          <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
+          <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
+        </div>
         <PrimarySwitches compact data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
         {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -314,21 +332,25 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div data-testid="dissolvef-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
+    <div data-testid="dissolvef-portrait-view" className="relative flex h-full min-h-0 flex-col gap-2 p-2">
+      <GridPattern width={28} height={28} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
+      <div className="relative flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="grid shrink-0 gap-2">
+      <div className="relative grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
         <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
         <PrimarySwitches compact data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
-      <div className="min-h-0 flex-1">
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
+      <div className="relative min-h-0 flex-1">
         <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
       </div>
     </div>
@@ -336,49 +358,210 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  const isRunning = props.status.tone === "running"
+  const isError = props.status.tone === "error"
   return (
-    <div data-testid="dissolvef-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/dissolvef:flex-row @4xl/dissolvef:items-center @4xl/dissolvef:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/dissolvef:flex-row @4xl/dissolvef:items-center">
+    <div data-testid="dissolvef-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      <div className="flex shrink-0 flex-col gap-2 @3xl/dissolvef:flex-row @3xl/dissolvef:items-center @3xl/dissolvef:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 @3xl/dissolvef:flex-row @3xl/dissolvef:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || tNode("dissolvef", "subtitle.full", "{{mode}} / {{preview}}", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), preview: props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.liveExecute", "真实执行") })} />
-          <div data-testid="dissolvef-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
+          <div data-testid="dissolvef-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
+            <ToolbarActions {...props} hidePrimaryAction />
           </div>
         </div>
         <StatsPanel progress={props.progress} result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/dissolvef:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{tNode("dissolvef", "labels.input", "输入")}</div>
-              <div className="text-xs text-muted-foreground">{tNode("dissolvef", "labels.inputHint", "选择捆绑或直提模式，预演确认后再执行真实溶解。")}</div>
-            </div>
-            <PathInput disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-            <ModePicker direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{tNode("dissolvef", "labels.switches", "关键开关")}</div>
-            <PrimarySwitches data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+      <InputDropZone
+        disabled={props.running}
+        value={props.data.pathText ?? ""}
+        onChange={(pathText) => props.onPatch({ pathText })}
+        onClear={() => props.onPatch({ pathText: "" })}
+        onPaste={props.onPastePath}
+      />
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/dissolvef:h-full">
-          <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
+      <div className="grid shrink-0 gap-2 @2xl/dissolvef:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <ModePipeline
+          direct={props.direct}
+          disabled={props.running}
+          result={props.result}
+          selectedModes={props.selectedModes}
+          onSetDirect={props.onSetDirect}
+          onToggleMode={props.onToggleMode}
+        />
+        <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
+          {isRunning && <BorderBeam size={36} duration={4} colorFrom="var(--primary)" colorTo="var(--chart-5)" />}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">{tNode("dissolvef", "labels.switches", "关键开关")}</span>
+            <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+          </div>
+          <PrimarySwitches data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+          <PrimaryActionButton props={props} />
         </div>
       </div>
+
+      {(isRunning || isError) && (
+        <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+      )}
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background/60">
+        <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
+      </div>
+
+      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function InputDropZone(props: {
+  disabled?: boolean
+  value: string
+  onChange: (value: string) => void
+  onClear: () => void
+  onPaste: () => void
+}) {
+  return (
+    <MagicCard className="relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background/50" gradientColor="color-mix(in oklch, var(--primary) 40%, transparent)" gradientSize={260}>
+      <GridPattern width={32} height={32} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08] [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)]" />
+      <div className="relative p-2">
+        <PathInput compact disabled={props.disabled} value={props.value} onChange={props.onChange} onClear={props.onClear} onPaste={props.onPaste} />
+      </div>
+    </MagicCard>
+  )
+}
+
+function ModePipeline(props: {
+  direct: boolean
+  disabled?: boolean
+  result: DissolvefData | null
+  selectedModes: string[]
+  onSetDirect: (direct: boolean) => void
+  onToggleMode: (mode: "nested" | "media" | "archive") => void
+}) {
+  const DirectIcon = DIRECT_ICON
+  if (props.direct) {
+    const directCount = (props.result?.directFiles ?? 0) + (props.result?.directDirs ?? 0)
+    return (
+      <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
+          <Badge variant="secondary">{tNode("dissolvef", "mode.direct", "直提")}</Badge>
+        </div>
+        <PipelineStage
+          icon={DirectIcon}
+          label={tNode("dissolvef", "mode.direct", "直提")}
+          hint={tNode("dissolvef", "pipeline.directHint", "全部上提到父级")}
+          count={directCount}
+          active
+          disabled={props.disabled}
+          onClick={() => props.onSetDirect(false)}
+        />
+        <Button aria-label={tNode("dissolvef", "aria.bundleMode", "捆绑模式")} disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onSetDirect(false)}>
+          <span className="truncate">{tNode("dissolvef", "pipeline.switchBundle", "切换到捆绑模式")}</span>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative flex min-h-0 flex-col gap-2 rounded-lg border bg-background/60 p-2">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
+        <Badge variant="outline">{tNode("dissolvef", "mode.bundle", "捆绑")}</Badge>
+      </div>
+      <div className="flex items-stretch gap-1">
+        {BUNDLE_MODES.map((mode, index) => (
+          <Fragment key={mode.value}>
+            <PipelineStage
+              icon={mode.icon}
+              label={mode.shortLabel}
+              hint={mode.description}
+              count={modeCount(props.result, mode.value)}
+              active={props.selectedModes.includes(mode.value)}
+              disabled={props.disabled}
+              onClick={() => props.onToggleMode(mode.value)}
+            />
+            {index < BUNDLE_MODES.length - 1 && (
+              <div className="grid shrink-0 place-items-center text-muted-foreground/60">
+                <ArrowRight className="size-3" />
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <Button aria-label={tNode("dissolvef", "aria.directMode", "直提模式")} disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onSetDirect(true)}>
+        <DirectIcon data-icon="inline-start" />
+        <span className="truncate">{tNode("dissolvef", "pipeline.switchDirect", "切换到直提模式")}</span>
+      </Button>
+    </div>
+  )
+}
+
+function PipelineStage(props: {
+  icon: LucideIcon
+  label: string
+  hint?: string
+  count: number
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+}) {
+  const Icon = props.icon
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={props.label}
+          disabled={props.disabled}
+          onClick={props.onClick}
+          className={cn(
+            "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border px-1.5 py-1.5 transition-colors",
+            props.active
+              ? "border-primary/40 bg-primary/8"
+              : "border-border bg-background/50 opacity-50 hover:opacity-90",
+          )}
+        >
+          <Icon className="size-3.5 text-muted-foreground" />
+          <span className="truncate text-[11px] font-medium">{props.label}</span>
+          <span className="text-sm font-semibold tabular-nums">
+            {props.count > 0 ? <NumberTicker value={props.count} className="text-foreground" /> : props.count}
+          </span>
+        </button>
+      </TooltipTrigger>
+      {props.hint && <TooltipContent side="bottom" className="max-w-[200px]">{props.hint}</TooltipContent>}
+    </Tooltip>
+  )
+}
+
+function LogsStrip(props: {
+  logs: string[]
+  onCopy: () => void
+}) {
+  if (!props.logs.length) return null
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+      <History className="size-3.5 shrink-0 text-muted-foreground" />
+      <ScrollArea className="min-w-0 flex-1">
+        <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
+          {props.logs.slice(-5).map((line, index) => (
+            <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>
+          ))}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+        {tNode("dissolvef", "copyLogs", "复制")}
+      </Button>
+    </div>
+  )
+}
+
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       <ActionIconButton disabled={props.running} icon={History} label={tNode("dissolvef", "actions.history", "读取历史")} onClick={() => props.onExecute("history")} />
       <ActionIconButton disabled={props.running || !props.result?.history.length} icon={Undo2} label={tNode("dissolvef", "actions.undoRecent", "撤销最近")} onClick={() => props.onExecute("undo")} />
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
       <ActionIconButton icon={RotateCcw} label={tNode("dissolvef", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
         <ConfigDefaultsPopover
@@ -472,22 +655,27 @@ function StatsPanel(props: {
   const failedLabel = tNode("dissolvef", "stats.failed", "失败")
   const errorLabel = tNode("dissolvef", "stats.error", "错误")
   const stats = [
-    [tNode("dissolvef", "stats.total", "总计"), props.result?.totalCount ?? 0],
-    [tNode("dissolvef", "stats.nested", "嵌套"), props.result?.nestedCount ?? 0],
-    [tNode("dissolvef", "stats.media", "媒体"), props.result?.mediaCount ?? 0],
-    [tNode("dissolvef", "stats.archive", "归档"), props.result?.archiveCount ?? 0],
-    [tNode("dissolvef", "stats.skipped", "跳过"), props.result?.skippedCount ?? 0],
-    [tNode("dissolvef", "stats.progress", "进度"), `${props.progress}%`],
-  ] as const
+    { label: tNode("dissolvef", "stats.total", "总计"), value: props.result?.totalCount ?? 0, numeric: true },
+    { label: tNode("dissolvef", "stats.nested", "嵌套"), value: props.result?.nestedCount ?? 0, numeric: true },
+    { label: tNode("dissolvef", "stats.media", "媒体"), value: props.result?.mediaCount ?? 0, numeric: true },
+    { label: tNode("dissolvef", "stats.archive", "归档"), value: props.result?.archiveCount ?? 0, numeric: true },
+    { label: tNode("dissolvef", "stats.skipped", "跳过"), value: props.result?.skippedCount ?? 0, numeric: true },
+    { label: tNode("dissolvef", "stats.progress", "进度"), value: `${props.progress}%`, numeric: false },
+  ]
 
   return (
     <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/dissolvef:grid-cols-6">
-      {stats.map(([label, value]) => (
-        <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", (label === failedLabel || label === errorLabel) && Number(value) > 0 && "text-destructive")}>{value}</div>
-        </div>
-      ))}
+      {stats.map((item) => {
+        const isError = (item.label === failedLabel || item.label === errorLabel) && Number(item.value) > 0
+        return (
+          <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
+            <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
+            <div className={cn("text-sm font-semibold tabular-nums", isError && "text-destructive")}>
+              {item.numeric ? <NumberTicker value={item.value as number} className="text-foreground" /> : item.value}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -589,4 +777,11 @@ function summaryText(props: ViewProps): string {
   if (props.result?.totalCount) return tNode("dissolvef", "summary.total", "{{total}} 项 / {{success}} 成功", { total: props.result.totalCount, success: props.result.successCount })
   if (props.data.pathText) return tNode("dissolvef", "summary.mode", "{{mode}} / {{preview}}", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), preview: props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.live", "真实") })
   return tNode("dissolvef", "summary.empty", "粘贴文件夹后开始溶解")
+}
+
+function modeCount(result: DissolvefData | null, mode: string): number {
+  if (mode === "nested") return result?.nestedCount ?? 0
+  if (mode === "media") return result?.mediaCount ?? 0
+  if (mode === "archive") return result?.archiveCount ?? 0
+  return 0
 }
