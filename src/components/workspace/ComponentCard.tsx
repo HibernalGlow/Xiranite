@@ -2,6 +2,7 @@ import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions } from "@/store/workspaceContext"
+import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "@/store/workspace/constants"
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
@@ -16,6 +17,8 @@ import {
   Minus,
   Expand,
   ExternalLink,
+  Share2,
+  ArrowRight,
 } from "lucide-react"
 
 interface Props {
@@ -83,6 +86,13 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
     }
   }
 
+  // 将卡片从 cards 视图迁移到目标视图：隐藏当前视图可见性、开启目标视图可见性、切换到目标视图。
+  function moveToView(targetMode: ComponentViewMode) {
+    workspaceActions.setComponentVisibility(comp.id, "cards", false)
+    workspaceActions.setComponentVisibility(comp.id, targetMode, true)
+    workspaceActions.setViewMode(targetMode)
+  }
+
   // 构造操作栏动作列表，tone 决定红绿灯样式下的圆点颜色。
   const chromeActions: NodeSurfaceChromeAction[] = [
     {
@@ -119,6 +129,21 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
       icon: <ExternalLink className="h-3 w-3" />,
       tone: "neutral",
       onClick: () => openFloatingWindow(),
+    },
+    {
+      key: "moveToView",
+      label: t("common:moveToView"),
+      icon: <Share2 className="h-3 w-3" />,
+      tone: "neutral",
+      submenu: COMPONENT_VIEW_MODES
+        .filter((mode) => mode !== "cards")
+        .map((mode) => ({
+          key: `moveTo-${mode}`,
+          label: t(`topbar:viewMode.${mode}`),
+          icon: <ArrowRight className="h-3.5 w-3.5" />,
+          tone: "neutral" as const,
+          onClick: () => moveToView(mode),
+        })),
     },
     {
       key: "hide",

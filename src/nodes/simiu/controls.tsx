@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import { Clipboard, DatabaseZap, Eye, Info, Settings2 } from "lucide-react"
-import type { GifuAction, GifuFormat, GifuOutputMode } from "@xiranite/node-gifu/core"
+import type { SimiuAction, SimiuApplyMode, SimiuScanOrder } from "@xiranite/node-simiu/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -14,8 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { ACTIONS, FORMAT_OPTIONS, OUTPUT_MODE_OPTIONS } from "./constants"
-import type { GifuCardState, GifuStatusMeta } from "./types"
+import { ACTIONS, APPLY_MODE_OPTIONS, SCAN_ORDER_OPTIONS } from "./constants"
+import type { SimiuCardState, SimiuStatusMeta } from "./types"
 
 export function ActionIconButton(props: {
   active?: boolean
@@ -46,14 +46,14 @@ export function ActionIconButton(props: {
 }
 
 export function ActionPicker(props: {
-  action: GifuAction
+  action: SimiuAction
   disabled?: boolean
   triggerClassName?: string
-  onActionChange: (action: GifuAction) => void
+  onActionChange: (action: SimiuAction) => void
 }) {
   return (
     <ToggleGroup
-      aria-label="gifu action"
+      aria-label="simiu action"
       className={cn("grid w-full grid-cols-3", props.triggerClassName)}
       disabled={props.disabled}
       size="sm"
@@ -61,7 +61,7 @@ export function ActionPicker(props: {
       value={props.action}
       variant="outline"
       onValueChange={(value) => {
-        if (value) props.onActionChange(value as GifuAction)
+        if (value) props.onActionChange(value as SimiuAction)
       }}
     >
       {ACTIONS.map((item) => (
@@ -74,146 +74,143 @@ export function ActionPicker(props: {
   )
 }
 
-export function PathsInput(props: {
+export function RootsInput(props: {
   compact?: boolean
-  data: GifuCardState
+  data: SimiuCardState
   disabled?: boolean
   onPaste: () => void
-  onPatch: (patch: Partial<GifuCardState>) => void
+  onPatch: (patch: Partial<SimiuCardState>) => void
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {!props.compact && (
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="gifu-paths">归档或目录</Label>
-          <Badge variant="outline" className="shrink-0">zip / cbz / folder</Badge>
+          <Label htmlFor="simiu-roots">图片根目录</Label>
+          <Badge variant="outline" className="shrink-0">jpg / png / webp</Badge>
         </div>
       )}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
-          id="gifu-paths"
-          aria-label="gifu 归档或目录"
+          id="simiu-roots"
+          aria-label="simiu 图片根目录"
           disabled={props.disabled}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-20" : "h-28")}
-          placeholder="每行一个 .zip/.cbz 或图片目录"
-          value={props.data.pathsText ?? ""}
-          onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+          placeholder="每行一个图片目录"
+          value={props.data.rootsText ?? ""}
+          onChange={(event) => props.onPatch({ rootsText: event.currentTarget.value })}
         />
-        <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+        <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴目录" onClick={props.onPaste} />
       </div>
     </div>
   )
 }
 
-export function OutputFields(props: {
-  data: GifuCardState
+export function GroupFields(props: {
+  data: SimiuCardState
   disabled?: boolean
-  onPatch: (patch: Partial<GifuCardState>) => void
+  onPatch: (patch: Partial<SimiuCardState>) => void
 }) {
   return (
-    <div className="grid gap-2 @3xl/gifu:grid-cols-2">
-      <ToggleGroup
-        aria-label="gifu 输出格式"
-        className="@3xl/gifu:col-span-2 grid w-full grid-cols-3 @5xl/gifu:grid-cols-6"
-        disabled={props.disabled}
-        size="sm"
-        type="single"
-        value={props.data.format ?? "webp"}
-        variant="outline"
-        onValueChange={(format) => {
-          if (format) props.onPatch({ format: format as GifuFormat })
-        }}
-      >
-        {FORMAT_OPTIONS.map((item) => (
-          <ToggleGroupItem key={item.value} aria-label={`输出格式 ${item.label}`} className="min-w-0" value={item.value}>
-            <span className="truncate">{item.label}</span>
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <ToggleGroup
-        aria-label="gifu 输出模式"
-        className="grid w-full grid-cols-2"
-        disabled={props.disabled}
-        size="sm"
-        type="single"
-        value={props.data.outMode ?? "same"}
-        variant="outline"
-        onValueChange={(outMode) => {
-          if (outMode) props.onPatch({ outMode: outMode as GifuOutputMode })
-        }}
-      >
-        {OUTPUT_MODE_OPTIONS.map((item) => (
-          <ToggleGroupItem key={item.value} aria-label={`输出模式 ${item.label}`} className="min-w-0" value={item.value}>
-            <span className="truncate">{item.label}</span>
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+    <div className="grid gap-2 @3xl/simiu:grid-cols-2">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label className="text-xs">应用方式</Label>
+        <ToggleGroup
+          aria-label="simiu 应用模式"
+          className="grid w-full grid-cols-3"
+          disabled={props.disabled}
+          size="sm"
+          type="single"
+          value={props.data.mode ?? "move"}
+          variant="outline"
+          onValueChange={(mode) => {
+            if (mode) props.onPatch({ mode: mode as SimiuApplyMode })
+          }}
+        >
+          {APPLY_MODE_OPTIONS.map((item) => (
+            <ToggleGroupItem key={item.value} aria-label={`应用方式 ${item.label}`} className="min-w-0" value={item.value}>
+              <span className="truncate">{item.label}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <Label className="text-xs">扫描顺序</Label>
+        <ToggleGroup
+          aria-label="simiu 扫描顺序"
+          className="grid w-full grid-cols-3"
+          disabled={props.disabled}
+          size="sm"
+          type="single"
+          value={props.data.scanOrder ?? "path"}
+          variant="outline"
+          onValueChange={(scanOrder) => {
+            if (scanOrder) props.onPatch({ scanOrder: scanOrder as SimiuScanOrder })
+          }}
+        >
+          {SCAN_ORDER_OPTIONS.map((item) => (
+            <ToggleGroupItem key={item.value} aria-label={`扫描顺序 ${item.label}`} className="min-w-0" value={item.value}>
+              <span className="truncate">{item.label}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
       <Input
-        aria-label="gifu 输出目录"
+        aria-label="simiu 分组前缀"
         disabled={props.disabled}
-        placeholder="输出目录，可留空"
-        value={props.data.outDir ?? ""}
-        onChange={(event) => props.onPatch({ outDir: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="gifu 文件名前缀"
-        disabled={props.disabled}
-        placeholder="文件名前缀"
+        placeholder="分组前缀，默认 simiu_set"
         value={props.data.namePrefix ?? ""}
         onChange={(event) => props.onPatch({ namePrefix: event.currentTarget.value })}
+      />
+      <Input
+        aria-label="simiu 最小组大小"
+        disabled={props.disabled}
+        placeholder="最小组大小，默认 2"
+        type="number"
+        value={props.data.minGroupSize ?? ""}
+        onChange={(event) => props.onPatch({ minGroupSize: event.currentTarget.value })}
+      />
+      <Input
+        aria-label="simiu 尺寸容差"
+        disabled={props.disabled}
+        placeholder="尺寸容差 bytes"
+        type="number"
+        value={props.data.sizeToleranceBytes ?? ""}
+        onChange={(event) => props.onPatch({ sizeToleranceBytes: event.currentTarget.value })}
       />
     </div>
   )
 }
 
 export function RuntimeOptions(props: {
-  data: GifuCardState
+  data: SimiuCardState
   disabled?: boolean
-  onPatch: (patch: Partial<GifuCardState>) => void
+  onPatch: (patch: Partial<SimiuCardState>) => void
 }) {
   return (
     <div className="grid gap-2">
-      <div className="grid gap-2 @3xl/gifu:grid-cols-2">
+      <div className="grid gap-2 @3xl/simiu:grid-cols-2">
         <Input
-          aria-label="gifu 配置 TOML"
+          aria-label="simiu 配置 TOML"
           disabled={props.disabled}
-          placeholder="gifu.toml，可选"
+          placeholder="simiu.toml，可选"
           value={props.data.configPath ?? ""}
           onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
         />
         <Input
-          aria-label="gifu 运行记录 JSONL"
+          aria-label="simiu 运行记录 JSONL"
           disabled={props.disabled}
-          placeholder=".xiranite/gifu-runs.jsonl"
+          placeholder=".xiranite/simiu-runs.jsonl"
           value={props.data.databasePath ?? ""}
           onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
         />
       </div>
-      <div className="grid gap-2 @3xl/gifu:grid-cols-2">
-        <Input
-          aria-label="gifu 帧时长"
-          disabled={props.disabled}
-          placeholder="帧时长 ms，默认 120"
-          type="number"
-          value={props.data.durationMs ?? ""}
-          onChange={(event) => props.onPatch({ durationMs: event.currentTarget.value })}
-        />
-        <Input
-          aria-label="gifu 并发数"
-          disabled={props.disabled}
-          placeholder="并发数，0 为自动"
-          type="number"
-          value={props.data.maxWorkers ?? ""}
-          onChange={(event) => props.onPatch({ maxWorkers: event.currentTarget.value })}
-        />
-      </div>
-      <div className="grid gap-2 @3xl/gifu:grid-cols-2">
+      <div className="grid gap-2 @3xl/simiu:grid-cols-2">
         <SwitchRow
           checked={props.data.dryRun ?? true}
           disabled={props.disabled}
           icon={Eye}
           label="预演"
-          description="生成命令和输出计划，不真正调用转换。"
+          description="只生成操作计划，不移动、复制或链接文件。"
           onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
         />
         <SwitchRow
@@ -221,7 +218,7 @@ export function RuntimeOptions(props: {
           disabled={props.disabled}
           icon={DatabaseZap}
           label="记录运行"
-          description="把计划或执行结果写入 JSONL。"
+          description="把扫描或应用结果写入 JSONL。"
           onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
         />
       </div>
@@ -230,30 +227,30 @@ export function RuntimeOptions(props: {
 }
 
 export function OptionsPopover(props: {
-  data: GifuCardState
+  data: SimiuCardState
   disabled?: boolean
-  onPatch: (patch: Partial<GifuCardState>) => void
+  onPatch: (patch: Partial<SimiuCardState>) => void
 }) {
   return (
     <Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="gifu 运行选项" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label="simiu 分组选项" disabled={props.disabled} size="icon-sm" variant="outline">
               <Settings2 />
-              <span className="sr-only">运行选项</span>
+              <span className="sr-only">分组选项</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>运行选项</TooltipContent>
+        <TooltipContent>分组选项</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,460px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">运行选项</div>
-          <p className="text-xs text-muted-foreground">格式、输出目录、帧时长和运行记录集中在这里。</p>
+          <div className="text-sm font-semibold">分组选项</div>
+          <p className="text-xs text-muted-foreground">应用方式、扫描顺序和预演开关集中在这里。</p>
         </div>
         <div className="grid gap-3">
-          <OutputFields {...props} />
+          <GroupFields {...props} />
           <RuntimeOptions {...props} />
         </div>
       </PopoverContent>
@@ -264,7 +261,7 @@ export function OptionsPopover(props: {
 export function ConfigDefaultsPopover(props: {
   configDirty: boolean
   configFilePath?: string
-  defaults?: Partial<GifuCardState>
+  defaults?: Partial<SimiuCardState>
   disabled?: boolean
   onOpenConfigFile?: () => Promise<void> | void
   onResetOverride: () => void
@@ -276,7 +273,7 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="gifu 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label="simiu 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
               <span className="sr-only">默认配置</span>
             </Button>
@@ -287,7 +284,7 @@ export function ConfigDefaultsPopover(props: {
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
           <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 Gifu 的输入、输出和记录选项。</p>
+          <p className="text-xs text-muted-foreground">保存 Simiu 的目录、分组和运行选项。</p>
         </div>
         <div className="grid gap-2">
           <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
@@ -300,8 +297,8 @@ export function ConfigDefaultsPopover(props: {
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>Gifu 配置</DialogTitle>
-                <DialogDescription>当前 nodes.gifu 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>Simiu 配置</DialogTitle>
+                <DialogDescription>当前 nodes.simiu 默认值和配置文件位置。</DialogDescription>
               </DialogHeader>
               <ConfigPreview config={props.defaults} path={props.configFilePath} />
             </DialogContent>
@@ -316,7 +313,7 @@ export function ConfigDefaultsPopover(props: {
 export function StatusStrip(props: {
   compact?: boolean
   progress: number
-  status: GifuStatusMeta
+  status: SimiuStatusMeta
   text?: string
 }) {
   return (
@@ -354,11 +351,11 @@ export function SwitchRow(props: {
 }
 
 function ConfigPreview(props: {
-  config?: Partial<GifuCardState>
+  config?: Partial<SimiuCardState>
   path?: string
 }) {
   const content = props.config === undefined
-    ? "# nodes.gifu 暂无默认配置\n"
+    ? "# nodes.simiu 暂无默认配置\n"
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">

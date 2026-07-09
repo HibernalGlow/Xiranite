@@ -26,6 +26,7 @@
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit fullscreen",
     "openFloatingWindow": "Open floating window",
+    "moveToView": "Move to view",
     "hideIn": "Hide in {{view}}",
     "live": "live",
     "reset": "Reset",

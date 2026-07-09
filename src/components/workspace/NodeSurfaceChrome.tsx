@@ -8,6 +8,12 @@ import {
   useDynamicIslandSize,
   type DynamicIslandTransition,
 } from "@/components/ui/dynamic-island"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 
@@ -20,7 +26,9 @@ export interface NodeSurfaceChromeAction {
   icon: ReactNode
   danger?: boolean
   tone?: ChromeActionTone
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+  /** 若提供子菜单，点击按钮将展开下拉菜单而非直接触发 onClick。 */
+  submenu?: NodeSurfaceChromeAction[]
 }
 
 export interface ChromeAppearance {
@@ -387,6 +395,35 @@ function ChromeActionButton({
   action: NodeSurfaceChromeAction
   trafficLight: boolean
 }) {
+  const button = renderChromeButton(action, trafficLight)
+  if (!action.submenu?.length) return button
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {button}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" collisionPadding={8} className="min-w-[10rem]">
+        {action.submenu.map((sub) => (
+          <DropdownMenuItem
+            key={sub.key}
+            onSelect={(event) => {
+              event.preventDefault()
+              sub.onClick(event as unknown as MouseEvent<HTMLButtonElement>)
+            }}
+          >
+            {sub.icon}
+            <span>{sub.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** 渲染操作栏单按钮（不带菜单）。子菜单模式下 onClick 由 DropdownMenu 接管。 */
+function renderChromeButton(action: NodeSurfaceChromeAction, trafficLight: boolean) {
+  const handleClick = action.submenu?.length ? undefined : action.onClick
   if (trafficLight) {
     const tone = resolveTone(action)
     return (
@@ -395,7 +432,7 @@ function ChromeActionButton({
         title={action.label}
         aria-label={action.label}
         onPointerDown={(event) => event.stopPropagation()}
-        onClick={action.onClick}
+        onClick={handleClick}
         className={cn(
           "grid h-3.5 w-3.5 place-items-center rounded-full transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
           trafficLightDotClasses(tone),
@@ -414,7 +451,7 @@ function ChromeActionButton({
       title={action.label}
       aria-label={action.label}
       onPointerDown={(event) => event.stopPropagation()}
-      onClick={action.onClick}
+      onClick={handleClick}
       className={cn(
         "grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
         action.danger

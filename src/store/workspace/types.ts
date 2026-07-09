@@ -8,6 +8,7 @@ import type {
   DeployComponentOptions,
   Lane,
   OverlayKind,
+  OverlayMode,
   ViewMode,
   WorkspaceItem,
 } from "@/types/workspace"
