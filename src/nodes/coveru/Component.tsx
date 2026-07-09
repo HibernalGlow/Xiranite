@@ -1,83 +1,69 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { PackuToolAction, PackuToolData, PackuToolInput, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
+import type { CoveruAction, CoveruCandidate, CoveruData, CoveruInput, CoveruOutputMode } from "@xiranite/node-coveru/core"
 import type { LucideIcon } from "lucide-react"
-import { CheckCircle2, Image as ImageIcon, Play, RotateCcw, Square } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, FolderInput, GalleryThumbnails, Image as ImageIcon, Images, PackageOpen, Play, RotateCcw, Settings2, ShieldAlert, Square, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
 import { Badge } from "@/components/ui/badge"
-import { BlurFade } from "@/components/ui/blur-fade"
-import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
-import { GridPattern } from "@/components/ui/grid-pattern"
-import { MagicCard } from "@/components/ui/magic-card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { RunningTint } from "@/nodes/shared/controls"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { ActionIconButton, ActionPicker, ConfigDefaultsPopover, OptionsPopover, PathFields, PathsInput, RuntimeOptions, StatusStrip } from "./controls"
-import { ACTIONS, NODE_META } from "./constants"
-import { PackuResultTabs } from "./results"
-import type { PackuCardState, PackuStatusMeta } from "./types"
+import { ACTIONS, DEFAULT_PREFERRED_NAMES_TEXT, NODE_ICON } from "./constants"
+import type { CoveruCardState, CoveruStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
-export function Component({ compId, host }: NodeComponentProps<PackuCardState>) {
+export function Component({ compId, host }: NodeComponentProps<CoveruCardState>) {
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
-  const dataRef = useRef<PackuCardState>(data)
+  const dataRef = useRef<CoveruCardState>(data)
   dataRef.current = data
 
   const [running, setRunning] = useState(false)
-  const [defaults, setDefaults] = useState<Partial<PackuCardState> | undefined>(undefined)
-  const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
+  const [defaults, setDefaults] = useState<Partial<CoveruCardState> | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
-  const action = data.action ?? "status"
+  const action = data.action ?? "scan"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
-  const result = data.result ?? null
   const logs = data.logs ?? []
+  const result = data.result ?? null
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running, NODE_META.description)
-  const covers = useMemo(() => coverCandidates(data, result), [data.pathsText, result?.selectedPaths])
+  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const candidates = useMemo(() => result?.candidates ?? paths.map((path) => placeholderCandidate(path)), [paths, result])
+  const status = statusFromState(data, running, result)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<PackuCardState>>() ?? host.getNodeConfig?.<Partial<PackuCardState>>()
+    const loadConfig = host.config?.get?.<Partial<CoveruCardState>>() ?? host.getNodeConfig?.<Partial<CoveruCardState>>()
     loadConfig
-      ?.then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
+      ?.then((response) => setDefaults(response.config))
       .catch(() => undefined)
   }, [host])
 
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [
-    data.configPath,
-    data.databasePath,
-    data.argsText,
-    data.python,
-    data.sourceRoot,
-    data.moduleName,
-    data.dryRun,
-    data.recordRun,
-    defaults,
-  ])
+  }, [data.pathsText, data.outputDir, data.outputMode, data.preferredNamesText, data.overwrite, data.recursive, data.dryRun, defaults])
 
-  function patch(patchData: Partial<PackuCardState>) {
+  function patch(patchData: Partial<CoveruCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
     if (host.state?.patchData) host.state.patchData(patchData)
     else host.patchData(compId, patchData)
   }
 
   function pushLog(message: string) {
-    const nextLogs = [...(dataRef.current.logs ?? []), message].slice(-120)
-    patch({ logs: nextLogs })
+    patch({ logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
   }
 
   async function pastePaths() {
@@ -90,19 +76,7 @@ export function Component({ compId, host }: NodeComponentProps<PackuCardState>) 
   }
 
   async function copyResults() {
-    const current = dataRef.current.result
-    if (!current) return
-    const lines: string[] = []
-    if (current.command.command) {
-      lines.push(`${current.command.label}\t${current.command.command} ${current.command.args.join(" ")}`)
-    }
-    lines.push(`sourceRoot\t${current.integration.sourceRoot}`)
-    lines.push(`moduleName\t${current.integration.moduleName}`)
-    for (const candidate of current.integration.configCandidates) {
-      lines.push(`configCandidate\t${candidate}`)
-    }
-    if (current.integration.databasePath) lines.push(`databasePath\t${current.integration.databasePath}`)
-    lines.push(`covers\t${current.selectedPaths.length}`)
+    const lines = (dataRef.current.result?.candidates ?? []).map((item) => `${item.status}\t${item.sourcePath}\t${item.sourceEntry}\t${item.outputPath}\t${item.reason ?? ""}`)
     await host.clipboard?.writeText?.(lines.join("\n"))
   }
 
@@ -111,7 +85,7 @@ export function Component({ compId, host }: NodeComponentProps<PackuCardState>) 
   }
 
   async function saveAsDefault() {
-    const config: Partial<PackuCardState> = {}
+    const config: Partial<CoveruCardState> = {}
     for (const field of CONFIG_FIELDS) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
@@ -126,18 +100,11 @@ export function Component({ compId, host }: NodeComponentProps<PackuCardState>) 
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    const empty: Partial<PackuCardState> = {}
-    for (const field of CONFIG_FIELDS) empty[field] = undefined
-    patch(empty)
-  }
-
-  async function execute(nextAction: PackuToolAction = action) {
+  async function execute(nextAction: CoveruAction = action) {
     if (running) return
     const current = dataRef.current
-
-    if (nextAction !== "status" && !clean(current.pathsText)) {
-      const message = "请先输入至少一个归档或目录路径。"
+    if (!splitLines(current.pathsText).length) {
+      const message = "请先输入至少一个归档、图片或目录路径。"
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
@@ -154,14 +121,14 @@ export function Component({ compId, host }: NodeComponentProps<PackuCardState>) 
     setRunning(true)
     patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
     try {
-      const response = await run<PackuToolInput, PackuToolData>(NODE_META.id, buildInput(nextAction, current, NODE_META.spec), (event: NodeRunEvent) => {
+      const response = await run<CoveruInput, CoveruData>("coveru", buildInput(nextAction, current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
           pushLog(`[${event.progress ?? 0}%] ${event.message}`)
-          return
+        } else {
+          pushLog(event.message)
         }
-        pushLog(event.message)
-      }) as NodeRunResult<PackuToolData>
+      }) as NodeRunResult<CoveruData>
 
       patch({
         phase: response.success ? "completed" : "error",
@@ -179,127 +146,106 @@ export function Component({ compId, host }: NodeComponentProps<PackuCardState>) 
     }
   }
 
-  const commonProps = createViewProps({
+  const commonProps = {
     action,
     actionMeta,
+    candidates,
     configDirty,
-    configFilePath,
-    covers,
     data,
     defaults,
     logs,
-    nodeIcon: NODE_META.icon,
-    nodeTitle: NODE_META.title,
+    paths,
     progress,
     result,
     running,
     status,
-    onActionChange: (value: PackuToolAction) => patch({ action: value }),
+    onActionChange: (value: CoveruAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
-    onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
     onPastePaths: pastePaths,
     onPatch: patch,
     onReset: reset,
-    onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
-  })
+  }
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/coveru relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_18%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_82%_10%,color-mix(in_oklch,var(--chart-4)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
-          {surface.mode === "collapsed" || forceCollapsedSurface ? (
-            <CollapsedView {...commonProps} />
-          ) : compactSurface ? (
-            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
-          ) : (
-            <FullView {...commonProps} />
-          )}
-        </div>
+      <div ref={surface.ref} className="@container/coveru flex h-full min-h-0 w-full overflow-hidden bg-card">
+        {surface.mode === "collapsed" || forceCollapsedSurface ? (
+          <CollapsedView {...commonProps} />
+        ) : compactSurface ? (
+          portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
+        ) : (
+          <FullView {...commonProps} />
+        )}
       </div>
     </TooltipProvider>
   )
 }
 
-type ViewProps = ReturnType<typeof createViewProps>
-
-function createViewProps(props: {
-  action: PackuToolAction
+type ViewProps = {
+  action: CoveruAction
   actionMeta: (typeof ACTIONS)[number]
+  candidates: CoveruCandidate[]
   configDirty: boolean
-  configFilePath?: string
-  covers: string[]
-  data: PackuCardState
-  defaults?: Partial<PackuCardState>
+  data: CoveruCardState
+  defaults?: Partial<CoveruCardState>
   logs: string[]
-  nodeIcon: LucideIcon
-  nodeTitle: string
+  paths: string[]
   progress: number
-  result: PackuToolData | null
+  result: CoveruData | null
   running: boolean
-  status: PackuStatusMeta
-  onActionChange: (value: PackuToolAction) => void
+  status: CoveruStatusMeta
+  onActionChange: (value: CoveruAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
-  onExecute: (action?: PackuToolAction) => void
-  onOpenConfigFile?: () => Promise<void> | void
+  onExecute: (action?: CoveruAction) => void
   onPastePaths: () => void
-  onPatch: (patch: Partial<PackuCardState>) => void
+  onPatch: (patch: Partial<CoveruCardState>) => void
   onReset: () => void
-  onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
-}) {
-  return props
 }
 
 function CollapsedView(props: ViewProps) {
-  const NodeIcon = props.nodeIcon
+  const Icon = NODE_ICON
   return (
-    <div data-testid="packu-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <NodeIcon />
+    <div data-testid="coveru-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+      <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+        <Icon />
       </div>
-      <div className="relative min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>{props.nodeTitle}</span>
+          <span>CoverU</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
-        <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-          <ImageIcon className="size-3.5 shrink-0" />
-          <span className="truncate">{summaryText(props)}</span>
-        </div>
+        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
       <RunActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
     </div>
   )
 }
 
 function CompactView(props: ViewProps) {
   return (
-    <div data-testid="packu-compact-view" className="flex min-h-0 flex-1 flex-col">
+    <div data-testid="coveru-compact-view" className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <ActionCluster {...props} compact />
           <RunActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-        <CoverStrip covers={props.covers} running={props.running} status={props.status} />
-        {(props.status.tone === "running" || props.status.tone === "error") && (
-          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
-        )}
+        <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+        <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <CandidateStrip candidates={props.candidates} />
+        {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
         <div className="min-h-0 flex-1">
-          <PackuResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+          <ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
       </div>
     </div>
@@ -308,21 +254,17 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div data-testid="packu-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
+    <div data-testid="coveru-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
-        </div>
+        <RunActionButton compact props={props} />
       </div>
-      <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-      </div>
-      <CoverList covers={props.covers} running={props.running} status={props.status} className="max-h-36" />
+      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+      <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      <CandidateStrip candidates={props.candidates} />
       <div className="min-h-0 flex-1">
-        <PackuResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
       </div>
     </div>
   )
@@ -330,195 +272,135 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="packu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @3xl/coveru:flex-row @3xl/coveru:items-center @3xl/coveru:justify-between">
+    <div data-testid="coveru-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      <div className="flex shrink-0 flex-col gap-2 @3xl/coveru:flex-row @3xl/coveru:items-center @3xl/coveru:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @3xl/coveru:flex-row @3xl/coveru:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-          <div data-testid="packu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionPicker action={props.action} disabled={props.running} triggerClassName="@3xl/coveru:w-72" onActionChange={props.onActionChange} />
-            <RunActionButton props={props} />
-            <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
-              defaults={props.defaults}
-              disabled={props.running}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
-            />
+          <div data-testid="coveru-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
+            <ActionCluster {...props} />
           </div>
         </div>
-        <CoverStatsPanel covers={props.covers} progress={props.progress} result={props.result} />
+        <StatsPanel progress={props.progress} result={props.result} candidates={props.candidates} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @2xl/coveru:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-2 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">路径</div>
-              <div className="text-xs text-muted-foreground">归档或目录，每行一条。status 不需要路径。</div>
-            </div>
-            <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-2 border-b pb-3">
-            <div className="text-sm font-semibold">可执行文件</div>
-            <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-2 border-b pb-3">
-            <div className="text-sm font-semibold">运行选项</div>
-            <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <ProgressDial progress={props.progress} status={props.status} text={props.data.progressText} />
+      {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
+
+      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 @2xl/coveru:grid-cols-[minmax(250px,320px)_minmax(0,1fr)] @4xl/coveru:grid-cols-[minmax(250px,320px)_minmax(0,1fr)_minmax(260px,320px)]">
+        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+          <ZoneTitle icon={FolderInput} label="归档队列" />
+          <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <Separator />
+          <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </section>
 
-        <div className="grid min-h-0 gap-3 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @4xl/coveru:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] @4xl/coveru:grid-rows-1">
-          <section className="relative min-h-0 rounded-xl">
-            <MagicCard className="h-full w-full">
-              <div className="relative flex h-full min-h-0 flex-col gap-2 rounded-xl p-3">
-                <div className="relative flex shrink-0 items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <ImageIcon className="size-4 text-muted-foreground" />
-                    <span className="text-xs font-semibold">封面预览</span>
-                    <Badge variant="outline">{props.covers.length}</Badge>
-                  </div>
-                  {props.running && <span className="text-[11px] text-muted-foreground">提取中…</span>}
-                </div>
-                <div className="relative min-h-0 flex-1 overflow-auto">
-                  <CoverGrid covers={props.covers} running={props.running} status={props.status} />
-                </div>
-                {props.running && <BorderBeam size={120} duration={5} colorFrom="var(--primary)" colorTo="var(--chart-4)" borderWidth={1.5} />}
-              </div>
-            </MagicCard>
-          </section>
-          <div className="min-h-0">
-            <PackuResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <section className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-card p-2">
+          <div className="flex shrink-0 items-center justify-between gap-2">
+            <ZoneTitle icon={GalleryThumbnails} label="封面候选" />
+            <Badge variant="outline">{props.candidates.length}</Badge>
           </div>
+          <CandidateGrid candidates={props.candidates} />
+        </section>
+
+        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/coveru:col-span-2 @4xl/coveru:col-span-1">
+          <ExecutionGate {...props} />
+          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
       </div>
     </div>
   )
 }
 
-function CoverGrid(props: { covers: string[]; running: boolean; status: PackuStatusMeta }) {
-  if (!props.covers.length) return <EmptyCoverState />
+function ActionCluster(props: ViewProps & { compact?: boolean }) {
   return (
-    <div className="grid grid-cols-2 gap-2 @sm/coveru:grid-cols-3 @md/coveru:grid-cols-4 @lg/coveru:grid-cols-5">
-      {props.covers.slice(0, 60).map((path, index) => (
-        <BlurFade key={`${path}:${index}`} delay={Math.min(index * 0.03, 0.3)} className="h-full">
-          <CoverTile done={props.status.tone === "success"} index={index} path={path} running={props.running} />
-        </BlurFade>
+    <div className="flex min-w-0 items-center gap-1">
+      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
+      <IconButton disabled={props.running} icon={DatabaseZap} active={props.configDirty} label="保存默认" onClick={props.onSaveDefault} />
+      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="恢复默认" onClick={props.onRestoreDefault} />
+      <IconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+    </div>
+  )
+}
+
+function ActionMode(props: { disabled?: boolean; value: CoveruAction; onChange: (value: CoveruAction) => void }) {
+  return (
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as CoveruAction)} className="grid grid-cols-3" size="sm">
+      {ACTIONS.map((item) => (
+        <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1">
+          <item.icon className="size-3.5" />
+          <span className="truncate text-xs">{item.shortLabel}</span>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }
 
-function CoverTile({ path, index, running, done }: { path: string; index: number; running: boolean; done: boolean }) {
+function PathInput(props: { compact?: boolean; data: CoveruCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<CoveruCardState>) => void }) {
   return (
-    <div className="group relative flex h-full flex-col gap-1 rounded-lg border bg-background/70 p-1.5">
-      <div className={cn("relative aspect-[3/4] overflow-hidden rounded-md bg-gradient-to-br from-primary/12 via-chart-4/12 to-chart-2/12", running && "animate-pulse")}>
-        <GridPattern className="fill-muted-foreground/10 stroke-muted-foreground/10" height={16} width={16} />
-        <div className="absolute inset-0 grid place-items-center">
-          <ImageIcon className="size-5 text-muted-foreground/50" />
+    <div className="grid gap-1.5">
+      {!props.compact && <Label htmlFor="coveru-paths" className="text-xs">归档、图片或目录</Label>}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+        <Textarea
+          id="coveru-paths"
+          aria-label="coveru paths"
+          className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")}
+          disabled={props.disabled}
+          placeholder={"每行一个 ZIP/CBZ、图片或目录\nD:/archives/book.zip"}
+          value={props.data.pathsText ?? ""}
+          onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+        />
+        <div className="grid content-start gap-1.5">
+          <IconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+          <IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="清空路径" onClick={() => props.onPatch({ pathsText: "" })} />
         </div>
-        <div className="absolute left-1 top-1 grid size-4 place-items-center rounded-sm bg-background/80 text-[9px] font-semibold tabular-nums text-muted-foreground">{index + 1}</div>
-        {done && (
-          <div className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-primary text-primary-foreground">
-            <CheckCircle2 className="size-3" />
-          </div>
-        )}
       </div>
-      <div className="truncate text-[11px] font-medium leading-tight" title={path}>{basename(path)}</div>
-      <div className="truncate text-[10px] leading-tight text-muted-foreground" title={path}>{path}</div>
+    </div>
+  )
+}
+
+function OutputFields(props: { data: CoveruCardState; disabled?: boolean; onPatch: (patch: Partial<CoveruCardState>) => void }) {
+  return (
+    <div className="grid gap-2">
+      <div className="grid gap-1.5">
+        <Label htmlFor="coveru-output" className="text-xs">输出目录</Label>
+        <Input id="coveru-output" disabled={props.disabled} placeholder="留空则输出到归档旁边" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">输出位置</Label>
+        <ToggleGroup type="single" value={props.data.outputMode ?? "alongside"} disabled={props.disabled} onValueChange={(value) => value && props.onPatch({ outputMode: value as CoveruOutputMode })} className="grid grid-cols-2" size="sm">
+          <ToggleGroupItem value="alongside">归档旁边</ToggleGroupItem>
+          <ToggleGroupItem value="directory">统一目录</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="coveru-preferred" className="text-xs">优先文件名</Label>
+        <Input id="coveru-preferred" disabled={props.disabled} value={props.data.preferredNamesText ?? DEFAULT_PREFERRED_NAMES_TEXT} onChange={(event) => props.onPatch({ preferredNamesText: event.currentTarget.value })} />
+      </div>
     </div>
   )
 }
 
-function CoverStrip(props: { covers: string[]; running: boolean; status: PackuStatusMeta }) {
-  if (!props.covers.length) return null
+function SwitchPanel(props: { compact?: boolean; data: CoveruCardState; disabled?: boolean; onPatch: (patch: Partial<CoveruCardState>) => void }) {
   return (
-    <ScrollArea className="shrink-0">
-      <div className="flex gap-1.5 pb-1">
-        {props.covers.slice(0, 16).map((path, index) => (
-          <div key={`${path}:${index}`} className="relative flex w-14 shrink-0 flex-col gap-0.5">
-            <div className={cn("relative aspect-[3/4] overflow-hidden rounded-md bg-gradient-to-br from-primary/12 via-chart-4/12 to-chart-2/12", props.running && "animate-pulse")}>
-              <div className="absolute inset-0 grid place-items-center">
-                <ImageIcon className="size-3.5 text-muted-foreground/50" />
-              </div>
-              {props.status.tone === "success" && <div className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" />}
-            </div>
-            <div className="truncate text-[9px] text-muted-foreground" title={path}>{basename(path)}</div>
-          </div>
-        ))}
-      </div>
-    </ScrollArea>
-  )
-}
-
-function CoverList(props: { covers: string[]; running: boolean; status: PackuStatusMeta; className?: string }) {
-  if (!props.covers.length) return null
-  return (
-    <ScrollArea className={cn("shrink-0", props.className)}>
-      <div className="grid gap-1">
-        {props.covers.slice(0, 8).map((path, index) => (
-          <div key={`${path}:${index}`} className="flex items-center gap-2 rounded-md border bg-background/60 px-2 py-1">
-            <div className={cn("relative grid size-7 shrink-0 place-items-center overflow-hidden rounded bg-gradient-to-br from-primary/12 via-chart-4/12 to-chart-2/12", props.running && "animate-pulse")}>
-              <ImageIcon className="size-3.5 text-muted-foreground/60" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-medium leading-tight" title={path}>{basename(path)}</div>
-            </div>
-            {props.status.tone === "success"
-              ? <CheckCircle2 className="size-3 shrink-0 text-primary" />
-              : <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{index + 1}</span>}
-          </div>
-        ))}
-      </div>
-    </ScrollArea>
-  )
-}
-
-function EmptyCoverState() {
-  return (
-    <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground">
-      <ImageIcon className="size-6 text-muted-foreground/40" />
-      <span className="font-medium text-foreground/80">等待封面</span>
-      <span>输入归档路径后，这里会显示封面缩略图网格。</span>
+    <div className={cn("grid gap-2", props.compact ? "grid-cols-1" : "grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]")}>
+      <SwitchRow checked={props.data.dryRun ?? true} disabled={props.disabled} icon={ShieldAlert} label="预览" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+      <SwitchRow checked={props.data.recursive ?? true} disabled={props.disabled} icon={PackageOpen} label="递归" onCheckedChange={(recursive) => props.onPatch({ recursive })} />
+      <SwitchRow checked={props.data.overwrite ?? false} disabled={props.disabled} icon={AlertTriangle} label="覆盖" danger={props.data.overwrite} onCheckedChange={(overwrite) => props.onPatch({ overwrite })} />
     </div>
   )
 }
 
-function CoverStatsPanel(props: { covers: string[]; result: PackuToolData | null }) {
-  const stats: Array<{ label: string; value: number; tone?: "error" }> = [
-    { label: "封面", value: props.covers.length },
-    { label: "选中", value: props.result?.selectedPaths.length ?? 0 },
-    { label: "配置键", value: props.result?.config?.keys.length ?? 0 },
-    { label: "错误", value: props.result?.errors.length ?? 0, tone: "error" },
-  ]
+function ExecutionGate(props: ViewProps) {
+  const live = props.action === "extract" && !(props.data.dryRun ?? true)
   return (
-    <div data-testid="coveru-stats-panel" className="grid shrink-0 grid-cols-2 gap-1 @3xl/coveru:grid-cols-4">
-      {stats.map((item) => (
-        <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
-          <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", item.tone === "error" && item.value > 0 && "text-destructive")}>{item.value}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function ProgressDial(props: { progress: number; status: PackuStatusMeta; text?: string }) {
-  return (
-    <div className="flex shrink-0 items-center gap-3 rounded-lg border bg-background/60 p-2">
-      <div className="relative size-14 shrink-0">
-        <AnimatedCircularProgressBar className="size-14! text-xs! font-semibold" gaugePrimaryColor="var(--primary)" gaugeSecondaryColor="var(--muted)" value={props.progress} />
+    <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
+      <div className="flex items-center justify-between gap-2">
+        <ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="执行" tone={live ? "danger" : "default"} />
+        <Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "预览" : "写入"}</Badge>
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
-        <div className="text-[11px] text-muted-foreground">{props.status.label} · {props.progress}%</div>
-      </div>
-    </div>
+      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      <RunActionButton props={props} />
+    </section>
   )
 }
 
@@ -531,120 +413,331 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
       </Button>
     )
   }
-
   const label = actionLabel(props.action)
-  const destructive = props.action === "run" && !(props.data.dryRun ?? true)
-  if (destructive) {
+  const live = props.action === "extract" && !(props.data.dryRun ?? true)
+  const disabled = props.running
+  if (live) {
     return (
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive">
+          <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
             <Play />
             {!compact && <span>{label}</span>}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认执行运行？</AlertDialogTitle>
+            <AlertDialogTitle>确认提取封面？</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，会调用 Python 模块执行真实封面提取，这一步可能产生不可撤销的改动。请确认配置文件、源码目录和归档路径无误。
+              当前会写出封面文件。请确认输出目录和覆盖策略无误；不支持的归档会被跳过。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认执行</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认提取</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     )
   }
-
   return (
-    <Button aria-label={label} disabled={props.running} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}>
+    <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}>
       <Play />
       {!compact && <span>{label}</span>}
     </Button>
   )
 }
 
-function HeaderLine({ status, subtitle }: { status: PackuStatusMeta; subtitle: string }) {
+function CandidateGrid(props: { candidates: CoveruCandidate[] }) {
+  if (!props.candidates.length) return <EmptyCandidateState />
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="grid grid-cols-2 gap-2 p-0.5 @md/coveru:grid-cols-3 @4xl/coveru:grid-cols-4">
+        {props.candidates.slice(0, 80).map((item, index) => <CandidateCard key={`${item.sourcePath}:${item.sourceEntry}:${index}`} item={item} index={index} />)}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function CandidateStrip(props: { candidates: CoveruCandidate[] }) {
+  if (!props.candidates.length) return null
+  return (
+    <ScrollArea className="shrink-0">
+      <div className="flex gap-1.5 pb-1">
+        {props.candidates.slice(0, 16).map((item, index) => (
+          <div key={`${item.sourcePath}:${index}`} className="w-14 shrink-0">
+            <CoverPlaceholder item={item} index={index} />
+            <div className="mt-0.5 truncate text-[9px] text-muted-foreground">{baseName(item.sourcePath)}</div>
+          </div>
+        ))}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function CandidateCard(props: { item: CoveruCandidate; index: number }) {
+  const meta = statusMeta(props.item.status)
+  const StatusIcon = meta.icon
+  return (
+    <div className={cn("grid gap-1.5 rounded-md border bg-card p-1.5", props.item.status === "error" && "border-destructive/40", props.item.status === "unsupported" && "border-muted-foreground/30")}>
+      <CoverPlaceholder item={props.item} index={props.index} />
+      <div className="flex min-w-0 items-center justify-between gap-1">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium">{baseName(props.item.sourceEntry || props.item.sourcePath)}</div>
+          <div className="truncate text-[10px] text-muted-foreground">{baseName(props.item.sourcePath)}</div>
+        </div>
+        <Badge variant={meta.variant} className="gap-1">
+          <StatusIcon className="size-3" />
+          {meta.label}
+        </Badge>
+      </div>
+      {props.item.outputPath && <div className="truncate font-mono text-[10px] text-muted-foreground">{props.item.outputPath}</div>}
+    </div>
+  )
+}
+
+function CoverPlaceholder(props: { item: CoveruCandidate; index: number }) {
+  const meta = statusMeta(props.item.status)
+  return (
+    <div className={cn("relative aspect-[3/4] overflow-hidden rounded-md border bg-card", props.item.status === "ready" && "border-primary/35", props.item.status === "unsupported" && "opacity-70")}>
+      <div className="absolute inset-0 grid place-items-center">
+        <ImageIcon className="size-6 text-muted-foreground/55" />
+      </div>
+      <div className="absolute left-1 top-1 rounded-sm bg-background/85 px-1 text-[9px] font-semibold tabular-nums text-muted-foreground">{props.index + 1}</div>
+      <div className={cn("absolute bottom-1 right-1 grid size-4 place-items-center rounded-full", meta.dotClass)}>
+        <meta.icon className="size-3" />
+      </div>
+    </div>
+  )
+}
+
+function ResultTabs(props: { compact?: boolean; logs: string[]; result: CoveruData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
+  return (
+    <Tabs defaultValue="candidates" className="flex h-full min-h-0 flex-col">
+      <TabsList className="shrink-0">
+        <TabsTrigger value="candidates">结果</TabsTrigger>
+        <TabsTrigger value="errors">问题</TabsTrigger>
+        <TabsTrigger value="logs">日志</TabsTrigger>
+      </TabsList>
+      <TabsContent value="candidates" className="min-h-0 flex-1">
+        <CandidateRows compact={props.compact} candidates={props.result?.candidates ?? []} onCopy={props.onCopyResults} />
+      </TabsContent>
+      <TabsContent value="errors" className="min-h-0 flex-1">
+        <TextPanel empty="暂无问题" lines={[...(props.result?.errors ?? []), ...(props.result?.candidates ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} />
+      </TabsContent>
+      <TabsContent value="logs" className="min-h-0 flex-1">
+        <TextPanel actionLabel="复制" empty="运行日志会显示在这里。" lines={props.logs} onAction={props.onCopyLogs} />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function CandidateRows(props: { compact?: boolean; candidates: CoveruCandidate[]; onCopy: () => void }) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Images className="size-3.5" />
+          <span>{props.candidates.length ? `${props.candidates.length} 项` : "等待运行"}</span>
+        </div>
+        <Button disabled={!props.candidates.length} size="xs" variant="ghost" onClick={props.onCopy}>
+          <Copy data-icon="inline-start" />
+          复制
+        </Button>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.candidates.length ? (
+          <div className={cn("grid gap-1", props.compact ? "p-2" : "p-3")}>
+            {props.candidates.slice(0, 140).map((item, index) => (
+              <div key={`${item.sourcePath}:${item.sourceEntry}:${index}`} className="flex min-w-0 items-center gap-2 rounded-md border px-2 py-1.5">
+                <ImageIcon className="size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium">{baseName(item.sourcePath)} {item.sourceEntry ? `/ ${item.sourceEntry}` : ""}</div>
+                  <div className="truncate font-mono text-[11px] text-muted-foreground">{item.outputPath || item.reason || "未生成输出"}</div>
+                </div>
+                <Badge variant={statusMeta(item.status).variant}>{statusMeta(item.status).label}</Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-24 items-center justify-center p-4 text-center text-sm text-muted-foreground">运行后显示候选和输出路径。</div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function TextPanel(props: { actionLabel?: string; empty: string; lines: string[]; onAction?: () => void }) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <span className="text-xs font-medium text-muted-foreground">{props.lines.length ? `${props.lines.length} 行` : props.empty}</span>
+        {props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? "复制"}</Button>}
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function HeaderLine(props: { status: CoveruStatusMeta; subtitle: string }) {
+  const Icon = NODE_ICON
   return (
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
-          <ImageIcon />
+        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+          <Icon />
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate text-sm font-semibold leading-none">CoverU</h3>
-            <Badge variant={status.badgeVariant}>{status.label}</Badge>
+            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p>
         </div>
       </div>
     </div>
   )
 }
 
-function coverCandidates(data: PackuCardState, result: PackuToolData | null): string[] {
-  const fromResult = result?.selectedPaths ?? []
-  if (fromResult.length) return fromResult
-  const text = clean(data.pathsText)
-  if (!text) return []
-  return [...new Set(text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))]
+function StatsPanel(props: { candidates: CoveruCandidate[]; progress: number; result: CoveruData | null }) {
+  const stats = [
+    { label: "候选", value: props.candidates.length },
+    { label: "可提取", value: props.result?.readyCount ?? props.candidates.filter((item) => item.status === "ready").length },
+    { label: "已提取", value: props.result?.extractedCount ?? 0 },
+    { label: "不支持", value: props.result?.unsupportedCount ?? props.candidates.filter((item) => item.status === "unsupported").length },
+    { label: "错误", value: props.result?.errorCount ?? 0, danger: true },
+    { label: "进度", value: props.progress, suffix: "%" },
+  ]
+  return (
+    <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/coveru:grid-cols-6">
+      {stats.map((item) => (
+        <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
+          <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", item.danger && item.value > 0 && "text-destructive")}>{item.value}{item.suffix ?? ""}</div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-function statusFromState(data: PackuCardState, running: boolean, idleDescription: string): PackuStatusMeta {
+function StatusStrip(props: { progress: number; status: CoveruStatusMeta; text?: string }) {
+  return (
+    <div className="rounded-md border bg-card p-2">
+      <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
+        <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
+        <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+      </div>
+      <Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} />
+    </div>
+  )
+}
+
+function SwitchRow(props: { checked: boolean; danger?: boolean; disabled?: boolean; icon: LucideIcon; label: string; onCheckedChange: (checked: boolean) => void }) {
+  const Icon = props.icon
+  return (
+    <label className={cn("flex min-w-0 items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5", props.danger && "border-destructive/40")}>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Icon className={cn("size-4 shrink-0 text-muted-foreground", props.danger && "text-destructive")} />
+        <span className="truncate text-xs font-medium">{props.label}</span>
+      </span>
+      <Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
+    </label>
+  )
+}
+
+function IconButton(props: { active?: boolean; disabled?: boolean; icon: LucideIcon; label: string; onClick: () => void }) {
+  const Icon = props.icon
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant={props.active ? "secondary" : "outline"} onClick={props.onClick}>
+          <Icon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{props.label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function ZoneTitle(props: { icon: LucideIcon; label: string; tone?: "default" | "danger" }) {
+  const Icon = props.icon
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <Icon className={cn("size-3.5", props.tone === "danger" ? "text-destructive" : "text-muted-foreground")} />
+      <span className="text-xs font-semibold">{props.label}</span>
+    </div>
+  )
+}
+
+function EmptyCandidateState() {
+  return (
+    <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
+      <Images className="size-6 text-muted-foreground/50" />
+      <span>输入归档后显示封面候选。</span>
+    </div>
+  )
+}
+
+function statusFromState(data: CoveruCardState, running: boolean, result: CoveruData | null): CoveruStatusMeta {
   if (running || data.phase === "running") {
-    return {
-      label: "运行中",
-      description: data.progressText || "CoverU 正在生成命令计划或调用模块提取封面。",
-      tone: "running",
-      badgeVariant: "secondary",
-      iconClass: "bg-primary text-primary-foreground",
-    }
+    return { label: "运行中", description: data.progressText || "CoverU 正在扫描或提取封面。", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
+  }
+  if (data.phase === "error" || result?.errorCount) {
+    return { label: "失败", description: data.progressText || result?.errors[0] || "上次任务失败，请查看问题列表。", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
   }
   if (data.phase === "completed") {
-    return {
-      label: "完成",
-      description: data.progressText || "上次封面提取已完成。",
-      tone: "success",
-      badgeVariant: "default",
-      iconClass: "bg-primary text-primary-foreground",
-    }
+    return { label: "完成", description: data.progressText || "上次封面任务已完成。", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
   }
-  if (data.phase === "error") {
-    return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
-      tone: "error",
-      badgeVariant: "destructive",
-      iconClass: "bg-destructive text-destructive-foreground",
-    }
-  }
-  return {
-    label: "就绪",
-    description: idleDescription,
-    tone: "idle",
-    badgeVariant: "outline",
-    iconClass: "bg-secondary text-secondary-foreground",
-  }
+  return { label: "就绪", description: "输入归档、图片或目录后扫描封面。", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
+}
+
+function statusMeta(status: CoveruCandidate["status"]) {
+  if (status === "ready") return { icon: CheckCircle2, label: "可提取", variant: "secondary" as const, dotClass: "bg-primary text-primary-foreground" }
+  if (status === "extracted") return { icon: CheckCircle2, label: "已提取", variant: "default" as const, dotClass: "bg-primary text-primary-foreground" }
+  if (status === "unsupported") return { icon: AlertTriangle, label: "不支持", variant: "outline" as const, dotClass: "bg-muted text-muted-foreground" }
+  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const, dotClass: "bg-destructive text-destructive-foreground" }
+  if (status === "empty") return { icon: ImageIcon, label: "无图片", variant: "outline" as const, dotClass: "bg-muted text-muted-foreground" }
+  return { icon: AlertTriangle, label: "跳过", variant: "outline" as const, dotClass: "bg-muted text-muted-foreground" }
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.covers.length) return `${props.covers.length} 个归档待提取封面`
-  if (props.result?.selectedPaths.length) return `${props.result.selectedPaths.length} 路径 / ${props.result.errors.length} 错误`
+  if (props.result) return `${props.result.candidates.length} 项 / ${props.result.readyCount + props.result.extractedCount} 可用`
+  if (props.paths.length) return `${props.paths.length} 条路径 / ${props.actionMeta.shortLabel}`
   return props.actionMeta.description
 }
 
-function actionLabel(action: PackuToolAction): string {
+function actionLabel(action: CoveruAction): string {
   return ACTIONS.find((item) => item.value === action)?.label ?? action
 }
 
-function basename(value: string): string {
-  const normalized = value.replace(/\\/g, "/")
-  return normalized.split("/").filter(Boolean).at(-1) ?? value
+function buildInput(action: CoveruAction, data: CoveruCardState): CoveruInput {
+  return {
+    action,
+    paths: splitLines(data.pathsText),
+    outputDir: clean(data.outputDir),
+    outputMode: data.outputMode ?? "alongside",
+    overwrite: data.overwrite ?? false,
+    recursive: data.recursive ?? true,
+    dryRun: data.dryRun ?? true,
+    preferredNames: splitPreferred(data.preferredNamesText),
+  }
+}
+
+function placeholderCandidate(path: string): CoveruCandidate {
+  return { sourcePath: path, sourceEntry: "", outputPath: "", sourceKind: "archive-entry", extension: "", score: 0, status: "ready" }
+}
+
+function splitLines(value: unknown): string[] {
+  return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+function splitPreferred(value: unknown): string[] {
+  return String(value || DEFAULT_PREFERRED_NAMES_TEXT).split(/,|\r?\n/).map((item) => item.trim()).filter(Boolean)
 }
 
 function clean(value: unknown): string | undefined {
@@ -652,23 +745,11 @@ function clean(value: unknown): string | undefined {
   return text || undefined
 }
 
-function buildInput(action: PackuToolAction, data: PackuCardState, spec: PackuToolSpec): PackuToolInput {
-  const pathsText = clean(data.pathsText)
-  const argsText = clean(data.argsText)
-  return {
-    action,
-    paths: pathsText ? pathsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : [],
-    args: argsText ? argsText.split(/\s+/).filter(Boolean) : [],
-    configPath: clean(data.configPath),
-    databasePath: clean(data.databasePath),
-    python: clean(data.python),
-    sourceRoot: clean(data.sourceRoot) || spec.sourceRoot,
-    moduleName: clean(data.moduleName) || spec.moduleName,
-    dryRun: data.dryRun ?? true,
-    recordRun: data.recordRun ?? false,
-  }
+function baseName(value: string): string {
+  const normalized = value.replace(/\\/g, "/")
+  return normalized.split("/").filter(Boolean).at(-1) ?? value
 }
 
-function getHostData(host: NodeComponentProps<PackuCardState>["host"], compId: string): PackuCardState {
-  return host.state?.getData?.() ?? host.getData<PackuCardState>(compId) ?? {}
+function getHostData(host: NodeComponentProps<CoveruCardState>["host"], compId: string): CoveruCardState {
+  return host.state?.getData?.() ?? host.getData<CoveruCardState>(compId) ?? {}
 }

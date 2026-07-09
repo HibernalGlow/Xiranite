@@ -3,12 +3,11 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { CoveruData, CoveruInput } from "@xiranite/node-coveru/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
-import type { PackuCardState } from "./types"
-import { NODE_META } from "./constants"
+import type { CoveruCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
 
@@ -37,40 +36,42 @@ afterEach(() => {
 
 describe("app-owned coveru Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)(
-    "renders the %s surface with CoverU-specific UI",
+    "renders the %s surface with native CoverU UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-coveru" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-coveru" host={createHost({ pathsText: "D:/archives/book.zip" })} />)
 
       expect(screen.getByText("CoverU")).toBeTruthy()
       if (mode === "collapsed") {
-        expect(screen.getByTestId("packu-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("packu 归档或目录")).toBeNull()
+        expect(screen.getByTestId("coveru-collapsed-view")).toBeTruthy()
+        expect(screen.queryByLabelText("coveru paths")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("packu 归档或目录")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "集成" })).toBeTruthy()
+      expect(screen.getByLabelText("coveru paths")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "问题" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.queryByText(/python/i)).toBeNull()
+      expect(screen.queryByText(/sourceRoot|moduleName/)).toBeNull()
 
       if (mode === "compact") {
-        expect(screen.getByTestId("packu-compact-view")).toBeTruthy()
+        expect(screen.getByTestId("coveru-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("packu-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("coveru-portrait-view")).toBeTruthy()
       } else {
-        expect(screen.getByTestId("packu-full-view")).toBeTruthy()
-        expect(screen.getByTestId("packu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByTestId("coveru-full-view")).toBeTruthy()
+        expect(screen.getByTestId("coveru-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("归档队列")).toBeTruthy()
+        expect(screen.getByText("封面候选")).toBeTruthy()
+        expect(screen.getByText("执行")).toBeTruthy()
       }
     },
   )
 
-  test("runs plan through host.runner.run and stores command results", async () => {
+  test("runs plan through host.runner.run and stores cover candidates", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({ action: "plan", pathsText: "D:/archives/book.zip", dryRun: true, logs: [] })
     render(<Component compId="comp-coveru" host={host} />)
     const user = userEvent.setup()
 
@@ -81,66 +82,61 @@ describe("app-owned coveru Component", () => {
       nodeId: "coveru",
       input: {
         action: "plan",
-        paths: ["D:/archives/a.zip"],
-        args: [],
-        configPath: undefined,
-        databasePath: undefined,
-        python: undefined,
-        sourceRoot: NODE_META.spec.sourceRoot,
-        moduleName: NODE_META.spec.moduleName,
+        paths: ["D:/archives/book.zip"],
+        outputDir: undefined,
+        outputMode: "alongside",
+        overwrite: false,
+        recursive: true,
         dryRun: true,
-        recordRun: false,
+        preferredNames: ["cover", "folder", "front", "000", "001"],
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.cardState.result?.command).toBeTruthy()
-
-    await user.click(screen.getByRole("tab", { name: "命令" }))
-    expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+    expect(host.cardState.result?.candidates[0]?.sourceEntry).toBe("cover.jpg")
   })
 
-  test("requires confirmation before real run execution", async () => {
+  test("requires confirmation before live extract execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "extract", pathsText: "D:/archives/book.zip", dryRun: false, logs: [] })
     render(<Component compId="comp-coveru" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "提取封面" }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
+    expect(screen.getByText("确认提取封面？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    await user.click(screen.getByRole("button", { name: "确认提取" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("run")
+    expect(host.runCalls[0]?.input.action).toBe("extract")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
   test("marks the card as error when run has no paths", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", logs: [] })
+    const host = createHost({ action: "extract", logs: [] })
     render(<Component compId="comp-coveru" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: "提取封面" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("归档")
   })
 })
 
-type TestHost = NodeHostApi<PackuCardState, Partial<PackuCardState>> & {
+type TestHost = NodeHostApi<CoveruCardState, Partial<CoveruCardState>> & {
   copiedText: string
-  runCalls: Array<{ nodeId: string; input: PackuToolInput }>
-  savedConfig: Partial<PackuCardState> | undefined
-  cardState: PackuCardState
+  runCalls: Array<{ nodeId: string; input: CoveruInput }>
+  savedConfig: Partial<CoveruCardState> | undefined
+  cardState: CoveruCardState
 }
 
-function createHost(initial: PackuCardState): TestHost {
+function createHost(initial: CoveruCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
-    patchData: (patch: Partial<PackuCardState>) => {
+    patchData: (patch: Partial<CoveruCardState>) => {
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -164,17 +160,17 @@ function createHost(initial: PackuCardState): TestHost {
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        host.runCalls.push({ nodeId, input: input as CoveruInput })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning cover candidates." })
         return {
           success: true,
-          message: "PackU coveru planned.",
-          data: packuData as TData,
+          message: "CoverU planned 1 candidate.",
+          data: coveruData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/archives/book.zip",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -188,7 +184,7 @@ function createHost(initial: PackuCardState): TestHost {
     updateComponent: () => undefined,
     actions: undefined,
     getNodeConfig: async <T,>() => ({ config: undefined as T | undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<PackuCardState> },
+    saveNodeConfig: async (config) => { host.savedConfig = config as Partial<CoveruCardState> },
     openConfigFile: () => undefined,
   }
   return host
@@ -203,22 +199,23 @@ function setSurfaceSize(size: { height: number; width: number }) {
   surfaceState.height = size.height
 }
 
-const packuData: PackuToolData = {
-  spec: NODE_META.spec,
-  command: {
-    label: "python -m coveru",
-    command: "python",
-    args: ["-m", "coveru", "D:/archives/a.zip"],
-    cwd: "D:/1VSCODE/Projects/PackU/NameU/src",
-    env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/NameU/src" },
-  },
-  integration: {
-    sourceRoot: "D:/1VSCODE/Projects/PackU/NameU/src",
-    moduleName: "coveru",
-    configCandidates: [],
-    recordRun: false,
-    recordFormat: "jsonl",
-  },
-  selectedPaths: ["D:/archives/a.zip"],
+const coveruData: CoveruData = {
+  candidates: [
+    {
+      sourcePath: "D:/archives/book.zip",
+      sourceEntry: "cover.jpg",
+      outputPath: "D:/archives/book.jpg",
+      sourceKind: "archive-entry",
+      extension: ".jpg",
+      score: 100,
+      status: "ready",
+    },
+  ],
+  archiveCount: 1,
+  readyCount: 1,
+  extractedCount: 0,
+  skippedCount: 0,
+  errorCount: 0,
+  unsupportedCount: 0,
   errors: [],
 }

@@ -1,60 +1,56 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "CoverU",
-  "short": "Extract and convert archive cover images with PackU CoverU.",
-  "description": "Extract and convert archive cover images with PackU CoverU.",
-  "whenToUse": [
-    "Use CoverU when you need this node's image workflow from either the workspace UI or CLI."
+  title: "CoverU",
+  short: "Extract cover images from archives and image folders.",
+  description: "Plan and extract cover files from ZIP/CBZ archives or loose image inputs without a Python adapter.",
+  whenToUse: [
+    "Use CoverU when archive cover files need to be detected, reviewed, and extracted into a predictable output location.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy CoverU from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy CoverU to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Workspace UI",
+      summary: "Paste archive or folder paths, review the cover contact sheet, then extract selected cover candidates.",
+      ui: [
+        "Paste ZIP/CBZ archives, loose image files, or folders that contain them.",
+        "Run scan or plan to inspect cover candidates and unsupported archives.",
+        "Switch from preview to extract only after the output directory and overwrite policy are correct.",
+      ],
     },
     {
-      "title": "CLI",
-      "summary": "Run CoverU directly from a terminal.",
-      "cli": [
-        "Run `xiranite coveru` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite coveru --help` for the node command's exact flags and subcommands."
-      ]
-    }
+      title: "CLI",
+      summary: "Run CoverU directly from a terminal.",
+      cli: [
+        "Run `xiranite coveru plan <path>` to inspect cover candidates.",
+        "Run `xiranite coveru extract <path> --output-dir <dir>` to write cover files.",
+      ],
+    },
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite coveru",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
+      title: "Plan cover extraction",
+      command: "xiranite coveru plan D:/archives",
+      description: "Inspect archives and print a summary without writing files.",
+      examples: [
         {
-          "label": "Guided mode",
-          "command": "xiranite coveru",
-          "description": "Start the node's interactive terminal workflow."
+          label: "Extract to a directory",
+          command: "xiranite coveru extract D:/archives --output-dir D:/covers",
+          description: "Extract detected covers into one output folder.",
         },
         {
-          "label": "Command flags",
-          "command": "xiranite coveru --help",
-          "description": "Show the node CLI's subcommands and options."
+          label: "Allow overwrite",
+          command: "xiranite coveru extract D:/archives --output-dir D:/covers --overwrite",
+          description: "Replace existing output files when names collide.",
         },
-        {
-          "label": "Shared help",
-          "command": "xiranite help coveru",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  safety: {
+    defaultMode: "preview",
+    notes: [
+      "Plan first when processing a large folder.",
+      "Overwrite is disabled by default.",
+      "Unsupported archive formats are reported instead of invoking external tools.",
+    ],
+  },
 } satisfies NodeHelp

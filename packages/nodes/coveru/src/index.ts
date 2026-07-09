@@ -6,9 +6,9 @@ export const def = {
   name: "CoverU",
   version: "0.1.0",
   category: "image",
-  description: "Extract and convert archive cover images with PackU CoverU.",
+  description: "Extract cover images from archives and image folders.",
   icon: "Image",
-  keywords: ["packu", "cover", "archive", "jxl", "avif"],
+  keywords: ["cover", "archive", "zip", "cbz", "image"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>
