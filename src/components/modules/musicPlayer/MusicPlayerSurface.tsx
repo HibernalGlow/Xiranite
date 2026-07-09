@@ -67,6 +67,7 @@ interface LyricLine {
 }
 
 export interface MusicPlayerSurfaceProps {
+  audioRef?: RefObject<HTMLAudioElement | null>
   savedTracks?: PersistedTrack[]
   savedSourcePath?: string
   onSavedTracksChange?: (tracks: PersistedTrack[]) => void
@@ -81,6 +82,7 @@ export interface MusicPlaybackState {
   hasTrack: boolean
   isPlaying: boolean
   trackCount: number
+  artworkUrl?: string
   trackName?: string
   supportLine?: string
 }
@@ -124,6 +126,7 @@ const AUDIO_ELEMENT_STYLE = { display: "none" } as CSSProperties
 const GLASS_SHADOW_CLASS = "shadow-[0_18px_56px_rgba(0,0,0,0.16)] dark:shadow-[0_22px_70px_rgba(0,0,0,0.36)]"
 
 export function MusicPlayerSurface({
+  audioRef: externalAudioRef,
   savedTracks = [],
   savedSourcePath,
   onSavedTracksChange,
@@ -134,7 +137,8 @@ export function MusicPlayerSurface({
   className,
 }: MusicPlayerSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement>(null)
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const internalAudioRef = useRef<HTMLAudioElement>(null)
+  const audioRef = externalAudioRef ?? internalAudioRef
   const autoplayAfterTrackChangeRef = useRef(false)
   const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 })
   const responsiveCompact = surfaceSize.width > 0 && (surfaceSize.width < 560 || surfaceSize.height < 300)
@@ -229,6 +233,7 @@ export function MusicPlayerSurface({
       hasTrack: Boolean(activeTrack),
       isPlaying,
       trackCount: tracks.length || savedTracks.length,
+      artworkUrl: activeTrack?.img,
       trackName: activeTrack?.name,
       supportLine: activeTrack ? supportLine : undefined,
     })

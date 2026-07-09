@@ -12,6 +12,11 @@ const setComponentVisibilityMock = vi.hoisted(() => vi.fn())
 const setWorkspaceFlowCanvasMock = vi.hoisted(() => vi.fn())
 const visibleComponentsMock = vi.hoisted(() => vi.fn<() => ComponentInstance[]>(() => []))
 const tldrawPropsMock = vi.hoisted(() => vi.fn())
+const createTLStoreMock = vi.hoisted(() => vi.fn((options: Record<string, unknown>) => ({
+  options,
+  id: `mock-store-${createTLStoreMock.mock.calls.length}`,
+})))
+const loadSnapshotMock = vi.hoisted(() => vi.fn())
 const storeListenerRef = vi.hoisted(() => ({
   current: undefined as ((entry: unknown) => void) | undefined,
 }))
@@ -61,7 +66,9 @@ vi.mock("tldraw", () => ({
     return <div data-testid="mock-tldraw">{props.children}</div>
   },
   createShapeId: (id: string) => `shape:${id}`,
+  createTLStore: createTLStoreMock,
   defaultShapeUtils: [],
+  loadSnapshot: loadSnapshotMock,
   useEditor: () => editorMock,
 }))
 
@@ -144,7 +151,7 @@ describe("FlowCanvasView", () => {
     expect(editorMock.deleteShapes).toHaveBeenCalledWith(["shape:stale-module"])
   })
 
-  test("passes the active workspace canvas snapshot into tldraw", () => {
+  test("creates a stable tldraw store from the active workspace canvas snapshot", () => {
     const flowCanvas = { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } }
     workspaceStateMock.mockReturnValue({
       activeWorkspaceId: "ws-test",
@@ -153,13 +160,18 @@ describe("FlowCanvasView", () => {
 
     render(<FlowCanvasView />)
 
-    expect(tldrawPropsMock).toHaveBeenCalledWith(expect.objectContaining({ snapshot: flowCanvas }))
+    expect(createTLStoreMock).toHaveBeenCalledWith(expect.objectContaining({ snapshot: flowCanvas }))
+    expect(tldrawPropsMock).toHaveBeenCalledWith(expect.objectContaining({
+      store: expect.objectContaining({ options: expect.objectContaining({ snapshot: flowCanvas }) }),
+    }))
   })
 
   test("persists ordinary tldraw document changes to the active workspace", () => {
     vi.useFakeTimers()
     const flowCanvas = { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } }
-    editorMock.store.getStoreSnapshot.mockReturnValue(flowCanvas)
+    editorMock.store.getStoreSnapshot
+      .mockReturnValueOnce({ store: {}, schema: {} })
+      .mockReturnValue(flowCanvas)
 
     render(<FlowCanvasView />)
 
@@ -171,7 +183,7 @@ describe("FlowCanvasView", () => {
           removed: {},
         },
       })
-      vi.advanceTimersByTime(350)
+      vi.advanceTimersByTime(900)
     })
 
     expect(setWorkspaceFlowCanvasMock).toHaveBeenCalledWith("ws-test", flowCanvas)
@@ -179,6 +191,12 @@ describe("FlowCanvasView", () => {
 
   test("ignores module-only tldraw document changes because component layout owns them", () => {
     vi.useFakeTimers()
+    editorMock.store.getStoreSnapshot
+      .mockReturnValueOnce({ store: {}, schema: {} })
+      .mockReturnValue({
+        store: { "shape:comp-alpha": { typeName: "shape", type: "module" } },
+        schema: {},
+      })
 
     render(<FlowCanvasView />)
 
@@ -190,7 +208,7 @@ describe("FlowCanvasView", () => {
           removed: {},
         },
       })
-      vi.advanceTimersByTime(350)
+      vi.advanceTimersByTime(900)
     })
 
     expect(setWorkspaceFlowCanvasMock).not.toHaveBeenCalled()

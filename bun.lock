@@ -88,6 +88,7 @@
         "tailwind-merge": "^3.5.0",
         "tailwindcss": "^4.2.1",
         "tw-animate-css": "^1.4.0",
+        "waviz": "1.0.0",
         "zod": "^4.3.6",
         "zustand": "^5.0.10",
       },
@@ -2302,6 +2303,8 @@
     "w3c-keyname": ["w3c-keyname@2.2.8", "https://registry.npmmirror.com/w3c-keyname/-/w3c-keyname-2.2.8.tgz", {}, "sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ=="],
 
     "wavesurfer.js": ["wavesurfer.js@6.6.4", "https://registry.npmmirror.com/wavesurfer.js/-/wavesurfer.js-6.6.4.tgz", {}, "sha512-nBbc0pD/3FdClxKUKL1UW2V9AJPL+JOjC8T6/YF9/FCAn4uo+H6Y8VBkXo9UJXIHoBewoc7iXj3tPeL0UCJhjA=="],
+
+    "waviz": ["waviz@1.0.0", "https://registry.npmmirror.com/waviz/-/waviz-1.0.0.tgz", { "dependencies": { "tslib": "^2.8.1" }, "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-REdDgVvKTjteNH1OvXkUxeN2gMihrGSyUc77yxMwDY3Uk86FxKgXtsTS7bXIjyFFiDWJLLkFdXFWAehjS3gjIA=="],
 
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "https://registry.npmmirror.com/web-streams-polyfill/-/web-streams-polyfill-3.3.3.tgz", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
 

@@ -7,11 +7,14 @@ import {
   ShapeUtil,
   Tldraw,
   createShapeId,
+  createTLStore,
   defaultShapeUtils,
+  loadSnapshot,
   useEditor,
   type TLBaseShape,
   type TLIndicatorPath,
   type TLResizeInfo,
+  type TLStore,
   type TLStoreSnapshot,
   type TLUiStylePanelProps,
 } from "tldraw"
@@ -32,40 +35,36 @@ import zhCnTranslationUrl from "@/assets/tldraw-zh-cn.json?url"
 
 // assetUrls must be memoized or defined outside of any React component (per tldraw docs).
 const tldrawAssetUrls = { translations: { "zh-cn": zhCnTranslationUrl } }
-const FLOW_CANVAS_SAVE_DELAY_MS = 350
+const FLOW_CANVAS_SAVE_DELAY_MS = 900
 
-type FlowCanvasChangeRecord = {
+type FlowCanvasRecord = {
   typeName?: string
   type?: string
 }
 
-type FlowCanvasChangeEntry = {
-  changes: {
-    added: Record<string, unknown>
-    updated: Record<string, [unknown, unknown]>
-    removed: Record<string, unknown>
-  }
-}
-
-function isChangeRecord(value: unknown): value is FlowCanvasChangeRecord {
+function isFlowCanvasRecord(value: unknown): value is FlowCanvasRecord {
   return typeof value === "object" && value !== null
 }
 
 function isModuleShapeRecord(value: unknown): boolean {
-  return isChangeRecord(value) && value.typeName === "shape" && value.type === ModuleShapeUtil.type
+  return isFlowCanvasRecord(value) && value.typeName === "shape" && value.type === ModuleShapeUtil.type
 }
 
-function isPersistableFlowCanvasRecord(value: unknown): boolean {
-  return isChangeRecord(value) && !isModuleShapeRecord(value)
-}
+function getPersistableFlowCanvasSnapshot(snapshot: FlowCanvasSnapshot | undefined): FlowCanvasSnapshot | undefined {
+  if (!snapshot || typeof snapshot !== "object") return snapshot
+  const store = (snapshot as { store?: unknown }).store
+  if (!store || typeof store !== "object") return snapshot
 
-function hasPersistableFlowCanvasChange(entry: FlowCanvasChangeEntry): boolean {
-  const { added, updated, removed } = entry.changes
-  return Object.values(added).some(isPersistableFlowCanvasRecord)
-    || Object.values(removed).some(isPersistableFlowCanvasRecord)
-    || Object.values(updated).some(([from, to]) =>
-      isPersistableFlowCanvasRecord(from) || isPersistableFlowCanvasRecord(to)
-    )
+  let changed = false
+  const persistableStore = Object.fromEntries(
+    Object.entries(store as Record<string, unknown>).filter(([, record]) => {
+      const keep = !isModuleShapeRecord(record)
+      if (!keep) changed = true
+      return keep
+    }),
+  )
+
+  return changed ? { ...snapshot, store: persistableStore } : snapshot
 }
 
 function getSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string {
@@ -75,6 +74,10 @@ function getSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string 
   } catch {
     return ""
   }
+}
+
+function getPersistableSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string {
+  return getSnapshotSignature(getPersistableFlowCanvasSnapshot(snapshot))
 }
 
 function resolveRootColor(cssValue: string, fallback: string) {
@@ -483,26 +486,35 @@ function usePersistFlowCanvasToWorkspace(
   editor: ReturnType<typeof useEditor> | null,
   workspaceId: string,
   flowCanvas: FlowCanvasSnapshot | undefined,
+  localPersistedSignatureRef: { current: string },
 ) {
   const workspaceActions = useWorkspaceActions()
-  const persistedSignatureRef = useRef(getSnapshotSignature(flowCanvas))
+  const persistedSignatureRef = useRef(getPersistableSnapshotSignature(flowCanvas))
 
   useEffect(() => {
-    persistedSignatureRef.current = getSnapshotSignature(flowCanvas)
+    persistedSignatureRef.current = getPersistableSnapshotSignature(flowCanvas)
   }, [flowCanvas])
 
   useEffect(() => {
     if (!editor) return undefined
 
     let saveTimer: ReturnType<typeof setTimeout> | undefined
+    if (!persistedSignatureRef.current) {
+      persistedSignatureRef.current = getPersistableSnapshotSignature(
+        editor.store.getStoreSnapshot("document") as FlowCanvasSnapshot,
+      )
+    }
 
     const persistSnapshot = () => {
       saveTimer = undefined
-      const snapshot = editor.store.getStoreSnapshot("document") as FlowCanvasSnapshot
+      const snapshot = getPersistableFlowCanvasSnapshot(
+        editor.store.getStoreSnapshot("document") as FlowCanvasSnapshot,
+      )
       const signature = getSnapshotSignature(snapshot)
       if (!signature || signature === persistedSignatureRef.current) return
 
       persistedSignatureRef.current = signature
+      localPersistedSignatureRef.current = signature
       workspaceActions.setWorkspaceFlowCanvas(workspaceId, snapshot)
     }
 
@@ -511,10 +523,9 @@ function usePersistFlowCanvasToWorkspace(
       saveTimer = setTimeout(persistSnapshot, FLOW_CANVAS_SAVE_DELAY_MS)
     }
 
-    const dispose = editor.store.listen((entry) => {
-      if (!hasPersistableFlowCanvasChange(entry as FlowCanvasChangeEntry)) return
+    const dispose = editor.store.listen(() => {
       schedulePersist()
-    }, { source: "user", scope: "document" })
+    })
 
     return () => {
       dispose()
@@ -522,12 +533,73 @@ function usePersistFlowCanvasToWorkspace(
       clearTimeout(saveTimer)
       persistSnapshot()
     }
-  }, [editor, workspaceActions, workspaceId])
+  }, [editor, localPersistedSignatureRef, workspaceActions, workspaceId])
 }
 
 const customShapeUtils = [...defaultShapeUtils, ModuleShapeUtil]
 
-function FlowCanvas({ workspaceId, flowCanvas }: { workspaceId: string; flowCanvas?: FlowCanvasSnapshot }) {
+function createFlowCanvasStore(flowCanvas: FlowCanvasSnapshot | undefined): TLStore {
+  return createTLStore({
+    shapeUtils: customShapeUtils,
+    snapshot: flowCanvas as TLStoreSnapshot | undefined,
+  })
+}
+
+function useFlowCanvasStore(
+  workspaceId: string,
+  flowCanvas: FlowCanvasSnapshot | undefined,
+  localPersistedSignatureRef: { current: string },
+) {
+  const flowCanvasSignature = getSnapshotSignature(flowCanvas)
+  const [storeState, setStoreState] = useState(() => ({
+    workspaceId,
+    loadedSignature: flowCanvasSignature,
+    store: createFlowCanvasStore(flowCanvas),
+  }))
+
+  if (storeState.workspaceId !== workspaceId) {
+    const nextState = {
+      workspaceId,
+      loadedSignature: flowCanvasSignature,
+      store: createFlowCanvasStore(flowCanvas),
+    }
+    setStoreState(nextState)
+    return nextState.store
+  }
+
+  useEffect(() => {
+    if (!flowCanvas || !flowCanvasSignature) return
+    if (storeState.loadedSignature === flowCanvasSignature) return
+
+    if (localPersistedSignatureRef.current === flowCanvasSignature) {
+      setStoreState((state) =>
+        state.workspaceId === workspaceId
+          ? { ...state, loadedSignature: flowCanvasSignature }
+          : state
+      )
+      return
+    }
+
+    loadSnapshot(storeState.store, flowCanvas as TLStoreSnapshot)
+    setStoreState((state) =>
+      state.workspaceId === workspaceId
+        ? { ...state, loadedSignature: flowCanvasSignature }
+        : state
+    )
+  }, [flowCanvas, flowCanvasSignature, localPersistedSignatureRef, storeState.loadedSignature, storeState.store, workspaceId])
+
+  return storeState.store
+}
+
+function FlowCanvas({
+  workspaceId,
+  flowCanvas,
+  localPersistedSignatureRef,
+}: {
+  workspaceId: string
+  flowCanvas?: FlowCanvasSnapshot
+  localPersistedSignatureRef: { current: string }
+}) {
   const editor = useEditor()
   const syncingShapeDeletesRef = useRef(false)
 
@@ -535,7 +607,7 @@ function FlowCanvas({ workspaceId, flowCanvas }: { workspaceId: string; flowCanv
   useSyncShapesFromStore(editor, syncingShapeDeletesRef)
   useSyncChangesToStore(editor)
   useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
-  usePersistFlowCanvasToWorkspace(editor, workspaceId, flowCanvas)
+  usePersistFlowCanvasToWorkspace(editor, workspaceId, flowCanvas, localPersistedSignatureRef)
 
   return null
 }
@@ -575,6 +647,7 @@ function CollapsibleStylePanel(props: TLUiStylePanelProps) {
 
 export function FlowCanvasView() {
   const { theme } = useTheme()
+  const localPersistedSignatureRef = useRef("")
   const { activeWorkspaceId, flowCanvas } = useWorkspaceShallowSelector((state) => {
     const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)
     return {
@@ -582,18 +655,23 @@ export function FlowCanvasView() {
       flowCanvas: activeWorkspace?.flowCanvas,
     }
   })
+  const store = useFlowCanvasStore(activeWorkspaceId, flowCanvas, localPersistedSignatureRef)
 
   return (
     <Tldraw
       key={activeWorkspaceId}
+      store={store}
       shapeUtils={customShapeUtils}
       colorScheme={theme}
       assetUrls={tldrawAssetUrls}
-      snapshot={flowCanvas as TLStoreSnapshot | undefined}
       options={{ maxPages: 1 }}
       components={{ PageMenu: () => null, MainMenu: () => null, StylePanel: CollapsibleStylePanel }}
     >
-      <FlowCanvas workspaceId={activeWorkspaceId} flowCanvas={flowCanvas} />
+      <FlowCanvas
+        workspaceId={activeWorkspaceId}
+        flowCanvas={flowCanvas}
+        localPersistedSignatureRef={localPersistedSignatureRef}
+      />
     </Tldraw>
   )
 }
