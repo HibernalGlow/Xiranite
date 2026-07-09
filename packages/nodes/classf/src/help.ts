@@ -1,60 +1,37 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "ClassF",
-  "short": "Orchestrate classification by calling PackU samea, crashu, and migratef logic.",
-  "description": "Orchestrate classification by calling PackU samea, crashu, and migratef logic.",
-  "whenToUse": [
-    "Use ClassF when you need this node's file workflow from either the workspace UI or CLI."
+  title: "ClassF",
+  short: "Classify selected paths into already, wait, or a target folder.",
+  description: "Plan and apply native move/copy transfers for selected files and folders. Auto mode sends selected items to already and remaining siblings to wait.",
+  whenToUse: [
+    "Use ClassF when a folder has reviewed items and remaining items that need to be split into already and wait queues.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy ClassF from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy ClassF to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Auto classify",
+      summary: "Move selected items to already and other siblings to wait.",
+      ui: ["Paste selected source paths.", "Keep classify mode on auto.", "Preview the already/wait split before live classify."],
     },
     {
-      "title": "CLI",
-      "summary": "Run ClassF directly from a terminal.",
-      "cli": [
-        "Run `xiranite classf` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite classf --help` for the node command's exact flags and subcommands."
-      ]
-    }
+      title: "Direct target",
+      summary: "Move or copy selected paths into one explicit target folder.",
+      ui: ["Switch classify mode to off.", "Set a target folder.", "Choose move or copy, then run a plan first."],
+    },
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite classf",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
-        {
-          "label": "Guided mode",
-          "command": "xiranite classf",
-          "description": "Start the node's interactive terminal workflow."
-        },
-        {
-          "label": "Command flags",
-          "command": "xiranite classf --help",
-          "description": "Show the node CLI's subcommands and options."
-        },
-        {
-          "label": "Shared help",
-          "command": "xiranite help classf",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      title: "Preview auto classify",
+      command: "xiranite classf plan D:/set/a.zip --classify auto",
+      description: "Preview selected and wait transfers.",
+      examples: [
+        { label: "Copy to target", command: "xiranite classf classify D:/set/a.zip --classify off --target D:/done --transfer copy", description: "Copy selected paths to an explicit folder." },
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  safety: {
+    defaultMode: "dry-run",
+    destructive: ["classify"],
+    notes: ["Live move/copy is gated by confirmation in the UI.", "Existing targets are reported as conflicts and skipped."],
+  },
 } satisfies NodeHelp

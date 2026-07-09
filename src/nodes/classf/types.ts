@@ -1,9 +1,35 @@
-import type { PackuCardState, PackuStatusMeta, PackuPhase } from "@/nodes/shared/packu/types"
-import type { PackuNodeMeta } from "@/nodes/shared/packu/types"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfTransferMode } from "@xiranite/node-classf/core"
 
-export type ClassfCardState = PackuCardState
-export type ClassfStatusMeta = PackuStatusMeta
-export type ClassfPhase = PackuPhase
+export type ClassfPhase = "idle" | "running" | "completed" | "error"
 
-export { CONFIG_FIELDS } from "@/nodes/shared/packu/types"
-export type { PackuNodeMeta }
+export interface ClassfCardState {
+  action?: ClassfAction
+  pathsText?: string
+  targetDir?: string
+  transferMode?: ClassfTransferMode
+  classifyMode?: ClassfClassifyMode
+  existingPolicy?: ClassfExistingPolicy
+  dryRun?: boolean
+  phase?: ClassfPhase
+  progress?: number
+  progressText?: string
+  logs?: string[]
+  result?: ClassfData | null
+}
+
+export interface ClassfStatusMeta {
+  label: string
+  description: string
+  tone: "idle" | "running" | "success" | "error"
+  badgeVariant: "default" | "secondary" | "destructive" | "outline"
+  iconClass: string
+}
+
+export const CONFIG_FIELDS = [
+  "pathsText",
+  "targetDir",
+  "transferMode",
+  "classifyMode",
+  "existingPolicy",
+  "dryRun",
+] as const satisfies Array<keyof ClassfCardState>

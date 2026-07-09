@@ -6,9 +6,9 @@ export const def = {
   name: "ClassF",
   version: "0.1.0",
   category: "file",
-  description: "Orchestrate classification by calling PackU samea, crashu, and migratef logic.",
+  description: "Plan and apply native already/wait classification transfers.",
   icon: "Workflow",
-  keywords: ["packu", "classify", "pipeline", "samea", "crashu", "migratef"],
+  keywords: ["classify", "transfer", "already", "wait", "move"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { ClassfData, ClassfInput } from "@xiranite/node-classf/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
-import type { PackuToolData, PackuToolInput } from "@xiranite/packu-node-runtime/core"
 import { Component } from "./Component"
+import { ACTIONS } from "./constants"
 import type { ClassfCardState } from "./types"
-import { NODE_META } from "./constants"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
 
@@ -37,20 +37,20 @@ afterEach(() => {
 
 describe("app-owned classf Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)(
-    "renders the %s surface with ClassF-specific UI",
+    "renders the %s surface with native ClassF UI",
     (mode) => {
       setSurface(mode)
-      render(<Component compId="comp-classf" host={createHost({ pathsText: "D:/archives/a.zip" })} />)
+      render(<Component compId="comp-classf" host={createHost({ pathsText: "D:/set/a.zip" })} />)
 
       expect(screen.getByText("ClassF")).toBeTruthy()
       if (mode === "collapsed") {
         expect(screen.getByTestId("classf-collapsed-view")).toBeTruthy()
-        expect(screen.queryByLabelText("classf 归档或目录")).toBeNull()
+        expect(screen.queryByLabelText("classf paths")).toBeNull()
         return
       }
 
-      expect(screen.getByLabelText("classf 归档或目录")).toBeTruthy()
-      expect(screen.getByText("命令终端")).toBeTruthy()
+      expect(screen.getByLabelText("classf paths")).toBeTruthy()
+      expect(screen.getAllByRole("tab")).toHaveLength(3)
 
       if (mode === "compact") {
         expect(screen.getByTestId("classf-compact-view")).toBeTruthy()
@@ -59,77 +59,79 @@ describe("app-owned classf Component", () => {
       } else {
         expect(screen.getByTestId("classf-full-view")).toBeTruthy()
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径输入")).toBeTruthy()
-        expect(screen.getByText("运行选项")).toBeTruthy()
-        expect(screen.getByText("日志尾条")).toBeTruthy()
+        expect(screen.getByText("Selection and target")).toBeTruthy()
+        expect(screen.getByText("Classification plan")).toBeTruthy()
+        expect(screen.getByRole("button", { name: ACTIONS[0]!.label })).toBeTruthy()
       }
     },
   )
 
-  test("runs plan through host.runner.run and stores command results", async () => {
+  test("runs plan through host.runner.run and stores classification rows", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    const host = createHost({
+      action: "plan",
+      pathsText: "D:/set/a.zip",
+      classifyMode: "auto",
+      transferMode: "move",
+      dryRun: true,
+      logs: [],
+    })
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "生成计划" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
       nodeId: "classf",
       input: {
         action: "plan",
-        paths: ["D:/archives/a.zip"],
-        args: [],
-        configPath: undefined,
-        databasePath: undefined,
-        python: undefined,
-        sourceRoot: NODE_META.spec.sourceRoot,
-        moduleName: NODE_META.spec.moduleName,
+        paths: ["D:/set/a.zip"],
+        targetDir: undefined,
+        transferMode: "move",
+        classifyMode: "auto",
+        existingPolicy: "merge",
         dryRun: true,
-        recordRun: false,
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.cardState.result?.command).toBeTruthy()
-
-    await waitFor(() => expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1))
+    expect(host.cardState.result?.items[0]?.targetRelative).toBe("already/a.zip")
   })
 
-  test("requires confirmation before real run execution", async () => {
+  test("requires confirmation before live classify execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", pathsText: "D:/archives/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "classify", pathsText: "D:/set/a.zip", dryRun: false, logs: [] })
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
     expect(host.runCalls).toHaveLength(0)
-    expect(screen.getByText("确认执行运行？")).toBeTruthy()
 
-    await user.click(screen.getByRole("button", { name: "确认执行" }))
+    const dialog = screen.getByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Confirm classify" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("run")
+    expect(host.runCalls[0]?.input.action).toBe("classify")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
   test("marks the card as error when run has no paths", async () => {
     setSurface("regular")
-    const host = createHost({ action: "run", logs: [] })
+    const host = createHost({ action: "plan", logs: [] })
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行运行" }))
+    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("归档或目录")
+    expect(host.cardState.progressText).toContain("source path")
   })
 })
 
 type TestHost = NodeHostApi<ClassfCardState, Partial<ClassfCardState>> & {
   copiedText: string
-  runCalls: Array<{ nodeId: string; input: PackuToolInput }>
+  runCalls: Array<{ nodeId: string; input: ClassfInput }>
   savedConfig: Partial<ClassfCardState> | undefined
   cardState: ClassfCardState
 }
@@ -161,17 +163,17 @@ function createHost(initial: ClassfCardState): TestHost {
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as PackuToolInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning packu tool." })
+        host.runCalls.push({ nodeId, input: input as ClassfInput })
+        onEvent?.({ type: "progress", progress: 50, message: "Planning classification transfers." })
         return {
           success: true,
-          message: "PackU classf planned.",
-          data: packuData as TData,
+          message: "ClassF planned 1 item.",
+          data: classfData as TData,
         }
       },
     },
     clipboard: {
-      readText: async () => "D:/archives/a.zip",
+      readText: async () => "D:/set/a.zip",
       writeText: async (text) => { host.copiedText = text },
     },
     config: {
@@ -200,22 +202,28 @@ function setSurfaceSize(size: { height: number; width: number }) {
   surfaceState.height = size.height
 }
 
-const packuData: PackuToolData = {
-  spec: NODE_META.spec,
-  command: {
-    label: "python -m classf",
-    command: "python",
-    args: ["-m", "classf", "D:/archives/a.zip"],
-    cwd: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src",
-    env: { PYTHONPATH: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src" },
-  },
-  integration: {
-    sourceRoot: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src",
-    moduleName: "classf",
-    configCandidates: [],
-    recordRun: false,
-    recordFormat: "jsonl",
-  },
-  selectedPaths: ["D:/archives/a.zip"],
+const classfData: ClassfData = {
+  action: "plan",
+  transferMode: "move",
+  classifyMode: "auto",
+  baseDir: "D:/set",
+  items: [
+    {
+      sourcePath: "D:/set/a.zip",
+      targetPath: "D:/set/already/a.zip",
+      sourceName: "a.zip",
+      targetRelative: "already/a.zip",
+      kind: "file",
+      stage: "already",
+      status: "ready",
+    },
+  ],
+  selectedCount: 1,
+  readyCount: 1,
+  movedCount: 0,
+  copiedCount: 0,
+  waitCount: 0,
+  conflictCount: 0,
+  errorCount: 0,
   errors: [],
 }
