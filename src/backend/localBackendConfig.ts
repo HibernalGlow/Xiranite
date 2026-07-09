@@ -31,14 +31,14 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
 export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined") return undefined
 
-  const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
-  if (existingConfig) return existingConfig
-
   const manifestConfig = await loadDevBackendManifest()
   if (manifestConfig) {
     window.__XIRANITE_BACKEND__ = manifestConfig
     return manifestConfig
   }
+
+  const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
+  if (existingConfig) return existingConfig
 
   return hydrateLocalBackendConfigFromWails()
 }

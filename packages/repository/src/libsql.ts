@@ -397,7 +397,7 @@ export async function createLibsqlNodeRunHistoryRepository(
   const db = drizzle(client)
   await ensureHistorySchema(client)
 
-  return {
+  const repository: LibsqlNodeRunHistoryRepository = {
     client,
     async createRuntimeHistory(item) {
       await db.insert(runtimeHistory).values(fromRuntimeHistoryItemDTO(item)).onConflictDoUpdate({
@@ -468,27 +468,28 @@ export async function createLibsqlNodeRunHistoryRepository(
       return { deletedCount }
     },
     async createNodeRunHistory(item) {
-      await this.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
+      await repository.createRuntimeHistory(nodeHistoryToRuntimeHistory(item))
       return item
     },
     async listNodeRunHistory(query) {
-      const result = await this.listRuntimeHistory({ ...query, kind: "node" })
+      const result = await repository.listRuntimeHistory({ ...query, kind: "node" })
       return {
         items: result.items.map(runtimeHistoryToNodeHistory).filter((item): item is NodeRunHistoryItemDTO => item !== undefined),
         nextCursor: result.nextCursor,
       }
     },
     async getNodeRunHistory(id) {
-      const item = await this.getRuntimeHistory(id)
+      const item = await repository.getRuntimeHistory(id)
       return item ? runtimeHistoryToNodeHistory(item) : undefined
     },
     async deleteNodeRunHistory(id) {
-      await this.deleteRuntimeHistory(id)
+      await repository.deleteRuntimeHistory(id)
     },
     async clearNodeRunHistory(query) {
-      return await this.clearRuntimeHistory({ ...query, kind: "node" })
+      return await repository.clearRuntimeHistory({ ...query, kind: "node" })
     },
   }
+  return repository
 }
 
 async function ensureHistorySchema(client: Client): Promise<void> {
