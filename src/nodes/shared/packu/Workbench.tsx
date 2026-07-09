@@ -365,7 +365,7 @@ function FullView(props: ViewProps) {
             <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">运行</div>
+            <div className="text-sm font-semibold">运行选项</div>
             <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />

@@ -1,368 +1,380 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import type { ColumnDef, ColumnFiltersState, SortingState } from "@tanstack/react-table"
+import {
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 import {
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   CircleAlert,
   CircleSlash,
-  Clock3,
   Copy,
+  Eye,
   History,
-  Info,
   Loader2,
   Trash2,
 } from "lucide-react"
-import type { RuntimeHistoryItemDTO, RuntimeHistoryKindDTO, RuntimeHistoryStatusDTO } from "@xiranite/shared"
-import { useClearRuntimeHistory, useDeleteRuntimeHistory, useRuntimeHistory } from "@/hooks/useRuntimeHistory"
-import { cn } from "@/lib/utils"
+import type { NodeRunHistoryItemDTO, NodeRunHistoryStatusDTO } from "@xiranite/shared"
+import { DataTable } from "@/components/data-table/data-table"
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header"
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
+import { useClearNodeRunHistory, useDeleteNodeRunHistory, useNodeRunHistory } from "@/hooks/useNodeRunHistory"
+import { cn } from "@/lib/utils"
 
-const STATUS_ICON: Record<RuntimeHistoryStatusDTO, typeof Clock3> = {
+const STATUS_ICON: Record<NodeRunHistoryStatusDTO, typeof CheckCircle2> = {
   success: CheckCircle2,
   error: CircleAlert,
   cancelled: CircleSlash,
-  info: Info,
 }
 
-const STATUS_CLASS: Record<RuntimeHistoryStatusDTO, string> = {
-  success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  error: "border-destructive/40 bg-destructive/10 text-destructive",
-  cancelled: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
-  info: "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+const STATUS_CLASS: Record<NodeRunHistoryStatusDTO, string> = {
+  success: "border-primary/40 text-primary",
+  error: "border-destructive/40 text-destructive",
+  cancelled: "text-muted-foreground",
 }
 
-type HistoryKindFilter = "all" | RuntimeHistoryKindDTO
-type HistoryStatusFilter = "all" | RuntimeHistoryStatusDTO
-
-const KIND_FILTERS: HistoryKindFilter[] = ["all", "node", "workspace", "config", "system"]
-const STATUS_FILTERS: HistoryStatusFilter[] = ["all", "success", "error", "cancelled", "info"]
+const STATUS_OPTIONS = [
+  { label: "success", value: "success" },
+  { label: "error", value: "error" },
+  { label: "cancelled", value: "cancelled" },
+]
 
 export function NodeRunHistoryView() {
   const { t } = useTranslation()
-  const [kindFilter, setKindFilter] = useState<HistoryKindFilter>("all")
-  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>("all")
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sorting, setSorting] = useState<SortingState>([{ id: "finishedAt", desc: true }])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const query = useMemo(
-    () => ({
-      limit: 50,
-      kind: kindFilter === "all" ? undefined : kindFilter,
-      status: statusFilter === "all" ? undefined : statusFilter,
-    }),
-    [kindFilter, statusFilter],
-  )
-
-  const historyQuery = useRuntimeHistory(query)
-  const deleteMutation = useDeleteRuntimeHistory()
-  const clearMutation = useClearRuntimeHistory()
-
+  const historyQuery = useNodeRunHistory({ limit: 200 })
+  const deleteMutation = useDeleteNodeRunHistory()
+  const clearMutation = useClearNodeRunHistory()
   const items = historyQuery.data?.items ?? []
+  const selectedItem = selectedId ? items.find((item) => item.id === selectedId) ?? null : null
 
-  async function copyInput(item: RuntimeHistoryItemDTO) {
+  async function copyInput(item: NodeRunHistoryItemDTO) {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(item.input ?? null, null, 2))
+      await navigator.clipboard.writeText(formatJson(item.input ?? null))
       setCopiedId(item.id)
-      setTimeout(() => setCopiedId(null), 1500)
+      window.setTimeout(() => setCopiedId(null), 1500)
     } catch {
       // Clipboard access can be blocked by browser permissions.
     }
   }
 
-  async function handleClearAll() {
-    await clearMutation.mutateAsync(kindFilter === "all" ? {} : { kind: kindFilter })
+  function deleteItem(item: NodeRunHistoryItemDTO) {
+    deleteMutation.mutate(item.id, {
+      onSuccess: () => {
+        if (selectedId === item.id) setSelectedId(null)
+      },
+    })
   }
+
+  async function clearAll() {
+    await clearMutation.mutateAsync({})
+    setSelectedId(null)
+  }
+
+  const columns = useMemo<ColumnDef<NodeRunHistoryItemDTO>[]>(() => [
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.statusLabel")} />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      enableColumnFilter: true,
+      filterFn: optionArrayFilter,
+      meta: {
+        label: t("view:history.statusLabel"),
+        variant: "multiSelect",
+        options: STATUS_OPTIONS.map((option) => ({
+          ...option,
+          label: t(`view:history.status.${option.value}`),
+        })),
+      },
+    },
+    {
+      accessorKey: "finishedAt",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.finishedAt")} />,
+      cell: ({ row }) => (
+        <div className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+          {formatTime(row.original.finishedAt)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "nodeId",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.nodeId")} />,
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.nodeId}</span>,
+      enableColumnFilter: true,
+      meta: {
+        label: t("view:history.nodeId"),
+        placeholder: t("view:history.filterNode"),
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "inputSummary",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.inputSummary")} />,
+      cell: ({ row }) => (
+        <div className="max-w-[32rem] truncate text-xs" title={row.original.inputSummary || undefined}>
+          {row.original.inputSummary || <span className="text-muted-foreground">{t("view:history.noInputSummary")}</span>}
+        </div>
+      ),
+      enableColumnFilter: true,
+      meta: {
+        label: t("view:history.inputSummary"),
+        placeholder: t("view:history.filterInput"),
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "message",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.message")} />,
+      cell: ({ row }) => (
+        <div className="max-w-[24rem] truncate text-xs text-muted-foreground" title={row.original.message}>
+          {row.original.message}
+        </div>
+      ),
+      enableColumnFilter: true,
+      meta: {
+        label: t("view:history.message"),
+        placeholder: t("view:history.filterMessage"),
+        variant: "text",
+      },
+    },
+    {
+      accessorKey: "durationMs",
+      header: ({ column }) => <DataTableColumnHeader column={column} label={t("view:history.durationLabel")} />,
+      cell: ({ row }) => (
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {t("view:history.duration", { ms: row.original.durationMs })}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">{t("view:history.actions")}</span>,
+      cell: ({ row }) => {
+        const item = row.original
+        const deleting = deleteMutation.isPending && deleteMutation.variables === item.id
+        const copied = copiedId === item.id
+
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              aria-label={t("view:history.copyInput")}
+              disabled={item.input === undefined || item.input === null}
+              size="icon-sm"
+              title={copied ? t("view:history.copied") : t("view:history.copyInput")}
+              variant="ghost"
+              onClick={() => void copyInput(item)}
+            >
+              {copied ? <CheckCircle2 /> : <Copy />}
+            </Button>
+            <Button
+              aria-label={t("view:history.viewDetail")}
+              size="icon-sm"
+              title={t("view:history.viewDetail")}
+              variant={selectedId === item.id ? "outline" : "ghost"}
+              onClick={() => setSelectedId(selectedId === item.id ? null : item.id)}
+            >
+              <Eye />
+            </Button>
+            <Button
+              aria-label={t("view:history.delete")}
+              disabled={deleting}
+              size="icon-sm"
+              title={t("view:history.delete")}
+              variant="ghost"
+              onClick={() => deleteItem(item)}
+            >
+              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
+            </Button>
+          </div>
+        )
+      },
+      enableHiding: false,
+    },
+  ], [copiedId, deleteMutation.isPending, deleteMutation.variables, selectedId, t])
+
+  const table = useReactTable({
+    data: items,
+    columns,
+    getRowId: (row) => row.id,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    initialState: {
+      pagination: {
+        pageSize: 20,
+      },
+    },
+  })
 
   return (
     <OverlayViewShell
       header={
-        <>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-foreground">{t("view:history.title")}</h1>
             <p className="mt-1 text-xs text-muted-foreground">{t("view:history.subtitle")}</p>
           </div>
           <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
             disabled={clearMutation.isPending || items.length === 0}
-            onClick={handleClearAll}
+            size="sm"
+            variant="outline"
+            onClick={() => void clearAll()}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            {clearMutation.isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
             {t("view:history.clearAll")}
           </Button>
         </div>
-
-        <div className="mt-4 grid grid-cols-5 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
-          {KIND_FILTERS.map((key) => (
-            <FilterButton
-              key={key}
-              active={kindFilter === key}
-              label={t(`view:history.kind.${key}`)}
-              onClick={() => setKindFilter(key)}
-            />
-          ))}
-        </div>
-        <div className="mt-2 grid grid-cols-5 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
-          {STATUS_FILTERS.map((key) => (
-            <FilterButton
-              key={key}
-              active={statusFilter === key}
-              label={t(`view:history.statusFilter.${key}`)}
-              onClick={() => setStatusFilter(key)}
-            />
-          ))}
-        </div>
-        </>
       }
       bodyClassName="px-4 py-4"
     >
-        {historyQuery.isLoading && (
-          <div className="flex h-full min-h-60 items-center justify-center text-sm text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            {t("view:history.loading")}
-          </div>
-        )}
-
-        {!historyQuery.isLoading && items.length === 0 && (
-          <div className="flex h-full min-h-60 flex-col items-center justify-center text-center">
-            <History className="mb-3 h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">{t("view:history.empty")}</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">{t("view:history.emptyHint")}</p>
-          </div>
-        )}
-
-        {items.length > 0 && (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <HistoryRow
-                key={item.id}
-                item={item}
-                expanded={expandedId === item.id}
-                copied={copiedId === item.id}
-                deleting={deleteMutation.isPending && deleteMutation.variables === item.id}
-                onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                onCopyInput={() => copyInput(item)}
-                onDelete={() => deleteMutation.mutate(item.id)}
-              />
-            ))}
-
-            {historyQuery.data?.nextCursor && (
-              <div className="flex justify-center pt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs text-muted-foreground"
-                  disabled
-                >
-                  {t("view:history.loadMore")}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+      {historyQuery.isLoading ? (
+        <div className="flex h-full min-h-60 items-center justify-center text-sm text-muted-foreground">
+          <Loader2 className="mr-2 animate-spin" />
+          {t("view:history.loading")}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex h-full min-h-60 flex-col items-center justify-center text-center">
+          <History className="mb-3 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">{t("view:history.empty")}</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">{t("view:history.emptyHint")}</p>
+        </div>
+      ) : (
+        <div className="flex h-full min-h-0 flex-col gap-3">
+          <DataTable table={table} className="min-h-0" data-testid="node-run-history-data-table">
+            <DataTableToolbar table={table} className="p-0 pb-2" />
+          </DataTable>
+          {selectedItem && <HistoryDetail item={selectedItem} />}
+        </div>
+      )}
     </OverlayViewShell>
   )
 }
 
-function HistoryRow({
-  item,
-  expanded,
-  copied,
-  deleting,
-  onToggleExpand,
-  onCopyInput,
-  onDelete,
-}: {
-  item: RuntimeHistoryItemDTO
-  expanded: boolean
-  copied: boolean
-  deleting: boolean
-  onToggleExpand: () => void
-  onCopyInput: () => void
-  onDelete: () => void
-}) {
+function HistoryDetail({ item }: { item: NodeRunHistoryItemDTO }) {
   const { t } = useTranslation()
-  const title = item.title ?? item.target?.label ?? item.nodeId ?? item.operation
-  const subtitle = item.inputSummary || item.resultSummary || item.target?.id
+  const stats = isNumberRecord(item.result?.stats) ? item.result.stats : undefined
+  const outputPath = item.result?.outputPath
 
   return (
-    <section className="rounded-sm border border-border/60 bg-card/80 p-3">
-      <div className="flex items-start gap-3">
-        <StatusPill status={item.status} />
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="truncate text-sm font-semibold text-foreground">{title}</div>
-            <div className="shrink-0 rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono uppercase text-muted-foreground">
-              {t(`view:history.kind.${item.kind}`)}
-            </div>
-            <div className="shrink-0 text-[10px] font-mono text-muted-foreground">
-              {formatTime(item.finishedAt)}
-            </div>
-          </div>
-          {subtitle && (
-            <div className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</div>
+    <section className="flex max-h-[22rem] min-h-0 flex-col rounded-md border bg-background/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{item.nodeId}</div>
+          <div className="truncate text-[11px] text-muted-foreground">{item.inputSummary || item.message}</div>
+        </div>
+        <StatusBadge status={item.status} />
+      </div>
+      <Separator />
+      <div className="grid min-h-0 flex-1 gap-3 overflow-auto p-3 lg:grid-cols-2">
+        <DetailSection label={t("view:history.input")}>
+          {item.input === undefined || item.input === null ? (
+            <p className="text-xs text-muted-foreground">{t("view:history.noInput")}</p>
+          ) : (
+            <pre className="max-h-52 overflow-auto rounded-md bg-muted/40 p-2 text-[11px] leading-relaxed text-foreground">
+              {formatJson(item.input)}
+            </pre>
           )}
-          <div className="mt-1 truncate text-xs text-muted-foreground">{item.message}</div>
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onCopyInput}
-            className="grid h-7 w-7 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            title={t("view:history.copyInput")}
-            aria-label={t("view:history.copyInput")}
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            className="grid h-7 w-7 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
-            title={t("view:history.delete")}
-            aria-label={t("view:history.delete")}
-          >
-            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            className="grid h-7 w-7 place-items-center rounded-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-            title={t("view:history.viewDetail")}
-            aria-label={t("view:history.viewDetail")}
-          >
-            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-        </div>
+        </DetailSection>
+        <DetailSection label={t("view:history.result")}>
+          {item.result === undefined || item.result === null ? (
+            <p className="text-xs text-muted-foreground">{t("view:history.noResult")}</p>
+          ) : (
+            <pre className="max-h-52 overflow-auto rounded-md bg-muted/40 p-2 text-[11px] leading-relaxed text-foreground">
+              {formatJson(item.result)}
+            </pre>
+          )}
+        </DetailSection>
+        <DetailSection label={t("view:history.metadata")}>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <MetaField label={t("view:history.componentId")} value={item.componentId ?? "-"} />
+            <MetaField label={t("view:history.workspaceId")} value={item.workspaceId ?? "-"} />
+            <MetaField label={t("view:history.events", { count: item.eventCount })} value={String(item.eventCount)} />
+            <MetaField label={t("view:history.durationLabel")} value={t("view:history.duration", { ms: item.durationMs })} />
+          </div>
+        </DetailSection>
+        {(stats || outputPath) && (
+          <DetailSection label={t("view:history.output")}>
+            <div className="flex flex-col gap-2">
+              {outputPath && <code className="break-all rounded-md bg-muted/40 p-2 text-[11px]">{outputPath}</code>}
+              {stats && (
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {Object.entries(stats).map(([key, value]) => (
+                    <MetaField key={key} label={key} value={String(value)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </DetailSection>
+        )}
       </div>
-
-      <div className="mt-2 flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
-        <span>{item.operation}</span>
-        <span>{t("view:history.duration", { ms: item.durationMs })}</span>
-        {item.eventCount !== undefined && <span>{t("view:history.events", { count: item.eventCount })}</span>}
-        {copied && <span className="text-emerald-500">{t("view:history.copied")}</span>}
-      </div>
-
-      {expanded && <HistoryDetail item={item} />}
     </section>
   )
 }
 
-function HistoryDetail({ item }: { item: RuntimeHistoryItemDTO }) {
-  const { t } = useTranslation()
-  const hasInput = item.input !== undefined && item.input !== null
-  const hasResult = item.result !== undefined && item.result !== null
-  const resultRecord = isRecord(item.result) ? item.result : undefined
-  const stats = isNumberRecord(resultRecord?.stats) ? resultRecord.stats : undefined
-  const outputPath = typeof resultRecord?.outputPath === "string" ? resultRecord.outputPath : undefined
-
+function DetailSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="mt-3 space-y-3 border-t border-border/50 pt-3">
-      <div className="grid grid-cols-2 gap-1.5">
-        <MetaField label={t("view:history.operation")} value={item.operation} />
-        <MetaField label={t("view:history.kindLabel")} value={item.kind} />
-        {item.nodeId && <MetaField label={t("view:history.nodeId")} value={item.nodeId} />}
-        {item.componentId && <MetaField label={t("view:history.componentId")} value={item.componentId} />}
-        {item.workspaceId && <MetaField label={t("view:history.workspaceId")} value={item.workspaceId} />}
-      </div>
-
-      {hasInput ? (
-        <DetailSection label={t("view:history.input")}>
-          <pre className="max-h-48 overflow-auto rounded-sm bg-muted/40 p-2 text-[10px] leading-relaxed text-foreground">
-            {JSON.stringify(item.input, null, 2)}
-          </pre>
-        </DetailSection>
-      ) : (
-        <p className="text-xs text-muted-foreground">{t("view:history.noInput")}</p>
-      )}
-
-      {hasResult && (
-        <DetailSection label={t("view:history.result")}>
-          <pre className="max-h-48 overflow-auto rounded-sm bg-muted/40 p-2 text-[10px] leading-relaxed text-foreground">
-            {JSON.stringify(item.result, null, 2)}
-          </pre>
-        </DetailSection>
-      )}
-
-      {stats && Object.keys(stats).length > 0 && (
-        <DetailSection label={t("view:history.stats")}>
-          <div className="grid grid-cols-2 gap-1.5">
-            {Object.entries(stats).map(([key, value]) => (
-              <div key={key} className="rounded-sm border border-border/40 bg-muted/20 px-2 py-1">
-                <div className="text-[9px] font-mono uppercase text-muted-foreground">{key}</div>
-                <div className="text-sm font-semibold tabular-nums text-foreground">{value}</div>
-              </div>
-            ))}
-          </div>
-        </DetailSection>
-      )}
-
-      {outputPath && (
-        <DetailSection label={t("view:history.outputPath")}>
-          <code className="block break-all rounded-sm bg-muted/40 p-2 text-[10px] text-foreground">
-            {outputPath}
-          </code>
-        </DetailSection>
-      )}
-    </div>
-  )
-}
-
-function MetaField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-sm border border-border/40 bg-muted/20 px-2 py-1">
-      <div className="text-[9px] font-mono uppercase text-muted-foreground">{label}</div>
-      <div className="truncate text-[11px] text-foreground">{value}</div>
-    </div>
-  )
-}
-
-function DetailSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-1 text-[10px] font-mono uppercase text-muted-foreground">{label}</div>
       {children}
     </div>
   )
 }
 
-function StatusPill({ status }: { status: RuntimeHistoryStatusDTO }) {
-  const { t } = useTranslation()
-  const Icon = STATUS_ICON[status]
+function MetaField({ label, value }: { label: string; value: string }) {
   return (
-    <div className={cn("flex h-7 shrink-0 items-center gap-1.5 rounded-sm border px-2 text-[10px] font-mono uppercase", STATUS_CLASS[status])}>
-      <Icon className="h-3 w-3" />
-      {t(`view:history.status.${status}`)}
+    <div className="rounded-md border border-border/40 bg-muted/20 px-2 py-1">
+      <div className="truncate text-[9px] font-mono uppercase text-muted-foreground">{label}</div>
+      <div className="truncate text-[11px] text-foreground" title={value}>{value}</div>
     </div>
   )
 }
 
-function FilterButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+function StatusBadge({ status }: { status: NodeRunHistoryStatusDTO }) {
+  const { t } = useTranslation()
+  const Icon = STATUS_ICON[status]
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "h-8 rounded-sm px-2 text-[11px] transition-colors",
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
+    <Badge variant="outline" className={cn("shrink-0 gap-1.5 text-[10px]", STATUS_CLASS[status])}>
+      <Icon />
+      {t(`view:history.status.${status}`)}
+    </Badge>
   )
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+function optionArrayFilter(row: { getValue: (columnId: string) => unknown }, columnId: string, value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return true
+  return value.includes(String(row.getValue(columnId)))
 }
 
 function isNumberRecord(value: unknown): value is Record<string, number> {
-  if (!isRecord(value)) return false
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
   return Object.values(value).every((item) => typeof item === "number")
+}
+
+function formatJson(value: unknown): string {
+  return JSON.stringify(value, null, 2)
 }
 
 function formatTime(value: number): string {
