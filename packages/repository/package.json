@@ -19,7 +19,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsgo -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "test": "vitest run src/**/*.test.ts && bun run build"
   },
@@ -29,6 +29,6 @@
     "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "typescript": "^7.0.2"
   }
 }

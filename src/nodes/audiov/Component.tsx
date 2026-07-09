@@ -1,8 +1,8 @@
-import { createPackuToolComponent, PackuIcons } from "@/nodes/shared/MigratedToolPresets"
+import type { NodeComponentProps } from "@xiranite/contract"
+import type { PackuCardState } from "./types"
+import { PackuWorkbench } from "@/nodes/shared/packu/Workbench"
+import { NODE_META } from "./constants"
 
-export const Component = createPackuToolComponent({
-  id: "audiov",
-  title: "AudioV",
-  description: "从视频中提取音轨，保留 PackU AudioV 的 ffmpeg 调用边界。",
-  icon: PackuIcons.audiov,
-})
+export function Component({ compId, host }: NodeComponentProps<PackuCardState>) {
+  return <PackuWorkbench compId={compId} host={host} meta={NODE_META} />
+}

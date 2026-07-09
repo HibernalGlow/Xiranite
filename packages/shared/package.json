@@ -15,7 +15,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsgo -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "test": "bun run build"
   },
@@ -23,6 +23,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "typescript": "^7.0.2"
   }
 }

@@ -1,8 +1,8 @@
-import { createPackuToolComponent, PackuIcons } from "@/nodes/shared/MigratedToolPresets"
+import type { NodeComponentProps } from "@xiranite/contract"
+import type { PackuCardState } from "./types"
+import { PackuWorkbench } from "@/nodes/shared/packu/Workbench"
+import { NODE_META } from "./constants"
 
-export const Component = createPackuToolComponent({
-  id: "classf",
-  title: "ClassF",
-  description: "编排 PackU 分类流程，集中调用相关整理核心。",
-  icon: PackuIcons.classf,
-})
+export function Component({ compId, host }: NodeComponentProps<PackuCardState>) {
+  return <PackuWorkbench compId={compId} host={host} meta={NODE_META} />
+}

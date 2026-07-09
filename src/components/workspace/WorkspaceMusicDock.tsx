@@ -38,6 +38,7 @@ const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
 const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
 const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
 const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
+const MUSIC_DOCK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
 const MusicDockContext = createContext<MusicDockContextValue | null>(null)
 
 export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }) {
@@ -110,8 +111,9 @@ export function WorkspaceMusicDockTopBarSlot() {
     <div
       data-music-dock="topbar-slot"
       className={cn(
-        "xiranite-app-region-no-drag hidden h-8 w-60 min-w-0 items-center overflow-hidden rounded border border-border/60 bg-muted/30 text-xs text-muted-foreground transition-colors xl:flex",
-        !dock.collapsed && "border-primary/40 bg-primary/10 text-primary"
+        "xiranite-app-region-no-drag hidden h-8 w-60 min-w-0 items-center overflow-hidden rounded border border-border/[0.45] bg-card/[0.18] text-xs text-muted-foreground backdrop-blur-2xl backdrop-saturate-150 transition-colors xl:flex",
+        MUSIC_DOCK_GLASS_SHADOW_CLASS,
+        !dock.collapsed && "border-primary/40 bg-primary/[0.15] text-primary"
       )}
     >
       <button
@@ -123,13 +125,13 @@ export function WorkspaceMusicDockTopBarSlot() {
       >
         <Music2 className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate font-medium">{primaryTrack ?? "音乐播放器"}</span>
-        <span className="shrink-0 rounded bg-background/70 px-1.5 py-0.5 text-[9px] leading-none text-muted-foreground">
+        <span className="shrink-0 rounded bg-background/[0.24] px-1.5 py-0.5 text-[9px] leading-none text-muted-foreground backdrop-blur-xl">
           {countLabel}
         </span>
       </button>
       <button
         type="button"
-        className="grid h-full w-8 shrink-0 place-items-center border-l border-border/60 transition-colors hover:bg-background/70 hover:text-foreground"
+        className="grid h-full w-8 shrink-0 place-items-center border-l border-border/[0.45] transition-colors hover:bg-background/[0.24] hover:text-foreground"
         onClick={() => {
           dock.setCollapsed(false)
           dock.setMode(dock.mode === "bottom" ? "floating" : "bottom")
@@ -215,13 +217,13 @@ export function WorkspaceMusicDockPanel() {
         )}
       >
         <div className={cn(
-          "xiranite-app-region-no-drag flex h-full min-h-0 flex-col overflow-hidden rounded-xl backdrop-blur-xl",
-          dock.mode === "bottom"
-            ? "bg-background/92 shadow-xl shadow-black/20"
-            : "border border-border/70 bg-background/95 shadow-2xl shadow-black/30"
+          "xiranite-app-region-no-drag relative isolate flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/[0.16] backdrop-blur-2xl backdrop-saturate-150",
+          MUSIC_DOCK_GLASS_SHADOW_CLASS,
+          dock.mode === "floating" && "border-border/65 shadow-[0_26px_90px_rgba(0,0,0,0.26)] dark:shadow-[0_30px_96px_rgba(0,0,0,0.52)]"
         )}>
+          <MusicDockAmbientLayer />
           {dock.mode === "floating" && (
-            <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 bg-background/75 px-2 text-muted-foreground backdrop-blur">
+            <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-border/30 bg-background/[0.14] px-2 text-muted-foreground backdrop-blur-2xl backdrop-saturate-150">
               <div
                 data-music-dock-part="drag-handle"
                 className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-2 rounded-md px-1.5 py-1 active:cursor-grabbing"
@@ -267,10 +269,21 @@ export function WorkspaceMusicDockPanel() {
             onSourcePathChange={dock.setSourcePath}
             variant={dock.mode === "bottom" ? "dock" : "module"}
             actions={bottomActions}
-            className="flex-1"
+            className="relative z-10 flex-1"
           />
         </div>
       </motion.div>
+    </div>
+  )
+}
+
+function MusicDockAmbientLayer() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(145deg,hsl(var(--card)/0.20),transparent_55%,hsl(var(--muted)/0.14)),linear-gradient(90deg,hsl(var(--primary)/0.07),transparent_42%,hsl(var(--accent)/0.07))]" />
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(115deg,transparent_0,transparent_22px,hsl(var(--foreground)/0.018)_22px,hsl(var(--foreground)/0.018)_23px)] opacity-45 dark:opacity-30" />
+      <div className="absolute inset-0 bg-white/[0.03] backdrop-blur-[22px] backdrop-saturate-150 dark:bg-white/[0.02]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-white/55 dark:bg-white/12" />
     </div>
   )
 }

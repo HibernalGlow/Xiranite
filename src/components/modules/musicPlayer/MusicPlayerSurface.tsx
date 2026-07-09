@@ -112,6 +112,7 @@ const MEDIA_CHROME_STYLE = {
 } as CSSProperties
 
 const AUDIO_ELEMENT_STYLE = { display: "none" } as CSSProperties
+const GLASS_SHADOW_CLASS = "shadow-[0_18px_56px_rgba(0,0,0,0.16)] dark:shadow-[0_22px_70px_rgba(0,0,0,0.36)]"
 
 export function MusicPlayerSurface({
   savedTracks = [],
@@ -287,7 +288,7 @@ export function MusicPlayerSurface({
       data-music-player-surface={variant}
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden text-foreground",
-        compact ? "gap-2 bg-transparent p-2" : "gap-3 bg-background/80 p-3",
+        compact ? "gap-2 bg-transparent p-2" : "gap-3 bg-transparent p-3",
         className
       )}
     >
@@ -312,7 +313,7 @@ export function MusicPlayerSurface({
 
       <div className={cn(
         "min-h-0 flex-1 overflow-hidden",
-        compact ? "rounded-lg bg-transparent" : "rounded-xl bg-card/50"
+        compact ? "rounded-xl" : "rounded-2xl"
       )}>
         {activeTrack ? (
           <ThemedAudioPlayer
@@ -371,7 +372,13 @@ function MusicLibraryToolbar({
   onSubmit(event: FormEvent<HTMLFormElement>): void
 }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-3", compact ? "min-h-9" : "min-h-11")}>
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-3",
+        compact ? "min-h-9" : "min-h-11 rounded-xl border border-border/[0.45] bg-card/[0.18] px-2 py-1.5 backdrop-blur-2xl backdrop-saturate-150",
+        !compact && GLASS_SHADOW_CLASS
+      )}
+    >
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn(
           "flex shrink-0 items-center justify-center rounded-md bg-muted/55 text-primary",
@@ -454,8 +461,9 @@ function ThemedAudioPlayer({
       audio
       style={MEDIA_CHROME_STYLE}
       className={cn(
-        "flex h-full min-h-0 flex-col text-foreground",
-        compact ? "justify-center gap-2 px-1 py-1" : "gap-3 p-3"
+        "relative isolate flex h-full min-h-0 flex-col overflow-hidden border border-border/50 bg-card/[0.16] text-foreground backdrop-blur-2xl backdrop-saturate-150",
+        GLASS_SHADOW_CLASS,
+        compact ? "justify-center gap-2 rounded-xl px-2 py-2" : "gap-3 rounded-2xl p-3"
       )}
     >
       <audio
@@ -473,8 +481,10 @@ function ThemedAudioPlayer({
         <source src={activeTrack.src} type={activeTrack.type} />
       </audio>
 
+      <MusicAmbientLayer />
+
       <div className={cn(
-        "grid min-w-0 items-center gap-3",
+        "relative z-10 grid min-w-0 items-center gap-3",
         compact
           ? "grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(220px,0.95fr)_minmax(260px,1.35fr)_auto]"
           : "grid-cols-[minmax(230px,0.9fr)_minmax(280px,1.4fr)_auto]"
@@ -546,6 +556,17 @@ function ThemedAudioPlayer({
   )
 }
 
+function MusicAmbientLayer() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(145deg,hsl(var(--card)/0.22),transparent_54%,hsl(var(--muted)/0.14)),linear-gradient(90deg,hsl(var(--primary)/0.08),transparent_40%,hsl(var(--accent)/0.08))]" />
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(115deg,transparent_0,transparent_18px,hsl(var(--foreground)/0.018)_18px,hsl(var(--foreground)/0.018)_19px)] opacity-45 dark:opacity-30" />
+      <div className="absolute inset-0 bg-white/[0.03] backdrop-blur-[22px] backdrop-saturate-150 dark:bg-white/[0.02]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-white/55 dark:bg-white/12" />
+    </div>
+  )
+}
+
 function TrackIdentity({
   compact,
   isPlaying,
@@ -582,7 +603,10 @@ function TrackArtwork({ compact, track }: { compact: boolean; track: RuntimeTrac
   const sizeClass = compact ? "size-12" : "size-16"
 
   return (
-    <div className={cn("relative shrink-0 overflow-hidden rounded-lg bg-muted", sizeClass)}>
+    <div className={cn(
+      "relative shrink-0 overflow-hidden rounded-xl border border-white/35 bg-muted/60 shadow-[0_12px_32px_rgba(0,0,0,0.20)] dark:border-white/12 dark:shadow-[0_14px_36px_rgba(0,0,0,0.38)]",
+      sizeClass
+    )}>
       {track.img ? (
         <img src={track.img} alt={track.name} className="size-full object-cover" draggable={false} />
       ) : (
@@ -606,7 +630,7 @@ function TrackQueue({
   onSelectTrack(index: number, autoplay?: boolean): void
 }) {
   return (
-    <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background/45">
+    <div className="relative z-10 min-h-0 flex-1 overflow-hidden rounded-xl border border-border/[0.35] bg-background/[0.18] shadow-inner backdrop-blur-xl backdrop-saturate-150">
       <div className="flex h-8 items-center justify-between px-2">
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <ListMusic className="size-3.5" />
@@ -659,17 +683,21 @@ function EmptyLibrary({
 }) {
   if (compact) {
     return (
-      <div className="flex h-full min-h-[84px] items-center gap-3 p-2 text-left">
-        <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-muted/60">
+      <div className={cn(
+        "relative isolate flex h-full min-h-[84px] items-center gap-3 overflow-hidden rounded-xl border border-border/50 bg-card/[0.16] p-2 text-left backdrop-blur-2xl backdrop-saturate-150",
+        GLASS_SHADOW_CLASS
+      )}>
+        <MusicAmbientLayer />
+        <div className="relative z-10 grid size-12 shrink-0 place-items-center rounded-lg border border-border/40 bg-background/20 backdrop-blur-xl backdrop-saturate-150">
           <ListMusic className="size-5 text-primary" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="relative z-10 min-w-0 flex-1">
           <p className="truncate text-sm font-medium">载入本地音乐后开始播放</p>
           <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
             支持 FLAC、MP3、WAV、OGG、M4A 等常见格式。
           </p>
         </div>
-        <Button size="sm" disabled={loading} onClick={onLoad} className="hidden h-8 gap-1.5 sm:inline-flex">
+        <Button size="sm" disabled={loading} onClick={onLoad} className="relative z-10 hidden h-8 gap-1.5 sm:inline-flex">
           <Music2 data-icon="inline-start" />
           载入
         </Button>
@@ -678,34 +706,40 @@ function EmptyLibrary({
   }
 
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-4 p-4 text-center">
-      <div className="grid size-14 place-items-center rounded-full bg-muted/60">
-        <ListMusic className="text-primary" />
-      </div>
-      <div className="max-w-md">
-        <p className="text-sm font-medium">载入本地音乐文件或整个文件夹</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          音频文件由 Xiranite 后端文件服务提供 URL 与 Range 流。
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button size="sm" disabled={loading} onClick={onLoad} className="gap-1.5">
-          <Library data-icon="inline-start" />
-          载入路径
-        </Button>
-        <Button size="sm" variant="outline" disabled={loading} onClick={onUseDefaultPath} className="gap-1.5">
-          <Music2 data-icon="inline-start" />
-          焚蝶示例
-        </Button>
-      </div>
-      {savedTracks.length > 0 && (
-        <>
-          <Separator className="max-w-sm" />
-          <p className="max-w-sm text-[11px] text-muted-foreground">
-            已保存 {savedTracks.length} 首的路径元数据，后端服务可用时会自动恢复播放 URL。
+    <div className={cn(
+      "relative isolate flex h-full min-h-[180px] flex-col items-center justify-center overflow-hidden rounded-2xl border border-border/50 bg-card/[0.16] p-4 text-center backdrop-blur-2xl backdrop-saturate-150",
+      GLASS_SHADOW_CLASS
+    )}>
+      <MusicAmbientLayer />
+      <div className="relative z-10 flex max-w-md flex-col items-center gap-4">
+        <div className="grid size-14 place-items-center rounded-full border border-border/40 bg-background/20 shadow-inner backdrop-blur-xl backdrop-saturate-150">
+          <ListMusic className="text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-medium">载入本地音乐文件或整个文件夹</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            音频文件由 Xiranite 后端文件服务提供 URL 与 Range 流。
           </p>
-        </>
-      )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" disabled={loading} onClick={onLoad} className="gap-1.5">
+            <Library data-icon="inline-start" />
+            载入路径
+          </Button>
+          <Button size="sm" variant="outline" disabled={loading} onClick={onUseDefaultPath} className="gap-1.5">
+            <Music2 data-icon="inline-start" />
+            焚蝶示例
+          </Button>
+        </div>
+        {savedTracks.length > 0 && (
+          <>
+            <Separator className="max-w-sm" />
+            <p className="max-w-sm text-[11px] text-muted-foreground">
+              已保存 {savedTracks.length} 首的路径元数据，后端服务可用时会自动恢复播放 URL。
+            </p>
+          </>
+        )}
+      </div>
     </div>
   )
 }

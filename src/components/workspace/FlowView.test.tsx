@@ -1,18 +1,14 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { FlowView } from "./FlowView"
 import { XIRANITE_MODULE_MIME } from "@/lib/moduleDragDrop"
-import type { ComponentInstance } from "@/types/workspace"
 
 const setOverlayMock = vi.hoisted(() => vi.fn())
 const deployComponentMock = vi.hoisted(() => vi.fn())
-const visibleComponentsMock = vi.hoisted(() => vi.fn<() => ComponentInstance[]>(() => []))
 
 vi.mock("@/store/workspaceContext", () => ({
   useWorkspaceActions: () => ({ setOverlay: setOverlayMock, deployComponent: deployComponentMock }),
-  useWorkspaceVisibleComponents: visibleComponentsMock,
 }))
 
 vi.mock("./FlowCanvasView", () => ({
@@ -32,68 +28,25 @@ vi.mock("react-i18next", () => ({
   }),
 }))
 
-type IdleTestWindow = Window & {
-  requestIdleCallback?: unknown
-  cancelIdleCallback?: unknown
-}
-
-const idleWindow = window as IdleTestWindow
-const originalRequestIdleCallback = idleWindow.requestIdleCallback
-const originalCancelIdleCallback = idleWindow.cancelIdleCallback
-
-const flowComponent = {
-  id: "comp-flow-test",
-  moduleId: "scratch",
-  workspaceId: "ws-flow-test",
-  data: {},
-  state: "docked",
-  hiddenIn: { flow: false },
-  createdAt: 1_700_000_000_000,
-  updatedAt: 1_700_000_000_000,
-} as ComponentInstance
-
-beforeEach(() => {
-  visibleComponentsMock.mockReturnValue([])
-  Object.defineProperty(window, "requestIdleCallback", { configurable: true, value: undefined })
-  Object.defineProperty(window, "cancelIdleCallback", { configurable: true, value: undefined })
-})
-
 afterEach(() => {
   cleanup()
-  Object.defineProperty(window, "requestIdleCallback", { configurable: true, value: originalRequestIdleCallback })
-  Object.defineProperty(window, "cancelIdleCallback", { configurable: true, value: originalCancelIdleCallback })
   vi.clearAllMocks()
 })
 
 describe("FlowView", () => {
-  test("renders the empty state without loading the tldraw canvas", () => {
+  test("loads the tldraw canvas even when there are no flow components", async () => {
     render(<FlowView />)
-
-    expect(screen.getByText("// flow canvas is empty")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "OPEN MODULE REGISTRY" })).toBeTruthy()
-    expect(screen.queryByTestId("mock-flow-canvas")).toBeNull()
-  })
-
-  test("renders a lightweight shell before loading the flow canvas on idle", async () => {
-    visibleComponentsMock.mockReturnValue([flowComponent])
-
-    render(<FlowView />)
-
-    expect(screen.queryByTestId("mock-flow-canvas")).toBeNull()
-    expect(screen.getByRole("button", { name: "Open flow canvas" })).toBeTruthy()
 
     expect(await screen.findByTestId("mock-flow-canvas")).toBeTruthy()
+    expect(screen.queryByText("// flow canvas is empty")).toBeNull()
+    expect(screen.queryByRole("button", { name: "OPEN MODULE REGISTRY" })).toBeNull()
   })
 
-  test("loads the flow canvas immediately when the shell is activated", async () => {
-    const user = userEvent.setup()
-    visibleComponentsMock.mockReturnValue([flowComponent])
-
+  test("does not require the click-to-load shell before rendering the canvas", async () => {
     render(<FlowView />)
 
-    await user.click(screen.getByRole("button", { name: "Open flow canvas" }))
-
     expect(await screen.findByTestId("mock-flow-canvas")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Open flow canvas" })).toBeNull()
   })
 
   test("deploys a dropped module into the flow view near the pointer", () => {
