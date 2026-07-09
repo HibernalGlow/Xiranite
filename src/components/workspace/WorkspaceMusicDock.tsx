@@ -261,6 +261,99 @@ function MusicDockIsland() {
   )
 }
 
+function MusicIslandArtwork({
+  artworkUrl,
+  trackLabel,
+}: {
+  artworkUrl?: string
+  trackLabel: string
+}) {
+  return (
+    <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-white/[0.08] shadow-[0_6px_18px_rgba(0,0,0,0.28)]">
+      {artworkUrl ? (
+        <img src={artworkUrl} alt={trackLabel} className="size-full object-cover" draggable={false} />
+      ) : (
+        <Disc3 className="size-3.5 text-white/76" />
+      )}
+    </span>
+  )
+}
+
+function MusicIslandSpectrum({
+  audioRef,
+  isPlaying,
+  trackLabel,
+}: {
+  audioRef: RefObject<HTMLAudioElement | null>
+  isPlaying: boolean
+  trackLabel: string
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const hasAudio = Boolean(audioRef.current)
+
+  useEffect(() => {
+    if (!isPlaying || !audioRef.current) return
+    const frame = window.requestAnimationFrame(() => {
+      audioRef.current?.dispatchEvent(new Event("play"))
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [audioRef, isPlaying, trackLabel])
+
+  return (
+    <span className="relative grid h-6 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white/[0.08]">
+      {hasAudio ? (
+        <>
+          <Bar3
+            srcAudio={audioRef}
+            srcCanvas={canvasRef}
+            options={["rgba(255,255,255,0.96)", "rgba(125,211,252,0.82)"]}
+          />
+          <canvas
+            ref={canvasRef}
+            width={72}
+            height={32}
+            className={cn("h-full w-full", !isPlaying && "opacity-45")}
+            aria-hidden
+          />
+        </>
+      ) : (
+        <AudioLines className="size-4 text-white/62" aria-hidden />
+      )}
+    </span>
+  )
+}
+
+function MusicIslandAction({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active?: boolean
+  icon: ReactNode
+  label: string
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[11px] font-medium text-white/68 transition-colors hover:bg-white/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35",
+        active && "bg-white/[0.14] text-white",
+      )}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick()
+      }}
+      aria-pressed={active}
+      title={label}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+    </button>
+  )
+}
+
 export function WorkspaceMusicDockPanel() {
   const dock = useMusicDock()
   const dragControls = useDragControls()
