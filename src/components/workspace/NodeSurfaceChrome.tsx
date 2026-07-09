@@ -94,8 +94,8 @@ export function NodeSurfaceChrome({
   // 位置设置主要作用于展开态的浮动操作栏。
   if (collapsed) {
     return (
-      <div className="xiranite-ui-copy flex h-full min-h-10 select-none items-center gap-2 px-3">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />
+      <div className="xiranite-ui-copy xiranite-node-chrome-bar flex h-full min-h-10 select-none items-center gap-2 border-b border-transparent px-3">
+        <span className="xiranite-node-chrome-dot h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />
         {dragHandle}
         <span className="min-w-0 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-foreground/80">
           {moduleName}
@@ -150,7 +150,7 @@ export function NodeSurfaceChrome({
         "opacity-80 group-focus-within:opacity-100 group-hover:opacity-100",
       )}>
         {dragHandle && (
-          <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
+          <span className="xiranite-node-drag-handle xiranite-node-chrome-pill grid h-6 w-6 place-items-center rounded-[3px] border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
             {dragHandle}
           </span>
         )}
@@ -171,7 +171,7 @@ export function NodeSurfaceChrome({
       "xiranite-ui-copy pointer-events-none absolute top-2 z-20 flex items-center opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100",
       positionClass,
     )}>
-      <div className="pointer-events-none flex items-center gap-0.5 rounded-[4px] bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
+      <div className="xiranite-node-chrome-pill pointer-events-none flex items-center gap-0.5 rounded-[4px] border border-transparent bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
         {dragHandle && (
           <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
             {dragHandle}
@@ -268,7 +268,7 @@ function DynamicIslandChrome({
           className={cn(
             "text-foreground transition-[background-color,border-color,box-shadow,backdrop-filter] duration-200",
             expanded
-              ? "border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
+              ? "xiranite-node-chrome-pill border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
               : "border border-transparent bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
           )}
         >
@@ -350,7 +350,7 @@ function DynamicIslandChromeContent({
               transition={{ duration: 0.14 / motionRatio, delay: expanded ? 0 : Math.min(0.12, revealDelay / 1000), ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center justify-center gap-0.5"
             >
-              <span className="h-1 w-3 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
+              <span className="xiranite-node-chrome-dot h-1 w-3 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
               <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
             </motion.div>
           )}

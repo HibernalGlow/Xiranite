@@ -9,14 +9,22 @@ import type {
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { getNodeConfigFromBackend, openConfigFileWithBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
+import {
+  getNodeConfigFromBackend,
+  getNodeUiConfigFromBackend,
+  openConfigFileWithBackend,
+  saveNodeConfigToBackend,
+  saveNodeUiConfigToBackend,
+} from "@/backend/configRpcClient"
 import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { useTheme } from "@/components/theme-provider"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceContext"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
+type ComponentVisibilityMode = Exclude<ViewMode, "dashboard">
+
 const componentStates = new Set<ComponentState>(["docked", "floating", "focused", "fullscreen", "compact"])
-const viewModes = new Set<ViewMode>(["cards", "dockview", "flow", "lane", "bento"])
+const viewModes = new Set<ComponentVisibilityMode>(["cards", "dockview", "flow", "lane", "bento"])
 
 const injectedCapabilities: readonly NodeCapabilityId[] = [
   "contract",
@@ -74,8 +82,8 @@ export function useNodeHostApi(
         const nextHiddenIn: Partial<Record<ViewMode, boolean>> = {}
         if (patch.hiddenIn) {
           for (const [mode, hidden] of Object.entries(patch.hiddenIn)) {
-            if (viewModes.has(mode as ViewMode)) {
-              nextHiddenIn[mode as ViewMode] = hidden
+            if (isComponentVisibilityMode(mode)) {
+              nextHiddenIn[mode] = hidden
             }
           }
         }
@@ -136,6 +144,14 @@ export function useNodeHostApi(
         if (!nodeId) throw new Error("Node ID is required for config.save")
         await saveNodeConfigToBackend<T>(nodeId, config)
       },
+      getUi: async <T,>() => {
+        if (!nodeId) throw new Error("Node ID is required for config.getUi")
+        return getNodeUiConfigFromBackend<T>(nodeId)
+      },
+      saveUi: async <T,>(config: T) => {
+        if (!nodeId) throw new Error("Node ID is required for config.saveUi")
+        await saveNodeUiConfigToBackend<T>(nodeId, config)
+      },
       openFile: async () => {
         await openConfigFileWithBackend()
       },
@@ -175,9 +191,15 @@ export function useNodeHostApi(
       downloadText: (filename: string, content: string) => downloadsCapability.text(filename, content),
       getNodeConfig: async <T,>() => configCapability.get<T>(),
       saveNodeConfig: async <T,>(config: T) => configCapability.save<T>(config),
+      getNodeUiConfig: async <T,>() => configCapability.getUi<T>(),
+      saveNodeUiConfig: async <T,>(config: T) => configCapability.saveUi<T>(config),
       openConfigFile: () => configCapability.openFile(),
     } satisfies NodeHostApi
   }, [hostTheme, workspaceActions, compId, nodeId, schemas])
+}
+
+function isComponentVisibilityMode(mode: string): mode is ComponentVisibilityMode {
+  return viewModes.has(mode as ComponentVisibilityMode)
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {

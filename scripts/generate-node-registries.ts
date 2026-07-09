@@ -129,7 +129,7 @@ function generatePackageModuleRegistry(nodes: NodePackage[]): string {
     .map((node) => `  ${objectKey(node.id)}: () => import(${stringLiteral(`${node.packageName}/help`)}) as Promise<{ help: NodeHelp }>,`)
     .join("\n")
 
-  return `${header}import type { AppNodeEntry, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
+  return `${header}import type { AppNodeEntry, HeadlessNodePackage, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
 ${modules}
@@ -137,7 +137,7 @@ ${modules}
 
 export const packageModuleLoaders = {
 ${loaders}
-} satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry }>>>
+} satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry | HeadlessNodePackage }>>>
 
 export const nodeHelpLoaders = {
 ${helpLoaders}

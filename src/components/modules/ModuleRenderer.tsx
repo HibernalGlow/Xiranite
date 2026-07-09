@@ -3,6 +3,7 @@ import type { ComponentType } from "react"
 import { useTranslation } from "react-i18next"
 import type {
   AppNodeEntry,
+  HeadlessNodePackage,
   NodeCapabilityId,
   NodeComponentProps,
   NodeContractCapability,
@@ -14,6 +15,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
 import { packageModuleLoaders } from "./packageModules.generated"
+
+type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
+type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
+
+const packageNodeLoaders = packageModuleLoaders as Readonly<Record<string, PackageModuleLoader>>
 
 const modules: Record<string, ReturnType<typeof lazy>> = {
   scratch:      lazy(() => import("./ScratchModule")),
@@ -39,7 +45,7 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
   "use memo"
   const { t } = useTranslation()
 
-  if (packageModuleLoaders[moduleId]) {
+  if (packageNodeLoaders[moduleId]) {
     return <PackageNodeRenderer moduleId={moduleId} compId={compId} />
   }
 
@@ -67,12 +73,12 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
  * the node component wrapped in {@link NodeRenderBoundary}.
  */
 function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
-  const [entry, setEntry] = useState<AppNodeEntry | null | undefined>(undefined)
-  const host = useNodeHostApi(compId, moduleId, entry?.schemas)
+  const [entry, setEntry] = useState<PackageModuleEntry | null | undefined>(undefined)
+  const host = useNodeHostApi(compId, moduleId, entry && isRenderableNodeEntry(entry) ? entry.schemas : undefined)
 
   useEffect(() => {
     let cancelled = false
-    const loader = packageModuleLoaders[moduleId]
+    const loader = packageNodeLoaders[moduleId]
     if (!loader) {
       setEntry(null)
       return
@@ -101,6 +107,10 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     )
   }
 
+  if (!isRenderableNodeEntry(entry)) {
+    return <HeadlessNodeFallback moduleId={moduleId} entry={entry} />
+  }
+
   const diagnostic = diagnoseHostRequirements(entry.host, host.contract)
   if (diagnostic) {
     return <DiagnosticFallback moduleId={moduleId} diagnostic={diagnostic} />
@@ -114,6 +124,10 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       </NodeRenderBoundary>
     </div>
   )
+}
+
+function isRenderableNodeEntry(entry: PackageModuleEntry): entry is AppNodeEntry {
+  return typeof (entry as Partial<AppNodeEntry>).Component === "function"
 }
 
 type HostDiagnostic =
@@ -171,6 +185,26 @@ function DiagnosticFallback({
           {diagnostic.kind === "version"
             ? `Contract version mismatch: node requires ${diagnostic.range}, host provides ${diagnostic.version}.`
             : `Missing host capabilities: ${diagnostic.missing.join(", ")}.`}
+        </AlertDescription>
+      </Alert>
+    </div>
+  )
+}
+
+function HeadlessNodeFallback({
+  moduleId,
+  entry,
+}: {
+  moduleId: string
+  entry: HeadlessNodePackage
+}) {
+  return (
+    <div className="p-4">
+      <Alert>
+        <AlertTriangle />
+        <AlertTitle>Node &quot;{entry.def?.id ?? moduleId}&quot; has no UI component</AlertTitle>
+        <AlertDescription>
+          This package is available for runtime and CLI execution, but it does not export a React component for workspace rendering.
         </AlertDescription>
       </Alert>
     </div>

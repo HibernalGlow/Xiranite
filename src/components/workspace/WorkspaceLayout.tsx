@@ -13,6 +13,7 @@ const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ def
 const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: module.FlowView })))
 const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
 const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
+const UsageDashboard = lazy(() => import("@/components/views/UsageDashboard").then((module) => ({ default: module.UsageDashboard })))
 
 export function WorkspaceLayout() {
   useDefaultContextMenuItems()
@@ -52,6 +53,7 @@ export function WorkspaceLayout() {
             className="flex min-h-0 min-w-0 flex-1 animate-in fade-in duration-150"
           >
             <Suspense fallback={<div className="min-h-0 flex-1 ws-canvas-bg" />}>
+              {chrome.viewMode === "dashboard" && <UsageDashboard />}
               {chrome.viewMode === "cards" && <CardView />}
               {chrome.viewMode === "dockview" && <DockviewView />}
               {chrome.viewMode === "flow" && <FlowView />}

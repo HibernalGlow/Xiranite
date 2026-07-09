@@ -28,6 +28,17 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
   return { baseUrl, token }
 }
 
+export function setLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {
+  if (typeof window === "undefined") return undefined
+  const normalizedConfig = normalizeLocalBackendConfig(config)
+  if (!normalizedConfig) {
+    delete window.__XIRANITE_BACKEND__
+    return undefined
+  }
+  window.__XIRANITE_BACKEND__ = normalizedConfig
+  return normalizedConfig
+}
+
 export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined") return undefined
 

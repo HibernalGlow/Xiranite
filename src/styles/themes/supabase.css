@@ -1,0 +1,261 @@
+/*
+  Supabase Postgres theme pack.
+  Source reviewed in browser: supabase.com, supabase.com/docs,
+  and github.com/supabase/supabase.
+  Visual takeaways: open-source Postgres platform, near-white docs canvas,
+  graphite chrome, mint CTAs, SQL editor chips, and database table surfaces.
+*/
+
+.theme-supabase {
+  color-scheme: light;
+  --radius: 0.5rem;
+  --supa-canvas: oklch(0.985 0.004 34);
+  --supa-page: oklch(0.965 0.004 34);
+  --supa-panel: oklch(0.998 0.001 34);
+  --supa-ink: oklch(0.14 0.012 34);
+  --supa-muted-ink: oklch(0.50 0.010 34);
+  --supa-line: oklch(0.86 0.006 34);
+  --supa-mint: oklch(0.76 0.16 160);
+  --supa-mint-strong: oklch(0.63 0.17 160);
+  --supa-graphite: oklch(0.22 0.018 170);
+  --supa-sql: oklch(0.18 0.015 170);
+  --supa-wash: oklch(0.94 0.035 160);
+  --supa-shadow: 0 14px 36px oklch(0.18 0.03 170 / 0.13);
+  --supa-glow: 0 0 28px oklch(0.76 0.16 160 / 0.22);
+  --supa-motion-duration: 190ms;
+  --supa-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --background: var(--supa-page);
+  --foreground: var(--supa-ink);
+  --card: var(--supa-panel);
+  --card-foreground: var(--supa-ink);
+  --popover: var(--supa-panel);
+  --popover-foreground: var(--supa-ink);
+  --primary: var(--supa-mint);
+  --primary-foreground: oklch(0.12 0.012 170);
+  --secondary: var(--supa-wash);
+  --secondary-foreground: var(--supa-graphite);
+  --muted: oklch(0.94 0.004 34);
+  --muted-foreground: var(--supa-muted-ink);
+  --accent: var(--supa-mint-strong);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.60 0.20 28);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--supa-line);
+  --input: oklch(0.88 0.006 34);
+  --ring: var(--supa-mint-strong);
+
+  --chart-1: var(--supa-mint);
+  --chart-2: oklch(0.62 0.12 210);
+  --chart-3: oklch(0.68 0.11 92);
+  --chart-4: oklch(0.58 0.11 290);
+  --chart-5: oklch(0.55 0.12 28);
+
+  --sidebar: oklch(0.98 0.002 34);
+  --sidebar-foreground: var(--supa-ink);
+  --sidebar-primary: var(--supa-mint);
+  --sidebar-primary-foreground: oklch(0.12 0.012 170);
+  --sidebar-accent: var(--supa-wash);
+  --sidebar-accent-foreground: var(--supa-graphite);
+  --sidebar-border: var(--supa-line);
+  --sidebar-ring: var(--supa-mint);
+
+  --ws-grid-color: oklch(0.63 0.17 160 / 0.09);
+  --ws-canvas: var(--supa-canvas);
+  --ws-accent-glow: oklch(0.76 0.16 160 / 0.18);
+  --ws-focused-overlay: oklch(0.10 0.012 170 / 0.18);
+}
+
+.theme-supabase.dark,
+.dark .theme-supabase {
+  color-scheme: dark;
+  --supa-canvas: oklch(0.12 0.014 170);
+  --supa-page: oklch(0.09 0.012 170);
+  --supa-panel: oklch(0.15 0.016 170);
+  --supa-ink: oklch(0.94 0.006 160);
+  --supa-muted-ink: oklch(0.68 0.012 160);
+  --supa-line: oklch(0.30 0.018 170);
+  --supa-mint: oklch(0.75 0.15 160);
+  --supa-mint-strong: oklch(0.68 0.17 160);
+  --supa-graphite: oklch(0.24 0.020 170);
+  --supa-sql: oklch(0.08 0.012 170);
+  --supa-wash: oklch(0.20 0.038 160);
+  --supa-shadow: 0 18px 46px oklch(0 0 0 / 0.36);
+  --supa-glow: 0 0 30px oklch(0.75 0.15 160 / 0.24);
+
+  --background: var(--supa-page);
+  --foreground: var(--supa-ink);
+  --card: var(--supa-panel);
+  --card-foreground: var(--supa-ink);
+  --popover: oklch(0.13 0.014 170);
+  --popover-foreground: var(--supa-ink);
+  --primary: var(--supa-mint);
+  --primary-foreground: oklch(0.08 0.012 170);
+  --secondary: var(--supa-wash);
+  --secondary-foreground: var(--supa-ink);
+  --muted: oklch(0.20 0.014 170);
+  --muted-foreground: var(--supa-muted-ink);
+  --accent: var(--supa-mint-strong);
+  --accent-foreground: oklch(0.08 0.012 170);
+  --border: var(--supa-line);
+  --input: oklch(0.25 0.016 170);
+  --ring: var(--supa-mint);
+  --sidebar: oklch(0.11 0.014 170);
+  --sidebar-foreground: var(--supa-ink);
+  --sidebar-primary: var(--supa-mint);
+  --sidebar-primary-foreground: oklch(0.08 0.012 170);
+  --sidebar-accent: var(--supa-wash);
+  --sidebar-accent-foreground: var(--supa-ink);
+  --sidebar-border: var(--supa-line);
+  --sidebar-ring: var(--supa-mint);
+  --ws-grid-color: oklch(0.75 0.15 160 / 0.10);
+  --ws-canvas: var(--supa-canvas);
+  --ws-accent-glow: oklch(0.75 0.15 160 / 0.20);
+  --ws-focused-overlay: oklch(0.04 0.010 170 / 0.76);
+}
+
+.theme-supabase .ws-canvas-bg {
+  background:
+    radial-gradient(circle at 12% 10%, color-mix(in oklch, var(--supa-mint) 18%, transparent), transparent 26rem),
+    radial-gradient(circle at 78% 18%, color-mix(in oklch, var(--supa-graphite) 12%, transparent), transparent 28rem),
+    linear-gradient(var(--ws-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ws-grid-color) 1px, transparent 1px),
+    var(--ws-canvas);
+  background-size: auto, auto, 28px 28px, 28px 28px, auto;
+}
+
+.theme-supabase .comp-card--animated {
+  border: 1px solid color-mix(in oklch, var(--border) 72%, var(--supa-mint));
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 94%, var(--supa-wash)), var(--card));
+  box-shadow: 0 1px 0 color-mix(in oklch, white 56%, transparent) inset, var(--supa-shadow);
+  transition:
+    transform var(--supa-motion-duration) var(--supa-motion-ease),
+    border-color var(--supa-motion-duration) linear,
+    box-shadow var(--supa-motion-duration) var(--supa-motion-ease);
+}
+
+.theme-supabase .comp-card--animated:hover,
+.theme-supabase .comp-card--focused,
+.theme-supabase .comp-card--fullscreen {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--supa-mint) 58%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--supa-mint) 14%, transparent), var(--supa-shadow), var(--supa-glow);
+}
+
+.theme-supabase .xiranite-node-surface {
+  color: var(--foreground);
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--supa-mint) 90%, white) 0 0.25rem, transparent 0.25rem),
+    repeating-linear-gradient(180deg, transparent 0 2.5rem, color-mix(in oklch, var(--border) 58%, transparent) 2.5rem calc(2.5rem + 1px)),
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 95%, var(--supa-wash)), var(--card));
+}
+
+.theme-supabase .xiranite-node-surface h1,
+.theme-supabase .xiranite-node-surface h2,
+.theme-supabase .xiranite-node-surface h3,
+.theme-supabase .xiranite-node-surface [data-slot="card-title"] {
+  color: var(--foreground);
+  font-family: var(--font-app-sans);
+  font-weight: 780;
+  letter-spacing: 0;
+}
+
+.theme-supabase .xiranite-node-surface section,
+.theme-supabase .xiranite-node-surface article,
+.theme-supabase .xiranite-node-surface [data-slot="card"],
+.theme-supabase .xiranite-node-surface [data-slot="table-container"] {
+  background-color: color-mix(in oklch, var(--card) 96%, var(--supa-wash));
+  border-color: color-mix(in oklch, var(--border) 72%, var(--supa-mint));
+}
+
+.theme-supabase .xiranite-node-surface button,
+.theme-supabase .xiranite-node-surface [role="button"],
+.theme-supabase .xiranite-node-surface input,
+.theme-supabase .xiranite-node-surface textarea,
+.theme-supabase .xiranite-node-surface select,
+.theme-supabase .xiranite-node-surface [contenteditable="true"] {
+  border: 1px solid color-mix(in oklch, var(--border) 72%, var(--supa-mint));
+  border-radius: 7px;
+}
+
+.theme-supabase .xiranite-node-surface button,
+.theme-supabase .xiranite-node-surface [role="button"] {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 0 color-mix(in oklch, white 32%, transparent) inset, 0 8px 18px color-mix(in oklch, var(--supa-mint) 18%, transparent);
+  font-weight: 750;
+}
+
+.theme-supabase .xiranite-node-surface button:hover,
+.theme-supabase .xiranite-node-surface [role="button"]:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--supa-mint) 18%, transparent);
+  transform: translateY(-1px);
+}
+
+.theme-supabase .xiranite-node-surface input,
+.theme-supabase .xiranite-node-surface textarea,
+.theme-supabase .xiranite-node-surface select,
+.theme-supabase .xiranite-node-surface [contenteditable="true"] {
+  background-color: color-mix(in oklch, var(--card) 88%, var(--supa-canvas));
+  color: var(--foreground);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+}
+
+.theme-supabase .xiranite-node-surface textarea,
+.theme-supabase .xiranite-node-surface [contenteditable="true"] {
+  border-radius: 9px;
+}
+
+.theme-supabase [data-slot="badge"] {
+  border: 1px solid color-mix(in oklch, var(--supa-mint) 46%, var(--border));
+  border-radius: 999px;
+  background-color: color-mix(in oklch, var(--supa-mint) 14%, var(--card));
+  color: var(--supa-mint-strong);
+  font-family: var(--font-app-mono);
+  font-weight: 760;
+}
+
+.theme-supabase [data-slot="progress"] {
+  height: 0.45rem;
+  border: 1px solid color-mix(in oklch, var(--supa-mint) 34%, var(--border));
+  border-radius: 999px;
+  background-color: color-mix(in oklch, var(--supa-sql) 8%, var(--card));
+  overflow: hidden;
+}
+
+.theme-supabase [data-slot="progress-indicator"] {
+  background:
+    repeating-linear-gradient(90deg, var(--supa-mint) 0 14px, color-mix(in oklch, var(--supa-mint) 78%, var(--supa-graphite)) 14px 20px);
+  box-shadow: 0 0 16px color-mix(in oklch, var(--supa-mint) 24%, transparent);
+}
+
+.theme-supabase .xiranite-node-surface table {
+  border-color: color-mix(in oklch, var(--border) 72%, var(--supa-mint));
+}
+
+.theme-supabase .xiranite-node-surface th,
+.theme-supabase .xiranite-node-surface [data-slot="table-head"] {
+  color: var(--supa-mint-strong);
+  font-family: var(--font-app-mono);
+  font-weight: 760;
+}
+
+.theme-supabase .xiranite-node-surface code,
+.theme-supabase .xiranite-node-surface pre {
+  border: 1px solid color-mix(in oklch, var(--supa-mint) 28%, var(--border));
+  border-radius: 8px;
+  background-color: color-mix(in oklch, var(--supa-sql) 12%, var(--card));
+  color: var(--foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-supabase .comp-card--animated,
+  .theme-supabase .xiranite-node-surface button,
+  .theme-supabase .xiranite-node-surface [role="button"] {
+    transition: none;
+  }
+}

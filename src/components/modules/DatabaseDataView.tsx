@@ -49,7 +49,9 @@ import { Eye, EyeOff, Tag, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 
-const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
+type ComponentVisibilityMode = Exclude<ViewMode, "dashboard">
+
+const VIEW_MODES: ComponentVisibilityMode[] = ["cards", "dockview", "flow", "lane", "bento"]
 
 // 从 comp-${counter}-${timestamp} 解析部署时间戳
 function parseCreatedAt(id: string): number {
@@ -80,7 +82,7 @@ interface DatabaseRow {
   category: string
   state: string
   visibilityCount: number
-  visibilityIn: Record<ViewMode, boolean>
+  visibilityIn: Record<ComponentVisibilityMode, boolean>
   tags: string[]
   createdAt: number
   dataKeys: number
@@ -119,7 +121,7 @@ function toDatabaseRow(comp: ComponentInstance): DatabaseRow {
     visibilityCount: VIEW_MODES.filter(m => isComponentVisibleInView(comp, m)).length,
     visibilityIn: Object.fromEntries(
       VIEW_MODES.map(m => [m, isComponentVisibleInView(comp, m)])
-    ) as Record<ViewMode, boolean>,
+    ) as Record<ComponentVisibilityMode, boolean>,
     tags: comp.tags ?? [],
     createdAt: parseCreatedAt(comp.id),
     dataKeys: comp.data ? Object.keys(comp.data).length : 0,

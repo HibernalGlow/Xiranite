@@ -35,3 +35,4 @@ ref/*
 repacku-direct*/*
 .turbo/
 tmp/*
+output/playwright/*

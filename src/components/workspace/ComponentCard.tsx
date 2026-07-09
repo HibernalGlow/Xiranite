@@ -148,7 +148,7 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
         pointerEvents: layout.interactive ? "auto" : "none",
       }}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent",
+        "xiranite-component-surface group relative flex flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent",
         !isLayoutResizing && "comp-card--animated backdrop-blur-md transition-[transform,width,height,opacity,background-color,box-shadow,outline-color] duration-200 ease-out",
         isFullscreen && "comp-card--fullscreen",
         (isFocusedState || isFullscreen)

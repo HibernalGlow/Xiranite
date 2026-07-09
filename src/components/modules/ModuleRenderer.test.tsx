@@ -71,6 +71,19 @@ vi.mock("./packageModules.generated", () => ({
         },
       } as AppNodeEntry,
     }),
+    "headless-node": () => Promise.resolve({
+      default: {
+        def: {
+          id: "headless-node",
+          name: "Headless",
+          version: "0.1.0",
+          category: "other",
+          description: "headless",
+          icon: "Box",
+        },
+        core: {},
+      },
+    }),
   },
 }))
 
@@ -123,5 +136,10 @@ describe("ModuleRenderer package node rendering", () => {
     expect(await screen.findByText(/Node "test-node" failed to render/)).toBeTruthy()
     expect(screen.getByText("child exploded")).toBeTruthy()
     spy.mockRestore()
+  })
+
+  test("renders a diagnostic for headless package nodes instead of mounting an undefined component", async () => {
+    render(<ModuleRenderer moduleId="headless-node" compId="c1" />)
+    expect(await screen.findByText(/Node "headless-node" has no UI component/)).toBeTruthy()
   })
 })

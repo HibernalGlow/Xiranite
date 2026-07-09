@@ -1,7 +1,34 @@
 import { startBackend } from "../packages/backend/src/index"
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 
-const backend = await startBackend()
+type DevBackend = Awaited<ReturnType<typeof startBackend>>
+
+let backend: DevBackend | null = null
+
+async function startManagedBackend(): Promise<DevBackend> {
+  return await startBackend({
+    system: {
+      restartBackend: restartBackendFromDevScript,
+    },
+  })
+}
+
+async function restartBackendFromDevScript() {
+  const previous = backend
+  const next = await startManagedBackend()
+  backend = next
+  await writeBackendDevManifest({ baseUrl: next.url, token: next.token })
+  console.log(`[xiranite-backend:restart] ${next.url}`)
+  if (previous) setTimeout(() => previous.close(), 250)
+  return {
+    restarted: true,
+    supported: true,
+    message: "Local backend restarted by the dev supervisor.",
+    config: { baseUrl: next.url, token: next.token },
+  }
+}
+
+backend = await startManagedBackend()
 await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
 const args = process.argv.slice(2)
 const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
@@ -37,16 +64,16 @@ let stopping = false
 function stop() {
   if (stopping) return
   stopping = true
-  backend.close()
+  backend?.close()
   vite.kill()
   void removeBackendDevManifest()
 }
 
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)
-process.on("exit", () => backend.close())
+process.on("exit", () => backend?.close())
 
 const exitCode = await vite.exited
-backend.close()
+backend?.close()
 await removeBackendDevManifest()
 process.exit(exitCode ?? 0)

@@ -99,7 +99,7 @@ export function LaneCard({ compId, moduleId }: Props) {
       data-component-id={compId}
       style={{ height: laneHeight }}
       className={[
-        "group relative flex min-h-[220px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
+        "xiranite-component-surface group relative flex min-h-[220px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
       ].join(" ")}
     >
       <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleName={moduleName} version={mod?.version} />

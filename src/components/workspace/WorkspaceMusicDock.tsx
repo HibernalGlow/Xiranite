@@ -37,6 +37,7 @@ const MUSIC_DOCK_MODE_STORAGE_KEY = "xiranite.musicDock.mode"
 const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
 const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
 const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
+const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
 const MusicDockContext = createContext<MusicDockContextValue | null>(null)
 
 export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }) {
@@ -61,6 +62,24 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
   useEffect(() => {
     writeFloatingOffset(floatingOffset)
   }, [floatingOffset])
+
+  useEffect(() => {
+    const refreshMusicDockConfig = () => {
+      setMode(readDockMode())
+      setSavedTracks((current) => {
+        const next = readSavedTracks()
+        return areSavedTracksEqual(current, next) ? current : next
+      })
+      setSourcePath(readSourcePath())
+      setFloatingOffset((current) => {
+        const next = readFloatingOffset()
+        return areFloatingOffsetsEqual(current, next) ? current : next
+      })
+    }
+
+    window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshMusicDockConfig)
+    return () => window.removeEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshMusicDockConfig)
+  }, [])
 
   return (
     <MusicDockContext.Provider
@@ -241,6 +260,7 @@ function readDockMode(): DockMode {
 function writeDockMode(mode: DockMode) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(MUSIC_DOCK_MODE_STORAGE_KEY, mode)
+  dispatchLegacyConfigChanged()
 }
 
 function readSavedTracks(): PersistedTrack[] {
@@ -260,6 +280,7 @@ function readSavedTracks(): PersistedTrack[] {
 function writeSavedTracks(tracks: PersistedTrack[]) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(MUSIC_DOCK_TRACKS_STORAGE_KEY, JSON.stringify(tracks))
+  dispatchLegacyConfigChanged()
 }
 
 function readSourcePath(): string {
@@ -271,6 +292,7 @@ function writeSourcePath(path: string) {
   if (typeof window === "undefined") return
   if (path) window.localStorage.setItem(MUSIC_DOCK_SOURCE_STORAGE_KEY, path)
   else window.localStorage.removeItem(MUSIC_DOCK_SOURCE_STORAGE_KEY)
+  dispatchLegacyConfigChanged()
 }
 
 function readFloatingOffset(): FloatingOffset {
@@ -294,6 +316,7 @@ function readFloatingOffset(): FloatingOffset {
 function writeFloatingOffset(offset: FloatingOffset) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY, JSON.stringify(offset))
+  dispatchLegacyConfigChanged()
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -304,4 +327,18 @@ function isPersistedTrack(value: unknown): value is PersistedTrack {
   if (!value || typeof value !== "object") return false
   const track = value as PersistedTrack
   return typeof track.name === "string" && (track.path === undefined || typeof track.path === "string")
+}
+
+function areSavedTracksEqual(left: PersistedTrack[], right: PersistedTrack[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every((track, index) => track.name === right[index]?.name && track.path === right[index]?.path)
+}
+
+function areFloatingOffsetsEqual(left: FloatingOffset, right: FloatingOffset): boolean {
+  return left.x === right.x && left.y === right.y
+}
+
+function dispatchLegacyConfigChanged() {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(LEGACY_CONFIG_CHANGED_EVENT))
 }

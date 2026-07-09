@@ -19,8 +19,10 @@ import (
 
 type XiraniteService struct {
 	storageMu     sync.Mutex
+	backendMu     sync.Mutex
 	userDataDir   string
 	storageFile   string
+	localBackend  *LocalBackend
 	backendConfig *LocalBackendConfig
 }
 
@@ -84,22 +86,108 @@ type OpenComponentWindowInput struct {
 	Height      int    `json:"height"`
 }
 
-func NewXiraniteService(backendConfig *LocalBackendConfig) *XiraniteService {
+type LocalBackendRestartResult struct {
+	Restarted bool                `json:"restarted"`
+	Supported bool                `json:"supported"`
+	Message   string              `json:"message"`
+	Config    *LocalBackendConfig `json:"config,omitempty"`
+}
+
+func NewXiraniteService(localBackend *LocalBackend, backendConfig *LocalBackendConfig) *XiraniteService {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		home = "."
+	}
+	if backendConfig == nil {
+		backendConfig = &LocalBackendConfig{}
 	}
 
 	userDataDir := filepath.Join(home, ".xiranite")
 	return &XiraniteService{
 		userDataDir:   userDataDir,
 		storageFile:   filepath.Join(userDataDir, "storage.json"),
+		localBackend:  localBackend,
 		backendConfig: backendConfig,
 	}
 }
 
 func (s *XiraniteService) LocalBackendConfig() *LocalBackendConfig {
-	return s.backendConfig
+	s.backendMu.Lock()
+	defer s.backendMu.Unlock()
+
+	if s.backendConfig == nil || s.backendConfig.BaseURL == "" {
+		return nil
+	}
+	config := *s.backendConfig
+	return &config
+}
+
+func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, error) {
+	s.backendMu.Lock()
+	current := s.localBackend
+	if current == nil {
+		s.backendMu.Unlock()
+		return LocalBackendRestartResult{
+			Restarted: false,
+			Supported: false,
+			Message:   "Local backend is not owned by the desktop shell.",
+		}, nil
+	}
+	if current.external {
+		s.backendMu.Unlock()
+		return LocalBackendRestartResult{
+			Restarted: false,
+			Supported: false,
+			Message:   "The current local backend is externally managed.",
+		}, nil
+	}
+	s.backendMu.Unlock()
+
+	next, err := StartLocalBackend()
+	if err != nil {
+		return LocalBackendRestartResult{}, err
+	}
+	if next == nil || next.external {
+		if next != nil {
+			next.Stop()
+		}
+		return LocalBackendRestartResult{
+			Restarted: false,
+			Supported: false,
+			Message:   "Local backend restart is not supported in the current runtime mode.",
+		}, nil
+	}
+
+	s.backendMu.Lock()
+	previous := s.localBackend
+	s.localBackend = next
+	*s.backendConfig = next.Config
+	config := next.Config
+	s.backendMu.Unlock()
+
+	if previous != nil {
+		previous.Stop()
+	}
+	return LocalBackendRestartResult{
+		Restarted: true,
+		Supported: true,
+		Message:   "Local backend restarted by the desktop shell.",
+		Config:    &config,
+	}, nil
+}
+
+func (s *XiraniteService) StopLocalBackend() {
+	s.backendMu.Lock()
+	backend := s.localBackend
+	s.localBackend = nil
+	if s.backendConfig != nil {
+		*s.backendConfig = LocalBackendConfig{}
+	}
+	s.backendMu.Unlock()
+
+	if backend != nil {
+		backend.Stop()
+	}
 }
 
 func (s *XiraniteService) StorageGet(key string) (*string, error) {

@@ -1028,6 +1028,11 @@ export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: Theme
   if (!customTheme) {
     root.removeAttribute("data-custom-theme")
     root.removeAttribute("data-custom-theme-name")
+    root.removeAttribute("data-theme-visual-source")
+    const appTheme = root.dataset.appTheme as AppTheme | undefined
+    if (appTheme && THEME_ROOT_CLASSES[appTheme]) {
+      root.classList.add(THEME_ROOT_CLASSES[appTheme])
+    }
     return
   }
 
@@ -1045,7 +1050,9 @@ export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: Theme
   const derivedCssVars = deriveCustomThemeVars(normalizedCssVars)
 
   root.setAttribute("data-custom-theme", "enabled")
+  root.setAttribute("data-theme-visual-source", "custom")
   root.dataset.customThemeName = customTheme.name
+  root.classList.remove(...Object.values(THEME_ROOT_CLASSES))
   for (const [cssVarName, value] of Object.entries({
     ...normalizedCssVars,
     ...derivedCssVars,

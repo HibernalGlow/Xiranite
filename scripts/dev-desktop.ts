@@ -6,7 +6,34 @@ const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.en
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 
-const backend = await startBackend()
+type DevBackend = Awaited<ReturnType<typeof startBackend>>
+
+let backend: DevBackend | null = null
+
+async function startManagedBackend(): Promise<DevBackend> {
+  return await startBackend({
+    system: {
+      restartBackend: restartBackendFromDevScript,
+    },
+  })
+}
+
+async function restartBackendFromDevScript() {
+  const previous = backend
+  const next = await startManagedBackend()
+  backend = next
+  await writeBackendDevManifest({ baseUrl: next.url, token: next.token })
+  console.log(`[xiranite-backend:restart] ${next.url}`)
+  if (previous) setTimeout(() => previous.close(), 250)
+  return {
+    restarted: true,
+    supported: true,
+    message: "Local backend restarted by the desktop dev supervisor.",
+    config: { baseUrl: next.url, token: next.token },
+  }
+}
+
+backend = await startManagedBackend()
 await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
@@ -52,7 +79,7 @@ let stopping = false
 function stop() {
   if (stopping) return
   stopping = true
-  backend.close()
+  backend?.close()
   vite.kill()
   go?.kill()
   void removeBackendDevManifest()
@@ -60,7 +87,7 @@ function stop() {
 
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)
-process.on("exit", () => backend.close())
+process.on("exit", () => backend?.close())
 
 try {
   await waitForFrontend()

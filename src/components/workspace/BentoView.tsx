@@ -240,7 +240,7 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
     <section
       data-component-id={component.id}
       data-context-menu="bento-cell"
-      className="xiranite-bento-drag-handle group relative flex h-full min-h-0 cursor-grab flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)] active:cursor-grabbing"
+      className="xiranite-component-surface xiranite-bento-drag-handle group relative flex h-full min-h-0 cursor-grab flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)] active:cursor-grabbing"
     >
       <ComponentProgressStrip
         status={surfaceStatus}

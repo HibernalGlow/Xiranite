@@ -2,6 +2,7 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 import { AnimatePresence, motion } from "motion/react"
+import { localizeNodeHelp } from "@xiranite/contract"
 import type { NodeHelp, NodeHelpCommand, NodeHelpField, NodeHelpWorkflow } from "@xiranite/contract"
 import { DataViewProvider } from "@hibernalglow/ocean-dataview/providers"
 import { useInfiniteController } from "@hibernalglow/ocean-dataview/hooks"
@@ -119,6 +120,7 @@ function ModuleIdentityCell({
   onOpenHelp: (item: ModuleRow) => void
 }) {
   const { t } = useTranslation()
+  const helpLabel = t("registry:help.open", { name: item.name })
   return (
     <div className="flex min-w-0 items-start gap-2 py-1">
       <div
@@ -150,8 +152,8 @@ function ModuleIdentityCell({
               <span
                 role="button"
                 tabIndex={0}
-                aria-label={`Open ${item.name} help`}
-                title={`Open ${item.name} help`}
+                aria-label={helpLabel}
+                title={helpLabel}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -168,7 +170,7 @@ function ModuleIdentityCell({
               </span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Node help</TooltipContent>
+          <TooltipContent>{t("registry:help.tooltip")}</TooltipContent>
         </Tooltip>
       )}
       <span
@@ -419,6 +421,7 @@ function NodeHelpSheet({
   module: ModuleRow | null
   onOpenChange: (open: boolean) => void
 }) {
+  const { t, i18n } = useTranslation()
   const [state, setState] = React.useState<HelpLoadState>({ status: "idle" })
 
   React.useEffect(() => {
@@ -453,9 +456,9 @@ function NodeHelpSheet({
         <SheetHeader className="border-b border-border/60 px-4 py-3 pr-12">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <SheetTitle className="truncate text-sm">{module?.name ?? "Node help"}</SheetTitle>
+              <SheetTitle className="truncate text-sm">{module?.name ?? t("registry:help.title")}</SheetTitle>
               <SheetDescription className="mt-1 text-xs">
-                Shared UI and CLI usage notes.
+                {t("registry:help.description")}
               </SheetDescription>
             </div>
             {module && (
@@ -477,9 +480,9 @@ function NodeHelpSheet({
               className="p-4"
             >
               {state.status === "loading" && <NodeHelpLoading />}
-              {state.status === "missing" && <NodeHelpEmpty title="No help entry" description="This module does not expose shared node help yet." />}
-              {state.status === "error" && <NodeHelpEmpty title="Help failed to load" description={state.error} />}
-              {state.status === "loaded" && module && <NodeHelpContent module={module} help={state.help} />}
+              {state.status === "missing" && <NodeHelpEmpty title={t("registry:help.missingTitle")} description={t("registry:help.missingDescription")} />}
+              {state.status === "error" && <NodeHelpEmpty title={t("registry:help.errorTitle")} description={state.error} />}
+              {state.status === "loaded" && module && <NodeHelpContent module={module} help={localizeNodeHelp(state.help, i18n.language)} />}
             </motion.div>
           </AnimatePresence>
         </ScrollArea>
@@ -514,15 +517,16 @@ function NodeHelpEmpty({ title, description }: { title: string; description: str
 }
 
 function NodeHelpContent({ module, help }: { module: ModuleRow; help: NodeHelp }) {
+  const { t } = useTranslation()
   const hasFields = Boolean(help.fields?.length)
   const hasSafety = Boolean(help.safety)
 
   return (
     <Tabs defaultValue="overview" className="gap-4">
       <TabsList variant="line" className="max-w-full overflow-x-auto">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="overview">{t("registry:help.tabs.overview")}</TabsTrigger>
         <TabsTrigger value="cli">CLI</TabsTrigger>
-        {(hasFields || hasSafety) && <TabsTrigger value="fields">Fields</TabsTrigger>}
+        {(hasFields || hasSafety) && <TabsTrigger value="fields">{t("registry:help.tabs.fields")}</TabsTrigger>}
       </TabsList>
       <TabsContent value="overview" className="flex flex-col gap-5">
         <div className="flex flex-col gap-3">
@@ -539,13 +543,13 @@ function NodeHelpContent({ module, help }: { module: ModuleRow; help: NodeHelp }
         {help.whenToUse?.length && (
           <>
             <Separator />
-            <HelpSection title="When to use">
+            <HelpSection title={t("registry:help.sections.whenToUse")}>
               <HelpList items={help.whenToUse} />
             </HelpSection>
           </>
         )}
         <Separator />
-        <HelpSection title="Workflows">
+        <HelpSection title={t("registry:help.sections.workflows")}>
           <div className="flex flex-col gap-3">
             {help.workflows.map((workflow) => (
               <WorkflowBlock key={workflow.title} workflow={workflow} />
@@ -561,7 +565,7 @@ function NodeHelpContent({ module, help }: { module: ModuleRow; help: NodeHelp }
       {(hasFields || hasSafety) && (
         <TabsContent value="fields" className="flex flex-col gap-5">
           {hasFields && (
-            <HelpSection title="Fields">
+            <HelpSection title={t("registry:help.sections.fields")}>
               <div className="flex flex-col gap-3">
                 {help.fields?.map((field) => (
                   <FieldBlock key={field.name} field={field} />
@@ -571,7 +575,7 @@ function NodeHelpContent({ module, help }: { module: ModuleRow; help: NodeHelp }
           )}
           {hasFields && hasSafety && <Separator />}
           {hasSafety && (
-            <HelpSection title="Safety">
+            <HelpSection title={t("registry:help.sections.safety")}>
               <SafetyBlock help={help} />
             </HelpSection>
           )}
@@ -603,8 +607,9 @@ function HelpList({ items }: { items: readonly string[] }) {
 }
 
 function WorkflowBlock({ workflow }: { workflow: NodeHelpWorkflow }) {
+  const { t } = useTranslation()
   const uiSteps = workflow.ui ?? []
-  const terminalSteps = workflow.terminal ?? []
+  const cliSteps = workflow.cli ?? []
   const tips = workflow.tips ?? []
 
   return (
@@ -614,8 +619,8 @@ function WorkflowBlock({ workflow }: { workflow: NodeHelpWorkflow }) {
         {workflow.summary && <div className="text-xs leading-relaxed text-muted-foreground">{workflow.summary}</div>}
       </div>
       {uiSteps.length > 0 && <StepList label="UI" steps={uiSteps} />}
-      {terminalSteps.length > 0 && <StepList label="CLI" steps={terminalSteps} />}
-      {tips.length > 0 && <StepList label="Tip" steps={tips} />}
+      {cliSteps.length > 0 && <StepList label="CLI" steps={cliSteps} />}
+      {tips.length > 0 && <StepList label={t("registry:help.labels.tip")} steps={tips} />}
     </div>
   )
 }
@@ -665,13 +670,14 @@ function CodeLine({ value }: { value: string }) {
 }
 
 function FieldBlock({ field }: { field: NodeHelpField }) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-background px-3 py-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-semibold text-foreground">{field.name}</span>
         {field.type && <Badge variant="secondary">{field.type}</Badge>}
-        {field.required && <Badge variant="outline">required</Badge>}
-        {field.defaultValue && <Badge variant="outline">default: {field.defaultValue}</Badge>}
+        {field.required && <Badge variant="outline">{t("registry:help.labels.required")}</Badge>}
+        {field.defaultValue && <Badge variant="outline">{t("registry:help.labels.defaultValue", { value: field.defaultValue })}</Badge>}
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">{field.description}</p>
     </div>
@@ -679,16 +685,17 @@ function FieldBlock({ field }: { field: NodeHelpField }) {
 }
 
 function SafetyBlock({ help }: { help: NodeHelp }) {
+  const { t } = useTranslation()
   const items = [
-    ...(help.safety?.destructive ?? []).map((item) => `Destructive: ${item}`),
-    ...(help.safety?.notes ?? []).map((item) => `Note: ${item}`),
+    ...(help.safety?.destructive ?? []).map((item) => `${t("registry:help.labels.destructive")}: ${item}`),
+    ...(help.safety?.notes ?? []).map((item) => `${t("registry:help.labels.note")}: ${item}`),
   ]
 
   return (
     <div className="flex flex-col gap-3">
       {help.safety?.defaultMode && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Default mode</span>
+          <span className="text-xs text-muted-foreground">{t("registry:help.labels.defaultMode")}</span>
           <Badge variant="secondary">{help.safety.defaultMode}</Badge>
         </div>
       )}

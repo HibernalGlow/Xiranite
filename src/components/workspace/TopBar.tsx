@@ -1,4 +1,5 @@
-import { useState, type MouseEvent } from "react"
+import { useState, type ComponentType, type MouseEvent } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { cn } from "@/lib/utils"
@@ -7,18 +8,31 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS, getActiveCustomTheme, THEME_PRESET_DEFAULT_MODE } from "@/lib/appearance"
+import { getActiveCustomTheme, THEME_PRESET_DEFAULT_MODE, THEME_PRESET_OPTIONS } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMusicDock"
 import {
   Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
-  LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
+  Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
-  CircleDot, Image, Code2, LayoutTemplate, Trash2, Edit3, Smile, Type,
+  Code2, LayoutTemplate, Trash2, Edit3, Smile,
   History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const TITLEBAR_NO_DRAG_SELECTOR = [
   ".xiranite-app-region-no-drag",
@@ -54,7 +68,8 @@ function LaneModeIcon({ className }: { className?: string }) {
   )
 }
 
-const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: ComponentType<{ className?: string }> }[] = [
+  { key: "dashboard", labelKey: "topbar:viewMode.dashboard", hintKey: "topbar:viewMode.dashboardHint", icon: Gauge },
   { key: "cards",    labelKey: "topbar:viewMode.cards",    hintKey: "topbar:viewMode.cardsHint",    icon: LayoutDashboard },
   { key: "dockview", labelKey: "topbar:viewMode.dockview", hintKey: "topbar:viewMode.dockviewHint", icon: Share2 },
   { key: "flow",     labelKey: "topbar:viewMode.flow",     hintKey: "topbar:viewMode.flowHint",     icon: Workflow },
@@ -62,18 +77,14 @@ const VIEW_OPTIONS: { key: ViewMode; labelKey: string; hintKey: string; icon: Re
   { key: "bento",    labelKey: "topbar:viewMode.bento",    hintKey: "topbar:viewMode.bentoHint",    icon: LayoutTemplate },
 ]
 
-const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "grid",  labelKey: "topbar:cardLayout.grid",  hintKey: "topbar:cardLayout.gridHint",  icon: Grid },
   { key: "stack", labelKey: "topbar:cardLayout.stack", hintKey: "topbar:cardLayout.stackHint", icon: AlignJustify },
   { key: "split", labelKey: "topbar:cardLayout.split", hintKey: "topbar:cardLayout.splitHint", icon: SplitSquareVertical },
   { key: "focus", labelKey: "topbar:cardLayout.focus", hintKey: "topbar:cardLayout.focusHint", icon: Target },
 ]
 
-const THEME_PRESETS: { key: AppTheme; labelKey: string; swatch: string }[] = [
-  { key: "spatial",  labelKey: "topbar:theme.spatial",  swatch: "oklch(0.40 0.12 148)" },
-  { key: "endfield", labelKey: "topbar:theme.endfield", swatch: "oklch(0.62 0.18 152)" },
-  { key: "wuling",   labelKey: "topbar:theme.wuling",   swatch: "oklch(0.72 0.13 173)" },
-]
+const THEME_PRESETS = THEME_PRESET_OPTIONS
 
 function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
   const colors = theme.cssVars.light
@@ -88,7 +99,7 @@ function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
 }
 
 type ColorMode = "system" | "light" | "dark"
-const COLOR_MODES: { key: ColorMode; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const COLOR_MODES: { key: ColorMode; labelKey: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "topbar:theme.system", icon: Monitor },
   { key: "light",  labelKey: "topbar:theme.light",  icon: Sun },
   { key: "dark",   labelKey: "topbar:theme.dark",   icon: Moon },
@@ -103,8 +114,6 @@ export function TopBar() {
     theme: workspace.theme,
     customThemes: workspace.customThemes,
     activeCustomThemeName: workspace.activeCustomThemeName,
-    fontPreset: workspace.fontPreset,
-    bgMode: workspace.bgMode,
   }))
   const workspaceActions = useWorkspaceActions()
   const { t } = useTranslation()
@@ -124,6 +133,14 @@ export function TopBar() {
   const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
   const activePreset = THEME_PRESETS.find(p => p.key === state.theme) ?? THEME_PRESETS[0]
   const activeThemeLabel = activeCustomTheme?.name ?? t(activePreset.labelKey)
+  const activeThemeColors = activeCustomTheme
+    ? [
+      activeCustomTheme.cssVars.light.background,
+      activeCustomTheme.cssVars.light.primary,
+      activeCustomTheme.cssVars.light.secondary,
+      activeCustomTheme.cssVars.light.accent,
+    ].filter(Boolean)
+    : activePreset.palette
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -131,8 +148,8 @@ export function TopBar() {
     setColorMode(THEME_PRESET_DEFAULT_MODE[key])
   }
 
-  function selectCustomTheme(theme: AppCustomTheme) {
-    workspaceActions.setActiveCustomThemeName(theme.name)
+  function selectCustomThemeName(value: string) {
+    workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)
   }
 
   async function controlMainWindow(action: "minimize" | "maximize" | "close") {
@@ -159,36 +176,44 @@ export function TopBar() {
       )}
     >
       {/* ── 品牌 + 工作区切换入口 ── */}
-      <div className="xiranite-app-region-no-drag relative flex-shrink-0">
-        <button
-          onClick={() => setWsMenuOpen(o => !o)}
-          title={activeWorkspace ? `${t("topbar:workspace.current")}: ${translateLabel(activeWorkspace.label, t)}` : t("topbar:workspace.new")}
-          className="flex h-10 items-center gap-2 rounded px-1 hover:bg-muted/40 transition-colors"
-        >
+      <Popover
+        open={wsMenuOpen}
+        onOpenChange={(open) => {
+          setWsMenuOpen(open)
+          if (!open) setRenamingId(null)
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            className="xiranite-app-region-no-drag h-10 shrink-0 gap-2 px-2 text-left hover:bg-muted/50"
+            title={activeWorkspace ? `${t("topbar:workspace.current")}: ${translateLabel(activeWorkspace.label, t)}` : t("topbar:workspace.new")}
+          >
           {activeWorkspace?.icon ? (
             <WorkspaceIcon icon={activeWorkspace.icon} size="sm" />
           ) : null}
-          <div className="min-w-0 text-left">
-            <div className="font-mono text-sm font-bold text-primary tracking-tight leading-none">{t("common:appName")}</div>
-            <div className="font-mono text-[9px] text-muted-foreground/60 leading-none mt-0.5">{t("common:version", { version: "0.5.0" })}</div>
-          </div>
-          <ChevronDown className="h-3 w-3 text-muted-foreground/60" />
-        </button>
+            <span className="min-w-0 flex-1">
+              <span className="block font-mono text-sm font-bold leading-none tracking-tight text-primary">{t("common:appName")}</span>
+              <span className="mt-0.5 block font-mono text-[9px] leading-none text-muted-foreground/60">{t("common:version", { version: "0.5.0" })}</span>
+            </span>
+            <ChevronDown className={cn("text-muted-foreground/60 transition-transform", wsMenuOpen && "rotate-180")} />
+          </Button>
+        </PopoverTrigger>
 
         {wsMenuOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => { setWsMenuOpen(false); setRenamingId(null) }} />
-            <div className="absolute left-0 top-full mt-1 w-72 rounded-md border border-border bg-card shadow-lg z-40 overflow-hidden">
+          <PopoverContent align="start" sideOffset={8} className="xiranite-app-region-no-drag w-80 overflow-hidden p-0">
               {/* 当前工作区 */}
               {activeWorkspace ? (
-                <div className="border-b border-border/60 px-3 py-2">
-                  <p className="text-[9px] font-mono text-muted-foreground tracking-widest mb-1">{t("topbar:workspace.current")}</p>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 flex-shrink-0 grid place-items-center">
+                <PopoverHeader className="border-b border-border/60 bg-muted/20 px-3 py-2">
+                  <PopoverTitle className="font-mono text-[10px] tracking-widest text-muted-foreground">
+                    {t("topbar:workspace.current")}
+                  </PopoverTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="grid w-6 shrink-0 place-items-center">
                       {activeWorkspace.icon ? <WorkspaceIcon icon={activeWorkspace.icon} size="sm" /> : null}
                     </div>
                     {renamingId === activeWorkspace.id ? (
-                      <input
+                      <Input
                         autoFocus
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
@@ -200,17 +225,20 @@ export function TopBar() {
                           if (e.key === "Escape") setRenamingId(null)
                         }}
                         onBlur={() => setRenamingId(null)}
-                        className="h-6 flex-1 rounded border border-primary/50 bg-background px-1.5 text-xs font-mono"
+                        className="h-7 flex-1 font-mono text-xs"
                       />
                     ) : (
-                      <span className="flex-1 truncate text-xs font-mono text-foreground">{translateLabel(activeWorkspace.label, t)}</span>
+                      <PopoverDescription className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
+                        {translateLabel(activeWorkspace.label, t)}
+                      </PopoverDescription>
                     )}
                   </div>
-                </div>
+                </PopoverHeader>
               ) : null}
 
               {/* 工作区列表 */}
-              <div className="py-1 max-h-60 overflow-auto">
+              <ScrollArea className="h-[min(16rem,calc(100vh-12rem))]">
+                <div className="flex flex-col gap-1 p-1.5">
                 {state.workspaces.map(ws => (
                   <div
                     key={ws.id}
@@ -272,66 +300,92 @@ export function TopBar() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              </ScrollArea>
 
               {/* 操作区 */}
-              <div className="border-t border-border/60 p-1">
-                <button
+              <Separator />
+              <div className="p-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => { workspaceActions.addWorkspace(); setWsMenuOpen(false) }}
-                  className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                  className="w-full justify-start font-mono text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <Plus className="h-3 w-3" />
+                  <Plus />
                   {t("topbar:workspace.new")}
-                </button>
+                </Button>
               </div>
-            </div>
-          </>
+          </PopoverContent>
         )}
-      </div>
+      </Popover>
 
       {/* ── ViewMode 切换：cards / dockview / flow 三种主形态 ── */}
-      <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
-        {VIEW_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
-          <button
-            key={key}
-            data-view-mode={key}
-            onClick={() => workspaceActions.setViewMode(key)}
-            title={`${t(labelKey)}: ${t(hintKey)}`}
-            aria-label={`${t(labelKey)}: ${t(hintKey)}`}
-            className={cn(
-              "grid h-8 w-8 place-items-center rounded-sm border transition-colors",
-              state.viewMode === key
-                ? "bg-primary/10 text-primary border-primary/30 font-semibold"
-                : "text-muted-foreground hover:text-foreground border-transparent hover:border-border/60"
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </button>
-        ))}
+      <div className="xiranite-app-region-no-drag flex shrink-0 items-center border-l border-border/60 pl-3">
+        <ToggleGroup
+          type="single"
+          value={state.viewMode}
+          onValueChange={(value) => {
+            if (value) workspaceActions.setViewMode(value as ViewMode)
+          }}
+          variant="outline"
+          size="sm"
+          className="rounded-md border border-border/60 bg-muted/20 p-0.5"
+          spacing={1}
+        >
+          {VIEW_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
+            <ToggleGroupItem
+              key={key}
+              value={key}
+              data-view-mode={key}
+              title={`${t(labelKey)}: ${t(hintKey)}`}
+              aria-label={`${t(labelKey)}: ${t(hintKey)}`}
+              className="size-7 px-0 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-primary data-[state=on]:shadow-xs"
+            >
+              <Icon className="size-3.5" />
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
       {/* ── Cards 子布局：仅 viewMode === "cards" 时显示 ── */}
-      {state.viewMode === "cards" && (
-        <div className="xiranite-app-region-no-drag flex shrink-0 items-center gap-0.5 border-l border-border/60 pl-3">
-          {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
-            <button
-              key={key}
-              data-card-layout={key}
-              onClick={() => workspaceActions.setCardLayout(key)}
-              title={`${t(labelKey)}: ${t(hintKey)}`}
-              aria-label={`${t(labelKey)}: ${t(hintKey)}`}
-              className={cn(
-                "grid h-8 w-8 place-items-center rounded-sm border transition-colors",
-                state.cardLayout === key
-                  ? "bg-primary/10 text-primary border-primary/30 font-semibold"
-                  : "text-muted-foreground hover:text-foreground border-transparent hover:border-border/60"
-              )}
+      <AnimatePresence initial={false}>
+        {state.viewMode === "cards" && (
+          <motion.div
+            className="xiranite-app-region-no-drag flex shrink-0 items-center border-l border-border/60 pl-3"
+            initial={{ opacity: 0, width: 0, x: -6 }}
+            animate={{ opacity: 1, width: "auto", x: 0 }}
+            exit={{ opacity: 0, width: 0, x: -6 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <ToggleGroup
+              type="single"
+              value={state.cardLayout}
+              onValueChange={(value) => {
+                if (value) workspaceActions.setCardLayout(value as CardLayout)
+              }}
+              variant="outline"
+              size="sm"
+              className="rounded-md border border-border/60 bg-muted/20 p-0.5"
+              spacing={1}
             >
-              <Icon className="h-3.5 w-3.5" />
-            </button>
-          ))}
-        </div>
-      )}
+              {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, hintKey, icon: Icon }) => (
+                <ToggleGroupItem
+                  key={key}
+                  value={key}
+                  data-card-layout={key}
+                  title={`${t(labelKey)}: ${t(hintKey)}`}
+                  aria-label={`${t(labelKey)}: ${t(hintKey)}`}
+                  className="size-7 px-0 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-primary data-[state=on]:shadow-xs"
+                >
+                  <Icon className="size-3.5" />
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -396,174 +450,147 @@ export function TopBar() {
         </Button>
 
         {/* ── 主题快速切换下拉 ── */}
-        <div className="relative">
-          <button
-            onClick={() => setThemeMenuOpen(o => !o)}
-            title={t("topbar:theme.label")}
-            className="flex items-center gap-1.5 h-8 px-2 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors border border-transparent hover:border-border/60"
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span className="hidden xl:inline uppercase tracking-widest text-[10px]">
-              {activeThemeLabel}
-            </span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
+        <Popover open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              title={t("topbar:theme.label")}
+              className="h-8 gap-1.5 px-2 font-mono text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Palette />
+              <span className="hidden max-w-32 truncate uppercase tracking-widest text-[10px] xl:inline">
+                {activeThemeLabel}
+              </span>
+              <ChevronDown className={cn("transition-transform", themeMenuOpen && "rotate-180")} />
+            </Button>
+          </PopoverTrigger>
 
           {themeMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setThemeMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 w-64 rounded-md border border-border bg-card shadow-lg z-40 overflow-hidden">
-                {/* 主题预设 */}
-                <div className="p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.preset")}</p>
-                  {THEME_PRESETS.map(p => {
-                    const isActive = !activeCustomTheme && p.key === state.theme
-                    return (
-                      <button
-                        key={p.key}
-                        onClick={() => selectPreset(p.key)}
-                        className={cn(
-                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors",
-                          isActive ? "bg-primary/10 text-primary" : "hover:bg-muted/60 text-foreground"
-                        )}
-                      >
-                        <span
-                          className="w-3 h-3 rounded-sm border border-border/60 flex-shrink-0"
-                          style={{ background: p.swatch }}
-                        />
-                        <span className="flex-1">{t(p.labelKey)}</span>
-                        {isActive && <Check className="h-3 w-3" />}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {/* 颜色模式 */}
-                {state.customThemes.length > 0 && (
-                  <div className="border-t border-border/60 p-2">
-                    <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">IMPORTED</p>
-                    <div className="max-h-44 overflow-y-auto pr-1">
-                      {state.customThemes.map(theme => {
-                        const isActive = theme.name === state.activeCustomThemeName
-                        return (
-                          <button
-                            key={theme.name}
-                            onClick={() => selectCustomTheme(theme)}
-                            className={cn(
-                              "flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors",
-                              isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted/60"
-                            )}
-                          >
-                            <CustomThemeSwatch theme={theme} />
-                            <span className="min-w-0 flex-1 truncate">{theme.name}</span>
-                            {isActive && <Check className="h-3 w-3 shrink-0" />}
-                          </button>
-                        )
-                      })}
-                    </div>
+            <PopoverContent align="end" sideOffset={8} className="xiranite-app-region-no-drag w-[min(92vw,22rem)] overflow-hidden p-0">
+              <div className="border-b border-border/60 bg-muted/15 p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-primary/30 bg-primary/10 text-primary">
+                    <Palette className="h-4 w-4" />
                   </div>
-                )}
-
-                <div className="border-t border-border/60 p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("topbar:theme.colorMode")}</p>
-                  <div className="grid grid-cols-3 gap-1">
-                    {COLOR_MODES.map(m => {
-                      const Icon = m.icon
-                      const isActive = colorMode === m.key
-                      return (
-                        <button
-                          key={m.key}
-                          onClick={() => setColorMode(m.key)}
-                          className={cn(
-                            "flex flex-col items-center gap-1 py-2 rounded-sm border transition-all",
-                            isActive
-                              ? "border-primary/50 bg-primary/10 text-primary"
-                              : "border-border/40 hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-mono">{t(m.labelKey)}</span>
-                        </button>
-                      )
-                    })}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{activeThemeLabel}</p>
+                    <p className="mt-0.5 truncate text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+                      {activeCustomTheme ? "Imported theme" : t(activePreset.subtitleKey)}
+                    </p>
                   </div>
-                </div>
-
-                <div className="border-t border-border/60 p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">FONT</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {FONT_PRESETS.map((preset) => {
-                      const isActive = state.fontPreset === preset.key
-                      return (
-                        <button
-                          key={preset.key}
-                          onClick={() => workspaceActions.setFontPreset(preset.key)}
-                          title={preset.description}
-                          className={cn(
-                            "flex min-w-0 items-center gap-1.5 rounded-sm border px-2 py-1.5 text-left transition-all",
-                            isActive
-                              ? "border-primary/50 bg-primary/10 text-primary"
-                              : "border-border/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                          )}
-                        >
-                          <Type className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate text-[10px] font-mono">{preset.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 背景模式 */}
-                <div className="border-t border-border/60 p-2">
-                  <p className="px-2 py-1 text-[9px] font-mono text-muted-foreground tracking-widest">{t("settings:background.mode")}</p>
-                  <div className="grid grid-cols-4 gap-1">
-                    {[
-                      { key: "grid", icon: Grid },
-                      { key: "dot-grid", icon: CircleDot },
-                      { key: "image", icon: Image },
-                      { key: "none", icon: Palette },
-                    ].map(m => {
-                      const Icon = m.icon
-                      const isActive = state.bgMode === m.key
-                      return (
-                        <button
-                          key={m.key}
-                          onClick={() => workspaceActions.setBgMode(m.key as any)}
-                          className={cn(
-                            "flex flex-col items-center gap-1 py-1.5 rounded-sm border transition-all cursor-pointer",
-                            isActive
-                              ? "border-primary/50 bg-primary/10 text-primary"
-                              : "border-border/40 hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="text-[8px] font-mono text-center truncate max-w-full px-0.5">
-                            {t(`settings:background.modes.${m.key}`)}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 完整设置入口 */}
-                <div className="border-t border-border/60 p-1">
-                  <button
-                    onClick={() => {
-                      setThemeMenuOpen(false)
-                      workspaceActions.setOverlay("settings")
-                    }}
-                    className="flex items-center gap-2 px-3 py-2 w-full text-left text-xs font-mono text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-                  >
-                    <Settings className="h-3.5 w-3.5" />
-                    {t("topbar:theme.openSettings")}
-                  </button>
+                  {activeThemeColors.length > 0 && (
+                    <ThemeSwatchStrip colors={activeThemeColors} id={activeCustomTheme?.name ?? activePreset.key} />
+                  )}
                 </div>
               </div>
-            </>
+
+              <div className="grid gap-3 p-3">
+                <div className="grid gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[9px] font-mono tracking-widest text-muted-foreground">{t("topbar:theme.preset")}</p>
+                    {!activeCustomTheme && <Check className="h-3 w-3 text-primary" />}
+                  </div>
+                  <Select value={state.theme} onValueChange={(value) => selectPreset(value as AppTheme)}>
+                    <SelectTrigger className="w-full bg-background/65 font-mono text-xs" size="sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      <SelectGroup>
+                        {THEME_PRESETS.map((preset) => (
+                          <SelectItem key={preset.key} value={preset.key}>
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-sm border border-border/60"
+                              style={{ background: preset.swatch }}
+                            />
+                            <span className="min-w-0 truncate">{t(preset.labelKey)}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[9px] font-mono tracking-widest text-muted-foreground">IMPORTED</p>
+                    {activeCustomTheme && <Check className="h-3 w-3 text-primary" />}
+                  </div>
+                  {state.customThemes.length > 0 ? (
+                    <Select value={state.activeCustomThemeName ?? "none"} onValueChange={selectCustomThemeName}>
+                      <SelectTrigger className="w-full bg-background/65 font-mono text-xs" size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        <SelectGroup>
+                          <SelectItem value="none">
+                            <span className="min-w-0 truncate">{t("settings:themeImport.disableImported", "Use preset only")}</span>
+                          </SelectItem>
+                          {state.customThemes.map((theme) => (
+                            <SelectItem key={theme.name} value={theme.name}>
+                              <CustomThemeSwatch theme={theme} />
+                              <span className="min-w-0 truncate">{theme.name}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="rounded-sm border border-border/50 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+                      {t("settings:themeImport.noActive", "No imported theme active")}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-1.5">
+                  <p className="text-[9px] font-mono tracking-widest text-muted-foreground">{t("topbar:theme.colorMode")}</p>
+                  <ToggleGroup
+                    type="single"
+                    value={colorMode}
+                    onValueChange={(value) => {
+                      if (value) setColorMode(value as ColorMode)
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="grid w-full grid-cols-3 gap-1"
+                    spacing={1}
+                  >
+                    {COLOR_MODES.map(m => {
+                      const Icon = m.icon
+                      return (
+                        <ToggleGroupItem
+                          key={m.key}
+                          value={m.key}
+                          className="h-10 min-w-0 gap-1 px-1 font-mono text-[10px] text-muted-foreground data-[state=on]:border-primary/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+                        >
+                          <Icon className="size-3.5" />
+                          <span className="truncate">{t(m.labelKey)}</span>
+                        </ToggleGroupItem>
+                      )
+                    })}
+                  </ToggleGroup>
+                </div>
+              </div>
+
+              <Separator />
+              <div className="p-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setThemeMenuOpen(false)
+                    workspaceActions.setOverlay("settings")
+                  }}
+                  className="w-full justify-start font-mono text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Settings />
+                  {t("topbar:theme.openSettings")}
+                </Button>
+              </div>
+            </PopoverContent>
           )}
-        </div>
+        </Popover>
       </div>
 
       {showWindowControls && (
@@ -607,5 +634,15 @@ export function TopBar() {
       ) : null}
 
     </header>
+  )
+}
+
+function ThemeSwatchStrip({ colors, id }: { colors: string[]; id: string }) {
+  return (
+    <span className="flex h-6 w-20 shrink-0 overflow-hidden rounded-sm border border-border/50">
+      {colors.slice(0, 4).map((color, index) => (
+        <span key={`${id}-${index}`} className="min-w-0 flex-1" style={{ background: color }} />
+      ))}
+    </span>
   )
 }

@@ -18,7 +18,7 @@ interface BasicNodeHelp {
     title: string
     summary: string
     ui?: string[]
-    terminal?: string[]
+    cli?: string[]
     tips?: string[]
   }>
   commands: Array<{
@@ -31,6 +31,15 @@ interface BasicNodeHelp {
     defaultMode: string
     notes: string[]
   }
+  translations?: Record<string, {
+    title?: string
+    short?: string
+    description?: string
+    whenToUse?: string[]
+    workflows?: BasicNodeHelp["workflows"]
+    commands?: BasicNodeHelp["commands"]
+    safety?: BasicNodeHelp["safety"]
+  }>
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -96,6 +105,7 @@ function withHelpExport(exportsMap: Record<string, unknown>): Record<string, unk
 function createBasicHelp(def: NodeDefLiteral): BasicNodeHelp {
   const cliName = `xiranite ${def.id}`
   const safetyNotes = safetyNotesFor(def.category)
+  const zhSafetyNotes = zhSafetyNotesFor(def.category)
   return {
     title: def.name,
     short: def.description,
@@ -116,7 +126,7 @@ function createBasicHelp(def: NodeDefLiteral): BasicNodeHelp {
       {
         title: "CLI",
         summary: `Run ${def.name} directly from a terminal.`,
-        terminal: [
+        cli: [
           `Run \`${cliName}\` for the guided mode when the command supports interactive prompts.`,
           `Run \`${cliName} --help\` for the node command's exact flags and subcommands.`,
         ],
@@ -146,6 +156,67 @@ function createBasicHelp(def: NodeDefLiteral): BasicNodeHelp {
         ],
       },
     ],
+    translations: {
+      "zh-CN": {
+        title: def.name,
+        short: def.description,
+        description: def.description,
+        whenToUse: [
+          `当你需要在工作区 UI 或 CLI 中使用 ${def.name} 的 ${def.category} 工作流时使用这个节点。`,
+        ],
+        workflows: [
+          {
+            title: "工作区 UI",
+            summary: `从模块库部署 ${def.name}，然后在节点界面中运行。`,
+            ui: [
+              `打开模块库，把 ${def.name} 部署到当前工作区。`,
+              "填写节点字段，或把路径/配置粘贴到节点界面。",
+              "先运行预览或主要动作，检查结果和日志后再应用真实改动。",
+            ],
+          },
+          {
+            title: "CLI",
+            summary: `直接从终端运行 ${def.name}。`,
+            cli: [
+              `当命令支持交互提示时，运行 \`${cliName}\` 进入引导模式。`,
+              `运行 \`${cliName} --help\` 查看该节点命令的精确参数和子命令。`,
+            ],
+          },
+        ],
+        commands: [
+          {
+            title: "节点 CLI",
+            command: cliName,
+            description: "打开节点 CLI，或查看命令参数。",
+            examples: [
+              {
+                label: "引导模式",
+                command: cliName,
+                description: "启动节点的交互式终端工作流。",
+              },
+              {
+                label: "命令参数",
+                command: `${cliName} --help`,
+                description: "显示节点 CLI 的子命令和选项。",
+              },
+              {
+                label: "共享帮助",
+                command: `xiranite help ${def.id}`,
+                description: "在根 CLI 中渲染这份共享帮助。",
+              },
+            ],
+          },
+        ],
+        ...(zhSafetyNotes.length
+          ? {
+              safety: {
+                defaultMode: "preview",
+                notes: zhSafetyNotes,
+              },
+            }
+          : {}),
+      },
+    },
     ...(safetyNotes.length
       ? {
           safety: {
@@ -169,6 +240,23 @@ function safetyNotesFor(category: string): string[] {
     return [
       "Review configuration and affected system state before running live actions.",
       "Prefer preview modes when available.",
+    ]
+  }
+  return []
+}
+
+function zhSafetyNotesFor(category: string): string[] {
+  const normalized = category.toLowerCase()
+  if (normalized === "file" || normalized === "image" || normalized === "video") {
+    return [
+      "修改文件前优先使用预览或 dry-run 模式。",
+      "批量处理大目录前保留备份或撤销记录。",
+    ]
+  }
+  if (normalized === "system") {
+    return [
+      "真实执行前检查配置和受影响的系统状态。",
+      "可用时优先使用预览模式。",
     ]
   }
   return []

@@ -1,0 +1,163 @@
+/*
+  Onlook Gradient Demo theme pack.
+  Source reviewed in browser: One Page Love entry "Onlook" (onlook-cam).
+  Visual takeaways: dark macOS product-demo canvas, luminous ribbon gradients,
+  soft translucent controls, and large confident product copy.
+*/
+
+.theme-onlook {
+  color-scheme: dark;
+  --radius: 1rem;
+  --onlook-motion-duration: 260ms;
+  --onlook-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --onlook-ribbon: linear-gradient(135deg, oklch(0.72 0.19 25), oklch(0.63 0.24 306) 42%, oklch(0.72 0.18 224) 72%, oklch(0.78 0.13 173));
+  --onlook-glow: 0 0 34px color-mix(in oklch, var(--primary) 24%, transparent);
+  --onlook-panel: color-mix(in oklch, var(--card) 72%, transparent);
+
+  --background: oklch(0.115 0.025 252);
+  --foreground: oklch(0.94 0.02 92);
+  --card: oklch(0.17 0.032 252);
+  --card-foreground: oklch(0.94 0.02 92);
+  --popover: oklch(0.145 0.03 252);
+  --popover-foreground: oklch(0.94 0.02 92);
+  --primary: oklch(0.76 0.17 210);
+  --primary-foreground: oklch(0.09 0.02 252);
+  --secondary: oklch(0.24 0.055 286);
+  --secondary-foreground: oklch(0.93 0.03 92);
+  --muted: oklch(0.21 0.03 252);
+  --muted-foreground: oklch(0.68 0.035 248);
+  --accent: oklch(0.70 0.19 306);
+  --accent-foreground: oklch(0.98 0.01 92);
+  --destructive: oklch(0.66 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.32 0.055 252);
+  --input: oklch(0.24 0.04 252);
+  --ring: oklch(0.76 0.17 210);
+
+  --chart-1: oklch(0.76 0.17 210);
+  --chart-2: oklch(0.70 0.19 306);
+  --chart-3: oklch(0.72 0.19 25);
+  --chart-4: oklch(0.78 0.13 173);
+  --chart-5: oklch(0.84 0.12 92);
+
+  --sidebar: oklch(0.10 0.025 252);
+  --sidebar-foreground: oklch(0.94 0.02 92);
+  --sidebar-primary: oklch(0.76 0.17 210);
+  --sidebar-primary-foreground: oklch(0.09 0.02 252);
+  --sidebar-accent: oklch(0.24 0.055 286);
+  --sidebar-accent-foreground: oklch(0.93 0.03 92);
+  --sidebar-border: oklch(0.28 0.05 252);
+  --sidebar-ring: oklch(0.76 0.17 210);
+
+  --ws-grid-color: oklch(0.76 0.17 210 / 0.12);
+  --ws-canvas: oklch(0.10 0.025 252);
+  --ws-accent-glow: oklch(0.70 0.19 306 / 0.28);
+  --ws-focused-overlay: oklch(0.04 0.02 252 / 0.76);
+}
+
+.theme-onlook.light,
+.light .theme-onlook {
+  color-scheme: light;
+  --background: oklch(0.965 0.014 256);
+  --foreground: oklch(0.16 0.035 252);
+  --card: oklch(0.99 0.006 256);
+  --card-foreground: oklch(0.16 0.035 252);
+  --popover: oklch(0.99 0.006 256);
+  --popover-foreground: oklch(0.16 0.035 252);
+  --primary: oklch(0.52 0.20 245);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.91 0.035 286);
+  --secondary-foreground: oklch(0.22 0.055 286);
+  --muted: oklch(0.92 0.018 256);
+  --muted-foreground: oklch(0.48 0.045 252);
+  --accent: oklch(0.64 0.20 306);
+  --accent-foreground: oklch(0.99 0 0);
+  --border: oklch(0.82 0.04 252);
+  --input: oklch(0.89 0.022 252);
+  --ring: oklch(0.52 0.20 245);
+  --sidebar: oklch(0.94 0.016 256);
+  --sidebar-foreground: oklch(0.16 0.035 252);
+  --sidebar-primary: oklch(0.52 0.20 245);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.91 0.035 286);
+  --sidebar-accent-foreground: oklch(0.22 0.055 286);
+  --sidebar-border: oklch(0.82 0.04 252);
+  --sidebar-ring: oklch(0.52 0.20 245);
+  --ws-grid-color: oklch(0.52 0.20 245 / 0.14);
+  --ws-canvas: oklch(0.94 0.016 256);
+  --ws-accent-glow: oklch(0.64 0.20 306 / 0.18);
+  --ws-focused-overlay: oklch(0.16 0.035 252 / 0.34);
+}
+
+.theme-onlook .ws-canvas-bg {
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in oklch, var(--accent) 28%, transparent), transparent 34rem),
+    radial-gradient(circle at 84% 12%, color-mix(in oklch, var(--primary) 22%, transparent), transparent 30rem),
+    var(--ws-canvas);
+}
+
+.theme-onlook .comp-card--animated {
+  border-color: color-mix(in oklch, var(--primary) 24%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--card) 82%, transparent), color-mix(in oklch, var(--muted) 58%, transparent));
+  box-shadow: var(--onlook-glow), 0 18px 50px oklch(0 0 0 / 0.24);
+  transition-duration: var(--onlook-motion-duration);
+  transition-timing-function: var(--onlook-motion-ease);
+}
+
+.theme-onlook .comp-card--animated:hover,
+.theme-onlook .comp-card--focused,
+.theme-onlook .comp-card--fullscreen {
+  border-color: color-mix(in oklch, var(--primary) 52%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 24%, transparent), var(--onlook-glow), 0 22px 60px oklch(0 0 0 / 0.30);
+}
+
+.theme-onlook .xiranite-node-surface {
+  color: var(--foreground);
+  background:
+    linear-gradient(120deg, color-mix(in oklch, var(--accent) 12%, transparent), transparent 26%),
+    linear-gradient(180deg, var(--onlook-panel), color-mix(in oklch, var(--background) 42%, transparent));
+}
+
+.theme-onlook .xiranite-node-surface > * {
+  animation: onlook-surface-in 280ms var(--onlook-motion-ease) both;
+}
+
+.theme-onlook .xiranite-node-surface button,
+.theme-onlook .xiranite-node-surface [role="button"],
+.theme-onlook [data-slot="badge"] {
+  border-radius: 999px;
+}
+
+.theme-onlook .xiranite-node-surface button:hover,
+.theme-onlook .xiranite-node-surface [role="button"]:hover {
+  background: color-mix(in oklch, var(--primary) 18%, var(--background));
+  box-shadow: 0 0 18px color-mix(in oklch, var(--primary) 24%, transparent);
+}
+
+.theme-onlook .xiranite-node-surface input,
+.theme-onlook .xiranite-node-surface textarea,
+.theme-onlook .xiranite-node-surface select,
+.theme-onlook .xiranite-node-surface [contenteditable="true"] {
+  border-color: color-mix(in oklch, var(--primary) 26%, var(--border));
+  background-color: color-mix(in oklch, var(--card) 74%, transparent);
+}
+
+@keyframes onlook-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-onlook .xiranite-node-surface > * {
+    animation: none;
+  }
+}

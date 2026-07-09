@@ -26,17 +26,17 @@ func main() {
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)
 	} else if localBackend != nil {
-		defer localBackend.Stop()
 		log.Printf("Xiranite local backend ready: %s", localBackend.Config.BaseURL)
 	} else {
 		log.Printf("Xiranite frontend dev proxy active; local backend startup is delegated to the Vite dev server")
 	}
 
-	var backendConfig *LocalBackendConfig
+	backendConfig := &LocalBackendConfig{}
 	if localBackend != nil {
-		backendConfig = &localBackend.Config
+		*backendConfig = localBackend.Config
 	}
-	service := NewXiraniteService(backendConfig)
+	service := NewXiraniteService(localBackend, backendConfig)
+	defer service.StopLocalBackend()
 
 	App = application.New(application.Options{
 		Name:        "Xiranite",

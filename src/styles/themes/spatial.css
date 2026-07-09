@@ -87,7 +87,7 @@
 }
 
 :root.theme-spatial.dark,
-:root.dark:not(.theme-endfield):not(.theme-wuling) {
+:root.dark:not(.theme-endfield):not(.theme-wuling):not(.theme-onlook):not(.theme-tori):not(.theme-conductor):not(.theme-hilden):not(.theme-aperture):not(.theme-noomo):not(.theme-excalidraw):not(.theme-astro):not(.theme-svelte):not(.theme-bun):not(.theme-storybook):not(.theme-supabase):not(.theme-penpot):not(.theme-vite) {
   color-scheme: dark;
   --background: oklch(0.13 0.015 148);
   --foreground: oklch(0.90 0.01 148);

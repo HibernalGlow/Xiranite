@@ -291,6 +291,12 @@ export function useDefaultContextMenuItems() {
             radioGroup: "viewMode",
             radioValue: state.viewMode,
             onRadioChange: (value) => actions.setViewMode(value as ViewMode),
+            value: "dashboard",
+            label: t("topbar:viewMode.dashboard"),
+          },
+          {
+            type: "radio",
+            radioGroup: "viewMode",
             value: "cards",
             label: t("topbar:viewMode.cards"),
           },

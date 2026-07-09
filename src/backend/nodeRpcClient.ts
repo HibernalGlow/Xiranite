@@ -2,9 +2,10 @@ import { createXiraniteNodeClient } from "@xiranite/api/client"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { NodeOperationCleanupResponseDTO, NodeOperationDTO } from "@xiranite/shared"
 import { useNodeOperations } from "@/store/nodeOperations"
-import { resolveLocalBackendConfig } from "./localBackendConfig"
+import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 let nodeClient: ReturnType<typeof createXiraniteNodeClient> | null = null
+let nodeClientKey: string | null = null
 
 export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
   nodeId: string,
@@ -57,11 +58,17 @@ export async function cleanupNodeOperationsOnLocalBackend(options?: { maxAgeMs?:
 }
 
 function getNodeClient() {
-  if (nodeClient) return nodeClient
-
   const config = resolveLocalBackendConfig()
+  const key = backendConfigCacheKey(config)
+  if (nodeClient && nodeClientKey === key) return nodeClient
+
   nodeClient = createXiraniteNodeClient(config.baseUrl, { token: config.token })
+  nodeClientKey = key
   return nodeClient
+}
+
+function backendConfigCacheKey(config: LocalBackendConfig): string {
+  return `${config.baseUrl}\n${config.token ?? ""}`
 }
 
 function markTrackedOperationFailed(operationId: string, nodeId: string, result: NodeRunResult) {

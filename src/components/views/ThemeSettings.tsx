@@ -1,111 +1,62 @@
-import { useState } from "react"
+import { useMemo, useState, type ComponentType } from "react"
+import { motion } from "motion/react"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { useTheme } from "@/components/theme-provider"
-import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, THEME_PRESET_DEFAULT_MODE } from "@/lib/appearance"
-import type { AppCustomTheme, AppTheme } from "@/types/workspace"
+import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, THEME_PRESET_DEFAULT_MODE, THEME_PRESET_OPTIONS, type ThemePresetOption } from "@/lib/appearance"
+import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, ChevronDown, PanelRight, ToggleLeft, Circle } from "lucide-react"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
 
-interface ThemeOption {
-  key: AppTheme
-  labelKey: string
-  subtitleKey: string
-  descriptionKey: string
-  palette: string[]
-  paletteLabelKeys: string[]
-  icon: React.ComponentType<{ className?: string }>
+const THEME_ICONS: Record<AppTheme, ComponentType<{ className?: string }>> = {
+  spatial: Sun,
+  endfield: Terminal,
+  wuling: Paintbrush,
+  onlook: Image,
+  tori: Code2,
+  conductor: GitBranch,
+  hilden: Palette,
+  aperture: Aperture,
+  noomo: Box,
+  excalidraw: PencilLine,
+  astro: Rocket,
+  svelte: Flame,
+  bun: PackageOpen,
+  storybook: BookOpen,
+  supabase: Database,
+  penpot: PenTool,
+  vite: Zap,
 }
 
-const THEMES: ThemeOption[] = [
-  {
-    key: "spatial",
-    labelKey: "settings:themes.spatial.label",
-    subtitleKey: "settings:themes.spatial.subtitle",
-    descriptionKey: "settings:themes.spatial.description",
-    palette: ["oklch(0.97 0.005 148)", "oklch(0.40 0.12 148)", "oklch(0.88 0.02 148)", "oklch(0.12 0.01 148)"],
-    paletteLabelKeys: ["settings:texture.paletteLabels.bg", "settings:texture.paletteLabels.primary", "settings:texture.paletteLabels.border", "settings:texture.paletteLabels.text"],
-    icon: Sun,
-  },
-  {
-    key: "endfield",
-    labelKey: "settings:themes.endfield.label",
-    subtitleKey: "settings:themes.endfield.subtitle",
-    descriptionKey: "settings:themes.endfield.description",
-    palette: ["oklch(0.13 0.025 216)", "oklch(0.17 0.025 216)", "oklch(0.62 0.18 152)", "oklch(0.90 0.04 148)"],
-    paletteLabelKeys: ["settings:texture.paletteLabels.void", "settings:texture.paletteLabels.card", "settings:texture.paletteLabels.green", "settings:texture.paletteLabels.text"],
-    icon: Terminal,
-  },
-  {
-    key: "wuling",
-    labelKey: "settings:themes.wuling.label",
-    subtitleKey: "settings:themes.wuling.subtitle",
-    descriptionKey: "settings:themes.wuling.description",
-    palette: ["oklch(0.98 0.006 180)", "oklch(1 0 0)", "oklch(0.72 0.13 173)", "oklch(0.24 0.025 166)"],
-    paletteLabelKeys: ["settings:texture.paletteLabels.bg", "settings:texture.paletteLabels.surface", "settings:texture.paletteLabels.jade", "settings:texture.paletteLabels.text"],
-    icon: Paintbrush,
-  },
-]
+const THEMES: ThemePresetOption[] = THEME_PRESET_OPTIONS
+
+const THEME_SOURCE_KIND_LABEL_KEYS: Record<ThemePresetOption["source"]["kind"], string> = {
+  internal: "settings:themeSource.kindInternal",
+  "one-page-love": "settings:themeSource.kindOnePageLove",
+  awwwards: "settings:themeSource.kindAwwwards",
+  "public-site": "settings:themeSource.kindPublicSite",
+  "open-source": "settings:themeSource.kindOpenSource",
+}
 
 type ColorMode = "system" | "light" | "dark"
 type SettingsSection = "appearance" | "background" | "runtime" | "data"
 
-const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "settings:colorMode.system", descKey: "settings:colorMode.systemDesc", icon: Monitor },
   { key: "light",  labelKey: "settings:colorMode.light",  descKey: "settings:colorMode.lightDesc",  icon: Sun },
   { key: "dark",   labelKey: "settings:colorMode.dark",   descKey: "settings:colorMode.darkDesc",   icon: Moon },
 ]
-
-function ImportedThemePreview({
-  theme,
-  active,
-  onSelect,
-}: {
-  theme: AppCustomTheme
-  active: boolean
-  onSelect: () => void
-}) {
-  const colors = theme.cssVars.light
-  const swatches = [
-    colors.background,
-    colors.primary,
-    colors.secondary,
-    colors.accent,
-  ].filter(Boolean)
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "flex min-w-0 items-center gap-2 rounded-sm border p-2 text-left transition-colors",
-        active ? "border-primary/50 bg-primary/8" : "border-border/40 bg-muted/10 hover:border-border hover:bg-muted/30",
-      )}
-    >
-      <div className="grid h-7 w-7 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/40">
-        {swatches.slice(0, 4).map((color, index) => (
-          <span key={`${theme.name}-${index}`} style={{ background: color }} />
-        ))}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-xs font-medium", active ? "text-foreground" : "text-muted-foreground")}>{theme.name}</p>
-        <p className="truncate text-[9px] font-mono text-muted-foreground/70">{colors.primary ?? colors.background ?? "custom"}</p>
-      </div>
-      {active && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-    </button>
-  )
-}
 
 function RuntimeRow({ label, value }: { label: string; value: string }) {
   return (
@@ -118,7 +69,7 @@ function RuntimeRow({ label, value }: { label: string; value: string }) {
 
 function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (value: SettingsSection) => void }) {
   const { t } = useTranslation()
-  const tabs: { key: SettingsSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const tabs: { key: SettingsSection; label: string; icon: ComponentType<{ className?: string }> }[] = [
     { key: "appearance", label: t("settings:sections.appearance"), icon: Palette },
     { key: "background", label: t("settings:sections.background"), icon: Image },
     { key: "runtime", label: t("settings:sections.runtime"), icon: Server },
@@ -126,22 +77,28 @@ function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (
   ]
 
   return (
-    <div className="mt-3 grid grid-cols-4 gap-1 rounded-sm border border-border/50 bg-muted/20 p-1">
+    <ToggleGroup
+      type="single"
+      value={value}
+      onValueChange={(next) => {
+        if (next) onChange(next as SettingsSection)
+      }}
+      variant="outline"
+      size="sm"
+      className="mt-3 grid w-full grid-cols-4 gap-1 rounded-md border border-border/50 bg-muted/20 p-1"
+      spacing={1}
+    >
       {tabs.map(({ key, label, icon: Icon }) => (
-        <button
+        <ToggleGroupItem
           key={key}
-          type="button"
-          onClick={() => onChange(key)}
-          className={cn(
-            "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors",
-            value === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
-          )}
+          value={key}
+          className="h-8 min-w-0 gap-1.5 px-2 text-[11px] text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs"
         >
-          <Icon className="h-3.5 w-3.5 shrink-0" />
+          <Icon className="size-3.5 shrink-0" />
           <span className="truncate">{label}</span>
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }
 
@@ -223,10 +180,20 @@ export function ThemeSettings() {
   const [section, setSection] = useState<SettingsSection>("appearance")
   const [themeJson, setThemeJson] = useState("")
   const [themeImportError, setThemeImportError] = useState<string | null>(null)
-  const [importedThemesOpen, setImportedThemesOpen] = useState(false)
 
   const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
+  const ActiveThemeIcon = THEME_ICONS[active.key]
   const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
+  const activeCustomThemeSwatches = useMemo(() => {
+    if (!activeCustomTheme) return []
+    const colors = activeCustomTheme.cssVars.light
+    return [
+      colors.background,
+      colors.primary,
+      colors.secondary,
+      colors.accent,
+    ].filter(Boolean)
+  }, [activeCustomTheme])
   const activeThemePalette = activeCustomTheme
     ? [
       activeCustomTheme.cssVars.light.background,
@@ -260,7 +227,6 @@ export function ThemeSettings() {
       const imported = parseImportedThemeJson(themeJson)
       workspaceActions.setCustomThemes(imported)
       workspaceActions.setActiveCustomThemeName(imported[0]?.name ?? null)
-      setImportedThemesOpen(false)
       setThemeJson("")
       setThemeImportError(null)
     } catch (error) {
@@ -286,6 +252,11 @@ export function ThemeSettings() {
     window.open(runtimeInfo.frontendDevUrl, "_blank", "noopener,noreferrer")
   }
 
+  function openExternalUrl(url?: string) {
+    if (!url) return
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b border-border/60 flex-shrink-0">
@@ -299,7 +270,11 @@ export function ThemeSettings() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 gap-4 p-4">
+        <motion.div
+          layout
+          className="grid grid-cols-1 gap-4 p-4"
+          transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+        >
           {/* Left column */}
           <div className={cn("space-y-4", section !== "appearance" && "hidden")}>
             {/* Active Preset Card */}
@@ -309,12 +284,51 @@ export function ThemeSettings() {
                   <span className="w-1.5 h-1.5 bg-primary rounded-full mr-1.5 inline-block" />
                   {t("settings:activeTheme", "ACTIVE THEME")}
                 </Badge>
-                {activeCustomTheme ? <Palette className="h-4 w-4 text-muted-foreground" /> : <active.icon className="h-4 w-4 text-muted-foreground" />}
+                {activeCustomTheme ? <Palette className="h-4 w-4 text-muted-foreground" /> : <ActiveThemeIcon className="h-4 w-4 text-muted-foreground" />}
               </div>
               <h2 className="mb-2 truncate text-2xl font-semibold text-foreground">{activeCustomTheme?.name ?? t(active.labelKey)}</h2>
               <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
                 {activeCustomTheme?.description ?? t(active.descriptionKey)}
               </p>
+
+              {!activeCustomTheme && (
+                <div className="mb-4 rounded-sm border border-border/45 bg-muted/15 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="rounded-sm font-mono text-[9px] uppercase tracking-wider">
+                      {t(THEME_SOURCE_KIND_LABEL_KEYS[active.source.kind])}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-sm font-mono text-[9px] text-muted-foreground">
+                      {t("settings:themeSource.evidenceCount", { count: active.source.evidence.length })}
+                    </Badge>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      {(active.source.originalUrl ?? active.source.url) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 rounded-sm px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground"
+                          onClick={() => openExternalUrl(active.source.originalUrl ?? active.source.url)}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {t("settings:themeSource.source")}
+                        </Button>
+                      )}
+                      {active.source.repositoryUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 rounded-sm px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground"
+                          onClick={() => openExternalUrl(active.source.repositoryUrl)}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {t("settings:themeSource.repo")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <p className="text-[10px] font-mono text-muted-foreground tracking-widest mb-2">{t("settings:texture.basePalette")}</p>
               <div className="flex rounded-sm overflow-hidden border border-border/40">
@@ -330,33 +344,45 @@ export function ThemeSettings() {
             </div>
 
             {/* Theme selector */}
-            <div className="bg-card border border-border rounded-sm p-4 space-y-2">
-              <p className="text-xs font-mono text-muted-foreground tracking-widest mb-3">{t("settings:selectPreset")}</p>
-              {THEMES.map(th => {
-                const Icon = th.icon
-                const isActive = th.key === state.theme
-                return (
-                  <button
-                    key={th.key}
-                    onClick={() => selectPreset(th.key)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-sm border transition-all text-left",
-                      isActive
-                        ? "border-primary/50 bg-primary/8"
-                        : "border-border/40 hover:border-border hover:bg-muted/30"
-                    )}
-                  >
-                    <div className={cn("w-8 h-8 rounded-sm border flex items-center justify-center", isActive ? "border-primary/40 bg-primary/15" : "border-border/40 bg-muted/40")}>
-                      <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t(th.labelKey)}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground/70">{t(th.subtitleKey)}</p>
-                    </div>
-                    {isActive && <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
-                  </button>
-                )
-              })}
+            <div className="bg-card border border-border rounded-sm p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:selectPreset")}</p>
+                <Badge variant="outline" className="shrink-0 rounded-sm font-mono text-[9px] text-muted-foreground">
+                  {THEMES.length}
+                </Badge>
+              </div>
+              <Select value={state.theme} onValueChange={(value) => selectPreset(value as AppTheme)}>
+                <SelectTrigger className="w-full bg-background/60 font-mono text-xs" size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectGroup>
+                    {THEMES.map((th) => {
+                      const Icon = THEME_ICONS[th.key]
+                      return (
+                        <SelectItem key={th.key} value={th.key}>
+                          <Icon className="text-muted-foreground" />
+                          <span className="min-w-0 truncate">{t(th.labelKey)}</span>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <div className="flex min-w-0 items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-sm border border-primary/30 bg-primary/10 text-primary">
+                  <ActiveThemeIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{t(active.labelKey)}</p>
+                  <p className="truncate text-[10px] font-mono text-muted-foreground/70">{t(active.subtitleKey)}</p>
+                </div>
+                <div className="flex shrink-0 overflow-hidden rounded-sm border border-border/40">
+                  {active.palette.slice(0, 4).map((color, index) => (
+                    <span key={`${active.key}-${index}`} className="h-5 w-5" style={{ background: color }} />
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Color Mode (system / light / dark) — 控制深浅色，独立于主题预设 */}
@@ -366,27 +392,31 @@ export function ThemeSettings() {
                 <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:colorMode.label")}</p>
               </div>
               <p className="text-[11px] text-muted-foreground -mt-1">{t("settings:colorMode.description")}</p>
-              <div className="grid grid-cols-3 gap-2">
+              <ToggleGroup
+                type="single"
+                value={colorMode}
+                onValueChange={(value) => {
+                  if (value) setColorMode(value as ColorMode)
+                }}
+                variant="outline"
+                size="sm"
+                className="grid w-full grid-cols-3 gap-2"
+                spacing={2}
+              >
                 {COLOR_MODES.map(m => {
                   const Icon = m.icon
-                  const isActive = colorMode === m.key
                   return (
-                    <button
+                    <ToggleGroupItem
                       key={m.key}
-                      onClick={() => setColorMode(m.key)}
-                      className={cn(
-                        "flex flex-col items-center gap-1.5 p-3 rounded-sm border transition-all",
-                        isActive
-                          ? "border-primary/50 bg-primary/8"
-                          : "border-border/40 hover:border-border hover:bg-muted/30"
-                      )}
+                      value={m.key}
+                      className="h-16 min-w-0 flex-col gap-1.5 px-2 text-muted-foreground data-[state=on]:border-primary/50 data-[state=on]:bg-primary/8 data-[state=on]:text-foreground"
                     >
-                      <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-                      <span className={cn("text-[11px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{t(m.labelKey)}</span>
-                    </button>
+                      <Icon className="size-4 data-[state=on]:text-primary" />
+                      <span className="truncate text-[11px] font-medium">{t(m.labelKey)}</span>
+                    </ToggleGroupItem>
                   )
                 })}
-              </div>
+              </ToggleGroup>
             </div>
 
             <div className="bg-card border border-border rounded-sm p-4 space-y-3">
@@ -452,55 +482,46 @@ export function ThemeSettings() {
               </div>
 
               {state.customThemes.length > 0 && (
-                <Collapsible open={importedThemesOpen} onOpenChange={setImportedThemesOpen}>
-                  <div className="rounded-sm border border-border/50 bg-muted/15">
-                    <CollapsibleTrigger asChild>
-                      <button type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-foreground">
-                            {activeCustomTheme?.name ?? t("settings:themeImport.noActive", "No imported theme active")}
-                          </p>
-                          <p className="text-[10px] font-mono text-muted-foreground">
-                            {t("settings:themeImport.count", { count: state.customThemes.length, defaultValue: "{{count}} imported themes" })}
-                          </p>
-                        </div>
-                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", importedThemesOpen && "rotate-180")} />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="border-t border-border/40 p-3">
-                        <div className="mb-3">
-                          <Select
-                            value={state.activeCustomThemeName ?? "none"}
-                            onValueChange={(value) => workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)}
-                          >
-                            <SelectTrigger className="w-full font-mono text-xs" size="sm">
-                              <SelectValue placeholder={t("settings:themeImport.selectTheme", "Select imported theme")} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value="none">{t("settings:themeImport.disableImported", "Use preset only")}</SelectItem>
-                                {state.customThemes.map((theme) => (
-                                  <SelectItem key={theme.name} value={theme.name}>{theme.name}</SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {state.customThemes.map((theme) => (
-                            <ImportedThemePreview
-                              key={theme.name}
-                              theme={theme}
-                              active={theme.name === state.activeCustomThemeName}
-                              onSelect={() => workspaceActions.setActiveCustomThemeName(theme.name)}
-                            />
-                          ))}
-                        </div>
+                <div className="rounded-sm border border-border/50 bg-muted/15 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">
+                        {activeCustomTheme?.name ?? t("settings:themeImport.noActive", "No imported theme active")}
+                      </p>
+                      <p className="text-[10px] font-mono text-muted-foreground">
+                        {t("settings:themeImport.count", { count: state.customThemes.length, defaultValue: "{{count}} imported themes" })}
+                      </p>
+                    </div>
+                    {activeCustomThemeSwatches.length > 0 && (
+                      <div className="grid h-7 w-7 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/40">
+                        {activeCustomThemeSwatches.slice(0, 4).map((color, index) => (
+                          <span key={`${activeCustomTheme.name}-${index}`} style={{ background: color }} />
+                        ))}
                       </div>
-                    </CollapsibleContent>
+                    )}
                   </div>
-                </Collapsible>
+                  <Select
+                    value={state.activeCustomThemeName ?? "none"}
+                    onValueChange={(value) => workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)}
+                  >
+                    <SelectTrigger className="w-full bg-background/60 font-mono text-xs" size="sm">
+                      <SelectValue placeholder={t("settings:themeImport.selectTheme", "Select imported theme")} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      <SelectGroup>
+                        <SelectItem value="none">{t("settings:themeImport.disableImported", "Use preset only")}</SelectItem>
+                        {state.customThemes.map((theme) => (
+                          <SelectItem key={theme.name} value={theme.name}>{theme.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {activeCustomTheme && (
+                    <p className="mt-2 truncate text-[10px] font-mono text-muted-foreground/70">
+                      {activeCustomTheme.cssVars.light.primary ?? activeCustomTheme.cssVars.light.background ?? "custom cssVars"}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -886,31 +907,33 @@ export function ThemeSettings() {
               {/* Background Mode Selector */}
               <div className="space-y-2">
                 <p className="text-xs font-mono text-muted-foreground tracking-widest">{t("settings:background.mode")}</p>
-                <div className="grid grid-cols-4 gap-2">
+                <ToggleGroup
+                  type="single"
+                  value={state.bgMode}
+                  onValueChange={(value) => {
+                    if (value) workspaceActions.setBgMode(value as any)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="grid w-full grid-cols-4 gap-2"
+                  spacing={2}
+                >
                   {[
                     { key: "grid", label: t("settings:background.modes.grid"), icon: Grid },
                     { key: "dot-grid", label: t("settings:background.modes.dot-grid"), icon: CircleDot },
                     { key: "image", label: t("settings:background.modes.image"), icon: Image },
                     { key: "none", label: t("settings:background.modes.none"), icon: Palette },
-                  ].map(({ key, label, icon: Icon }) => {
-                    const isActive = state.bgMode === key
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => workspaceActions.setBgMode(key as any)}
-                        className={cn(
-                          "flex flex-col items-center gap-1.5 p-3 rounded-sm border transition-all cursor-pointer",
-                          isActive
-                            ? "border-primary/50 bg-primary/8 text-primary"
-                            : "border-border/40 hover:border-border hover:bg-muted/30 text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span className="text-[10px] font-mono text-center leading-tight">{label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+                  ].map(({ key, label, icon: Icon }) => (
+                    <ToggleGroupItem
+                      key={key}
+                      value={key}
+                      className="h-16 min-w-0 flex-col gap-1.5 px-2 font-mono text-[10px] text-muted-foreground data-[state=on]:border-primary/50 data-[state=on]:bg-primary/8 data-[state=on]:text-primary"
+                    >
+                      <Icon className="size-4" />
+                      <span className="text-center leading-tight">{label}</span>
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
               </div>
 
               {/* Image mode config */}
@@ -1054,7 +1077,7 @@ export function ThemeSettings() {
             runtimeInfo={runtimeInfo}
             backendStatusLabel={backendStatusLabel}
           />
-        </div>
+        </motion.div>
 
         <div className={cn("px-4 pb-4 flex items-center justify-end gap-3", section !== "appearance" && "hidden")}>
           <Button variant="outline" className="font-mono text-xs">{t("settings:texture.resetDefaults")}</Button>
