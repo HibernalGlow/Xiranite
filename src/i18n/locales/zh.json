@@ -111,14 +111,13 @@
       }
     },
     "registry": "模块库",
-    "deployment": "部署中心",
     "operations": "节点运行",
     "history": "运行历史",
     "search": "搜索...",
     "searchHint": "搜索",
     "devRuntime": {
-      "vite": "??????",
-      "packaged": "??????"
+      "vite": "开发端口模式",
+      "packaged": "打包资源模式"
     }
   },
   "settings": {
@@ -459,7 +458,6 @@
   "overlay": {
     "registry": "模块库",
     "settings": "设置",
-    "deployment": "部署中心",
     "operations": "节点运行",
     "history": "运行历史",
     "floatingMode": "切换为悬浮遮罩",
@@ -573,44 +571,6 @@
       "empty": "// 便当视图为空",
       "emptyHint": "拖入模块，组合成可调整大小的工作区。",
       "openRegistry": "打开模块库"
-    },
-    "deployment": {
-      "title": "部署中心",
-      "subtitle": "当前生产环境与沙箱",
-      "systemOnline": "SYSTEM.ONLINE",
-      "filter": "筛选",
-      "newDeployment": "新建部署",
-      "uptime": "运行: {{uptime}}",
-      "type": {
-        "production": "PRODUCTION",
-        "sandbox": "SANDBOX",
-        "concept_01": "CONCEPT_01",
-        "data_core": "DATA_CORE"
-      },
-      "status": {
-        "synced": "已同步",
-        "unsaved": "未保存",
-        "offline": "离线"
-      },
-      "deployments": {
-        "alpha": {
-          "name": "Alpha 核心系统",
-          "description": "Alpha 计划的主部署环境。需要严格的访问协议。"
-        },
-        "beta": {
-          "name": "Beta 功能测试",
-          "description": "Q3 版本的实验性 UI 组件与布局变体。"
-        },
-        "atmospheric": {
-          "name": "氛围城市 UI",
-          "description": "新设计系统更新的视觉探索，聚焦色调深度与材质对比。"
-        },
-        "logistics": {
-          "name": "全球物流模型",
-          "nodes": "节点",
-          "edges": "边"
-        }
-      }
     },
     "operations": {
       "title": "节点运行",

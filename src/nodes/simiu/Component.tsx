@@ -47,7 +47,7 @@ export function Component({ compId, host }: SimiuProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
   const rootCount = useMemo(() => parseLines(data.rootsText).length, [data.rootsText])
-  const canRun = !running && rootCount > 0
+  const canRun = !running
 
   useEffect(() => {
     const loadConfig = host.config?.get?.() ?? host.getNodeConfig?.<Partial<SimiuCardState>>()

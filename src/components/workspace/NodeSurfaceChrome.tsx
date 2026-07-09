@@ -1,13 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { useId, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { motion, type Transition } from "motion/react"
 import { GripHorizontal } from "lucide-react"
-import {
-  DynamicContainer,
-  DynamicIsland,
-  DynamicIslandProvider,
-  useDynamicIslandSize,
-  type DynamicIslandTransition,
-} from "@/components/ui/dynamic-island"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -213,178 +206,105 @@ function DynamicIslandChrome({
   scale: number
 }) {
   const islandId = useId()
-  const hostRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
-  const [surfaceSize, setSurfaceSize] = useState({ width: 260, height: 160 })
   const motionRatio = Math.max(0.1, motionPercent / 100)
   const buttonCount = actions.length + (dragHandle ? 1 : 0)
   const metrics = useMemo(
-    () => getIslandMetrics(surfaceSize.width, surfaceSize.height, buttonCount, scale),
-    [buttonCount, scale, surfaceSize.height, surfaceSize.width],
+    () => getIslandMetrics(buttonCount, scale),
+    [buttonCount, scale],
   )
-  const transition = useMemo<DynamicIslandTransition>(() => ({
+  const transition = useMemo<Transition>(() => ({
     type: "spring",
     stiffness: Math.round(520 * motionRatio),
     damping: Math.round(38 * Math.sqrt(motionRatio)),
     mass: Number((0.48 / Math.sqrt(motionRatio)).toFixed(2)),
   }), [motionRatio])
-  const presets = useMemo(() => ({
-    minimalLeading: {
-      width: metrics.idleWidth,
-      aspectRatio: metrics.idleHeight / metrics.idleWidth,
-      borderRadius: metrics.idleHeight / 2,
-    },
-    compact: {
-      width: metrics.compactWidth,
-      aspectRatio: metrics.compactHeight / metrics.compactWidth,
-      borderRadius: metrics.compactHeight / 2,
-    },
-  }), [metrics])
-
-  useEffect(() => {
-    const host = hostRef.current
-    const surface = host?.parentElement
-    if (!surface) return
-
-    function updateSurfaceSize() {
-      const rect = surface.getBoundingClientRect()
-      setSurfaceSize({
-        width: Math.max(1, rect.width),
-        height: Math.max(1, rect.height),
-      })
-    }
-
-    updateSurfaceSize()
-    if (typeof ResizeObserver === "undefined") return
-
-    const observer = new ResizeObserver(updateSurfaceSize)
-    observer.observe(surface)
-    return () => observer.disconnect()
-  }, [])
 
   return (
     <div
-      ref={hostRef}
       className="xiranite-ui-copy absolute left-1/2 top-2 z-20 -translate-x-1/2"
       onPointerEnter={() => setExpanded(true)}
       onPointerLeave={() => setExpanded(false)}
     >
-      <DynamicIslandProvider initialSize="minimalLeading" presets={presets}>
-        <DynamicIsland
-          id={`node-operation-island-${islandId}`}
-          transition={transition}
-          className={cn(
-            "text-foreground transition-[background-color,border-color,box-shadow,backdrop-filter] duration-200",
-            expanded
-              ? "xiranite-node-chrome-pill border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
-              : "border border-transparent bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
-          )}
+      <motion.div
+        id={`node-operation-island-${islandId}`}
+        role="toolbar"
+        aria-label="Node operation island"
+        animate={{
+          width: expanded ? metrics.compactWidth : metrics.idleWidth,
+          height: expanded ? metrics.compactHeight : metrics.idleHeight,
+          borderRadius: expanded ? metrics.compactHeight / 2 : metrics.idleHeight / 2,
+        }}
+        initial={false}
+        transition={transition}
+        className={cn(
+          "relative mx-auto flex items-center justify-center text-foreground will-change-[width,height,border-radius]",
+          "transition-[background-color,border-color,box-shadow,backdrop-filter] duration-150",
+          expanded ? "overflow-hidden" : "overflow-visible",
+          expanded
+            ? "xiranite-node-chrome-pill border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
+            : "border border-transparent bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
+        )}
+      >
+        <motion.div
+          aria-hidden={expanded}
+          animate={{
+            opacity: expanded ? 0 : 1,
+            scale: expanded ? 0.86 : 1,
+            y: expanded ? -1 : idleOffset,
+          }}
+          initial={false}
+          transition={{ duration: 0.11 / motionRatio, ease: [0.16, 1, 0.3, 1] }}
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
         >
-          <DynamicIslandChromeContent
-            actions={actions}
-            contentScale={metrics.contentScale}
-            dragHandle={dragHandle}
-            expanded={expanded}
-            idleOffset={idleOffset}
-            motionRatio={motionRatio}
-            revealDelay={delay}
-          />
-        </DynamicIsland>
-      </DynamicIslandProvider>
-    </div>
-  )
-}
-
-function DynamicIslandChromeContent({
-  actions,
-  contentScale,
-  dragHandle,
-  expanded,
-  idleOffset,
-  motionRatio,
-  revealDelay,
-}: {
-  actions: NodeSurfaceChromeAction[]
-  contentScale: number
-  dragHandle?: ReactNode
-  expanded: boolean
-  idleOffset: number
-  motionRatio: number
-  revealDelay: number
-}) {
-  const { setSize } = useDynamicIslandSize()
-
-  useEffect(() => {
-    setSize(expanded ? "compact" : "minimalLeading")
-  }, [expanded, setSize])
-
-  return (
-    <div
-      role="toolbar"
-      aria-label="Node operation island"
-      className="flex h-full w-full items-center justify-center"
-    >
-      <DynamicContainer className={cn("relative flex h-full w-full items-center justify-center", expanded ? "gap-0.5 px-2" : "gap-1")}>
-        <AnimatePresence initial={false}>
-          {expanded ? (
-            <motion.div
-              key="island-actions"
-              initial={{ opacity: 0, scale: contentScale * 0.96, y: 0, filter: "blur(1px)" }}
-              animate={{ opacity: 1, scale: contentScale, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, scale: contentScale * 0.96, y: -1, filter: "blur(1px)" }}
-              transition={{ duration: 0.16 / motionRatio, delay: revealDelay / 1000, ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center justify-center gap-0.5"
-              style={{ transformOrigin: "center" }}
-            >
-              {dragHandle && (
-                <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
-                  {dragHandle}
-                </span>
-              )}
-              {actions.map((action) => (
-                <ChromeActionButton
-                  key={action.key}
-                  action={action}
-                  trafficLight={false}
-                />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="island-idle"
-              initial={{ opacity: 0, scale: 0.86, y: -1, filter: "blur(1.5px)" }}
-              animate={{ opacity: 1, scale: 1, y: idleOffset, filter: "blur(0px)" }}
-              exit={{ opacity: 0, scale: 0.82, y: -1, filter: "blur(1px)" }}
-              transition={{ duration: 0.14 / motionRatio, delay: expanded ? 0 : Math.min(0.12, revealDelay / 1000), ease: [0.16, 1, 0.3, 1] }}
-              className="flex items-center justify-center gap-0.5"
-            >
-              <span className="xiranite-node-chrome-dot h-1 w-3 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-            </motion.div>
+          <span className="xiranite-node-chrome-dot h-1.5 w-5 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
+        </motion.div>
+        <motion.div
+          aria-hidden={!expanded}
+          animate={{
+            opacity: expanded ? 1 : 0,
+            scale: expanded ? metrics.contentScale : metrics.contentScale * 0.96,
+          }}
+          initial={false}
+          transition={{ duration: 0.12 / motionRatio, delay: expanded ? delay / 1000 : 0, ease: [0.16, 1, 0.3, 1] }}
+          className={cn(
+            "absolute inset-0 flex items-center justify-center gap-0.5 px-2",
+            expanded ? "pointer-events-auto" : "pointer-events-none",
           )}
-        </AnimatePresence>
-      </DynamicContainer>
+          style={{ transformOrigin: "center" }}
+        >
+          {dragHandle && (
+            <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
+              {dragHandle}
+            </span>
+          )}
+          {actions.map((action) => (
+            <ChromeActionButton
+              key={action.key}
+              action={action}
+              trafficLight={false}
+            />
+          ))}
+        </motion.div>
+      </motion.div>
     </div>
   )
 }
 
-function getIslandMetrics(surfaceWidth: number, surfaceHeight: number, buttonCount: number, customScale: number) {
-  const availableWidth = Math.max(34, surfaceWidth - 16)
-  const availableHeight = Math.max(24, surfaceHeight - 12)
+function getIslandMetrics(buttonCount: number, customScale: number) {
   const customScaleRatio = customScale / 100
-  const desiredContentWidth = Math.min(230, Math.max(118, buttonCount * 28 + 28) * customScaleRatio)
-  const scale = Math.max(0.52, Math.min(1, availableWidth / desiredContentWidth, availableHeight / (38 * customScaleRatio)))
-  const compactWidth = Math.round(Math.max(48, Math.min(desiredContentWidth * scale, availableWidth)))
-  const compactHeight = Math.round(Math.max(26, Math.min(38 * customScaleRatio * scale, availableHeight)))
-  const idleWidth = Math.round(Math.max(26, Math.min(44 * customScaleRatio * scale, availableWidth)))
-  const idleHeight = Math.round(Math.max(20, Math.min(34 * customScaleRatio * scale, availableHeight)))
+  const desiredContentWidth = Math.min(216, Math.max(112, buttonCount * 28 + 24) * customScaleRatio)
+  const compactWidth = Math.round(Math.max(48, desiredContentWidth))
+  const compactHeight = Math.round(Math.max(26, Math.min(34, 32 * customScaleRatio)))
+  const idleWidth = Math.round(Math.max(38, Math.min(52, 46 * customScaleRatio)))
+  const idleHeight = Math.round(Math.max(24, Math.min(34, 30 * customScaleRatio)))
 
   return {
     compactWidth,
     compactHeight,
     idleWidth,
     idleHeight,
-    contentScale: Number(scale.toFixed(3)),
+    contentScale: Number(Math.max(0.84, Math.min(1, customScaleRatio)).toFixed(3)),
   }
 }
 
@@ -409,7 +329,7 @@ function ChromeActionButton({
             key={sub.key}
             onSelect={(event) => {
               event.preventDefault()
-              sub.onClick(event as unknown as MouseEvent<HTMLButtonElement>)
+              sub.onClick?.(event as unknown as MouseEvent<HTMLButtonElement>)
             }}
           >
             {sub.icon}

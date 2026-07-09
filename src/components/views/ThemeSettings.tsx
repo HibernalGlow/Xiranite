@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
@@ -281,18 +282,19 @@ export function ThemeSettings() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-border/60 flex-shrink-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">{t("settings:title")}</h1>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:headerSubtitle")}</p>
+    <OverlayViewShell
+      header={
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold text-foreground">{t("settings:title")}</h1>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:headerSubtitle")}</p>
+            </div>
           </div>
-        </div>
-        <SettingsTabs value={section} onChange={setSection} />
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
+          <SettingsTabs value={section} onChange={setSection} />
+        </>
+      }
+    >
         <motion.div
           layout
           className="grid grid-cols-1 gap-4 p-4"
@@ -1134,7 +1136,6 @@ export function ThemeSettings() {
           <Button variant="outline" className="font-mono text-xs">{t("settings:texture.resetDefaults")}</Button>
           <Button className="font-mono text-xs btn-primary-glow">{t("settings:texture.applyChanges")}</Button>
         </div>
-      </div>
-    </div>
+    </OverlayViewShell>
   )
 }

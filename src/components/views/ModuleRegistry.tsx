@@ -46,6 +46,7 @@ import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceContext"
 import { setModuleDragData } from "@/lib/moduleDragDrop"
 import { cn } from "@/lib/utils"
+import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import type { ModuleDef } from "@/types/workspace"
 
 type CatalogViewMode = "list" | "table" | "gallery" | "board"
@@ -360,20 +361,21 @@ export function ModuleRegistry() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div className="shrink-0 border-b border-border/60 px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">{t("registry:title")}</h1>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("registry:subtitle")}</p>
+      <OverlayViewShell
+        className="bg-card"
+        header={
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold text-foreground">{t("registry:title")}</h1>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("registry:subtitle")}</p>
+            </div>
+            <div className="rounded-sm border border-border/60 bg-muted/20 px-2 py-1 text-[10px] font-mono text-muted-foreground">
+              {modules.length}
+            </div>
           </div>
-          <div className="rounded-sm border border-border/60 bg-muted/20 px-2 py-1 text-[10px] font-mono text-muted-foreground">
-            {modules.length}
-          </div>
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 [scrollbar-gutter:stable]">
+        }
+        bodyClassName="px-3 pb-3 [scrollbar-gutter:stable]"
+      >
         <React.Suspense fallback={<div className="flex min-h-48 items-center justify-center text-xs text-muted-foreground">{t("common:loading")}</div>}>
           <DataViewProvider
             key={catalogView}
@@ -396,13 +398,12 @@ export function ModuleRegistry() {
             {catalogViewNode}
           </DataViewProvider>
         </React.Suspense>
-      </div>
+      </OverlayViewShell>
       <NodeHelpSheet
         open={helpOpen}
         module={activeHelpModule}
         onOpenChange={setHelpOpen}
       />
-      </div>
     </TooltipProvider>
   )
 }

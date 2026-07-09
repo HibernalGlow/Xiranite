@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { lazy, Suspense, useCallback, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { PanelRightClose, PanelRightOpen, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -8,15 +8,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
+import type { OverlayMode } from "@/types/workspace"
 
 const ModuleRegistry = lazy(() =>
   import("@/components/views/ModuleRegistry").then((module) => ({ default: module.ModuleRegistry })),
 )
 const ThemeSettings = lazy(() =>
   import("@/components/views/ThemeSettings").then((module) => ({ default: module.ThemeSettings })),
-)
-const DeploymentHub = lazy(() =>
-  import("@/components/views/DeploymentHub").then((module) => ({ default: module.DeploymentHub })),
 )
 const NodeOperationMonitor = lazy(() =>
   import("@/components/views/NodeOperationMonitor").then((module) => ({ default: module.NodeOperationMonitor })),
@@ -28,16 +26,10 @@ const NodeRunHistoryView = lazy(() =>
 const TITLE_KEYS = {
   registry: "overlay:registry",
   settings: "overlay:settings",
-  deployment: "overlay:deployment",
   operations: "overlay:operations",
   history: "overlay:history",
 } as const
 
-type OverlayMode = "docked" | "floating"
-
-const OVERLAY_MODE_STORAGE_KEY = "xiranite.overlay.mode"
-const OVERLAY_WIDTH_STORAGE_KEY = "xiranite.overlay.width"
-const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
 const DEFAULT_OVERLAY_WIDTH = 440
 const MIN_OVERLAY_WIDTH = 320
 const MAX_OVERLAY_WIDTH = 720
@@ -55,29 +47,14 @@ function OverlayLoading() {
 
 export function OverlayHost() {
   const overlay = useWorkspaceSelector((state) => state.overlay)
+  const overlayMode = useWorkspaceSelector((state) => state.overlayMode)
+  const overlayWidth = useWorkspaceSelector((state) => state.overlayWidth)
   const workspaceActions = useWorkspaceActions()
   const { t } = useTranslation()
-  const [mode, setMode] = useState<OverlayMode>(() => readOverlayMode())
-  const [width, setWidth] = useState(() => readOverlayWidth())
+  // 拖拽期间用 local state 即时反馈，松手时再写入 store 持久化，避免拖拽中频繁触发 persist 序列化。
+  const [liveWidth, setLiveWidth] = useState<number | null>(null)
+  const width = liveWidth ?? overlayWidth
   const reducedMotion = useReducedMotion()
-
-  useEffect(() => {
-    writeOverlayMode(mode)
-  }, [mode])
-
-  useEffect(() => {
-    writeOverlayWidth(width)
-  }, [width])
-
-  useEffect(() => {
-    const refreshOverlayConfig = () => {
-      setMode(readOverlayMode())
-      setWidth(readOverlayWidth())
-    }
-
-    window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshOverlayConfig)
-    return () => window.removeEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshOverlayConfig)
-  }, [])
 
   const startResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -87,7 +64,7 @@ export function OverlayHost() {
     const onMove = (moveEvent: PointerEvent) => {
       const maxWidth = Math.min(MAX_OVERLAY_WIDTH, Math.max(MIN_OVERLAY_WIDTH, window.innerWidth - 96))
       const nextWidth = clamp(window.innerWidth - moveEvent.clientX, MIN_OVERLAY_WIDTH, maxWidth)
-      setWidth(nextWidth)
+      setLiveWidth(nextWidth)
     }
 
     const onUp = () => {
@@ -95,13 +72,17 @@ export function OverlayHost() {
       document.body.style.userSelect = ""
       window.removeEventListener("pointermove", onMove)
       window.removeEventListener("pointerup", onUp)
+      setLiveWidth((current) => {
+        if (current != null) workspaceActions.setOverlayWidth(current)
+        return null
+      })
     }
 
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp, { once: true })
-  }, [])
+  }, [workspaceActions])
 
-  const floating = mode === "floating"
+  const floating = overlayMode === "floating"
   const panelTransition = reducedMotion
     ? { duration: 0 }
     : { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const }
@@ -135,7 +116,7 @@ export function OverlayHost() {
               floating && "absolute bottom-0 right-0 top-0 z-40 shadow-2xl shadow-black/25",
             )}
             data-testid="workspace-push-panel"
-            data-overlay-mode={mode}
+            data-overlay-mode={overlayMode}
             style={{ width, maxWidth: "calc(100vw - 5rem)" }}
           >
         <div
@@ -157,9 +138,9 @@ export function OverlayHost() {
             <div className="flex shrink-0 items-center gap-1.5">
               <ToggleGroup
                 type="single"
-                value={mode}
+                value={overlayMode}
                 onValueChange={(value) => {
-                  if (value) setMode(value as OverlayMode)
+                  if (value) workspaceActions.setOverlayMode(value as OverlayMode)
                 }}
                 variant="outline"
                 size="sm"
@@ -207,7 +188,6 @@ export function OverlayHost() {
             <Suspense fallback={<OverlayLoading />}>
             {overlay === "registry" && <ModuleRegistry />}
             {overlay === "settings" && <ThemeSettings />}
-            {overlay === "deployment" && <DeploymentHub />}
             {overlay === "operations" && <NodeOperationMonitor />}
             {overlay === "history" && <NodeRunHistoryView />}
             </Suspense>
@@ -217,35 +197,6 @@ export function OverlayHost() {
       ) : null}
     </AnimatePresence>
   )
-}
-
-function readOverlayMode(): OverlayMode {
-  if (typeof window === "undefined") return "docked"
-  const value = window.localStorage.getItem(OVERLAY_MODE_STORAGE_KEY)
-  return value === "floating" ? "floating" : "docked"
-}
-
-function readOverlayWidth(): number {
-  if (typeof window === "undefined") return DEFAULT_OVERLAY_WIDTH
-  const value = Number(window.localStorage.getItem(OVERLAY_WIDTH_STORAGE_KEY))
-  return Number.isFinite(value) ? clamp(value, MIN_OVERLAY_WIDTH, MAX_OVERLAY_WIDTH) : DEFAULT_OVERLAY_WIDTH
-}
-
-function writeOverlayMode(mode: OverlayMode) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(OVERLAY_MODE_STORAGE_KEY, mode)
-  dispatchLegacyConfigChanged()
-}
-
-function writeOverlayWidth(width: number) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(OVERLAY_WIDTH_STORAGE_KEY, String(width))
-  dispatchLegacyConfigChanged()
-}
-
-function dispatchLegacyConfigChanged() {
-  if (typeof window === "undefined") return
-  window.dispatchEvent(new CustomEvent(LEGACY_CONFIG_CHANGED_EVENT))
 }
 
 function clamp(value: number, min: number, max: number): number {

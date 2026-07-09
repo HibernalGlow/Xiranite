@@ -27,6 +27,8 @@ export const INITIAL_STATE: WSState = {
   fullscreenComponentId: null,
   zCounter: 1,
   overlay: null,
+  overlayMode: "docked",
+  overlayWidth: 440,
   grainEnabled: true,
   vignetteDepth: 40,
   grainIntensity: 15,

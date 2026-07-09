@@ -80,7 +80,11 @@ const DEFAULT_TRACK_NAME = "焚蝶"
 const DEFAULT_COVER_URL = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/68/6b/51/686b5103-f58d-3ba6-4f20-3bb55b482078/4711720299471.jpg/600x600bb.jpg"
 
 const MEDIA_CHROME_STYLE = {
+  background: "transparent",
+  backgroundColor: "transparent",
+  color: "hsl(var(--foreground))",
   "--media-font-family": "inherit",
+  "--media-background-color": "transparent",
   "--media-primary-color": "hsl(var(--foreground))",
   "--media-secondary-color": "transparent",
   "--media-text-color": "hsl(var(--muted-foreground))",
@@ -446,6 +450,7 @@ function ThemedAudioPlayer({
 
   return (
     <MediaController
+      audio
       style={MEDIA_CHROME_STYLE}
       className={cn(
         "flex h-full min-h-0 flex-col text-foreground",
@@ -491,9 +496,9 @@ function ThemedAudioPlayer({
             <MediaPlayButton
               noTooltip
               className={cn(
-                "grid place-items-center rounded-full bg-foreground text-background shadow-sm transition-colors hover:bg-foreground/90",
+                "grid place-items-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90",
                 compact ? "size-9" : "size-10",
-                "[--media-icon-color:hsl(var(--background))] [--media-control-hover-background:transparent]"
+                "[--media-icon-color:hsl(var(--primary-foreground))] [--media-control-hover-background:transparent]"
               )}
             >
               <Play slot="play" className="size-4 fill-current" />

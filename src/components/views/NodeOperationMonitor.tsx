@@ -6,6 +6,7 @@ import { cancelNodeOperationOnLocalBackend, cleanupNodeOperationsOnLocalBackend 
 import { cn } from "@/lib/utils"
 import { activeNodeOperationCount, isTerminalPhase, type TrackedNodeOperation, useNodeOperations } from "@/store/nodeOperations"
 import { Button } from "@/components/ui/button"
+import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 
 const PHASE_ICON: Record<NodeOperationPhaseDTO, typeof Clock3> = {
   queued: Clock3,
@@ -62,8 +63,9 @@ export function NodeOperationMonitor() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-border/60 px-6 py-5">
+    <OverlayViewShell
+      header={
+        <>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-foreground">{t("view:operations.title")}</h1>
@@ -92,9 +94,10 @@ export function NodeOperationMonitor() {
           <FilterButton active={filter === "active"} onClick={() => setFilter("active")} label={t("view:operations.active")} />
           <FilterButton active={filter === "finished"} onClick={() => setFilter("finished")} label={t("view:operations.finished")} />
         </div>
-      </div>
-
-      <div className="flex-1 overflow-auto px-4 py-4">
+        </>
+      }
+      bodyClassName="px-4 py-4"
+    >
         {visibleOperations.length ? (
           <div className="space-y-2">
             {visibleOperations.map((operation) => (
@@ -111,8 +114,7 @@ export function NodeOperationMonitor() {
             {t("view:operations.empty")}
           </div>
         )}
-      </div>
-    </div>
+    </OverlayViewShell>
   )
 }
 

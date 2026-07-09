@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type MouseEvent } from "react"
+import { useState, type ComponentType, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
@@ -33,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Dock, DockIcon } from "@/components/ui/dock"
+import { DynamicIsland, DynamicIslandProvider, useDynamicIslandSize } from "@/components/ui/dynamic-island"
 
 const TITLEBAR_NO_DRAG_SELECTOR = [
   ".xiranite-app-region-no-drag",
@@ -395,61 +397,26 @@ export function TopBar() {
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "relative hidden h-8 w-8 text-muted-foreground hover:text-foreground sm:inline-flex",
-            runtimeInfo.frontendSource === "vite-dev" && "text-primary hover:text-primary",
-          )}
-          onClick={() => workspaceActions.setOverlay("settings")}
-          title={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
-          aria-label={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
+        <DynamicIslandProvider
+          initialSize="minimalLeading"
+          presets={{
+            minimalLeading: { width: 42, aspectRatio: 38 / 42, borderRadius: 9 },
+            compact: { width: 148, aspectRatio: 38 / 148, borderRadius: 9 },
+          }}
         >
-          <Code2 className="h-4 w-4" />
-          <span
-            className={cn(
-              "absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full",
-              runtimeInfo.frontendSource === "vite-dev" ? "bg-primary" : "bg-muted-foreground/40",
-            )}
+          <TopBarActionDock
+            activeOperations={activeOperations}
+            devRuntimeActive={runtimeInfo.frontendSource === "vite-dev"}
+            devRuntimeLabel={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
+            historyLabel={t("topbar:history")}
+            operationsLabel={t("topbar:operations")}
+            registryLabel={t("overlay:registry")}
+            onOpenDevRuntime={() => workspaceActions.setOverlay("settings")}
+            onOpenHistory={() => workspaceActions.setOverlay("history")}
+            onOpenOperations={() => workspaceActions.setOverlay("operations")}
+            onOpenRegistry={() => workspaceActions.setOverlay("registry")}
           />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2.5 text-xs font-mono text-muted-foreground hover:text-foreground"
-          onClick={() => workspaceActions.setOverlay("registry")}
-          title={t("overlay:registry")}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="hidden xl:inline">{t("topbar:registry")}</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => workspaceActions.setOverlay("operations")}
-          title={t("topbar:operations")}
-          aria-label={t("topbar:operations")}
-        >
-          <Activity className="h-4 w-4" />
-          {activeOperations > 0 && (
-            <span className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-mono leading-none text-destructive-foreground">
-              {activeOperations > 9 ? "9+" : activeOperations}
-            </span>
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => workspaceActions.setOverlay("history")}
-          title={t("topbar:history")}
-          aria-label={t("topbar:history")}
-        >
-          <History className="h-4 w-4" />
-        </Button>
-
+        </DynamicIslandProvider>
         {/* ── 主题快速切换下拉 ── */}
         <Popover open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
           <PopoverTrigger asChild>
@@ -457,12 +424,17 @@ export function TopBar() {
               variant="ghost"
               size="sm"
               title={t("topbar:theme.label")}
-              className="h-8 gap-1.5 px-2 font-mono text-xs text-muted-foreground hover:text-foreground"
+              className={cn("h-8 shrink-0 gap-1.5 px-2 font-mono text-xs text-muted-foreground hover:text-foreground", TOPBAR_STACKED_ACTION_CLASS)}
             >
-              <Palette />
-              <span className="hidden max-w-32 truncate uppercase tracking-widest text-[10px] xl:inline">
-                {activeThemeLabel}
-              </span>
+              {activeThemeColors.length > 0 ? (
+                <span className="grid h-4 w-4 shrink-0 grid-cols-2 overflow-hidden rounded-sm border border-border/60">
+                  {activeThemeColors.slice(0, 4).map((color, index) => (
+                    <span key={`topbar-theme-swatch-${index}`} style={{ background: color }} />
+                  ))}
+                </span>
+              ) : (
+                <Palette />
+              )}
               <ChevronDown className={cn("transition-transform", themeMenuOpen && "rotate-180")} />
             </Button>
           </PopoverTrigger>

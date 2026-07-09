@@ -17,6 +17,7 @@ import type { RuntimeHistoryItemDTO, RuntimeHistoryKindDTO, RuntimeHistoryStatus
 import { useClearRuntimeHistory, useDeleteRuntimeHistory, useRuntimeHistory } from "@/hooks/useRuntimeHistory"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 
 const STATUS_ICON: Record<RuntimeHistoryStatusDTO, typeof Clock3> = {
   success: CheckCircle2,
@@ -75,8 +76,9 @@ export function NodeRunHistoryView() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-b border-border/60 px-6 py-5">
+    <OverlayViewShell
+      header={
+        <>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-foreground">{t("view:history.title")}</h1>
@@ -114,9 +116,10 @@ export function NodeRunHistoryView() {
             />
           ))}
         </div>
-      </div>
-
-      <div className="flex-1 overflow-auto px-4 py-4">
+        </>
+      }
+      bodyClassName="px-4 py-4"
+    >
         {historyQuery.isLoading && (
           <div className="flex h-full min-h-60 items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -161,8 +164,7 @@ export function NodeRunHistoryView() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </OverlayViewShell>
   )
 }
 

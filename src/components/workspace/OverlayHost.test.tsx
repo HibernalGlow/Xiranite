@@ -4,19 +4,36 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { OverlayHost } from "./OverlayHost"
 
 const setOverlayMock = vi.hoisted(() => vi.fn())
-const overlayState = vi.hoisted(() => ({ value: null as null | "registry" | "settings" | "deployment" | "operations" | "history" }))
+const setOverlayModeMock = vi.hoisted(() => vi.fn())
+const setOverlayWidthMock = vi.hoisted(() => vi.fn())
+const overlayState = vi.hoisted(() => ({
+  value: null as null | "registry" | "settings" | "operations" | "history",
+  mode: "docked" as "docked" | "floating",
+  width: 440,
+}))
 const moduleLoadCounts = vi.hoisted(() => ({
   registry: vi.fn(),
   settings: vi.fn(),
-  deployment: vi.fn(),
   operations: vi.fn(),
   history: vi.fn(),
 }))
 
 vi.mock("@/store/workspaceContext", () => ({
-  useWorkspaceActions: () => ({ setOverlay: setOverlayMock }),
-  useWorkspaceSelector: (selector: (state: { overlay: typeof overlayState.value }) => unknown) =>
-    selector({ overlay: overlayState.value }),
+  useWorkspaceActions: () => ({
+    setOverlay: setOverlayMock,
+    setOverlayMode: setOverlayModeMock,
+    setOverlayWidth: setOverlayWidthMock,
+  }),
+  useWorkspaceSelector: (selector: (state: {
+    overlay: typeof overlayState.value
+    overlayMode: typeof overlayState.mode
+    overlayWidth: typeof overlayState.width
+  }) => unknown) =>
+    selector({
+      overlay: overlayState.value,
+      overlayMode: overlayState.mode,
+      overlayWidth: overlayState.width,
+    }),
 }))
 
 vi.mock("@/components/views/ModuleRegistry", () => {
@@ -27,11 +44,6 @@ vi.mock("@/components/views/ModuleRegistry", () => {
 vi.mock("@/components/views/ThemeSettings", () => {
   moduleLoadCounts.settings()
   return { ThemeSettings: () => <div data-testid="settings-view">Settings view</div> }
-})
-
-vi.mock("@/components/views/DeploymentHub", () => {
-  moduleLoadCounts.deployment()
-  return { DeploymentHub: () => <div data-testid="deployment-view">Deployment view</div> }
 })
 
 vi.mock("@/components/views/NodeOperationMonitor", () => {
@@ -50,7 +62,8 @@ vi.mock("react-i18next", () => ({
 
 beforeEach(() => {
   overlayState.value = null
-  window.localStorage.clear()
+  overlayState.mode = "docked"
+  overlayState.width = 440
 })
 
 afterEach(() => {
@@ -66,7 +79,6 @@ describe("OverlayHost", () => {
     expect(screen.queryByTestId("registry-view")).toBeNull()
     expect(moduleLoadCounts.registry).not.toHaveBeenCalled()
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
-    expect(moduleLoadCounts.deployment).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
     expect(moduleLoadCounts.history).not.toHaveBeenCalled()
   })
@@ -81,15 +93,14 @@ describe("OverlayHost", () => {
     expect(screen.getByTestId("workspace-push-panel").getAttribute("data-overlay-mode")).toBe("docked")
     expect(moduleLoadCounts.registry).toHaveBeenCalledTimes(1)
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
-    expect(moduleLoadCounts.deployment).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
     expect(moduleLoadCounts.history).not.toHaveBeenCalled()
   })
 
-  test("restores floating mode and custom width from local storage", async () => {
-    window.localStorage.setItem("xiranite.overlay.mode", "floating")
-    window.localStorage.setItem("xiranite.overlay.width", "560")
+  test("renders floating mode and custom width from the store", async () => {
     overlayState.value = "registry"
+    overlayState.mode = "floating"
+    overlayState.width = 560
 
     render(<OverlayHost />)
 

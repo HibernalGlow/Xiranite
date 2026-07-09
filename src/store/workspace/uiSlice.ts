@@ -27,6 +27,8 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),
     setOverlay: (overlay) => set({ overlay }, false, "SET_OVERLAY"),
+    setOverlayMode: (overlayMode) => set({ overlayMode }, false, "SET_OVERLAY_MODE"),
+    setOverlayWidth: (overlayWidth) => set({ overlayWidth }, false, "SET_OVERLAY_WIDTH"),
     setGrain: (enabled) => set({ grainEnabled: enabled }, false, "SET_GRAIN"),
     setVignette: (depth) => set({ vignetteDepth: depth }, false, "SET_VIGNETTE"),
     setGrainIntensity: (intensity) => set({ grainIntensity: intensity }, false, "SET_GRAIN_INTENSITY"),

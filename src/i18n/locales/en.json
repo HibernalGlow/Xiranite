@@ -111,7 +111,6 @@
       }
     },
     "registry": "REGISTRY",
-    "deployment": "Deployment Hub",
     "operations": "Node operations",
     "history": "Run history",
     "search": "SEARCH...",
@@ -459,7 +458,6 @@
   "overlay": {
     "registry": "MODULE REGISTRY",
     "settings": "SETTINGS",
-    "deployment": "DEPLOYMENT HUB",
     "operations": "NODE OPERATIONS",
     "history": "RUN HISTORY",
     "floatingMode": "Use floating overlay",
@@ -573,44 +571,6 @@
       "empty": "// bento view is empty",
       "emptyHint": "Drop modules into a resizable workspace grid.",
       "openRegistry": "OPEN MODULE REGISTRY"
-    },
-    "deployment": {
-      "title": "Deployment Hub",
-      "subtitle": "Active production environments and sandboxes",
-      "systemOnline": "SYSTEM.ONLINE",
-      "filter": "FILTER",
-      "newDeployment": "NEW DEPLOYMENT",
-      "uptime": "UP: {{uptime}}",
-      "type": {
-        "production": "PRODUCTION",
-        "sandbox": "SANDBOX",
-        "concept_01": "CONCEPT_01",
-        "data_core": "DATA_CORE"
-      },
-      "status": {
-        "synced": "SYNCED",
-        "unsaved": "UNSAVED",
-        "offline": "OFFLINE"
-      },
-      "deployments": {
-        "alpha": {
-          "name": "Alpha Core System",
-          "description": "Main deployment environment for the Alpha initiative. Requires strict access protocols."
-        },
-        "beta": {
-          "name": "Beta Feature Test",
-          "description": "Experimental UI components and layout variations for the upcoming Q3 release."
-        },
-        "atmospheric": {
-          "name": "Atmospheric Urban UI",
-          "description": "Visual explorations for the new design system update focusing on tonal depth and material contrast."
-        },
-        "logistics": {
-          "name": "Global Logistics Model",
-          "nodes": "NODES",
-          "edges": "EDGES"
-        }
-      }
     },
     "operations": {
       "title": "Node operations",

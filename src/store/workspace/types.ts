@@ -29,6 +29,8 @@ export interface WSState {
   fullscreenComponentId: string | null
   zCounter: number
   overlay: OverlayKind
+  overlayMode: OverlayMode
+  overlayWidth: number
   grainEnabled: boolean
   vignetteDepth: number
   grainIntensity: number
@@ -69,6 +71,8 @@ export interface WorkspaceUiActions {
   setViewMode(mode: ViewMode): void
   setCardLayout(layout: CardLayout): void
   setOverlay(overlay: OverlayKind): void
+  setOverlayMode(mode: OverlayMode): void
+  setOverlayWidth(width: number): void
   setGrain(enabled: boolean): void
   setVignette(depth: number): void
   setGrainIntensity(intensity: number): void
@@ -159,6 +163,8 @@ export type WorkspaceUiPreferences = Pick<
   | "activeCustomThemeName"
   | "fontPreset"
   | "cardLayout"
+  | "overlayMode"
+  | "overlayWidth"
   | "grainEnabled"
   | "vignetteDepth"
   | "grainIntensity"
