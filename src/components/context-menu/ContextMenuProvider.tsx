@@ -164,6 +164,9 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
       const isEditable = !!target && isEditableTarget(target)
+      const path = e.composedPath()
+      if (!isEditable && shouldDeferToTldrawContextMenu(path)) return
+
       // Always suppress native menu for non-editable targets.
       if (!isEditable) e.preventDefault()
 
@@ -173,7 +176,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
       const items: ContextMenuItemDef[] = []
       const seenScopes = new Set<string>()
 
-      for (const el of e.composedPath()) {
+      for (const el of path) {
         if (!(el instanceof HTMLElement)) continue
         const scope = el.dataset.contextMenu
         if (!scope || seenScopes.has(scope)) continue
@@ -533,6 +536,16 @@ function isEditableTarget(target: HTMLElement): boolean {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
   const role = target.getAttribute("role")
   if (role === "textbox") return true
+  return false
+}
+
+function shouldDeferToTldrawContextMenu(path: EventTarget[]): boolean {
+  for (const el of path) {
+    if (!(el instanceof HTMLElement)) continue
+    const scope = el.dataset.contextMenu
+    if (scope && scope !== "workspace-canvas") return false
+    if (el.classList.contains("tl-container")) return true
+  }
   return false
 }
 

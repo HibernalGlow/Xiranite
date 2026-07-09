@@ -264,6 +264,49 @@ describe("ContextMenuProvider", () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  test("tldraw canvas keeps its own context menu instead of workspace menu", async () => {
+    const onSelect = vi.fn()
+
+    render(
+      <ContextMenuProvider>
+        <TldrawCanvasTarget onWorkspaceSelect={onSelect} />
+      </ContextMenuProvider>,
+    )
+
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 10,
+    })
+    screen.getByTestId("tldraw-canvas").dispatchEvent(event)
+
+    await waitFor(() => {
+      expect(screen.queryByText("Workspace action")).toBeNull()
+    })
+    expect(event.defaultPrevented).toBe(false)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  test("project menu scopes inside tldraw still open the project menu", async () => {
+    render(
+      <ContextMenuProvider>
+        <TldrawFlowNodeTarget />
+      </ContextMenuProvider>,
+    )
+
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 10,
+      clientY: 10,
+    })
+    screen.getByTestId("flow-node-target").dispatchEvent(event)
+
+    expect(await screen.findByText("Flow node action")).toBeTruthy()
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   test("confirm dialog requires confirmation before running onSelect", async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()
@@ -358,6 +401,30 @@ function ContextTargetWithRoleTextbox({ onSelect }: { onSelect: () => void }) {
     <div data-context-menu="target" data-testid="context-target">
       <div data-testid="role-textbox" role="textbox" contentEditable suppressContentEditableWarning>
         editable
+      </div>
+    </div>
+  )
+}
+
+function TldrawCanvasTarget({ onWorkspaceSelect }: { onWorkspaceSelect: () => void }) {
+  useContextMenuBuilder("workspace-canvas", () => [{ label: "Workspace action", onSelect: onWorkspaceSelect }])
+  return (
+    <div data-context-menu="workspace-canvas">
+      <div className="tl-container" data-testid="tldraw-canvas">
+        tldraw
+      </div>
+    </div>
+  )
+}
+
+function TldrawFlowNodeTarget() {
+  useContextMenuBuilder("flow-node", () => [{ label: "Flow node action", onSelect: vi.fn() }])
+  return (
+    <div data-context-menu="workspace-canvas">
+      <div className="tl-container">
+        <div data-context-menu="flow-node" data-testid="flow-node-target">
+          flow node
+        </div>
       </div>
     </div>
   )
