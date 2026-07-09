@@ -191,10 +191,15 @@ function renderCmdShim(shim: ShimSpec): string {
   }
   header.push(shim.legacy ? "REM legacy-alias: true" : "REM legacy-alias: false")
   header.push("chcp 65001 >nul")
-  const invocation = shim.kind === "script"
-    ? `bun --cwd "${shim.cwd ?? repoRoot}" run ${shim.target}${args ? ` ${args}` : ""} %*`
-    : `bun "${shim.target}"${args ? ` ${args}` : ""} %*`
-  header.push(invocation)
+  if (shim.kind === "script") {
+    header.push(`pushd "${shim.cwd ?? repoRoot}" || exit /b 1`)
+    header.push(`bun run ${shim.target}${args ? ` ${args}` : ""} %*`)
+    header.push("set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
+    header.push("popd")
+    header.push("exit /b %XIRANITE_EXIT_CODE%")
+  } else {
+    header.push(`bun "${shim.target}"${args ? ` ${args}` : ""} %*`)
+  }
   return header.join("\r\n") + "\r\n"
 }
 
