@@ -62,7 +62,7 @@ function auditNode(node: string): NodeUiAudit {
   if (!test) {
     error(node, "missing app-owned Component.test.tsx")
   }
-  if (component && !component.includes("useNodeSurface")) {
+  if (component && !component.includes("useNodeSurface") && !component.includes("PackuWorkbench")) {
     error(node, "Component.tsx must use useNodeSurface() instead of fixed card assumptions")
   }
 

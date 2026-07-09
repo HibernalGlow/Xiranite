@@ -587,4 +587,4 @@ Completion evidence must include:
 - Dangerous actions still gated.
 - PackU rewrite search returns no Python wrapper references for rewritten nodes.
 - Targeted tests and typecheck pass for the touched batch.
-- Existing Bento/card screenshot tooling has been used for visual checks where available. Capture, inspect, adjust, and repeat until the layout is coherent without browser-driven QA.
+- Existing Bento/card screenshot tooling has been used for visual checks where available. Default to one bento matrix screenshot per node so collapsed/compact/portrait/expanded widths are inspected together. Only capture extra screenshots when the matrix reveals a specific issue that needs a close-up.
