@@ -76,7 +76,7 @@ function TabsTrigger({
   )
 }
 
-const MotionTabsContent = motion(TabsPrimitive.Content)
+const MotionTabsContent = motion.create(TabsPrimitive.Content)
 
 function TabsContent({
   className,

@@ -128,7 +128,21 @@
       "appearance": "外观",
       "background": "背景",
       "runtime": "运行时",
-      "data": "数据"
+      "data": "数据",
+      "view": "视图"
+    },
+    "view": {
+      "cardInteraction": "卡片交互",
+      "cardInteractionDesc": "自定义卡片视图中的单击与双击行为。",
+      "clickAction": "单击行为",
+      "clickActionDesc": "单击卡片时触发的动作。设为「无」则不响应单击。",
+      "doubleClickAction": "双击行为",
+      "doubleClickActionDesc": "双击卡片时触发的动作。设为「无」则不响应双击。",
+      "action": {
+        "none": "无",
+        "focus": "聚焦",
+        "fullscreen": "全屏"
+      }
     },
     "data": {
       "title": "本地数据",
@@ -462,7 +476,8 @@
     "history": "运行历史",
     "floatingMode": "切换为悬浮遮罩",
     "dockMode": "固定为推开侧栏",
-    "resize": "拖动调整面板宽度"
+    "resize": "拖动调整面板大小",
+    "drag": "拖动移动面板"
   },
   "view": {
     "dashboard": {

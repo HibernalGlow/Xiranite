@@ -6,10 +6,17 @@ import { OverlayHost } from "./OverlayHost"
 const setOverlayMock = vi.hoisted(() => vi.fn())
 const setOverlayModeMock = vi.hoisted(() => vi.fn())
 const setOverlayWidthMock = vi.hoisted(() => vi.fn())
+const setOverlayFloatingMetricsMock = vi.hoisted(() => vi.fn())
 const overlayState = vi.hoisted(() => ({
   value: null as null | "registry" | "settings" | "operations" | "history",
   mode: "docked" as "docked" | "floating",
   width: 440,
+  floatingMetrics: {
+    widthRatio: 0.5,
+    heightRatio: 0.5,
+    xRatio: 0.25,
+    yRatio: 0.25,
+  },
 }))
 const moduleLoadCounts = vi.hoisted(() => ({
   registry: vi.fn(),
@@ -23,16 +30,19 @@ vi.mock("@/store/workspaceContext", () => ({
     setOverlay: setOverlayMock,
     setOverlayMode: setOverlayModeMock,
     setOverlayWidth: setOverlayWidthMock,
+    setOverlayFloatingMetrics: setOverlayFloatingMetricsMock,
   }),
   useWorkspaceSelector: (selector: (state: {
     overlay: typeof overlayState.value
     overlayMode: typeof overlayState.mode
     overlayWidth: typeof overlayState.width
+    overlayFloatingMetrics: typeof overlayState.floatingMetrics
   }) => unknown) =>
     selector({
       overlay: overlayState.value,
       overlayMode: overlayState.mode,
       overlayWidth: overlayState.width,
+      overlayFloatingMetrics: overlayState.floatingMetrics,
     }),
 }))
 
@@ -64,6 +74,14 @@ beforeEach(() => {
   overlayState.value = null
   overlayState.mode = "docked"
   overlayState.width = 440
+  overlayState.floatingMetrics = {
+    widthRatio: 0.5,
+    heightRatio: 0.5,
+    xRatio: 0.25,
+    yRatio: 0.25,
+  }
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 })
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 })
 })
 
 afterEach(() => {
@@ -97,16 +115,23 @@ describe("OverlayHost", () => {
     expect(moduleLoadCounts.history).not.toHaveBeenCalled()
   })
 
-  test("renders floating mode and custom width from the store", async () => {
+  test("renders floating mode and custom size from the store", async () => {
     overlayState.value = "registry"
     overlayState.mode = "floating"
-    overlayState.width = 560
+    overlayState.floatingMetrics = {
+      widthRatio: 0.5,
+      heightRatio: 0.5,
+      xRatio: 0.25,
+      yRatio: 0.25,
+    }
 
     render(<OverlayHost />)
 
     const panel = await screen.findByTestId("workspace-push-panel")
     expect(panel.getAttribute("data-overlay-mode")).toBe("floating")
-    expect(panel.style.width).toBe("560px")
+    expect(panel.style.width).toBe("584px")
+    expect(panel.style.height).toBe("384px")
+    expect(panel.style.transform).toContain("translate(")
     expect(screen.getByTestId("workspace-overlay-backdrop")).toBeTruthy()
   })
 })

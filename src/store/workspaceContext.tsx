@@ -38,6 +38,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     cardLayout: state.cardLayout,
     overlayMode: state.overlayMode,
     overlayWidth: state.overlayWidth,
+    overlayFloatingMetrics: state.overlayFloatingMetrics,
     grainEnabled: state.grainEnabled,
     vignetteDepth: state.vignetteDepth,
     grainIntensity: state.grainIntensity,
@@ -59,6 +60,8 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     chromeIslandMotion: state.chromeIslandMotion,
     chromeIslandDelay: state.chromeIslandDelay,
     chromeIslandIdleOffset: state.chromeIslandIdleOffset,
+    cardClickAction: state.cardClickAction,
+    cardDoubleClickAction: state.cardDoubleClickAction,
   }
 }
 
@@ -714,6 +717,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     overlay: store.overlay,
     overlayMode: store.overlayMode,
     overlayWidth: store.overlayWidth,
+    overlayFloatingMetrics: store.overlayFloatingMetrics,
     grainEnabled: store.grainEnabled,
     vignetteDepth: store.vignetteDepth,
     grainIntensity: store.grainIntensity,
@@ -736,6 +740,8 @@ function selectWorkspaceState(store: WSStore): WSState {
     chromeIslandMotion: store.chromeIslandMotion,
     chromeIslandDelay: store.chromeIslandDelay,
     chromeIslandIdleOffset: store.chromeIslandIdleOffset,
+    cardClickAction: store.cardClickAction,
+    cardDoubleClickAction: store.cardDoubleClickAction,
   }
 }
 
@@ -779,6 +785,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setOverlay: store.setOverlay,
     setOverlayMode: store.setOverlayMode,
     setOverlayWidth: store.setOverlayWidth,
+    setOverlayFloatingMetrics: store.setOverlayFloatingMetrics,
     setGrain: store.setGrain,
     setVignette: store.setVignette,
     setGrainIntensity: store.setGrainIntensity,
@@ -800,6 +807,8 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setChromeIslandMotion: store.setChromeIslandMotion,
     setChromeIslandDelay: store.setChromeIslandDelay,
     setChromeIslandIdleOffset: store.setChromeIslandIdleOffset,
+    setCardClickAction: store.setCardClickAction,
+    setCardDoubleClickAction: store.setCardDoubleClickAction,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,

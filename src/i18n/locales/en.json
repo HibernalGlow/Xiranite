@@ -128,7 +128,21 @@
       "appearance": "Appearance",
       "background": "Background",
       "runtime": "Runtime",
-      "data": "Data"
+      "data": "Data",
+      "view": "View"
+    },
+    "view": {
+      "cardInteraction": "Card Interaction",
+      "cardInteractionDesc": "Customize single-click and double-click behavior for cards in card view.",
+      "clickAction": "Single Click",
+      "clickActionDesc": "Action triggered by single-clicking a card. Set to \"None\" to disable.",
+      "doubleClickAction": "Double Click",
+      "doubleClickActionDesc": "Action triggered by double-clicking a card. Set to \"None\" to disable.",
+      "action": {
+        "none": "None",
+        "focus": "Focus",
+        "fullscreen": "Fullscreen"
+      }
     },
     "data": {
       "title": "Local data",
@@ -462,7 +476,8 @@
     "history": "RUN HISTORY",
     "floatingMode": "Use floating overlay",
     "dockMode": "Dock as fixed panel",
-    "resize": "Drag to resize panel"
+    "resize": "Drag to resize panel",
+    "drag": "Drag to move panel"
   },
   "view": {
     "dashboard": {

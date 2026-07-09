@@ -7,7 +7,7 @@ import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageU
 import { useTheme } from "@/components/theme-provider"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
-import type { WorkspaceUiPreferences } from "@/store/workspace/types"
+import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
 
 const APP_UI_SECTION = "ui"
@@ -18,15 +18,12 @@ const AESTIVUS_THEME_NAME_STORAGE_KEY = "theme-name"
 const AESTIVUS_THEME_MODE_STORAGE_KEY = "theme-mode"
 const AESTIVUS_CUSTOM_THEMES_STORAGE_KEY = "custom-themes"
 const I18N_STORAGE_KEY = "i18n.lang"
-const OVERLAY_MODE_STORAGE_KEY = "xiranite.overlay.mode"
-const OVERLAY_WIDTH_STORAGE_KEY = "xiranite.overlay.width"
 const MUSIC_DOCK_MODE_STORAGE_KEY = "xiranite.musicDock.mode"
 const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
 const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
 const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
 const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
 
-type OverlayMode = "docked" | "floating"
 type MusicDockMode = "bottom" | "floating"
 
 interface AppUiConfig {
@@ -37,10 +34,6 @@ interface AppUiConfig {
   }
   i18n?: {
     language?: Language
-  }
-  overlay?: {
-    mode?: OverlayMode
-    width?: number
   }
   musicDock?: {
     mode?: MusicDockMode
@@ -54,7 +47,7 @@ interface AppUiConfig {
   }
 }
 
-type BrowserLegacyConfig = Pick<AppUiConfig, "overlay" | "musicDock" | "migratedFrom"> & {
+type BrowserLegacyConfig = Pick<AppUiConfig, "musicDock" | "migratedFrom"> & {
   workspace?: Partial<WorkspaceUiPreferences>
   appearance?: AppUiConfig["appearance"]
   i18n?: AppUiConfig["i18n"]
@@ -69,7 +62,7 @@ const CHROME_POSITIONS = new Set<WorkspaceUiPreferences["chromePosition"]>(["lef
 const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default", "traffic-light"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
-const OVERLAY_MODES = new Set<OverlayMode>(["docked", "floating"])
+const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
 const MUSIC_DOCK_MODES = new Set<MusicDockMode>(["bottom", "floating"])
 
 export function AppConfigSync() {
@@ -242,6 +235,9 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
     cardLayout: state.cardLayout,
+    overlayMode: state.overlayMode,
+    overlayWidth: state.overlayWidth,
+    overlayFloatingMetrics: state.overlayFloatingMetrics,
     grainEnabled: state.grainEnabled,
     vignetteDepth: state.vignetteDepth,
     grainIntensity: state.grainIntensity,
@@ -270,7 +266,7 @@ function buildAppUiConfig(
   workspace: WorkspaceUiPreferences,
   colorMode: ThemeMode,
   language: Language,
-  legacy: Pick<AppUiConfig, "overlay" | "musicDock" | "migratedFrom">,
+  legacy: Pick<AppUiConfig, "musicDock" | "migratedFrom">,
   migratedFrom?: AppUiConfig["migratedFrom"],
 ): AppUiConfig {
   return pruneUndefined({
@@ -278,7 +274,6 @@ function buildAppUiConfig(
     workspace: sanitizeWorkspaceConfig(workspace),
     appearance: { colorMode },
     i18n: { language },
-    overlay: legacy.overlay,
     musicDock: legacy.musicDock,
     migratedFrom,
   }) as AppUiConfig
@@ -308,7 +303,6 @@ function normalizeAppUiConfig(value: unknown): AppUiConfig {
     workspace: normalizeWorkspacePreferences(value.workspace),
     appearance: normalizeAppearanceConfig(value.appearance),
     i18n: normalizeI18nConfig(value.i18n),
-    overlay: normalizeOverlayConfig(value.overlay),
     musicDock: normalizeMusicDockConfig(value.musicDock),
     migratedFrom: isRecord(value.migratedFrom) ? value.migratedFrom : undefined,
   }) as AppUiConfig
@@ -322,6 +316,12 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (typeof value.activeCustomThemeName === "string" || value.activeCustomThemeName === null) next.activeCustomThemeName = value.activeCustomThemeName
   if (isOneOf(value.fontPreset, FONT_PRESETS)) next.fontPreset = value.fontPreset
   if (isOneOf(value.cardLayout, CARD_LAYOUTS)) next.cardLayout = value.cardLayout
+  if (isOneOf(value.overlayMode, OVERLAY_MODES)) next.overlayMode = value.overlayMode
+  if (typeof value.overlayWidth === "number") next.overlayWidth = value.overlayWidth
+  {
+    const overlayFloatingMetrics = normalizeOverlayFloatingMetrics(value.overlayFloatingMetrics)
+    if (overlayFloatingMetrics) next.overlayFloatingMetrics = overlayFloatingMetrics
+  }
   if (typeof value.grainEnabled === "boolean") next.grainEnabled = value.grainEnabled
   if (typeof value.vignetteDepth === "number") next.vignetteDepth = value.vignetteDepth
   if (typeof value.grainIntensity === "number") next.grainIntensity = value.grainIntensity
@@ -366,11 +366,21 @@ function normalizeI18nConfig(value: unknown): AppUiConfig["i18n"] {
   return isOneOf(value.language, LANGUAGES) ? { language: value.language } : undefined
 }
 
-function normalizeOverlayConfig(value: unknown): AppUiConfig["overlay"] {
+function normalizeOverlayFloatingMetrics(value: unknown): OverlayFloatingMetrics | undefined {
   if (!isRecord(value)) return undefined
-  const mode = isOneOf(value.mode, OVERLAY_MODES) ? value.mode : undefined
-  const width = typeof value.width === "number" && Number.isFinite(value.width) ? value.width : undefined
-  return mode || width !== undefined ? { mode, width } : undefined
+  const widthRatio = finiteNumber(value.widthRatio)
+  const heightRatio = finiteNumber(value.heightRatio)
+  const xRatio = finiteNumber(value.xRatio)
+  const yRatio = finiteNumber(value.yRatio)
+  if (widthRatio === undefined || heightRatio === undefined || xRatio === undefined || yRatio === undefined) {
+    return undefined
+  }
+  return {
+    widthRatio: clampRatio(widthRatio),
+    heightRatio: clampRatio(heightRatio),
+    xRatio: clampRatio(xRatio),
+    yRatio: clampRatio(yRatio),
+  }
 }
 
 function normalizeMusicDockConfig(value: unknown): AppUiConfig["musicDock"] {
@@ -392,10 +402,6 @@ function readBrowserLegacyConfig(): BrowserLegacyConfig {
   if (typeof window === "undefined") return {}
   const keys: string[] = []
   const hasWorkspaceStore = window.localStorage.getItem(WORKSPACE_UI_STORAGE_KEY) !== null
-  const overlay = normalizeOverlayConfig({
-    mode: readLocalStorageValue(OVERLAY_MODE_STORAGE_KEY, keys),
-    width: numberFromString(readLocalStorageValue(OVERLAY_WIDTH_STORAGE_KEY, keys)),
-  })
   const musicDock = normalizeMusicDockConfig({
     mode: readLocalStorageValue(MUSIC_DOCK_MODE_STORAGE_KEY, keys),
     savedTracks: parseJson(readLocalStorageValue(MUSIC_DOCK_TRACKS_STORAGE_KEY, keys)),
@@ -421,7 +427,6 @@ function readBrowserLegacyConfig(): BrowserLegacyConfig {
     workspace,
     appearance,
     i18n,
-    overlay,
     musicDock,
     hasWorkspaceStore,
     migratedFrom: keys.length ? { localStorageKeys: [...new Set(keys)], at: new Date().toISOString() } : undefined,
@@ -495,8 +500,6 @@ function writeBrowserLegacyConfig(config: AppUiConfig) {
       )
     }
   }
-  if (config.overlay?.mode) window.localStorage.setItem(OVERLAY_MODE_STORAGE_KEY, config.overlay.mode)
-  if (config.overlay?.width !== undefined) window.localStorage.setItem(OVERLAY_WIDTH_STORAGE_KEY, String(config.overlay.width))
   if (config.musicDock?.mode) window.localStorage.setItem(MUSIC_DOCK_MODE_STORAGE_KEY, config.musicDock.mode)
   if (config.musicDock?.savedTracks) window.localStorage.setItem(MUSIC_DOCK_TRACKS_STORAGE_KEY, JSON.stringify(config.musicDock.savedTracks))
   if (config.musicDock?.sourcePath) window.localStorage.setItem(MUSIC_DOCK_SOURCE_STORAGE_KEY, config.musicDock.sourcePath)
@@ -511,7 +514,7 @@ function readLocalStorageValue(key: string, foundKeys: string[]): string | null 
 }
 
 function isEmptyAppUiConfig(config: AppUiConfig): boolean {
-  return !config.workspace && !config.appearance && !config.i18n && !config.overlay && !config.musicDock
+  return !config.workspace && !config.appearance && !config.i18n && !config.musicDock
 }
 
 function isLegacyConfigStorageKey(key: string): boolean {
@@ -535,6 +538,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function clampRatio(value: number, min = 0): number {
+  return Math.min(1, Math.max(min, value))
+}
+
 function parseJson(value: string | null): unknown {
   if (!value) return undefined
   try {
@@ -542,12 +553,6 @@ function parseJson(value: string | null): unknown {
   } catch {
     return undefined
   }
-}
-
-function numberFromString(value: string | null): number | undefined {
-  if (!value) return undefined
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function pruneUndefined(value: unknown): unknown {
@@ -586,8 +591,6 @@ const LEGACY_CONFIG_STORAGE_KEYS = new Set([
   AESTIVUS_THEME_MODE_STORAGE_KEY,
   AESTIVUS_CUSTOM_THEMES_STORAGE_KEY,
   I18N_STORAGE_KEY,
-  OVERLAY_MODE_STORAGE_KEY,
-  OVERLAY_WIDTH_STORAGE_KEY,
   MUSIC_DOCK_MODE_STORAGE_KEY,
   MUSIC_DOCK_TRACKS_STORAGE_KEY,
   MUSIC_DOCK_SOURCE_STORAGE_KEY,

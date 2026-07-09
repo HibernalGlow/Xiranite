@@ -186,11 +186,11 @@ export function MusicVisualizerIcon({
 }
 
 function getVisualizerSize(style: MusicVisualizerStyle, compact: boolean): number {
-  if (style === "Waveform") return compact ? 20 : 24
-  if (style === "NewtonsCradle") return compact ? 32 : 42
-  if (style === "LineWobble") return compact ? 30 : 42
-  if (WIDE_VISUALIZER_STYLES.has(style)) return compact ? 26 : 34
-  return compact ? 18 : 22
+  if (style === "Waveform") return compact ? 18 : 21
+  if (style === "NewtonsCradle") return compact ? 28 : 36
+  if (style === "LineWobble") return compact ? 26 : 34
+  if (WIDE_VISUALIZER_STYLES.has(style)) return compact ? 23 : 30
+  return compact ? 16 : 20
 }
 
 function getVisualizerSpeed(style: MusicVisualizerStyle): number {
@@ -201,7 +201,7 @@ function getVisualizerSpeed(style: MusicVisualizerStyle): number {
 }
 
 function getVisualizerExtraProps(style: MusicVisualizerStyle, compact: boolean): Pick<LdrsCommonProps, "stroke" | "bgOpacity"> {
-  if (style === "Waveform") return { stroke: compact ? 3 : 3.8 }
+  if (style === "Waveform") return { stroke: compact ? 2.8 : 3.2 }
   if (style === "Miyagi") return { stroke: compact ? 2.4 : 3 }
   if (style === "LineWobble") return { stroke: compact ? 4 : 5, bgOpacity: 0.18 }
   return {}

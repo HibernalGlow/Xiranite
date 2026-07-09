@@ -2,6 +2,7 @@ import type {
   AppTheme,
   AppFontPreset,
   AppCustomTheme,
+  CardClickAction,
   CardLayout,
   ComponentInstance,
   ComponentState,
@@ -32,6 +33,7 @@ export interface WSState {
   overlay: OverlayKind
   overlayMode: OverlayMode
   overlayWidth: number
+  overlayFloatingMetrics: OverlayFloatingMetrics
   grainEnabled: boolean
   vignetteDepth: number
   grainIntensity: number
@@ -54,6 +56,8 @@ export interface WSState {
   chromeIslandMotion: number
   chromeIslandDelay: number
   chromeIslandIdleOffset: number
+  cardClickAction: CardClickAction
+  cardDoubleClickAction: CardClickAction
 }
 
 export type ComponentPatch = {
@@ -61,6 +65,13 @@ export type ComponentPatch = {
   tags?: string[]
   state?: ComponentState
   hiddenIn?: Partial<Record<ViewMode, boolean>>
+}
+
+export interface OverlayFloatingMetrics {
+  widthRatio: number
+  heightRatio: number
+  xRatio: number
+  yRatio: number
 }
 
 export interface WorkspaceUiActions {
@@ -74,6 +85,7 @@ export interface WorkspaceUiActions {
   setOverlay(overlay: OverlayKind): void
   setOverlayMode(mode: OverlayMode): void
   setOverlayWidth(width: number): void
+  setOverlayFloatingMetrics(metrics: Partial<OverlayFloatingMetrics>): void
   setGrain(enabled: boolean): void
   setVignette(depth: number): void
   setGrainIntensity(intensity: number): void
@@ -95,6 +107,8 @@ export interface WorkspaceUiActions {
   setChromeIslandMotion(motion: number): void
   setChromeIslandDelay(delay: number): void
   setChromeIslandIdleOffset(offset: number): void
+  setCardClickAction(action: CardClickAction): void
+  setCardDoubleClickAction(action: CardClickAction): void
 }
 
 export interface WorkspaceListActions {
@@ -167,6 +181,7 @@ export type WorkspaceUiPreferences = Pick<
   | "cardLayout"
   | "overlayMode"
   | "overlayWidth"
+  | "overlayFloatingMetrics"
   | "grainEnabled"
   | "vignetteDepth"
   | "grainIntensity"
@@ -188,6 +203,8 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeIslandMotion"
   | "chromeIslandDelay"
   | "chromeIslandIdleOffset"
+  | "cardClickAction"
+  | "cardDoubleClickAction"
 >
 
 export type SetWorkspaceStore = (

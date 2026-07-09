@@ -2,6 +2,9 @@ export type ViewMode = "dashboard" | "cards" | "dockview" | "flow" | "lane" | "b
 
 export type CardLayout = "grid" | "stack" | "split" | "focus"
 
+/** 卡片点击/双击触发的动作。 */
+export type CardClickAction = "none" | "focus" | "fullscreen"
+
 export type OverlayKind = "registry" | "settings" | "operations" | "history" | null
 
 /** 侧栏面板的展现模式：docked 为推开式固定侧栏，floating 为悬浮遮罩。 */

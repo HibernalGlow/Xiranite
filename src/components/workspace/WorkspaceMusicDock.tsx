@@ -159,12 +159,12 @@ export function WorkspaceMusicDockTopBarSlot() {
 
   if (variant === "full") {
     return (
-      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[226px] shrink-0 overflow-visible">
+      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[206px] shrink-0 overflow-visible">
         <DynamicIslandProvider
           initialSize="minimalLeading"
           presets={{
-            minimalLeading: { width: 226, aspectRatio: 38 / 226, borderRadius: 19 },
-            compact: { width: 420, aspectRatio: 168 / 420, borderRadius: 30 },
+            minimalLeading: { width: 206, aspectRatio: 34 / 206, borderRadius: 17 },
+            compact: { width: 396, aspectRatio: 156 / 396, borderRadius: 28 },
           }}
         >
           <MusicDockIsland variant="full" />
@@ -174,12 +174,12 @@ export function WorkspaceMusicDockTopBarSlot() {
   }
 
   return (
-    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[72px] shrink-0 overflow-visible">
+    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[64px] shrink-0 overflow-visible">
       <DynamicIslandProvider
         initialSize="minimalLeading"
         presets={{
-          minimalLeading: { width: 72, aspectRatio: 40 / 72, borderRadius: 20 },
-          compact: { width: 336, aspectRatio: 168 / 336, borderRadius: 30 },
+          minimalLeading: { width: 64, aspectRatio: 36 / 64, borderRadius: 18 },
+          compact: { width: 320, aspectRatio: 156 / 320, borderRadius: 28 },
         }}
       >
         <MusicDockIsland variant="mini" />
@@ -210,6 +210,7 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
   const { state, setSize } = useDynamicIslandSize()
   const expanded = state.size === "compact"
   const collapsedMini = variant === "mini" && !expanded
+  const showSpectrum = dock.playback.isPlaying
   const primaryTrack = dock.playback.trackName ?? dock.savedTracks[0]?.name
   const trackLabel = primaryTrack ?? "音乐播放器"
   const fallbackStateLabel = dock.playback.isPlaying
@@ -249,9 +250,10 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
     <DynamicIsland
       id={`music-dock-topbar-island-${variant}`}
       className={cn(
-        "absolute right-0 top-[5px] mx-0 max-w-[calc(100vw-9rem)] border border-border/70 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--popover)_88%,var(--primary)),color-mix(in_oklch,var(--card)_88%,var(--accent)))] text-popover-foreground shadow-[0_16px_42px_color-mix(in_oklch,var(--foreground)_18%,transparent)] ring-1 ring-primary/10 backdrop-blur-2xl backdrop-saturate-150",
-        expanded && "border-primary/30 shadow-[0_22px_62px_color-mix(in_oklch,var(--foreground)_24%,transparent)] ring-primary/20",
-        !dock.collapsed && "ring-primary/25",
+        "absolute right-0 top-[7px] mx-0 max-w-[calc(100vw-9rem)] border border-border/55 bg-background/78 text-foreground shadow-[0_8px_24px_color-mix(in_oklch,var(--foreground)_12%,transparent)] ring-1 ring-border/25 backdrop-blur-xl backdrop-saturate-150",
+        "supports-[backdrop-filter]:bg-background/62",
+        expanded && "border-border/70 bg-popover/90 shadow-[0_18px_48px_color-mix(in_oklch,var(--foreground)_18%,transparent)] ring-primary/12 supports-[backdrop-filter]:bg-popover/82",
+        !dock.collapsed && "ring-primary/16",
       )}
     >
       <div
@@ -268,10 +270,10 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
           className={cn(
             "flex min-w-0 items-center rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
             collapsedMini
-              ? "size-full justify-between gap-1 px-1 hover:bg-accent/45"
+              ? cn("size-full gap-1 px-1 hover:bg-muted/45", showSpectrum ? "justify-between" : "justify-center")
               : expanded
                 ? "h-12 w-full gap-2 px-1.5 hover:bg-accent/45"
-                : "h-full w-full gap-2 px-1 hover:bg-accent/40",
+                : "h-full w-full gap-1.5 px-1 hover:bg-muted/35",
           )}
           onClick={() => {
             if (!expanded) setSize("compact")
@@ -282,25 +284,29 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
         >
           <MusicIslandArtwork artworkUrl={dock.playback.artworkUrl} trackLabel={trackLabel} size={collapsedMini ? "lg" : "md"} />
           {collapsedMini ? (
-            <MusicIslandSpectrum
-              compact
-              isPlaying={dock.playback.isPlaying}
-              style={dock.visualizerStyle}
-            />
-          ) : (
-            <>
-              <div className="min-w-0 flex-1">
-                <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[11px]")}>
-                  {trackLabel}
-                </span>
-                <span className={cn("mt-1 block truncate leading-none text-muted-foreground", expanded ? "text-[11px]" : "text-[9px]")}>
-                  {stateLabel}
-                </span>
-              </div>
+            showSpectrum && (
               <MusicIslandSpectrum
+                compact
                 isPlaying={dock.playback.isPlaying}
                 style={dock.visualizerStyle}
               />
+            )
+          ) : (
+            <>
+              <div className="min-w-0 flex-1">
+                <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[10.5px]")}>
+                  {trackLabel}
+                </span>
+                <span className={cn("mt-0.5 block truncate leading-none text-muted-foreground", expanded ? "text-[11px]" : "text-[8.5px]")}>
+                  {stateLabel}
+                </span>
+              </div>
+              {showSpectrum && (
+                <MusicIslandSpectrum
+                  isPlaying={dock.playback.isPlaying}
+                  style={dock.visualizerStyle}
+                />
+              )}
             </>
           )}
         </button>
@@ -327,8 +333,8 @@ function MusicIslandArtwork({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden border border-primary/25 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--primary)_72%,var(--popover)),color-mix(in_oklch,var(--accent)_62%,var(--card)))] text-primary-foreground shadow-[0_6px_18px_color-mix(in_oklch,var(--foreground)_20%,transparent)]",
-        size === "lg" ? "size-8 rounded-[0.875rem]" : "size-7 rounded-[0.7rem]",
+        "grid shrink-0 place-items-center overflow-hidden border border-border/45 bg-muted/55 text-primary shadow-[0_4px_14px_color-mix(in_oklch,var(--foreground)_16%,transparent)]",
+        size === "lg" ? "size-7 rounded-[0.75rem]" : "size-6 rounded-[0.625rem]",
       )}
     >
       {artworkUrl ? (
@@ -352,9 +358,8 @@ function MusicIslandSpectrum({
   return (
     <span
       className={cn(
-        "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-primary shadow-inner backdrop-blur-md",
-        compact ? "h-7 w-9" : "h-7 w-14",
-        !isPlaying && "opacity-65",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-border/45 bg-muted/35 text-primary shadow-inner backdrop-blur-md",
+        compact ? "h-6 w-8" : "h-6 w-11",
       )}
     >
       <MusicVisualizerIcon compact={compact} isPlaying={isPlaying} style={style} />

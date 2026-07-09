@@ -9,6 +9,9 @@ const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+  },
   plugins: [
     react({
       babel: {
@@ -74,6 +77,9 @@ export default defineConfig({
     exclude: ["nuqs"],
     esbuildOptions: {
       target: "es2022",
+      define: {
+        "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+      },
     },
   },
   test: {

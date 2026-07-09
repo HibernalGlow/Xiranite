@@ -1,7 +1,7 @@
-import { memo } from "react"
+import { memo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "@/store/workspace/constants"
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
@@ -39,7 +39,7 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
   fullscreen: "common:full",
 }
 
-function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
+function ComponentCardInner({ comp, layout, cardLayout, isLayoutResizing }: Props) {
   "use memo"
   const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
@@ -48,6 +48,11 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
   const moduleId = comp.moduleId
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? comp.moduleId)
   const surfaceStatus = useComponentSurfaceStatus(comp)
+  const { cardClickAction, cardDoubleClickAction } = useWorkspaceShallowSelector((state) => ({
+    cardClickAction: state.cardClickAction,
+    cardDoubleClickAction: state.cardDoubleClickAction,
+  }))
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isFullscreen = layout.state === "fullscreen"
   const isCompact = layout.state === "compact"
@@ -69,6 +74,37 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
   function exitFocus() {
     workspaceActions.setCardLayout("grid")
     workspaceActions.focusComponent(null)
+  }
+
+  function executeCardAction(action: "focus" | "fullscreen") {
+    if (action === "focus") {
+      if (isFocusedState) return
+      activateFocus()
+    } else {
+      toggleFullscreen()
+    }
+  }
+
+  function handleCardClick() {
+    if (cardClickAction === "none" || cardClickAction === cardDoubleClickAction) return
+    if (cardDoubleClickAction === "none") {
+      executeCardAction(cardClickAction)
+      return
+    }
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null
+      executeCardAction(cardClickAction)
+    }, 250)
+  }
+
+  function handleCardDoubleClick() {
+    if (cardDoubleClickAction === "none") return
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+    }
+    executeCardAction(cardDoubleClickAction)
   }
 
   async function openFloatingWindow() {
@@ -160,6 +196,8 @@ function ComponentCardInner({ comp, layout, isLayoutResizing }: Props) {
       data-context-menu="component-card"
       data-component-id={comp.id}
       onPointerDown={() => workspaceActions.raiseComponent(comp.id)}
+      onClick={handleCardClick}
+      onDoubleClick={handleCardDoubleClick}
       style={{
         position: "absolute",
         left: 0,

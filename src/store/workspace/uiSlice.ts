@@ -29,6 +29,12 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setOverlay: (overlay) => set({ overlay }, false, "SET_OVERLAY"),
     setOverlayMode: (overlayMode) => set({ overlayMode }, false, "SET_OVERLAY_MODE"),
     setOverlayWidth: (overlayWidth) => set({ overlayWidth }, false, "SET_OVERLAY_WIDTH"),
+    setOverlayFloatingMetrics: (metrics) => set((state) => ({
+      overlayFloatingMetrics: {
+        ...state.overlayFloatingMetrics,
+        ...metrics,
+      },
+    }), false, "SET_OVERLAY_FLOATING_METRICS"),
     setGrain: (enabled) => set({ grainEnabled: enabled }, false, "SET_GRAIN"),
     setVignette: (depth) => set({ vignetteDepth: depth }, false, "SET_VIGNETTE"),
     setGrainIntensity: (intensity) => set({ grainIntensity: intensity }, false, "SET_GRAIN_INTENSITY"),
@@ -50,6 +56,8 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setChromeIslandMotion: (chromeIslandMotion) => set({ chromeIslandMotion }, false, "SET_CHROME_ISLAND_MOTION"),
     setChromeIslandDelay: (chromeIslandDelay) => set({ chromeIslandDelay }, false, "SET_CHROME_ISLAND_DELAY"),
     setChromeIslandIdleOffset: (chromeIslandIdleOffset) => set({ chromeIslandIdleOffset }, false, "SET_CHROME_ISLAND_IDLE_OFFSET"),
+    setCardClickAction: (cardClickAction) => set({ cardClickAction }, false, "SET_CARD_CLICK_ACTION"),
+    setCardDoubleClickAction: (cardDoubleClickAction) => set({ cardDoubleClickAction }, false, "SET_CARD_DOUBLE_CLICK_ACTION"),
   }
 }
 

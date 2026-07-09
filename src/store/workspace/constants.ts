@@ -29,6 +29,12 @@ export const INITIAL_STATE: WSState = {
   overlay: null,
   overlayMode: "docked",
   overlayWidth: 440,
+  overlayFloatingMetrics: {
+    widthRatio: 0.34,
+    heightRatio: 0.58,
+    xRatio: 0.66,
+    yRatio: 0.1,
+  },
   grainEnabled: true,
   vignetteDepth: 40,
   grainIntensity: 15,
@@ -51,4 +57,6 @@ export const INITIAL_STATE: WSState = {
   chromeIslandMotion: 110,
   chromeIslandDelay: 45,
   chromeIslandIdleOffset: -3,
+  cardClickAction: "none",
+  cardDoubleClickAction: "focus",
 }

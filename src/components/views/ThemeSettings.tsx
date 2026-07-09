@@ -53,7 +53,7 @@ const THEME_SOURCE_KIND_LABEL_KEYS: Record<ThemePresetOption["source"]["kind"], 
 }
 
 type ColorMode = "system" | "light" | "dark"
-type SettingsSection = "appearance" | "background" | "runtime" | "data"
+type SettingsSection = "appearance" | "background" | "runtime" | "data" | "view"
 
 const COLOR_MODES: { key: ColorMode; labelKey: string; descKey: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "system", labelKey: "settings:colorMode.system", descKey: "settings:colorMode.systemDesc", icon: Monitor },
@@ -77,6 +77,7 @@ function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (
     { key: "background", label: t("settings:sections.background"), icon: Image },
     { key: "runtime", label: t("settings:sections.runtime"), icon: Server },
     { key: "data", label: t("settings:sections.data"), icon: Database },
+    { key: "view", label: t("settings:sections.view"), icon: Grid },
   ]
 
   return (
@@ -88,7 +89,7 @@ function SettingsTabs({ value, onChange }: { value: SettingsSection; onChange: (
       }}
       variant="outline"
       size="sm"
-      className="mt-3 grid w-full grid-cols-4 gap-1 rounded-md border border-border/50 bg-muted/20 p-1"
+      className="mt-3 grid w-full grid-cols-5 gap-1 rounded-md border border-border/50 bg-muted/20 p-1"
       spacing={1}
     >
       {tabs.map(({ key, label, icon: Icon }) => (
@@ -172,6 +173,8 @@ export function ThemeSettings() {
     chromeIslandMotion: workspace.chromeIslandMotion,
     chromeIslandDelay: workspace.chromeIslandDelay,
     chromeIslandIdleOffset: workspace.chromeIslandIdleOffset,
+    cardClickAction: workspace.cardClickAction,
+    cardDoubleClickAction: workspace.cardDoubleClickAction,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -1130,6 +1133,47 @@ export function ThemeSettings() {
             runtimeInfo={runtimeInfo}
             backendStatusLabel={backendStatusLabel}
           />
+
+          <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "view" && "hidden")}>
+            <div>
+              <h3 className="text-sm font-semibold">{t("settings:view.cardInteraction")}</h3>
+              <p className="text-xs text-muted-foreground mt-1">{t("settings:view.cardInteractionDesc")}</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs font-medium mb-2">{t("settings:view.clickAction")}</div>
+                <ToggleGroup
+                  type="single"
+                  value={state.cardClickAction}
+                  onValueChange={(v) => v && workspaceActions.setCardClickAction(v as "none" | "focus" | "fullscreen")}
+                  variant="outline"
+                  size="sm"
+                  className="grid w-full grid-cols-3 gap-1"
+                >
+                  <ToggleGroupItem value="none" className="text-xs">{t("settings:view.action.none")}</ToggleGroupItem>
+                  <ToggleGroupItem value="focus" className="text-xs">{t("settings:view.action.focus")}</ToggleGroupItem>
+                  <ToggleGroupItem value="fullscreen" className="text-xs">{t("settings:view.action.fullscreen")}</ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{t("settings:view.clickActionDesc")}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium mb-2">{t("settings:view.doubleClickAction")}</div>
+                <ToggleGroup
+                  type="single"
+                  value={state.cardDoubleClickAction}
+                  onValueChange={(v) => v && workspaceActions.setCardDoubleClickAction(v as "none" | "focus" | "fullscreen")}
+                  variant="outline"
+                  size="sm"
+                  className="grid w-full grid-cols-3 gap-1"
+                >
+                  <ToggleGroupItem value="none" className="text-xs">{t("settings:view.action.none")}</ToggleGroupItem>
+                  <ToggleGroupItem value="focus" className="text-xs">{t("settings:view.action.focus")}</ToggleGroupItem>
+                  <ToggleGroupItem value="fullscreen" className="text-xs">{t("settings:view.action.fullscreen")}</ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{t("settings:view.doubleClickActionDesc")}</p>
+              </div>
+            </div>
+          </div>
         </motion.div>
 
         <div className={cn("px-4 pb-4 flex items-center justify-end gap-3", section !== "appearance" && "hidden")}>
