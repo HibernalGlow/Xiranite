@@ -5,10 +5,6 @@ import { parseCleanfPaths } from "@xiranite/node-cleanf/core"
 import type { LucideIcon } from "lucide-react"
 import { Copy, Eye, FileSearch, FolderSearch, Gauge, ListChecks, Play, RotateCcw, ShieldAlert, Square, Trash2, Zap } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
-import { BorderBeam } from "@/components/ui/border-beam"
-import { GridPattern } from "@/components/ui/grid-pattern"
-import { MagicCard } from "@/components/ui/magic-card"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,7 +14,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { RunningTint } from "@/nodes/shared/controls"
 import { DEFAULT_SELECTED_PRESETS, NODE_ICON } from "./constants"
 import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, PathInput, PresetPicker, PrimarySwitches, ResultList, StatusStrip } from "./controls"
 import type { CleanfCardState, CleanfPhase, CleanfStatusMeta } from "./types"
@@ -205,9 +200,8 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/cleanf relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-4)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
+      <div ref={surface.ref} className="@container/cleanf flex h-full min-h-0 w-full overflow-hidden bg-card">
+        <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
           ) : compactSurface ? (
@@ -255,30 +249,19 @@ function createViewProps(props: {
 
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
-  const isRunning = props.status.tone === "running"
   return (
-    <div data-testid="cleanf-collapsed-view" className="relative h-full min-h-0 w-full p-1">
-      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in oklch, var(--primary) 60%, transparent)">
-        <GridPattern width={22} height={22} className="fill-muted-foreground/5 stroke-muted-foreground/10" />
-        <RunningTint tone={props.status.tone} />
-        {isRunning && <BorderBeam size={28} duration={5} colorFrom="var(--primary)" colorTo="var(--chart-4)" />}
-        <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-          <Icon />
+    <div data-testid="cleanf-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+      <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+        <Icon />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
+          <span>Cleanf</span>
+          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
-        <div className="relative min-w-0 flex-1">
-          <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-            <span>Cleanf</span>
-            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-          </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
-        </div>
-        <PrimaryActionButton compact props={props} />
-        {isRunning && (
-          <div className="relative grid size-8 shrink-0 place-items-center">
-            <AnimatedCircularProgressBar value={props.progress} className="size-8 text-[10px] font-semibold" gaugePrimaryColor="var(--primary)" gaugeSecondaryColor="var(--muted-foreground)" />
-          </div>
-        )}
-      </MagicCard>
+        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
+      </div>
+      <PrimaryActionButton compact props={props} />
     </div>
   )
 }
@@ -293,15 +276,15 @@ function CompactView(props: ViewProps) {
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 px-3 pb-3 @xl/cleanf:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)]">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-        <ToolbarActions {...props} compact />
-        {(props.status.tone === "running" || props.status.tone === "error") && (
-          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
-        )}
-        <div className="min-h-0 flex-1">
-          <CleanfDisplayTabs compact logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <div className="flex min-h-0 flex-col gap-2">
+          <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <ToolbarActions {...props} compact />
+          {(props.status.tone === "running" || props.status.tone === "error") && (
+            <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+          )}
+          <CompactOutcomePanel logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
       </div>
     </div>
@@ -310,16 +293,15 @@ function CompactView(props: ViewProps) {
 
 function PortraitCompactView(props: ViewProps) {
   return (
-    <div data-testid="cleanf-portrait-view" className="relative flex h-full min-h-0 flex-col gap-2 p-2">
-      <GridPattern width={28} height={28} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
-      <div className="relative flex shrink-0 items-start justify-between gap-2">
+    <div data-testid="cleanf-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
+      <div className="flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="relative grid shrink-0 gap-2">
+      <div className="grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
         <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
@@ -327,7 +309,7 @@ function PortraitCompactView(props: ViewProps) {
       {(props.status.tone === "running" || props.status.tone === "error") && (
         <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
       )}
-      <div className="relative min-h-0 flex-1">
+      <div className="min-h-0 flex-1">
         <CleanfDisplayTabs compact logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
       </div>
     </div>
@@ -360,7 +342,7 @@ function FullView(props: ViewProps) {
 
 function PresetRulePanel(props: ViewProps) {
   return (
-    <section className="relative flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-background/60 p-3 @2xl/cleanf:max-h-full">
+    <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3 @2xl/cleanf:max-h-full">
       <div className="grid gap-3 border-b pb-3">
         <SectionTitle icon={FolderSearch} title={tNode("cleanf", "labels.input", "输入")} hint={tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")} />
         <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
@@ -379,7 +361,7 @@ function PresetRulePanel(props: ViewProps) {
 
 function PreviewDeletionPanel(props: ViewProps) {
   return (
-    <section className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background/60 @2xl/cleanf:max-h-full">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card @2xl/cleanf:max-h-full">
       <SectionTitle icon={FileSearch} title={tNode("cleanf", "labels.preview", "待删预览")} hint={tNode("cleanf", "labels.previewHint", "预演或清理后，这里列出将被删除的文件和分类统计。")} className="px-3 pt-3" />
       <div className="min-h-0 flex-1 px-3 pb-3">
         <CleanfDisplayTabs logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
@@ -389,38 +371,33 @@ function PreviewDeletionPanel(props: ViewProps) {
 }
 
 function ExecutionGatePanel(props: ViewProps) {
-  const isRunning = props.status.tone === "running"
-  const isError = props.status.tone === "error"
   return (
     <section className={cn(
-      "relative col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-background/60 p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
-      !props.previewMode && !props.running && "border-destructive/30 bg-destructive/[0.04]",
+      "col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
+      !props.previewMode && !props.running && "border-destructive/50 bg-destructive/[0.03]",
     )}>
-      {isRunning && <BorderBeam size={36} duration={4} colorFrom="var(--primary)" colorTo="var(--chart-4)" />}
       <SectionTitle
         icon={Gauge}
         title={tNode("cleanf", "labels.gate", "执行闸门")}
         hint={props.previewMode ? tNode("cleanf", "gate.previewHint", "预演模式：仅扫描不删除。") : tNode("cleanf", "gate.liveHint", "真实模式：将永久删除扫描到的文件。")}
       />
-      <div className="flex items-center justify-center gap-3">
-        <AnimatedCircularProgressBar
-          value={props.progress}
-          className="size-24 text-base font-semibold"
-          gaugePrimaryColor={isError ? "var(--destructive)" : "var(--primary)"}
-          gaugeSecondaryColor="var(--muted-foreground)"
-        />
-        <div className="flex min-w-0 flex-col gap-1">
-          <Badge variant={props.previewMode ? "outline" : "destructive"} className="w-fit">
-            {props.previewMode ? <ShieldAlert className="size-3" /> : <Zap className="size-3" />}
-            {props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.live", "真实")}
-          </Badge>
-          <div className="text-xs text-muted-foreground">
-            {tNode("cleanf", "gate.presetsCount", "{{count}} 预设", { count: props.selectedPresets.length })}
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5">
+          <span className="text-xs text-muted-foreground">{tNode("cleanf", "gate.progress", "进度")}</span>
+          <span className="text-xs font-semibold tabular-nums">{props.progress}%</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-md border px-2 py-1.5 text-center">
+            <div className="text-[11px] text-muted-foreground">{tNode("cleanf", "gate.presetsCount", "{{count}} 预设", { count: props.selectedPresets.length })}</div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {tNode("cleanf", "gate.pathsCount", "{{count}} 路径", { count: props.pathCount })}
+          <div className="rounded-md border px-2 py-1.5 text-center">
+            <div className="text-[11px] text-muted-foreground">{tNode("cleanf", "gate.pathsCount", "{{count}} 路径", { count: props.pathCount })}</div>
           </div>
         </div>
+        <Badge variant={props.previewMode ? "outline" : "destructive"} className="w-fit">
+          {props.previewMode ? <ShieldAlert className="size-3" /> : <Zap className="size-3" />}
+          {props.previewMode ? tNode("cleanf", "mode.dry", "预演") : tNode("cleanf", "mode.live", "真实")}
+        </Badge>
       </div>
       <PrimaryActionButton props={props} />
       <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -434,7 +411,7 @@ function LogsStrip(props: {
 }) {
   if (!props.logs.length) return null
   return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-background/70 px-2 py-1">
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
       <Gauge className="size-3.5 shrink-0 text-muted-foreground" />
       <ScrollArea className="min-w-0 flex-1">
         <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -461,31 +438,70 @@ function SectionTitle(props: {
   return (
     <div className={cn("flex min-w-0 items-center gap-1.5", props.className)}>
       <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="truncate text-sm font-semibold">{props.title}</span>
-      {props.hint && <span className="ml-auto hidden truncate text-[11px] text-muted-foreground @3xl/cleanf:block">{props.hint}</span>}
+      <span className="shrink-0 text-sm font-semibold">{props.title}</span>
+      {props.hint && <span className="ml-auto hidden min-w-0 truncate text-[11px] text-muted-foreground @3xl/cleanf:block">{props.hint}</span>}
     </div>
+  )
+}
+
+function CompactOutcomePanel(props: {
+  logs: string[]
+  result: CleanfData | null
+  onCopyLogs: () => void
+  onCopyResults: () => void
+}) {
+  const previewCount = props.result?.previewFiles.length ?? 0
+  const removed = props.result?.totalRemoved ?? 0
+  const hasResult = Boolean(props.result)
+  const text = hasResult
+    ? tNode("cleanf", "compact.resultSummary", "{{removed}} 项 / {{preview}} 预演项", { removed, preview: previewCount })
+    : props.logs.length
+      ? props.logs.at(-1) ?? ""
+      : tNode("cleanf", "compact.waiting", "等待预演结果")
+  return (
+    <section className="flex min-h-0 items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
+      <Eye className="size-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium">{text}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">
+          {tNode("cleanf", "compact.outcome", "结果摘要")}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <ActionIconButton disabled={!hasResult} icon={Copy} label={tNode("cleanf", "actions.copyResults", "复制结果")} onClick={props.onCopyResults} />
+        <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+      </div>
+    </section>
   )
 }
 
 function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
   return (
-    <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-1", props.compact && "justify-between")} data-testid="cleanf-secondary-actions">
       {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
-      <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("cleanf", "actions.copyResults", "复制结果")} onClick={props.onCopyResults} />
-      <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
-      <ActionIconButton icon={RotateCcw} label={tNode("cleanf", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
+        <div aria-label={tNode("cleanf", "actionGroup.inspect", "查看和复制")} className="flex min-w-0 items-center gap-1">
+          <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("cleanf", "actions.copyResults", "复制结果")} onClick={props.onCopyResults} />
+          <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+        </div>
       )}
+      {!props.compact && (
+        <div aria-label={tNode("cleanf", "actionGroup.config", "配置")} className="ml-1 flex items-center gap-1 border-l pl-1">
+          <ConfigDefaultsPopover
+            configDirty={props.configDirty}
+            configFilePath={props.configFilePath}
+            defaults={props.defaults}
+            disabled={props.running}
+            onOpenConfigFile={props.onOpenConfigFile}
+            onResetOverride={props.onResetOverride}
+            onRestoreDefault={props.onRestoreDefault}
+            onSaveDefault={props.onSaveDefault}
+          />
+        </div>
+      )}
+      <div aria-label={tNode("cleanf", "actionGroup.reset", "重置")} className={cn("flex items-center gap-1", !props.compact && "ml-1 border-l pl-1")}>
+        <ActionIconButton icon={RotateCcw} label={tNode("cleanf", "actions.clearState", "清空状态")} onClick={props.onReset} />
+      </div>
     </div>
   )
 }

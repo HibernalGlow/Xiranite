@@ -1173,6 +1173,23 @@
         "preview": "预演项",
         "progress": "进度"
       },
+      "compact": {
+        "resultSummary": "{{removed}} 项 / {{preview}} 预演项",
+        "waiting": "等待预演结果",
+        "outcome": "结果摘要"
+      },
+      "actionGroup": {
+        "inspect": "查看和复制",
+        "config": "配置",
+        "reset": "重置"
+      },
+      "gate": {
+        "progress": "进度",
+        "presetsCount": "{{count}} 预设",
+        "pathsCount": "{{count}} 路径",
+        "previewHint": "预演模式：仅扫描不删除。",
+        "liveHint": "真实模式：将永久删除扫描到的文件。"
+      },
       "actionLabel": {
         "preview": "预演",
         "clean": "清理"

@@ -100,7 +100,7 @@ export function PresetPicker(props: {
             disabled={props.disabled}
             className={cn(
               "flex min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors",
-              active ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-background/60 text-muted-foreground hover:bg-muted/50",
+              active ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted/50",
               props.disabled && "opacity-60",
             )}
             onClick={() => props.onToggle(preset.id)}
@@ -237,7 +237,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -257,7 +257,7 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-background/60 px-2 py-1.5">
+    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-card px-2 py-1.5">
       <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
@@ -281,7 +281,7 @@ export function ResultList(props: {
     ? previewFiles
     : Object.entries(details).map(([key, count]) => `${key}: ${count}`)
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Eye className="size-3.5" />
@@ -311,7 +311,7 @@ export function LogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>

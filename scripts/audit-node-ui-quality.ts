@@ -24,6 +24,7 @@ const root = process.cwd()
 const nodesDir = join(root, "packages", "nodes")
 const appNodesDir = join(root, "src", "nodes")
 const designDocsDir = join(root, "docs", "node-ui-designs")
+const globalDesignDoc = readTextIfExists(join(root, "docs", "node-specific-ui-redesign.md")) ?? ""
 const nodeNames = readdirSync(nodesDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
@@ -50,7 +51,7 @@ function auditNode(node: string): NodeUiAudit {
 
   const component = readTextIfExists(componentPath)
   const test = readTextIfExists(testPath)
-  const designDoc = readTextIfExists(designDocPath)
+  const designDoc = readTextIfExists(designDocPath) ?? extractGlobalDesignBrief(globalDesignDoc, node)
   const appSource = readSourceTree(appRoot)
 
   if (!component) {
@@ -178,6 +179,15 @@ function countLines(text: string): number {
 
 function requiresDataTable(designDoc: string): boolean {
   return /\b(?:DataTable|TanStack DataTable|Dice\/TanStack)\b/i.test(designDoc)
+}
+
+function extractGlobalDesignBrief(designDoc: string, node: string): string | null {
+  const heading = new RegExp(`^### \`${escapeRegExp(node)}\`\\b[\\s\\S]*?(?=^### \`|^## |\\z)`, "m")
+  return designDoc.match(heading)?.[0] ?? null
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function usesProjectDataTable(component: string): boolean {

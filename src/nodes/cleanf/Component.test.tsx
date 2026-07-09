@@ -53,16 +53,19 @@ describe("app-owned cleanf Component", () => {
       }
 
       expect(screen.getByLabelText("cleanf scan paths")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: /结果/ })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
 
       if (mode === "compact") {
         expect(screen.getByTestId("cleanf-compact-view")).toBeTruthy()
         expect(screen.getByRole("button", { name: "cleanf advanced options" })).toBeTruthy()
+        expect(screen.getByText("结果摘要")).toBeTruthy()
       } else if (mode === "portrait") {
+        expect(screen.getByRole("tab", { name: /结果/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
         expect(screen.getByTestId("cleanf-portrait-view")).toBeTruthy()
         expect(screen.getByTestId("cleanf-primary-switches")).toBeTruthy()
       } else {
+        expect(screen.getByRole("tab", { name: /结果/ })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
         expect(screen.getByTestId("cleanf-full-view")).toBeTruthy()
         expect(screen.getByText("清理预设")).toBeTruthy()
         expect(screen.getByText("关键开关")).toBeTruthy()

@@ -1173,6 +1173,23 @@
         "preview": "Preview items",
         "progress": "Progress"
       },
+      "compact": {
+        "resultSummary": "{{removed}} item(s) / {{preview}} preview item(s)",
+        "waiting": "Waiting for preview results",
+        "outcome": "Result summary"
+      },
+      "actionGroup": {
+        "inspect": "View and copy",
+        "config": "Config",
+        "reset": "Reset"
+      },
+      "gate": {
+        "progress": "Progress",
+        "presetsCount": "{{count}} preset(s)",
+        "pathsCount": "{{count}} path(s)",
+        "previewHint": "Dry-run: scan only, no deletion.",
+        "liveHint": "Live mode: permanently delete scanned files."
+      },
       "actionLabel": {
         "preview": "Dry run",
         "clean": "Clean"
