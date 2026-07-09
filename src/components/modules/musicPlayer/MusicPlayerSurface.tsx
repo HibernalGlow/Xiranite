@@ -71,9 +71,18 @@ export interface MusicPlayerSurfaceProps {
   savedSourcePath?: string
   onSavedTracksChange?: (tracks: PersistedTrack[]) => void
   onSourcePathChange?: (path: string) => void
+  onPlaybackStateChange?: (state: MusicPlaybackState) => void
   variant?: "module" | "dock"
   actions?: ReactNode
   className?: string
+}
+
+export interface MusicPlaybackState {
+  hasTrack: boolean
+  isPlaying: boolean
+  trackCount: number
+  trackName?: string
+  supportLine?: string
 }
 
 const DEFAULT_LOCAL_PATH = "E:\\1Hub\\Music\\焚蝶 - 铁痕电台-MSR&Aurora Sky&Lucien X.flac"
@@ -119,6 +128,7 @@ export function MusicPlayerSurface({
   savedSourcePath,
   onSavedTracksChange,
   onSourcePathChange,
+  onPlaybackStateChange,
   variant = "module",
   actions,
   className,
@@ -213,6 +223,16 @@ export function MusicPlayerSurface({
     if (!audio) return
     void audio.play().catch(() => setIsPlaying(false))
   }, [activeTrack?.src])
+
+  useEffect(() => {
+    onPlaybackStateChange?.({
+      hasTrack: Boolean(activeTrack),
+      isPlaying,
+      trackCount: tracks.length || savedTracks.length,
+      trackName: activeTrack?.name,
+      supportLine: activeTrack ? supportLine : undefined,
+    })
+  }, [activeTrack, isPlaying, onPlaybackStateChange, savedTracks.length, supportLine, tracks.length])
 
   const libraryLabel = useMemo(() => {
     if (tracks.length > 0) return `${tracks.length} 首`

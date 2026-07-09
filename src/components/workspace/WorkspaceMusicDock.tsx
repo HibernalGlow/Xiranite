@@ -8,8 +8,9 @@ import {
   type ReactNode,
 } from "react"
 import { motion, useDragControls, type PanInfo } from "motion/react"
-import { GripHorizontal, Maximize2, Music2, PanelBottom, X } from "lucide-react"
-import { MusicPlayerSurface, type PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
+import { AudioLines, GripHorizontal, Maximize2, PanelBottom, X } from "lucide-react"
+import { MusicPlayerSurface, type MusicPlaybackState, type PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
+import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-island"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -23,11 +24,15 @@ interface FloatingOffset {
 interface MusicDockContextValue {
   collapsed: boolean
   mode: DockMode
+  playback: MusicPlaybackState
+  surfaceMounted: boolean
   savedTracks: PersistedTrack[]
   sourcePath: string
   floatingOffset: FloatingOffset
   setCollapsed(collapsed: boolean): void
   setMode(mode: DockMode): void
+  setPlaybackState(state: MusicPlaybackState): void
+  setSurfaceMounted(mounted: boolean): void
   setSavedTracks(tracks: PersistedTrack[]): void
   setSourcePath(path: string): void
   setFloatingOffset(offset: FloatingOffset): void
@@ -39,11 +44,18 @@ const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
 const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
 const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
 const MUSIC_DOCK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
+const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
+  hasTrack: false,
+  isPlaying: false,
+  trackCount: 0,
+}
 const MusicDockContext = createContext<MusicDockContextValue | null>(null)
 
 export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(true)
   const [mode, setMode] = useState<DockMode>(() => readDockMode())
+  const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
+  const [surfaceMounted, setSurfaceMounted] = useState(false)
   const [savedTracks, setSavedTracks] = useState<PersistedTrack[]>(() => readSavedTracks())
   const [sourcePath, setSourcePath] = useState(() => readSourcePath())
   const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(() => readFloatingOffset())
@@ -87,11 +99,15 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
       value={{
         collapsed,
         mode,
+        playback,
+        surfaceMounted,
         savedTracks,
         sourcePath,
         floatingOffset,
         setCollapsed,
         setMode,
+        setPlaybackState,
+        setSurfaceMounted,
         setSavedTracks,
         setSourcePath,
         setFloatingOffset,
@@ -104,44 +120,99 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
 
 export function WorkspaceMusicDockTopBarSlot() {
   const dock = useMusicDock()
-  const primaryTrack = dock.savedTracks[0]?.name
-  const countLabel = dock.savedTracks.length > 0 ? `${dock.savedTracks.length} 首` : dock.mode === "bottom" ? "底栏" : "浮动"
+  const primaryTrack = dock.playback.trackName ?? dock.savedTracks[0]?.name
+  const trackLabel = primaryTrack ?? "音乐"
+  const stateLabel = dock.playback.isPlaying
+    ? (dock.collapsed ? "后台播放" : "正在播放")
+    : dock.collapsed
+      ? "后台待机"
+      : dock.mode === "bottom" ? "底栏显示" : "浮窗显示"
+
+  function showInMode(mode: DockMode) {
+    dock.setMode(mode)
+    dock.setSurfaceMounted(true)
+    dock.setCollapsed(false)
+  }
 
   return (
-    <div
-      data-music-dock="topbar-slot"
-      className={cn(
-        "xiranite-app-region-no-drag hidden h-8 w-60 min-w-0 items-center overflow-hidden rounded border border-border/[0.45] bg-card/[0.18] text-xs text-muted-foreground backdrop-blur-2xl backdrop-saturate-150 transition-colors xl:flex",
-        MUSIC_DOCK_GLASS_SHADOW_CLASS,
-        !dock.collapsed && "border-primary/40 bg-primary/[0.15] text-primary"
-      )}
+    <DynamicIslandProvider
+      initialSize="compact"
+      presets={{
+        minimalLeading: { width: 48, aspectRatio: 36 / 48, borderRadius: 18 },
+        compact: { width: 286, aspectRatio: 36 / 286, borderRadius: 18 },
+      }}
     >
-      <button
-        type="button"
-        className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-left transition-colors hover:text-foreground"
-        onClick={() => dock.setCollapsed(false)}
-        title="打开音乐播放器"
-        aria-label="打开音乐播放器"
+      <DynamicIsland
+        id="music-dock-topbar-island"
+        data-music-dock="topbar-slot"
+        className={cn(
+          "xiranite-app-region-no-drag hidden mx-0 border border-border/55 bg-foreground text-background shadow-lg shadow-black/10 backdrop-blur-2xl backdrop-saturate-150 xl:flex",
+          !dock.collapsed && "border-primary/45 shadow-primary/10",
+        )}
       >
-        <Music2 className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate font-medium">{primaryTrack ?? "音乐播放器"}</span>
-        <span className="shrink-0 rounded bg-background/[0.24] px-1.5 py-0.5 text-[9px] leading-none text-muted-foreground backdrop-blur-xl">
-          {countLabel}
-        </span>
-      </button>
-      <button
-        type="button"
-        className="grid h-full w-8 shrink-0 place-items-center border-l border-border/[0.45] transition-colors hover:bg-background/[0.24] hover:text-foreground"
-        onClick={() => {
-          dock.setCollapsed(false)
-          dock.setMode(dock.mode === "bottom" ? "floating" : "bottom")
-        }}
-        title={dock.mode === "bottom" ? "切换为浮动窗口" : "固定到底栏"}
-        aria-label={dock.mode === "bottom" ? "切换为浮动窗口" : "固定到底栏"}
-      >
-        {dock.mode === "bottom" ? <Maximize2 className="size-3.5" /> : <PanelBottom className="size-3.5" />}
-      </button>
-    </div>
+        <div className="flex h-full w-full items-center gap-1 px-1.5">
+          <button
+            type="button"
+            className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-full px-2 text-left transition-colors hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/30"
+            onClick={() => {
+              if (dock.collapsed) dock.setSurfaceMounted(true)
+              dock.setCollapsed(!dock.collapsed)
+            }}
+            title={dock.collapsed ? "打开音乐面板" : "隐藏音乐面板，继续后台播放"}
+            aria-label={dock.collapsed ? "打开音乐面板" : "隐藏音乐面板，继续后台播放"}
+          >
+            <AudioLines
+              className={cn(
+                "size-4 shrink-0",
+                dock.playback.isPlaying ? "text-background" : "text-background/62",
+              )}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[11px] font-semibold leading-none">{trackLabel}</span>
+              <span className="mt-0.5 block truncate text-[9px] leading-none text-background/60">{stateLabel}</span>
+            </span>
+          </button>
+
+          <span aria-hidden className="h-4 w-px shrink-0 bg-background/18" />
+
+          <button
+            type="button"
+            className={cn(
+              "grid size-7 shrink-0 place-items-center rounded-full text-background/65 transition-colors hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/30",
+              !dock.collapsed && dock.mode === "bottom" && "bg-background/14 text-background",
+            )}
+            onClick={() => showInMode("bottom")}
+            title="以底栏模式打开"
+            aria-label="以底栏模式打开"
+            aria-pressed={!dock.collapsed && dock.mode === "bottom"}
+          >
+            <PanelBottom className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "grid size-7 shrink-0 place-items-center rounded-full text-background/65 transition-colors hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/30",
+              !dock.collapsed && dock.mode === "floating" && "bg-background/14 text-background",
+            )}
+            onClick={() => showInMode("floating")}
+            title="以浮窗模式打开"
+            aria-label="以浮窗模式打开"
+            aria-pressed={!dock.collapsed && dock.mode === "floating"}
+          >
+            <Maximize2 className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className="grid size-7 shrink-0 place-items-center rounded-full text-background/55 transition-colors hover:bg-background/10 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/30"
+            onClick={() => dock.setCollapsed(true)}
+            title="隐藏面板，继续后台播放"
+            aria-label="隐藏面板，继续后台播放"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      </DynamicIsland>
+    </DynamicIslandProvider>
   )
 }
 
@@ -149,6 +220,11 @@ export function WorkspaceMusicDockPanel() {
   const dock = useMusicDock()
   const dragControls = useDragControls()
   const dragBoundsRef = useRef<HTMLDivElement>(null)
+  const backgroundMode = dock.collapsed
+
+  useEffect(() => {
+    if (!dock.collapsed) dock.setSurfaceMounted(true)
+  }, [dock.collapsed, dock.setSurfaceMounted])
 
   function handleDragStart(event: ReactPointerEvent<HTMLDivElement>) {
     if (dock.mode !== "floating") return
@@ -183,37 +259,49 @@ export function WorkspaceMusicDockPanel() {
         size="icon-sm"
         className="hover:text-destructive"
         onClick={() => dock.setCollapsed(true)}
-        title="收起音乐 dock"
-        aria-label="收起音乐 dock"
+        title="隐藏音乐 dock，继续后台播放"
+        aria-label="隐藏音乐 dock，继续后台播放"
       >
         <X />
       </Button>
     </div>
   ) : undefined
 
-  if (dock.collapsed) return null
+  if (backgroundMode && !dock.surfaceMounted) return null
 
   return (
-    <div ref={dragBoundsRef} className="pointer-events-none fixed inset-3 z-[71]">
+    <div
+      ref={dragBoundsRef}
+      className={cn(
+        "pointer-events-none fixed z-[71]",
+        backgroundMode ? "left-0 top-0 size-px overflow-hidden" : "inset-3",
+      )}
+      aria-hidden={backgroundMode}
+    >
       <motion.div
         layout
-        drag={dock.mode === "floating"}
+        drag={!backgroundMode && dock.mode === "floating"}
         dragControls={dragControls}
         dragListener={false}
         dragMomentum={false}
         dragElastic={0.02}
         dragConstraints={dragBoundsRef}
         onDragEnd={handleDragEnd}
-        animate={dock.mode === "bottom" ? { x: 0, y: 0 } : undefined}
-        style={dock.mode === "floating" ? dock.floatingOffset : undefined}
+        animate={!backgroundMode && dock.mode === "bottom" ? { x: 0, y: 0 } : undefined}
+        style={!backgroundMode && dock.mode === "floating" ? dock.floatingOffset : undefined}
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
         data-music-dock="panel"
         data-music-dock-mode={dock.mode}
         className={cn(
-          "pointer-events-auto absolute bottom-0 overflow-hidden",
-          dock.mode === "bottom"
-            ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
-            : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
+          "absolute bottom-0 overflow-hidden",
+          backgroundMode
+            ? "pointer-events-none left-0 top-0 size-px opacity-0"
+            : cn(
+              "pointer-events-auto opacity-100 transition-opacity duration-200",
+              dock.mode === "bottom"
+                ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
+                : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
+            ),
         )}
       >
         <div className={cn(
@@ -253,8 +341,8 @@ export function WorkspaceMusicDockPanel() {
                   size="icon-xs"
                   className="hover:text-destructive"
                   onClick={() => dock.setCollapsed(true)}
-                  title="收起音乐 dock"
-                  aria-label="收起音乐 dock"
+                  title="隐藏音乐 dock，继续后台播放"
+                  aria-label="隐藏音乐 dock，继续后台播放"
                 >
                   <X />
                 </Button>
@@ -267,6 +355,7 @@ export function WorkspaceMusicDockPanel() {
             savedSourcePath={dock.sourcePath}
             onSavedTracksChange={dock.setSavedTracks}
             onSourcePathChange={dock.setSourcePath}
+            onPlaybackStateChange={dock.setPlaybackState}
             variant={dock.mode === "bottom" ? "dock" : "module"}
             actions={bottomActions}
             className="relative z-10 flex-1"
