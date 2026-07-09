@@ -73,6 +73,7 @@ export interface MusicPlayerSurfaceProps {
   onSavedTracksChange?: (tracks: PersistedTrack[]) => void
   onSourcePathChange?: (path: string) => void
   onPlaybackStateChange?: (state: MusicPlaybackState) => void
+  onPlaybackControlsChange?: (controls: MusicPlaybackControls | null) => void
   variant?: "module" | "dock"
   actions?: ReactNode
   className?: string
@@ -82,9 +83,18 @@ export interface MusicPlaybackState {
   hasTrack: boolean
   isPlaying: boolean
   trackCount: number
+  currentTime?: number
+  duration?: number
   artworkUrl?: string
   trackName?: string
   supportLine?: string
+}
+
+export interface MusicPlaybackControls {
+  playPrevious(): void
+  playNext(): void
+  togglePlay(): void
+  seekTo(time: number): void
 }
 
 const DEFAULT_LOCAL_PATH = "E:\\1Hub\\Music\\焚蝶 - 铁痕电台-MSR&Aurora Sky&Lucien X.flac"
@@ -132,6 +142,7 @@ export function MusicPlayerSurface({
   onSavedTracksChange,
   onSourcePathChange,
   onPlaybackStateChange,
+  onPlaybackControlsChange,
   variant = "module",
   actions,
   className,
@@ -147,6 +158,7 @@ export function MusicPlayerSurface({
   const [tracks, setTracks] = useState<RuntimeTrack[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [lyricsByPath, setLyricsByPath] = useState<Record<string, LyricLine[]>>({})
   const [restoreAttempt, setRestoreAttempt] = useState(0)
@@ -206,6 +218,10 @@ export function MusicPlayerSurface({
   }, [tracks.length])
 
   useEffect(() => {
+    setDuration(0)
+  }, [activeTrack?.src])
+
+  useEffect(() => {
     if (!activeTrack) return
     if (Object.prototype.hasOwnProperty.call(lyricsByPath, activeTrack.path)) return
 
@@ -233,11 +249,13 @@ export function MusicPlayerSurface({
       hasTrack: Boolean(activeTrack),
       isPlaying,
       trackCount: tracks.length || savedTracks.length,
+      currentTime,
+      duration,
       artworkUrl: activeTrack?.img,
       trackName: activeTrack?.name,
       supportLine: activeTrack ? supportLine : undefined,
     })
-  }, [activeTrack, isPlaying, onPlaybackStateChange, savedTracks.length, supportLine, tracks.length])
+  }, [activeTrack, currentTime, duration, isPlaying, onPlaybackStateChange, savedTracks.length, supportLine, tracks.length])
 
   const libraryLabel = useMemo(() => {
     if (tracks.length > 0) return `${tracks.length} 首`
@@ -307,6 +325,30 @@ export function MusicPlayerSurface({
     selectTrack(activeIndex + 1, autoplay)
   }
 
+  useEffect(() => {
+    if (!onPlaybackControlsChange) return
+
+    onPlaybackControlsChange({
+      playPrevious,
+      playNext: () => playNext(),
+      togglePlay: () => {
+        const audio = audioRef.current
+        if (!audio) return
+        if (audio.paused) void audio.play().catch(() => setIsPlaying(false))
+        else audio.pause()
+      },
+      seekTo: (time) => {
+        const audio = audioRef.current
+        if (!audio || !Number.isFinite(time)) return
+        const nextTime = clamp(time, 0, Number.isFinite(audio.duration) ? audio.duration : Math.max(time, 0))
+        audio.currentTime = nextTime
+        setCurrentTime(nextTime)
+      },
+    })
+
+    return () => onPlaybackControlsChange(null)
+  }, [activeIndex, activeTrack?.src, audioRef, isPlaying, onPlaybackControlsChange, tracks.length])
+
   return (
     <div
       ref={surfaceRef}
@@ -358,6 +400,7 @@ export function MusicPlayerSurface({
             onPlayPrevious={playPrevious}
             onPlayingChange={setIsPlaying}
             onSelectTrack={selectTrack}
+            onDurationChange={setDuration}
             onTimeChange={setCurrentTime}
           />
         ) : (
@@ -459,6 +502,7 @@ function ThemedAudioPlayer({
   onPlayPrevious,
   onPlayingChange,
   onSelectTrack,
+  onDurationChange,
   onTimeChange,
 }: {
   audioRef: RefObject<HTMLAudioElement | null>
@@ -477,6 +521,7 @@ function ThemedAudioPlayer({
   onPlayPrevious(): void
   onPlayingChange(playing: boolean): void
   onSelectTrack(index: number, autoplay?: boolean): void
+  onDurationChange(duration: number): void
   onTimeChange(time: number): void
 }) {
   const showQueue = !compact && tracks.length > 1
@@ -498,7 +543,11 @@ function ThemedAudioPlayer({
         preload="metadata"
         style={AUDIO_ELEMENT_STYLE}
         onEnded={onEnded}
-        onLoadedMetadata={(event) => onTimeChange(event.currentTarget.currentTime)}
+        onDurationChange={(event) => onDurationChange(safeMediaTime(event.currentTarget.duration))}
+        onLoadedMetadata={(event) => {
+          onTimeChange(event.currentTarget.currentTime)
+          onDurationChange(safeMediaTime(event.currentTarget.duration))
+        }}
         onPause={() => onPlayingChange(false)}
         onPlay={() => onPlayingChange(true)}
         onTimeUpdate={(event) => onTimeChange(event.currentTarget.currentTime)}
@@ -922,6 +971,10 @@ function formatTimeLabel(seconds: number): string {
   const minutes = Math.floor(seconds / 60)
   const rest = Math.floor(seconds % 60)
   return `${minutes}:${String(rest).padStart(2, "0")}`
+}
+
+function safeMediaTime(seconds: number): number {
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0
 }
 
 function formatFileSize(size: number | undefined): string {

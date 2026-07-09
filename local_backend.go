@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -193,6 +194,17 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 		}
 	}
 
+	if embedded := embeddedLocalBackendScript(); len(embedded) > 0 {
+		if bunErr != nil {
+			return "", nil, "", fmt.Errorf("embedded Xiranite local backend JS requires Bun runtime: %w", bunErr)
+		}
+		script, err := extractEmbeddedLocalBackendScript(embedded)
+		if err != nil {
+			return "", nil, "", err
+		}
+		return bun, []string{script}, "", nil
+	}
+
 	root := findProjectRoot()
 	source := filepath.Join(root, "packages", "backend", "src", "index.ts")
 	if fileExists(source) {
@@ -202,6 +214,28 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 	}
 
 	return "", nil, "", errors.New("could not find Xiranite local backend JS bundle or Bun runtime")
+}
+
+func extractEmbeddedLocalBackendScript(script []byte) (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil || cacheDir == "" {
+		cacheDir = os.TempDir()
+	}
+
+	sum := sha256.Sum256(script)
+	targetDir := filepath.Join(cacheDir, "Xiranite", "runtime")
+	target := filepath.Join(targetDir, fmt.Sprintf("xiranite-backend-%x.js", sum[:8]))
+	if fileExists(target) {
+		return target, nil
+	}
+
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create Xiranite runtime cache: %w", err)
+	}
+	if err := os.WriteFile(target, script, 0o644); err != nil {
+		return "", fmt.Errorf("failed to extract embedded Xiranite local backend: %w", err)
+	}
+	return target, nil
 }
 
 func resolveBunCommand() (string, error) {
