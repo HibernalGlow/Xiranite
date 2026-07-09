@@ -91,8 +91,8 @@ async function collectContractFindings(file: string, findings: Finding[]): Promi
     if (isCallExpression(node, "runNode") || isPropertyKey(node, "runNode")) {
       addNodeFinding(source, node, "contract must not expose backend runners", nodeText(source, node), findings)
     }
-    if (isPropertyKey(node, "cli")) {
-      addNodeFinding(source, node, "NodeEntry must not expose CLI", nodeText(source, node), findings)
+    if (isIdentifier(node, "CliHost") || isIdentifier(node, "CliCommand")) {
+      addNodeFinding(source, node, "contract must not expose CLI host APIs", nodeText(source, node), findings)
     }
   })
 }
