@@ -23,6 +23,8 @@ interface FloatingOffset {
   y: number
 }
 
+type MusicDockIslandVariant = "full" | "mini"
+
 interface MusicDockContextValue {
   collapsed: boolean
   mode: DockMode
@@ -125,25 +127,40 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
 
 export function WorkspaceMusicDockTopBarSlot() {
   return (
-    <div data-music-dock="topbar-slot" className="xiranite-app-region-no-drag relative z-[80] hidden h-12 w-[226px] xl:block">
-      <DynamicIslandProvider
-        initialSize="minimalLeading"
-        presets={{
-          minimalLeading: { width: 226, aspectRatio: 38 / 226, borderRadius: 19 },
-          compact: { width: 392, aspectRatio: 112 / 392, borderRadius: 28 },
-        }}
-      >
-        <MusicDockIsland />
-      </DynamicIslandProvider>
-    </div>
+    <>
+      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[1500] hidden h-12 w-[226px] shrink-0 overflow-visible xl:block">
+        <DynamicIslandProvider
+          initialSize="minimalLeading"
+          presets={{
+            minimalLeading: { width: 226, aspectRatio: 38 / 226, borderRadius: 19 },
+            compact: { width: 392, aspectRatio: 112 / 392, borderRadius: 28 },
+          }}
+        >
+          <MusicDockIsland variant="full" />
+        </DynamicIslandProvider>
+      </div>
+
+      <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[1500] block h-12 w-10 shrink-0 overflow-visible xl:hidden">
+        <DynamicIslandProvider
+          initialSize="minimalLeading"
+          presets={{
+            minimalLeading: { width: 40, aspectRatio: 1, borderRadius: 20 },
+            compact: { width: 312, aspectRatio: 108 / 312, borderRadius: 27 },
+          }}
+        >
+          <MusicDockIsland variant="mini" />
+        </DynamicIslandProvider>
+      </div>
+    </>
   )
 }
 
-function MusicDockIsland() {
+function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
   const dock = useMusicDock()
   const islandRef = useRef<HTMLDivElement>(null)
   const { state, setSize } = useDynamicIslandSize()
   const expanded = state.size === "compact"
+  const collapsedMini = variant === "mini" && !expanded
   const primaryTrack = dock.playback.trackName ?? dock.savedTracks[0]?.name
   const trackLabel = primaryTrack ?? "音乐播放器"
   const stateLabel = dock.playback.isPlaying
@@ -180,26 +197,31 @@ function MusicDockIsland() {
 
   return (
     <DynamicIsland
-      id="music-dock-topbar-island"
+      id={`music-dock-topbar-island-${variant}`}
       className={cn(
-        "absolute right-0 top-[5px] mx-0 border border-white/12 bg-neutral-950 text-white shadow-[0_16px_42px_rgba(0,0,0,0.28)] backdrop-blur-2xl backdrop-saturate-150",
-        expanded && "border-white/18 shadow-[0_22px_62px_rgba(0,0,0,0.34)]",
-        !dock.collapsed && "ring-1 ring-white/14",
+        "absolute right-0 top-[5px] mx-0 max-w-[calc(100vw-9rem)] border border-border/70 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--popover)_88%,var(--primary)),color-mix(in_oklch,var(--card)_88%,var(--accent)))] text-popover-foreground shadow-[0_16px_42px_color-mix(in_oklch,var(--foreground)_18%,transparent)] ring-1 ring-primary/10 backdrop-blur-2xl backdrop-saturate-150",
+        expanded && "border-primary/30 shadow-[0_22px_62px_color-mix(in_oklch,var(--foreground)_24%,transparent)] ring-primary/20",
+        !dock.collapsed && "ring-primary/25",
       )}
     >
       <div
         ref={islandRef}
         data-music-dock-island-state={expanded ? "expanded" : "collapsed"}
+        data-music-dock-island-variant={variant}
         className={cn(
           "flex h-full w-full min-w-0 flex-col overflow-hidden",
-          expanded ? "px-3 py-2.5" : "px-2 py-1",
+          collapsedMini ? "p-1" : expanded ? "px-3 py-2.5" : "px-2 py-1",
         )}
       >
         <button
           type="button"
           className={cn(
-            "flex min-w-0 items-center gap-2 rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35",
-            expanded ? "h-12 w-full px-1.5 hover:bg-white/[0.06]" : "h-full w-full px-1 hover:bg-white/[0.08]",
+            "flex min-w-0 items-center rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+            collapsedMini
+              ? "size-full justify-center p-0 hover:bg-accent/45"
+              : expanded
+                ? "h-12 w-full gap-2 px-1.5 hover:bg-accent/45"
+                : "h-full w-full gap-2 px-1 hover:bg-accent/40",
           )}
           onClick={() => {
             if (!expanded) setSize("compact")
@@ -208,21 +230,25 @@ function MusicDockIsland() {
           title={expanded ? "音乐 dock" : "展开音乐灵动岛"}
           aria-label={expanded ? "音乐 dock" : "展开音乐灵动岛"}
         >
-          <MusicIslandArtwork artworkUrl={dock.playback.artworkUrl} trackLabel={trackLabel} />
-          <div className="min-w-0 flex-1">
-            <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[11px]")}>
-              {trackLabel}
-            </span>
-            <span className={cn("mt-1 block truncate leading-none text-white/55", expanded ? "text-[11px]" : "text-[9px]")}>
-              {stateLabel}
-            </span>
-          </div>
-          <MusicIslandSpectrum
-            key={dock.playback.trackName ?? "empty"}
-            audioRef={dock.audioRef}
-            isPlaying={dock.playback.isPlaying}
-            trackLabel={trackLabel}
-          />
+          <MusicIslandArtwork artworkUrl={dock.playback.artworkUrl} trackLabel={trackLabel} size={collapsedMini ? "lg" : "md"} />
+          {!collapsedMini && (
+            <>
+              <div className="min-w-0 flex-1">
+                <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[11px]")}>
+                  {trackLabel}
+                </span>
+                <span className={cn("mt-1 block truncate leading-none text-muted-foreground", expanded ? "text-[11px]" : "text-[9px]")}>
+                  {stateLabel}
+                </span>
+              </div>
+              <MusicIslandSpectrum
+                key={dock.playback.trackName ?? "empty"}
+                audioRef={dock.audioRef}
+                isPlaying={dock.playback.isPlaying}
+                trackLabel={trackLabel}
+              />
+            </>
+          )}
         </button>
 
         <div
@@ -264,19 +290,55 @@ function MusicDockIsland() {
 function MusicIslandArtwork({
   artworkUrl,
   trackLabel,
+  size = "md",
 }: {
   artworkUrl?: string
   trackLabel: string
+  size?: "md" | "lg"
 }) {
   return (
-    <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-white/[0.08] shadow-[0_6px_18px_rgba(0,0,0,0.28)]">
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center overflow-hidden border border-primary/25 bg-[linear-gradient(135deg,color-mix(in_oklch,var(--primary)_72%,var(--popover)),color-mix(in_oklch,var(--accent)_62%,var(--card)))] text-primary-foreground shadow-[0_6px_18px_color-mix(in_oklch,var(--foreground)_20%,transparent)]",
+        size === "lg" ? "size-8 rounded-[0.875rem]" : "size-7 rounded-[0.7rem]",
+      )}
+    >
       {artworkUrl ? (
         <img src={artworkUrl} alt={trackLabel} className="size-full object-cover" draggable={false} />
       ) : (
-        <Disc3 className="size-3.5 text-white/76" />
+        <Disc3 className={cn("text-primary-foreground/85", size === "lg" ? "size-4" : "size-3.5")} />
       )}
     </span>
   )
+}
+
+function useThemeCssColor(variableName: string, fallback: string) {
+  const [color, setColor] = useState(() => readThemeCssColor(variableName, fallback))
+
+  useEffect(() => {
+    const updateColor = () => setColor(readThemeCssColor(variableName, fallback))
+    updateColor()
+
+    let observer: MutationObserver | null = null
+    if (typeof MutationObserver !== "undefined") {
+      observer = new MutationObserver(updateColor)
+      observer.observe(document.documentElement, { attributes: true })
+    }
+
+    window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, updateColor)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener(LEGACY_CONFIG_CHANGED_EVENT, updateColor)
+    }
+  }, [fallback, variableName])
+
+  return color
+}
+
+function readThemeCssColor(variableName: string, fallback: string) {
+  if (typeof window === "undefined") return fallback
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(variableName).trim()
+  return value || fallback
 }
 
 function MusicIslandSpectrum({
@@ -289,6 +351,8 @@ function MusicIslandSpectrum({
   trackLabel: string
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const primaryColor = useThemeCssColor("--primary", "rgba(255,255,255,0.96)")
+  const accentColor = useThemeCssColor("--accent", "rgba(125,211,252,0.82)")
   const hasAudio = Boolean(audioRef.current)
 
   useEffect(() => {
@@ -300,13 +364,13 @@ function MusicIslandSpectrum({
   }, [audioRef, isPlaying, trackLabel])
 
   return (
-    <span className="relative grid h-6 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white/[0.08]">
+    <span className="relative grid h-6 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-border/45 bg-muted/65">
       {hasAudio ? (
         <>
           <Bar3
             srcAudio={audioRef}
             srcCanvas={canvasRef}
-            options={["rgba(255,255,255,0.96)", "rgba(125,211,252,0.82)"]}
+            options={[primaryColor, accentColor]}
           />
           <canvas
             ref={canvasRef}
@@ -317,7 +381,7 @@ function MusicIslandSpectrum({
           />
         </>
       ) : (
-        <AudioLines className="size-4 text-white/62" aria-hidden />
+        <AudioLines className="size-4 text-primary/70" aria-hidden />
       )}
     </span>
   )
@@ -338,8 +402,8 @@ function MusicIslandAction({
     <button
       type="button"
       className={cn(
-        "flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[11px] font-medium text-white/68 transition-colors hover:bg-white/[0.10] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35",
-        active && "bg-white/[0.14] text-white",
+        "flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full border border-transparent px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        active && "border-primary/25 bg-primary/12 text-primary",
       )}
       onClick={(event) => {
         event.stopPropagation()
@@ -421,7 +485,7 @@ export function WorkspaceMusicDockPanel() {
     <div
       ref={dragBoundsRef}
       className={cn(
-        "pointer-events-none fixed z-[71]",
+        "pointer-events-none fixed z-[1300]",
         backgroundMode ? "left-0 top-0 size-px overflow-hidden" : "inset-3",
       )}
       aria-hidden={backgroundMode}

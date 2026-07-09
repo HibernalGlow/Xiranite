@@ -174,7 +174,7 @@ export function TopBar() {
       className={cn(
         "xiranite-app-region-drag",
         "xiranite-topbar",
-        "flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 border-b border-border bg-background px-4",
+        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background px-4",
       )}
     >
       {/* ── 品牌 + 工作区切换入口 ── */}
