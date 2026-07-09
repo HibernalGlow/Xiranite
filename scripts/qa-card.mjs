@@ -258,6 +258,7 @@ async function runQaCommand(page, options) {
     ({ moduleId, stageOptions }) => {
       const qa = window.__xiraniteQA
       if (!qa) throw new Error("window.__xiraniteQA is not available. Run the app in dev mode.")
+      if (stageOptions.fresh && stageOptions.view) qa.hideView(stageOptions.view)
       return qa.stage(moduleId, stageOptions)
     },
     {
@@ -343,10 +344,11 @@ async function waitForStagedRender(page, result, options) {
   try {
     if (componentId) {
       await page.locator(`[data-component-id="${cssEscape(componentId)}"]`).first().waitFor({ state: "visible", timeout: renderWaitMs })
+      await page.getByText(modulePattern).first().waitFor({ state: "visible", timeout: renderWaitMs })
     } else {
       await page.getByText(modulePattern).first().waitFor({ state: "visible", timeout: renderWaitMs })
     }
-    await page.waitForTimeout(250)
+    await page.waitForTimeout(750)
   } catch {
     console.warn(`staged module ${result.selected.moduleId} was not visibly rendered after ${renderWaitMs}ms; screenshot may show a loading shell`)
   }
