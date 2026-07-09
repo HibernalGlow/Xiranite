@@ -57,8 +57,8 @@ export function MagicCard(props: MagicCardProps) {
     children,
     className,
     gradientSize = 200,
-    gradientColor = "#262626",
-    gradientOpacity = 0.8,
+    gradientColor = "color-mix(in oklch, var(--primary) 18%, transparent)",
+    gradientOpacity = 0.55,
     gradientFrom = "#9E7AFF",
     gradientTo = "#FE8BBB",
     mode = "gradient",
@@ -174,7 +174,7 @@ export function MagicCard(props: MagicCardProps) {
         `,
       }}
     >
-      <div className="bg-background absolute inset-px z-20 rounded-[inherit]" />
+      <div className="absolute inset-px z-20 rounded-[inherit] bg-card/85" />
 
       {mode === "gradient" && (
         <motion.div

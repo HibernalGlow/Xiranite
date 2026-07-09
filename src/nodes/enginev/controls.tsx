@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
+import { NodeSectionHeader } from "@/nodes/shared/NodeSectionHeader"
 import { ACTIONS } from "./constants"
 import type { EngineVCardState, EngineVStatusMeta, EngineVUiConfig } from "./types"
 
@@ -89,7 +90,12 @@ export function PathInput(props: PatchProps & {
     <div className="flex min-w-0 flex-col gap-1.5">
       {!props.compact && (
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="enginev-workshop-path">工坊目录</Label>
+          <div className="flex min-w-0 items-center gap-2 px-1.5">
+            <span className="grid size-5 shrink-0 place-items-center rounded-md border bg-card text-muted-foreground">
+              <FolderInput className="size-3.5" />
+            </span>
+            <Label htmlFor="enginev-workshop-path">工坊目录</Label>
+          </div>
           <Badge variant="outline" className="shrink-0">Wallpaper Engine</Badge>
         </div>
       )}
@@ -233,8 +239,7 @@ export function FilterPopover(props: PatchProps) {
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,420px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">筛选和选择</div>
-          <p className="text-xs text-muted-foreground">筛选条件会同时影响重命名、删除和导出。</p>
+          <NodeSectionHeader icon={SlidersHorizontal} title="筛选和选择" description="筛选条件会同时影响重命名、删除和导出。" />
         </div>
         <FilterFields {...props} />
       </PopoverContent>
@@ -258,8 +263,7 @@ export function OptionsPopover(props: PatchProps) {
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,460px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">模板和写入选项</div>
-          <p className="text-xs text-muted-foreground">关键开关在紧凑态仍然可达，但不会常驻占用侧栏。</p>
+          <NodeSectionHeader icon={Settings2} title="模板和写入选项" description="关键开关在紧凑态仍然可达，但不会常驻占用侧栏。" />
         </div>
         <OptionsFields {...props} />
       </PopoverContent>
@@ -293,8 +297,7 @@ export function ConfigDefaultsPopover(props: {
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存当前路径、导出路径和模板到明文配置。</p>
+          <NodeSectionHeader icon={DatabaseZap} title="默认配置" description="保存当前路径、导出路径和模板到明文配置。" />
         </div>
         <div className="grid gap-2">
           <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
@@ -361,8 +364,7 @@ export function GallerySettingsPopover(props: PatchProps) {
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">画廊显示</div>
-          <p className="text-xs text-muted-foreground">列数默认随卡片宽度变化，也可以手动覆盖。</p>
+          <NodeSectionHeader icon={Columns3} title="画廊显示" description="列数默认随卡片宽度变化，也可以手动覆盖。" />
         </div>
         <div className="grid gap-2">
           <div className="grid gap-1.5">
@@ -420,7 +422,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card/70 p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -440,7 +442,7 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-background/60 p-2">
+    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-card/60 p-2">
       <label className="flex min-w-0 flex-1 items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}

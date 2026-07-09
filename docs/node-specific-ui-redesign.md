@@ -17,6 +17,12 @@ It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the
 - Actively use or add higher-quality UI primitives when the existing shadcn primitives produce generic layouts. Prefer components that serve the node domain: data tables, file trees, timelines, command consoles, galleries, diff viewers, animated progress, and compact visual meters.
 - Any new component must be checked into `src/components/ui/` or a node-local `parts/` folder with clear ownership. Avoid adding dependencies only for decoration.
 - Existing user or parallel-model edits must be preserved unless they directly block the implementation.
+- Section titles, module titles, tabs, metric labels, empty states, result panels, and recurring action controls must use clear icons when the icon improves scanability. Do not leave major panels as plain text headings.
+- Icon usage must remain functional. Use familiar tool icons for actions such as run, stop, scan, filter, copy, export, delete, open, config, history, preview, table, gallery, tree, diff, timeline, and console. Do not invent decorative icons when the action is ambiguous.
+- Color must be restrained and theme-aware. Prefer surface hierarchy from spacing, borders, type, and icons; use `bg-card`, `border`, and `text-muted-foreground` as the default structure. Avoid stacking many `bg-background/*` and `bg-muted/*` layers.
+- Large gradients, radial blobs, and random accent washes are not allowed as default node backgrounds. Use accent color only for state, selection, risk, progress, and a small number of meaningful highlights.
+- Do not replace a dense, efficient original UI with a lower-density redesign. A rewrite is accepted only when it improves task clarity, scan speed, or responsive behavior without burying primary controls.
+- Labels should use direct tool language. Avoid metaphor labels such as lens, ledger, bay, cockpit, or other decorative names unless the actual domain uses that term. Prefer "输入路径", "筛选", "结果", "日志", "配置", "预览", "计划", "执行".
 
 ## PackU rewrite requirement
 

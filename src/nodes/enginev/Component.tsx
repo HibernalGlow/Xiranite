@@ -7,7 +7,7 @@ import type {
   EngineVResult,
 } from "@xiranite/node-enginev/core"
 import { filterWallpapers } from "@xiranite/node-enginev/core"
-import { Copy, Eye, Image, Play, RotateCcw, Trash2 } from "lucide-react"
+import { Copy, Eye, FolderInput, Image, Images, ListChecks, Play, RotateCcw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeSectionHeader } from "@/nodes/shared/NodeSectionHeader"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, CONFIG_FIELDS, UI_CONFIG_FIELDS } from "./constants"
 import {
@@ -337,7 +338,6 @@ export function Component({ host }: EngineVProps) {
   return (
     <TooltipProvider>
       <div ref={surface.ref} className="@container/enginev relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_18%_0%,color-mix(in_oklch,var(--primary)_16%,transparent),transparent_36%),radial-gradient(circle_at_84%_8%,color-mix(in_oklch,var(--chart-2)_16%,transparent),transparent_34%)]" />
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
@@ -392,7 +392,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   const ActionIcon = props.actionMeta.icon
   return (
-    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
+    <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card/90 px-3 py-2 shadow-sm">
       <RunningTint tone={props.status.tone} />
       <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Image />
@@ -574,18 +574,19 @@ function FullView(props: ViewProps) {
         <ScrollArea className="min-h-0">
           <div className="flex min-h-0 flex-col gap-3 pr-1">
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div>
-                <div className="text-sm font-semibold">{props.tNode("sections.input", "输入")}</div>
-                <div className="text-xs text-muted-foreground">{props.tNode("sections.inputDesc", "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。")}</div>
-              </div>
+              <NodeSectionHeader
+                icon={FolderInput}
+                title={props.tNode("sections.input", "输入")}
+                description={props.tNode("sections.inputDesc", "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。")}
+              />
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
             </section>
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div className="text-sm font-semibold">{props.tNode("sections.filter", "筛选")}</div>
+              <NodeSectionHeader icon={SlidersHorizontal} title={props.tNode("sections.filter", "筛选")} />
               <FilterFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </section>
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div className="text-sm font-semibold">{props.tNode("sections.writeOptions", "写入选项")}</div>
+              <NodeSectionHeader icon={Settings2} title={props.tNode("sections.writeOptions", "写入选项")} />
               <OptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </section>
             <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -596,8 +597,14 @@ function FullView(props: ViewProps) {
         <Tabs defaultValue="gallery" className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2">
             <TabsList>
-              <TabsTrigger value="gallery">{props.tNode("tabs.gallery", "画廊")}</TabsTrigger>
-              <TabsTrigger value="results">{props.tNode("tabs.results", "结果")}</TabsTrigger>
+              <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
+                <Images className="size-3.5 shrink-0" />
+                {props.tNode("tabs.gallery", "画廊")}
+              </TabsTrigger>
+              <TabsTrigger value="results" className="gap-1.5 px-2.5">
+                <ListChecks className="size-3.5 shrink-0" />
+                {props.tNode("tabs.results", "结果")}
+              </TabsTrigger>
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
@@ -698,15 +705,18 @@ function HeaderLine({ status, subtitle }: { status: EngineVStatusMeta; subtitle:
 
 function HeaderStats(props: { selected: number; total: number; visible: number; tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string }) {
   const items = [
-    [props.tNode("stats.visible", "可见"), props.visible],
-    [props.tNode("stats.scanned", "已扫描"), props.total],
-    [props.tNode("stats.selected", "选中"), props.selected],
+    [props.tNode("stats.visible", "可见"), props.visible, Eye],
+    [props.tNode("stats.scanned", "已扫描"), props.total, Images],
+    [props.tNode("stats.selected", "选中"), props.selected, ListChecks],
   ] as const
   return (
     <div className="hidden shrink-0 grid-cols-3 gap-1 @4xl/enginev:grid @4xl/enginev:min-w-52">
-      {items.map(([label, value]) => (
+      {items.map(([label, value, Icon]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/30 px-2 py-1 text-center">
-          <div className="truncate text-[10px] text-muted-foreground">{label}</div>
+          <div className="flex min-w-0 items-center justify-center gap-1 text-[10px] text-muted-foreground">
+            <Icon className="size-3 shrink-0" />
+            <span className="truncate">{label}</span>
+          </div>
           <div className="text-xs font-semibold tabular-nums">{value}</div>
         </div>
       ))}
