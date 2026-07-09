@@ -129,6 +129,7 @@ export function MusicPlayerSurface({
   const [currentTime, setCurrentTime] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [lyricsByPath, setLyricsByPath] = useState<Record<string, LyricLine[]>>({})
+  const [restoreAttempt, setRestoreAttempt] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -167,10 +168,14 @@ export function MusicPlayerSurface({
   useEffect(() => {
     if (tracks.length || !savedTracks.length) return
     const restored = restoreTracks(savedTracks)
-    if (!restored.length) return
+    if (!restored.length) {
+      if (restoreAttempt >= 12) return
+      const retry = window.setTimeout(() => setRestoreAttempt((attempt) => attempt + 1), 250)
+      return () => window.clearTimeout(retry)
+    }
     setTracks(restored)
     setActiveIndex(0)
-  }, [savedTracks, tracks.length])
+  }, [restoreAttempt, savedTracks, tracks.length])
 
   useEffect(() => {
     if (!tracks.length) {
@@ -226,6 +231,7 @@ export function MusicPlayerSurface({
       setActiveIndex(0)
       setCurrentTime(0)
       setLyricsByPath({})
+      setRestoreAttempt(0)
       onSourcePathChange?.(trimmed)
       onSavedTracksChange?.(nextTracks.map(toPersistedTrack))
     } catch (loadError) {

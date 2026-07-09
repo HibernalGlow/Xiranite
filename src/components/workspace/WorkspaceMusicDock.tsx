@@ -156,10 +156,10 @@ export function WorkspaceMusicDockPanel() {
 
   function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
     if (dock.mode !== "floating") return
-    dock.setFloatingOffset({
+    dock.setFloatingOffset(clampFloatingOffset({
       x: dock.floatingOffset.x + info.offset.x,
       y: dock.floatingOffset.y + info.offset.y,
-    })
+    }))
   }
 
   const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : "浮动窗口"
@@ -334,10 +334,10 @@ function readFloatingOffset(): FloatingOffset {
     const parsed = JSON.parse(value) as unknown
     if (!parsed || typeof parsed !== "object") return { x: 0, y: 0 }
     const offset = parsed as FloatingOffset
-    return {
-      x: Number.isFinite(offset.x) ? clamp(offset.x, -900, 120) : 0,
-      y: Number.isFinite(offset.y) ? clamp(offset.y, -720, 120) : 0,
-    }
+    return clampFloatingOffset({
+      x: Number.isFinite(offset.x) ? offset.x : 0,
+      y: Number.isFinite(offset.y) ? offset.y : 0,
+    })
   } catch {
     return { x: 0, y: 0 }
   }
@@ -351,6 +351,26 @@ function writeFloatingOffset(offset: FloatingOffset) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
+  if (typeof window === "undefined") {
+    return {
+      x: clamp(offset.x, -900, 0),
+      y: clamp(offset.y, -720, 0),
+    }
+  }
+
+  const inset = 12
+  const panelWidth = Math.min(760, Math.max(0, window.innerWidth - inset * 2))
+  const panelHeight = Math.min(520, Math.max(0, window.innerHeight - inset * 2))
+  const baseLeft = window.innerWidth - inset - panelWidth
+  const baseTop = window.innerHeight - inset - panelHeight
+
+  return {
+    x: clamp(offset.x, inset - baseLeft, 0),
+    y: clamp(offset.y, inset - baseTop, 0),
+  }
 }
 
 function isPersistedTrack(value: unknown): value is PersistedTrack {
