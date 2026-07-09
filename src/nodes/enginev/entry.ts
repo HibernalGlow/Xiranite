@@ -2,7 +2,7 @@ import type { AppNodeEntry, NodeSchema } from "@xiranite/contract"
 import { core, def } from "@xiranite/node-enginev"
 import { z } from "zod"
 import { Component } from "./Component"
-import type { EngineVCardState } from "./types"
+import type { EngineVCardState, EngineVNodeConfig } from "./types"
 
 /**
  * Runtime validation schema for persisted enginev card state. Uses `.passthrough()`
@@ -36,6 +36,24 @@ export const enginevDataSchema = z
   })
   .passthrough()
 
+const enginevUiConfigSchema = z
+  .object({
+    galleryColumns: z.number().optional(),
+    galleryCompact: z.boolean().optional(),
+    galleryShowMeta: z.boolean().optional(),
+    galleryShowPath: z.boolean().optional(),
+  })
+  .passthrough()
+
+const enginevConfigSchema = z
+  .object({
+    workshopPath: z.string().optional(),
+    outputPath: z.string().optional(),
+    template: z.string().optional(),
+    ui: enginevUiConfigSchema.optional(),
+  })
+  .passthrough()
+
 const entry = {
   def,
   core,
@@ -46,8 +64,8 @@ const entry = {
   },
   schemas: {
     data: enginevDataSchema as unknown as NodeSchema<EngineVCardState>,
-    config: enginevDataSchema.partial() as unknown as NodeSchema<Partial<EngineVCardState>>,
+    config: enginevConfigSchema as unknown as NodeSchema<EngineVNodeConfig>,
   },
-} satisfies AppNodeEntry<typeof core, EngineVCardState, Partial<EngineVCardState>>
+} satisfies AppNodeEntry<typeof core, EngineVCardState, EngineVNodeConfig>
 
 export default entry

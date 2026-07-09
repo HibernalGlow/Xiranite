@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
-import { ACTIONS, CONFIG_FIELDS } from "./constants"
+import { ACTIONS, CONFIG_FIELDS, UI_CONFIG_FIELDS } from "./constants"
 import {
   ActionIconButton,
   ActionSelect,
@@ -33,10 +33,10 @@ import {
   SwitchRow,
 } from "./controls"
 import { ResultTabs, StatsPanel } from "./ResultPanels"
-import type { EngineVCardState, EngineVStatusMeta } from "./types"
+import type { EngineVCardState, EngineVNodeConfig, EngineVStatusMeta, EngineVUiConfig } from "./types"
 import { WallpaperGallery } from "./WallpaperGallery"
 
-type EngineVProps = NodeComponentProps<EngineVCardState, Partial<EngineVCardState>>
+type EngineVProps = NodeComponentProps<EngineVCardState, EngineVNodeConfig>
 
 export function Component({ host }: EngineVProps) {
   const surface = useNodeSurface()
@@ -47,8 +47,12 @@ export function Component({ host }: EngineVProps) {
 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<EngineVCardState> | undefined>(undefined)
+  const [uiDefaults, setUiDefaults] = useState<EngineVUiConfig | undefined>(undefined)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
+  const uiConfigLoadedRef = useRef(false)
+  const applyingUiConfigRef = useRef(false)
+  const lastSavedUiConfigKeyRef = useRef("")
 
   const result = data.result ?? null
   const logs = data.logs ?? []
@@ -77,16 +81,85 @@ export function Component({ host }: EngineVProps) {
   useEffect(() => {
     host.config?.get()
       .then((response) => {
-        setDefaults(response.config)
+        setDefaults(pickEngineVRuntimeConfig(response.config))
         setConfigFilePath(response.path)
       })
       .catch(() => undefined)
   }, [host])
 
   useEffect(() => {
+    let cancelled = false
+    uiConfigLoadedRef.current = false
+    applyingUiConfigRef.current = false
+    lastSavedUiConfigKeyRef.current = ""
+
+    async function loadUiConfig() {
+      try {
+        const response = await host.config?.getUi?.<EngineVUiConfig>()
+        if (cancelled) return
+
+        const config = normalizeEngineVUiConfig(response?.config)
+        if (hasEngineVUiConfig(config)) {
+          setUiDefaults(config)
+          applyingUiConfigRef.current = true
+          patch(config)
+          lastSavedUiConfigKeyRef.current = stableStringify(config)
+          uiConfigLoadedRef.current = true
+          queueMicrotask(() => {
+            applyingUiConfigRef.current = false
+          })
+          return
+        }
+
+        const migrated = pickEngineVUiConfig(dataRef.current)
+        if (hasEngineVUiConfig(migrated)) {
+          await host.config?.saveUi?.(migrated)
+          setUiDefaults(migrated)
+        } else {
+          setUiDefaults(undefined)
+        }
+        lastSavedUiConfigKeyRef.current = stableStringify(migrated)
+        uiConfigLoadedRef.current = true
+      } catch {
+        if (!cancelled) uiConfigLoadedRef.current = true
+      }
+    }
+
+    void loadUiConfig()
+
+    return () => {
+      cancelled = true
+    }
+  }, [host])
+
+  useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
   }, [data.outputPath, data.template, data.workshopPath, defaults])
+
+  const uiConfigKey = useMemo(
+    () => stableStringify(pickEngineVUiConfig(data)),
+    [data.galleryColumns, data.galleryCompact, data.galleryShowMeta, data.galleryShowPath],
+  )
+
+  useEffect(() => {
+    if (!uiConfigLoadedRef.current || applyingUiConfigRef.current || !host.config?.saveUi) return
+    if (uiConfigKey === lastSavedUiConfigKeyRef.current) return
+
+    const timer = window.setTimeout(() => {
+      const config = pickEngineVUiConfig(dataRef.current)
+      const nextKey = stableStringify(config)
+      if (nextKey === lastSavedUiConfigKeyRef.current) return
+
+      host.config?.saveUi?.(config)
+        .then(() => {
+          lastSavedUiConfigKeyRef.current = nextKey
+        })
+        .catch(() => undefined)
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [host, uiConfigKey])
 
   function patch(patchData: Partial<EngineVCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -133,12 +206,18 @@ export function Component({ host }: EngineVProps) {
   }
 
   async function saveAsDefault() {
-    const config: Partial<EngineVCardState> = {}
+    const config: EngineVNodeConfig = {}
     for (const field of CONFIG_FIELDS) {
       const value = dataRef.current[field]
       if (value !== undefined && value !== "") (config as Record<string, unknown>)[field] = value
     }
     await host.config?.save(config)
+    if (host.config?.saveUi) {
+      const uiConfig = resolveEngineVUiConfigForSave(dataRef.current)
+      await host.config.saveUi(uiConfig)
+      setUiDefaults(uiConfig)
+      lastSavedUiConfigKeyRef.current = stableStringify(uiConfig)
+    }
     setDefaults(config)
     setConfigDirty(false)
   }
@@ -192,7 +271,7 @@ export function Component({ host }: EngineVProps) {
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: tNode("actionStart", "正在{{action}}。", { action: labelForAction(nextAction, tNode) }) })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: tNode("actionStart", "正在{{action}}。", { action: labelForAction(nextAction) }) })
     try {
       const response = await runAction<EngineVInput, EngineVData>("enginev", input, (event) => {
         if (event.type === "progress") {
@@ -229,6 +308,7 @@ export function Component({ host }: EngineVProps) {
     configFilePath,
     data,
     defaults,
+    uiDefaults,
     galleryWallpapers,
     host,
     logs,
@@ -281,6 +361,7 @@ function createViewProps(props: {
   configFilePath?: string
   data: EngineVCardState
   defaults?: Partial<EngineVCardState>
+  uiDefaults?: EngineVUiConfig
   galleryWallpapers: EngineVData["wallpapers"]
   host: EngineVProps["host"]
   logs: string[]
@@ -480,6 +561,7 @@ function FullView(props: ViewProps) {
             configFilePath={props.configFilePath}
             defaults={props.defaults}
             disabled={props.running}
+            uiDefaults={props.uiDefaults}
             onOpenConfigFile={props.onOpenConfigFile}
             onResetOverride={props.onResetOverride}
             onRestoreDefault={props.onRestoreDefault}
@@ -699,7 +781,7 @@ function summarize(props: ViewProps): string {
   return props.tNode("summary.selectWorkshop", "选择工坊目录")
 }
 
-function labelForAction(action: EngineVAction, tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string): string {
+function labelForAction(action: EngineVAction): string {
   return ACTIONS.find((item) => item.value === action)?.shortLabel ?? action
 }
 
@@ -724,4 +806,78 @@ function compactPath(value: string): string {
   const normalized = value.replace(/\\/g, "/")
   const parts = normalized.split("/").filter(Boolean)
   return parts.length > 3 ? `.../${parts.slice(-3).join("/")}` : value
+}
+
+function pickEngineVRuntimeConfig(config: EngineVNodeConfig | undefined): Partial<EngineVCardState> | undefined {
+  if (!config) return undefined
+  const next: Partial<EngineVCardState> = {}
+  for (const field of CONFIG_FIELDS) {
+    const value = config[field]
+    if (value !== undefined) (next as Record<string, unknown>)[field] = value
+  }
+  return Object.keys(next).length ? next : undefined
+}
+
+function normalizeEngineVUiConfig(config: EngineVUiConfig | undefined): EngineVUiConfig {
+  if (!config) return {}
+  const next: EngineVUiConfig = {}
+  if (typeof config.galleryColumns === "number" && Number.isFinite(config.galleryColumns)) {
+    next.galleryColumns = Math.min(6, Math.max(1, Math.round(config.galleryColumns)))
+  }
+  if (typeof config.galleryCompact === "boolean") next.galleryCompact = config.galleryCompact
+  if (typeof config.galleryShowMeta === "boolean") next.galleryShowMeta = config.galleryShowMeta
+  if (typeof config.galleryShowPath === "boolean") next.galleryShowPath = config.galleryShowPath
+  return next
+}
+
+function pickEngineVUiConfig(data: Partial<EngineVCardState>): EngineVUiConfig {
+  const config: EngineVUiConfig = {}
+  if (hasOwn(data, "galleryColumns")) {
+    const value = data.galleryColumns
+    config.galleryColumns = typeof value === "number" && Number.isFinite(value)
+      ? Math.min(6, Math.max(1, Math.round(value)))
+      : undefined
+  }
+  for (const field of UI_CONFIG_FIELDS.filter((item) => item !== "galleryColumns")) {
+    if (hasOwn(data, field)) {
+      const value = data[field]
+      const next = config as Record<string, unknown>
+      next[field] = typeof value === "boolean" ? value : undefined
+    }
+  }
+  return config
+}
+
+function resolveEngineVUiConfigForSave(data: Partial<EngineVCardState>): EngineVUiConfig {
+  const value = data.galleryColumns
+  return {
+    galleryColumns: typeof value === "number" && Number.isFinite(value)
+      ? Math.min(6, Math.max(1, Math.round(value)))
+      : undefined,
+    galleryCompact: data.galleryCompact ?? false,
+    galleryShowMeta: data.galleryShowMeta ?? true,
+    galleryShowPath: data.galleryShowPath ?? true,
+  }
+}
+
+function hasEngineVUiConfig(config: EngineVUiConfig): boolean {
+  return Object.values(config).some((value) => value !== undefined)
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(sortObject(value))
+}
+
+function sortObject(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObject)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => [key, sortObject((value as Record<string, unknown>)[key])]),
+  )
+}
+
+function hasOwn<T extends object>(value: T, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key)
 }

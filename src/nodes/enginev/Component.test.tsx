@@ -7,7 +7,7 @@ import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import type { EngineVData, EngineVInput, EngineVWallpaper } from "@xiranite/node-enginev/core"
 import { Component } from "./Component"
-import type { EngineVCardState } from "./types"
+import type { EngineVCardState, EngineVNodeConfig, EngineVUiConfig } from "./types"
 
 const surfaceState = vi.hoisted(() => ({
   mode: "regular" as NodeSurfaceMode,
@@ -160,6 +160,54 @@ describe("app-owned enginev Component", () => {
     expect(noRunnerHost.contract.hasCapability("localFiles")).toBe(true)
   })
 
+  test("migrates existing gallery display state into node ui config", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost({
+      workshopPath: "D:/workshop",
+      galleryColumns: 4,
+      galleryCompact: true,
+      galleryShowMeta: false,
+      galleryShowPath: true,
+    })
+    render(<Component compId="comp-enginev" host={host} />)
+
+    await waitFor(() => expect(host.savedUiConfig).toEqual({
+      galleryColumns: 4,
+      galleryCompact: true,
+      galleryShowMeta: false,
+      galleryShowPath: true,
+    }))
+  })
+
+  test("saves gallery display preferences with default config", async () => {
+    surfaceState.mode = "regular"
+    const uiConfig: EngineVUiConfig = {
+      galleryColumns: 4,
+      galleryCompact: true,
+      galleryShowMeta: false,
+      galleryShowPath: true,
+    }
+    const host = createHost({
+      workshopPath: "D:/workshop",
+      outputPath: "D:/exports/wallpapers.json",
+      template: "{title} [{id}]",
+      ...uiConfig,
+    }, { uiConfig })
+    render(<Component compId="comp-enginev" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "enginev defaults" }))
+    await user.click(screen.getByRole("button", { name: "保存为默认" }))
+
+    await waitFor(() => expect(host.savedConfig).toEqual({
+      workshopPath: "D:/workshop",
+      outputPath: "D:/exports/wallpapers.json",
+      template: "{title} [{id}]",
+    }))
+    expect(host.savedUiConfig).toEqual(uiConfig)
+    expect(host.saveUiCalls).toEqual([uiConfig])
+  })
+
   test("marks the card as error when the runner is unavailable", async () => {
     surfaceState.mode = "regular"
     const host = createHost({ workshopPath: "D:/workshop" }, { noRunner: true })
@@ -175,8 +223,11 @@ describe("app-owned enginev Component", () => {
   })
 })
 
-type TestHost = NodeHostApi<EngineVCardState, Partial<EngineVCardState>> & {
+type TestHost = NodeHostApi<EngineVCardState, EngineVNodeConfig> & {
   cardState: EngineVCardState
+  savedConfig: EngineVNodeConfig | undefined
+  savedUiConfig: EngineVUiConfig | undefined
+  saveUiCalls: EngineVUiConfig[]
   runCalls: Array<{ nodeId: string; input: EngineVInput }>
   copiedText: string
   localFilePaths: string[]
@@ -184,6 +235,8 @@ type TestHost = NodeHostApi<EngineVCardState, Partial<EngineVCardState>> & {
 
 type HostOptions = {
   noRunner?: boolean
+  config?: EngineVNodeConfig
+  uiConfig?: EngineVUiConfig
 }
 
 function createHost(initial: EngineVCardState, options: HostOptions = {}): TestHost {
@@ -238,10 +291,20 @@ function createHost(initial: EngineVCardState, options: HostOptions = {}): TestH
       platform: "web",
     },
     config: {
-      get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
-      save: async () => undefined,
+      get: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+      save: async (config) => {
+        host.savedConfig = config as EngineVNodeConfig
+      },
+      getUi: async () => ({ config: options.uiConfig, path: "D:/config/xiranite.config.toml" }),
+      saveUi: async (config) => {
+        host.savedUiConfig = config as EngineVUiConfig
+        host.saveUiCalls.push(config as EngineVUiConfig)
+      },
     },
     cardState: { ...initial },
+    savedConfig: undefined,
+    savedUiConfig: undefined,
+    saveUiCalls: [],
     runCalls: [],
     copiedText: "",
     localFilePaths: [],
@@ -253,8 +316,15 @@ function createHost(initial: EngineVCardState, options: HostOptions = {}): TestH
     listComponents: () => [],
     updateComponent: () => undefined,
     actions: options.noRunner ? undefined : { run },
-    getNodeConfig: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
-    saveNodeConfig: async () => undefined,
+    getNodeConfig: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+    saveNodeConfig: async (config) => {
+      host.savedConfig = config as EngineVNodeConfig
+    },
+    getNodeUiConfig: async () => ({ config: options.uiConfig, path: "D:/config/xiranite.config.toml" }),
+    saveNodeUiConfig: async (config) => {
+      host.savedUiConfig = config as EngineVUiConfig
+      host.saveUiCalls.push(config as EngineVUiConfig)
+    },
   }
   return host
 }

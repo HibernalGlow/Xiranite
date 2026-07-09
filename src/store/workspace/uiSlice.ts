@@ -1,13 +1,21 @@
 import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
-import type { SetWorkspaceStore, WorkspaceUiActions } from "./types"
+import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
-    setTheme: (theme) => set({
-      theme,
-      activeCustomThemeName: null,
-      ...THEME_DESIGN_RECIPES[theme],
-    }, false, "SET_THEME"),
+    setTheme: (theme) => {
+      const recipe = THEME_DESIGN_RECIPES[theme]
+      set({
+        theme,
+        activeCustomThemeName: null,
+        fontPreset: recipe.fontPreset,
+      }, false, "SET_THEME")
+    },
+    hydrateUiPreferences: (preferences) => set(
+      sanitizeUiPreferences(preferences),
+      false,
+      "HYDRATE_UI_PREFERENCES",
+    ),
     setCustomThemes: (customThemes) => set((state) => ({
       customThemes,
       activeCustomThemeName: customThemes.some((theme) => theme.name === state.activeCustomThemeName)
@@ -41,4 +49,10 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setChromeIslandDelay: (chromeIslandDelay) => set({ chromeIslandDelay }, false, "SET_CHROME_ISLAND_DELAY"),
     setChromeIslandIdleOffset: (chromeIslandIdleOffset) => set({ chromeIslandIdleOffset }, false, "SET_CHROME_ISLAND_IDLE_OFFSET"),
   }
+}
+
+function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Partial<WorkspaceUiPreferences> {
+  return Object.fromEntries(
+    Object.entries(preferences).filter(([, value]) => value !== undefined),
+  ) as Partial<WorkspaceUiPreferences>
 }

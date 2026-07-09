@@ -32,6 +32,20 @@ export interface EngineVCardState {
   logs?: string[]
 }
 
+export interface EngineVUiConfig {
+  galleryColumns?: number
+  galleryCompact?: boolean
+  galleryShowMeta?: boolean
+  galleryShowPath?: boolean
+}
+
+export interface EngineVNodeConfig {
+  workshopPath?: string
+  outputPath?: string
+  template?: string
+  ui?: EngineVUiConfig
+}
+
 export type EngineVStatusTone = "idle" | "running" | "success" | "error"
 
 export interface EngineVStatusMeta {

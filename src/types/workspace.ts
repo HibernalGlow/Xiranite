@@ -1,12 +1,12 @@
-export type ViewMode = "cards" | "dockview" | "flow" | "lane" | "bento"
+export type ViewMode = "dashboard" | "cards" | "dockview" | "flow" | "lane" | "bento"
 
 export type CardLayout = "grid" | "stack" | "split" | "focus"
 
 export type OverlayKind = "registry" | "settings" | "deployment" | "operations" | "history" | null
 
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
-export type AppTheme = "spatial" | "endfield" | "wuling"
-export type AppFontPreset = "xiranite" | "system" | "aestivus" | "industrial" | "serif" | "mono"
+export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
+export type AppFontPreset = "xiranite" | "system" | "aestivus" | "industrial" | "display" | "editorial" | "poster" | "terminal" | "machina" | "sketch" | "workshop" | "canvas" | "serif" | "mono"
 
 export interface AppCustomTheme {
   name: string

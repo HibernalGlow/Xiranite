@@ -59,6 +59,8 @@
   },
   "topbar": {
     "viewMode": {
+      "dashboard": "DASHBOARD",
+      "dashboardHint": "Usage analytics",
       "cards": "CARDS",
       "cardsHint": "Card layout",
       "dockview": "DOCKVIEW",
@@ -141,9 +143,19 @@
     },
     "activePreset": "ACTIVE PRESET",
     "selectPreset": "SELECT THEME PRESET",
+    "themeSource": {
+      "source": "Source",
+      "repo": "Repo",
+      "evidenceCount": "{{count}} evidence",
+      "kindInternal": "Internal",
+      "kindOnePageLove": "One Page Love",
+      "kindAwwwards": "Awwwards",
+      "kindPublicSite": "Public site",
+      "kindOpenSource": "Open source"
+    },
     "colorMode": {
       "label": "COLOR MODE",
-      "description": "Switching theme preset auto-sets its preferred mode (spatial=light, endfield=dark, wuling=light). Override here.",
+      "description": "Switching theme preset applies its preferred default mode. Override it here.",
       "system": "Follow System",
       "systemDesc": "Auto-switch with OS light/dark preference",
       "light": "Light",
@@ -236,7 +248,26 @@
         "deep": "Deep",
         "surface": "Surface",
         "gold": "Gold",
-        "jade": "Jade"
+        "jade": "Jade",
+        "cyan": "Cyan",
+        "signal": "Signal",
+        "paper": "Paper",
+        "ink": "Ink",
+        "blue": "Blue",
+        "yellow": "Yellow",
+        "sky": "Sky",
+        "chrome": "Chrome",
+        "mist": "Mist",
+        "canvas": "Canvas",
+        "violet": "Violet",
+        "tool": "Tool",
+        "orange": "Orange",
+        "nebula": "Nebula",
+        "star": "Star",
+        "panel": "Panel",
+        "photo": "Photo",
+        "sage": "Sage",
+        "amber": "Amber"
       }
     },
     "themes": {
@@ -254,6 +285,76 @@
         "label": "Wuling Jade Industrial",
         "subtitle": "Arknights Endfield",
         "description": "A jade industrial workspace inspired by Wuling's Endfield direction: cool laboratory surfaces, hard technical panels, Hanken Grotesk text, and JetBrains Mono data labels across light and dark modes."
+      },
+      "onlook": {
+        "label": "Onlook Gradient Demo",
+        "subtitle": "One Page Love source",
+        "description": "Inspired by the Onlook entry: dark macOS product-demo staging, luminous ribbon gradients, soft translucent controls, and system-like product UI depth."
+      },
+      "tori": {
+        "label": "Tori Terminal Modular",
+        "subtitle": "One Page Love source",
+        "description": "Inspired by Tori by TalkJS: blue-white terminal modules, squared shadcn/Tailwind surfaces, Menlo-style data labels, and crisp construction-line grids."
+      },
+      "conductor": {
+        "label": "Conductor Agent Workbench",
+        "subtitle": "One Page Love shadcn/ui source",
+        "description": "Inspired by Conductor's parallel coding-agent workspace: dark mono panels, merge-ready green states, compact review columns, and terminal workbench controls carried into node interiors."
+      },
+      "hilden": {
+        "label": "Hilden & Kaira Poster",
+        "subtitle": "Awwwards SOTD source",
+        "description": "Inspired by the Hilden & Kaira Awwwards Site of the Day: oversized black-and-white portfolio type, billboard framing, hard outlines, and poster-like contrast."
+      },
+      "aperture": {
+        "label": "Project Aperture Archive",
+        "subtitle": "Awwwards Honorable Mention",
+        "description": "Inspired by Project Aperture's Awwwards Honorable Mention: a dark travel-photography room, vertical contact-sheet rhythm, viewfinder corners, soft photographic whites, and cinematic gallery controls across every node."
+      },
+      "noomo": {
+        "label": "Noomo 3D Agency",
+        "subtitle": "Public agency site source",
+        "description": "Inspired by Noomo Agency: pale blue cinematic space, huge uppercase display typography, restrained navigation, and floating white 3D block forms translated into workspace surfaces."
+      },
+      "excalidraw": {
+        "label": "Excalidraw Sketch",
+        "subtitle": "Open-source 127k-star source",
+        "description": "Inspired by the open-source Excalidraw app: hand-drawn whiteboard surfaces, Excalifont-style typography, pale tool chips, violet active states, and rough diagram strokes."
+      },
+      "astro": {
+        "label": "Astro Cosmic Framework",
+        "subtitle": "Open-source site source",
+        "description": "Inspired by the open-source Astro website: dark cosmic gradients, orange-violet glow, high-contrast framework docs, and luminous code-panel controls translated across workspace nodes."
+      },
+      "svelte": {
+        "label": "Svelte Editorial",
+        "subtitle": "Open-source 87k-star source",
+        "description": "Inspired by the open-source Svelte website: warm paper surfaces, serif editorial rhythm, crisp black text, and vivid orange action controls carried into every node surface."
+      },
+      "bun": {
+        "label": "Bun Runtime Toolkit",
+        "subtitle": "Open-source 93k-star source",
+        "description": "Inspired by the open-source Bun website: dark JavaScript runtime staging, warm amber highlights, dense release-feed rhythm, and terminal toolkit controls across node internals."
+      },
+      "storybook": {
+        "label": "Storybook Workshop",
+        "subtitle": "Open-source 90k-star source",
+        "description": "Inspired by Storybook's open-source UI workshop: bright docs canvas, blue navigation, pink addon accents, rounded controls, and component-lab surfaces carried into node interiors."
+      },
+      "supabase": {
+        "label": "Supabase Postgres",
+        "subtitle": "Open-source 106k-star source",
+        "description": "Inspired by Supabase's open-source Postgres platform: near-white docs canvas, graphite chrome, mint action controls, SQL editor chips, and database table surfaces across node interiors."
+      },
+      "penpot": {
+        "label": "Penpot Design Canvas",
+        "subtitle": "Open-source 55k-star source",
+        "description": "Inspired by Penpot's open-source design platform: deep indigo canvas, Work Sans interface type, teal primary actions, green collaboration states, and purple vector inspector accents inside every node."
+      },
+      "vite": {
+        "label": "Vite Dev Server",
+        "subtitle": "Open-source 81k-star source",
+        "description": "Inspired by Vite's open-source build-tool site: dark developer-stage canvas, purple-blue hero glow, yellow lightning accents, and fast docs/code controls carried into node interiors."
       }
     },
     "developerRuntime": {
@@ -323,6 +424,33 @@
       "MEDIA": "MEDIA",
       "TEXT": "TEXT",
       "OTHER": "OTHER"
+    },
+    "help": {
+      "title": "Node help",
+      "description": "Shared UI and CLI usage notes.",
+      "tooltip": "Node help",
+      "open": "Open {{name}} help",
+      "missingTitle": "No help entry",
+      "missingDescription": "This module does not expose shared node help yet.",
+      "errorTitle": "Help failed to load",
+      "tabs": {
+        "overview": "Overview",
+        "fields": "Fields"
+      },
+      "sections": {
+        "whenToUse": "When to use",
+        "workflows": "Workflows",
+        "fields": "Fields",
+        "safety": "Safety"
+      },
+      "labels": {
+        "tip": "Tip",
+        "required": "required",
+        "defaultValue": "default: {{value}}",
+        "defaultMode": "Default mode",
+        "destructive": "Destructive",
+        "note": "Note"
+      }
     }
   },
   "overlay": {
@@ -336,6 +464,79 @@
     "resize": "Drag to resize panel"
   },
   "view": {
+    "dashboard": {
+      "scope": "usage command center",
+      "title": "Runtime Intelligence Dashboard",
+      "subtitle": "Track operation history, backend stability, node execution volume, and active workspace composition in one analytic cockpit.",
+      "liveSignal": "live signal",
+      "loading": "SYNCING HISTORY...",
+      "rangeDays": "Last {{count}}d",
+      "backend": {
+        "ready": "ready",
+        "missing-config": "missing config",
+        "unreachable": "unreachable",
+        "checking": "checking",
+        "unknown": "unknown"
+      },
+      "metrics": {
+        "operations": "operations",
+        "operationsDetail": "{{count}} node execution record(s)",
+        "successRate": "success rate",
+        "successRateDetail": "{{count}} non-success event(s)",
+        "components": "nodes deployed",
+        "componentsDetail": "{{count}} active lane(s)",
+        "avgDuration": "avg duration",
+        "p95Duration": "p95 {{value}}ms"
+      },
+      "tabs": {
+        "overview": "Overview",
+        "stability": "Stability",
+        "history": "History"
+      },
+      "charts": {
+        "activity": "Operation activity",
+        "activityDesc": "Daily success, failure, and info events from runtime history.",
+        "stability": "Runtime stability",
+        "stabilityDesc": "Composite score from backend health, success rate, and active operation errors.",
+        "status": "Status distribution",
+        "statusDesc": "Terminal operation outcomes across the selected time window.",
+        "nodeUsage": "Node usage",
+        "nodeUsageDesc": "Most frequently executed or deployed nodes in the workspace.",
+        "duration": "Execution latency",
+        "durationDesc": "Average node run duration by day."
+      },
+      "health": {
+        "backend": "Backend",
+        "history": "History quality",
+        "active": "Active operations",
+        "rate": "{{value}}% success"
+      },
+      "labels": {
+        "count": "Count",
+        "events": "events"
+      },
+      "live": {
+        "title": "Live operation feed",
+        "description": "Recent node phases and messages currently tracked in memory.",
+        "empty": "No live operations right now."
+      },
+      "history": {
+        "title": "Recent operation history",
+        "description": "Latest persisted runtime records for audit and debugging.",
+        "empty": "No operation history in this range.",
+        "columns": {
+          "operation": "Operation",
+          "status": "Status",
+          "kind": "Kind",
+          "duration": "Duration"
+        }
+      },
+      "categories": {
+        "title": "Node categories",
+        "description": "Workspace node mix grouped by registry category.",
+        "empty": "No node category data."
+      }
+    },
     "cards": {
       "empty": "// canvas is empty",
       "emptyHint": "Deploy modules from the registry to populate this workspace.",
@@ -802,7 +1003,9 @@
       "done": "done",
       "failed": "failed",
       "efu": "efu",
-      "progress": "progress",
+      "progress": {
+        "start": "{{action}} started"
+      },
       "noResult": "No result",
       "starting": "starting",
       "ok": "ok",
@@ -877,9 +1080,6 @@
         "compress": "Compress",
         "repack": "Repack",
         "export_efu": "Export"
-      },
-      "progress": {
-        "start": "{{action}} started"
       }
     },
     "cleanf": {

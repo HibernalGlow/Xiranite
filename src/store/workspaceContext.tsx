@@ -16,7 +16,7 @@ type WorkspaceSnapshot = WorkspaceSnapshotDTO
 
 const WORKSPACE_SNAPSHOT_QUERY_KEY = ["workspace", "snapshot"] as const
 const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
-const QA_VIEW_MODES = new Set<ViewMode>(["cards", "dockview", "flow", "lane", "bento"])
+const QA_VIEW_MODES = new Set<ViewMode>(["dashboard", "cards", "dockview", "flow", "lane", "bento"])
 const QA_CARD_LAYOUTS = new Set<CardLayout>(["grid", "stack", "split", "focus"])
 
 function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
@@ -325,7 +325,7 @@ const QA_SURFACE_PRESETS: Record<QaSurfacePreset, {
 function installWorkspaceQaController(): () => void {
   const controller: XiraniteQaController = {
     help: () => [
-      "window.xqa.view('cards' | 'dockview' | 'flow' | 'lane' | 'bento')",
+      "window.xqa.view('dashboard' | 'cards' | 'dockview' | 'flow' | 'lane' | 'bento')",
       "window.xqa.stage('repacku', { view: 'bento', surface: 'expanded', fresh: true })",
       "window.xqa.resize('repacku', 'compact', 'flow')",
       "window.xqa.bento('repacku', { x: 0, y: 0, w: 8, h: 6 })",
@@ -736,6 +736,7 @@ function selectWorkspaceState(store: WSStore): WSState {
 function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,
+    hydrateUiPreferences: store.hydrateUiPreferences,
     setCustomThemes: store.setCustomThemes,
     setActiveCustomThemeName: store.setActiveCustomThemeName,
     setFontPreset: store.setFontPreset,

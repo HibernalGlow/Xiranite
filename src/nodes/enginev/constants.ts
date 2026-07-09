@@ -4,6 +4,7 @@ import type { EngineVAction } from "@xiranite/node-enginev/core"
 import type { EngineVCardState } from "./types"
 
 export const CONFIG_FIELDS = ["workshopPath", "outputPath", "template"] satisfies (keyof EngineVCardState)[]
+export const UI_CONFIG_FIELDS = ["galleryColumns", "galleryCompact", "galleryShowMeta", "galleryShowPath"] satisfies (keyof EngineVCardState)[]
 
 export const ACTIONS: Array<{
   value: EngineVAction

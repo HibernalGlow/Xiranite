@@ -1,7 +1,10 @@
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
 
-export const VIEW_MODES: ViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
+export type ComponentViewMode = Exclude<ViewMode, "dashboard">
+
+export const VIEW_MODES: ViewMode[] = ["dashboard", "cards", "dockview", "flow", "lane", "bento"]
+export const COMPONENT_VIEW_MODES: ComponentViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
 
 export const INITIAL_STATE: WSState = {
   theme: "spatial",

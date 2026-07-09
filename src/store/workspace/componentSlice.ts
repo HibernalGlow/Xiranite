@@ -1,5 +1,5 @@
 import type { ComponentInstance, ComponentState, DeployComponentOptions, Lane, ViewMode } from "@/types/workspace"
-import { VIEW_MODES } from "./constants"
+import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "./constants"
 import { nextComponentCounter, nextLaneId } from "./idCounters"
 import type { ComponentPatch, WorkspaceComponentActions, WorkspaceStoreUpdater, WSState } from "./types"
 
@@ -38,6 +38,10 @@ function normalizeDeployOptions(viewModeOrOptions?: ViewMode | DeployComponentOp
   return typeof viewModeOrOptions === "string" ? { viewMode: viewModeOrOptions } : viewModeOrOptions
 }
 
+function isComponentViewMode(viewMode: ViewMode): viewMode is ComponentViewMode {
+  return (COMPONENT_VIEW_MODES as readonly ViewMode[]).includes(viewMode)
+}
+
 function deployComponentState(state: WSState, moduleId: string, options: DeployComponentOptions = {}): WSState {
   const workspace = state.workspaces.find((item) => item.id === state.activeWorkspaceId)
   if (!workspace) return state
@@ -45,6 +49,7 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
   const instanceCounter = nextComponentCounter()
   const now = Date.now()
   const zCounter = state.zCounter + 1
+  const deploymentViewMode: ComponentViewMode | undefined = options.viewMode === "dashboard" ? "cards" : options.viewMode
   const visibleLanes = state.lanes.filter((lane) => lane.workspaceId === workspace.id && !lane.hidden)
   const laneId = visibleLanes.some((lane) => lane.id === options.laneId) ? options.laneId : visibleLanes[0]?.id
   const newComponent: ComponentInstance = {
@@ -62,8 +67,8 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
     bentoLayout: options.bentoLayout ?? defaultBentoLayout(instanceCounter),
     laneSize: { height: 420 },
     dockPanel: options.dockPanel ?? "default",
-    hiddenIn: options.viewMode
-      ? (Object.fromEntries(VIEW_MODES.map((mode) => [mode, mode !== options.viewMode])) as Record<ViewMode, boolean>)
+    hiddenIn: deploymentViewMode
+      ? (Object.fromEntries(COMPONENT_VIEW_MODES.map((mode) => [mode, mode !== deploymentViewMode])) as Partial<Record<ViewMode, boolean>>)
       : undefined,
     tags: options.tags,
     createdAt: now,
@@ -262,6 +267,8 @@ function setComponentDockPanelState(state: WSState, id: string, panelId: string)
 }
 
 function setComponentVisibilityState(state: WSState, id: string, viewMode: ViewMode, visible: boolean): WSState {
+  if (!isComponentViewMode(viewMode)) return state
+
   let changed = false
   const components = state.components.map((component) => {
     if (component.id !== id) return component
@@ -275,6 +282,8 @@ function setComponentVisibilityState(state: WSState, id: string, viewMode: ViewM
 }
 
 function toggleComponentVisibilityState(state: WSState, id: string, viewMode: ViewMode): WSState {
+  if (!isComponentViewMode(viewMode)) return state
+
   return {
     ...state,
     components: state.components.map((component) => {

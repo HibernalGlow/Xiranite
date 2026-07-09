@@ -22,7 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
 import { ACTIONS } from "./constants"
-import type { EngineVCardState, EngineVStatusMeta } from "./types"
+import type { EngineVCardState, EngineVStatusMeta, EngineVUiConfig } from "./types"
 
 interface PatchProps {
   data: EngineVCardState
@@ -272,6 +272,7 @@ export function ConfigDefaultsPopover(props: {
   configFilePath?: string
   defaults?: Partial<EngineVCardState>
   disabled?: boolean
+  uiDefaults?: EngineVUiConfig
   onOpenConfigFile?: () => Promise<void> | void
   onResetOverride: () => void
   onRestoreDefault: () => void
@@ -309,7 +310,7 @@ export function ConfigDefaultsPopover(props: {
                 <DialogTitle>EngineV 配置</DialogTitle>
                 <DialogDescription>网页端可直接查看当前明文配置位置和 nodes.enginev 默认值。</DialogDescription>
               </DialogHeader>
-              <ConfigPreview config={props.defaults} nodeId="enginev" path={props.configFilePath} />
+              <ConfigPreview config={props.defaults} nodeId="enginev" path={props.configFilePath} uiConfig={props.uiDefaults} />
             </DialogContent>
           </Dialog>
           <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
@@ -323,10 +324,13 @@ function ConfigPreview(props: {
   config?: Partial<EngineVCardState>
   nodeId: string
   path?: string
+  uiConfig?: EngineVUiConfig
 }) {
-  const content = props.config === undefined
+  const preview: Record<string, unknown> = props.config === undefined ? {} : { ...props.config }
+  if (props.uiConfig !== undefined) preview.ui = props.uiConfig
+  const content = props.config === undefined && props.uiConfig === undefined
     ? `# nodes.${props.nodeId} 暂无默认配置\n`
-    : JSON.stringify(props.config, null, 2)
+    : JSON.stringify(preview, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">

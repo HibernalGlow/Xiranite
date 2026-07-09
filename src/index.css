@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=LXGW+WenKai+Screen&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/themes/index.css";
 
 /* 扫描 ocean-dataview-vite 包内的 class 名，否则其内部 Tailwind class 不会被生成 */
 /* 包通过 git submodule 引入到 vendor/ocean-dataview，src 相对路径为 ./vendor/ocean-dataview/src */

@@ -43,6 +43,18 @@ describe("workspace UI preference persistence", () => {
 
     await user.click(screen.getByRole("button", { name: "reset persisted prefs" }))
   })
+
+  test("switching theme presets preserves user background and chrome settings", async () => {
+    const user = userEvent.setup()
+
+    render(<WorkspacePreferenceProbe />)
+
+    await user.click(screen.getByRole("button", { name: "set user overrides then switch preset" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117")
+    })
+  })
 })
 
 function WorkspacePreferenceProbe() {
@@ -53,12 +65,15 @@ function WorkspacePreferenceProbe() {
     fontPreset: state.fontPreset,
     bgMode: state.bgMode,
     bgOpacity: state.bgOpacity,
+    chromePosition: state.chromePosition,
+    chromeStyle: state.chromeStyle,
+    chromeIslandScale: state.chromeIslandScale,
   }))
   const workspaceActions = useWorkspaceActions()
 
   return (
     <div>
-      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}`}</output>
+      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}`}</output>
       <button
         type="button"
         onClick={() => {
@@ -83,12 +98,32 @@ function WorkspacePreferenceProbe() {
       <button
         type="button"
         onClick={() => {
+          workspaceActions.setBgMode("image")
+          workspaceActions.setBgOpacity(55)
+          workspaceActions.setBgBlur(18)
+          workspaceActions.setBgCoverTopBar(true)
+          workspaceActions.setChromePosition("island")
+          workspaceActions.setChromeStyle("traffic-light")
+          workspaceActions.setChromeIslandScale(117)
+          workspaceActions.setTheme("endfield")
+        }}
+      >
+        set user overrides then switch preset
+      </button>
+      <button
+        type="button"
+        onClick={() => {
           workspaceActions.setTheme("spatial")
           workspaceActions.setCustomThemes([])
           workspaceActions.setActiveCustomThemeName(null)
           workspaceActions.setFontPreset("xiranite")
           workspaceActions.setBgMode("dot-grid")
           workspaceActions.setBgOpacity(30)
+          workspaceActions.setBgBlur(5)
+          workspaceActions.setBgCoverTopBar(false)
+          workspaceActions.setChromePosition("right")
+          workspaceActions.setChromeStyle("default")
+          workspaceActions.setChromeIslandScale(90)
         }}
       >
         reset persisted prefs

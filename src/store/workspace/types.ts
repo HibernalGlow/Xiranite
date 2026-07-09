@@ -61,6 +61,7 @@ export type ComponentPatch = {
 
 export interface WorkspaceUiActions {
   setTheme(theme: AppTheme): void
+  hydrateUiPreferences(preferences: Partial<WorkspaceUiPreferences>): void
   setCustomThemes(themes: AppCustomTheme[]): void
   setActiveCustomThemeName(name: string | null): void
   setFontPreset(fontPreset: AppFontPreset): void
