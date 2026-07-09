@@ -13,11 +13,11 @@ interface ComponentProgressStripProps {
 
 const PHASE_CLASS: Record<ComponentSurfacePhase, string> = {
   idle: "bg-muted/40",
-  queued: "bg-muted-foreground/40",
+  queued: "bg-primary/45",
   running: "bg-primary",
-  completed: "bg-emerald-500/80",
+  completed: "bg-primary",
   error: "bg-destructive",
-  cancelled: "bg-amber-500/80",
+  cancelled: "bg-primary/60",
 }
 
 /**
@@ -34,6 +34,7 @@ export function ComponentProgressStrip({
   if (!shouldShowSurfaceStatus(status)) return null
 
   const indeterminate = status.progress == null && status.phase === "running"
+  const themedProgress = status.phase !== "error"
   const widthPct = status.progress == null ? undefined : `${Math.max(0, Math.min(100, status.progress))}%`
   const title = [status.message ?? status.label ?? "component progress", status.progress != null ? `${Math.round(status.progress)}%` : null]
     .filter(Boolean)
@@ -55,6 +56,7 @@ export function ComponentProgressStrip({
           className={cn(
             "h-full transition-[width,background-color] duration-200",
             PHASE_CLASS[status.phase],
+            themedProgress && "xiranite-node-progress-active",
             indeterminate && "xiranite-progress-indeterminate",
           )}
           style={widthPct ? { width: widthPct } : indeterminate ? undefined : { width: status.phase === "completed" ? "100%" : "0%" }}
