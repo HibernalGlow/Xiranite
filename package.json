@@ -138,6 +138,7 @@
     "react-modern-audio-player": "^2.3.2",
     "react-resizable-panels": "^4.7.6",
     "recharts": "3.8.0",
+    "scheduler": "0.27.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
