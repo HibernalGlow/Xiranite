@@ -523,12 +523,18 @@ function usePersistFlowCanvasToWorkspace(
       saveTimer = setTimeout(persistSnapshot, FLOW_CANVAS_SAVE_DELAY_MS)
     }
 
-    const dispose = editor.store.listen(() => {
+    const disposeStoreListener = editor.store.listen(() => {
       schedulePersist()
     })
+    const disposeCreateShapeListener = editor.sideEffects.registerAfterCreateHandler("shape", schedulePersist)
+    const disposeChangeShapeListener = editor.sideEffects.registerAfterChangeHandler("shape", schedulePersist)
+    const disposeDeleteShapeListener = editor.sideEffects.registerAfterDeleteHandler("shape", schedulePersist)
 
     return () => {
-      dispose()
+      disposeStoreListener()
+      disposeCreateShapeListener()
+      disposeChangeShapeListener()
+      disposeDeleteShapeListener()
       if (saveTimer === undefined) return
       clearTimeout(saveTimer)
       persistSnapshot()

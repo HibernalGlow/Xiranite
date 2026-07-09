@@ -37,6 +37,7 @@ const editorMock = vi.hoisted(() => ({
     }),
   },
   sideEffects: {
+    registerAfterCreateHandler: vi.fn<(typeName: string, handler: unknown) => () => void>(() => vi.fn()),
     registerAfterChangeHandler: vi.fn<(typeName: string, handler: unknown) => () => void>(() => vi.fn()),
     registerAfterDeleteHandler: vi.fn<(typeName: string, handler: DeleteShapeHandler) => () => void>(() => vi.fn()),
   },
