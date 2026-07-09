@@ -371,10 +371,7 @@ function useSyncShapesFromStore(
   syncingShapeDeletesRef: { current: boolean },
 ) {
   const visibleComponents = useWorkspaceVisibleComponents()
-  const workspaceActions = useWorkspaceActions()
   const lastSigRef = useRef<string>("")
-  const hasSyncedRef = useRef(false)
-  const previousDesiredIdsRef = useRef<Set<ModuleShape["id"]>>(new Set())
 
   useEffect(() => {
     if (!editor) return
@@ -400,7 +397,6 @@ function useSyncShapesFromStore(
     const currentModuleShapes = editor.getCurrentPageShapes().filter((shape): shape is ModuleShape => shape.type === ModuleShapeUtil.type)
     const currentIds = new Set(currentModuleShapes.map((shape) => shape.id))
     const desiredIds = new Set(desired.map((shape) => shape.id))
-    const previousDesiredIds = previousDesiredIdsRef.current
 
     const toRemove = currentModuleShapes.filter((shape) => !desiredIds.has(shape.id)).map((shape) => shape.id)
     if (toRemove.length) {
@@ -413,23 +409,11 @@ function useSyncShapesFromStore(
     }
 
     const missingDesired = desired.filter((shape) => !currentIds.has(shape.id))
-    const missingPreviouslySynced = hasSyncedRef.current
-      ? missingDesired.filter((shape) => previousDesiredIds.has(shape.id))
-      : []
-    const toCreate = missingDesired.filter((shape) => !hasSyncedRef.current || !previousDesiredIds.has(shape.id))
     const toUpdate = desired.filter((shape) => currentIds.has(shape.id))
 
-    for (const shape of missingPreviouslySynced) {
-      const compId = shape.props.compId
-      if (compId) workspaceActions.setComponentVisibility(compId, "flow", false)
-    }
-
-    if (toCreate.length) editor.createShapes(toCreate)
+    if (missingDesired.length) editor.createShapes(missingDesired)
     if (toUpdate.length) editor.updateShapes(toUpdate)
-
-    previousDesiredIdsRef.current = desiredIds
-    hasSyncedRef.current = true
-  }, [editor, syncingShapeDeletesRef, visibleComponents, workspaceActions])
+  }, [editor, syncingShapeDeletesRef, visibleComponents])
 }
 
 function useSyncChangesToStore(editor: ReturnType<typeof useEditor> | null) {

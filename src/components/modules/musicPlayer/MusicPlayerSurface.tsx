@@ -38,9 +38,16 @@ import { resolveLocalAudioTracks, type LocalAudioTrack } from "@/backend/localFi
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_MUSIC_VISUALIZER_STYLE,
+  MUSIC_VISUALIZER_STYLE_OPTIONS,
+  normalizeMusicVisualizerStyle,
+  type MusicVisualizerStyle,
+} from "./visualizerStyles"
 
 export interface PersistedTrack {
   name: string
@@ -74,6 +81,8 @@ export interface MusicPlayerSurfaceProps {
   onSourcePathChange?: (path: string) => void
   onPlaybackStateChange?: (state: MusicPlaybackState) => void
   onPlaybackControlsChange?: (controls: MusicPlaybackControls | null) => void
+  visualizerStyle?: MusicVisualizerStyle
+  onVisualizerStyleChange?: (style: MusicVisualizerStyle) => void
   variant?: "module" | "dock"
   actions?: ReactNode
   className?: string
@@ -143,6 +152,8 @@ export function MusicPlayerSurface({
   onSourcePathChange,
   onPlaybackStateChange,
   onPlaybackControlsChange,
+  visualizerStyle = DEFAULT_MUSIC_VISUALIZER_STYLE,
+  onVisualizerStyleChange,
   variant = "module",
   actions,
   className,
@@ -167,7 +178,7 @@ export function MusicPlayerSurface({
 
   const activeTrack = tracks[activeIndex] ?? tracks[0]
   const activeLyrics = activeTrack ? lyricsByPath[activeTrack.path] ?? [] : []
-  const lyricLine = isPlaying ? currentLyricLine(activeLyrics, currentTime) : undefined
+  const lyricLine = activeTrack ? currentLyricLine(activeLyrics, currentTime) : undefined
   const supportLine = activeTrack
     ? activeSupportLine(activeTrack, isPlaying, lyricLine)
     : "后端文件服务"
@@ -402,6 +413,8 @@ export function MusicPlayerSurface({
             onSelectTrack={selectTrack}
             onDurationChange={setDuration}
             onTimeChange={setCurrentTime}
+            visualizerStyle={visualizerStyle}
+            onVisualizerStyleChange={onVisualizerStyleChange}
           />
         ) : (
           <EmptyLibrary
@@ -504,6 +517,8 @@ function ThemedAudioPlayer({
   onSelectTrack,
   onDurationChange,
   onTimeChange,
+  visualizerStyle,
+  onVisualizerStyleChange,
 }: {
   audioRef: RefObject<HTMLAudioElement | null>
   compact: boolean
@@ -523,6 +538,8 @@ function ThemedAudioPlayer({
   onSelectTrack(index: number, autoplay?: boolean): void
   onDurationChange(duration: number): void
   onTimeChange(time: number): void
+  visualizerStyle: MusicVisualizerStyle
+  onVisualizerStyleChange?: (style: MusicVisualizerStyle) => void
 }) {
   const showQueue = !compact && tracks.length > 1
 
@@ -614,6 +631,13 @@ function ThemedAudioPlayer({
             </MediaMuteButton>
             <MediaVolumeRange className="w-20 [--media-control-display:flex] [--media-range-thumb-width:7px] [--media-range-thumb-height:7px]" />
           </div>
+          {onVisualizerStyleChange && (
+            <MusicVisualizerStyleControl
+              compact={compact}
+              value={visualizerStyle}
+              onValueChange={onVisualizerStyleChange}
+            />
+          )}
           {actions}
         </div>
       </div>
@@ -627,6 +651,37 @@ function ThemedAudioPlayer({
         />
       )}
     </MediaController>
+  )
+}
+
+function MusicVisualizerStyleControl({
+  compact,
+  value,
+  onValueChange,
+}: {
+  compact: boolean
+  value: MusicVisualizerStyle
+  onValueChange(style: MusicVisualizerStyle): void
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5" title="顶栏频谱动画">
+      <span className="sr-only">顶栏频谱动画</span>
+      <NativeSelect
+        size="sm"
+        value={value}
+        onChange={(event) => onValueChange(normalizeMusicVisualizerStyle(event.target.value))}
+        aria-label="顶栏频谱动画"
+        className={cn("h-8 truncate text-xs", compact ? "w-[7.75rem]" : "w-[9.5rem]")}
+      >
+        <NativeSelectOptGroup label="LDRS">
+          {MUSIC_VISUALIZER_STYLE_OPTIONS.map((option) => (
+            <NativeSelectOption key={option.value} value={option.value}>
+              {option.label}
+            </NativeSelectOption>
+          ))}
+        </NativeSelectOptGroup>
+      </NativeSelect>
+    </div>
   )
 }
 
@@ -861,9 +916,10 @@ function toPersistedTrack(track: RuntimeTrack): PersistedTrack {
 }
 
 function activeSupportLine(track: RuntimeTrack, isPlaying: boolean, lyricLine: string | undefined): string {
+  if (lyricLine) return lyricLine
+  if (track.lyricLine) return track.lyricLine
+
   if (isPlaying) {
-    if (lyricLine) return lyricLine
-    if (track.lyricLine) return track.lyricLine
     if (track.writer) return `正在播放 · ${track.writer}`
     if (track.relativePath) return `正在播放 · ${track.relativePath}`
     return "正在播放"

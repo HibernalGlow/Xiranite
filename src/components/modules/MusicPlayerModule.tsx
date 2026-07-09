@@ -1,12 +1,18 @@
-import { useCallback } from "react"
+import { lazy, Suspense, useCallback } from "react"
 import { useComponentData } from "@/hooks/useComponentData"
 import type { ModuleProps } from "./ModuleRenderer"
-import { MusicPlayerSurface, type PersistedTrack } from "./musicPlayer/MusicPlayerSurface"
+import type { PersistedTrack } from "./musicPlayer/MusicPlayerSurface"
 
 interface MusicPlayerData {
   savedTracks?: PersistedTrack[]
   sourcePath?: string
 }
+
+const MusicPlayerSurface = lazy(() =>
+  import("./musicPlayer/MusicPlayerSurface").then((module) => ({
+    default: module.MusicPlayerSurface,
+  })),
+)
 
 export default function MusicPlayerModule({ compId }: ModuleProps) {
   const [data, setData] = useComponentData<MusicPlayerData>(compId)
@@ -20,13 +26,23 @@ export default function MusicPlayerModule({ compId }: ModuleProps) {
   }, [setData])
 
   return (
-    <MusicPlayerSurface
-      savedTracks={data.savedTracks}
-      savedSourcePath={data.sourcePath}
-      onSavedTracksChange={handleSavedTracksChange}
-      onSourcePathChange={handleSourcePathChange}
-      variant="module"
-      className="rounded-[inherit]"
-    />
+    <Suspense fallback={<MusicPlayerModuleFallback />}>
+      <MusicPlayerSurface
+        savedTracks={data.savedTracks}
+        savedSourcePath={data.sourcePath}
+        onSavedTracksChange={handleSavedTracksChange}
+        onSourcePathChange={handleSourcePathChange}
+        variant="module"
+        className="rounded-[inherit]"
+      />
+    </Suspense>
+  )
+}
+
+function MusicPlayerModuleFallback() {
+  return (
+    <div className="grid h-full min-h-0 place-items-center rounded-[inherit] text-xs text-muted-foreground">
+      Loading music player...
+    </div>
   )
 }

@@ -112,7 +112,7 @@ describe("FlowCanvasView", () => {
     expect(setComponentVisibilityMock).toHaveBeenCalledWith("comp-flow-ghost", "flow", false)
   })
 
-  test("does not recreate a previously synced shape that is missing from the canvas", () => {
+  test("recreates visible module shapes that are missing after a canvas snapshot reload", () => {
     const oldComponent = createFlowComponent("comp-old", "bandia")
     const newComponent = createFlowComponent("comp-new", "cleanf")
 
@@ -132,13 +132,17 @@ describe("FlowCanvasView", () => {
 
     rerender(<FlowCanvasView />)
 
-    expect(setComponentVisibilityMock).toHaveBeenCalledWith("comp-old", "flow", false)
     expect(editorMock.createShapes).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "shape:comp-old",
+        props: expect.objectContaining({ compId: "comp-old" }),
+      }),
       expect.objectContaining({
         id: "shape:comp-new",
         props: expect.objectContaining({ compId: "comp-new" }),
       }),
     ])
+    expect(setComponentVisibilityMock).not.toHaveBeenCalled()
   })
 
   test("does not delete ordinary tldraw shapes while syncing module shapes", () => {

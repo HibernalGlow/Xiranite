@@ -5,7 +5,7 @@ import { NuqsAdapter } from "nuqs/adapters/react"
 
 import "./index.css"
 import "./styles/themes/index.css"
-import "@/i18n"
+import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
@@ -16,18 +16,24 @@ const queryClient = new QueryClient({
   },
 })
 
-void hydrateLocalBackendConfig().catch((error) => {
-  console.error("[backend] initial config hydrate failed:", error)
-})
+void bootstrap()
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>
-        <ThemeProvider>
-          <App />
-        </ThemeProvider>
-      </NuqsAdapter>
-    </QueryClientProvider>
-  </StrictMode>
-)
+async function bootstrap() {
+  await initI18n()
+
+  void hydrateLocalBackendConfig().catch((error) => {
+    console.error("[backend] initial config hydrate failed:", error)
+  })
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <NuqsAdapter>
+          <ThemeProvider>
+            <App />
+          </ThemeProvider>
+        </NuqsAdapter>
+      </QueryClientProvider>
+    </StrictMode>
+  )
+}

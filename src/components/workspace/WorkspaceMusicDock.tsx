@@ -1,5 +1,8 @@
 import {
   createContext,
+  lazy,
+  Suspense,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -9,10 +12,13 @@ import {
   type RefObject,
 } from "react"
 import { motion, useDragControls, type PanInfo } from "motion/react"
-import { AudioLines, Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, PictureInPicture2, X } from "lucide-react"
-import { MusicPlayerSurface, type MusicPlaybackState, type PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
+import { Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, Pause, PictureInPicture2, Play, SkipBack, SkipForward, X } from "lucide-react"
+import { MusicVisualizerIcon } from "@/components/modules/musicPlayer/MusicVisualizerIcon"
+import type { MusicPlaybackControls, MusicPlaybackState, PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
+import { DEFAULT_MUSIC_VISUALIZER_STYLE, normalizeMusicVisualizerStyle, type MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
 import { DynamicIsland, DynamicIslandProvider, useDynamicIslandSize } from "@/components/ui/dynamic-island"
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 
 type DockMode = "bottom" | "floating" | "fullscreen"
@@ -28,14 +34,18 @@ interface MusicDockContextValue {
   collapsed: boolean
   mode: DockMode
   audioRef: RefObject<HTMLAudioElement | null>
+  playbackControlsRef: RefObject<MusicPlaybackControls | null>
   playback: MusicPlaybackState
+  visualizerStyle: MusicVisualizerStyle
   surfaceMounted: boolean
   savedTracks: PersistedTrack[]
   sourcePath: string
   floatingOffset: FloatingOffset
   setCollapsed(collapsed: boolean): void
   setMode(mode: DockMode): void
+  setPlaybackControls(controls: MusicPlaybackControls | null): void
   setPlaybackState(state: MusicPlaybackState): void
+  setVisualizerStyle(style: MusicVisualizerStyle): void
   setSurfaceMounted(mounted: boolean): void
   setSavedTracks(tracks: PersistedTrack[]): void
   setSourcePath(path: string): void
@@ -46,6 +56,7 @@ const MUSIC_DOCK_MODE_STORAGE_KEY = "xiranite.musicDock.mode"
 const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
 const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
 const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
+const MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY = "xiranite.musicDock.visualizerStyle"
 const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
 const MUSIC_DOCK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
 const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
@@ -53,17 +64,27 @@ const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
   isPlaying: false,
   trackCount: 0,
 }
+const MusicPlayerSurface = lazy(() =>
+  import("@/components/modules/musicPlayer/MusicPlayerSurface").then((module) => ({
+    default: module.MusicPlayerSurface,
+  })),
+)
 const MusicDockContext = createContext<MusicDockContextValue | null>(null)
 
 export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const playbackControlsRef = useRef<MusicPlaybackControls | null>(null)
   const [collapsed, setCollapsed] = useState(true)
   const [mode, setMode] = useState<DockMode>(() => readDockMode())
   const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
+  const [visualizerStyle, setVisualizerStyle] = useState<MusicVisualizerStyle>(() => readVisualizerStyle())
   const [surfaceMounted, setSurfaceMounted] = useState(false)
   const [savedTracks, setSavedTracks] = useState<PersistedTrack[]>(() => readSavedTracks())
   const [sourcePath, setSourcePath] = useState(() => readSourcePath())
   const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(() => readFloatingOffset())
+  const setPlaybackControls = useCallback((controls: MusicPlaybackControls | null) => {
+    playbackControlsRef.current = controls
+  }, [])
 
   useEffect(() => {
     writeDockMode(mode)
@@ -82,6 +103,10 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
   }, [floatingOffset])
 
   useEffect(() => {
+    writeVisualizerStyle(visualizerStyle)
+  }, [visualizerStyle])
+
+  useEffect(() => {
     const refreshMusicDockConfig = () => {
       setMode(readDockMode())
       setSavedTracks((current) => {
@@ -93,6 +118,7 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
         const next = readFloatingOffset()
         return areFloatingOffsetsEqual(current, next) ? current : next
       })
+      setVisualizerStyle(readVisualizerStyle())
     }
 
     window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshMusicDockConfig)
@@ -105,14 +131,18 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
         collapsed,
         mode,
         audioRef,
+        playbackControlsRef,
         playback,
+        visualizerStyle,
         surfaceMounted,
         savedTracks,
         sourcePath,
         floatingOffset,
         setCollapsed,
         setMode,
+        setPlaybackControls,
         setPlaybackState,
+        setVisualizerStyle,
         setSurfaceMounted,
         setSavedTracks,
         setSourcePath,
@@ -129,12 +159,12 @@ export function WorkspaceMusicDockTopBarSlot() {
 
   if (variant === "full") {
     return (
-      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[1500] h-12 w-[226px] shrink-0 overflow-visible">
+      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[226px] shrink-0 overflow-visible">
         <DynamicIslandProvider
           initialSize="minimalLeading"
           presets={{
             minimalLeading: { width: 226, aspectRatio: 38 / 226, borderRadius: 19 },
-            compact: { width: 392, aspectRatio: 112 / 392, borderRadius: 28 },
+            compact: { width: 420, aspectRatio: 168 / 420, borderRadius: 30 },
           }}
         >
           <MusicDockIsland variant="full" />
@@ -144,12 +174,12 @@ export function WorkspaceMusicDockTopBarSlot() {
   }
 
   return (
-    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[1500] h-12 w-10 shrink-0 overflow-visible">
+    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[72px] shrink-0 overflow-visible">
       <DynamicIslandProvider
         initialSize="minimalLeading"
         presets={{
-          minimalLeading: { width: 40, aspectRatio: 1, borderRadius: 20 },
-          compact: { width: 312, aspectRatio: 108 / 312, borderRadius: 27 },
+          minimalLeading: { width: 72, aspectRatio: 40 / 72, borderRadius: 20 },
+          compact: { width: 336, aspectRatio: 168 / 336, borderRadius: 30 },
         }}
       >
         <MusicDockIsland variant="mini" />
@@ -182,11 +212,12 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
   const collapsedMini = variant === "mini" && !expanded
   const primaryTrack = dock.playback.trackName ?? dock.savedTracks[0]?.name
   const trackLabel = primaryTrack ?? "音乐播放器"
-  const stateLabel = dock.playback.isPlaying
+  const fallbackStateLabel = dock.playback.isPlaying
     ? (dock.collapsed ? "后台播放" : "正在播放")
     : dock.collapsed
       ? "后台待机"
       : dock.mode === "bottom" ? "底栏显示" : dock.mode === "fullscreen" ? "全屏 dock" : "浮窗显示"
+  const stateLabel = dock.playback.supportLine?.trim() || fallbackStateLabel
 
   useEffect(() => {
     if (!expanded) return
@@ -237,7 +268,7 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
           className={cn(
             "flex min-w-0 items-center rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
             collapsedMini
-              ? "size-full justify-center p-0 hover:bg-accent/45"
+              ? "size-full justify-between gap-1 px-1 hover:bg-accent/45"
               : expanded
                 ? "h-12 w-full gap-2 px-1.5 hover:bg-accent/45"
                 : "h-full w-full gap-2 px-1 hover:bg-accent/40",
@@ -250,7 +281,13 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
           aria-label={expanded ? "音乐 dock" : "展开音乐灵动岛"}
         >
           <MusicIslandArtwork artworkUrl={dock.playback.artworkUrl} trackLabel={trackLabel} size={collapsedMini ? "lg" : "md"} />
-          {!collapsedMini && (
+          {collapsedMini ? (
+            <MusicIslandSpectrum
+              compact
+              isPlaying={dock.playback.isPlaying}
+              style={dock.visualizerStyle}
+            />
+          ) : (
             <>
               <div className="min-w-0 flex-1">
                 <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[11px]")}>
@@ -261,44 +298,18 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
                 </span>
               </div>
               <MusicIslandSpectrum
-                key={dock.playback.trackName ?? "empty"}
                 isPlaying={dock.playback.isPlaying}
+                style={dock.visualizerStyle}
               />
             </>
           )}
         </button>
 
-        <div
-          className={cn(
-            "mt-2 grid grid-cols-4 gap-1.5 transition-opacity",
-            expanded ? "opacity-100" : "pointer-events-none h-0 opacity-0",
-          )}
-          aria-hidden={!expanded}
-        >
-          <MusicIslandAction
-            active={!dock.collapsed && dock.mode === "bottom"}
-            icon={<PanelBottom className="size-3.5" />}
-            label="底栏"
-            onClick={() => showInMode("bottom")}
-          />
-          <MusicIslandAction
-            active={!dock.collapsed && dock.mode === "floating"}
-            icon={<PictureInPicture2 className="size-3.5" />}
-            label="浮窗"
-            onClick={() => showInMode("floating")}
-          />
-          <MusicIslandAction
-            active={!dock.collapsed && dock.mode === "fullscreen"}
-            icon={<Maximize2 className="size-3.5" />}
-            label="全屏"
-            onClick={() => showInMode("fullscreen")}
-          />
-          <MusicIslandAction
-            icon={<X className="size-3.5" />}
-            label="隐藏"
-            onClick={hidePanel}
-          />
-        </div>
+        <MusicIslandExpandedPlayer
+          expanded={expanded}
+          onHidePanel={hidePanel}
+          onShowInMode={showInMode}
+        />
       </div>
     </DynamicIsland>
   )
@@ -330,14 +341,144 @@ function MusicIslandArtwork({
 }
 
 function MusicIslandSpectrum({
+  compact = false,
   isPlaying,
+  style,
 }: {
+  compact?: boolean
   isPlaying: boolean
+  style: MusicVisualizerStyle
 }) {
   return (
-    <span className="relative grid h-6 w-12 shrink-0 place-items-center overflow-hidden rounded-full border border-border/45 bg-muted/65">
-      <AudioLines className={cn("size-4 text-primary/70", isPlaying && "text-primary")} aria-hidden />
+    <span
+      className={cn(
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-primary shadow-inner backdrop-blur-md",
+        compact ? "h-7 w-9" : "h-7 w-14",
+        !isPlaying && "opacity-65",
+      )}
+    >
+      <MusicVisualizerIcon compact={compact} isPlaying={isPlaying} style={style} />
     </span>
+  )
+}
+
+function MusicIslandExpandedPlayer({
+  expanded,
+  onHidePanel,
+  onShowInMode,
+}: {
+  expanded: boolean
+  onHidePanel(): void
+  onShowInMode(mode: DockMode): void
+}) {
+  const dock = useMusicDock()
+
+  if (!expanded) return null
+
+  const duration = safePlaybackTime(dock.playback.duration)
+  const currentTime = clamp(safePlaybackTime(dock.playback.currentTime), 0, duration || Number.MAX_SAFE_INTEGER)
+  const canSeek = dock.playback.hasTrack && duration > 0
+  const sliderMax = canSeek ? duration : 100
+  const sliderValue = canSeek ? currentTime : 0
+
+  function runPlaybackControl(action: (controls: MusicPlaybackControls) => void) {
+    const controls = dock.playbackControlsRef.current
+    if (!dock.playback.hasTrack || !controls) {
+      onShowInMode("bottom")
+      return
+    }
+    action(controls)
+  }
+
+  function handleTogglePlayback() {
+    runPlaybackControl((controls) => controls.togglePlay())
+  }
+
+  return (
+    <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2" onClick={(event) => event.stopPropagation()}>
+      <div className="flex min-w-0 items-center justify-center gap-8">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-full"
+          onClick={() => runPlaybackControl((controls) => controls.playPrevious())}
+          title="上一首"
+          aria-label="上一首"
+        >
+          <SkipBack />
+        </Button>
+        <Button
+          type="button"
+          size="icon-lg"
+          className="rounded-full shadow-sm"
+          onClick={handleTogglePlayback}
+          title={dock.playback.isPlaying ? "暂停" : "播放"}
+          aria-label={dock.playback.isPlaying ? "暂停" : "播放"}
+        >
+          {dock.playback.isPlaying ? <Pause /> : <Play className="fill-current" />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-full"
+          onClick={() => runPlaybackControl((controls) => controls.playNext())}
+          title="下一首"
+          aria-label="下一首"
+        >
+          <SkipForward />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-[2.4rem_minmax(0,1fr)_2.4rem] items-center gap-2">
+        <span className="text-right text-[10px] tabular-nums text-muted-foreground">
+          {formatIslandTime(currentTime)}
+        </span>
+        <Slider
+          aria-label="音乐播放进度"
+          disabled={!canSeek}
+          min={0}
+          max={sliderMax}
+          step={1}
+          value={[sliderValue]}
+          onValueChange={(value) => {
+            if (!canSeek) return
+            runPlaybackControl((controls) => controls.seekTo(value[0] ?? 0))
+          }}
+          className="min-w-0"
+        />
+        <span className="text-[10px] tabular-nums text-muted-foreground">
+          {formatIslandTime(duration)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-4 gap-1.5">
+        <MusicIslandAction
+          active={!dock.collapsed && dock.mode === "bottom"}
+          icon={<PanelBottom className="size-3.5" />}
+          label="底栏"
+          onClick={() => onShowInMode("bottom")}
+        />
+        <MusicIslandAction
+          active={!dock.collapsed && dock.mode === "floating"}
+          icon={<PictureInPicture2 className="size-3.5" />}
+          label="浮窗"
+          onClick={() => onShowInMode("floating")}
+        />
+        <MusicIslandAction
+          active={!dock.collapsed && dock.mode === "fullscreen"}
+          icon={<Maximize2 className="size-3.5" />}
+          label="全屏"
+          onClick={() => onShowInMode("fullscreen")}
+        />
+        <MusicIslandAction
+          icon={<X className="size-3.5" />}
+          label="隐藏"
+          onClick={onHidePanel}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -531,19 +672,32 @@ export function WorkspaceMusicDockPanel() {
             </div>
           )}
 
-          <MusicPlayerSurface
-            audioRef={dock.audioRef}
-            savedTracks={dock.savedTracks}
-            savedSourcePath={dock.sourcePath}
-            onSavedTracksChange={dock.setSavedTracks}
-            onSourcePathChange={dock.setSourcePath}
-            onPlaybackStateChange={dock.setPlaybackState}
-            variant={dock.mode === "bottom" ? "dock" : "module"}
-            actions={bottomActions}
-            className="relative z-10 flex-1"
-          />
+          <Suspense fallback={<MusicDockSurfaceFallback />}>
+            <MusicPlayerSurface
+              audioRef={dock.audioRef}
+              savedTracks={dock.savedTracks}
+              savedSourcePath={dock.sourcePath}
+              onSavedTracksChange={dock.setSavedTracks}
+              onSourcePathChange={dock.setSourcePath}
+              onPlaybackControlsChange={dock.setPlaybackControls}
+              onPlaybackStateChange={dock.setPlaybackState}
+              visualizerStyle={dock.visualizerStyle}
+              onVisualizerStyleChange={dock.setVisualizerStyle}
+              variant={dock.mode === "bottom" ? "dock" : "module"}
+              actions={bottomActions}
+              className="relative z-10 flex-1"
+            />
+          </Suspense>
         </div>
       </motion.div>
+    </div>
+  )
+}
+
+function MusicDockSurfaceFallback() {
+  return (
+    <div className="relative z-10 grid min-h-0 flex-1 place-items-center p-4 text-xs text-muted-foreground">
+      Loading music player...
     </div>
   )
 }
@@ -633,8 +787,30 @@ function writeFloatingOffset(offset: FloatingOffset) {
   dispatchLegacyConfigChanged()
 }
 
+function readVisualizerStyle(): MusicVisualizerStyle {
+  if (typeof window === "undefined") return DEFAULT_MUSIC_VISUALIZER_STYLE
+  return normalizeMusicVisualizerStyle(window.localStorage.getItem(MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY))
+}
+
+function writeVisualizerStyle(style: MusicVisualizerStyle) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY, style)
+  dispatchLegacyConfigChanged()
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function safePlaybackTime(value: number | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+function formatIslandTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0:00"
+  const minutes = Math.floor(seconds / 60)
+  const rest = Math.floor(seconds % 60)
+  return `${minutes}:${String(rest).padStart(2, "0")}`
 }
 
 function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {

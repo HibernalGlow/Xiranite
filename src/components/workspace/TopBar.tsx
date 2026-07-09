@@ -642,7 +642,7 @@ function TopBarActionDock({
         iconMagnification={34}
         disableMagnification
         iconDistance={64}
-        className="group mx-0 mt-0 h-10 gap-0 overflow-visible rounded-lg border-0 bg-transparent p-0 backdrop-blur-none supports-backdrop-blur:bg-transparent supports-backdrop-blur:dark:bg-transparent"
+        className="group mx-0 mt-0 h-10 flex-row-reverse gap-0 overflow-visible rounded-lg border-0 bg-transparent p-0 backdrop-blur-none supports-backdrop-blur:bg-transparent supports-backdrop-blur:dark:bg-transparent"
       >
         <TopBarDockIcon
           label={registryLabel}
@@ -655,7 +655,7 @@ function TopBarActionDock({
           label={devRuntimeLabel}
           onSelect={onOpenDevRuntime}
           className={cn(
-            "z-30 -ml-2.5 shadow-xs group-hover:ml-1 group-focus-within:ml-1",
+            "z-30 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
             devRuntimeActive ? "text-primary hover:text-primary" : undefined,
           )}
         >
@@ -672,7 +672,7 @@ function TopBarActionDock({
         <TopBarDockIcon
           label={operationsLabel}
           onSelect={onOpenOperations}
-          className="z-20 -ml-2.5 shadow-xs group-hover:ml-1 group-focus-within:ml-1"
+          className="z-20 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <span className="relative grid place-items-center">
             <Activity className="h-4 w-4" />
@@ -686,7 +686,7 @@ function TopBarActionDock({
         <TopBarDockIcon
           label={historyLabel}
           onSelect={onOpenHistory}
-          className="z-10 -ml-2.5 shadow-xs group-hover:ml-1 group-focus-within:ml-1"
+          className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <History className="h-4 w-4" />
         </TopBarDockIcon>
