@@ -145,7 +145,7 @@ describe("app-owned seriex Component", () => {
     expect(host.state.logs?.at(-1)).toBe("backend offline")
   })
 
-  test("saves, restores, clears, and opens default config controls", async () => {
+  test("uses the shared configuration-management workflow", async () => {
     setSurface("regular")
     const host = createHost(
       { directoryPath: "D:/current", prefix: "[#s]" },
@@ -154,19 +154,16 @@ describe("app-owned seriex Component", () => {
     render(<Component compId="comp-seriex" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "seriex defaults" })).toBeTruthy())
-    await user.click(screen.getByRole("button", { name: "seriex defaults" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" })).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.state.directoryPath).toBe("D:/default")
-
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.directoryPath).toBeUndefined()
-    expect(host.state.prefix).toBeUndefined()
 
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toBeDefined()
 
-    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    await user.click(screen.getByRole("button", { name: "重新读取" }))
+    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })

@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
@@ -14,7 +16,6 @@ import {
   ActionIconButton,
   ActionPicker,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   ConfigTextPanel,
   PathFields,
   PrimarySwitches,
@@ -26,6 +27,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("seriex")
   const data = host.getData<SeriexCardState>(compId) ?? {}
   const dataRef = useRef<SeriexCardState>(data)
   dataRef.current = data
@@ -48,14 +50,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
-    host.getNodeConfig?.<Partial<SeriexCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
-  }, [host])
+  async function loadDefaults() {
+    try {
+      const response = await host.getNodeConfig?.<Partial<SeriexCardState>>()
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // The node is still usable when the host has no persistent config.
+    }
+  }
+
+  useEffect(() => { void loadDefaults() }, [host])
 
   useEffect(() => {
     if (!defaults) return
@@ -177,18 +182,6 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    patch({
-      directoryPath: undefined,
-      configPath: undefined,
-      configText: undefined,
-      knownSeriesText: undefined,
-      prefix: undefined,
-      addPrefix: undefined,
-      dryRun: undefined,
-    })
-  }
-
   const commonProps = createViewProps({
     action,
     actionMeta,
@@ -204,6 +197,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     result,
     running,
     status,
+    t,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -212,7 +206,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPasteKnownSeries: pasteKnownSeries,
     onPatch: patch,
     onReset: reset,
-    onResetOverride: resetOverride,
+    onReloadDefaults: loadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   })
@@ -252,6 +246,7 @@ function createViewProps(props: {
   result: SeriexData | null
   running: boolean
   status: SeriexStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action: SeriexAction) => void
@@ -260,7 +255,7 @@ function createViewProps(props: {
   onPasteKnownSeries: () => void
   onPatch: (patch: Partial<SeriexCardState>) => void
   onReset: () => void
-  onResetOverride: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
@@ -438,18 +433,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-      {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
-      )}
+      {!props.compact && <NodeConfigPopover configPath={props.configFilePath} defaults={props.defaults as Record<string, unknown> | undefined} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefault} onSave={props.onSaveDefault} />}
     </div>
   )
 }
