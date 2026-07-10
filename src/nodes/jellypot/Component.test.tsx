@@ -63,9 +63,9 @@ describe("app-owned jellypot Component", () => {
       } else {
         expect(screen.getByTestId("jellypot-full-view")).toBeTruthy()
         expect(screen.getByTestId("jellypot-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("媒体")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByText("媒体入口")).toBeTruthy()
+        expect(screen.getByText("最近活动")).toBeTruthy()
+        expect(screen.getByText("注册表配置")).toBeTruthy()
       }
     },
   )

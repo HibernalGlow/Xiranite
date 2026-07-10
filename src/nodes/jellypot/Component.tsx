@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { JellyPotAction, JellyPotData, JellyPotInput } from "@xiranite/node-jellypot/core"
-import { Clapperboard, Play, RotateCcw, Square } from "lucide-react"
+import { Clapperboard, FileCog, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
@@ -314,7 +316,7 @@ function PortraitCompactView(props: ViewProps) {
   )
 }
 
-function FullView(props: ViewProps) {
+function LegacyFullView(props: ViewProps) {
   return (
     <div data-testid="jellypot-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/jellypot:flex-row @4xl/jellypot:items-center @4xl/jellypot:justify-between">
@@ -355,6 +357,68 @@ function FullView(props: ViewProps) {
       </div>
     </div>
   )
+}
+
+function FullView(props: ViewProps) {
+  if ((props.data.action as string | undefined) === "init") return <LegacyFullView {...props} />
+  return <JellyPotConsole {...props} />
+}
+
+function JellyPotConsole(props: ViewProps) {
+  const potplayer = props.result?.checks.find((item) => item.name === "potplayer")
+  const browser = props.result?.checks.find((item) => item.name === "browser")
+  const registry = props.result?.checks.find((item) => item.name === "registry")
+
+  return (
+    <div data-testid="jellypot-full-view" className="flex min-h-0 flex-1 flex-col p-3 @4xl/jellypot:p-4">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b pb-3">
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || props.t("console.subtitle", "媒体入口、环境检查与注册表配置")} />
+        <div data-testid="jellypot-header-toolbar" className="flex shrink-0 items-center gap-1">
+          <ActionIconButton disabled={!props.result} icon={RotateCcw} label={props.t("action.reset", "清空状态")} onClick={props.onReset} />
+          <NodeConfigPopover configPath={props.configFilePath} defaults={props.defaults as Record<string, unknown> | undefined} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefault} onSave={props.onSaveDefault} />
+        </div>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 py-4 @6xl/jellypot:grid-cols-[15rem_minmax(0,1fr)_18rem]">
+        <aside className="flex min-h-0 flex-col gap-4">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm">{props.t("media.title", "媒体入口")}</CardTitle><CardDescription>{props.t("media.description", "输入本地媒体后使用 PotPlayer 打开")}</CardDescription></CardHeader>
+            <CardContent className="grid gap-3"><MediaPathInput data={props.data} disabled={props.running} onPaste={props.onPasteMedia} onPatch={props.onPatch} /><Button disabled={props.running} size="sm" variant="outline" onClick={() => props.onExecute("status")}>{props.actionMeta.value === "status" ? <Square data-icon="inline-start" /> : <Play data-icon="inline-start" />}{props.t("media.scan", "检查环境")}</Button></CardContent>
+          </Card>
+          <Card className="min-h-0 flex-1"><CardHeader className="pb-3"><CardTitle className="text-sm">{props.t("activity.title", "最近活动")}</CardTitle><CardDescription>{props.t("activity.description", "本节点最近的运行记录")}</CardDescription></CardHeader><CardContent className="min-h-0"><ActivityFeed logs={props.logs} /></CardContent></Card>
+        </aside>
+        <section className="flex min-h-0 flex-col gap-4">
+          <div className="grid shrink-0 gap-4 @3xl/jellypot:grid-cols-2">
+            <ServiceCard description={props.t("service.potplayerDesc", "本地播放器与媒体文件入口")} title="PotPlayer" check={potplayer} action="launch_media" actionLabel={props.t("service.launch", "播放媒体")} disabled={props.running} onExecute={props.onExecute} />
+            <ServiceCard description={props.t("service.jellyfinDesc", "浏览器打开 Jellyfin Web") } title="Jellyfin" check={browser} action="open_jellyfin" actionLabel={props.t("service.open", "打开 Jellyfin")} disabled={props.running} onExecute={props.onExecute} />
+          </div>
+          <div className="min-h-0 flex-1"><JellyPotResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
+        </section>
+        <aside className="flex min-h-0 flex-col gap-4 border-t pt-4 @6xl/jellypot:border-t-0 @6xl/jellypot:border-l @6xl/jellypot:pl-4 @6xl/jellypot:pt-0">
+          <Card className="min-h-0 flex-1"><CardHeader className="pb-3"><CardTitle className="text-sm">{props.t("registry.title", "注册表配置")}</CardTitle><CardDescription>{props.data.configPath || props.t("registry.noConfig", "当前尚未读取配置文件")}</CardDescription></CardHeader><CardContent className="min-h-0"><ConfigSnapshot config={props.result?.config} /></CardContent></Card>
+          <Alert variant="destructive"><FileCog data-icon="inline-start" /><AlertTitle>{props.t("registry.riskTitle", "高风险操作")}</AlertTitle><AlertDescription>{registry?.exists ? props.t("registry.riskReady", "注册表文件已找到。关闭预演后会修改系统注册表。") : props.t("registry.riskMissing", "请先检查注册表文件和配置路径，再执行导入。")}</AlertDescription></Alert>
+          <RunRegistryButton props={props} disabled={props.running || !registry?.exists} />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function ServiceCard(props: { action: JellyPotAction; actionLabel: string; check?: JellyPotData["checks"][number]; description: string; disabled?: boolean; onExecute: (action?: JellyPotAction) => void; title: string }) {
+  const available = props.check?.exists
+  return <Card><CardHeader className="items-center text-center"><div className={cn("grid size-14 place-items-center rounded-full border", available ? "border-primary/30 bg-primary/10 text-primary" : "border-muted bg-muted text-muted-foreground")}><Clapperboard className="size-7" /></div><CardTitle>{props.title}</CardTitle><CardDescription>{available ? props.check?.path : props.description}</CardDescription></CardHeader><CardContent><Button className="w-full" disabled={props.disabled} variant={available ? "default" : "outline"} onClick={() => props.onExecute(props.action)}><Play data-icon="inline-start" />{props.actionLabel}</Button></CardContent></Card>
+}
+
+function ActivityFeed({ logs }: { logs: string[] }) {
+  return <div className="max-h-64 space-y-2 overflow-auto">{logs.length ? logs.slice(-8).reverse().map((line, index) => <div key={`${line}-${index}`} className="border-l-2 border-primary/40 pl-2 text-xs text-muted-foreground">{line}</div>) : <div className="py-6 text-center text-xs text-muted-foreground">尚无运行记录</div>}</div>
+}
+
+function ConfigSnapshot({ config }: { config: JellyPotData["config"] | undefined }) {
+  return <pre className="max-h-72 overflow-auto rounded-md border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">{config ? JSON.stringify(config, null, 2) : "运行状态检查后将在这里显示已解析配置。"}</pre>
+}
+
+function RunRegistryButton({ disabled, props }: { disabled?: boolean; props: ViewProps }) {
+  if (props.data.dryRun ?? true) return <Button className="w-full" disabled={disabled} variant="outline" onClick={() => props.onExecute("apply_registry")}><FileCog data-icon="inline-start" />{props.t("registry.plan", "预演导入注册表")}</Button>
+  return <RunActionButton props={{ ...props, action: "apply_registry" }} />
 }
 
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
