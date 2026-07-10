@@ -101,7 +101,7 @@ describe("app-owned envuconfig Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.files).toHaveLength(1)
 
-    await user.click(screen.getByRole("tab", { name: "文件" }))
+    expect(screen.getByRole("table")).toBeTruthy()
     expect(screen.getAllByText(/config\/app\.toml/).length).toBeGreaterThanOrEqual(1)
   })
 

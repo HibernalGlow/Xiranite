@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +26,50 @@ export function EnvuConfigStatsPanel({ result }: { result: EnvuConfigData | null
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * Wide-surface file ledger. The compact result tabs keep their richer
+ * per-file cards; this table lets the workspace use the central scanning
+ * surface as a dense, glanceable inventory.
+ */
+export function EnvuConfigFileLedger({ files }: { files: EnvuConfigFile[] }) {
+  return (
+    <section className="flex min-h-0 flex-1 flex-col rounded-lg border bg-background/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <FolderTree className="size-3.5" />
+          <span>Detected objects</span>
+        </div>
+        <Badge variant="outline">{files.length}</Badge>
+      </div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {files.length ? (
+          <Table className="min-w-[360px] text-xs">
+            <TableHeader className="sticky top-0 z-10 bg-muted/70 backdrop-blur-sm">
+              <TableRow>
+                <TableHead>File path</TableHead>
+                <TableHead>Group</TableHead>
+                <TableHead className="text-right">Size</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {files.map((file) => (
+                <TableRow key={file.path}>
+                  <TableCell className="max-w-0 truncate font-mono" title={file.path}>{file.relativePath}</TableCell>
+                  <TableCell><Badge variant="outline">{file.group}</Badge></TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">{formatBytes(file.size)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <EmptyState icon={FolderTree} title="等待文件" description="扫描后将在此列出 EnvU 配置对象。" />
+        )}
+      </ScrollArea>
+    </section>
   )
 }
 

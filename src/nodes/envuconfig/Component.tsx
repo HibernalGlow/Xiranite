@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   IncludeEditor,
   OptionsPopover,
   PathFields,
@@ -21,12 +22,13 @@ import {
   RuntimeOptions,
   StatusStrip,
 } from "./controls"
-import { EnvuConfigResultTabs, EnvuConfigStatsPanel } from "./results"
+import { EnvuConfigFileLedger, EnvuConfigResultTabs, EnvuConfigStatsPanel } from "./results"
 import type { EnvuConfigCardState, EnvuConfigStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<EnvuConfigCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("envuconfig")
   const data = getHostData(host, compId)
   const dataRef = useRef<EnvuConfigCardState>(data)
   dataRef.current = data
@@ -46,14 +48,21 @@ export function Component({ compId, host }: NodeComponentProps<EnvuConfigCardSta
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
+  async function reloadDefaults() {
     const loadConfig = host.config?.get?.<Partial<EnvuConfigCardState>>() ?? host.getNodeConfig?.<Partial<EnvuConfigCardState>>()
-    loadConfig
-      ?.then((response) => {
+    try {
+      const response = await loadConfig
+      if (response) {
         setDefaults(response.config)
         setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+      }
+    } catch {
+      // Persistent defaults are optional in browser-only preview hosts.
+    }
+  }
+
+  useEffect(() => {
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -116,12 +125,6 @@ export function Component({ compId, host }: NodeComponentProps<EnvuConfigCardSta
 
   function restoreDefault() {
     if (defaults) patch(defaults)
-  }
-
-  function resetOverride() {
-    const empty: Partial<EnvuConfigCardState> = {}
-    for (const field of CONFIG_FIELDS) empty[field] = undefined
-    patch(empty)
   }
 
   async function execute(nextAction: EnvuConfigAction = action) {
@@ -196,9 +199,10 @@ export function Component({ compId, host }: NodeComponentProps<EnvuConfigCardSta
     onPasteRoot: pasteRoot,
     onPatch: patch,
     onReset: reset,
-    onResetOverride: resetOverride,
+    onReloadDefaults: reloadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
+    t,
   }
 
   return (
@@ -241,9 +245,10 @@ function createViewProps(props: {
   onPasteRoot: () => void
   onPatch: (patch: Partial<EnvuConfigCardState>) => void
   onReset: () => void
-  onResetOverride: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
+  t: ReturnType<typeof useNodeI18n>["t"]
 }) {
   return props
 }
@@ -318,6 +323,59 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  // The reference's wide screen is a three-stage ledger. Preserve the legacy
+  // form-first composition while no scan result exists, because it is more
+  // useful for first-run configuration and smaller expanded cards.
+  if (!props.result) return <FullViewLegacy {...props} />
+
+  return (
+    <div data-testid="envuconfig-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex shrink-0 flex-col gap-2 @4xl/envuconfig:flex-row @4xl/envuconfig:items-center @4xl/envuconfig:justify-between">
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+        <div data-testid="envuconfig-header-toolbar" className="flex shrink-0 items-center gap-2">
+          <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+          <NodeConfigPopover
+            configPath={props.configFilePath}
+            defaults={props.defaults as Record<string, unknown> | undefined}
+            dirty={props.configDirty}
+            disabled={props.running}
+            t={props.t}
+            onOpenFile={props.onOpenConfigFile}
+            onReload={props.onReloadDefaults}
+            onRestore={props.onRestoreDefault}
+            onSave={props.onSaveDefault}
+          />
+        </div>
+        <EnvuConfigStatsPanel result={props.result} />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/envuconfig:grid-cols-[minmax(190px,.8fr)_minmax(280px,1.45fr)_minmax(200px,.9fr)]">
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
+          <div>
+            <div className="text-sm font-semibold">Root context</div>
+            <p className="text-xs text-muted-foreground">EnvU source and include rules.</p>
+          </div>
+          <RootInput data={props.data} disabled={props.running} onPaste={props.onPasteRoot} onPatch={props.onPatch} />
+          <IncludeEditor data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
+        </section>
+        <EnvuConfigFileLedger files={props.result.files} />
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto pl-1">
+          <div>
+            <div className="text-sm font-semibold">Target vector</div>
+            <p className="text-xs text-muted-foreground">Backup destination and write safety.</p>
+          </div>
+          <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+          <div className="mt-auto"><RunActionButton props={props} /></div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function FullViewLegacy(props: ViewProps) {
   return (
     <div data-testid="envuconfig-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/envuconfig:flex-row @4xl/envuconfig:items-center @4xl/envuconfig:justify-between">
@@ -327,15 +385,16 @@ function FullView(props: ViewProps) {
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/envuconfig:w-72" onActionChange={props.onActionChange} />
             <RunActionButton props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
-              defaults={props.defaults}
+            <NodeConfigPopover
+              configPath={props.configFilePath}
+              defaults={props.defaults as Record<string, unknown> | undefined}
+              dirty={props.configDirty}
               disabled={props.running}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
+              t={props.t}
+              onOpenFile={props.onOpenConfigFile}
+              onReload={props.onReloadDefaults}
+              onRestore={props.onRestoreDefault}
+              onSave={props.onSaveDefault}
             />
           </div>
         </div>
