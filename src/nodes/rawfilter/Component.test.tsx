@@ -167,7 +167,7 @@ describe("app-owned rawfilter Component", () => {
     expect(host.state.logs?.at(-1)).toBe("Path does not exist.")
   })
 
-  test("saves, restores, and clears default config controls", async () => {
+  test("saves and restores shared configuration", async () => {
     setSurface("regular")
     const host = createHost(
       { path: "D:/current", action: "scan", trashOnly: true },
@@ -176,22 +176,17 @@ describe("app-owned rawfilter Component", () => {
     render(<Component compId="comp-rawfilter" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "rawfilter 默认配置" }).className).toContain("bg-secondary"))
-    await user.click(screen.getByRole("button", { name: "rawfilter 默认配置" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.state.path).toBe("D:/default")
     expect(host.state.action).toBe("execute")
     expect(host.state.trashOnly).toBe(false)
 
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.path).toBeUndefined()
-    expect(host.state.action).toBeUndefined()
-    expect(host.state.trashOnly).toBeUndefined()
-
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toBeDefined()
 
-    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })
