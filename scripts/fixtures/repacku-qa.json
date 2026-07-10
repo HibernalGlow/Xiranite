@@ -1,0 +1,50 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "full",
+    "path": "D:/library/artist",
+    "typesText": "image, video, document",
+    "minCount": 2,
+    "dryRun": true,
+    "deleteAfter": false,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "Compression plan ready.",
+    "result": {
+      "configPath": "D:/library/artist/repack.config.json",
+      "totalFolders": 4,
+      "entireCount": 2,
+      "selectiveCount": 1,
+      "skipCount": 1,
+      "plannedCount": 3,
+      "compressedCount": 0,
+      "failedCount": 0,
+      "skippedCount": 1,
+      "totalOperations": 3,
+      "galleryCount": 1,
+      "folderTree": {
+        "path": "D:/library/artist",
+        "name": "artist",
+        "parentPath": "D:/library",
+        "depth": 0,
+        "weight": 0,
+        "totalFiles": 24,
+        "totalSize": 10485760,
+        "recursiveSize": 10485760,
+        "sizeMb": 10,
+        "compressMode": "selective",
+        "recommendation": "Pack selected media folders.",
+        "fileTypes": { "image": 18, "video": 2, "document": 4 },
+        "fileExtensions": { ".jpg": 16, ".png": 2, ".mp4": 2, ".txt": 4 },
+        "dominantTypes": ["image"],
+        "children": []
+      },
+      "operations": [
+        { "mode": "entire", "sourcePath": "D:/library/artist/book-a", "targetPath": "D:/library/artist/book-a.zip", "extensions": [".jpg", ".txt"], "fileCount": 12, "status": "planned", "originalSize": 0, "compressedSize": 0 },
+        { "mode": "gallery", "sourcePath": "D:/library/artist/gallery", "targetPath": "D:/library/artist/gallery.zip", "extensions": [".png"], "fileCount": 8, "status": "planned", "originalSize": 0, "compressedSize": 0 },
+        { "mode": "skip", "sourcePath": "D:/library/artist/tmp", "targetPath": "", "extensions": [], "fileCount": 0, "status": "skipped", "originalSize": 0, "compressedSize": 0 }
+      ],
+      "errors": []
+    }
+  }
+}

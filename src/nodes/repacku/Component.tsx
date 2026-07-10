@@ -6,12 +6,14 @@ import type {
   RepackuInput,
   RepackuResult,
 } from "@xiranite/node-repacku/core"
-import { Copy, FileArchive, Package, Play, RotateCcw, Search } from "lucide-react"
+import { ArrowRight, Check, Copy, FileImage, FileText, Film, ListTodo, Package, Play, RotateCcw, Settings2, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -455,19 +457,6 @@ function FullView(props: {
             subtitle={props.data.progressText || `${props.types.length ? props.types.join(", ") : "全部文件"} | 至少 ${props.data.minCount ?? 2} 个 | ${props.data.dryRun ?? true ? "预演" : "写入"}`}
           />
           <div data-testid="repacku-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/repacku:w-40" onActionChange={props.onActionChange} />
-            <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-              <Play data-icon="inline-start" />
-              启动
-            </Button>
-            <Button disabled={props.running || !props.data.path} variant="outline" onClick={() => props.onExecute("analyze")}>
-              <Search data-icon="inline-start" />
-              分析
-            </Button>
-            <Button disabled={props.running || (!props.data.configPath && !props.data.path)} variant="outline" onClick={() => props.onExecute("compress")}>
-              <FileArchive data-icon="inline-start" />
-              压缩
-            </Button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon-sm" variant="ghost" onClick={props.onReset}>
@@ -488,59 +477,121 @@ function FullView(props: {
         <HeaderStats result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-2">
-        <ScrollArea className="min-h-0">
-          <div className="flex min-h-0 flex-col gap-3 pr-1">
-            <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <div>
-                <div className="text-sm font-semibold">输入</div>
-                <div className="text-xs text-muted-foreground">选择文件夹路径；执行模式和任务按钮固定在顶部工具栏。</div>
-              </div>
+      <WorkflowRail action={props.action} status={props.status} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+        <div className="flex min-h-0 flex-col gap-3">
+          <FolderMatrix result={props.result} />
+          <Tabs defaultValue="operations" className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between gap-2">
+              <div className="flex items-center gap-2"><ListTodo className="text-muted-foreground" /><h3 className="text-sm font-semibold">重打包计划</h3></div>
+              <TabsList aria-label="重打包结果" variant="line">
+                <TabsTrigger value="operations">计划</TabsTrigger>
+                <TabsTrigger value="tree">目录树</TabsTrigger>
+                <TabsTrigger value="logs">日志</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="operations" className="min-h-0 flex-1"><RepackPlanTable items={props.operationPreview} onCopy={props.onCopyResults} /></TabsContent>
+            <TabsContent value="tree" className="min-h-0 flex-1"><Card className="flex h-full min-h-0 flex-col"><CardContent className="min-h-0 flex-1 p-0"><FileTreePreview root={props.result?.folderTree ?? null} /></CardContent></Card></TabsContent>
+            <TabsContent value="logs" className="min-h-0 flex-1"><PreviewPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} /></TabsContent>
+          </Tabs>
+        </div>
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0">
+            <CardTitle className="flex items-center gap-2 text-base"><Settings2 />打包配置</CardTitle>
+            <CardDescription>路径、压缩条件与风险开关在同一处确认。</CardDescription>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
+            <div className="grid gap-4">
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-            </section>
-
-            <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            <ConfigFilePanel
-              configFilePath={props.configFilePath}
-              configDirty={props.configDirty}
-              data={props.data}
-              defaults={props.defaults}
-              disabled={props.running}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onPatch={props.onPatch}
-              onReset={props.onReset}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
-              onResetOverride={props.onResetOverride}
-            />
-            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-          </div>
-        </ScrollArea>
-
-        <Tabs defaultValue="operations" className="min-h-0">
-          <TabsList variant="line">
-            <TabsTrigger value="operations">操作</TabsTrigger>
-            <TabsTrigger value="tree">目录树</TabsTrigger>
-            <TabsTrigger value="logs">日志</TabsTrigger>
-          </TabsList>
-          <TabsContent value="operations" className="min-h-0">
-            <PreviewPanel
-              emptyText="还没有操作计划。运行分析或完整流程后可预览文件夹。"
-              lines={props.operationPreview.map((item) => `${item.status.padEnd(7)} ${item.mode.padEnd(9)} ${item.sourcePath} -> ${item.targetPath}`)}
-              onCopy={props.onCopyResults}
-            />
-          </TabsContent>
-          <TabsContent value="tree" className="min-h-0">
-            <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
-              <FileTreePreview root={props.result?.folderTree ?? null} />
-            </section>
-          </TabsContent>
-          <TabsContent value="logs" className="min-h-0">
-            <PreviewPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} />
-          </TabsContent>
-        </Tabs>
+              <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+              <ConfigFilePanel
+                configFilePath={props.configFilePath}
+                configDirty={props.configDirty}
+                data={props.data}
+                defaults={props.defaults}
+                disabled={props.running}
+                onOpenConfigFile={props.onOpenConfigFile}
+                onPatch={props.onPatch}
+                onReset={props.onReset}
+                onRestoreDefault={props.onRestoreDefault}
+                onSaveDefault={props.onSaveDefault}
+                onResetOverride={props.onResetOverride}
+              />
+            </div>
+          </CardContent>
+          <CardFooter className="grid shrink-0 gap-2 border-t pt-4">
+            <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
+            <Button disabled={props.running} variant={props.data.deleteAfter && !(props.data.dryRun ?? true) ? "destructive" : "default"} onClick={() => props.onExecute(props.action)}><Play data-icon="inline-start" />启动 {ACTIONS.find((item) => item.value === props.action)?.label}</Button>
+          </CardFooter>
+        </Card>
       </div>
+      {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
     </div>
+  )
+}
+
+function WorkflowRail(props: { action: RepackuAction; status: RepackuStatusMeta }) {
+  const currentIndex = props.action === "analyze" ? 0 : props.action === "full" ? 1 : props.action === "compress" ? 2 : 3
+  const steps = ["分析", "配置", "打包", "核验"]
+  return (
+    <Card className="shrink-0">
+      <CardContent className="grid grid-cols-4 gap-2 py-3">
+        {steps.map((label, index) => {
+          const active = index === currentIndex
+          const complete = index < currentIndex || (props.status.tone === "success" && index <= currentIndex)
+          return (
+            <div key={label} className="flex min-w-0 items-center gap-2">
+              <Badge variant={active ? "default" : complete ? "secondary" : "outline"}>{complete ? <Check /> : index + 1}</Badge>
+              <span className={cn("truncate text-xs font-medium", active && "text-primary")}>{label}</span>
+              {index < steps.length - 1 && <ArrowRight className="ml-auto shrink-0 text-muted-foreground" />}
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+function FolderMatrix({ result }: { result: RepackuData | null }) {
+  const fileTypes = result?.folderTree?.fileTypes ?? {}
+  const cells = [
+    { label: "图像", value: fileTypes.image ?? 0, icon: FileImage },
+    { label: "视频", value: fileTypes.video ?? 0, icon: Film },
+    { label: "文本 / 元数据", value: (fileTypes.text ?? 0) + (fileTypes.document ?? 0) + (fileTypes.meta ?? 0), icon: FileText },
+  ]
+  return (
+    <Card className="shrink-0">
+      <CardHeader className="flex-row items-center justify-between gap-2">
+        <div><CardTitle className="text-base">目录矩阵分析</CardTitle><CardDescription>分析完成后按内容类型汇总目录。</CardDescription></div>
+        <Badge variant="outline">{result?.totalFolders ?? 0} 目录</Badge>
+      </CardHeader>
+      <CardContent className="grid grid-cols-3 gap-2">
+        {cells.map((cell) => {
+          const Icon = cell.icon
+          return <div key={cell.label} className="grid place-items-center gap-1 rounded-md border p-3 text-center"><Icon className="text-primary" /><span className="text-xs text-muted-foreground">{cell.label}</span><strong className="text-lg tabular-nums">{cell.value}</strong></div>
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
+function RepackPlanTable(props: { items: RepackuData["operations"]; onCopy: () => void }) {
+  if (!props.items.length) return <Card className="flex h-full min-h-48 items-center justify-center p-6 text-center text-sm text-muted-foreground">运行分析或完整流程后，会在此显示重打包计划。</Card>
+  return (
+    <Card className="h-full min-h-0 overflow-hidden">
+      <div className="flex items-center justify-end border-b px-3 py-2"><Button size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />复制</Button></div>
+      <ScrollArea className="h-[calc(100%-2.5rem)]">
+        <Table>
+          <TableHeader><TableRow><TableHead>源路径</TableHead><TableHead className="w-16 text-center">操作</TableHead><TableHead>目标</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {props.items.map((item) => {
+              const purge = item.mode === "purge" || !item.targetPath
+              return <TableRow key={`${item.sourcePath}:${item.targetPath}`}><TableCell className="max-w-0 truncate font-mono text-xs">{item.sourcePath}</TableCell><TableCell className="text-center">{purge ? <Trash2 className="mx-auto text-destructive" /> : <ArrowRight className="mx-auto text-muted-foreground" />}</TableCell><TableCell className={cn("max-w-0 truncate font-mono text-xs", purge ? "text-muted-foreground" : "text-primary")}>{purge ? "— 清理 —" : item.targetPath}</TableCell></TableRow>
+            })}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </Card>
   )
 }
 

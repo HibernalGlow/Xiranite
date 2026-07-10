@@ -64,9 +64,9 @@ describe("app-owned repacku Component", () => {
         return
       }
 
-      expect(screen.getByText("输入")).toBeTruthy()
-      expect(screen.getByText("选项")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "操作" })).toBeTruthy()
+      expect(screen.getByText("目录矩阵分析")).toBeTruthy()
+      expect(screen.getByText("打包配置")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "计划" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "目录树" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
     },
@@ -82,7 +82,7 @@ describe("app-owned repacku Component", () => {
     expect(host.state.path).toBe("D:/library/book")
     view.rerender(<Component compId="comp-repacku" host={host} />)
 
-    await user.click(screen.getByRole("button", { name: "启动" }))
+    await user.click(screen.getByRole("button", { name: "启动", exact: true }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({
@@ -105,7 +105,7 @@ describe("app-owned repacku Component", () => {
     render(<Component compId="comp-repacku" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "启动" }))
+    await user.click(screen.getByRole("button", { name: "启动 完整流程", exact: true }))
 
     await waitFor(() => expect(host.state.phase).toBe("error"))
     expect(host.state.progressText).toBe("Archive command failed.")
@@ -145,16 +145,16 @@ describe("app-owned repacku Component", () => {
     expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
   })
 
-  test("keeps primary actions in the expanded header toolbar", () => {
+  test("keeps primary actions beside configuration rather than duplicating them in the header", () => {
     surfaceState.mode = "expanded"
     render(<Component compId="comp-repacku" host={createHost({ path: "D:/library", action: "analyze" })} />)
 
     const toolbar = screen.getByTestId("repacku-header-toolbar")
 
-    expect(toolbar.textContent).toContain("启动")
-    expect(toolbar.textContent).toContain("分析")
-    expect(toolbar.textContent).toContain("压缩")
-    expect(screen.getByText(/执行模式和任务按钮固定在顶部工具栏/)).toBeTruthy()
+    expect(toolbar.textContent).not.toContain("启动")
+    expect(screen.getByRole("combobox")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "启动 分析" })).toBeTruthy()
+    expect(screen.getByText("打包配置")).toBeTruthy()
   })
 })
 
