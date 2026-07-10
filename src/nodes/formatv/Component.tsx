@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { FormatvAction, FormatvData, FormatvInput } from "@xiranite/node-formatv/core"
-import { Copy, Minus, Plus, RotateCcw, Search, ShieldAlert, Square, Video } from "lucide-react"
+import { Copy, Minus, Plus, RotateCcw, Search, Square, Video } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -349,8 +349,8 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       <ActionIconButton disabled={props.running || !props.pathCount} icon={Search} label={props.tNode("buttons.scan", "扫描视频")} onClick={() => props.onExecute("scan")} />
-      <RenameActionButton compact={props.compact} action="add_nov" props={props} />
-      <RenameActionButton compact={props.compact} action="remove_nov" props={props} />
+      <RenameActionButton action="add_nov" props={props} />
+      <RenameActionButton action="remove_nov" props={props} />
       <ActionIconButton disabled={props.running || !props.pathCount} icon={Copy} label={props.tNode("buttons.checkDuplicates", "查重")} onClick={() => props.onExecute("check_duplicates")} />
       <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
@@ -389,7 +389,7 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
   )
 }
 
-function RenameActionButton({ compact, action, props }: { compact?: boolean; action: "add_nov" | "remove_nov"; props: ViewProps }) {
+function RenameActionButton({ action, props }: { action: "add_nov" | "remove_nov"; props: ViewProps }) {
   const { t: tNode } = useNodeI18n("formatv")
   const meta = action === "add_nov"
     ? { icon: Plus, label: tNode("buttons.addNov", "添加 .nov") }
