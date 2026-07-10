@@ -1,0 +1,20 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "mode": "multi",
+    "path": "D:/archives/Artist",
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "已生成 3 条改名计划，其中 2 条可执行。",
+    "logs": ["[scan] 3 archives", "[plan] 2 ready, 1 conflict"],
+    "result": {
+      "action": "plan", "mode": "multi", "scannedCount": 3, "readyCount": 2, "renamedCount": 0, "unchangedCount": 0, "skippedCount": 0, "conflictCount": 1, "errorCount": 0, "errors": [],
+      "items": [
+        { "sourcePath": "D:/archives/Artist/Book [cbr].zip", "targetPath": "D:/archives/Artist/BookArtist.zip", "sourceName": "Book [cbr].zip", "targetName": "BookArtist.zip", "artistName": "Artist", "kind": "archive", "status": "ready" },
+        { "sourcePath": "D:/archives/Artist/Series (2024).cbz", "targetPath": "D:/archives/Artist/SeriesArtist.cbz", "sourceName": "Series (2024).cbz", "targetName": "SeriesArtist.cbz", "artistName": "Artist", "kind": "archive", "status": "ready" },
+        { "sourcePath": "D:/archives/Artist/Conflict.zip", "targetPath": "D:/archives/Artist/BookArtist.zip", "sourceName": "Conflict.zip", "targetName": "BookArtist.zip", "artistName": "Artist", "kind": "archive", "status": "conflict" }
+      ]
+    }
+  }
+}
