@@ -248,21 +248,23 @@ function FullView(props: ViewProps) {
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
       <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(260px,330px)]">
-        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
-          <ZoneTitle icon={FolderInput} label="路径和规则" />
-          <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
-          <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="grid gap-2">
+              <ZoneTitle icon={FolderInput} label="路径和规则" />
+              <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+              <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+              <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            </div>
+          </div>
+          <ExecutionGate {...props} />
         </section>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
           <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={GitCompare} label="改名计划" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
           <Separator />
           <PlanRows items={props.result?.items ?? []} paths={props.paths} />
         </section>
-        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/nameu:col-span-2 @4xl/nameu:col-span-1">
-          <ExecutionGate {...props} />
-          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
+        <div className="min-h-0 @2xl/nameu:col-span-2 @4xl/nameu:col-span-1"><ResultTabs includePlan={false} logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
   )
@@ -324,7 +326,6 @@ function ExecutionGate(props: ViewProps) {
     <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
       <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="执行" tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "预览" : "写入"}</Badge></div>
       <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-      <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <RunButton props={props} />
     </section>
   )
@@ -404,11 +405,12 @@ function splitFilenameDiff(source: string, target: string) {
   }
 }
 
-function ResultTabs(props: { compact?: boolean; logs: string[]; result: NameuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
+function ResultTabs(props: { compact?: boolean; includePlan?: boolean; logs: string[]; result: NameuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
+  const includePlan = props.includePlan ?? true
   return (
-    <Tabs defaultValue="plan" className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan">计划</TabsTrigger><TabsTrigger value="issues">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
-      <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>
+    <Tabs defaultValue={includePlan ? "plan" : "issues"} className="flex h-full min-h-0 flex-col">
+      <TabsList variant="line" className="shrink-0">{includePlan && <TabsTrigger value="plan">计划</TabsTrigger>}<TabsTrigger value="issues">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
+      {includePlan && <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>}
       <TabsContent value="issues" className="min-h-0 flex-1"><TextPanel empty="暂无问题" lines={[...(props.result?.errors ?? []), ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} /></TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel="复制" empty="运行日志会显示在这里。" icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
     </Tabs>

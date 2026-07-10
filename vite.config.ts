@@ -1,11 +1,45 @@
 /// <reference types="vitest" />
 import path from "path"
+import { readFile, mkdir, writeFile } from "node:fs/promises"
 import tailwindcss from "@tailwindcss/vite"
+import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
+const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
+
+/**
+ * Tailwind v4 normally watches every source file and re-emits the generated
+ * global stylesheet whenever a component's class candidates change.  That is
+ * correct but visually disruptive in the desktop WebView.  Snapshot the
+ * application candidates once per Vite process instead: component edits then
+ * update their own module without replacing the global Tailwind stylesheet.
+ *
+ * A newly introduced utility needs one dev-server restart so it enters the
+ * snapshot. Production builds generate a fresh snapshot before compiling.
+ */
+function tailwindCandidateSnapshotPlugin() {
+  return {
+    name: "xiranite:tailwind-candidate-snapshot",
+    async configResolved() {
+      const scanner = new Scanner({
+        sources: [
+          { base: appSrc, pattern: "**/*.{html,ts,tsx}", negated: false },
+          { base: appSrc, pattern: "**/__backup__/**", negated: true },
+          { base: __dirname, pattern: "index.html", negated: false },
+        ],
+      })
+      const next = `${[...scanner.scan()].sort().join("\n")}\n`
+      const current = await readFile(tailwindCandidateSnapshot, "utf8").catch(() => "")
+
+      if (current === next) return
+      await mkdir(path.dirname(tailwindCandidateSnapshot), { recursive: true })
+      await writeFile(tailwindCandidateSnapshot, next, "utf8")
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,6 +47,7 @@ export default defineConfig({
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
   },
   plugins: [
+    tailwindCandidateSnapshotPlugin(),
     react({
       babel: {
         plugins: [
