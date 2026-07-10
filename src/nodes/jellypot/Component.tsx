@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   MediaPathInput,
   OptionsPopover,
   PathFields,
@@ -26,6 +27,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<JellyPotCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("jellypot")
   const data = getHostData(host, compId)
   const dataRef = useRef<JellyPotCardState>(data)
   dataRef.current = data
@@ -45,15 +47,17 @@ export function Component({ compId, host }: NodeComponentProps<JellyPotCardState
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<JellyPotCardState>>() ?? host.getNodeConfig?.<Partial<JellyPotCardState>>()
-    loadConfig
-      ?.then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
-  }, [host])
+  async function loadDefaults() {
+    try {
+      const response = await (host.config?.get?.<Partial<JellyPotCardState>>() ?? host.getNodeConfig?.<Partial<JellyPotCardState>>())
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // Browser previews and standalone CLI hosts may not expose node config.
+    }
+  }
+
+  useEffect(() => { void loadDefaults() }, [host])
 
   useEffect(() => {
     if (!defaults) return
@@ -117,12 +121,6 @@ export function Component({ compId, host }: NodeComponentProps<JellyPotCardState
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    const empty: Partial<JellyPotCardState> = {}
-    for (const field of CONFIG_FIELDS) empty[field] = undefined
-    patch(empty)
-  }
-
   async function execute(nextAction: JellyPotAction = action) {
     if (running) return
     const current = dataRef.current
@@ -181,6 +179,7 @@ export function Component({ compId, host }: NodeComponentProps<JellyPotCardState
     result,
     running,
     status,
+    t,
     onActionChange: (value: JellyPotAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -189,7 +188,7 @@ export function Component({ compId, host }: NodeComponentProps<JellyPotCardState
     onPasteMedia: pasteMedia,
     onPatch: patch,
     onReset: reset,
-    onResetOverride: resetOverride,
+    onReloadDefaults: loadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   }
@@ -226,6 +225,7 @@ function createViewProps(props: {
   result: JellyPotData | null
   running: boolean
   status: JellyPotStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: JellyPotAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -234,7 +234,7 @@ function createViewProps(props: {
   onPasteMedia: () => void
   onPatch: (patch: Partial<JellyPotCardState>) => void
   onReset: () => void
-  onResetOverride: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
@@ -324,16 +324,7 @@ function FullView(props: ViewProps) {
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/jellypot:w-80" onActionChange={props.onActionChange} />
             <RunActionButton props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
-              defaults={props.defaults}
-              disabled={props.running}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
-            />
+            <NodeConfigPopover configPath={props.configFilePath} defaults={props.defaults as Record<string, unknown> | undefined} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefault} onSave={props.onSaveDefault} />
           </div>
         </div>
         <JellyPotStatsPanel result={props.result} />
