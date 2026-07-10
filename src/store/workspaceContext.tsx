@@ -1,12 +1,14 @@
 import { useEffect, useMemo, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
-import type { CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
+import type { AppTheme, CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
+import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnapshot as persistWorkspaceSnapshotRpc } from "@/backend/workspaceRpcClient"
 import type { LocalBackendConfig } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import type { WSState, WSStore } from "@/store/workspace/types"
+import type { WSStore } from "@/store/workspace/types"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 
 type WorkspaceSnapshot = WorkspaceSnapshotDTO
@@ -205,6 +207,10 @@ interface QaStageOptions extends QaResizeOptions {
   fresh?: boolean
   dockPanel?: string
   tags?: string[]
+  data?: Record<string, unknown>
+  theme?: AppTheme
+  tabDisplayStyle?: TabDisplayStyle
+  switchDisplayStyle?: SwitchDisplayStyle
 }
 
 type QaComponentSummary = ReturnType<typeof summarizeWorkspaceComponents>[number]
@@ -497,8 +503,12 @@ function deployQaComponent(moduleId: string, view: ViewMode, options: QaStageOpt
 function applyQaStage(componentId: string, view: ViewMode, options: QaStageOptions): void {
   const surface = options.surface ? QA_SURFACE_PRESETS[options.surface] : undefined
   const store = useWorkspaceStore.getState()
+  if (options.theme) store.setTheme(options.theme)
+  if (options.tabDisplayStyle) store.setTabDisplayStyle(options.tabDisplayStyle)
+  if (options.switchDisplayStyle) store.setSwitchDisplayStyle(options.switchDisplayStyle)
   store.setViewMode(view)
   store.setComponentVisibility(componentId, view, true)
+  if (options.data) store.setComponentData(componentId, options.data)
 
   if (view === "cards") {
     const cardLayout = options.cardLayout ?? surface?.cardLayout

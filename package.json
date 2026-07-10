@@ -27,6 +27,7 @@
     "lint:all": "bun run lint && bun run audit:node-architecture",
     "migrate:node-ui": "bun scripts/migrate-node-ui-to-app.ts",
     "sync:cli-bins": "bun scripts/sync-cli-bin-names.ts",
+    "sync:ui-registries": "bun scripts/sync-ui-registries.ts",
     "audit:node-architecture": "bun scripts/validate-node-architecture.ts",
     "audit:node-help": "bun scripts/validate-node-help.ts",
     "audit:node-tests": "bun scripts/audit-node-tests.ts",

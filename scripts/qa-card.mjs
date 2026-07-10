@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir } from "node:fs/promises"
+import { mkdir, readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "playwright"
@@ -20,7 +20,7 @@ const BENTO_MATRIX_LAYOUTS = {
 }
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2))
+  const options = await parseArgs(process.argv.slice(2))
   if (options.command === "help") {
     printUsage()
     return
@@ -50,7 +50,13 @@ async function main() {
       const screenshotPath = options.output ?? defaultScreenshotPath(options)
       await mkdir(path.dirname(screenshotPath), { recursive: true })
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
-      await page.screenshot({ path: screenshotPath, fullPage: false })
+      const usePng = path.extname(screenshotPath).toLowerCase() === ".png"
+      await page.screenshot({
+        path: screenshotPath,
+        fullPage: false,
+        type: usePng ? "png" : "jpeg",
+        quality: usePng ? undefined : options.quality,
+      })
       console.log(`screenshot: ${screenshotPath}`)
     }
 
@@ -68,13 +74,14 @@ async function main() {
   }
 }
 
-function parseArgs(argv) {
+async function parseArgs(argv) {
   const positional = []
   const options = {
     command: "stage",
     url: DEFAULT_URL,
     waitBackend: true,
     timeoutMs: 15_000,
+    quality: 82,
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -148,6 +155,12 @@ function parseArgs(argv) {
       case "--output":
         options.output = path.resolve(value())
         break
+      case "--quality":
+        options.quality = Number(value())
+        if (!Number.isInteger(options.quality) || options.quality < 1 || options.quality > 100) {
+          throw new Error(`Invalid --quality: ${options.quality}`)
+        }
+        break
       case "--headed":
         options.headed = true
         break
@@ -168,6 +181,9 @@ function parseArgs(argv) {
         break
       case "--json":
         options.rawOptions = JSON.parse(value())
+        break
+      case "--json-file":
+        options.rawOptions = JSON.parse(await readFile(path.resolve(value()), "utf8"))
         break
       default:
         throw new Error(`Unknown option: ${flag}`)
@@ -387,7 +403,7 @@ function defaultScreenshotPath(options) {
     options.command === "matrix" ? "bento-matrix" : (options.view ?? "current"),
     options.command === "matrix" ? (options.matrixSurfaces ?? DEFAULT_MATRIX_SURFACES).join("_") : (options.surface ?? "default"),
   ].join("-")
-  return path.resolve(REPO_ROOT, "artifacts", "qa-card", `${name}.png`)
+  return path.resolve(REPO_ROOT, "artifacts", "qa-card", `${name}.jpg`)
 }
 
 function parseViewMode(value) {
@@ -490,11 +506,13 @@ Options:
   --fullscreen           Open the card fullscreen in cards view
   --screenshot           Save a screenshot under artifacts/qa-card
   --output PATH          Screenshot path
+  --quality 1-100        JPEG quality. Default: 82; ignored for explicit .png output
   --headed               Show the browser
   --keep-open            Keep the QA browser open
   --full                 Print the full stage result instead of only selected component
   --no-wait-backend      Do not wait for workspace backend hydration before staging
   --json JSON            Merge raw stage options into window.__xiraniteQA.stage()
+  --json-file PATH       Read raw stage options from a JSON file
 `)
 }
 
