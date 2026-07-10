@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassqAction, ClassqData, ClassqInput, ClassqPlanItem, ClassqTransferMode } from "@xiranite/node-classq/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, FolderOpen, GitBranch, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, File, Folder, FolderOpen, GitBranch, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { AnimatedBeam } from "@/components/ui/animated-beam"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Tree, type TreeViewElement } from "@/components/ui/file-tree"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, NODE_ICON, PLAN_ICON, TRANSFER_MODES } from "./constants"
@@ -41,6 +42,8 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<ClassqCardState> | undefined>()
   const [configDirty, setConfigDirty] = useState(false)
+  const [configPath, setConfigPath] = useState<string | undefined>()
+  const [configLoading, setConfigLoading] = useState(false)
 
   const persistedAction = data.action ?? "plan"
   const [action, setAction] = useState<ClassqAction>(persistedAction)
@@ -55,8 +58,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<ClassqCardState>>() ?? host.getNodeConfig?.<Partial<ClassqCardState>>()
-    loadConfig?.then((response) => setDefaults(response.config)).catch(() => undefined)
+    void loadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -102,10 +104,33 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
-    if (host.config?.save) await host.config.save(config)
-    else await host.saveNodeConfig?.(config)
-    setDefaults(config)
-    setConfigDirty(false)
+    setConfigLoading(true)
+    try {
+      if (host.config?.save) await host.config.save(config)
+      else await host.saveNodeConfig?.(config)
+      setDefaults(config)
+      setConfigDirty(false)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function loadDefaults() {
+    const loadConfig = host.config?.get?.<Partial<ClassqCardState>>() ?? host.getNodeConfig?.<Partial<ClassqCardState>>()
+    if (!loadConfig) return
+
+    setConfigLoading(true)
+    try {
+      const response = await loadConfig
+      setDefaults(response.config)
+      setConfigPath(response.path)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function openConfigFile() {
+    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function execute(nextAction: ClassqAction = action) {
@@ -151,6 +176,8 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
     action,
     actionMeta,
     configDirty,
+    configLoading,
+    configPath,
     data,
     defaults,
     logs,
@@ -169,6 +196,8 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
     onExecute: execute,
     onPastePaths: pastePaths,
     onPatch: patch,
+    onLoadDefaults: loadDefaults,
+    onOpenConfigFile: openConfigFile,
     onReset: reset,
     onRestoreDefault: () => defaults && patch(defaults),
     onSaveDefault: saveAsDefault,
@@ -195,6 +224,8 @@ interface ViewProps {
   action: ClassqAction
   actionMeta: (typeof ACTIONS)[number]
   configDirty: boolean
+  configLoading: boolean
+  configPath?: string
   data: ClassqCardState
   defaults?: Partial<ClassqCardState>
   logs: string[]
@@ -210,9 +241,28 @@ interface ViewProps {
   onExecute: (action?: ClassqAction) => void
   onPastePaths: () => void
   onPatch: (patch: Partial<ClassqCardState>) => void
+  onLoadDefaults: () => Promise<void>
+  onOpenConfigFile: () => Promise<void>
   onReset: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
+}
+
+function ConfigManagement(props: ViewProps) {
+  return (
+    <NodeConfigPopover
+      configPath={props.configPath}
+      defaults={props.defaults as Record<string, unknown> | undefined}
+      dirty={props.configDirty}
+      disabled={props.running}
+      loading={props.configLoading}
+      t={props.t}
+      onOpenFile={props.onOpenConfigFile}
+      onReload={props.onLoadDefaults}
+      onRestore={props.onRestoreDefault}
+      onSave={props.onSaveDefault}
+    />
+  )
 }
 
 function CollapsedView(props: ViewProps) {
@@ -224,7 +274,7 @@ function CollapsedView(props: ViewProps) {
         <div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>ClassQ</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <RunButton compact props={props} />
+      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><RunButton compact props={props} /></div>
     </div>
   )
 }
@@ -354,8 +404,7 @@ function CommandRootInput(props: { data: ClassqCardState; disabled?: boolean; ex
 function ActionTools(props: ViewProps) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="Save defaults" onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="Restore defaults" onClick={props.onRestoreDefault} />
+      <ConfigManagement {...props} />
       <IconButton icon={RotateCcw} label="Clear state" onClick={props.onReset} />
     </div>
   )

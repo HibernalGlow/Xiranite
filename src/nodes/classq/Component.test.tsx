@@ -175,6 +175,36 @@ describe("app-owned classq Component", () => {
     expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(3)
   })
 
+  test("manages reusable ClassQ defaults without persisting logs or results", async () => {
+    setSurface("regular")
+    const host = createHost({
+      pathsText: "D:/set",
+      keyword: "already",
+      waitKeyword: "wait",
+      transferMode: "copy",
+      existingPolicy: "merge",
+      dryRun: true,
+      logs: ["do not persist"],
+      result: classqData,
+    })
+    render(<Component compId="comp-classq" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "保存为默认" }))
+
+    await waitFor(() => expect(host.savedConfig).toEqual({
+      pathsText: "D:/set",
+      keyword: "already",
+      waitKeyword: "wait",
+      transferMode: "copy",
+      existingPolicy: "merge",
+      dryRun: true,
+    }))
+  })
+
   test("marks the card as error when run has no roots", async () => {
     setSurface("regular")
     const host = createHost({ action: "plan", logs: [] })

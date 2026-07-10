@@ -1301,6 +1301,19 @@
         "folders": "Folder rules",
         "foldersDescription": "Keyword folders create matches; waiting folders receive sibling items."
       },
+      "config": {
+        "trigger": "Configuration management",
+        "title": "Configuration management",
+        "description": "Save reusable classification rules or restore the saved default configuration.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No configuration file is connected",
+        "openFile": "Open configuration file",
+        "dirty": "Current classification rules differ from the saved defaults."
+      },
       "fields": {
         "roots": "One root directory per line",
         "keyword": "Keyword folder",

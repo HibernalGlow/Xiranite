@@ -1301,6 +1301,19 @@
         "folders": "分类目录规则",
         "foldersDescription": "关键词目录负责命中，等待目录接收同级待分类项。"
       },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用的分类规则，或恢复已保存的默认配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前分类规则与已保存默认值不同。"
+      },
       "fields": {
         "roots": "根目录，每行一个",
         "keyword": "关键词目录",
