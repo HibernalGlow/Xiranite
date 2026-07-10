@@ -2736,6 +2736,131 @@
       "progress": {
         "start": "{{action}} started"
       }
+    },
+    "coveru": {
+      "name": "CoverU",
+      "description": "Find and extract cover images from archives, image files, or directories.",
+      "actions": {
+        "scan": {
+          "label": "Scan covers",
+          "shortLabel": "Scan",
+          "description": "Read the paths and identify possible cover candidates without writing files."
+        },
+        "plan": {
+          "label": "Generate plan",
+          "shortLabel": "Plan",
+          "description": "Calculate output locations, conflicts, and unsupported archives."
+        },
+        "extract": {
+          "label": "Extract covers",
+          "shortLabel": "Extract",
+          "description": "Write cover files from the plan; preview remains on by default."
+        },
+        "saveDefault": "Save default",
+        "restoreDefault": "Restore default",
+        "clearState": "Clear state",
+        "pastePaths": "Paste paths",
+        "clearPaths": "Clear paths"
+      },
+      "sections": {
+        "queue": "Archive queue",
+        "candidates": "Cover candidates",
+        "execution": "Execution"
+      },
+      "fields": {
+        "paths": {
+          "label": "Archives, images, or directories",
+          "placeholder": "One ZIP/CBZ, image, or directory per line\nD:/archives/book.zip"
+        },
+        "outputDir": {
+          "label": "Output directory",
+          "placeholder": "Leave blank to write beside the archive"
+        },
+        "outputMode": {
+          "label": "Output location",
+          "alongside": "Beside archive",
+          "directory": "One directory"
+        },
+        "preferredNames": {
+          "label": "Preferred filenames"
+        },
+        "dryRun": "Preview",
+        "recursive": "Recursive",
+        "overwrite": "Overwrite"
+      },
+      "mode": {
+        "preview": "Preview",
+        "write": "Write"
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Complete",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "idle": "Enter archives, images, or directories to scan for covers.",
+        "running": "CoverU is scanning or extracting covers.",
+        "completed": "The previous cover task completed.",
+        "error": "The previous task failed. Check the issues list."
+      },
+      "candidate": {
+        "ready": "Ready",
+        "extracted": "Extracted",
+        "unsupported": "Unsupported",
+        "error": "Error",
+        "empty": "No image",
+        "skipped": "Skipped"
+      },
+      "tabs": {
+        "results": "Results",
+        "errors": "Issues",
+        "logs": "Logs"
+      },
+      "results": {
+        "count": "{{count}} items",
+        "waiting": "Waiting to run",
+        "noOutput": "No output generated",
+        "lines": "{{count}} lines"
+      },
+      "stats": {
+        "candidates": "Candidates",
+        "ready": "Ready",
+        "extracted": "Extracted",
+        "unsupported": "Unsupported",
+        "errors": "Errors",
+        "progress": "Progress"
+      },
+      "summary": {
+        "result": "{{candidates}} items / {{available}} available",
+        "paths": "{{paths}} paths / {{action}}"
+      },
+      "buttons": {
+        "copy": "Copy",
+        "cancel": "Cancel",
+        "confirmExtract": "Confirm extraction"
+      },
+      "confirm": {
+        "title": "Extract covers?",
+        "description": "This will write cover files. Confirm the output directory and overwrite policy; unsupported archives will be skipped."
+      },
+      "empty": {
+        "candidates": "Enter archives to show cover candidates.",
+        "results": "Run the workflow to show candidates and output paths.",
+        "noIssues": "No issues",
+        "logs": "Run logs will appear here."
+      },
+      "aria": {
+        "paths": "coveru paths",
+        "running": "coveru running"
+      },
+      "error": {
+        "pathRequired": "Enter at least one archive, image, or directory path first.",
+        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
+      },
+      "progress": {
+        "start": "{{action}} started"
+      }
     }
   }
 }

@@ -2736,6 +2736,131 @@
       "progress": {
         "start": "{{action}}开始"
       }
+    },
+    "coveru": {
+      "name": "CoverU",
+      "description": "从归档、图片或目录中识别并提取封面图片。",
+      "actions": {
+        "scan": {
+          "label": "扫描封面",
+          "shortLabel": "扫描",
+          "description": "读取路径并找出可作为封面的候选，不写入文件。"
+        },
+        "plan": {
+          "label": "生成计划",
+          "shortLabel": "计划",
+          "description": "计算输出位置、冲突和不支持的归档。"
+        },
+        "extract": {
+          "label": "提取封面",
+          "shortLabel": "提取",
+          "description": "按计划写出封面文件，默认仍以预览模式运行。"
+        },
+        "saveDefault": "保存默认",
+        "restoreDefault": "恢复默认",
+        "clearState": "清空状态",
+        "pastePaths": "粘贴路径",
+        "clearPaths": "清空路径"
+      },
+      "sections": {
+        "queue": "归档队列",
+        "candidates": "封面候选",
+        "execution": "执行"
+      },
+      "fields": {
+        "paths": {
+          "label": "归档、图片或目录",
+          "placeholder": "每行一个 ZIP/CBZ、图片或目录\nD:/archives/book.zip"
+        },
+        "outputDir": {
+          "label": "输出目录",
+          "placeholder": "留空则输出到归档旁边"
+        },
+        "outputMode": {
+          "label": "输出位置",
+          "alongside": "归档旁边",
+          "directory": "统一目录"
+        },
+        "preferredNames": {
+          "label": "优先文件名"
+        },
+        "dryRun": "预览",
+        "recursive": "递归",
+        "overwrite": "覆盖"
+      },
+      "mode": {
+        "preview": "预览",
+        "write": "写入"
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "idle": "输入归档、图片或目录后扫描封面。",
+        "running": "CoverU 正在扫描或提取封面。",
+        "completed": "上次封面任务已完成。",
+        "error": "上次任务失败，请查看问题列表。"
+      },
+      "candidate": {
+        "ready": "可提取",
+        "extracted": "已提取",
+        "unsupported": "不支持",
+        "error": "错误",
+        "empty": "无图片",
+        "skipped": "跳过"
+      },
+      "tabs": {
+        "results": "结果",
+        "errors": "问题",
+        "logs": "日志"
+      },
+      "results": {
+        "count": "{{count}} 项",
+        "waiting": "等待运行",
+        "noOutput": "未生成输出",
+        "lines": "{{count}} 行"
+      },
+      "stats": {
+        "candidates": "候选",
+        "ready": "可提取",
+        "extracted": "已提取",
+        "unsupported": "不支持",
+        "errors": "错误",
+        "progress": "进度"
+      },
+      "summary": {
+        "result": "{{candidates}} 项 / {{available}} 可用",
+        "paths": "{{paths}} 条路径 / {{action}}"
+      },
+      "buttons": {
+        "copy": "复制",
+        "cancel": "取消",
+        "confirmExtract": "确认提取"
+      },
+      "confirm": {
+        "title": "确认提取封面？",
+        "description": "当前会写出封面文件。请确认输出目录和覆盖策略无误；不支持的归档会被跳过。"
+      },
+      "empty": {
+        "candidates": "输入归档后显示封面候选。",
+        "results": "运行后显示候选和输出路径。",
+        "noIssues": "暂无问题",
+        "logs": "运行日志会显示在这里。"
+      },
+      "aria": {
+        "paths": "coveru paths",
+        "running": "coveru running"
+      },
+      "error": {
+        "pathRequired": "请先输入至少一个归档、图片或目录路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      }
     }
   }
 }
