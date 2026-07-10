@@ -1,10 +1,9 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, Eraser, Eye, Info, ShieldAlert, Sparkles } from "lucide-react"
+import { Clipboard, Eraser, Eye, Info, ShieldAlert, Sparkles } from "lucide-react"
 import type { CleanfPresetId } from "@xiranite/node-cleanf/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -192,58 +191,6 @@ export function AdvancedOptionsPopover(props: {
   )
 }
 
-export function ConfigDefaultsPopover(props: {
-  configDirty: boolean
-  configFilePath?: string
-  defaults?: Partial<CleanfCardState>
-  disabled?: boolean
-  onOpenConfigFile?: () => Promise<void> | void
-  onResetOverride: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label={tNode("cleanf", "aria.defaults", "cleanf defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
-              <DatabaseZap />
-              <span className="sr-only">{tNode("cleanf", "defaults.title", "默认配置")}</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{tNode("cleanf", "defaults.title", "默认配置")}</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">{tNode("cleanf", "defaults.title", "默认配置")}</div>
-          <p className="text-xs text-muted-foreground">{tNode("cleanf", "defaults.description", "保存 Cleanf 的路径、预设和预演开关到明文配置。")}</p>
-        </div>
-        <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{tNode("cleanf", "defaults.save", "保存为默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{tNode("cleanf", "defaults.restore", "恢复默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{tNode("cleanf", "defaults.clearOverride", "清除覆盖")}</Button>
-          <Separator />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{tNode("cleanf", "defaults.view", "查看配置")}</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{tNode("cleanf", "defaults.dialogTitle", "Cleanf 配置")}</DialogTitle>
-                <DialogDescription>{tNode("cleanf", "defaults.dialogDescription", "当前 nodes.cleanf 默认值和配置文件位置。")}</DialogDescription>
-              </DialogHeader>
-              <ConfigPreview config={props.defaults} path={props.configFilePath} />
-            </DialogContent>
-          </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{tNode("cleanf", "defaults.openFile", "打开文件")}</Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 export function StatusStrip(props: {
   compact?: boolean
   progress: number
@@ -350,26 +297,6 @@ export function LogPanel(props: {
         )}
       </ScrollArea>
     </section>
-  )
-}
-
-function ConfigPreview(props: {
-  config?: Partial<CleanfCardState>
-  path?: string
-}) {
-  const content = props.config === undefined
-    ? `# ${tNode("cleanf", "defaults.noConfig", "nodes.cleanf 暂无默认配置")}\n`
-    : JSON.stringify(props.config, null, 2)
-  return (
-    <div className="grid gap-3">
-      <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">{tNode("cleanf", "defaults.configFile", "配置文件")}</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? tNode("cleanf", "defaults.noConfigService", "未连接本地配置服务")}</div>
-      </div>
-      <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
-        {content}
-      </pre>
-    </div>
   )
 }
 

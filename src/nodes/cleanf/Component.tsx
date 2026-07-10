@@ -12,10 +12,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { DEFAULT_SELECTED_PRESETS, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, LogPanel, PathInput, PresetPicker, PrimarySwitches, ResultList, StatusStrip } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, LogPanel, PathInput, PresetPicker, PrimarySwitches, ResultList, StatusStrip } from "./controls"
 import type { CleanfCardState, CleanfPhase, CleanfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -43,13 +44,18 @@ export function Component({ compId, host }: NodeComponentProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
+  async function reloadDefaults() {
+    try {
+      const response = await host.getNodeConfig?.<Partial<CleanfCardState>>()
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // Browser QA has no desktop configuration service.
+    }
+  }
+
   useEffect(() => {
-    host.getNodeConfig?.<Partial<CleanfCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -161,15 +167,6 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    patch({
-      pathText: undefined,
-      selectedPresets: undefined,
-      excludeKeywords: undefined,
-      previewMode: undefined,
-    })
-  }
-
   const commonProps = createViewProps({
     configDirty,
     configFilePath,
@@ -185,14 +182,15 @@ export function Component({ compId, host }: NodeComponentProps) {
     running,
     selectedPresets,
     status,
+    t,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
     onOpenConfigFile: host.openConfigFile,
     onPastePath: pastePath,
     onPatch: patch,
+    onReloadDefaults: reloadDefaults,
     onReset: reset,
-    onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
     onTogglePreset: togglePreset,
@@ -232,14 +230,15 @@ function createViewProps(props: {
   running: boolean
   selectedPresets: CleanfPresetId[]
   status: CleanfStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (override?: Partial<CleanfCardState>) => void
   onOpenConfigFile?: () => Promise<void> | void
   onPastePath: () => void
   onPatch: (patch: Partial<CleanfCardState>) => void
+  onReloadDefaults: () => Promise<void>
   onReset: () => void
-  onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onTogglePreset: (id: CleanfPresetId) => void
@@ -500,20 +499,19 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
           <ActionIconButton disabled={!props.logs.length} icon={Eye} label={tNode("cleanf", "copyLogs", "复制日志")} onClick={props.onCopyLogs} />
         </div>
       )}
-      {!props.compact && (
-        <div aria-label={tNode("cleanf", "actionGroup.config", "配置")} className="ml-1 flex items-center gap-1 border-l pl-1">
-          <ConfigDefaultsPopover
-            configDirty={props.configDirty}
-            configFilePath={props.configFilePath}
-            defaults={props.defaults}
-            disabled={props.running}
-            onOpenConfigFile={props.onOpenConfigFile}
-            onResetOverride={props.onResetOverride}
-            onRestoreDefault={props.onRestoreDefault}
-            onSaveDefault={props.onSaveDefault}
-          />
-        </div>
-      )}
+      <div aria-label={tNode("cleanf", "actionGroup.config", "配置")} className={cn("flex items-center gap-1", !props.compact && "ml-1 border-l pl-1")}>
+        <NodeConfigPopover
+          configPath={props.configFilePath}
+          defaults={props.defaults}
+          dirty={props.configDirty}
+          disabled={props.running}
+          t={props.t}
+          onOpenFile={props.onOpenConfigFile}
+          onReload={props.onReloadDefaults}
+          onRestore={props.onRestoreDefault}
+          onSave={props.onSaveDefault}
+        />
+      </div>
       <div aria-label={tNode("cleanf", "actionGroup.reset", "重置")} className={cn("flex items-center gap-1", !props.compact && "ml-1 border-l pl-1")}>
         <ActionIconButton icon={RotateCcw} label={tNode("cleanf", "actions.clearState", "清空状态")} onClick={props.onReset} />
       </div>
