@@ -92,6 +92,21 @@ describe("app-owned nameu Component", () => {
     expect(host.cardState.result?.items[0]?.targetName).toBe("BookArtist.zip")
   })
 
+  test("renders a filename diff instead of repeating unchanged names as a before/after pair", () => {
+    setSurface("regular")
+    render(<Component compId="comp-nameu" host={createHost({ pathsText: "D:/archives", result: {
+      ...nameuData,
+      items: [
+        ...nameuData.items,
+        { ...nameuData.items[0]!, sourceName: "Already named.zip", targetName: "Already named.zip", status: "unchanged" },
+      ],
+    } })} />)
+
+    expect(screen.getAllByText("原").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("新").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("无需改名").length).toBeGreaterThan(0)
+  })
+
   test("requires confirmation before live rename execution", async () => {
     setSurface("regular")
     const host = createHost({ action: "rename", pathsText: "D:/archives", dryRun: false, logs: [] })

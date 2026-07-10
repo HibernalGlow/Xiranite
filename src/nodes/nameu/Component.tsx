@@ -361,14 +361,47 @@ function PlanRows(props: { items: NameuPlanItem[]; paths: string[] }) {
           const StatusIcon = meta.icon
           return (
             <div key={`${item.sourcePath}:${index}`} className={cn("grid gap-1 rounded-md border px-2 py-1.5", item.status === "conflict" && "border-destructive/40", item.status === "error" && "border-destructive/40", item.status === "unchanged" && "opacity-75")}>
-              <div className="flex min-w-0 items-center gap-2"><FileArchive className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{item.sourceName}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{"->"} {item.targetName}</div></div><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
-              <div className="truncate text-[11px] text-muted-foreground">{item.artistName}{item.reason ? ` / ${item.reason}` : ""}</div>
+              <div className="flex min-w-0 items-start gap-2"><FileArchive className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><FilenameDiff source={item.sourceName} target={item.targetName} /><div className="mt-1 truncate text-[11px] text-muted-foreground">{item.artistName}{item.reason ? ` / ${item.reason}` : ""}</div></div><Badge variant={meta.variant} className="shrink-0 gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
             </div>
           )
         })}
       </div>
     </ScrollArea>
   )
+}
+
+function FilenameDiff(props: { source: string; target: string }) {
+  if (props.source === props.target) {
+    return <div className="flex min-w-0 items-center gap-2"><span className="truncate font-mono text-xs">{props.source}</span><span className="shrink-0 text-[10px] text-muted-foreground">无需改名</span></div>
+  }
+
+  const { prefix, removed, added, suffix } = splitFilenameDiff(props.source, props.target)
+  return (
+    <div className="grid min-w-0 gap-1 font-mono text-[11px] leading-5">
+      <div className="min-w-0 truncate text-muted-foreground"><span className="mr-1 text-[10px]">原</span>{prefix}<span className="rounded-sm bg-destructive/12 px-0.5 text-destructive line-through decoration-destructive/70">{removed}</span>{suffix}</div>
+      <div className="min-w-0 truncate text-foreground"><span className="mr-1 text-[10px] text-muted-foreground">新</span>{prefix}<span className="rounded-sm bg-primary/15 px-0.5 text-primary">{added}</span>{suffix}</div>
+    </div>
+  )
+}
+
+function splitFilenameDiff(source: string, target: string) {
+  const limit = Math.min(source.length, target.length)
+  let start = 0
+  while (start < limit && source[start] === target[start]) start += 1
+
+  let sourceEnd = source.length
+  let targetEnd = target.length
+  while (sourceEnd > start && targetEnd > start && source[sourceEnd - 1] === target[targetEnd - 1]) {
+    sourceEnd -= 1
+    targetEnd -= 1
+  }
+
+  return {
+    prefix: source.slice(0, start),
+    removed: source.slice(start, sourceEnd),
+    added: target.slice(start, targetEnd),
+    suffix: source.slice(sourceEnd),
+  }
 }
 
 function ResultTabs(props: { compact?: boolean; logs: string[]; result: NameuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
