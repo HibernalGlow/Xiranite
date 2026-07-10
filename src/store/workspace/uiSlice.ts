@@ -18,9 +18,11 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     ),
     setCustomThemes: (customThemes) => set((state) => ({
       customThemes,
-      activeCustomThemeName: customThemes.some((theme) => theme.name === state.activeCustomThemeName)
+      // A preset explicitly clears the active custom theme. Do not revive the
+      // first imported theme while rehydrating the list on startup.
+      activeCustomThemeName: state.activeCustomThemeName && customThemes.some((theme) => theme.name === state.activeCustomThemeName)
         ? state.activeCustomThemeName
-        : (customThemes[0]?.name ?? null),
+        : null,
     }), false, "SET_CUSTOM_THEMES"),
     setActiveCustomThemeName: (activeCustomThemeName) => set({ activeCustomThemeName }, false, "SET_ACTIVE_CUSTOM_THEME"),
     setFontPreset: (fontPreset) => set({ fontPreset }, false, "SET_FONT_PRESET"),

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceStore"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceStore } from "./workspaceStore"
 
 afterEach(() => {
   cleanup()
@@ -72,6 +72,24 @@ describe("workspace UI preference persistence", () => {
     await waitFor(() => {
       expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117/underline/outlined")
     })
+  })
+
+  test("keeps a preset selected when imported themes hydrate", () => {
+    const actions = useWorkspaceStore.getState()
+
+    actions.setTheme("endfield")
+    actions.setCustomThemes([
+      {
+        name: "perpetuity",
+        cssVars: {
+          light: { primary: "oklch(0.5 0.1 120)" },
+          dark: { primary: "oklch(0.7 0.1 120)" },
+        },
+      },
+    ])
+
+    expect(useWorkspaceStore.getState().theme).toBe("endfield")
+    expect(useWorkspaceStore.getState().activeCustomThemeName).toBeNull()
   })
 })
 
