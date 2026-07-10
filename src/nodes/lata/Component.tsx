@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { LataAction, LataData, LataInput } from "@xiranite/node-lata/core"
-import { Clipboard, Copy, ListTodo, Play, RotateCcw, Rocket, Square } from "lucide-react"
+import { Copy, RotateCcw, Rocket, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -290,7 +290,6 @@ function FullView(props: ViewProps) {
         <div className="flex min-w-0 flex-col gap-2 @4xl/lata:flex-row @4xl/lata:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("summary.taskCount", "{{task}} / {{count}} 个任务", { task: props.selectedTask || props.tNode("noTaskSelected", "未选择"), count: props.tasks.length })} />
           <div data-testid="lata-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionButtons props={props} />
             <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
             <ActionIconButton icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
@@ -305,18 +304,16 @@ function FullView(props: ViewProps) {
             />
           </div>
         </div>
-        <StatsPanel result={props.result} selectedTask={props.selectedTask} tasks={props.tasks} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/lata:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/lata:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(220px,270px)]">
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3">
           <div className="grid gap-3 border-b pb-3">
             <div>
               <div className="text-sm font-semibold">{props.tNode("sections.taskfile", "Taskfile 配置")}</div>
               <div className="text-xs text-muted-foreground">{props.tNode("sections.taskfileDesc", "指定 Taskfile 路径与任务参数，加载后可选择任务。")}</div>
             </div>
             <TaskfileInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-            <ArgsInput data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
             <div>
@@ -325,12 +322,26 @@ function FullView(props: ViewProps) {
             </div>
             <TaskPicker disabled={props.running} selectedTask={props.selectedTask} tasks={props.tasks} onTaskChange={props.onTaskChange} />
           </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
-        <div className="min-h-0">
-          <LataDisplayTabs logs={props.logs} result={props.result} tasks={props.tasks} onCopyLogs={props.onCopyLogs} />
-        </div>
+        <section data-testid="lata-log-terminal" className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="text-sm font-semibold">{props.tNode("tabs.logs", "日志终端")}</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
+          <Separator />
+          <div className="min-h-0 flex-1"><LogBoard logs={props.logs} onCopy={props.onCopyLogs} /></div>
+          <Separator />
+          <div className="max-h-[30%] min-h-24"><CommandBoard result={props.result} /></div>
+        </section>
+        <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
+          <div className="text-sm font-semibold">{props.tNode("sections.execution", "执行指标")}</div>
+          <StatsPanel result={props.result} selectedTask={props.selectedTask} tasks={props.tasks} />
+          <Separator />
+          <div className="grid gap-2">
+            <div className="text-xs font-medium text-muted-foreground">{props.tNode("sections.environment", "环境覆盖")}</div>
+            <ArgsInput data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          </div>
+          <ActionButtons props={props} />
+          <div className="mt-auto"><StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} /></div>
+        </section>
       </div>
     </div>
   )

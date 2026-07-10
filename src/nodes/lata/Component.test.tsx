@@ -53,9 +53,11 @@ describe("app-owned lata Component", () => {
 
       expect(screen.getByTestId("lata-taskfile-input")).toBeTruthy()
       expect(screen.getByTestId("lata-task-picker")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "任务" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      if (mode === "compact" || mode === "portrait") {
+        expect(screen.getByRole("tab", { name: "任务" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "命令" })).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      }
 
       if (mode === "compact") {
         expect(screen.getByTestId("lata-compact-view")).toBeTruthy()
@@ -64,6 +66,9 @@ describe("app-owned lata Component", () => {
       } else {
         expect(screen.getByTestId("lata-full-view")).toBeTruthy()
         expect(screen.getByTestId("lata-header-toolbar")).toBeTruthy()
+        expect(screen.getByText("执行指标")).toBeTruthy()
+        expect(screen.getByText("任务列表")).toBeTruthy()
+        expect(screen.getByTestId("lata-log-terminal")).toBeTruthy()
       }
     },
   )
