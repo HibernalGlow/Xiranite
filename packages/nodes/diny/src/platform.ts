@@ -16,6 +16,7 @@ export function createNodeDinyRuntime(): DinyRuntime {
     getCurrentBranch,
     commit,
     push,
+    gitButlerCommit,
   }
 }
 
@@ -163,4 +164,16 @@ async function push(repoPath: string): Promise<{ remote: string; branch: string 
   // Use raw command for --set-upstream
   await git.raw(["push", "-u", "origin", branchName])
   return { remote: "origin", branch: branchName }
+}
+
+async function gitButlerCommit(repoPath: string): Promise<{ hash: string; message: string }> {
+  await execFileAsync("but", ["setup", "--format", "json"], { cwd: repoPath, windowsHide: true })
+  const { stdout } = await execFileAsync("but", ["commit", "--ai", "--format", "json"], { cwd: repoPath, windowsHide: true })
+  const result = JSON.parse(stdout) as { result?: { commit_id?: string; branch?: string }; status?: { stacks?: Array<{ branches?: Array<{ commits?: Array<{ message?: string }> }> }> } }
+  const branch = result.result?.branch
+  const hash = result.result?.commit_id
+  if (!branch || !hash) throw new Error("GitButler did not return a commit branch or hash.")
+  await execFileAsync("but", ["land", branch, "--yes", "--format", "json"], { cwd: repoPath, windowsHide: true })
+  const message = result.status?.stacks?.[0]?.branches?.[0]?.commits?.[0]?.message?.trim() ?? ""
+  return { hash, message }
 }

@@ -6,6 +6,7 @@ import {
   Copy,
   Eye,
   GitBranch,
+  GitPullRequestArrow,
   Loader2,
   RotateCcw,
   Send,
@@ -97,6 +98,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       generate: "generating",
       commit: "committing",
       push: "pushing",
+      gitbutler_commit: "committing",
     }
     try {
       patch({ phase: phaseMap[action], progress: 0, progressText: t("progress.start", "开始执行..."), result: null })
@@ -321,6 +323,10 @@ export function Component({ compId, host }: NodeComponentProps) {
         >
           <Sparkles className="h-3.5 w-3.5" />
           {t("actions.generate", "生成消息")}
+        </Button>
+        <Button className="gap-1.5" disabled={running || dryRun} onClick={() => execute("gitbutler_commit")} size="sm" variant="secondary">
+          <GitPullRequestArrow className="h-3.5 w-3.5" />
+          GitButler → main
         </Button>
         <Button
           size="sm"

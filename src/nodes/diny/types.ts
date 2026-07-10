@@ -2,7 +2,7 @@ import type { DinyData } from "@xiranite/node-diny/core"
 
 export type DinyPhase = "idle" | "generating" | "committing" | "pushing" | "completed" | "error"
 
-export type DinyAction = "status" | "generate" | "commit" | "push"
+export type DinyAction = "status" | "generate" | "commit" | "push" | "gitbutler_commit"
 
 export interface DinyCardState {
   repoPath?: string

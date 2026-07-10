@@ -2,7 +2,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 // ── Types ──────────────────────────────────────────────
 
-export type DinyAction = "status" | "generate" | "commit" | "push"
+export type DinyAction = "status" | "generate" | "commit" | "push" | "gitbutler_commit"
 
 export interface DinyInput {
   action?: DinyAction
@@ -66,6 +66,7 @@ export interface DinyRuntime {
   commit: (repoPath: string, message: string, noVerify: boolean) => Promise<{ hash: string; summary: string }>
   /** Push current branch to remote. */
   push: (repoPath: string) => Promise<{ remote: string; branch: string }>
+  gitButlerCommit: (repoPath: string) => Promise<{ hash: string; message: string }>
 }
 
 // ── Constants ──────────────────────────────────────────
@@ -81,6 +82,16 @@ export async function runDiny(
 ): Promise<NodeRunResult<DinyData>> {
   const normalized = normalizeInput(input)
   try {
+    if (normalized.action === "gitbutler_commit") {
+      onEvent({ type: "progress", progress: 20, message: "Setting up GitButler workspace." })
+      const result = await runtime.gitButlerCommit(normalized.repoPath)
+      onEvent({ type: "progress", progress: 100, message: "Landed GitButler commit on target branch." })
+      return success(`GitButler AI commit landed on target: ${result.hash.slice(0, 7)}`, {
+        commitMessage: result.message,
+        committed: true,
+        commitHash: result.hash,
+      })
+    }
     // 1. Check diny installation
     onEvent({ type: "progress", progress: 10, message: "Checking diny installation." })
     const dinyCheck = await runtime.resolveDiny(normalized.dinyPath)
