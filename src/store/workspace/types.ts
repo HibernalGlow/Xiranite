@@ -29,6 +29,7 @@ export interface WSState {
   lanes: Lane[]
   focusedComponentId: string | null
   fullscreenComponentId: string | null
+  selectedComponentIds: string[]
   zCounter: number
   overlay: OverlayKind
   overlayMode: OverlayMode
@@ -144,6 +145,14 @@ export interface WorkspaceComponentActions {
   raiseComponent(id: string): void
   toggleCollapse(id: string): void
   duplicateComponent(id: string): void
+  setSelection(ids: string[]): void
+  toggleSelection(id: string): void
+  addToSelection(ids: string[]): void
+  clearSelection(): void
+  removeComponents(ids: string[]): void
+  duplicateComponents(ids: string[]): void
+  toggleCollapseComponents(ids: string[]): void
+  setComponentsVisibility(ids: string[], viewMode: ViewMode, visible: boolean): void
 }
 
 export interface WorkspaceLaneActions {

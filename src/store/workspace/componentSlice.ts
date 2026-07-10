@@ -1,7 +1,7 @@
 import type { ComponentInstance, ComponentState, DeployComponentOptions, Lane, ViewMode } from "@/types/workspace"
 import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "./constants"
 import { nextComponentCounter, nextLaneId } from "./idCounters"
-import type { ComponentPatch, WorkspaceComponentActions, WorkspaceStoreUpdater, WSState } from "./types"
+import type { ComponentPatch, WorkspaceComponentActions, WorkspaceStoreUpdater, WSState, WSStore } from "./types"
 
 export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceComponentActions {
   return {
@@ -32,6 +32,15 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
     raiseComponent: (id) => update("RAISE_COMPONENT", (state) => raiseComponentState(state, id)),
     toggleCollapse: (id) => update("TOGGLE_COLLAPSE", (state) => toggleCollapseState(state, id)),
     duplicateComponent: (id) => update("DUPLICATE_COMPONENT", (state) => duplicateComponentState(state, id)),
+    setSelection: (ids) => update("SET_SELECTION", () => ({ selectedComponentIds: dedupeIds(ids) })),
+    toggleSelection: (id) => update("TOGGLE_SELECTION", (state) => toggleSelectionState(state, id)),
+    addToSelection: (ids) => update("ADD_TO_SELECTION", (state) => addToSelectionState(state, ids)),
+    clearSelection: () => update("CLEAR_SELECTION", () => ({ selectedComponentIds: [] })),
+    removeComponents: (ids) => update("REMOVE_COMPONENTS", (state) => removeComponentsState(state, ids)),
+    duplicateComponents: (ids) => update("DUPLICATE_COMPONENTS", (state) => duplicateComponentsState(state, ids)),
+    toggleCollapseComponents: (ids) => update("TOGGLE_COLLAPSE_COMPONENTS", (state) => toggleCollapseComponentsState(state, ids)),
+    setComponentsVisibility: (ids, viewMode, visible) =>
+      update("SET_COMPONENTS_VISIBILITY", (state) => setComponentsVisibilityState(state, ids, viewMode, visible)),
   }
 }
 
@@ -452,4 +461,156 @@ function duplicateComponentState(state: WSState, id: string): WSState {
 function structuredCloneSafe<T>(value: T): T {
   if (typeof structuredClone === "function") return structuredClone(value)
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+// ── 选中状态 ──
+
+function dedupeIds(ids: string[]): string[] {
+  return [...new Set(ids)]
+}
+
+function toggleSelectionState(state: WSState, id: string): Partial<WSStore> {
+  const current = state.selectedComponentIds
+  const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+  return { selectedComponentIds: next }
+}
+
+function addToSelectionState(state: WSState, ids: string[]): Partial<WSStore> {
+  const current = new Set(state.selectedComponentIds)
+  for (const id of ids) current.add(id)
+  return { selectedComponentIds: [...current] }
+}
+
+// ── 批量操作 ──
+
+function removeComponentsState(state: WSState, ids: string[]): Partial<WSStore> {
+  if (ids.length === 0) return {}
+  const now = Date.now()
+  const idSet = new Set(ids)
+  return {
+    components: state.components.filter((component) => !idSet.has(component.id)),
+    lanes: state.lanes.map((lane) => {
+      const hadAny = lane.cardOrder?.some((cardId) => idSet.has(cardId))
+      if (!hadAny) return lane
+      return {
+        ...lane,
+        cardOrder: lane.cardOrder?.filter((cardId) => !idSet.has(cardId)),
+        updatedAt: now,
+      }
+    }),
+    focusedComponentId: state.focusedComponentId && idSet.has(state.focusedComponentId) ? null : state.focusedComponentId,
+    fullscreenComponentId: state.fullscreenComponentId && idSet.has(state.fullscreenComponentId) ? null : state.fullscreenComponentId,
+    selectedComponentIds: [],
+  }
+}
+
+function toggleCollapseComponentsState(state: WSState, ids: string[]): Partial<WSStore> {
+  if (ids.length === 0) return {}
+  const idSet = new Set(ids)
+  // 多选时以第一个选中项的反状态作为目标，统一折叠或统一展开。
+  const first = state.components.find((component) => idSet.has(component.id))
+  if (!first) return {}
+  const targetCollapsed = !first.collapsed
+  const now = Date.now()
+  return {
+    components: state.components.map((component) =>
+      idSet.has(component.id) && component.collapsed !== targetCollapsed
+        ? { ...component, collapsed: targetCollapsed, updatedAt: now }
+        : component,
+    ),
+  }
+}
+
+function setComponentsVisibilityState(
+  state: WSState,
+  ids: string[],
+  viewMode: ViewMode,
+  visible: boolean,
+): Partial<WSStore> {
+  if (!isComponentViewMode(viewMode) || ids.length === 0) return {}
+  const idSet = new Set(ids)
+  let changed = false
+  const now = Date.now()
+  const components = state.components.map((component) => {
+    if (!idSet.has(component.id)) return component
+    const current = component.hiddenIn ?? {}
+    const nextHidden = !visible
+    if (current[viewMode] === nextHidden) return component
+    changed = true
+    return { ...component, hiddenIn: { ...current, [viewMode]: nextHidden }, updatedAt: now }
+  })
+  return changed ? { components } : {}
+}
+
+function duplicateComponentsState(state: WSState, ids: string[]): Partial<WSStore> {
+  if (ids.length === 0) return {}
+  const now = Date.now()
+  const idSet = new Set(ids)
+  const sources = state.components.filter((component) => idSet.has(component.id))
+  if (sources.length === 0) return {}
+
+  const clones: ComponentInstance[] = []
+  const laneUpdates = new Map<string, string[]>()
+  let zCounter = state.zCounter
+
+  for (const source of sources) {
+    const instanceCounter = nextComponentCounter()
+    const newId = `comp-${instanceCounter}-${now}`
+    zCounter += 1
+    const OFFSET = 24
+    const newPosition = source.position
+      ? { x: source.position.x + OFFSET, y: source.position.y + OFFSET }
+      : { x: 20 + OFFSET, y: 20 + OFFSET }
+    const newFlowPosition = source.flowPosition
+      ? { x: source.flowPosition.x + OFFSET, y: source.flowPosition.y + OFFSET }
+      : { x: 100 + OFFSET, y: 100 + OFFSET }
+
+    clones.push({
+      id: newId,
+      moduleId: source.moduleId,
+      state: "docked",
+      position: newPosition,
+      size: source.size ? { ...source.size } : undefined,
+      z: zCounter,
+      collapsed: false,
+      workspaceId: source.workspaceId,
+      laneId: source.laneId,
+      flowPosition: newFlowPosition,
+      flowSize: source.flowSize ? { ...source.flowSize } : undefined,
+      bentoLayout: source.bentoLayout ? { ...source.bentoLayout } : undefined,
+      laneSize: source.laneSize ? { ...source.laneSize } : undefined,
+      dockPanel: source.dockPanel,
+      data: source.data ? structuredCloneSafe(source.data) : {},
+      tags: source.tags ? [...source.tags] : undefined,
+      hiddenIn: source.hiddenIn ? { ...source.hiddenIn } : undefined,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    if (source.laneId) {
+      const order = laneUpdates.get(source.laneId) ?? state.lanes.find((lane) => lane.id === source.laneId)?.cardOrder ?? []
+      const idx = order.indexOf(source.id)
+      const next = [...order]
+      if (idx === -1) {
+        next.push(newId)
+      } else {
+        next.splice(idx + 1, 0, newId)
+      }
+      laneUpdates.set(source.laneId, next)
+    }
+  }
+
+  const lanes = laneUpdates.size === 0
+    ? state.lanes
+    : state.lanes.map((lane) => {
+      const updated = laneUpdates.get(lane.id)
+      if (!updated) return lane
+      return { ...lane, cardOrder: updated, updatedAt: now }
+    })
+
+  return {
+    components: [...state.components, ...clones],
+    lanes,
+    zCounter,
+  }
 }

@@ -57,6 +57,12 @@ export default defineConfig({
     watch: {
       ignored: ["**/build/**", "**/artifacts/**"],
     },
+    hmr: process.env.VITE_XIRANITE_FRONTEND_DEV_URL
+      ? {
+          host: new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).hostname,
+          port: Number(new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).port) || 5173,
+        }
+      : undefined,
   },
   optimizeDeps: {
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),

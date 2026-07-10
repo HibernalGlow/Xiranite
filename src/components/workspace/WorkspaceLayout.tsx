@@ -3,6 +3,7 @@ import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { TopBar } from "./TopBar"
 import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
+import { SelectionToolbar } from "./SelectionToolbar"
 import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
@@ -64,6 +65,7 @@ export function WorkspaceLayout() {
             </Suspense>
           </div>
           <OverlayHost />
+          <SelectionToolbar />
           <WorkspaceMusicDockPanel />
         </main>
       </WorkspaceMusicDockProvider>

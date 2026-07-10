@@ -214,16 +214,25 @@ async function runQaCommand(page, options) {
 
   if (options.command === "matrix") {
     return page.evaluate(
-      ({ moduleId, surfaces, layouts }) => {
+      async ({ moduleId, surfaces, layouts }) => {
         const qa = window.__xiraniteQA
         if (!qa) throw new Error("window.__xiraniteQA is not available. Run the app in dev mode.")
         qa.hideView("bento")
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         const created = []
         for (const [index, surface] of surfaces.entries()) {
           const bento = layouts[surface]
           let selected
           if (index === 0) {
-            selected = qa.stage(moduleId, { view: "bento", surface, bento, collapsed: false, fresh: true }).selected
+            selected = qa.stage(moduleId, {
+              view: "bento",
+              surface,
+              bento,
+              collapsed: false,
+              focus: false,
+              fullscreen: false,
+              fresh: true,
+            }).selected
           } else {
             const beforeIds = new Set(qa.components().map((component) => component.id))
             qa.deploy(moduleId, "bento")
@@ -232,8 +241,16 @@ async function runQaCommand(page, options) {
               .find((component) => component.moduleId === moduleId && !beforeIds.has(component.id))
           }
           if (!selected) throw new Error(`Failed to stage ${moduleId} ${surface}`)
-          qa.stage(selected.id, { view: "bento", surface, bento, collapsed: false })
+          qa.stage(selected.id, {
+            view: "bento",
+            surface,
+            bento,
+            collapsed: false,
+            focus: false,
+            fullscreen: false,
+          })
           created.push({ ...selected, surface, bento })
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         }
         qa.view("bento")
         return {

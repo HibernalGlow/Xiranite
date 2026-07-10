@@ -13,12 +13,13 @@
 import { useRef, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { X } from "lucide-react"
-import { useWorkspaceActions, useWorkspaceComponent } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { KanbanItem, KanbanItemHandle } from "@/components/ui/kanban"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
 import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
+import { cn } from "@/lib/utils"
 
 interface Props {
   compId: string
@@ -29,6 +30,7 @@ export function LaneCard({ compId, moduleId }: Props) {
   const { t, i18n } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const component = useWorkspaceComponent(compId)
+  const isSelected = useWorkspaceShallowSelector((s) => s.selectedComponentIds.includes(compId))
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null)
   const mod = getModule(moduleId)
   const laneHeight = component?.laneSize?.height ?? 420
@@ -100,9 +102,10 @@ export function LaneCard({ compId, moduleId }: Props) {
       data-card-id={compId}
       data-component-id={compId}
       style={{ height: laneHeight }}
-      className={[
+      className={cn(
         "xiranite-component-surface group relative flex min-h-[220px] flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]",
-      ].join(" ")}
+        isSelected && "outline-2 outline-primary/60",
+      )}
     >
       <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleName={moduleName} version={mod?.version} />
       <div className="flex-1 min-h-0 overflow-hidden">

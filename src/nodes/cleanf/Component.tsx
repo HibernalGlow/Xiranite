@@ -276,14 +276,14 @@ function CompactView(props: ViewProps) {
           <PrimaryActionButton compact props={props} />
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 px-3 pb-3 @xl/cleanf:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)]">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-        <div className="flex min-h-0 flex-col gap-2">
-          <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <ToolbarActions {...props} compact />
-          {(props.status.tone === "running" || props.status.tone === "error") && (
-            <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
-          )}
+        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <ToolbarActions {...props} compact />
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+        <div className="min-h-0 flex-1">
           <CompactOutcomePanel logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
       </div>

@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { useMarqueeSelection } from "@/hooks/useMarqueeSelection"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 import { cn } from "@/lib/utils"
-import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
 import type { ComponentInstance } from "@/types/workspace"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
@@ -60,6 +61,19 @@ export function BentoView() {
     })
   }, [workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
+  // 框选多节点支持
+  const selectedComponentIds = useWorkspaceShallowSelector((state) => state.selectedComponentIds)
+  const selectedSet = useMemo(() => new Set(selectedComponentIds), [selectedComponentIds])
+  const marqueeContainerRef = useRef<HTMLDivElement | null>(null)
+  const handleMarqueeSelect = useCallback((ids: string[]) => {
+    workspaceActions.setSelection(ids)
+  }, [workspaceActions])
+  const { rect, onPointerDown, onPointerMove, onPointerUp } = useMarqueeSelection({
+    containerRef: marqueeContainerRef,
+    getComponentId: (el) => el.dataset.componentId ?? null,
+    onSelect: handleMarqueeSelect,
+    enabled: true,
+  })
   const persistGridLayout = useCallback((grid: GridStack) => {
     for (const node of grid.engine.nodes) {
       const id = node.id ? String(node.id) : node.el?.getAttribute("gs-id")
@@ -150,11 +164,15 @@ export function BentoView() {
 
   return (
     <div
+      ref={marqueeContainerRef}
       className={cn(
         "relative min-h-0 flex-1 overflow-auto ws-canvas-bg p-4 transition-colors",
         isModuleOver && "bg-primary/5 ring-1 ring-inset ring-primary/40",
       )}
       data-testid="bento-drop-target"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       {...moduleDropHandlers}
     >
       {isModuleOver && <ModuleDropHint label={t("registry:dropHint")} />}
@@ -179,12 +197,18 @@ export function BentoView() {
               gs-min-h="2"
             >
               <div className="grid-stack-item-content">
-                <BentoWidget component={component} />
+                <BentoWidget component={component} isSelected={selectedSet.has(component.id)} />
               </div>
             </div>
           )
         })}
       </div>
+      {rect && (
+        <div
+          className="pointer-events-none absolute border border-primary/60 bg-primary/10"
+          style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
+        />
+      )}
     </div>
   )
 }
@@ -197,7 +221,7 @@ function pruneStaleGridItems(container: HTMLElement, activeIds: Set<string>) {
   }
 }
 
-function BentoWidget({ component }: { component: ComponentInstance }) {
+function BentoWidget({ component, isSelected }: { component: ComponentInstance; isSelected?: boolean }) {
   const workspaceActions = useWorkspaceActions()
   const { t, i18n } = useTranslation()
   const mod = getModule(component.moduleId)
@@ -242,7 +266,10 @@ function BentoWidget({ component }: { component: ComponentInstance }) {
     <section
       data-component-id={component.id}
       data-context-menu="bento-cell"
-      className="xiranite-component-surface xiranite-bento-drag-handle group relative flex h-full min-h-0 cursor-grab flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)] active:cursor-grabbing"
+      className={cn(
+        "xiranite-component-surface xiranite-bento-drag-handle group relative flex h-full min-h-0 cursor-grab flex-col overflow-hidden rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)] active:cursor-grabbing",
+        isSelected && "outline-2 outline-primary/60",
+      )}
     >
       <ComponentProgressStrip
         status={surfaceStatus}

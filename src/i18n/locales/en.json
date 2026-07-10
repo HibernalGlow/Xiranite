@@ -21,6 +21,8 @@
     "unknown": "Unknown",
     "expand": "Expand",
     "collapse": "Collapse",
+    "toggleCollapse": "Toggle collapse",
+    "duplicate": "Duplicate",
     "focus": "Focus",
     "exitFocus": "Exit focus",
     "fullscreen": "Fullscreen",
@@ -1172,16 +1174,6 @@
         "skipped": "Skipped",
         "preview": "Preview items",
         "progress": "Progress"
-      },
-      "compact": {
-        "resultSummary": "{{removed}} item(s) / {{preview}} preview item(s)",
-        "waiting": "Waiting for preview results",
-        "outcome": "Result summary"
-      },
-      "actionGroup": {
-        "inspect": "View and copy",
-        "config": "Config",
-        "reset": "Reset"
       },
       "gate": {
         "progress": "Progress",

@@ -468,6 +468,55 @@ function useSyncDeletedShapesToStore(
   }, [editor, syncingShapeDeletesRef, workspaceActions])
 }
 
+function useSyncSelectionWithStore(editor: ReturnType<typeof useEditor> | null) {
+  const workspaceActions = useWorkspaceActions()
+  const selectedComponentIds = useWorkspaceShallowSelector((state) => state.selectedComponentIds)
+  const syncingRef = useRef(false)
+
+  // tldraw → store：监听 tldraw 框选/点击选中变化，同步到 workspace store
+  useEffect(() => {
+    if (!editor) return
+
+    return editor.sideEffects.registerAfterChangeHandler(
+      "instance_page_state",
+      (prev, next) => {
+        // 正在由 store → tldraw 同步时跳过，避免循环更新
+        if (syncingRef.current) return
+        // 选中集合未变化时跳过
+        if (prev?.selectedShapeIds === next.selectedShapeIds) return
+
+        const compIds = editor
+          .getSelectedShapes()
+          .filter((shape): shape is ModuleShape => shape.type === ModuleShapeUtil.type)
+          .map((shape) => shape.props.compId)
+          .filter((id): id is string => Boolean(id))
+
+        syncingRef.current = true
+        workspaceActions.setSelection(compIds)
+        syncingRef.current = false
+      },
+    )
+  }, [editor, workspaceActions])
+
+  // store → tldraw：当 store 选中变化时，同步到 tldraw
+  useEffect(() => {
+    if (!editor) return
+    if (syncingRef.current) return
+
+    const desiredShapeIds = selectedComponentIds.map((compId) => createShapeId(compId))
+    const currentShapeIds = editor.getSelectedShapeIds()
+    // 比较是否一致，一致则跳过，避免循环更新
+    const sameSelection =
+      desiredShapeIds.length === currentShapeIds.length &&
+      desiredShapeIds.every((id) => currentShapeIds.includes(id))
+    if (sameSelection) return
+
+    syncingRef.current = true
+    editor.setSelectedShapes(desiredShapeIds)
+    syncingRef.current = false
+  }, [editor, selectedComponentIds])
+}
+
 function usePersistFlowCanvasToWorkspace(
   editor: ReturnType<typeof useEditor> | null,
   workspaceId: string,
@@ -599,6 +648,7 @@ function FlowCanvas({
   useSyncShapesFromStore(editor, syncingShapeDeletesRef)
   useSyncChangesToStore(editor)
   useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
+  useSyncSelectionWithStore(editor)
   usePersistFlowCanvasToWorkspace(editor, workspaceId, flowCanvas, localPersistedSignatureRef)
 
   return null

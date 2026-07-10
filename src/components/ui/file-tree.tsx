@@ -155,6 +155,7 @@ type TreeViewProps = {
   closeIcon?: React.ReactNode
   actions?: React.ReactNode
   sort?: TreeSortMode
+  onSelectedIdChange?: (id: string) => void
 } & Omit<
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Root>,
   "defaultValue" | "onValueChange" | "type" | "value"
@@ -173,6 +174,7 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
       openIcon,
       closeIcon,
       sort = "default",
+      onSelectedIdChange,
       dir,
       ...props
     },
@@ -187,7 +189,8 @@ const Tree = forwardRef<HTMLDivElement, TreeViewProps>(
 
     const selectItem = useCallback((id: string) => {
       setSelectedId(id)
-    }, [])
+      onSelectedIdChange?.(id)
+    }, [onSelectedIdChange])
 
     const handleExpand = useCallback((id: string) => {
       setExpandedItems((prev) => {

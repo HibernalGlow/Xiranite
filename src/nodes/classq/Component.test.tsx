@@ -7,7 +7,6 @@ import type { ClassqData, ClassqInput } from "@xiranite/node-classq/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import { Component } from "./Component"
-import { ACTIONS } from "./constants"
 import type { ClassqCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -60,9 +59,10 @@ describe("app-owned classq Component", () => {
       } else {
         expect(screen.getByTestId("classq-full-view")).toBeTruthy()
         expect(screen.getByTestId("classq-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("Root scan")).toBeTruthy()
-        expect(screen.getByText("Wait transfer groups")).toBeTruthy()
-        expect(screen.getByRole("button", { name: ACTIONS[0]!.label })).toBeTruthy()
+        expect(screen.getByTestId("classq-command-deck")).toBeTruthy()
+        expect(screen.getByTestId("classq-spatial-workbench")).toBeTruthy()
+        expect(screen.getAllByRole("tab")).toHaveLength(3)
+        expect(screen.getByRole("button", { name: "扫描根目录" })).toBeTruthy()
       }
     },
   )
@@ -81,7 +81,7 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
+    await user.click(screen.getByRole("button", { name: "扫描根目录" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -106,7 +106,7 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
+    await user.click(screen.getByRole("button", { name: "执行分类" }))
     expect(host.runCalls).toHaveLength(0)
 
     const dialog = screen.getByRole("alertdialog")
@@ -123,7 +123,7 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
+    await user.click(screen.getByRole("button", { name: "扫描根目录" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))

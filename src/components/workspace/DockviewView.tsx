@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelHeaderProps } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
-import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceVisibleComponents, useWorkspaceShallowSelector } from "@/store/workspaceContext"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
@@ -40,6 +40,7 @@ export function DockviewView() {
   const { t, i18n } = useTranslation()
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
+  const selectedComponentIds = useWorkspaceShallowSelector((state) => state.selectedComponentIds)
   const apiRef = useRef<DockviewApi | null>(null)
   const removeDisposableRef = useRef<{ dispose(): void } | null>(null)
   const syncingFromStoreRef = useRef(false)
@@ -156,8 +157,34 @@ export function DockviewView() {
   const tabComponents = useMemo(() => ({
     moduleTab: (props: IDockviewPanelHeaderProps) => {
       const title = String(props.api.title ?? "panel")
+      const isSelected = selectedComponentIds.includes(props.api.id)
       return (
-        <div className="xiranite-ui-copy flex items-center gap-2 px-1 group/tab">
+        <div
+          className={cn(
+            "xiranite-ui-copy flex items-center gap-2 px-1 group/tab",
+            isSelected && "ring-1 ring-primary/60 bg-primary/10",
+          )}
+          onClick={(e) => {
+            // Ctrl/Meta + 点击：切换该 Tab 的选中状态，阻止 dockview 切换 Tab
+            if (e.ctrlKey || e.metaKey) {
+              e.stopPropagation()
+              e.preventDefault()
+              workspaceActions.toggleSelection(props.api.id)
+              return
+            }
+            // Shift + 点击：加入选中，阻止 dockview 切换 Tab
+            if (e.shiftKey) {
+              e.stopPropagation()
+              e.preventDefault()
+              workspaceActions.addToSelection([props.api.id])
+              return
+            }
+            // 普通点击：若有选中项则先清空，然后让 dockview 正常切换 Tab
+            if (selectedComponentIds.length > 0) {
+              workspaceActions.clearSelection()
+            }
+          }}
+        >
           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           <span className="text-[10px] font-mono font-semibold tracking-widest uppercase">{title}</span>
           <DropdownMenu>
@@ -199,7 +226,7 @@ export function DockviewView() {
         </div>
       )
     },
-  }), [workspaceActions, t])
+  }), [workspaceActions, t, selectedComponentIds])
 
   return (
     <div

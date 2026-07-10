@@ -2,28 +2,34 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassqAction, ClassqData, ClassqInput, ClassqPlanItem, ClassqTransferMode } from "@xiranite/node-classq/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, FolderOpen, GitBranch, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tree, type TreeViewElement } from "@/components/ui/file-tree"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { ACTIONS, NODE_ICON, PLAN_ICON, ROOT_ICON, TRANSFER_MODES, WAIT_ICON } from "./constants"
+import { ACTIONS, NODE_ICON, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassqCardState, ClassqStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<ClassqCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("classq")
   const data = getHostData(host, compId)
   const dataRef = useRef<ClassqCardState>(data)
   dataRef.current = data
@@ -38,7 +44,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running, result)
+  const status = statusFromState(data, running, result, t)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -110,7 +116,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)} started.`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("status.started", "{{action}}已开始", { action: actionLabel(nextAction, t) }), result: null })
     try {
       const response = await run<ClassqInput, ClassqData>("classq", buildInput(nextAction, dataRef.current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
@@ -143,6 +149,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
     roots,
     running,
     status,
+    t,
     onActionChange: (value) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -181,6 +188,7 @@ interface ViewProps {
   roots: string[]
   running: boolean
   status: ClassqStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: ClassqAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -209,14 +217,20 @@ function CollapsedView(props: ViewProps) {
 function CompactView(props: ViewProps) {
   return (
     <div data-testid="classq-compact-view" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+      <div className="flex shrink-0 items-start justify-between gap-2 px-3 pb-2 pt-3">
+        <HeaderLine status={props.status} subtitle={viewSubtitle(props)} />
         <div className="flex shrink-0 items-center gap-1"><ActionTools {...props} compact /><RunButton compact props={props} /></div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-        <KeywordFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-        <RootInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 pb-3">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-1">
+          <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} />
+          <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} t={props.t} />
+          <RiskToggle checked={props.data.dryRun ?? true} disabled={props.running} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} t={props.t} />
+        </div>
+        <div className="grid shrink-0 gap-1.5 @lg/classq:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.65fr)]">
+          <RootInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <KeywordFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        </div>
         <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
@@ -226,11 +240,14 @@ function CompactView(props: ViewProps) {
 function PortraitView(props: ViewProps) {
   return (
     <div data-testid="classq-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><RunButton compact props={props} /></div>
-      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={viewSubtitle(props)} /><RunButton compact props={props} /></div>
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-1">
+        <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} />
+        <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} t={props.t} />
+        <RiskToggle checked={props.data.dryRun ?? true} disabled={props.running} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} t={props.t} />
+      </div>
       <RootInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <KeywordFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-      <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} />
       <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
     </div>
   )
@@ -238,61 +255,52 @@ function PortraitView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="classq-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-      <div className="flex shrink-0 flex-col gap-2 @3xl/classq:flex-row @3xl/classq:items-center @3xl/classq:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @3xl/classq:flex-row @3xl/classq:items-center">
-          <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-          <div data-testid="classq-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1"><ActionTools {...props} /></div>
-        </div>
-        <StatsPanel progress={props.progress} result={props.result} roots={props.roots} />
-      </div>
-      {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
-      <section className="grid shrink-0 gap-2 rounded-lg border bg-card p-2">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <ZoneTitle icon={ROOT_ICON} label="Root scan" />
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-            <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} />
-            <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label="Dry run" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-          </div>
-        </div>
-        <div className="grid gap-2 @2xl/classq:grid-cols-[minmax(280px,1fr)_minmax(260px,0.8fr)]">
-          <RootInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          <KeywordFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-        </div>
-      </section>
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
-        <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
-          <ZoneTitle icon={WAIT_ICON} label="Wait transfer groups" />
-          <div className="flex shrink-0 items-center gap-1">
-            <Badge variant="outline">{props.result?.keywordCount ?? 0} keyword</Badge>
-            <Badge variant="outline">{props.result?.waitCount ?? 0} wait</Badge>
-          </div>
-        </div>
-        <Separator />
-        <ParentPlanGroups items={props.result?.items ?? []} roots={props.roots} />
-      </section>
-      <section className="grid shrink-0 gap-2 rounded-lg border bg-card p-2 @3xl/classq:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <ZoneTitle icon={props.action === "classify" && !(props.data.dryRun ?? true) ? AlertTriangle : ShieldAlert} label="Run" tone={props.action === "classify" && !(props.data.dryRun ?? true) ? "danger" : "default"} />
-          <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-          <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} />
-          <Badge variant={props.action === "classify" && !(props.data.dryRun ?? true) ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "dry run" : "live"}</Badge>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <IconButton disabled={!props.result?.items.length} icon={Copy} label="Copy plan" onClick={props.onCopyResults} />
-          <IconButton disabled={!props.logs.length} icon={Terminal} label="Copy log" onClick={props.onCopyLogs} />
-          <RunButton props={props} />
-        </div>
-      </section>
+    <div data-testid="classq-full-view" className="flex min-h-0 flex-1 p-3">
+      <SpatialWorkbench {...props} />
     </div>
+  )
+}
+
+function CommandDock(props: ViewProps) {
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card shadow-[0_16px_40px_-28px_oklch(0_0_0/0.38)]" data-testid="classq-command-deck">
+      <div className="grid min-w-0 gap-2 p-2 @5xl/classq:grid-cols-[minmax(0,1.2fr)_minmax(420px,0.8fr)]">
+        <div className="grid min-w-0 gap-1.5">
+          <div className="flex min-w-0 items-center justify-between gap-2"><span className="text-[11px] font-medium text-muted-foreground">{props.t("command.input", "输入与扫描")}</span><ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} /></div>
+          <CommandRootInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} t={props.t} />
+        </div>
+        <div className="grid min-w-0 gap-1.5 @5xl/classq:border-l @5xl/classq:pl-2">
+          <div className="grid min-w-0 grid-cols-2 gap-1.5">
+            <Input aria-label="classq keyword" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.keyword", "关键词目录")} value={props.data.keyword ?? ""} onChange={(event) => props.onPatch({ keyword: event.currentTarget.value })} />
+            <Input aria-label="classq wait" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.wait", "等待目录")} value={props.data.waitKeyword ?? ""} onChange={(event) => props.onPatch({ waitKeyword: event.currentTarget.value })} />
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} t={props.t} />
+            <RiskToggle checked={props.data.dryRun ?? true} disabled={props.running} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} t={props.t} />
+            <RunButton props={props} />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CommandRootInput(props: { data: ClassqCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<ClassqCardState>) => void; t: ViewProps["t"] }) {
+  return (
+    <InputGroup className="min-w-0 flex-1">
+      <InputGroupTextarea aria-label="classq roots" className="h-9 min-h-9 py-2 font-mono text-xs leading-4" disabled={props.disabled} placeholder={props.t("fields.roots", "根目录，每行一个")} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+      <InputGroupAddon align="inline-end">
+        <InputGroupButton aria-label="Paste roots" disabled={props.disabled} size="icon-xs" onClick={props.onPaste}><Clipboard /></InputGroupButton>
+        <InputGroupButton aria-label="Clear roots" disabled={props.disabled || !props.data.pathsText} size="icon-xs" onClick={() => props.onPatch({ pathsText: "" })}><Trash2 /></InputGroupButton>
+      </InputGroupAddon>
+    </InputGroup>
   )
 }
 
 function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
+      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} />}
       <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="Save defaults" onClick={props.onSaveDefault} />
       <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="Restore defaults" onClick={props.onRestoreDefault} />
       <IconButton icon={RotateCcw} label="Clear state" onClick={props.onReset} />
@@ -300,18 +308,18 @@ function ActionTools(props: ViewProps & { compact?: boolean }) {
   )
 }
 
-function ActionMode(props: { disabled?: boolean; value: ClassqAction; onChange: (value: ClassqAction) => void }) {
+function ActionMode(props: { disabled?: boolean; value: ClassqAction; onChange: (value: ClassqAction) => void; t: ViewProps["t"] }) {
   return (
     <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassqAction)} className="grid grid-cols-2" size="sm">
-      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.shortLabel}</span></ToggleGroupItem>)}
+      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.value === "plan" ? props.t("action.scan.short", "扫描") : props.t("action.classify.short", "分类")}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
 }
 
-function TransferToggle(props: { disabled?: boolean; value: ClassqTransferMode; onChange: (value: ClassqTransferMode) => void }) {
+function TransferToggle(props: { disabled?: boolean; value: ClassqTransferMode; onChange: (value: ClassqTransferMode) => void; t: ViewProps["t"] }) {
   return (
     <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassqTransferMode)} className="grid grid-cols-2" size="sm">
-      {TRANSFER_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.label}</span></ToggleGroupItem>)}
+      {TRANSFER_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.value === "move" ? props.t("transfer.move", "移动") : props.t("transfer.copy", "复制")}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
 }
@@ -345,7 +353,7 @@ function KeywordFields(props: { compact?: boolean; data: ClassqCardState; disabl
 
 function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) return <Button aria-label="classq running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && <span>Running</span>}</Button>
-  const label = actionLabel(props.action)
+  const label = actionLabel(props.action, props.t)
   const live = props.action === "classify" && !(props.data.dryRun ?? true)
   if (live) {
     return (
@@ -429,6 +437,276 @@ function ParentPlanGroups(props: { items: ClassqPlanItem[]; roots: string[] }) {
   )
 }
 
+function SpatialWorkbench(props: ViewProps) {
+  const issueLines = [
+    ...(props.result?.errors ?? []),
+    ...(props.result?.items ?? [])
+      .filter((item) => item.reason && item.status !== "ready")
+      .map((item) => `${item.sourcePath}: ${item.reason}`),
+  ]
+  return (
+    <Tabs defaultValue="plan" className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card" data-testid="classq-spatial-workbench">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 px-2 py-1.5" data-testid="classq-header-toolbar">
+        <HeaderLine status={props.status} subtitle={viewSubtitle(props)} />
+        <TabsList className="shrink-0">
+          <TabsTrigger value="plan"><PLAN_ICON className="size-3.5" />{props.t("tabs.plan", "计划")}</TabsTrigger>
+          <TabsTrigger value="issues"><AlertTriangle className="size-3.5" />{props.t("tabs.issues", "问题")}</TabsTrigger>
+          <TabsTrigger value="logs"><Terminal className="size-3.5" />{props.t("tabs.log", "日志")}</TabsTrigger>
+        </TabsList>
+        <MetricsStrip progress={props.progress} result={props.result} roots={props.roots} t={props.t} />
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <IconButton disabled={!props.result?.items.length} icon={Copy} label="Copy plan" onClick={props.onCopyResults} />
+          <IconButton disabled={!props.logs.length} icon={Terminal} label="Copy log" onClick={props.onCopyLogs} />
+          <ActionTools {...props} compact />
+        </div>
+      </div>
+      <Separator />
+      {(props.status.tone === "running" || props.status.tone === "error") && <div className="shrink-0 border-b px-2 py-1.5"><StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} /></div>}
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex justify-center">
+          <div className="pointer-events-auto w-full"><CommandDock {...props} /></div>
+        </div>
+        <TabsContent value="plan" className="h-full min-h-0 pt-[156px] @5xl/classq:pt-[112px]">
+          <ClassqExplorer items={props.result?.items ?? []} roots={props.roots} t={props.t} />
+        </TabsContent>
+        <TabsContent value="issues" className="h-full min-h-0 pt-[156px] @5xl/classq:pt-[112px]">
+          <WorkbenchTextView empty={props.t("empty.issues", "暂无问题")} lines={issueLines} />
+        </TabsContent>
+        <TabsContent value="logs" className="h-full min-h-0 pt-[156px] @5xl/classq:pt-[112px]">
+          <WorkbenchTextView empty={props.t("empty.logs", "运行日志会显示在这里")} lines={props.logs} />
+        </TabsContent>
+      </div>
+    </Tabs>
+  )
+}
+
+function RecursiveTreeBoard(props: { items: ClassqPlanItem[]; roots: string[]; t: ViewProps["t"] }) {
+  if (!props.items.length) {
+    const text = props.roots.length
+      ? props.t("empty.runScan", "运行扫描后，这里会展开递归文件树和等待目录计划")
+      : props.t("empty.addRoots", "添加根目录以预览分类计划")
+    return <div className="flex h-full min-h-40 items-center justify-center p-4 text-center text-sm text-muted-foreground">{text}</div>
+  }
+  const groups = groupByParent(props.items)
+  return (
+    <ScrollArea className="h-full min-h-0">
+      <div className="mx-auto max-w-[1480px] border-t">
+        {groups.map((group) => <RecursiveTreeBranch key={group.parentPath} group={group} t={props.t} />)}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function RecursiveTreeBranch(props: { group: { parentPath: string; items: ClassqPlanItem[] }; t: ViewProps["t"] }) {
+  const ready = props.group.items.filter((item) => item.status === "ready").length
+  const conflicts = props.group.items.filter((item) => item.status === "conflict" || item.status === "error").length
+  const keywordItems = props.group.items.filter((item) => item.stage === "keyword")
+  const waitItems = props.group.items.filter((item) => item.stage === "wait")
+  return (
+    <section className={cn("min-w-0 border-b", conflicts && "bg-destructive/[0.025]")} data-testid="classq-tree-branch">
+      <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0"><div className="truncate text-xs font-semibold">{baseName(props.group.parentPath)}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{props.group.parentPath}</div></div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 text-[11px] tabular-nums text-muted-foreground"><span>{waitItems.length} {props.t("metrics.wait", "等待项")}</span><span className={cn(conflicts && "text-destructive")}>{ready} {props.t("metrics.ready", "就绪")}</span></div>
+      </div>
+      <div className="relative mx-3 mb-3 border-l pl-4">
+        <div className="grid gap-1.5">
+          {keywordItems.map((item) => (
+            <div key={item.sourcePath} className="relative flex min-w-0 items-center gap-2 py-1">
+              <span className="absolute -left-4 top-1/2 w-3 border-t" />
+              <Search className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 truncate font-mono text-xs">{item.sourceName}</span>
+              <Badge variant="outline">{props.t("tree.keyword", "关键词目录")}</Badge>
+            </div>
+          ))}
+          {waitItems.length ? waitItems.slice(0, 24).map((item) => <TreeTransferRow key={item.sourcePath} item={item} t={props.t} />) : <div className="relative px-1 py-2 text-xs text-muted-foreground"><span className="absolute -left-5 top-1/2 w-4 border-t" />{props.t("empty.lane", "此目录没有等待项")}</div>}
+          {waitItems.length > 24 && <div className="px-1 text-[11px] text-muted-foreground">+ {waitItems.length - 24}</div>}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TreeTransferRow(props: { item: ClassqPlanItem; t: ViewProps["t"] }) {
+  const meta = itemStatusMeta(props.item.status)
+  const StatusIcon = meta.icon
+  const KindIcon = props.item.kind === "folder" ? Folder : File
+  return (
+    <div className={cn("relative grid min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 @3xl/classq:grid-cols-[minmax(180px,0.8fr)_auto_minmax(240px,1.2fr)_auto]", (props.item.status === "conflict" || props.item.status === "error") && "border-destructive/40")}>
+      <span className="absolute -left-[17px] top-1/2 w-4 border-t" />
+      <div className="flex min-w-0 items-center gap-2"><GitBranch className="size-3.5 shrink-0 text-muted-foreground" /><KindIcon className="size-4 shrink-0 text-muted-foreground" /><span className="truncate text-xs font-medium">{props.item.sourceName}</span></div>
+      <ArrowRight className="hidden size-3.5 shrink-0 text-muted-foreground @3xl/classq:block" />
+      <div className="min-w-0"><div className="truncate font-mono text-[11px]">{props.item.targetRelative}</div><div className="truncate text-[10px] text-muted-foreground">{props.t("tree.waitTarget", "等待目录目标")}</div></div>
+      <Badge variant={meta.variant} className="w-fit shrink-0 gap-1"><StatusIcon className="size-3" />{meta.label}</Badge>
+    </div>
+  )
+}
+
+function MetricsStrip(props: { progress: number; result: ClassqData | null; roots: string[]; t: ViewProps["t"] }) {
+  const stats = [
+    { label: props.t("metrics.roots", "根目录"), value: props.roots.length },
+    { label: props.t("metrics.keyword", "关键词"), value: props.result?.keywordCount ?? 0 },
+    { label: props.t("metrics.wait", "等待"), value: props.result?.waitCount ?? 0 },
+    { label: props.t("metrics.ready", "就绪"), value: props.result?.readyCount ?? 0 },
+    { label: props.t("metrics.moved", "已移动"), value: props.result?.movedCount ?? 0 },
+    { label: props.t("metrics.progress", "进度"), value: `${props.progress}%` },
+  ]
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden px-1">
+      {stats.map((item) => (
+        <div key={item.label} className="flex shrink-0 items-baseline gap-1 text-[11px]">
+          <span className="text-muted-foreground">{item.label}</span>
+          <span className="font-semibold tabular-nums">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function WorkbenchTextView(props: { empty: string; lines: string[] }) {
+  return (
+    <ScrollArea className="h-full min-h-0">
+      {props.lines.length
+        ? <pre className="p-3 font-mono text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre>
+        : <div className="flex min-h-40 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}
+    </ScrollArea>
+  )
+}
+
+function ClassqExplorer(props: { items: ClassqPlanItem[]; roots: string[]; t: ViewProps["t"] }) {
+  const groups = useMemo(() => groupByParent(props.items), [props.items])
+  const [selectedParent, setSelectedParent] = useState("")
+  const { elements, expandedIds, selectionMap } = useMemo(() => buildExplorerTree(groups), [groups])
+
+  useEffect(() => {
+    if (!groups.length) {
+      setSelectedParent("")
+      return
+    }
+    if (!groups.some((group) => group.parentPath === selectedParent)) {
+      setSelectedParent(groups[0]!.parentPath)
+    }
+  }, [groups, selectedParent])
+
+  if (!groups.length) {
+    const text = props.roots.length
+      ? props.t("empty.runScan", "运行扫描后，这里会显示递归文件树和分类计划表")
+      : props.t("empty.addRoots", "添加根目录以预览分类计划")
+    return <div className="flex h-full min-h-40 items-center justify-center p-4 text-center text-sm text-muted-foreground">{text}</div>
+  }
+
+  const selectedGroup = groups.find((group) => group.parentPath === selectedParent) ?? groups[0]!
+  return (
+    <ResizablePanelGroup orientation="horizontal" className="h-full" data-testid="classq-explorer">
+      <ResizablePanel id="classq-tree" defaultSize="29%" minSize="20%" maxSize="44%">
+        <section className="flex h-full min-h-0 flex-col bg-muted/[0.12]">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2"><ListTree className="size-4 text-muted-foreground" /><span className="truncate text-xs font-semibold">{props.t("explorer.tree", "递归文件树")}</span></div>
+            <span className="text-[11px] tabular-nums text-muted-foreground">{groups.length}</span>
+          </div>
+          <Tree
+            key={`${props.items.length}:${groups.length}`}
+            className="min-h-0 flex-1 py-2"
+            elements={elements}
+            initialExpandedItems={expandedIds}
+            initialSelectedId={`parent:${selectedGroup.parentPath}`}
+            onSelectedIdChange={(id) => {
+              const parentPath = selectionMap.get(id)
+              if (parentPath) setSelectedParent(parentPath)
+            }}
+            sort="none"
+          />
+        </section>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel id="classq-plan" defaultSize="71%" minSize="48%">
+        <PlanDetailTable group={selectedGroup} t={props.t} />
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
+}
+
+function PlanDetailTable(props: { group: { parentPath: string; items: ClassqPlanItem[] }; t: ViewProps["t"] }) {
+  const keywordItems = props.group.items.filter((item) => item.stage === "keyword")
+  const waitItems = props.group.items.filter((item) => item.stage === "wait")
+  return (
+    <section className="flex h-full min-h-0 flex-col" data-testid="classq-plan-table">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2"><FolderOpen className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><div className="truncate text-xs font-semibold">{baseName(props.group.parentPath)}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{props.group.parentPath}</div></div></div>
+        <div className="flex shrink-0 items-center gap-1">{keywordItems.map((item) => <Badge key={item.sourcePath} variant="outline" className="max-w-48 gap-1"><Search className="size-3" /><span className="truncate">{item.sourceName}</span></Badge>)}</div>
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <Table className="table-fixed">
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead className="w-[34%]">{props.t("table.source", "源节点")}</TableHead>
+              <TableHead className="w-[42%]">{props.t("table.target", "等待目录目标")}</TableHead>
+              <TableHead className="w-[10%]">{props.t("table.type", "类型")}</TableHead>
+              <TableHead className="w-[14%] text-right">{props.t("table.status", "状态")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {waitItems.map((item) => {
+              const meta = itemStatusMeta(item.status)
+              const StatusIcon = meta.icon
+              const KindIcon = item.kind === "folder" ? Folder : File
+              return (
+                <TableRow key={item.sourcePath}>
+                  <TableCell className="min-w-0 whitespace-normal"><div className="flex min-w-0 items-center gap-2"><KindIcon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><div className="truncate text-xs font-medium">{item.sourceName}</div><div className="truncate font-mono text-[10px] text-muted-foreground">{item.sourcePath}</div></div></div></TableCell>
+                  <TableCell className="min-w-0 whitespace-normal"><div className="truncate font-mono text-[11px]">{item.targetRelative}</div><div className="truncate font-mono text-[10px] text-muted-foreground">{item.targetPath}</div></TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{item.kind === "folder" ? props.t("type.folder", "目录") : props.t("type.file", "文件")}</TableCell>
+                  <TableCell className="text-right"><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{localizedItemStatus(item.status, props.t)}</Badge></TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+        {!waitItems.length && <div className="flex min-h-32 items-center justify-center p-4 text-sm text-muted-foreground">{props.t("empty.table", "此目录没有等待项")}</div>}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function buildExplorerTree(groups: Array<{ parentPath: string; items: ClassqPlanItem[] }>): { elements: TreeViewElement[]; expandedIds: string[]; selectionMap: Map<string, string> } {
+  const rootGroups = new Map<string, Array<{ parentPath: string; items: ClassqPlanItem[] }>>()
+  for (const group of groups) {
+    const rootPath = group.items[0]?.rootPath ?? group.parentPath
+    const list = rootGroups.get(rootPath) ?? []
+    list.push(group)
+    rootGroups.set(rootPath, list)
+  }
+  const selectionMap = new Map<string, string>()
+  const expandedIds: string[] = []
+  const elements = [...rootGroups.entries()].map(([rootPath, rootItems]) => {
+    const rootId = `root:${rootPath}`
+    expandedIds.push(rootId)
+    selectionMap.set(rootId, rootItems[0]?.parentPath ?? rootPath)
+    return {
+      id: rootId,
+      name: baseName(rootPath) || rootPath,
+      type: "folder" as const,
+      children: rootItems.map((group) => {
+        const parentId = `parent:${group.parentPath}`
+        expandedIds.push(parentId)
+        selectionMap.set(parentId, group.parentPath)
+        return {
+          id: parentId,
+          name: baseName(group.parentPath),
+          type: "folder" as const,
+          children: group.items.map((item, index) => {
+            const id = `item:${group.parentPath}:${index}`
+            selectionMap.set(id, group.parentPath)
+            return { id, name: item.sourceName, type: item.kind, isSelectable: true }
+          }),
+        }
+      }),
+    }
+  })
+  return { elements, expandedIds, selectionMap }
+}
+
 function CompactPlanRow({ item }: { item: ClassqPlanItem }) {
   const meta = itemStatusMeta(item.status)
   const StatusIcon = meta.icon
@@ -482,25 +760,18 @@ function HeaderLine(props: { status: ClassqStatusMeta; subtitle: string }) {
   return <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">ClassQ</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div>
 }
 
-function StatsPanel(props: { progress: number; result: ClassqData | null; roots: string[] }) {
-  const stats = [
-    { label: "Roots", value: props.roots.length },
-    { label: "Keyword", value: props.result?.keywordCount ?? 0 },
-    { label: "Wait", value: props.result?.waitCount ?? 0 },
-    { label: "Ready", value: props.result?.readyCount ?? 0 },
-    { label: "Moved", value: props.result?.movedCount ?? 0 },
-    { label: "Progress", value: props.progress, suffix: "%" },
-  ]
-  return <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/classq:grid-cols-6">{stats.map((item) => <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center"><div className="truncate text-[11px] text-muted-foreground">{item.label}</div><div className="text-sm font-semibold tabular-nums">{item.value}{item.suffix ?? ""}</div></div>)}</div>
-}
-
 function StatusStrip(props: { progress: number; status: ClassqStatusMeta; text?: string }) {
   return <div className="rounded-md border bg-card p-2"><div className="mb-1 flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></div>
 }
 
-function SwitchRow(props: { checked: boolean; disabled?: boolean; icon: LucideIcon; label: string; onCheckedChange: (checked: boolean) => void }) {
-  const Icon = props.icon
-  return <label className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"><span className="flex min-w-0 items-center gap-1.5"><Icon className="size-4 shrink-0 text-muted-foreground" /><span className="truncate text-xs font-medium">{props.label}</span></span><Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} /></label>
+function RiskToggle(props: { checked: boolean; disabled?: boolean; onCheckedChange: (checked: boolean) => void; t: ViewProps["t"] }) {
+  return (
+    <label className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2", !props.checked && "border-destructive/45 text-destructive")}>
+      <ShieldAlert className="size-3.5" />
+      <span className="text-xs font-medium">{props.checked ? props.t("risk.dryRun", "预览") : props.t("risk.live", "实时")}</span>
+      <Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
+    </label>
+  )
 }
 
 function IconButton(props: { active?: boolean; disabled?: boolean; icon: LucideIcon; label: string; onClick: () => void }) {
@@ -508,16 +779,11 @@ function IconButton(props: { active?: boolean; disabled?: boolean; icon: LucideI
   return <Tooltip><TooltipTrigger asChild><Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant={props.active ? "secondary" : "outline"} onClick={props.onClick}><Icon /></Button></TooltipTrigger><TooltipContent>{props.label}</TooltipContent></Tooltip>
 }
 
-function ZoneTitle(props: { icon: LucideIcon; label: string; tone?: "default" | "danger" }) {
-  const Icon = props.icon
-  return <div className="flex min-w-0 shrink-0 items-center gap-1.5"><Icon className={cn("size-3.5 shrink-0", props.tone === "danger" ? "text-destructive" : "text-muted-foreground")} /><span className="truncate text-xs font-semibold">{props.label}</span></div>
-}
-
-function statusFromState(data: ClassqCardState, running: boolean, result: ClassqData | null): ClassqStatusMeta {
-  if (running || data.phase === "running") return { label: "Running", description: data.progressText || "ClassQ is scanning keyword folders or moving wait candidates.", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
-  if (data.phase === "error" || result?.errorCount) return { label: "Failed", description: data.progressText || result?.errors[0] || "Last ClassQ run failed. Check issues.", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
-  if (data.phase === "completed") return { label: "Done", description: data.progressText || "Last ClassQ run completed.", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
-  return { label: "Ready", description: "Scan roots for keyword folders and wait candidates.", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
+function statusFromState(data: ClassqCardState, running: boolean, result: ClassqData | null, t: ViewProps["t"]): ClassqStatusMeta {
+  if (running || data.phase === "running") return { label: t("status.running", "运行中"), description: data.progressText || t("status.runningDescription", "正在扫描关键词目录或处理等待项"), tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
+  if (data.phase === "error" || result?.errorCount) return { label: t("status.failed", "失败"), description: data.progressText || result?.errors[0] || t("status.failedDescription", "上次运行失败，请查看问题"), tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
+  if (data.phase === "completed") return { label: t("status.done", "完成"), description: t("status.doneDescription", "上次运行已完成"), tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
+  return { label: t("status.ready", "就绪"), description: t("status.readyDescription", "扫描根目录中的关键词目录和等待项"), tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
 }
 
 function itemStatusMeta(status: ClassqPlanItem["status"]) {
@@ -530,15 +796,32 @@ function itemStatusMeta(status: ClassqPlanItem["status"]) {
   return { icon: AlertTriangle, label: "Skipped", variant: "outline" as const }
 }
 
-function summaryText(props: ViewProps): string {
-  if (props.data.progressText) return props.data.progressText
-  if (props.result) return `${props.result.keywordCount} keyword / wait ${props.result.waitCount} / ready ${props.result.readyCount}`
-  if (props.roots.length) return `${props.roots.length} root(s) / ${props.actionMeta.shortLabel}`
-  return props.actionMeta.description
+function localizedItemStatus(status: ClassqPlanItem["status"], t: ViewProps["t"]): string {
+  const fallbacks: Record<ClassqPlanItem["status"], string> = {
+    found: "已找到",
+    ready: "就绪",
+    skipped: "已跳过",
+    moved: "已移动",
+    copied: "已复制",
+    conflict: "冲突",
+    error: "错误",
+  }
+  return t(`status.item.${status}`, fallbacks[status])
 }
 
-function actionLabel(action: ClassqAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
+function summaryText(props: ViewProps): string {
+  if (props.result) return props.t("summary.result", "关键词 {{keyword}} / 等待 {{wait}} / 就绪 {{ready}}", { keyword: props.result.keywordCount, wait: props.result.waitCount, ready: props.result.readyCount })
+  if (props.roots.length) return props.t("summary.roots", "{{count}} 个根目录 / {{action}}", { count: props.roots.length, action: actionLabel(props.action, props.t) })
+  return props.t("summary.idle", "通过关键词递归分类文件夹")
+}
+
+function viewSubtitle(props: ViewProps): string {
+  if ((props.running || props.status.tone === "error") && props.data.progressText) return props.data.progressText
+  return summaryText(props)
+}
+
+function actionLabel(action: ClassqAction, t: ViewProps["t"]): string {
+  return action === "plan" ? t("action.scan", "扫描根目录") : t("action.classify", "执行分类")
 }
 
 function buildInput(action: ClassqAction, data: ClassqCardState): ClassqInput {

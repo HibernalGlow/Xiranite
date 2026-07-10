@@ -25,6 +25,7 @@ import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleCo
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { translateLabel } from "@/lib/i18nLabel"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
+import { useMarqueeSelection } from "@/hooks/useMarqueeSelection"
 import { Button } from "@/components/ui/button"
 import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
 import { Lane } from "./Lane"
@@ -50,6 +51,23 @@ export function LaneView() {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
+
+  // Ctrl+左键拖动框选多卡片
+  const getComponentId = useCallback((el: HTMLElement) => el.dataset.componentId ?? null, [])
+  const handleMarqueeSelect = useCallback((ids: string[]) => {
+    workspaceActions.setSelection(ids)
+  }, [workspaceActions])
+  const {
+    rect: marqueeRect,
+    onPointerDown: onMarqueePointerDown,
+    onPointerMove: onMarqueePointerMove,
+    onPointerUp: onMarqueePointerUp,
+  } = useMarqueeSelection({
+    containerRef: laneScrollRef,
+    getComponentId,
+    onSelect: handleMarqueeSelect,
+    enabled: true,
+  })
   const laneSensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
@@ -189,7 +207,13 @@ export function LaneView() {
   return (
     <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange} sensors={laneSensors}>
       <div className="relative flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
-        <div ref={laneScrollRef} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div
+          ref={laneScrollRef}
+          className="relative min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+          onPointerDown={onMarqueePointerDown}
+          onPointerMove={onMarqueePointerMove}
+          onPointerUp={onMarqueePointerUp}
+        >
           <KanbanBoard
             className="h-full w-max min-w-max gap-0 overflow-visible"
             data-lane-board="true"
@@ -202,6 +226,18 @@ export function LaneView() {
               />
             ))}
           </KanbanBoard>
+          {/* 框选视觉反馈 */}
+          {marqueeRect && (
+            <div
+              className="pointer-events-none absolute border border-primary/60 bg-primary/10"
+              style={{
+                left: marqueeRect.x,
+                top: marqueeRect.y,
+                width: marqueeRect.width,
+                height: marqueeRect.height,
+              }}
+            />
+          )}
         </div>
 
         {orphanComponents.length > 0 && (

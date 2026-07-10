@@ -25,6 +25,7 @@ export const INITIAL_STATE: WSState = {
   lanes: [],
   focusedComponentId: null,
   fullscreenComponentId: null,
+  selectedComponentIds: [],
   zCounter: 1,
   overlay: null,
   overlayMode: "docked",

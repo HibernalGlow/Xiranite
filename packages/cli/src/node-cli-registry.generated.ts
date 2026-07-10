@@ -25,13 +25,13 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "classf",
     packageName: "@xiranite/node-classf",
     bin: nodeCliName("classf"),
-    description: "Orchestrate classification by calling PackU samea, crashu, and migratef logic.",
+    description: "Plan and apply native already/wait classification transfers.",
   },
   {
     id: "classq",
     packageName: "@xiranite/node-classq",
     bin: nodeCliName("classq"),
-    description: "Quickly classify folders by keyword into wait/already style groups.",
+    description: "Find keyword folders and plan sibling items into wait folders.",
   },
   {
     id: "cleanf",
@@ -43,7 +43,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "coveru",
     packageName: "@xiranite/node-coveru",
     bin: nodeCliName("coveru"),
-    description: "Extract and convert archive cover images with PackU CoverU.",
+    description: "Extract cover images from archives and image folders.",
   },
   {
     id: "crashu",
@@ -157,7 +157,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "nameu",
     packageName: "@xiranite/node-nameu",
     bin: nodeCliName("nameu"),
-    description: "Rename artist archive folders with PackU NameU, TOML config, and run records.",
+    description: "Preview and apply archive filename cleanup for artist folders.",
   },
   {
     id: "owithu",
@@ -217,19 +217,19 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "snf",
     packageName: "@xiranite/node-snf",
     bin: nodeCliName("snf"),
-    description: "Repair numbered folder sequence order with PackU SNF.",
+    description: "Repair numbered folder sequence order with native renames.",
   },
   {
     id: "synct",
     packageName: "@xiranite/node-synct",
     bin: nodeCliName("synct"),
-    description: "Archive folders and files by extracted timestamps with PackU Synct.",
+    description: "Archive files and folders into date-based paths from extracted timestamps.",
   },
   {
     id: "timeu",
     packageName: "@xiranite/node-timeu",
     bin: nodeCliName("timeu"),
-    description: "Back up and restore file timestamps with PackU TimeU.",
+    description: "Back up and restore file timestamps from JSON records.",
   },
   {
     id: "transq",
