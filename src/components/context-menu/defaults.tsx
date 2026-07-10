@@ -18,8 +18,13 @@ import {
   Layout as LayoutIcon,
   Palette,
   Square,
+  Share2,
+  ArrowRight,
+  ChevronsUpDown,
+  X,
 } from "lucide-react"
 import { getWorkspaceState, useWorkspaceActions } from "@/store/workspaceStore"
+import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "@/store/workspace/constants"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useContextMenuBuilder } from "./context"
 import type { ContextMenuItemDef, ContextMenuContext } from "./ContextMenuProvider"
@@ -43,6 +48,84 @@ export function DefaultContextMenuItems() {
   const { openComponent } = useWindowControls()
   const { t } = useTranslation()
 
+  /**
+   * 多选批量菜单。当右键的 component 在选中集合中且选中数 > 1 时返回批量操作菜单。
+   * 返回 null 表示不适用多选场景，调用方应回退到单组件菜单。
+   */
+  const buildMultiSelectionMenu = useCallback(
+    (ctx: ContextMenuContext): ContextMenuItemDef[] | null => {
+      const id = ctx.data.componentId
+      if (!id) return null
+
+      const state = getWorkspaceState()
+      const selected = state.selectedComponentIds
+      // 仅当右键目标在选中集合中且多选时才返回批量菜单
+      if (selected.length <= 1 || !selected.includes(id)) return null
+
+      const currentMode = state.viewMode as ComponentViewMode
+
+      return [
+        {
+          id: "multi-selected-count",
+          label: t("contextMenu:multiSelected", { count: selected.length }),
+          disabled: true,
+        },
+        { type: "separator" },
+        {
+          id: "multi-move-to-view",
+          label: t("contextMenu:multiMoveToView"),
+          icon: <Share2 />,
+          children: COMPONENT_VIEW_MODES
+            .filter((mode) => mode !== currentMode)
+            .map((mode) => ({
+              id: `multi-move-to-${mode}`,
+              label: t(`topbar:viewMode.${mode}`),
+              icon: <ArrowRight />,
+              onSelect: () => {
+                actions.setComponentsVisibility(selected, currentMode, false)
+                actions.setComponentsVisibility(selected, mode, true)
+                actions.setViewMode(mode)
+              },
+            })),
+        },
+        {
+          id: "multi-toggle-collapse",
+          label: t("contextMenu:multiToggleCollapse"),
+          icon: <ChevronsUpDown />,
+          onSelect: () => actions.toggleCollapseComponents(selected),
+        },
+        {
+          id: "multi-duplicate",
+          label: t("contextMenu:multiDuplicate"),
+          icon: <Copy />,
+          onSelect: () => actions.duplicateComponents(selected),
+        },
+        { type: "separator" },
+        {
+          id: "multi-delete",
+          label: t("contextMenu:multiDelete"),
+          icon: <Trash2 />,
+          destructive: true,
+          confirm: {
+            title: t("contextMenu:multiDeleteConfirmTitle", { count: selected.length }),
+            confirmLabel: t("common:delete"),
+            cancelLabel: t("common:cancel"),
+            destructive: true,
+          },
+          onSelect: () => actions.removeComponents(selected),
+        },
+        { type: "separator" },
+        {
+          id: "multi-clear-selection",
+          label: t("contextMenu:multiClearSelection"),
+          icon: <X />,
+          onSelect: () => actions.clearSelection(),
+        },
+      ]
+    },
+    [actions, t],
+  )
+
   // ────────────────────────────────────────────────────────────────────────
   // component-card: full component instance menu
   // ────────────────────────────────────────────────────────────────────────
@@ -50,6 +133,10 @@ export function DefaultContextMenuItems() {
     (ctx: ContextMenuContext): ContextMenuItemDef[] | null => {
       const id = ctx.data.componentId
       if (!id) return null
+
+      // 多选时返回批量操作菜单
+      const multi = buildMultiSelectionMenu(ctx)
+      if (multi) return multi
 
       // Read live component state from the store (not the React hook) so the
       // menu always reflects the latest state at the moment of right-click.
@@ -279,11 +366,11 @@ export function DefaultContextMenuItems() {
 
       return items
     },
-    [actions, openComponent, t],
+    [actions, openComponent, t, buildMultiSelectionMenu],
   )
 
   // ────────────────────────────────────────────────────────────────────────
-  // workspace-canvas: empty canvas / view settings menu
+  // workspace-canvas: empty canvas actions/ view settings menu
   // ────────────────────────────────────────────────────────────────────────
   const workspaceCanvasBuilder = useCallback(
     (ctx: ContextMenuContext): ContextMenuItemDef[] | null => {
@@ -536,6 +623,10 @@ export function DefaultContextMenuItems() {
       const id = ctx.data.componentId
       if (!id) return null
 
+      // 多选时返回批量操作菜单
+      const multi = buildMultiSelectionMenu(ctx)
+      if (multi) return multi
+
       const state = getWorkspaceState()
       const comp = state.components.find((item) => item.id === id)
       if (!comp) return null
@@ -583,7 +674,7 @@ export function DefaultContextMenuItems() {
         },
       ]
     },
-    [actions, openComponent, t],
+    [actions, openComponent, t, buildMultiSelectionMenu],
   )
 
   // ────────────────────────────────────────────────────────────────────────
@@ -593,6 +684,10 @@ export function DefaultContextMenuItems() {
     (ctx: ContextMenuContext): ContextMenuItemDef[] | null => {
       const id = ctx.data.componentId
       if (!id) return null
+
+      // 多选时返回批量操作菜单
+      const multi = buildMultiSelectionMenu(ctx)
+      if (multi) return multi
 
       return [
         {
@@ -622,7 +717,7 @@ export function DefaultContextMenuItems() {
         },
       ]
     },
-    [actions, t],
+    [actions, t, buildMultiSelectionMenu],
   )
 
   // ────────────────────────────────────────────────────────────────────────
@@ -632,6 +727,10 @@ export function DefaultContextMenuItems() {
     (ctx: ContextMenuContext): ContextMenuItemDef[] | null => {
       const id = ctx.data.componentId
       if (!id) return null
+
+      // 多选时返回批量操作菜单
+      const multi = buildMultiSelectionMenu(ctx)
+      if (multi) return multi
 
       return [
         {
@@ -655,7 +754,7 @@ export function DefaultContextMenuItems() {
         },
       ]
     },
-    [actions, t],
+    [actions, t, buildMultiSelectionMenu],
   )
 
   useContextMenuBuilder("component-card", componentCardBuilder)

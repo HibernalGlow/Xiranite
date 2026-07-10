@@ -190,6 +190,8 @@ export interface NodeRunnerCapability {
     input: TInput,
     onEvent?: (event: NodeRunEvent) => void,
   ) => Promise<NodeRunResult<TData>>
+  /** Cancel the active backend operation associated with this component. */
+  cancelCurrent?: () => Promise<boolean>
 }
 
 export interface NodeClipboardCapability {
@@ -280,7 +282,10 @@ export type NodeHostApi<
   /** @deprecated use host.workspace */
   updateComponent: (compId: string, patch: Partial<HostComponentRef>) => void
   /** @deprecated use host.runner */
-  actions?: { run?: NodeRunnerCapability["run"] }
+  actions?: {
+    run?: NodeRunnerCapability["run"]
+    cancelCurrent?: NodeRunnerCapability["cancelCurrent"]
+  }
   /** @deprecated use host.downloads */
   downloadText?: (filename: string, content: string) => void
   /** @deprecated use host.config */

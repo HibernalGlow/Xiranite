@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils"
+import type { ReactNode } from "react"
 
 interface AnimatedCircularProgressBarProps {
+  ariaLabel?: string
+  children?: ReactNode
   max?: number
   min?: number
   value: number
@@ -10,6 +13,8 @@ interface AnimatedCircularProgressBarProps {
 }
 
 export function AnimatedCircularProgressBar({
+  ariaLabel,
+  children,
   max = 100,
   min = 0,
   value = 0,
@@ -19,11 +24,17 @@ export function AnimatedCircularProgressBar({
 }: AnimatedCircularProgressBarProps) {
   const circumference = 2 * Math.PI * 45
   const percentPx = circumference / 100
-  const currentPercent = Math.round(((value - min) / (max - min)) * 100)
+  const range = Math.max(1, max - min)
+  const currentPercent = Math.max(0, Math.min(100, Math.round(((value - min) / range) * 100)))
 
   return (
     <div
+      aria-label={ariaLabel}
+      aria-valuemax={max}
+      aria-valuemin={min}
+      aria-valuenow={value}
       className={cn("relative size-40 text-2xl font-semibold", className)}
+      role="progressbar"
       style={
         {
           "--circle-size": "100px",
@@ -97,12 +108,12 @@ export function AnimatedCircularProgressBar({
           }
         />
       </svg>
-      <span
+      <div
         data-current-value={currentPercent}
         className="animate-in fade-in absolute inset-0 m-auto size-fit delay-(--delay) duration-(--transition-length) ease-linear"
       >
-        {currentPercent}
-      </span>
+        {children ?? currentPercent}
+      </div>
     </div>
   )
 }

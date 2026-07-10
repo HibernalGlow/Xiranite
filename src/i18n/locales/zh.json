@@ -787,7 +787,14 @@
     "resetFlowSize": "重置流程尺寸",
     "hideFromFlow": "在流程中隐藏",
     "resetBentoLayout": "重置便当布局",
-    "hideFromBento": "在便当中隐藏"
+    "hideFromBento": "在便当中隐藏",
+    "multiSelected": "已选 {{count}} 项",
+    "multiDelete": "批量删除",
+    "multiDeleteConfirmTitle": "删除选中的 {{count}} 个组件？",
+    "multiDuplicate": "批量复制",
+    "multiToggleCollapse": "折叠/展开",
+    "multiMoveToView": "移动到视图",
+    "multiClearSelection": "取消选择"
   },
   "module": {
     "unknown": "// 未知模块: {{id}}",
@@ -2668,7 +2675,7 @@
     },
     "recycleu": {
       "name": "Recycleu",
-      "description": "立即清空 Windows 回收站，或按定时器周期性清空。",
+      "description": "立即清空 Windows 回收站，或按有限/无限周期定时清空。",
       "title": "recycleu",
       "meta": "{{phase}} / {{interval}}秒 间隔",
       "start": "启动",
@@ -2683,7 +2690,119 @@
       "last": "上次",
       "progress": "进度",
       "waiting": "等待中",
-      "starting": "启动中..."
+      "starting": "启动中...",
+      "common": {
+        "unlimited": "无限",
+        "none": "暂无"
+      },
+      "actions": {
+        "cancel": "取消",
+        "checkStatus": "检查状态",
+        "cleanNow": "立即清理",
+        "cleanTitle": "立即清空回收站？",
+        "command": "操作和参数",
+        "confirmClean": "确认清理",
+        "confirmStart": "确认启动",
+        "copy": "复制",
+        "reset": "重置",
+        "settings": "清理参数",
+        "start": "启动",
+        "startTitle": "启动自动清理？",
+        "status": "状态",
+        "statusShort": "状态"
+      },
+      "command": {
+        "title": "Recycleu 操作",
+        "description": "折叠状态保留完整参数与清理动作。"
+      },
+      "confirm": {
+        "clean": "将立即清空 {{target}} 的回收站内容。此操作不可撤销。",
+        "startLimited": "将每 {{interval}} 秒清理 {{target}}，最多执行 {{cycles}} 次。",
+        "startUnlimited": "将每 {{interval}} 秒清理 {{target}}，无限循环，直到任务被停止或取消。"
+      },
+      "controls": {
+        "title": "清理控制",
+        "description": "设置目标盘符、清理间隔与循环上限。"
+      },
+      "dial": {
+        "aria": "清理周期进度",
+        "cleaned": "已清理 {{count}} 次",
+        "cycleLimit": "上限 {{count}} 次",
+        "unlimited": "无限循环"
+      },
+      "errors": {
+        "backendUnavailable": "Local Backend 暂不可用，无法执行 recycleu。"
+      },
+      "fields": {
+        "allDrives": "全部",
+        "cycles": "循环次数",
+        "cyclesAria": "最大循环次数",
+        "cyclesDescription": "设为 0 可无限循环",
+        "cyclesUnlimitedDescription": "持续运行，直到任务被取消",
+        "drive": "目标盘符",
+        "driveAria": "盘符",
+        "driveDescription": "留空表示所有回收站",
+        "driveSelected": "仅清理 {{drive}} 盘",
+        "interval": "清理间隔",
+        "intervalAria": "清理间隔秒数",
+        "intervalDescription": "最短 5 秒"
+      },
+      "history": {
+        "description": "倒计时、清理结果与错误按运行顺序记录。",
+        "emptyDescription": "启动后会显示倒计时、清理结果和错误。",
+        "emptyTitle": "暂无日志",
+        "sequence": "记录 #{{count}}",
+        "title": "运行日志"
+      },
+      "metrics": {
+        "cycles": "循环上限",
+        "interval": "执行间隔",
+        "last": "上次清理",
+        "seconds": "{{count}} 秒",
+        "target": "清理范围",
+        "times": "{{count}} 次"
+      },
+      "monitor": {
+        "title": "清理监控"
+      },
+      "presets": {
+        "aria": "清理间隔预设",
+        "label": "快速间隔",
+        "minute": "1 分钟",
+        "seconds": "{{count}} 秒"
+      },
+      "settings": {
+        "description": "调整目标盘符、间隔和循环上限；0 次表示无限循环。",
+        "title": "清理参数"
+      },
+      "status": {
+        "cancelled": "已取消",
+        "cancelledDescription": "自动清理已停止。",
+        "checking": "正在读取状态。",
+        "cleaning": "正在清空回收站。",
+        "completed": "完成",
+        "completedDescription": "最近一次操作已完成。",
+        "failed": "失败",
+        "failedDescription": "最近一次操作失败。",
+        "progressAria": "当前周期进度",
+        "ready": "就绪",
+        "readyDescription": "等待启动清理任务。",
+        "running": "运行中",
+        "runningDescription": "正在等待下一次清理。",
+        "starting": "自动清理已启动。",
+        "startingUnlimited": "无限清理已启动，直到取消。"
+      },
+      "summary": {
+        "last": "已清理 {{count}} 次 · 上次 {{time}}",
+        "ready": "周期清空回收站",
+        "readyUnlimited": "周期清空回收站 · 无限模式",
+        "running": "下次清理 {{seconds}} 秒 · 已完成 {{count}} 次",
+        "runningUnlimited": "无限循环 · 下次清理 {{seconds}} 秒",
+        "settings": "{{drive}} · {{interval}} 秒 · {{cycles}}"
+      },
+      "units": {
+        "secondsShort": "秒"
+      }
     },
     "repacku": {
       "name": "Repacku",

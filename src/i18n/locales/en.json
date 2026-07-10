@@ -787,7 +787,14 @@
     "resetFlowSize": "Reset Flow Size",
     "hideFromFlow": "Hide from Flow",
     "resetBentoLayout": "Reset Bento Layout",
-    "hideFromBento": "Hide from Bento"
+    "hideFromBento": "Hide from Bento",
+    "multiSelected": "{{count}} selected",
+    "multiDelete": "Delete all",
+    "multiDeleteConfirmTitle": "Delete {{count}} selected components?",
+    "multiDuplicate": "Duplicate all",
+    "multiToggleCollapse": "Toggle collapse",
+    "multiMoveToView": "Move to view",
+    "multiClearSelection": "Clear selection"
   },
   "module": {
     "unknown": "// unknown module: {{id}}",
@@ -2668,7 +2675,7 @@
     },
     "recycleu": {
       "name": "Recycleu",
-      "description": "Empty the Windows recycle bin immediately or on a bounded timer.",
+      "description": "Empty the Windows recycle bin immediately or on a finite/unlimited timer.",
       "title": "recycleu",
       "meta": "{{phase}} / {{interval}}s interval",
       "start": "Start",
@@ -2683,7 +2690,119 @@
       "last": "last",
       "progress": "progress",
       "waiting": "waiting",
-      "starting": "Starting..."
+      "starting": "Starting...",
+      "common": {
+        "unlimited": "Unlimited",
+        "none": "None"
+      },
+      "actions": {
+        "cancel": "Cancel",
+        "checkStatus": "Check status",
+        "cleanNow": "Clean now",
+        "cleanTitle": "Empty the recycle bin now?",
+        "command": "Actions and settings",
+        "confirmClean": "Confirm clean",
+        "confirmStart": "Confirm start",
+        "copy": "Copy",
+        "reset": "Reset",
+        "settings": "Cleanup settings",
+        "start": "Start",
+        "startTitle": "Start automatic cleanup?",
+        "status": "Status",
+        "statusShort": "Status"
+      },
+      "command": {
+        "title": "Recycleu actions",
+        "description": "Collapsed mode keeps all cleanup parameters and actions available."
+      },
+      "confirm": {
+        "clean": "This immediately empties the recycle bin for {{target}}. This cannot be undone.",
+        "startLimited": "Clean {{target}} every {{interval}} seconds, for at most {{cycles}} cycles.",
+        "startUnlimited": "Clean {{target}} every {{interval}} seconds indefinitely, until the task is stopped or cancelled."
+      },
+      "controls": {
+        "title": "Cleanup controls",
+        "description": "Set the target drive, cleanup interval, and cycle limit."
+      },
+      "dial": {
+        "aria": "Cleanup cycle progress",
+        "cleaned": "{{count}} cleanups",
+        "cycleLimit": "Limit {{count}}",
+        "unlimited": "Unlimited cycles"
+      },
+      "errors": {
+        "backendUnavailable": "Local Backend is unavailable; recycleu cannot run."
+      },
+      "fields": {
+        "allDrives": "All drives",
+        "cycles": "Cycle count",
+        "cyclesAria": "Maximum cycle count",
+        "cyclesDescription": "Set to 0 for unlimited cycles",
+        "cyclesUnlimitedDescription": "Runs until the task is cancelled",
+        "drive": "Target drive",
+        "driveAria": "Drive letter",
+        "driveDescription": "Leave blank to clean every recycle bin",
+        "driveSelected": "Only clean drive {{drive}}",
+        "interval": "Cleanup interval",
+        "intervalAria": "Cleanup interval in seconds",
+        "intervalDescription": "Minimum 5 seconds"
+      },
+      "history": {
+        "description": "Countdowns, cleanup results, and errors in execution order.",
+        "emptyDescription": "Countdowns, cleanup results, and errors appear after a run starts.",
+        "emptyTitle": "No logs yet",
+        "sequence": "Entry #{{count}}",
+        "title": "Run log"
+      },
+      "metrics": {
+        "cycles": "Cycle limit",
+        "interval": "Interval",
+        "last": "Last cleanup",
+        "seconds": "{{count}} seconds",
+        "target": "Scope",
+        "times": "{{count}} times"
+      },
+      "monitor": {
+        "title": "Cleanup monitor"
+      },
+      "presets": {
+        "aria": "Cleanup interval presets",
+        "label": "Quick intervals",
+        "minute": "1 minute",
+        "seconds": "{{count}} seconds"
+      },
+      "settings": {
+        "description": "Adjust the target drive, interval, and cycle limit; 0 means unlimited.",
+        "title": "Cleanup settings"
+      },
+      "status": {
+        "cancelled": "Cancelled",
+        "cancelledDescription": "Automatic cleanup has stopped.",
+        "checking": "Reading status.",
+        "cleaning": "Emptying the recycle bin.",
+        "completed": "Completed",
+        "completedDescription": "The latest operation completed.",
+        "failed": "Failed",
+        "failedDescription": "The latest operation failed.",
+        "progressAria": "Current cycle progress",
+        "ready": "Ready",
+        "readyDescription": "Waiting to start a cleanup task.",
+        "running": "Running",
+        "runningDescription": "Waiting for the next cleanup.",
+        "starting": "Automatic cleanup started.",
+        "startingUnlimited": "Unlimited cleanup started until cancelled."
+      },
+      "summary": {
+        "last": "{{count}} cleanups · last at {{time}}",
+        "ready": "Periodically empty the recycle bin",
+        "readyUnlimited": "Periodic recycle-bin cleanup · unlimited mode",
+        "running": "Next cleanup in {{seconds}}s · {{count}} completed",
+        "runningUnlimited": "Unlimited cycles · next cleanup in {{seconds}}s",
+        "settings": "{{drive}} · {{interval}}s · {{cycles}}"
+      },
+      "units": {
+        "secondsShort": "s"
+      }
     },
     "repacku": {
       "name": "Repacku",

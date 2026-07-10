@@ -1,0 +1,31 @@
+{
+  "theme": "wuling",
+  "tabDisplayStyle": "surface",
+  "switchDisplayStyle": "filled",
+  "data": {
+    "action": "start",
+    "interval": 30,
+    "maxCycles": 0,
+    "driveLetter": "C",
+    "phase": "cancelled",
+    "progress": 72,
+    "progressText": "Auto-clean cancelled after 12 clean(s).",
+    "remainingSeconds": 9,
+    "cleanCount": 12,
+    "lastCleanTime": "15:42:18",
+    "logs": [
+      "Start auto-clean, interval 30s, unlimited cycles until cancelled.",
+      "Recycle bin emptied for drive C:.",
+      "cleaned 10 time(s), unlimited mode, next clean in 12s",
+      "Recycle bin is already empty for drive C:.",
+      "cleaned 12 time(s), unlimited mode, next clean in 9s",
+      "Auto-clean cancelled after 12 clean(s)."
+    ],
+    "result": {
+      "timerStatus": "cancelled",
+      "cleanCount": 12,
+      "lastCleanTime": "15:42:18",
+      "remainingSeconds": 9
+    }
+  }
+}

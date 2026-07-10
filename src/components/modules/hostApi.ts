@@ -16,8 +16,9 @@ import {
   saveNodeConfigToBackend,
   saveNodeUiConfigToBackend,
 } from "@/backend/configRpcClient"
-import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
+import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { useTheme } from "@/components/use-theme"
+import { useNodeOperations } from "@/store/nodeOperations"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceStore"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
@@ -110,6 +111,14 @@ export function useNodeHostApi(
           workspaceId,
         })
       },
+      cancelCurrent: async () => {
+        const activeOperation = useNodeOperations.getState().operations.find(
+          (operation) => operation.componentId === compId && (operation.phase === "queued" || operation.phase === "running"),
+        )
+        if (!activeOperation) return false
+        await cancelNodeOperationOnLocalBackend(activeOperation.operationId)
+        return true
+      },
     }
 
     const clipboardCapability = {
@@ -187,7 +196,7 @@ export function useNodeHostApi(
       listComponents: () => workspaceCapability.listComponents(),
       updateComponent: (id: string, patch: Partial<HostComponentRef>) =>
         workspaceCapability.updateComponent(id, patch),
-      actions: { run: runnerCapability.run },
+      actions: { run: runnerCapability.run, cancelCurrent: runnerCapability.cancelCurrent },
       downloadText: (filename: string, content: string) => downloadsCapability.text(filename, content),
       getNodeConfig: async <T,>() => configCapability.get<T>(),
       saveNodeConfig: async <T,>(config: T) => configCapability.save<T>(config),

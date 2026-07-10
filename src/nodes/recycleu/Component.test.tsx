@@ -85,7 +85,7 @@ describe("app-owned recycleu Component", () => {
     const user = userEvent.setup()
 
     expect(screen.getByText("Recycleu")).toBeTruthy()
-    expect(screen.getByText(/C: · 10s · 2 次/)).toBeTruthy()
+    expect(screen.getByText(/C: · 10 秒 · 2 次/)).toBeTruthy()
     expect(screen.queryByLabelText("清理间隔秒数")).toBeNull()
 
     await user.click(screen.getByRole("button", { name: "操作和参数" }))
@@ -138,6 +138,23 @@ describe("app-owned recycleu Component", () => {
     await waitFor(() => expect(host.state.phase).toBe("completed"))
     expect(host.state.cleanCount).toBe(1)
     expect(host.state.logs).toContain("Recycle bin emptied for drive C:.")
+  })
+
+  test("keeps zero cycles visible and submits unlimited mode unchanged", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost({ interval: 10, maxCycles: 0, driveLetter: "C" })
+    render(<Component compId="comp-recycleu" host={host} />)
+    const user = userEvent.setup()
+
+    expect((screen.getByLabelText("最大循环次数") as HTMLInputElement).value).toBe("0")
+    expect(screen.getAllByText("无限").length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole("button", { name: "启动" }))
+    expect(screen.getAllByText(/无限循环/).length).toBeGreaterThan(0)
+    await user.click(screen.getByRole("button", { name: "确认启动" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.maxCycles).toBe(0)
   })
 
   test("updates countdown and logs while an auto-clean run is pending", async () => {
