@@ -273,11 +273,12 @@ function CompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-        <InlineExecutionGate compact props={props} />
+        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -297,11 +298,12 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
-        <InlineExecutionGate compact props={props} />
+        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -349,6 +351,10 @@ function PresetRulePanel(props: ViewProps) {
         <SectionTitle icon={ListChecks} title={tNode("cleanf", "labels.presets", "清理预设")} />
         <PresetPicker disabled={props.running} selected={props.selectedPresets} onToggle={props.onTogglePreset} />
       </div>
+      <div className="grid gap-2">
+        <SectionTitle icon={ShieldAlert} title={tNode("cleanf", "labels.switches", "关键开关")} />
+        <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      </div>
     </section>
   )
 }
@@ -369,13 +375,12 @@ function ExecutionGatePanel(props: ViewProps) {
     <section className={cn(
       "col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
       !props.previewMode && !props.running && "border-destructive/50 bg-destructive/[0.03]",
-    )} data-testid="cleanf-execution-gate">
+    )}>
       <SectionTitle
         icon={Gauge}
         title={tNode("cleanf", "labels.gate", "执行闸门")}
         hint={props.previewMode ? tNode("cleanf", "gate.previewHint", "预演模式：仅扫描不删除。") : tNode("cleanf", "gate.liveHint", "真实模式：将永久删除扫描到的文件。")}
       />
-      <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5">
           <span className="text-xs text-muted-foreground">{tNode("cleanf", "gate.progress", "进度")}</span>
@@ -436,26 +441,6 @@ function SectionTitle(props: {
       <span className="shrink-0 text-sm font-semibold">{props.title}</span>
       {props.hint && <span className="ml-auto hidden min-w-0 truncate text-[11px] text-muted-foreground @3xl/cleanf:block">{props.hint}</span>}
     </div>
-  )
-}
-
-function InlineExecutionGate({ compact, props }: { compact?: boolean; props: ViewProps }) {
-  return (
-    <section
-      data-testid="cleanf-execution-gate"
-      className={cn("flex min-w-0 items-center gap-2 rounded-lg border bg-card p-2", compact && "gap-1.5 p-1.5")}
-    >
-      <PrimarySwitches
-        compact
-        className="min-w-0 flex-1"
-        data={props.data}
-        disabled={props.running}
-        onPatch={props.onPatch}
-      />
-      <div className="shrink-0">
-        <PrimaryActionButton props={props} />
-      </div>
-    </section>
   )
 }
 

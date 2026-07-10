@@ -3,53 +3,53 @@ import type { LucideIcon } from "lucide-react"
 import type { CleanfPresetId } from "@xiranite/node-cleanf/core"
 
 export interface CleanfPresetMeta {
+  descriptionKey: string
   id: CleanfPresetId
-  label: string
-  description: string
   icon: LucideIcon
+  labelKey: string
 }
 
 export const PRESET_METAS: CleanfPresetMeta[] = [
   {
     id: "empty_folders",
-    label: "空文件夹",
-    description: "递归删除所有空文件夹。",
+    labelKey: "presets.emptyFolders.label",
+    descriptionKey: "presets.emptyFolders.description",
     icon: FolderTree,
   },
   {
     id: "backup_files",
-    label: "备份文件",
-    description: "删除 .bak 备份文件。",
+    labelKey: "presets.backupFiles.label",
+    descriptionKey: "presets.backupFiles.description",
     icon: Archive,
   },
   {
     id: "temp_folders",
-    label: "临时文件夹",
-    description: "删除 temp_ 开头的文件夹。",
+    labelKey: "presets.tempFolders.label",
+    descriptionKey: "presets.tempFolders.description",
     icon: Trash2,
   },
   {
     id: "trash_files",
-    label: "垃圾文件",
-    description: "删除 .trash 文件和文件夹。",
+    labelKey: "presets.trashFiles.label",
+    descriptionKey: "presets.trashFiles.description",
     icon: Trash2,
   },
   {
     id: "hb_txt_files",
-    label: "[#hb] 文本",
-    description: "删除 [#hb] 开头的 txt 文件。",
+    labelKey: "presets.hbTxtFiles.label",
+    descriptionKey: "presets.hbTxtFiles.description",
     icon: FileText,
   },
   {
     id: "log_files",
-    label: "日志文件",
-    description: "删除 .log 和轮转日志文件。",
+    labelKey: "presets.logFiles.label",
+    descriptionKey: "presets.logFiles.description",
     icon: FileText,
   },
   {
     id: "upscale",
-    label: "Upscale 缓存",
-    description: "删除 .upbak 文件。",
+    labelKey: "presets.upscale.label",
+    descriptionKey: "presets.upscale.description",
     icon: Sparkles,
   },
 ]

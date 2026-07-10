@@ -68,7 +68,9 @@ describe("app-owned cleanf Component", () => {
         expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
         expect(screen.getByTestId("cleanf-full-view")).toBeTruthy()
         expect(screen.getByText("清理预设")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
+        expect(screen.getByText("执行闸门")).toBeTruthy()
+        expect(screen.getByTestId("cleanf-execution-gate")).toBeTruthy()
+        expect(screen.getByRole("switch", { name: "预演模式" })).toBeTruthy()
         expect(screen.getByTestId("cleanf-header-toolbar")).toBeTruthy()
       }
     },
