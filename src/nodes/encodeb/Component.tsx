@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
@@ -21,6 +21,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, PRESETS, STRATEGIES } from "./constants"
 import type { EncodebCardState, EncodebPhase, EncodebPreset, EncodebStatusMeta, EncodebStrategy } from "./types"
@@ -54,14 +56,20 @@ export function Component({ compId, host }: NodeComponentProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
-    host.getNodeConfig?.<Partial<EncodebCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+  const reloadDefaults = useCallback(async () => {
+    try {
+      const response = await host.getNodeConfig?.<Partial<EncodebCardState>>()
+      if (!response) return
+      setDefaults(response.config)
+      setConfigFilePath(response.path)
+    } catch {
+      // Configuration management is optional for lightweight hosts.
+    }
   }, [host])
+
+  useEffect(() => {
+    void reloadDefaults()
+  }, [reloadDefaults])
 
   useEffect(() => {
     if (!defaults) return
@@ -208,6 +216,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPresetChange: selectPreset,
     onReset: reset,
     onResetOverride: resetOverride,
+    onReloadDefaults: reloadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
     onStrategyChange: (next) => patch({ strategy: next }),
@@ -267,6 +276,7 @@ function createViewProps(props: {
   onPresetChange: (preset: EncodebPreset) => void
   onReset: () => void
   onResetOverride: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onStrategyChange: (strategy: EncodebStrategy) => void
@@ -330,7 +340,7 @@ function FullView(props: ViewProps) {
       </div>
       <CommandDeck props={props} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @6xl/encodeb:grid-cols-[minmax(260px,0.9fr)_minmax(320px,1fr)_minmax(320px,1.15fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @6xl/encodeb:grid-cols-[minmax(220px,0.72fr)_minmax(360px,1.45fr)_minmax(250px,0.82fr)]">
         <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
           <section className="flex h-full min-h-0 flex-col gap-3 p-3">
             <PanelTitle icon={Clipboard} title="输入路径" subtitle="添加需要检查或修复的文件和目录" />
@@ -375,7 +385,7 @@ function HeaderBar({ compact, props }: { compact?: boolean; props: ViewProps }) 
           <p className="mt-1 truncate text-xs text-muted-foreground">{props.data.progressText || summaryText(props)}</p>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="hidden">
         <ToolButton disabled={!props.logs.length && !props.mappings.length && !props.matches.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       </div>
     </div>
@@ -641,6 +651,17 @@ function DefaultsTools({ props }: { props: ViewProps }) {
         <ToolButton disabled={props.running} icon={Eraser} label="清除覆盖" onClick={props.onResetOverride} />
         <ToolButton disabled={!props.onOpenConfigFile} icon={FileText} label="打开配置" onClick={() => void props.onOpenConfigFile?.()} />
       </div>
+      <NodeConfigPopover
+        configPath={props.configFilePath}
+        defaults={props.defaults}
+        dirty={props.configDirty}
+        disabled={props.running}
+        t={(key, fallback, vars) => tNode("encodeb", key, fallback, vars)}
+        onOpenFile={props.onOpenConfigFile}
+        onReload={props.onReloadDefaults}
+        onRestore={props.onRestoreDefault}
+        onSave={props.onSaveDefault}
+      />
     </div>
   )
 }
