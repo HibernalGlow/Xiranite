@@ -173,7 +173,7 @@ describe("app-owned findz Component", () => {
     expect(screen.getByRole("tab", { name: "帮助" })).toBeTruthy()
   })
 
-  test("saves, restores, and clears default config controls", async () => {
+  test("saves and restores shared configuration", async () => {
     setSurface("regular")
     const host = createHost(
       { pathText: "D:/current", where: "ext = \"jpg\"" },
@@ -182,20 +182,16 @@ describe("app-owned findz Component", () => {
     render(<Component compId="comp-findz" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "findz 默认配置" }).className).toContain("bg-secondary"))
-    await user.click(screen.getByRole("button", { name: "findz 默认配置" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.cardState.pathText).toBe("D:/default")
     expect(host.cardState.where).toBe("1")
 
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.cardState.pathText).toBeUndefined()
-    expect(host.cardState.where).toBeUndefined()
-
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toBeDefined()
 
-    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 
