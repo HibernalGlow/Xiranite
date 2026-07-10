@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
 import { filterLines, splitLines } from "@xiranite/node-linedup/core"
@@ -12,13 +12,23 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { LinedupDisplayTabs, StatsPanel } from "./ResultPanels"
 import type { LinedupCardState, LinedupPhase, LinedupStatusMeta } from "./types"
 
+const CONFIG_FIELDS = ["caseSensitive", "sort"] as const satisfies ReadonlyArray<keyof LinedupCardState>
+
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("linedup")
   const data = host.getData<LinedupCardState>(compId) ?? {}
+  const dataRef = useRef<LinedupCardState>(data)
+  dataRef.current = data
+  const [defaults, setDefaults] = useState<Partial<LinedupCardState> | undefined>()
+  const [configPath, setConfigPath] = useState<string | undefined>()
+  const [configLoading, setConfigLoading] = useState(false)
   const sourceText = data.sourceText ?? ""
   const filterText = data.filterText ?? ""
   const logs = data.logs ?? []
@@ -33,9 +43,53 @@ export function Component({ compId, host }: NodeComponentProps) {
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
+  const configDirty = defaults !== undefined && CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? ""))
+
+  useEffect(() => {
+    void loadDefaults()
+  }, [host])
 
   function patch(patchData: Partial<LinedupCardState>) {
+    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
+  }
+
+  function pickConfig(source: LinedupCardState): Partial<LinedupCardState> {
+    return Object.fromEntries(CONFIG_FIELDS.flatMap((field) => source[field] === undefined ? [] : [[field, source[field]]])) as Partial<LinedupCardState>
+  }
+
+  async function loadDefaults() {
+    const pending = host.config?.get?.<Partial<LinedupCardState>>() ?? host.getNodeConfig?.<Partial<LinedupCardState>>()
+    if (!pending) return
+    setConfigLoading(true)
+    try {
+      const response = await pending
+      setDefaults(response.config)
+      setConfigPath(response.path)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function saveAsDefault() {
+    const save = host.config?.save ?? host.saveNodeConfig
+    if (!save) return
+    setConfigLoading(true)
+    try {
+      const config = pickConfig(dataRef.current)
+      await save(config)
+      setDefaults(config)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  function restoreDefaults() {
+    if (defaults) patch(defaults)
+  }
+
+  async function openConfigFile() {
+    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function paste(field: "sourceText" | "filterText") {
@@ -69,6 +123,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   const commonProps = {
+    configDirty,
+    configLoading,
+    configPath,
     caseSensitive,
     filterCount: filterTokens.length,
     filterText,
@@ -80,9 +137,15 @@ export function Component({ compId, host }: NodeComponentProps) {
     sourceCount: sourceLines.length,
     sourceText,
     status,
+    t,
+    defaults: defaults as Record<string, unknown> | undefined,
     onCopyKept: () => copyLines(result?.filteredLines ?? []),
     onCopyRemoved: () => copyLines(result?.removedLines ?? []),
     onDownload: download,
+    onLoadDefaults: loadDefaults,
+    onOpenConfigFile: openConfigFile,
+    onRestoreDefaults: restoreDefaults,
+    onSaveDefault: saveAsDefault,
     onExecute: execute,
     onPasteFilter: () => paste("filterText"),
     onPasteSource: () => paste("sourceText"),
@@ -109,7 +172,11 @@ export function Component({ compId, host }: NodeComponentProps) {
 }
 
 type ViewProps = {
+  configDirty: boolean
+  configLoading: boolean
+  configPath?: string
   caseSensitive: boolean
+  defaults?: Record<string, unknown>
   filterCount: number
   filterText: string
   logs: string[]
@@ -120,14 +187,23 @@ type ViewProps = {
   sourceCount: number
   sourceText: string
   status: LinedupStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onCopyKept: () => void
   onCopyRemoved: () => void
   onDownload: () => void
+  onLoadDefaults: () => Promise<void>
+  onOpenConfigFile: () => Promise<void>
+  onRestoreDefaults: () => void
+  onSaveDefault: () => Promise<void>
   onExecute: () => void
   onPasteFilter: () => void
   onPasteSource: () => void
   onPatch: (patch: Partial<LinedupCardState>) => void
   onReset: () => void
+}
+
+function ConfigManagement(props: ViewProps) {
+  return <NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} loading={props.configLoading} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onLoadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefault} />
 }
 
 function CollapsedView(props: ViewProps) {
@@ -144,7 +220,7 @@ function CollapsedView(props: ViewProps) {
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} />
+      <div className="relative flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} /></div>
     </div>
   )
 }
@@ -155,6 +231,7 @@ function CompactView(props: ViewProps) {
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
+          <ConfigManagement {...props} />
           <OptionsPopover {...props} />
           <ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} />
         </div>
@@ -184,6 +261,7 @@ function PortraitCompactView(props: ViewProps) {
       <div className="flex shrink-0 items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
+          <ConfigManagement {...props} />
           <OptionsPopover {...props} />
           <ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} />
         </div>
@@ -218,6 +296,7 @@ function FullView(props: ViewProps) {
             </Button>
             <ActionIconButton disabled={!props.result} icon={Copy} label="复制保留结果" onClick={props.onCopyKept} />
             <ActionIconButton disabled={!props.result} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ConfigManagement {...props} />
             <OptionsPopover {...props} />
           </div>
         </div>

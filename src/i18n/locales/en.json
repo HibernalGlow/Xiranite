@@ -2364,7 +2364,20 @@
       "kept": "Kept",
       "removed": "Removed",
       "save": "Save",
-      "runToPreview": "Run filter to preview removed lines."
+      "runToPreview": "Run filter to preview removed lines.",
+      "config": {
+        "trigger": "Configuration management",
+        "title": "Configuration management",
+        "description": "Save reusable defaults or restore this node's saved configuration.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No configuration file is connected",
+        "openFile": "Open configuration file",
+        "dirty": "Current parameters differ from the saved defaults."
+      }
     },
     "linku": {
       "name": "Linku",
@@ -2979,6 +2992,19 @@
         "organize": "Organize queue",
         "organizeShort": "Organize",
         "confirm": "Confirm organize"
+      },
+      "config": {
+        "trigger": "Configuration management",
+        "title": "Configuration management",
+        "description": "Save reusable defaults or restore this node's saved configuration.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No configuration file is connected",
+        "openFile": "Open configuration file",
+        "dirty": "Current parameters differ from the saved defaults."
       },
       "aria": {
         "paths": "transq translation workspaces",

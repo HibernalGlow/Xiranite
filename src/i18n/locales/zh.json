@@ -2364,7 +2364,20 @@
       "kept": "保留",
       "removed": "移除",
       "save": "保存",
-      "runToPreview": "运行筛选以预览被移除的行。"
+      "runToPreview": "运行筛选以预览被移除的行。",
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。"
+      }
     },
     "linku": {
       "name": "Linku",
@@ -2979,6 +2992,19 @@
         "organize": "整理队列",
         "organizeShort": "整理",
         "confirm": "确认整理"
+      },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。"
       },
       "aria": {
         "paths": "transq 翻译工作区",

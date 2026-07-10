@@ -1,4 +1,5 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { TransqData, TransqInput } from "@xiranite/node-transq/core"
 import { Eye, FileOutput, Languages, Play, RotateCcw, ShieldAlert, Square } from "lucide-react"
@@ -11,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { NODE_META } from "./constants"
@@ -24,6 +26,9 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
   const dataRef = useRef<TransqCardState>(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<TransqCardState> | undefined>()
+  const [configPath, setConfigPath] = useState<string | undefined>()
+  const [configLoading, setConfigLoading] = useState(false)
 
   const result = data.result ?? null
   const logs = data.logs ?? []
@@ -33,6 +38,11 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
+  const configDirty = defaults !== undefined && CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? ""))
+
+  useEffect(() => {
+    void loadDefaults()
+  }, [host])
 
   function patch(patchData: Partial<TransqCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -60,6 +70,44 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
 
   function reset() {
     patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null })
+  }
+
+  function pickConfig(source: TransqCardState): Partial<TransqCardState> {
+    return Object.fromEntries(CONFIG_FIELDS.flatMap((field) => source[field] === undefined ? [] : [[field, source[field]]])) as Partial<TransqCardState>
+  }
+
+  async function loadDefaults() {
+    const pending = host.config?.get?.<Partial<TransqCardState>>() ?? host.getNodeConfig?.<Partial<TransqCardState>>()
+    if (!pending) return
+    setConfigLoading(true)
+    try {
+      const response = await pending
+      setDefaults(response.config)
+      setConfigPath(response.path)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function saveAsDefault() {
+    const save = host.config?.save ?? host.saveNodeConfig
+    if (!save) return
+    setConfigLoading(true)
+    try {
+      const config = pickConfig(dataRef.current)
+      await save(config)
+      setDefaults(config)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  function restoreDefaults() {
+    if (defaults) patch(defaults)
+  }
+
+  async function openConfigFile() {
+    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function execute() {
@@ -109,6 +157,9 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
   }
 
   const viewProps = {
+    configDirty,
+    configLoading,
+    configPath,
     data,
     logs,
     preview,
@@ -117,7 +168,12 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
     running,
     status,
     t,
+    defaults: defaults as Record<string, unknown> | undefined,
     onCopyLogs: copyLogs,
+    onLoadDefaults: loadDefaults,
+    onOpenConfigFile: openConfigFile,
+    onRestoreDefaults: restoreDefaults,
+    onSaveDefault: saveAsDefault,
     onCopyResults: copyResults,
     onExecute: execute,
     onPastePaths: pastePaths,
@@ -143,7 +199,11 @@ export function Component({ compId, host }: NodeComponentProps<TransqCardState>)
 type ViewProps = ReturnType<typeof createViewProps>
 
 function createViewProps(props: {
+  configDirty: boolean
+  configLoading: boolean
+  configPath?: string
   data: TransqCardState
+  defaults?: Record<string, unknown>
   logs: string[]
   preview: boolean
   progress: number
@@ -152,6 +212,10 @@ function createViewProps(props: {
   status: TransqStatusMeta
   t: ReturnType<typeof useNodeI18n>["t"]
   onCopyLogs: () => void
+  onLoadDefaults: () => Promise<void>
+  onOpenConfigFile: () => Promise<void>
+  onRestoreDefaults: () => void
+  onSaveDefault: () => Promise<void>
   onCopyResults: () => void
   onExecute: () => void
   onPastePaths: () => void
@@ -159,6 +223,10 @@ function createViewProps(props: {
   onReset: () => void
 }) {
   return props
+}
+
+function ConfigManagement(props: ViewProps) {
+  return <NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} loading={props.configLoading} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onLoadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefault} />
 }
 
 function CollapsedView(props: ViewProps) {
@@ -170,7 +238,7 @@ function CollapsedView(props: ViewProps) {
         <div className="flex items-center gap-1 text-xs font-semibold"><span>{props.t("name", "TransQ")}</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <RunActionButton compact props={props} />
+      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><RunActionButton compact props={props} /></div>
     </div>
   )
 }
@@ -178,7 +246,7 @@ function CollapsedView(props: ViewProps) {
 function CompactView(props: ViewProps) {
   return (
     <div data-testid="transq-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
-      <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
+      <HeaderLine action={<ConfigManagement {...props} />} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       <PathsInput compact data={props.data} disabled={props.running} t={props.t} onClear={() => props.onPatch({ pathsText: "" })} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <ExecutionGate compact props={props} />
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />}
@@ -190,7 +258,7 @@ function CompactView(props: ViewProps) {
 function PortraitCompactView(props: ViewProps) {
   return (
     <div data-testid="transq-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
+      <HeaderLine action={<ConfigManagement {...props} />} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       <PathsInput compact data={props.data} disabled={props.running} t={props.t} onClear={() => props.onPatch({ pathsText: "" })} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <ExecutionGate compact props={props} />
       <div className="min-h-0 flex-1 overflow-auto">{props.result ? <QueueBoard compact items={props.result.items} t={props.t} /> : <QueueEmptyState t={props.t} />}</div>
@@ -202,7 +270,7 @@ function FullView(props: ViewProps) {
   return (
     <div data-testid="transq-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-2 @4xl/transq:flex-row @4xl/transq:items-center @4xl/transq:justify-between">
-        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
+        <HeaderLine action={<ConfigManagement {...props} />} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
         <div data-testid="transq-header-toolbar" className="flex items-center gap-1">
           <ActionIconButton disabled={props.running || !props.result} icon={FileOutput} label={props.t("actions.copyQueue", "Copy queue")} onClick={props.onCopyResults} />
           <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.t("actions.clearState", "Clear state")} onClick={props.onReset} />
@@ -280,9 +348,9 @@ function RunActionButton({ compact, props, wide }: { compact?: boolean; props: V
   return <Button aria-label={label} className={cn(wide && "w-full")} disabled={!props.data.pathsText?.trim()} size={compact ? "xs" : "sm"} onClick={props.onExecute}><Play /><span>{compact ? compactLabel : label}</span></Button>
 }
 
-function HeaderLine({ status, subtitle, t }: { status: TransqStatusMeta; subtitle: string; t: ViewProps["t"] }) {
+function HeaderLine({ action, status, subtitle, t }: { action?: ReactNode; status: TransqStatusMeta; subtitle: string; t: ViewProps["t"] }) {
   const Icon = NODE_META.icon
-  return <div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold">{t("name", "TransQ")}</h3><Badge variant={status.badgeVariant}>{status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p></div></div>
+  return <div className="flex min-w-0 flex-1 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold">{t("name", "TransQ")}</h3><Badge variant={status.badgeVariant}>{status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p></div></div>{action && <div className="shrink-0">{action}</div>}</div>
 }
 
 function RuleSummary({ t }: { t: ViewProps["t"] }) {
