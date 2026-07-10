@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { mkdir, readFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "playwright"
@@ -51,13 +52,13 @@ async function main() {
       const screenshotPath = options.output ?? defaultScreenshotPath(options)
       await mkdir(path.dirname(screenshotPath), { recursive: true })
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
-      const usePng = path.extname(screenshotPath).toLowerCase() === ".png"
-      await page.screenshot({
-        path: screenshotPath,
-        fullPage: false,
-        type: usePng ? "png" : "jpeg",
-        quality: usePng ? undefined : options.quality,
-      })
+      const referencePath = await resolveReferencePath(options)
+      if (referencePath) {
+        await captureReferenceComparison(page, screenshotPath, referencePath, options)
+        console.log(`reference: ${referencePath}`)
+      } else {
+        await captureScreenshot(page, screenshotPath, options)
+      }
       console.log(`screenshot: ${screenshotPath}`)
     }
 
@@ -82,7 +83,8 @@ async function parseArgs(argv) {
     url: DEFAULT_URL,
     waitBackend: true,
     timeoutMs: 15_000,
-    quality: 82,
+    quality: 78,
+    reference: "auto",
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -168,6 +170,12 @@ async function parseArgs(argv) {
         if (!Number.isInteger(options.quality) || options.quality < 1 || options.quality > 100) {
           throw new Error(`Invalid --quality: ${options.quality}`)
         }
+        break
+      case "--reference":
+        options.reference = value()
+        break
+      case "--no-reference":
+        options.reference = false
         break
       case "--headed":
         options.headed = true
@@ -433,6 +441,86 @@ function defaultScreenshotPath(options) {
   return path.resolve(REPO_ROOT, "artifacts", "qa-card", `${name}.jpg`)
 }
 
+async function resolveReferencePath(options) {
+  if (!options.moduleId || options.reference === false) return undefined
+  const candidate = options.reference === "auto"
+    ? path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)", options.moduleId, "screen.png")
+    : path.resolve(options.reference)
+  try {
+    await access(candidate)
+    return candidate
+  } catch {
+    if (options.reference !== "auto") throw new Error(`Reference image does not exist: ${candidate}`)
+    return undefined
+  }
+}
+
+async function captureScreenshot(page, screenshotPath, options) {
+  const usePng = path.extname(screenshotPath).toLowerCase() === ".png"
+  await page.screenshot({
+    path: screenshotPath,
+    fullPage: false,
+    type: usePng ? "png" : "jpeg",
+    quality: usePng ? undefined : options.quality,
+  })
+}
+
+async function captureReferenceComparison(page, screenshotPath, referencePath, options) {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "xiranite-qa-"))
+  const currentPath = path.join(temporaryDirectory, "current.png")
+  try {
+    await page.screenshot({ path: currentPath, fullPage: false, type: "png" })
+    const [referenceImage, currentImage] = await Promise.all([readFile(referencePath), readFile(currentPath)])
+    const comparisonContext = await page.context().browser().newContext({ viewport: { width: 1600, height: 920 }, deviceScaleFactor: 1 })
+    const comparison = await comparisonContext.newPage()
+    try {
+      await comparison.setContent(referenceComparisonDocument(
+        imageDataUrl(referencePath, referenceImage),
+        imageDataUrl(currentPath, currentImage),
+        options.moduleId,
+      ))
+      await comparison.locator("img").last().waitFor({ state: "visible" })
+      await comparison.waitForTimeout(100)
+      await captureScreenshot(comparison, screenshotPath, options)
+    } finally {
+      await comparisonContext.close()
+    }
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true })
+  }
+}
+
+function referenceComparisonDocument(referenceUrl, currentUrl, moduleId) {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #101416; color: #edf3f0; font-family: ui-sans-serif, system-ui, sans-serif; }
+  header { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid #30403b; background: #16201d; }
+  h1 { margin: 0; font-size: 16px; letter-spacing: .04em; }
+  p { margin: 0; color: #9aaba5; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; height: calc(100vh - 56px); padding: 12px; }
+  figure { min-width: 0; min-height: 0; margin: 0; display: grid; grid-template-rows: 30px minmax(0, 1fr); border: 1px solid #30403b; background: #0b0f0e; overflow: hidden; }
+  figcaption { display: flex; align-items: center; padding: 0 12px; background: #17201d; color: #b8c9c2; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  img { width: 100%; height: 100%; object-fit: contain; object-position: top center; background: #080a09; }
+</style></head><body>
+  <header><h1>${escapeHtml(moduleId)} visual fidelity review</h1><p>reference ↔ current node UI</p></header>
+  <main>
+    <figure><figcaption>Reference design</figcaption><img src="${referenceUrl}" alt="Reference design" /></figure>
+    <figure><figcaption>Current implementation</figcaption><img src="${currentUrl}" alt="Current implementation" /></figure>
+  </main>
+</body></html>`
+}
+
+function imageDataUrl(imagePath, content) {
+  const extension = path.extname(imagePath).toLowerCase()
+  const mediaType = extension === ".png" ? "image/png" : "image/jpeg"
+  return `data:${mediaType};base64,${content.toString("base64")}`
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character])
+}
+
 function parseViewMode(value) {
   if (!VIEW_MODES.has(value)) throw new Error(`Invalid view mode: ${value}`)
   return value
@@ -518,6 +606,7 @@ Usage:
 Examples:
   bun scripts/qa-card.ts repacku bento expanded --fresh --screenshot
   bun scripts/qa-card.ts recycleu matrix --screenshot
+  bun scripts/qa-card.ts kavvka cards workspace --fresh --screenshot --output output/playwright/kavvka-review.jpg
   bun scripts/qa-card.ts enginev flow workspace --flow-pos 80,80 --viewport 1280x860 --screenshot
   bun scripts/qa-card.ts classq cards workspace --help-tab workflows --screenshot
   bun scripts/qa-card.ts recycleu cards compact --layout grid --viewport 420x360 --headed
@@ -539,11 +628,13 @@ Options:
   --expanded             Expand the component
   --focus                Focus the card in cards view
   --fullscreen           Open the card fullscreen in cards view
-  --screenshot           Save a screenshot under artifacts/qa-card
+  --screenshot           Save a screenshot under artifacts/qa-card; when a reference exists, save a labelled side-by-side comparison
+  --reference PATH|auto  Reference image for comparison. Default: auto-resolve ref/stitch_wuling_city_40nodes_design (1)/<module>/screen.png
+  --no-reference         Capture only the current UI, without a comparison panel
   --open-help            Open the staged node's shared help sheet before capture
   --help-tab NAME        Open overview | workflows | cli | details before capture
   --output PATH          Screenshot path
-  --quality 1-100        JPEG quality. Default: 82; ignored for explicit .png output
+  --quality 1-100        JPEG quality. Default: 78; ignored for explicit .png output
   --headed               Show the browser
   --keep-open            Keep the QA browser open
   --full                 Print the full stage result instead of only selected component

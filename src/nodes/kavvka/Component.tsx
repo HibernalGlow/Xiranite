@@ -510,10 +510,11 @@ function LegacyFullView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   if ((props.data.action as string | undefined) === "legacy") return <LegacyFullView {...props} />
-  return <KavvkaWorkbench {...props} />
+  if ((props.data.action as string | undefined) === "legacy-workbench") return <LegacyKavvkaWorkbench {...props} />
+  return <KavvkaReferenceWorkbench {...props} />
 }
 
-function KavvkaWorkbench(props: ViewProps) {
+function LegacyKavvkaWorkbench(props: ViewProps) {
   const resultPaths = props.result?.allCombinedPaths.length ? props.result.allCombinedPaths : props.result?.matchedPaths ?? []
   return (
     <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col p-3 @4xl/kavvka:p-4">
@@ -539,6 +540,39 @@ function KavvkaWorkbench(props: ViewProps) {
   )
 }
 
+function KavvkaReferenceWorkbench(props: ViewProps) {
+  const resultPaths = props.result?.allCombinedPaths.length ? props.result.allCombinedPaths : props.result?.matchedPaths ?? []
+  const scanReady = props.scanRoots.length > 0
+  return (
+    <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3 @4xl/kavvka:p-4">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 pb-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "重复路径检测与归档处理")} />
+        <div data-testid="kavvka-header-toolbar"><ToolbarActions {...props} showPrimary={false} /></div>
+      </div>
+      <section className="grid shrink-0 gap-2 @4xl/kavvka:grid-cols-4">
+        <ReferenceMetric label={props.tNode("metrics.recovery", "待处理路径")} value={resultPaths.length || props.sourcePaths.length} detail={props.tNode("metrics.recoveryDetail", "来自当前扫描和处理计划")} />
+        <ReferenceMetric label={props.tNode("metrics.groups", "冲突组")} value={Math.ceil(resultPaths.length / 2)} detail={props.tNode("metrics.groupsDetail", "按真实结果分组显示")} />
+        <ReferenceMetric label={props.tNode("metrics.root", "扫描根目录")} value={props.scanRoots.length} detail={scanReady ? props.scanRoots[0] : props.tNode("metrics.rootEmpty", "尚未设定扫描目录")} />
+        <div className="flex min-h-24 items-center"><PrimaryActionButton props={props} /></div>
+      </section>
+      <section className="grid shrink-0 gap-2 border-y border-border/70 py-2 @5xl/kavvka:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <PathTextPanel ariaLabel="kavvka scan roots" badgeTone="secondary" compact count={props.scanRoots.length} disabled={props.running} inputId="kavvka-scan-roots" label={props.tNode("scanLabel", "扫描根目录")} placeholder="D:/library" value={props.data.scanRootText ?? ""} onChange={(scanRootText) => props.onPatch({ scanRootText })} onClear={() => props.onPatch({ scanRootText: "" })} onPaste={() => props.onPaste("scan")} />
+        <PathTextPanel ariaLabel="kavvka source paths" compact count={props.sourcePaths.length} disabled={props.running} inputId="kavvka-source-paths" label={props.tNode("sourceLabel", "处理路径")} placeholder="D:/library/[artist] bundle/gallery" value={props.data.sourceText ?? ""} onChange={(sourceText) => props.onPatch({ sourceText })} onClear={() => props.onPatch({ sourceText: "" })} onPaste={() => props.onPaste("source")} />
+        <div className="flex items-end"><AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} /></div>
+      </section>
+      <section className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 items-center justify-between gap-3"><div><h4 className="text-base font-semibold">{props.tNode("workbench.conflicts", "活动冲突")}</h4><p className="text-xs text-muted-foreground">{resultPaths.length ? props.tNode("workbench.realResults", "基于最近一次扫描或处理的真实结果") : props.tNode("workbench.empty", "扫描后将在这里显示路径冲突组")}</p></div><ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} /></div>
+        <PathConflictWorkbench paths={resultPaths} />
+      </section>
+      <div className="h-20 shrink-0 overflow-auto rounded-lg border bg-muted/10 p-2 font-mono text-xs text-muted-foreground">{props.logs.length ? props.logs.map((line, index) => <div key={index} className="truncate">{line}</div>) : <div className="grid h-full place-items-center">暂无日志</div>}</div>
+    </div>
+  )
+}
+
+function ReferenceMetric({ detail, label, value }: { detail: string; label: string; value: number }) {
+  return <div className="min-h-24 rounded-lg border bg-muted/10 p-3"><div className="text-xs font-medium text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div><div className="mt-1 truncate text-xs text-muted-foreground">{detail}</div></div>
+}
+
 function PathConflictWorkbench({ paths }: { paths: string[] }) {
   if (!paths.length) return <div className="grid min-h-0 flex-1 place-items-center rounded-lg border border-dashed bg-muted/10 p-6 text-center text-sm text-muted-foreground">扫描或生成计划后，将按路径组在这里呈现结果。</div>
   const groups = chunk(paths, 3)
@@ -551,7 +585,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return groups
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ToolbarActions(props: ViewProps & { compact?: boolean; showPrimary?: boolean }) {
   const labelForAction = (value: string, fallback: string) => {
     if (value === "scan") return props.tNode("buttons.scan", fallback)
     if (value === "plan") return props.tNode("buttons.plan", fallback)
@@ -569,7 +603,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
           onClick={() => props.onExecute(item.value)}
         />
       ))}
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && props.showPrimary !== false && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
       <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
