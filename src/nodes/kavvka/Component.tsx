@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
@@ -16,7 +17,6 @@ import {
   ActionIconButton,
   ActionMeta,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   KeywordAndDepthFields,
   PathTextPanel,
   PrimarySwitches,
@@ -46,20 +46,22 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dryRun = data.dryRun ?? true
   const action = data.action ?? "process"
   const actionMeta = ActionMeta(action)
-  const phase = phaseFromState(data, running)
   const status = statusFromState(data, running, tNode)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
-    host.getNodeConfig?.<Partial<KavvkaCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
-  }, [host])
+  async function loadDefaults() {
+    try {
+      const response = await host.getNodeConfig?.<Partial<KavvkaCardState>>()
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // The node remains usable in hosts without persistent node config.
+    }
+  }
+
+  useEffect(() => { void loadDefaults() }, [host])
 
   useEffect(() => {
     if (!defaults) return
@@ -185,18 +187,6 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    patch({
-      sourceText: undefined,
-      scanRootText: undefined,
-      keywordText: undefined,
-      scanDepth: undefined,
-      force: undefined,
-      dryRun: undefined,
-      strictArtist: undefined,
-    })
-  }
-
   const commonProps = createViewProps({
     action,
     actionMeta,
@@ -222,7 +212,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPaste: paste,
     onPatch: patch,
     onReset: reset,
-    onResetOverride: resetOverride,
+    onReloadDefaults: loadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   })
@@ -272,7 +262,7 @@ function createViewProps(props: {
   onPaste: (kind: "source" | "scan") => void
   onPatch: (patch: Partial<KavvkaCardState>) => void
   onReset: () => void
-  onResetOverride: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
@@ -540,18 +530,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
       <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
-      {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
-      )}
+      {!props.compact && <NodeConfigPopover configPath={props.configFilePath} defaults={props.defaults as Record<string, unknown> | undefined} dirty={props.configDirty} disabled={props.running} t={props.tNode} onOpenFile={props.onOpenConfigFile} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefault} onSave={props.onSaveDefault} />}
     </div>
   )
 }
@@ -668,11 +647,6 @@ function buildInput(action: KavvkaAction, data: KavvkaCardState): KavvkaInput {
     dryRun: action === "plan" ? true : data.dryRun ?? true,
     strictArtist: data.strictArtist ?? false,
   }
-}
-
-function phaseFromState(data: KavvkaCardState, running: boolean): KavvkaPhase {
-  if (running) return data.phase ?? "processing"
-  return data.phase ?? "idle"
 }
 
 function phaseForAction(action: KavvkaAction): KavvkaPhase {

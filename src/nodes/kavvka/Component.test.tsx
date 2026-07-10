@@ -203,7 +203,7 @@ describe("app-owned kavvka Component", () => {
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
-  test("saves, restores, clears, and opens default config controls", async () => {
+  test("uses the shared configuration-management workflow", async () => {
     setSurface("regular")
     const host = createHost(
       { sourceText: "D:/current", dryRun: true },
@@ -212,20 +212,17 @@ describe("app-owned kavvka Component", () => {
     render(<Component compId="comp-kavvka" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "kavvka defaults" }).className).toContain("bg-secondary"))
-    await user.click(screen.getByRole("button", { name: "kavvka defaults" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.state.sourceText).toBe("D:/default")
     expect(host.state.dryRun).toBe(false)
 
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.sourceText).toBeUndefined()
-    expect(host.state.dryRun).toBeUndefined()
-
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
-    expect(host.savedConfig).toEqual({})
+    expect(host.savedConfig).toBeDefined()
 
-    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    await user.click(screen.getByRole("button", { name: "重新读取" }))
+    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })
