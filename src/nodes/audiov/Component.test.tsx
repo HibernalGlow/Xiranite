@@ -53,17 +53,18 @@ describe("native AudioV component", () => {
     expect(screen.queryByLabelText("audiov Python 可执行文件")).toBeNull()
   })
 
-  test("sends a native fixed-profile plan without Python or arbitrary arguments", async () => {
+  test("runs the visible fixed-profile preview without Python or arbitrary arguments", async () => {
     setSurface("regular")
-    const host = createHost({ action: "plan", pathsText: "D:/Video/clip.mp4", dryRun: true, logs: [] })
+    const host = createHost({ pathsText: "D:/Video/clip.mp4", dryRun: true, logs: [] })
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(within(screen.getByTestId("audiov-execution-controls")).getByRole("button", { name: "生成计划" }))
+    expect(screen.queryByLabelText("audiov action")).toBeNull()
+    await user.click(within(screen.getByTestId("audiov-execution-controls")).getByRole("button", { name: "预览提取" }))
 
     await waitFor(() => expect(host.runCalls).toEqual([{
       nodeId: "audiov",
-      input: { action: "plan", paths: ["D:/Video/clip.mp4"], dryRun: true },
+      input: { action: "run", paths: ["D:/Video/clip.mp4"], dryRun: true },
     }]))
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.command?.command).toBe("ffmpeg")

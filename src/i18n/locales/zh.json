@@ -2775,7 +2775,9 @@
         "cancel": "取消",
         "confirmExtract": "确认提取",
         "previewExtract": "预览提取",
-        "liveExtract": "立即提取"
+        "liveExtract": "立即提取",
+        "preview": "预演",
+        "extract": "提取"
       },
       "confirm": {
         "title": "确认提取音轨？",

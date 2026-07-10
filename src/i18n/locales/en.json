@@ -2775,7 +2775,9 @@
         "cancel": "Cancel",
         "confirmExtract": "Confirm extraction",
         "previewExtract": "Preview extraction",
-        "liveExtract": "Extract now"
+        "liveExtract": "Extract now",
+        "preview": "Preview",
+        "extract": "Extract"
       },
       "confirm": {
         "title": "Extract audio?",

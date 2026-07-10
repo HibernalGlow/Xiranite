@@ -17,7 +17,6 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
@@ -39,7 +38,9 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
-  const action = data.action ?? "status"
+  // AudioV deliberately exposes one fixed operation. Preview versus writing is
+  // a mode of that operation, not a second action the user must discover.
+  const action: AudiovAction = "run"
   const actionMeta = getActionMeta(action, t)
   const result = data.result ?? null
   const logs = data.logs ?? []
@@ -119,7 +120,7 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
     patch(empty)
   }
 
-  async function execute(nextAction: AudiovAction = action) {
+  async function execute(nextAction: AudiovAction = "run") {
     if (running) return
     const current = dataRef.current
 
@@ -179,7 +180,6 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
     running,
     status,
     t,
-    onActionChange: (value: AudiovAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -225,7 +225,6 @@ function createViewProps(props: {
   running: boolean
   status: AudiovStatusMeta
   t: ReturnType<typeof useNodeI18n>["t"]
-  onActionChange: (value: AudiovAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: AudiovAction) => void
@@ -272,7 +271,6 @@ function CompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionPicker action={props.action} disabled={props.running} t={props.t} onActionChange={props.onActionChange} />
         <ExecutionControls compact props={props} />
         <PathsInput compact data={props.data} disabled={props.running} t={props.t} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -294,7 +292,6 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       </div>
       <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} t={props.t} onActionChange={props.onActionChange} />
         <ExecutionControls compact props={props} />
         <PathsInput compact data={props.data} disabled={props.running} t={props.t} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       </div>
@@ -309,12 +306,11 @@ function PortraitCompactView(props: ViewProps) {
 function FullView(props: ViewProps) {
   return (
     <div data-testid="audiov-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      {/* 顶部: Header + Stats + ActionPicker */}
+      {/* 顶部: Header + direct execution gate + stats */}
       <div className="flex shrink-0 flex-col gap-3 @4xl/audiov:flex-row @4xl/audiov:items-center @4xl/audiov:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/audiov:flex-row @4xl/audiov:items-center">
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
           <div data-testid="audiov-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionPicker action={props.action} disabled={props.running} t={props.t} triggerClassName="@4xl/audiov:w-72" onActionChange={props.onActionChange} />
             <ExecutionControls props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.t("buttons.clearState", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
@@ -362,27 +358,28 @@ function ExecutionControls({ compact, props }: { compact?: boolean; props: ViewP
       className={cn(
         "flex min-w-0 shrink-0 items-center gap-2 rounded-lg border bg-card px-2 py-1.5",
         !compact && "min-h-11",
-        props.action === "run" && !dryRun && "border-destructive/50 bg-destructive/[0.03]",
+        compact && "grid grid-cols-[minmax(0,1fr)_auto]",
+        !dryRun && "border-destructive/50",
       )}
     >
       <Field orientation="horizontal" className="min-w-0 flex-1 items-center gap-2">
-        {dryRun ? <Eye className="size-3.5 shrink-0 text-muted-foreground" /> : <Play className="size-3.5 shrink-0 text-destructive" />}
+        {dryRun ? <Eye className="shrink-0 text-muted-foreground" /> : <Play className="shrink-0 text-destructive" />}
         <FieldContent className="min-w-0 gap-0.5">
-          <FieldTitle className="truncate text-xs">{previewTitle}</FieldTitle>
+          <FieldTitle className="truncate text-xs">{compact ? (dryRun ? props.t("execution.preview", "预演模式") : props.t("execution.live", "真实执行")) : previewTitle}</FieldTitle>
           {!compact && <FieldDescription className="truncate text-[11px]">{previewDescription}</FieldDescription>}
         </FieldContent>
         <Switch
           aria-label={props.t("aria.previewSwitch", "audiov 预演切换")}
           checked={dryRun}
           disabled={props.running}
-          size="sm"
+          size="default"
           onCheckedChange={(checked) => props.onPatch({ dryRun: checked })}
         />
       </Field>
       {!compact && <Badge variant={dryRun ? "outline" : "destructive"} className="shrink-0 text-[10px]">{props.t("execution.profile", "固定预设：AAC · 192 kbps · M4A")}</Badge>}
-      <Separator className="h-6 shrink-0" orientation="vertical" />
+      {!compact && <Separator className="h-6 shrink-0" orientation="vertical" />}
       <div className="shrink-0">
-        <RunActionButton props={props} />
+        <RunActionButton compact={compact} props={props} />
       </div>
     </section>
   )
@@ -391,22 +388,26 @@ function ExecutionControls({ compact, props }: { compact?: boolean; props: ViewP
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="audiov running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label="audiov running" disabled size={compact ? "xs" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>{props.t("status.running", "运行中")}</span>}
+        <span>{props.t("status.running", "运行中")}</span>
       </Button>
     )
   }
 
-  const label = executionLabel(props.action, props.data.dryRun ?? true, props.t)
-  const destructive = props.action === "run" && !(props.data.dryRun ?? true)
+  const dryRun = props.data.dryRun ?? true
+  const label = executionLabel(dryRun, props.t)
+  const compactLabel = dryRun
+    ? props.t("buttons.preview", "预演")
+    : props.t("buttons.extract", "提取")
+  const destructive = !dryRun
   if (destructive) {
     return (
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive">
+          <Button aria-label={label} size={compact ? "xs" : "sm"} variant="destructive">
             <Play />
-            {!compact && <span>{label}</span>}
+            <span>{compact ? compactLabel : label}</span>
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
@@ -418,7 +419,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{props.t("buttons.cancel", "取消")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>{props.t("buttons.confirmExtract", "确认提取")}</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute("run")}>{props.t("buttons.confirmExtract", "确认提取")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -426,9 +427,9 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
   }
 
   return (
-    <Button aria-label={label} disabled={props.running} size={compact ? "icon-sm" : "sm"} variant={props.action === "plan" ? "secondary" : props.action === "status" ? "outline" : "default"} onClick={() => props.onExecute(props.action)}>
+    <Button aria-label={label} disabled={props.running} size={compact ? "xs" : "sm"} onClick={() => props.onExecute("run")}>
       <Play />
-      {!compact && <span>{label}</span>}
+      <span>{compact ? compactLabel : label}</span>
     </Button>
   )
 }
@@ -473,39 +474,6 @@ function AudiovStatsPanel({ result, t }: { result: AudiovData | null; t: ViewPro
         </div>
       ))}
     </div>
-  )
-}
-
-function ActionPicker(props: {
-  action: AudiovAction
-  disabled?: boolean
-  t: ViewProps["t"]
-  triggerClassName?: string
-  onActionChange: (action: AudiovAction) => void
-}) {
-  return (
-    <ToggleGroup
-      aria-label="audiov action"
-      className={cn("grid w-full grid-cols-3", props.triggerClassName)}
-      disabled={props.disabled}
-      size="sm"
-      type="single"
-      value={props.action}
-      variant="outline"
-      onValueChange={(value) => {
-        if (value) props.onActionChange(value as AudiovAction)
-      }}
-    >
-      {ACTIONS.map((item) => {
-        const actionMeta = getActionMeta(item.value, props.t)
-        return (
-        <ToggleGroupItem key={item.value} aria-label={actionMeta.label} className="min-w-0" value={item.value}>
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{actionMeta.shortLabel}</span>
-        </ToggleGroupItem>
-        )
-      })}
-    </ToggleGroup>
   )
 }
 
@@ -728,8 +696,7 @@ function actionLabel(action: AudiovAction, t: ViewProps["t"]): string {
   return getActionMeta(action, t).label
 }
 
-function executionLabel(action: AudiovAction, dryRun: boolean, t: ViewProps["t"]): string {
-  if (action !== "run") return actionLabel(action, t)
+function executionLabel(dryRun: boolean, t: ViewProps["t"]): string {
   return dryRun
     ? t("buttons.previewExtract", "预览提取")
     : t("buttons.liveExtract", "立即提取")
