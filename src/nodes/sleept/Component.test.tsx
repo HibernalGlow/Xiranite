@@ -54,6 +54,8 @@ describe("app-owned sleept Component", () => {
 
       expect(screen.getByTestId("sleept-timer-modes")).toBeTruthy()
       expect(screen.getByTestId("sleept-power-modes")).toBeTruthy()
+      expect(screen.getByRole("tablist", { name: "触发模式" })).toBeTruthy()
+      expect(screen.getByRole("tablist", { name: "电源动作" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "状态" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
 
@@ -65,8 +67,8 @@ describe("app-owned sleept Component", () => {
         expect(screen.getByTestId("sleept-key-switches")).toBeTruthy()
       } else {
         expect(screen.getByTestId("sleept-full-view")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
-        expect(screen.getByText("电源操作")).toBeTruthy()
+        expect(screen.getByText("触发序列")).toBeTruthy()
+        expect(screen.getByText("执行命令")).toBeTruthy()
         expect(screen.getByTestId("sleept-header-toolbar")).toBeTruthy()
       }
     },

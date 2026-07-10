@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NET_TRIGGER_MODES, POWER_MODES, TIMER_MODES } from "./constants"
@@ -50,24 +51,11 @@ export function TimerModePicker(props: {
   onModeChange: (mode: SleeptTimerMode) => void
 }) {
   return (
-    <div
-      className={cn("grid gap-1", props.compact ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4")}
-      data-testid="sleept-timer-modes"
-    >
-      {TIMER_MODES.map((item) => (
-        <Button
-          key={item.value}
-          aria-label={item.label}
-          disabled={props.disabled}
-          size="sm"
-          variant={props.mode === item.value ? "secondary" : "outline"}
-          onClick={() => props.onModeChange(item.value)}
-        >
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{props.compact ? item.shortLabel : item.label}</span>
-        </Button>
-      ))}
-    </div>
+    <Tabs value={props.mode} onValueChange={(value) => props.onModeChange(value as SleeptTimerMode)} className="w-full" data-testid="sleept-timer-modes">
+      <TabsList aria-label="触发模式" variant="line" className={cn("grid w-full", props.compact ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4")}>
+        {TIMER_MODES.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{props.compact ? item.shortLabel : item.label}</span></TabsTrigger>)}
+      </TabsList>
+    </Tabs>
   )
 }
 
@@ -77,21 +65,11 @@ export function PowerModePicker(props: {
   onModeChange: (mode: PowerMode) => void
 }) {
   return (
-    <div className="grid grid-cols-3 gap-1" data-testid="sleept-power-modes">
-      {POWER_MODES.map((item) => (
-        <Button
-          key={item.value}
-          aria-label={item.label}
-          disabled={props.disabled}
-          size="sm"
-          variant={props.mode === item.value ? "secondary" : "outline"}
-          onClick={() => props.onModeChange(item.value)}
-        >
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </Button>
-      ))}
-    </div>
+    <Tabs value={props.mode} onValueChange={(value) => props.onModeChange(value as PowerMode)} className="w-full" data-testid="sleept-power-modes">
+      <TabsList aria-label="电源动作" variant="line" className="grid w-full grid-cols-3">
+        {POWER_MODES.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{item.shortLabel}</span></TabsTrigger>)}
+      </TabsList>
+    </Tabs>
   )
 }
 

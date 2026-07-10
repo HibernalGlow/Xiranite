@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -365,44 +366,30 @@ function FullView(props: ViewProps) {
             <StatsIconButton disabled={props.running} onClick={props.onRefreshStats} />
             <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
             <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
-              defaults={props.defaults}
-              disabled={props.running}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
-            />
-            <PrimaryActionButton props={props} />
           </div>
         </div>
         <StatsPanel durationSec={props.durationSec} progress={props.progress} stats={props.stats} timerMode={props.timerMode} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/sleept:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">计时模式</div>
-              <div className="text-xs text-muted-foreground">选择触发条件，到时或满足阈值后执行电源操作。</div>
-            </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/sleept:grid-cols-[minmax(250px,310px)_minmax(0,1fr)_minmax(260px,320px)]">
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0"><CardTitle>触发序列</CardTitle><CardDescription>先确定计时或监控条件，再进入电源操作。</CardDescription></CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
+            <div className="grid gap-4">
             <TimerModePicker disabled={props.running} mode={props.timerMode} onModeChange={props.onTimerModeChange} />
             <TimerSettings data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">电源操作</div>
-            <PowerModePicker disabled={props.running} mode={props.powerMode} onModeChange={props.onPowerModeChange} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+            <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="min-h-0">
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0"><CardTitle>系统待命</CardTitle><CardDescription>{timerLabel(props.timerMode)} · {powerLabel(props.powerMode)}</CardDescription></CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+            <CountdownConsole durationSec={props.durationSec} progress={props.progress} timerMode={props.timerMode} />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+            <div className="min-h-0 flex-1">
           <SleeptDisplayTabs
             logs={props.logs}
             progress={props.progress}
@@ -410,8 +397,33 @@ function FullView(props: ViewProps) {
             timerMode={props.timerMode}
             onCopyLogs={props.onCopyLogs}
           />
-        </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0"><CardTitle>执行命令</CardTitle><CardDescription>确认电源动作与风险状态后执行。</CardDescription></CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
+            <div className="grid gap-4">
+              <PowerModePicker disabled={props.running} mode={props.powerMode} onModeChange={props.onPowerModeChange} />
+              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"><span className="text-xs font-medium">配置管理</span><ConfigDefaultsPopover configDirty={props.configDirty} configFilePath={props.configFilePath} defaults={props.defaults} disabled={props.running} onOpenConfigFile={props.onOpenConfigFile} onResetOverride={props.onResetOverride} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /></div>
+            </div>
+          </CardContent>
+          <CardFooter className="shrink-0 border-t pt-4"><PrimaryActionButton props={props} /></CardFooter>
+        </Card>
       </div>
+    </div>
+  )
+}
+
+function CountdownConsole(props: { durationSec: number; progress: number; timerMode: SleeptTimerMode }) {
+  const monitoring = props.timerMode === "netspeed" || props.timerMode === "cpu"
+  return (
+    <div className="flex shrink-0 flex-col items-center justify-center gap-2 py-3 text-center">
+      <AnimatedCircularProgressBar ariaLabel="Sleept countdown progress" value={props.progress} className="size-48 text-2xl">
+        <span className="font-mono text-2xl tabular-nums">{monitoring ? "MONITOR" : formatDuration(props.durationSec)}</span>
+      </AnimatedCircularProgressBar>
+      <span className="text-xs text-muted-foreground">{monitoring ? "持续监控，0 为无限等待" : "待命倒计时"}</span>
     </div>
   )
 }
