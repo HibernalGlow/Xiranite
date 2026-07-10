@@ -11,6 +11,12 @@ const VIEW_MODES = new Set(["cards", "dockview", "flow", "lane", "bento"])
 const CARD_LAYOUTS = new Set(["grid", "stack", "split", "focus"])
 const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"])
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
+const REFERENCE_ALIASES = {
+  envuconfig: "envu",
+  lata: "lata_taskfile",
+  lorat: "lorat_lora",
+  scoolp: "scoolp_scoop_1",
+}
 const BENTO_MATRIX_LAYOUTS = {
   collapsed: { x: 0, y: 0, w: 3, h: 2 },
   compact: { x: 3, y: 0, w: 5, h: 3 },
@@ -24,6 +30,10 @@ async function main() {
   const options = await parseArgs(process.argv.slice(2))
   if (options.command === "help") {
     printUsage()
+    return
+  }
+  if (options.command === "references") {
+    console.log(JSON.stringify(await referenceAudit(), null, 2))
     return
   }
 
@@ -211,7 +221,7 @@ async function parseArgs(argv) {
     options.command = "help"
     return options
   }
-  if (first === "state" || first === "list") {
+  if (first === "state" || first === "list" || first === "references") {
     options.command = first
     return options
   }
@@ -457,17 +467,39 @@ async function resolveReferencePath(options) {
 
 async function findAutoReferencePath(moduleId) {
   const referenceRoot = path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)")
-  const direct = path.join(referenceRoot, moduleId, "screen.png")
+  const referenceId = REFERENCE_ALIASES[moduleId] ?? moduleId
+  const direct = path.join(referenceRoot, referenceId, "screen.png")
   try {
     await access(direct)
     return direct
   } catch {
     const entries = await readdir(referenceRoot, { withFileTypes: true })
     const numbered = entries
-      .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${moduleId}_`))
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${referenceId}_`))
       .map((entry) => entry.name)
       .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
-    return path.join(referenceRoot, numbered[0] ?? moduleId, "screen.png")
+    return path.join(referenceRoot, numbered[0] ?? referenceId, "screen.png")
+  }
+}
+
+async function referenceAudit() {
+  const nodeRoot = path.resolve(REPO_ROOT, "src", "nodes")
+  const modules = (await readdir(nodeRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name !== "shared")
+    .map((entry) => entry.name)
+    .sort()
+  const records = await Promise.all(modules.map(async (moduleId) => {
+    const referencePath = await resolveReferencePath({ moduleId, reference: "auto" })
+    return {
+      moduleId,
+      reference: referencePath ? path.relative(REPO_ROOT, referencePath) : null,
+      status: referencePath ? "ready" : "missing",
+    }
+  }))
+  return {
+    ready: records.filter((record) => record.status === "ready").length,
+    missing: records.filter((record) => record.status === "missing").length,
+    records,
   }
 }
 
@@ -618,6 +650,7 @@ Usage:
   node scripts/qa-card.mjs <module> [view] [surface] [options]
   bun scripts/qa-card.ts state
   bun scripts/qa-card.ts list
+  bun scripts/qa-card.ts references
 
 Examples:
   bun scripts/qa-card.ts repacku bento expanded --fresh --screenshot
@@ -657,6 +690,9 @@ Options:
   --no-wait-backend      Do not wait for workspace backend hydration before staging
   --json JSON            Merge raw stage options into window.__xiraniteQA.stage()
   --json-file PATH       Read raw stage options from a JSON file
+
+Reference audit:
+  references            List every app-owned node and its auto-resolved reference image
 `)
 }
 
