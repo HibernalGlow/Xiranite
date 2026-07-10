@@ -109,6 +109,24 @@ describe("app-owned nameu Component", () => {
     expect(screen.getAllByText("无需改名").length).toBeGreaterThan(0)
   })
 
+  test("uses shared configuration management and official tabs for its two choice sets", async () => {
+    setSurface("regular")
+    const host = createHost({ pathsText: "D:/archives", logs: [] })
+    render(<Component compId="comp-nameu" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: ACTIONS[0]!.shortLabel }))
+    expect(host.cardState.action).toBe("scan")
+
+    await user.click(screen.getByRole("tab", { name: "单个作者" }))
+    expect(host.cardState.mode).toBe("single")
+
+    await user.click(screen.getByLabelText("配置管理"))
+    expect(screen.getByRole("button", { name: "保存为默认" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
+  })
+
   test("requires confirmation before live rename execution", async () => {
     setSurface("regular")
     const host = createHost({ action: "rename", pathsText: "D:/archives", dryRun: false, logs: [] })
