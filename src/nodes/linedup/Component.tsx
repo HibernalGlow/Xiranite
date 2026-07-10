@@ -1,36 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import type { ReactNode } from "react"
+import { useMemo, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
 import { filterLines, splitLines } from "@xiranite/node-linedup/core"
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, Copy, Eraser, Filter, RotateCcw, Settings2, Zap } from "lucide-react"
+import { Clipboard, Copy, Download, Eraser, Filter, RotateCcw, Terminal, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
-import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { LinedupDisplayTabs, StatsPanel } from "./ResultPanels"
 import type { LinedupCardState, LinedupPhase, LinedupStatusMeta } from "./types"
-
-const CONFIG_FIELDS = ["caseSensitive", "sort"] as const satisfies ReadonlyArray<keyof LinedupCardState>
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
-  const { t } = useNodeI18n("linedup")
   const data = host.getData<LinedupCardState>(compId) ?? {}
-  const dataRef = useRef<LinedupCardState>(data)
-  dataRef.current = data
-  const [defaults, setDefaults] = useState<Partial<LinedupCardState> | undefined>()
-  const [configPath, setConfigPath] = useState<string | undefined>()
-  const [configLoading, setConfigLoading] = useState(false)
   const sourceText = data.sourceText ?? ""
   const filterText = data.filterText ?? ""
   const logs = data.logs ?? []
@@ -38,60 +28,43 @@ export function Component({ compId, host }: NodeComponentProps) {
   const phase = data.phase ?? "idle"
   const caseSensitive = data.caseSensitive ?? true
   const sort = data.sort ?? true
+
+  const [filterMode, setFilterMode] = useState<"regex" | "contains" | "exact">("contains")
+  const [invertMatch, setInvertMatch] = useState(false)
+  const [outputView, setOutputView] = useState<"kept" | "removed">("kept")
+
   const sourceLines = useMemo(() => splitLines(sourceText).filter((line) => line.trim()), [sourceText])
   const filterTokens = useMemo(() => splitLines(filterText).filter((line) => line.trim()), [filterText])
+
   const status = statusFromState(phase, result, sourceLines.length, filterTokens.length)
-  const progress = phase === "completed" ? 100 : result ? 100 : 0
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
-  const configDirty = defaults !== undefined && CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? ""))
 
-  useEffect(() => {
-    void loadDefaults()
-  }, [host])
+  const displayResult = useMemo(() => {
+    if (!result) return null
+    if (invertMatch) {
+      return {
+        filteredLines: result.removedLines,
+        removedLines: result.filteredLines,
+        keptCount: result.removedCount,
+        removedCount: result.keptCount,
+      }
+    }
+    return result
+  }, [result, invertMatch])
+
+  const outputLines = outputView === "kept" ? (displayResult?.filteredLines ?? []) : (displayResult?.removedLines ?? [])
+  const outputCount = outputView === "kept" ? (displayResult?.keptCount ?? 0) : (displayResult?.removedCount ?? 0)
+
+  const keptCount = displayResult?.keptCount ?? 0
+  const removedCount = displayResult?.removedCount ?? 0
+  const totalProcessed = keptCount + removedCount
+  const keptPercent = totalProcessed > 0 ? (keptCount / totalProcessed) * 100 : 0
+  const removedPercent = totalProcessed > 0 ? (removedCount / totalProcessed) * 100 : 0
 
   function patch(patchData: Partial<LinedupCardState>) {
-    dataRef.current = { ...dataRef.current, ...patchData }
     host.patchData(compId, patchData)
-  }
-
-  function pickConfig(source: LinedupCardState): Partial<LinedupCardState> {
-    return Object.fromEntries(CONFIG_FIELDS.flatMap((field) => source[field] === undefined ? [] : [[field, source[field]]])) as Partial<LinedupCardState>
-  }
-
-  async function loadDefaults() {
-    const pending = host.config?.get?.<Partial<LinedupCardState>>() ?? host.getNodeConfig?.<Partial<LinedupCardState>>()
-    if (!pending) return
-    setConfigLoading(true)
-    try {
-      const response = await pending
-      setDefaults(response.config)
-      setConfigPath(response.path)
-    } finally {
-      setConfigLoading(false)
-    }
-  }
-
-  async function saveAsDefault() {
-    const save = host.config?.save ?? host.saveNodeConfig
-    if (!save) return
-    setConfigLoading(true)
-    try {
-      const config = pickConfig(dataRef.current)
-      await save(config)
-      setDefaults(config)
-    } finally {
-      setConfigLoading(false)
-    }
-  }
-
-  function restoreDefaults() {
-    if (defaults) patch(defaults)
-  }
-
-  async function openConfigFile() {
-    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function paste(field: "sourceText" | "filterText") {
@@ -125,30 +98,34 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   const commonProps = {
-    configDirty,
-    configLoading,
-    configPath,
     caseSensitive,
-    filterCount: filterTokens.length,
+    displayResult,
+    filterMode,
     filterText,
+    filterTokens,
+    invertMatch,
+    keptCount,
+    keptPercent,
     logs,
+    outputCount,
+    outputLines,
+    outputView,
     phase,
-    progress,
-    result,
+    removedCount,
+    removedPercent,
     sort,
     sourceCount: sourceLines.length,
     sourceText,
     status,
-    t,
-    defaults: defaults as Record<string, unknown> | undefined,
-    onCopyKept: () => copyLines(result?.filteredLines ?? []),
-    onCopyRemoved: () => copyLines(result?.removedLines ?? []),
+    totalProcessed,
+    onCopyKept: () => copyLines(displayResult?.filteredLines ?? []),
+    onCopyRemoved: () => copyLines(displayResult?.removedLines ?? []),
+    onCopyOutput: () => copyLines(outputLines),
     onDownload: download,
-    onLoadDefaults: loadDefaults,
-    onOpenConfigFile: openConfigFile,
-    onRestoreDefaults: restoreDefaults,
-    onSaveDefault: saveAsDefault,
     onExecute: execute,
+    onFilterModeChange: setFilterMode,
+    onInvertMatchChange: setInvertMatch,
+    onOutputViewChange: setOutputView,
     onPasteFilter: () => paste("filterText"),
     onPasteSource: () => paste("sourceText"),
     onPatch: patch,
@@ -157,8 +134,8 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/linedup relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-3)_12%,transparent),transparent_34%)]" />
+      <div ref={surface.ref} className="@container/linedup relative flex h-full min-h-0 w-full overflow-hidden bg-background">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_12%_0%,color-mix(in_oklch,var(--primary)_8%,transparent),transparent_36%),radial-gradient(circle_at_88%_8%,color-mix(in_oklch,var(--chart-3)_8%,transparent),transparent_34%)]" />
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
@@ -174,397 +151,231 @@ export function Component({ compId, host }: NodeComponentProps) {
 }
 
 type ViewProps = {
-  configDirty: boolean
-  configLoading: boolean
-  configPath?: string
   caseSensitive: boolean
-  defaults?: Record<string, unknown>
-  filterCount: number
+  displayResult: LinedupFilterResult | null
+  filterMode: "regex" | "contains" | "exact"
   filterText: string
+  filterTokens: string[]
+  invertMatch: boolean
+  keptCount: number
+  keptPercent: number
   logs: string[]
+  outputCount: number
+  outputLines: string[]
+  outputView: "kept" | "removed"
   phase: LinedupPhase
-  progress: number
-  result: LinedupFilterResult | null
+  removedCount: number
+  removedPercent: number
   sort: boolean
   sourceCount: number
   sourceText: string
   status: LinedupStatusMeta
-  t: ReturnType<typeof useNodeI18n>["t"]
+  totalProcessed: number
   onCopyKept: () => void
   onCopyRemoved: () => void
+  onCopyOutput: () => void
   onDownload: () => void
-  onLoadDefaults: () => Promise<void>
-  onOpenConfigFile: () => Promise<void>
-  onRestoreDefaults: () => void
-  onSaveDefault: () => Promise<void>
   onExecute: () => void
+  onFilterModeChange: (mode: "regex" | "contains" | "exact") => void
+  onInvertMatchChange: (v: boolean) => void
+  onOutputViewChange: (v: "kept" | "removed") => void
   onPasteFilter: () => void
   onPasteSource: () => void
   onPatch: (patch: Partial<LinedupCardState>) => void
   onReset: () => void
 }
 
-function ConfigManagement(props: ViewProps) {
-  return <NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} loading={props.configLoading} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onLoadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefault} />
-}
-
-function CollapsedView(props: ViewProps) {
-  return (
-    <div data-testid="linedup-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <div className={cn("absolute inset-0 opacity-70 transition-opacity", props.status.tone === "error" && "bg-destructive/10", props.status.tone === "success" && "bg-primary/10")} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <Filter />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Linedup</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-        </div>
-        <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
-      </div>
-      <div className="relative flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} /></div>
-    </div>
-  )
-}
-
-function CompactView(props: ViewProps) {
-  return (
-    <div data-testid="linedup-compact-view" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
-        <HeaderLine status={props.status} subtitle={summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <ConfigManagement {...props} />
-          <OptionsPopover {...props} />
-          <ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} />
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <TextAreas compact {...props} />
-        <div className="min-h-0 flex-1">
-          <LinedupDisplayTabs
-            compact
-            logs={props.logs}
-            phase={props.phase}
-            result={props.result}
-            sourceText={props.sourceText}
-            onCopyKept={props.onCopyKept}
-            onCopyRemoved={props.onCopyRemoved}
-            onDownload={props.onDownload}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PortraitCompactView(props: ViewProps) {
-  return (
-    <div data-testid="linedup-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine status={props.status} subtitle={summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <ConfigManagement {...props} />
-          <OptionsPopover {...props} />
-          <ActionIconButton disabled={!props.sourceCount} icon={Zap} label="运行过滤" onClick={props.onExecute} />
-        </div>
-      </div>
-      <TextAreas compact {...props} />
-      <div className="min-h-0 flex-1">
-        <LinedupDisplayTabs
-          compact
-          logs={props.logs}
-          phase={props.phase}
-          result={props.result}
-          sourceText={props.sourceText}
-          onCopyKept={props.onCopyKept}
-          onCopyRemoved={props.onCopyRemoved}
-          onDownload={props.onDownload}
-        />
-      </div>
-    </div>
-  )
-}
+/* ------------------------------------------------------------------ */
+//  Full three-column industrial workbench
+/* ------------------------------------------------------------------ */
 
 function FullView(props: ViewProps) {
   return (
-    <div data-testid="linedup-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/linedup:flex-row @4xl/linedup:items-center @4xl/linedup:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/linedup:flex-row @4xl/linedup:items-center">
-          <HeaderLine status={props.status} subtitle={summaryText(props)} />
-          <div data-testid="linedup-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionIconButton disabled={!props.result} icon={Copy} label="复制保留结果" onClick={props.onCopyKept} />
-            <ActionIconButton disabled={!props.result} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigManagement {...props} />
-          </div>
-        </div>
-        <StatsPanel progress={props.progress} result={props.result} sourceCount={props.sourceCount} filterCount={props.filterCount} />
-      </div>
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/linedup:grid-cols-[minmax(250px,1fr)_minmax(220px,0.72fr)_minmax(280px,1fr)]">
-        <WorkbenchPanel description="粘贴待处理文本；每行都会保留原始顺序与差分位置。" eyebrow="RAW INPUT" title="源文本">
-          <TextAreaField
-            label="源文本"
-            placeholder="每行一条"
-            value={props.sourceText}
-            onChange={(sourceText) => props.onPatch({ sourceText })}
-            onClear={() => props.onPatch({ sourceText: "" })}
-            onPaste={props.onPasteSource}
-          />
-        </WorkbenchPanel>
+    <div data-testid="linedup-full-view" className="flex min-h-0 flex-1 flex-col">
+      <WorkbenchHeader {...props} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 @5xl/linedup:grid-cols-[1fr_280px_1fr]">
+        <RawInputPanel {...props} />
         <FilterLogicPanel {...props} />
-        <WorkbenchPanel description="切换预览、保留、移除和日志，检查每条文本的最终去向。" eyebrow="FILTERED OUTPUT" title="处理输出" flush>
-          <LinedupDisplayTabs
-            logs={props.logs}
-            phase={props.phase}
-            result={props.result}
-            sourceText={props.sourceText}
-            onCopyKept={props.onCopyKept}
-            onCopyRemoved={props.onCopyRemoved}
-            onDownload={props.onDownload}
-          />
-        </WorkbenchPanel>
+        <FilteredOutputPanel {...props} />
       </div>
     </div>
   )
 }
 
-function WorkbenchPanel(props: {
-  children: ReactNode
-  description: string
-  eyebrow: string
-  flush?: boolean
-  title: string
-}) {
+function WorkbenchHeader(props: ViewProps) {
+  const isActive = props.phase === "completed" || props.phase === "ready"
   return (
-    <Card className="min-h-0 gap-0 overflow-hidden py-0">
-      <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
-        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">{props.title}</CardTitle><span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground">{props.eyebrow}</span></div>
-        <CardDescription className="text-[11px]">{props.description}</CardDescription>
+    <div data-testid="linedup-header-toolbar" className="flex shrink-0 items-center justify-between gap-3 border-b bg-card/40 px-3 py-1.5">
+      <div className="flex items-center gap-2">
+        <div className={cn("grid size-7 shrink-0 place-items-center rounded-md", props.status.iconClass)}>
+          <Filter className="size-4" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-mono font-semibold tracking-wider text-muted-foreground">LINEDUP</span>
+          <span className="text-[10px] text-muted-foreground">/</span>
+          <span className="text-[10px] font-mono tracking-wider">
+            STATUS:{" "}
+            <span className={cn(isActive ? "text-emerald-500" : "text-amber-500")}>{props.status.label.toUpperCase()}</span>
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className={cn("size-1.5 rounded-full", isActive ? "bg-emerald-500" : "bg-muted-foreground/30")} />
+          <span className={cn("text-[10px] font-mono tracking-wider", isActive ? "text-emerald-500" : "text-muted-foreground/60")}>
+            {isActive ? "STREAM_ACTIVE" : "STREAM_IDLE"}
+          </span>
+        </div>
+        <span className="hidden text-[10px] font-mono tracking-wider text-muted-foreground @3xl/linedup:inline">
+          VOL: {(props.sourceCount * 0.05).toFixed(1)} MB/s
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function RawInputPanel(props: ViewProps) {
+  return (
+    <Card className="h-full rounded-none border-0 border-r bg-card/20">
+      <CardHeader className="flex-row items-center justify-between space-y-0 py-2 px-3">
+        <CardTitle className="text-[10px] font-mono tracking-widest text-muted-foreground uppercase">RAW_INPUT</CardTitle>
+        <div className="flex items-center gap-1">
+          <ActionIconButton icon={Clipboard} label="粘贴源文本" onClick={props.onPasteSource} />
+          <ActionIconButton disabled={!props.sourceText} icon={Eraser} label="清空源文本" onClick={() => props.onPatch({ sourceText: "" })} />
+        </div>
       </CardHeader>
-      <CardContent className={cn("min-h-0 flex-1", props.flush ? "p-0" : "p-3")}>{props.children}</CardContent>
+      <CardContent className="flex min-h-0 flex-1 flex-col px-3 py-0">
+        <Textarea
+          aria-label="源文本"
+          className="min-h-0 flex-1 resize-none rounded-md border bg-background/60 font-mono text-xs shadow-none focus-visible:ring-1"
+          placeholder="每行一个条目..."
+          value={props.sourceText}
+          onChange={(e) => props.onPatch({ sourceText: e.currentTarget.value })}
+        />
+        {props.logs.length > 0 && (
+          <div className="mt-2 flex flex-col gap-1 rounded-md border bg-muted/30 p-2">
+            <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              <Terminal className="size-3" />
+              LOG_STREAM
+            </div>
+            <ScrollArea className="h-14">
+              <div className="flex flex-col gap-0.5">
+                {props.logs.slice(-5).map((log, i) => (
+                  <div key={i} className="text-[10px] font-mono text-muted-foreground">{`> ${log}`}</div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="flex items-center justify-between border-t py-2 px-3">
+        <Badge variant="outline" className="text-[10px] font-mono">
+          {props.phase.toUpperCase()}
+        </Badge>
+        <span className="text-[10px] font-mono tracking-wider text-muted-foreground">LINES: {props.sourceCount}</span>
+      </CardFooter>
     </Card>
   )
 }
 
 function FilterLogicPanel(props: ViewProps) {
   return (
-    <WorkbenchPanel description="每个过滤词单独一行。命中词的源行会移入“移除”结果。" eyebrow="FILTER LOGIC" title="过滤逻辑">
-      <div className="flex h-full min-h-0 flex-col gap-3">
-        <TextAreaField
-          compact
-          label="过滤词"
-          placeholder="移除包含这些词的源行"
-          value={props.filterText}
-          onChange={(filterText) => props.onPatch({ filterText })}
-          onClear={() => props.onPatch({ filterText: "" })}
-          onPaste={props.onPasteFilter}
-        />
-        <div className="grid gap-2 border-y py-3">
-          <SwitchRow checked={props.caseSensitive} description="beta 不会匹配 Beta" label="区分大小写" onCheckedChange={(caseSensitive) => props.onPatch({ caseSensitive })} />
-          <SwitchRow checked={props.sort} description="保留与移除的结果按自然顺序排列" label="结果排序" onCheckedChange={(sort) => props.onPatch({ sort })} />
+    <Card className="h-full rounded-none border-0 border-r bg-card/40">
+      <CardHeader className="space-y-0 py-2 px-3">
+        <CardTitle className="text-[10px] font-mono tracking-widest text-muted-foreground uppercase">OP_01</CardTitle>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-3 py-2">
+        <div className="space-y-1.5">
+          <Label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Filter Mode</Label>
+          <ToggleGroup
+            type="single"
+            value={props.filterMode}
+            onValueChange={(v) => v && props.onFilterModeChange(v as "regex" | "contains" | "exact")}
+            className="w-full"
+            variant="outline"
+            size="sm"
+          >
+            <ToggleGroupItem value="regex" className="flex-1 text-xs font-mono">
+              Regex
+            </ToggleGroupItem>
+            <ToggleGroupItem value="contains" className="flex-1 text-xs font-mono">
+              Contains
+            </ToggleGroupItem>
+            <ToggleGroupItem value="exact" className="flex-1 text-xs font-mono">
+              Exact
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2 text-xs"><Metric label="保留" value={props.result?.keptCount ?? 0} /><Metric destructive label="移除" value={props.result?.removedCount ?? 0} /></div>
-          <Button disabled={!props.sourceCount} size="sm" onClick={props.onExecute}><Zap data-icon="inline-start" />运行过滤</Button>
-        </div>
-      </div>
-    </WorkbenchPanel>
-  )
-}
 
-function Metric(props: { destructive?: boolean; label: string; value: number }) {
-  return <div className="rounded-md bg-muted/40 px-2 py-1.5"><div className="text-[11px] text-muted-foreground">{props.label}</div><div className={cn("text-base font-semibold tabular-nums", props.destructive && props.value > 0 && "text-destructive")}>{props.value}</div></div>
-}
-
-function TextAreas(props: ViewProps & { compact?: boolean }) {
-  return (
-    <div className={cn("grid min-h-0 gap-2", props.compact ? "grid-cols-2" : "flex-1 grid-rows-2")}>
-      <TextAreaField
-        compact={props.compact}
-        label="源文本"
-        placeholder="每行一个条目"
-        value={props.sourceText}
-        onChange={(sourceText) => props.onPatch({ sourceText })}
-        onClear={() => props.onPatch({ sourceText: "" })}
-        onPaste={props.onPasteSource}
-      />
-      <TextAreaField
-        compact={props.compact}
-        label="过滤词"
-        placeholder="包含这些词的行会被移除"
-        value={props.filterText}
-        onChange={(filterText) => props.onPatch({ filterText })}
-        onClear={() => props.onPatch({ filterText: "" })}
-        onPaste={props.onPasteFilter}
-      />
-    </div>
-  )
-}
-
-function TextAreaField(props: {
-  compact?: boolean
-  label: string
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-  onClear: () => void
-  onPaste: () => void
-}) {
-  return (
-    <div className="flex min-h-0 flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs">{props.label}</Label>
-        <div className="flex shrink-0 items-center gap-1">
-          <ActionIconButton icon={Clipboard} label={`粘贴${props.label}`} onClick={props.onPaste} />
-          <ActionIconButton disabled={!props.value} icon={Eraser} label={`清空${props.label}`} onClick={props.onClear} />
-        </div>
-      </div>
-      <Textarea
-        aria-label={props.label}
-        className={cn("min-h-0 flex-1 resize-none font-mono text-xs", props.compact ? "h-24" : "h-full")}
-        placeholder={props.placeholder}
-        value={props.value}
-        onChange={(event) => props.onChange(event.currentTarget.value)}
-      />
-    </div>
-  )
-}
-
-function OptionsPopover(props: ViewProps) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label="linedup options" size="icon-sm" variant="outline">
-              <Settings2 />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>过滤选项</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">过滤选项</div>
-          <p className="text-xs text-muted-foreground">控制匹配大小写和结果排序，适合处理路径、标签或清单文本。</p>
-        </div>
-        <div className="grid gap-3">
-          <SwitchRow
-            checked={props.caseSensitive}
-            description="开启后 beta 不会匹配 Beta。"
-            label="区分大小写"
-            onCheckedChange={(caseSensitive) => props.onPatch({ caseSensitive })}
-          />
-          <SwitchRow
-            checked={props.sort}
-            description="开启后保留和移除结果按自然顺序排序。"
-            label="结果排序"
-            onCheckedChange={(sort) => props.onPatch({ sort })}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function SwitchRow(props: {
-  checked: boolean
-  description: string
-  label: string
-  onCheckedChange: (checked: boolean) => void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{props.label}</div>
-        <div className="text-xs text-muted-foreground">{props.description}</div>
-      </div>
-      <Switch checked={props.checked} onCheckedChange={props.onCheckedChange} />
-    </div>
-  )
-}
-
-function ActionIconButton(props: {
-  disabled?: boolean
-  icon: LucideIcon
-  label: string
-  onClick: () => void
-}) {
-  const Icon = props.icon
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant="outline" onClick={props.onClick}>
-          <Icon />
-          <span className="sr-only">{props.label}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{props.label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function HeaderLine({ status, subtitle }: {
-  status: LinedupStatusMeta
-  subtitle: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
-          <Filter />
-        </div>
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">Linedup</h3>
-            <Badge variant={status.badgeVariant}>{status.label}</Badge>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Filter Tokens</Label>
+            <div className="flex items-center gap-1">
+              <ActionIconButton icon={Clipboard} label="粘贴过滤词" onClick={props.onPasteFilter} />
+              <ActionIconButton disabled={!props.filterText} icon={Eraser} label="清空过滤词" onClick={() => props.onPatch({ filterText: "" })} />
+            </div>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
+          <Textarea
+            aria-label="过滤词"
+            className="min-h-[72px] resize-none rounded-md border bg-background/60 font-mono text-xs shadow-none focus-visible:ring-1"
+            placeholder="ERROR | WARN | ..."
+            value={props.filterText}
+            onChange={(e) => props.onPatch({ filterText: e.currentTarget.value })}
+          />
         </div>
-      </div>
-    </div>
+
+        <div className="space-y-2">
+          <SwitchRow
+            label="Match Case"
+            description="区分大小写匹配"
+            checked={props.caseSensitive}
+            onCheckedChange={(v) => props.onPatch({ caseSensitive: v })}
+          />
+          <SwitchRow
+            label="Invert Match"
+            description="保留匹配项而非移除"
+            checked={props.invertMatch}
+            onCheckedChange={props.onInvertMatchChange}
+          />
+        </div>
+
+        <div className="space-y-2 rounded-md border bg-muted/20 p-2.5">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Modifiers</div>
+          <SwitchRow
+            label="Sort Results"
+            description="按字母顺序排序输出"
+            checked={props.sort}
+            onCheckedChange={(v) => props.onPatch({ sort: v })}
+          />
+        </div>
+
+        <div className="mt-auto space-y-2 rounded-md border p-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Processing Delta</div>
+          <div className="flex items-end gap-4">
+            <div>
+              <div className="text-2xl font-bold leading-none tabular-nums">{props.keptCount}</div>
+              <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Lines Kept</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold leading-none tabular-nums text-destructive">{props.removedCount}</div>
+              <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Removed</div>
+            </div>
+          </div>
+          {props.totalProcessed > 0 && (
+            <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full bg-primary transition-all" style={{ width: `${props.keptPercent}%` }} />
+              <div className="h-full bg-destructive transition-all" style={{ width: `${props.removedPercent}%` }} />
+            </div>
+          )}
+        </div>
+
+        <Button disabled={!props.sourceCount} size="sm" className="w-full gap-2 font-mono text-xs" onClick={props.onExecute}>
+          <Zap className="size-4" />
+          EXECUTE
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
-function statusFromState(phase: LinedupPhase, result: LinedupFilterResult | null, sourceCount: number, filterCount: number): LinedupStatusMeta {
-  if (phase === "error") {
-    return {
-      label: "失败",
-      description: "缺少源文本，无法过滤。",
-      tone: "error",
-      badgeVariant: "destructive",
-      iconClass: "bg-destructive text-destructive-foreground",
-    }
-  }
-  if (phase === "completed" && result) {
-    return {
-      label: "完成",
-      description: `保留 ${result.keptCount} 行，移除 ${result.removedCount} 行。`,
-      tone: "success",
-      badgeVariant: "default",
-      iconClass: "bg-primary text-primary-foreground",
-    }
-  }
-  if (sourceCount || filterCount) {
-    return {
-      label: "待过滤",
-      description: `${sourceCount} 源 / ${filterCount} 过滤词`,
-      tone: "idle",
-      badgeVariant: "outline",
-      iconClass: "bg-secondary text-secondary-foreground",
-    }
-  }
-  return {
-    label: "就绪",
-    description: "粘贴源文本和过滤词后运行。",
-    tone: "idle",
-    badgeVariant: "outline",
-    iconClass: "bg-secondary text-secondary-foreground",
-  }
-}
-
-function summaryText(props: ViewProps): string {
-  if (props.result) return `保留 ${props.result.keptCount} / 移除 ${props.result.removedCount}`
-  if (props.sourceCount || props.filterCount) return `${props.sourceCount} 源 / ${props.filterCount} 过滤词`
-  return "粘贴文本后移除匹配行"
-}
+function FilteredOutput
