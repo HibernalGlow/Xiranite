@@ -47,6 +47,7 @@ async function main() {
 
     if (options.screenshot || options.output) {
       await waitForStagedRender(page, result, options)
+      if (options.openHelp) await openNodeHelp(page, result, options)
       const screenshotPath = options.output ?? defaultScreenshotPath(options)
       await mkdir(path.dirname(screenshotPath), { recursive: true })
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
@@ -151,6 +152,13 @@ async function parseArgs(argv) {
         break
       case "--screenshot":
         options.screenshot = true
+        break
+      case "--open-help":
+        options.openHelp = true
+        break
+      case "--help-tab":
+        options.openHelp = true
+        options.helpTab = parseHelpTab(value())
         break
       case "--output":
         options.output = path.resolve(value())
@@ -387,6 +395,25 @@ async function waitForStagedRender(page, result, options) {
   }
 }
 
+async function openNodeHelp(page, result, options) {
+  const componentId = result?.selected?.id
+  const root = componentId
+    ? page.locator(`[data-component-id="${cssEscape(componentId)}"]`).first()
+    : page
+  const trigger = root.locator('[data-action-key="node-help"]').first()
+  const waitMs = Math.min(options.timeoutMs, 4_000)
+  await trigger.waitFor({ state: "attached", timeout: waitMs })
+  await trigger.evaluate((element) => element.click())
+  const sheet = page.locator('[data-slot="sheet-content"]').first()
+  await sheet.waitFor({ state: "visible", timeout: waitMs })
+  if (options.helpTab) {
+    const tab = sheet.locator(`[data-help-tab="${cssEscape(options.helpTab)}"]`).first()
+    await tab.waitFor({ state: "visible", timeout: waitMs })
+    await tab.click()
+  }
+  await page.waitForTimeout(250)
+}
+
 function collectConsoleIssue(issues, message) {
   const type = message.type()
   if (type !== "error" && type !== "warning") return
@@ -413,6 +440,13 @@ function parseViewMode(value) {
 
 function parseCardLayout(value) {
   if (!CARD_LAYOUTS.has(value)) throw new Error(`Invalid card layout: ${value}`)
+  return value
+}
+
+function parseHelpTab(value) {
+  if (!["overview", "workflows", "cli", "details"].includes(value)) {
+    throw new Error(`Invalid help tab: ${value}`)
+  }
   return value
 }
 
@@ -485,6 +519,7 @@ Examples:
   bun scripts/qa-card.ts repacku bento expanded --fresh --screenshot
   bun scripts/qa-card.ts recycleu matrix --screenshot
   bun scripts/qa-card.ts enginev flow workspace --flow-pos 80,80 --viewport 1280x860 --screenshot
+  bun scripts/qa-card.ts classq cards workspace --help-tab workflows --screenshot
   bun scripts/qa-card.ts recycleu cards compact --layout grid --viewport 420x360 --headed
 
 Options:
@@ -505,6 +540,8 @@ Options:
   --focus                Focus the card in cards view
   --fullscreen           Open the card fullscreen in cards view
   --screenshot           Save a screenshot under artifacts/qa-card
+  --open-help            Open the staged node's shared help sheet before capture
+  --help-tab NAME        Open overview | workflows | cli | details before capture
   --output PATH          Screenshot path
   --quality 1-100        JPEG quality. Default: 82; ignored for explicit .png output
   --headed               Show the browser

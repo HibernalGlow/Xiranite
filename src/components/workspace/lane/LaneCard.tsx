@@ -107,7 +107,7 @@ export function LaneCard({ compId, moduleId }: Props) {
         isSelected && "outline-2 outline-primary/60",
       )}
     >
-      <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleName={moduleName} version={mod?.version} />
+      <NodeSurfaceChrome actions={actions} dragHandle={dragHandle} moduleId={moduleId} moduleName={moduleName} version={mod?.version} />
       <div className="flex-1 min-h-0 overflow-hidden">
         <ModuleRenderer moduleId={moduleId} compId={compId} />
       </div>

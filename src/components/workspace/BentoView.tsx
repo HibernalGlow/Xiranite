@@ -280,6 +280,7 @@ function BentoWidget({ component, isSelected }: { component: ComponentInstance; 
         actions={actions}
         collapsed={component.collapsed}
         dragHandle={dragHandle}
+        moduleId={component.moduleId}
         moduleName={moduleName}
         version={mod?.version}
       />

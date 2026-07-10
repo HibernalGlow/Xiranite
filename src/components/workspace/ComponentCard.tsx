@@ -209,6 +209,7 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
       <NodeSurfaceChrome
         actions={chromeActions}
         collapsed={comp.collapsed}
+        moduleId={moduleId}
         moduleName={moduleName}
         version={mod?.version}
         stateLabel={t(stateLabelKey[layout.state])}

@@ -352,7 +352,7 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       className="xiranite-component-surface group relative flex flex-col overflow-visible rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]"
       style={{ width: w, height: h }}
     >
-      <NodeSurfaceChrome actions={actions} moduleName={moduleName} version={mod?.version} />
+      <NodeSurfaceChrome actions={actions} moduleId={moduleId} moduleName={moduleName} version={mod?.version} />
       <div className="min-h-0 flex-1 overflow-hidden rounded-b-md pointer-events-auto">
         {moduleId && compId && (
           <ModuleRenderer moduleId={moduleId} compId={compId} />

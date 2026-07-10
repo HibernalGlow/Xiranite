@@ -481,13 +481,18 @@
       "errorTitle": "帮助加载失败",
       "tabs": {
         "overview": "概览",
-        "fields": "字段"
+        "workflows": "工作流",
+        "details": "详情"
       },
       "sections": {
         "whenToUse": "适用场景",
         "workflows": "工作流",
+        "workflowsDescription": "按照顺序查看 UI 或 CLI 的操作路径。",
         "fields": "字段",
-        "safety": "安全提示"
+        "fieldsDescription": "该节点公开的输入项与默认值。",
+        "safety": "安全提示",
+        "safetyDescription": "实际执行节点前检查可能修改数据的操作。",
+        "links": "相关资源"
       },
       "labels": {
         "tip": "建议",

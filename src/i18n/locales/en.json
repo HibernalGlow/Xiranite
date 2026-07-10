@@ -481,13 +481,18 @@
       "errorTitle": "Help failed to load",
       "tabs": {
         "overview": "Overview",
-        "fields": "Fields"
+        "workflows": "Workflows",
+        "details": "Details"
       },
       "sections": {
         "whenToUse": "When to use",
         "workflows": "Workflows",
+        "workflowsDescription": "Follow each UI or CLI path in order.",
         "fields": "Fields",
-        "safety": "Safety"
+        "fieldsDescription": "Inputs and defaults exposed by this node.",
+        "safety": "Safety",
+        "safetyDescription": "Review live-change risks before running the node.",
+        "links": "Related resources"
       },
       "labels": {
         "tip": "Tip",

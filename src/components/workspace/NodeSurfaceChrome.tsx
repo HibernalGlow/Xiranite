@@ -1,14 +1,22 @@
-import { useId, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { lazy, Suspense, useId, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { motion, type Transition } from "motion/react"
-import { GripHorizontal } from "lucide-react"
+import { BookOpen, GripHorizontal } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { hasNodeHelp } from "@/components/help/nodeHelpRegistry"
 import { useChromeAppearance } from "@/components/workspace/useChromeAppearance"
 import { cn } from "@/lib/utils"
+
+const LazyNodeHelpSheet = lazy(async () => {
+  const module = await import("@/components/help/NodeHelpSheet")
+  return { default: module.NodeHelpSheet }
+})
 
 /** 操作栏动作语义，用于红绿灯样式下决定圆点颜色。 */
 export type ChromeActionTone = "close" | "minimize" | "maximize" | "neutral"
@@ -49,6 +57,7 @@ export function NodeSurfaceChrome({
   actions,
   collapsed,
   dragHandle,
+  moduleId,
   moduleName,
   stateLabel,
   version,
@@ -56,11 +65,41 @@ export function NodeSurfaceChrome({
   actions: NodeSurfaceChromeAction[]
   collapsed?: boolean
   dragHandle?: ReactNode
+  moduleId?: string
   moduleName: string
   stateLabel?: string
   version?: string
 }) {
+  const { t } = useTranslation()
   const { visible, position, style, islandScale, islandMotion, islandDelay, islandIdleOffset } = useChromeAppearance()
+  const [helpOpen, setHelpOpen] = useState(false)
+  const helpAvailable = hasNodeHelp(moduleId)
+  const chromeActions = useMemo<NodeSurfaceChromeAction[]>(() => {
+    if (!helpAvailable) return actions
+    return [
+      {
+        key: "node-help",
+        label: t("registry:help.open", { name: moduleName }),
+        icon: <BookOpen className="h-3 w-3" />,
+        onClick: (event) => {
+          event.stopPropagation()
+          setHelpOpen(true)
+        },
+      },
+      ...actions,
+    ]
+  }, [actions, helpAvailable, moduleName, t])
+  const helpSheet = helpAvailable ? (
+    <Suspense fallback={null}>
+      <LazyNodeHelpSheet
+        open={helpOpen}
+        moduleId={moduleId ?? null}
+        moduleName={moduleName}
+        version={version}
+        onOpenChange={setHelpOpen}
+      />
+    </Suspense>
+  ) : null
 
   if (!visible) return null
 
@@ -69,48 +108,54 @@ export function NodeSurfaceChrome({
   // 位置设置主要作用于展开态的浮动操作栏。
   if (collapsed) {
     return (
-      <div className="xiranite-ui-copy xiranite-node-chrome-bar flex h-full min-h-10 select-none items-center gap-2 border-b border-transparent px-3">
-        <span className="xiranite-node-chrome-dot h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />
-        {dragHandle}
-        <span className="min-w-0 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-foreground/80">
-          {moduleName}
-        </span>
-        {version && (
-          <span className="shrink-0 text-[9px] font-mono text-muted-foreground/50">
-            {version}
+      <>
+        <div className="xiranite-ui-copy xiranite-node-chrome-bar flex h-full min-h-10 select-none items-center gap-2 border-b border-transparent px-3">
+          <span className="xiranite-node-chrome-dot h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_var(--ws-accent-glow)]" />
+          {dragHandle}
+          <span className="min-w-0 truncate text-[10px] font-mono font-semibold uppercase tracking-widest text-foreground/80">
+            {moduleName}
           </span>
-        )}
-        {stateLabel && (
-          <span className="ml-1 shrink-0 rounded-[3px] bg-muted/35 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground">
-            {stateLabel}
-          </span>
-        )}
-        <div className={cn(
-          "ml-auto flex items-center transition-opacity",
-          isTrafficLight ? "gap-1.5" : "gap-0.5 opacity-65 group-focus-within:opacity-100 group-hover:opacity-100",
-        )}>
-          {actions.map((action) => (
-            <ChromeActionButton
-              key={action.key}
-              action={action}
-              trafficLight={isTrafficLight}
-            />
-          ))}
+          {version && (
+            <span className="shrink-0 text-[9px] font-mono text-muted-foreground/50">
+              {version}
+            </span>
+          )}
+          {stateLabel && (
+            <span className="ml-1 shrink-0 rounded-[3px] bg-muted/35 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-muted-foreground">
+              {stateLabel}
+            </span>
+          )}
+          <div className={cn(
+            "ml-auto flex items-center transition-opacity",
+            isTrafficLight ? "gap-1.5" : "gap-0.5 opacity-65 group-focus-within:opacity-100 group-hover:opacity-100",
+          )}>
+            {chromeActions.map((action) => (
+              <ChromeActionButton
+                key={action.key}
+                action={action}
+                trafficLight={isTrafficLight}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+        {helpSheet}
+      </>
     )
   }
 
   if (position === "island") {
     return (
-      <DynamicIslandChrome
-        actions={actions}
-        dragHandle={dragHandle}
-        delay={islandDelay}
-        idleOffset={islandIdleOffset}
-        motionPercent={islandMotion}
-        scale={islandScale}
-      />
+      <>
+        <DynamicIslandChrome
+          actions={chromeActions}
+          dragHandle={dragHandle}
+          delay={islandDelay}
+          idleOffset={islandIdleOffset}
+          motionPercent={islandMotion}
+          scale={islandScale}
+        />
+        {helpSheet}
+      </>
     )
   }
 
@@ -119,48 +164,54 @@ export function NodeSurfaceChrome({
   if (isTrafficLight) {
     // 红绿灯：圆点常驻可见，hover 时圆点内出现图标。
     return (
-      <div className={cn(
-        "xiranite-ui-copy absolute top-2 z-20 flex items-center gap-1.5 transition-opacity duration-150",
-        positionClass,
-        "opacity-80 group-focus-within:opacity-100 group-hover:opacity-100",
-      )}>
-        {dragHandle && (
-          <span className="xiranite-node-drag-handle xiranite-node-chrome-pill grid h-6 w-6 place-items-center rounded-[3px] border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
-            {dragHandle}
-          </span>
-        )}
-        {actions.map((action) => (
-          <ChromeActionButton
-            key={action.key}
-            action={action}
-            trafficLight
-          />
-        ))}
-      </div>
+      <>
+        <div className={cn(
+          "xiranite-ui-copy absolute top-2 z-20 flex items-center gap-1.5 transition-opacity duration-150",
+          positionClass,
+          "opacity-80 group-focus-within:opacity-100 group-hover:opacity-100",
+        )}>
+          {dragHandle && (
+            <span className="xiranite-node-drag-handle xiranite-node-chrome-pill grid h-6 w-6 place-items-center rounded-[3px] border border-transparent text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
+              {dragHandle}
+            </span>
+          )}
+          {chromeActions.map((action) => (
+            <ChromeActionButton
+              key={action.key}
+              action={action}
+              trafficLight
+            />
+          ))}
+        </div>
+        {helpSheet}
+      </>
     )
   }
 
   // 默认胶囊样式：hover/focus 时才浮现。
   return (
-    <div className={cn(
-      "xiranite-ui-copy pointer-events-none absolute top-2 z-20 flex items-center opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100",
-      positionClass,
-    )}>
-      <div className="xiranite-node-chrome-pill pointer-events-none flex items-center gap-0.5 rounded-[4px] border border-transparent bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
-        {dragHandle && (
-          <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
-            {dragHandle}
-          </span>
-        )}
-        {actions.map((action) => (
-          <ChromeActionButton
-            key={action.key}
-            action={action}
-            trafficLight={false}
-          />
-        ))}
+    <>
+      <div className={cn(
+        "xiranite-ui-copy pointer-events-none absolute top-2 z-20 flex items-center opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100",
+        positionClass,
+      )}>
+        <div className="xiranite-node-chrome-pill pointer-events-none flex items-center gap-0.5 rounded-[4px] border border-transparent bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
+          {dragHandle && (
+            <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
+              {dragHandle}
+            </span>
+          )}
+          {chromeActions.map((action) => (
+            <ChromeActionButton
+              key={action.key}
+              action={action}
+              trafficLight={false}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      {helpSheet}
+    </>
   )
 }
 
@@ -322,8 +373,9 @@ function renderChromeButton(action: NodeSurfaceChromeAction, trafficLight: boole
     const tone = resolveTone(action)
     return (
       <button
-        type="button"
-        title={action.label}
+      type="button"
+      data-action-key={action.key}
+      title={action.label}
         aria-label={action.label}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={handleClick}
@@ -340,21 +392,24 @@ function renderChromeButton(action: NodeSurfaceChromeAction, trafficLight: boole
   }
 
   return (
-    <button
+    <Button
       type="button"
+      data-action-key={action.key}
+      variant="ghost"
+      size="icon-xs"
       title={action.label}
       aria-label={action.label}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={handleClick}
       className={cn(
-        "grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/70",
+        "text-muted-foreground",
         action.danger
           ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:bg-muted/55 hover:text-primary",
+          : "hover:text-primary",
       )}
     >
       {action.icon}
-    </button>
+    </Button>
   )
 }
 
