@@ -223,7 +223,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/dissolvef flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} data-testid="dissolvef-surface" className="@container/dissolvef flex h-full min-h-0 w-full overflow-hidden">
         <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
@@ -272,7 +272,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="dissolvef-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+    <div data-testid="dissolvef-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>
@@ -375,7 +375,7 @@ function FullView(props: ViewProps) {
           onSetDirect={props.onSetDirect}
           onToggleMode={props.onToggleMode}
         />
-        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50")}>
+        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2", live && "border-destructive/50")}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">{tNode("dissolvef", "execution.title", "执行闸门")}</span>
             <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
@@ -389,7 +389,7 @@ function FullView(props: ViewProps) {
         <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
       )}
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/72">
         <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
       </div>
 
@@ -406,7 +406,7 @@ function InputDropZone(props: {
   onPaste: () => void
 }) {
   return (
-    <div className="shrink-0 overflow-hidden rounded-lg border bg-card p-2">
+    <div className="shrink-0 overflow-hidden rounded-lg border bg-card/72 p-2">
       <PathInput compact disabled={props.disabled} value={props.value} onChange={props.onChange} onClear={props.onClear} onPaste={props.onPaste} />
     </div>
   )
@@ -424,7 +424,7 @@ function ModePipeline(props: {
   if (props.direct) {
     const directCount = (props.result?.directFiles ?? 0) + (props.result?.directDirs ?? 0)
     return (
-      <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
+      <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
           <Badge variant="secondary">{tNode("dissolvef", "mode.direct", "直提")}</Badge>
@@ -446,7 +446,7 @@ function ModePipeline(props: {
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
+    <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2">
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
         <Badge variant="outline">{tNode("dissolvef", "mode.bundle", "捆绑")}</Badge>
@@ -521,7 +521,7 @@ function LogsStrip(props: {
 }) {
   if (!props.logs.length) return null
   return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card/72 px-2 py-1">
       <History className="size-3.5 shrink-0 text-muted-foreground" />
       <ScrollArea className="min-w-0 flex-1">
         <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -622,7 +622,7 @@ function ExecutionGate({ compact, embedded, props }: { compact?: boolean; embedd
       className={cn(
         "flex min-w-0 items-center gap-2",
         compact && "grid grid-cols-[minmax(0,1fr)_auto]",
-        !embedded && "rounded-lg border bg-card px-2 py-1.5",
+        !embedded && "rounded-lg border bg-card/72 px-2 py-1.5",
         embedded && "border-t pt-2",
         !preview && "border-destructive/50",
       )}

@@ -204,7 +204,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/crashu flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} className="@container/crashu flex h-full min-h-0 w-full overflow-hidden">
         <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
@@ -256,7 +256,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="crashu-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+    <div data-testid="crashu-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>

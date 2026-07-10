@@ -141,7 +141,7 @@ export function Component({ compId, host }: NodeComponentProps<SnfCardState>) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/snf flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} className="@container/snf flex h-full min-h-0 w-full overflow-hidden">
         {surface.mode === "collapsed" || forceCollapsedSurface ? <CollapsedView {...props} /> : compactSurface ? (portraitCompact ? <PortraitView {...props} /> : <CompactView {...props} />) : <FullView {...props} />}
       </div>
     </TooltipProvider>
@@ -173,7 +173,7 @@ interface ViewProps {
 
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
-  return <div data-testid="snf-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>SNF</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div></div><RunButton compact props={props} /></div>
+  return <div data-testid="snf-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>SNF</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div></div><RunButton compact props={props} /></div>
 }
 
 function CompactView(props: ViewProps) {

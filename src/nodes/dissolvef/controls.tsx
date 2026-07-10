@@ -322,7 +322,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-card p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card/72 p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -343,7 +343,7 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <Field orientation="horizontal" className="min-w-0 items-center gap-1.5 rounded-md border bg-card px-2 py-1.5">
+    <Field orientation="horizontal" className="min-w-0 items-center gap-1.5 rounded-md border bg-card/72 px-2 py-1.5">
       <FieldContent className="min-w-0 gap-0.5">
         <FieldTitle className="min-w-0 text-xs">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
@@ -364,7 +364,7 @@ export function PlanList(props: {
   const plan = props.result?.plan ?? []
   const lines = plan.map((item) => `${item.status} ${item.mode} ${item.operation} ${item.sourcePath}${item.targetPath ? ` -> ${item.targetPath}` : item.reason ? ` / ${item.reason}` : ""}`)
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{lines.length ? tNode("dissolvef", "boards.itemCount", "{{count}} 项", { count: lines.length }) : tNode("dissolvef", "boards.waitingRun", "等待运行")}</span>
@@ -394,7 +394,7 @@ export function HistoryPanel(props: {
 }) {
   const history = props.result?.history ?? []
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{history.length ? tNode("dissolvef", "boards.historyCount", "{{count}} 条", { count: history.length }) : tNode("dissolvef", "boards.noHistory", "无历史")}</span>
@@ -434,7 +434,7 @@ export function LogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{props.logs.length ? tNode("dissolvef", "boards.lineCount", "{{count}} 行", { count: props.logs.length }) : tNode("dissolvef", "boards.waitingLogs", "等待日志")}</span>
@@ -465,7 +465,7 @@ export function DissolvePlanBoard(props: {
 }) {
   const plan = props.result?.plan ?? []
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <ListChecks className="size-3.5 shrink-0" />
@@ -498,7 +498,7 @@ export function DissolveHistoryBoard(props: {
 }) {
   const history = props.result?.history ?? []
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Clock3 className="size-3.5 shrink-0" />
@@ -544,7 +544,7 @@ export function RichLogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Terminal className="size-3.5 shrink-0" />

@@ -200,7 +200,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/cleanf flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} data-testid="cleanf-surface" className="@container/cleanf flex h-full min-h-0 w-full overflow-hidden">
         <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
@@ -250,7 +250,7 @@ function createViewProps(props: {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="cleanf-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+    <div data-testid="cleanf-collapsed-view" className="flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>
@@ -340,7 +340,7 @@ function FullView(props: ViewProps) {
 
 function PresetRulePanel(props: ViewProps) {
   return (
-    <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3 @2xl/cleanf:max-h-full">
+    <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card/72 p-3 @2xl/cleanf:max-h-full">
       <div className="grid gap-3 border-b pb-3">
         <SectionTitle icon={FolderSearch} title={tNode("cleanf", "labels.input", "输入")} hint={tNode("cleanf", "labels.inputHint", "粘贴目录，选择清理预设，预演确认后再执行真实删除。")} />
         <PathInput disabled={props.running} pathCount={props.pathCount} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
@@ -355,7 +355,7 @@ function PresetRulePanel(props: ViewProps) {
 
 function PreviewDeletionPanel(props: ViewProps) {
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card @2xl/cleanf:max-h-full">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card/72 @2xl/cleanf:max-h-full">
       <SectionTitle icon={FileSearch} title={tNode("cleanf", "labels.preview", "待删预览")} hint={tNode("cleanf", "labels.previewHint", "预演或清理后，这里列出将被删除的文件和分类统计。")} className="px-3 pt-3" />
       <div className="min-h-0 flex-1 px-3 pb-3">
         <CleanfDisplayTabs logs={props.logs} phase={props.phase} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
@@ -367,7 +367,7 @@ function PreviewDeletionPanel(props: ViewProps) {
 function ExecutionGatePanel(props: ViewProps) {
   return (
     <section className={cn(
-      "col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
+      "col-span-1 flex min-h-0 flex-col gap-3 overflow-auto rounded-lg border bg-card/72 p-3 @2xl/cleanf:col-span-2 @4xl/cleanf:col-span-1 @4xl/cleanf:col-start-3 @4xl/cleanf:row-start-1",
       !props.previewMode && !props.running && "border-destructive/50 bg-destructive/[0.03]",
     )} data-testid="cleanf-execution-gate">
       <SectionTitle
@@ -406,7 +406,7 @@ function LogsStrip(props: {
 }) {
   if (!props.logs.length) return null
   return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card/72 px-2 py-1">
       <Gauge className="size-3.5 shrink-0 text-muted-foreground" />
       <ScrollArea className="min-w-0 flex-1">
         <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
@@ -443,7 +443,7 @@ function InlineExecutionGate({ compact, props }: { compact?: boolean; props: Vie
   return (
     <section
       data-testid="cleanf-execution-gate"
-      className={cn("flex min-w-0 items-center gap-2 rounded-lg border bg-card p-2", compact && "gap-1.5 p-1.5")}
+      className={cn("flex min-w-0 items-center gap-2 rounded-lg border bg-card/72 p-2", compact && "gap-1.5 p-1.5")}
     >
       <PrimarySwitches
         compact
@@ -474,7 +474,7 @@ function CompactOutcomePanel(props: {
       ? props.logs.at(-1) ?? ""
       : tNode("cleanf", "compact.waiting", "等待预演结果")
   return (
-    <section className="flex min-h-0 items-center gap-2 rounded-lg border bg-card px-2 py-1.5">
+    <section className="flex min-h-0 items-center gap-2 rounded-lg border bg-card/72 px-2 py-1.5">
       <Eye className="size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium">{text}</div>

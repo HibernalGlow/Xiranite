@@ -42,6 +42,7 @@ describe("app-owned classq Component", () => {
       render(<Component compId="comp-classq" host={createHost({ pathsText: "D:/set" })} />)
 
       expect(screen.getByText("ClassQ")).toBeTruthy()
+      expect(screen.getByTestId("classq-surface").className).not.toContain("bg-card")
       if (mode === "collapsed") {
         expect(screen.getByTestId("classq-collapsed-view")).toBeTruthy()
         expect(screen.queryByLabelText("classq roots")).toBeNull()

@@ -100,7 +100,7 @@ export function PresetPicker(props: {
             key={preset.id}
             orientation="horizontal"
             className={cn(
-              "rounded-md border bg-card px-2 py-1.5 transition-colors",
+              "rounded-md border bg-card/72 px-2 py-1.5 transition-colors",
               active && "border-primary/40 bg-primary/5",
               props.disabled && "opacity-60",
             )}
@@ -251,7 +251,7 @@ export function StatusStrip(props: {
   text?: string
 }) {
   return (
-    <div className={cn("rounded-md border bg-card p-2", props.compact && "p-1.5")}>
+    <div className={cn("rounded-md border bg-card/72 p-2", props.compact && "p-1.5")}>
       <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
         <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
@@ -273,7 +273,7 @@ export function SwitchRow(props: {
   const Icon = props.icon
   const id = `cleanf-switch-${props.label}`
   return (
-    <Field orientation="horizontal" className={cn("rounded-md border bg-card px-2 py-1.5", props.compact && "border-0 bg-transparent px-1 py-0")}>
+    <Field orientation="horizontal" className={cn("rounded-md border bg-card/72 px-2 py-1.5", props.compact && "border-0 bg-transparent px-1 py-0")}>
       <FieldContent className="min-w-0 gap-0.5">
         <FieldLabel htmlFor={id} className="min-w-0 text-xs">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
@@ -298,7 +298,7 @@ export function ResultList(props: {
     ? previewFiles
     : Object.entries(details).map(([key, count]) => `${key}: ${count}`)
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Eye className="size-3.5" />
@@ -328,7 +328,7 @@ export function LogPanel(props: {
   onCopy: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{props.logs.length ? tNode("cleanf", "logs.lineCount", "{{count}} 行", { count: props.logs.length }) : tNode("cleanf", "logs.waiting", "等待日志")}</span>

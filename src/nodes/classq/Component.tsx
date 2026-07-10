@@ -173,7 +173,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/classq flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} data-testid="classq-surface" className="@container/classq flex h-full min-h-0 w-full overflow-hidden">
         {surface.mode === "collapsed" || forceCollapsedSurface ? (
           <CollapsedView {...props} />
         ) : compactSurface ? (
@@ -213,7 +213,7 @@ interface ViewProps {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="classq-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+    <div data-testid="classq-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>ClassQ</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
@@ -265,7 +265,7 @@ function FullView(props: ViewProps) {
 
 function CommandPanel(props: ViewProps) {
   return (
-    <section className="flex h-full min-h-0 flex-col bg-card" data-testid="classq-command-deck">
+    <section className="flex h-full min-h-0 flex-col bg-card/72" data-testid="classq-command-deck">
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <Settings2 className="size-4 text-muted-foreground" />
         <span className="text-xs font-semibold">{props.t("command.title", "分类配置")}</span>
@@ -431,7 +431,7 @@ function SpatialWorkbench(props: ViewProps) {
       .map((item) => `${item.sourcePath}: ${item.reason}`),
   ]
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card" data-testid="classq-spatial-workbench">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card/72" data-testid="classq-spatial-workbench">
       <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 px-2 py-1.5" data-testid="classq-header-toolbar">
         <HeaderLine status={props.status} subtitle={viewSubtitle(props)} />
         <MetricsStrip progress={props.progress} result={props.result} roots={props.roots} t={props.t} />
@@ -585,7 +585,7 @@ function PlanDetailTable(props: { group: { parentPath: string; items: ClassqPlan
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <Table className="table-fixed">
-          <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableHeader className="sticky top-0 z-10 bg-card/95">
             <TableRow>
               <TableHead className="w-[34%]">{props.t("table.source", "源节点")}</TableHead>
               <TableHead className="w-[42%]">{props.t("table.target", "等待目录目标")}</TableHead>
@@ -659,7 +659,7 @@ function ResultTabs(props: { compact?: boolean; logs: string[]; result: ClassqDa
     ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`),
   ]
   return (
-    <Tabs defaultValue="plan" className="h-full min-h-0 gap-0 rounded-lg border bg-card" data-testid="classq-result-tabs">
+    <Tabs defaultValue="plan" className="h-full min-h-0 gap-0 rounded-lg border bg-card/72" data-testid="classq-result-tabs">
       <ResultTabList issueCount={issueLines.length} logCount={props.logs.length} planCount={props.result?.items.length ?? 0} t={props.t} />
       <div className="min-w-0 flex-1 overflow-hidden p-1.5">
         <TabsContent value="plan" className="h-full min-h-0"><PlanPanel compact={props.compact} result={props.result} t={props.t} onCopy={props.onCopyResults} /></TabsContent>
@@ -672,7 +672,7 @@ function ResultTabs(props: { compact?: boolean; logs: string[]; result: ClassqDa
 
 function PlanPanel(props: { compact?: boolean; result: ClassqData | null; t: ViewProps["t"]; onCopy: () => void }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"><PLAN_ICON className="size-3.5" /><span>{props.result?.items.length ? props.t("plan.itemCount", "{{count}} 项", { count: props.result.items.length }) : props.t("plan.waiting", "等待扫描")}</span></div><Button disabled={!props.result?.items.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{props.t("actions.copy", "复制")}</Button></div>
       <Separator />
       <PlanRows items={props.result?.items ?? []} roots={[]} />
@@ -683,7 +683,7 @@ function PlanPanel(props: { compact?: boolean; result: ClassqData | null; t: Vie
 function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIcon; lines: string[]; t: ViewProps["t"]; onAction?: () => void }) {
   const Icon = props.icon
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
       <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{Icon && <Icon className="size-3.5" />}{props.lines.length ? props.t("text.lineCount", "{{count}} 行", { count: props.lines.length }) : props.empty}</span>{props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? props.t("actions.copy", "复制")}</Button>}</div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">{props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}</ScrollArea>
@@ -697,7 +697,7 @@ function HeaderLine(props: { status: ClassqStatusMeta; subtitle: string }) {
 }
 
 function StatusStrip(props: { progress: number; status: ClassqStatusMeta; text?: string }) {
-  return <div className="rounded-md border bg-card p-2"><div className="mb-1 flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></div>
+  return <div className="rounded-md border bg-card/72 p-2"><div className="mb-1 flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></div>
 }
 
 function RiskToggle(props: { checked: boolean; compact?: boolean; disabled?: boolean; onCheckedChange: (checked: boolean) => void; t: ViewProps["t"] }) {

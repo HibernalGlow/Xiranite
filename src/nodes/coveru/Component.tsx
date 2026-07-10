@@ -175,7 +175,7 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/coveru flex h-full min-h-0 w-full overflow-hidden bg-card">
+      <div ref={surface.ref} className="@container/coveru flex h-full min-h-0 w-full overflow-hidden">
         {surface.mode === "collapsed" || forceCollapsedSurface ? (
           <CollapsedView {...commonProps} />
         ) : compactSurface ? (
@@ -215,7 +215,7 @@ type ViewProps = {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div data-testid="coveru-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-card px-3 py-2 shadow-sm">
+    <div data-testid="coveru-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
       <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
         <Icon />
       </div>

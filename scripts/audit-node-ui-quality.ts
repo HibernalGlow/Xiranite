@@ -66,6 +66,12 @@ function auditNode(node: string): NodeUiAudit {
   if (component && !component.includes("useNodeSurface") && !component.includes("PackuWorkbench")) {
     error(node, "Component.tsx must use useNodeSurface() instead of fixed card assumptions")
   }
+  if (component) {
+    const surfaceRoot = component.match(/<div\b[^>]*ref=\{surface\.ref\}[^>]*>/s)?.[0]
+    if (surfaceRoot && /\bbg-card(?:\/[^\s"']+)?\b/.test(surfaceRoot)) {
+      error(node, "useNodeSurface root must stay transparent so workspace theme backgrounds remain visible")
+    }
+  }
 
   const componentLines = component ? countLines(component) : 0
   if (componentLines > 1000) {

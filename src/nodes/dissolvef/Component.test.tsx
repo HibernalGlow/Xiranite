@@ -45,6 +45,7 @@ describe("app-owned dissolvef Component", () => {
       render(<Component compId="comp-dissolvef" host={createHost({ pathText: "D:/library/outer" })} />)
 
       expect(screen.getByText("DissolveF")).toBeTruthy()
+      expect(screen.getByTestId("dissolvef-surface").className).not.toContain("bg-card")
       if (mode === "collapsed") {
         expect(screen.getByTestId("dissolvef-collapsed-view")).toBeTruthy()
         expect(screen.getByText("捆绑 / 预演")).toBeTruthy()

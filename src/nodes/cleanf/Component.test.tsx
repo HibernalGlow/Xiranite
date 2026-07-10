@@ -45,6 +45,7 @@ describe("app-owned cleanf Component", () => {
       render(<Component compId="comp-cleanf" host={createHost({ pathText: "D:/workspace" })} />)
 
       expect(screen.getByText("Cleanf")).toBeTruthy()
+      expect(screen.getByTestId("cleanf-surface").className).not.toContain("bg-card")
       if (mode === "collapsed") {
         expect(screen.getByTestId("cleanf-collapsed-view")).toBeTruthy()
         expect(screen.getByText(/1 条路径/)).toBeTruthy()
