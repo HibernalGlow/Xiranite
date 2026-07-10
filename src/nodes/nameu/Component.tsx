@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { NameuAction, NameuData, NameuInput, NameuMode, NameuPlanItem } from "@xiranite/node-nameu/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, FileArchive, FilePenLine, FolderInput, GitCompare, ListChecks, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, FileArchive, FilePenLine, FolderInput, GitCompare, ListChecks, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,9 +13,10 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, MODES, NODE_ICON } from "./constants"
 import type { NameuCardState, NameuStatusMeta } from "./types"
@@ -23,6 +24,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<NameuCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("nameu")
   const data = getHostData(host, compId)
   const dataRef = useRef<NameuCardState>(data)
   dataRef.current = data
@@ -30,6 +32,8 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<NameuCardState> | undefined>()
   const [configDirty, setConfigDirty] = useState(false)
+  const [configPath, setConfigPath] = useState<string | undefined>()
+  const [configLoading, setConfigLoading] = useState(false)
 
   const action = data.action ?? "plan"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]!
@@ -43,8 +47,7 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<NameuCardState>>() ?? host.getNodeConfig?.<Partial<NameuCardState>>()
-    loadConfig?.then((response) => setDefaults(response.config)).catch(() => undefined)
+    void loadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -86,10 +89,33 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
-    if (host.config?.save) await host.config.save(config)
-    else await host.saveNodeConfig?.(config)
-    setDefaults(config)
-    setConfigDirty(false)
+    setConfigLoading(true)
+    try {
+      if (host.config?.save) await host.config.save(config)
+      else await host.saveNodeConfig?.(config)
+      setDefaults(config)
+      setConfigDirty(false)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function loadDefaults() {
+    const loadConfig = host.config?.get?.<Partial<NameuCardState>>() ?? host.getNodeConfig?.<Partial<NameuCardState>>()
+    if (!loadConfig) return
+
+    setConfigLoading(true)
+    try {
+      const response = await loadConfig
+      setDefaults(response.config)
+      setConfigPath(response.path)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function openConfigFile() {
+    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function execute(nextAction: NameuAction = action) {
@@ -134,6 +160,8 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
     action,
     actionMeta,
     configDirty,
+    configLoading,
+    configPath,
     data,
     defaults,
     logs,
@@ -142,12 +170,15 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
     result,
     running,
     status,
+    t,
     onActionChange: (value) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
     onPastePaths: pastePaths,
     onPatch: patch,
+    onLoadDefaults: loadDefaults,
+    onOpenConfigFile: openConfigFile,
     onReset: reset,
     onRestoreDefault: () => defaults && patch(defaults),
     onSaveDefault: saveAsDefault,
@@ -172,6 +203,8 @@ interface ViewProps {
   action: NameuAction
   actionMeta: (typeof ACTIONS)[number]
   configDirty: boolean
+  configLoading: boolean
+  configPath?: string
   data: NameuCardState
   defaults?: Partial<NameuCardState>
   logs: string[]
@@ -180,12 +213,15 @@ interface ViewProps {
   result: NameuData | null
   running: boolean
   status: NameuStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: NameuAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: NameuAction) => void
   onPastePaths: () => void
   onPatch: (patch: Partial<NameuCardState>) => void
+  onLoadDefaults: () => Promise<void>
+  onOpenConfigFile: () => Promise<void>
   onReset: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
@@ -200,7 +236,7 @@ function CollapsedView(props: ViewProps) {
         <div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>NameU</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <RunButton compact props={props} />
+      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><RunButton compact props={props} /></div>
     </div>
   )
 }
@@ -210,11 +246,11 @@ function CompactView(props: ViewProps) {
     <div data-testid="nameu-compact-view" className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1"><ActionTools {...props} compact /><RunButton compact props={props} /></div>
+        <ActionTools {...props} compact />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-        <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+        <div className="grid gap-1.5"><ActionTabs value={props.action} disabled={props.running} onChange={props.onActionChange} /><RunButton compact props={props} /></div>
+        <ModeTabs value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
         <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
         <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
@@ -226,9 +262,9 @@ function CompactView(props: ViewProps) {
 function PortraitView(props: ViewProps) {
   return (
     <div data-testid="nameu-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><RunButton compact props={props} /></div>
-      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
-      <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+      <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><ConfigManagement {...props} /></div>
+      <div className="grid gap-1.5"><ActionTabs value={props.action} disabled={props.running} onChange={props.onActionChange} /><RunButton compact props={props} /></div>
+      <ModeTabs value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
       <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
@@ -248,17 +284,17 @@ function FullView(props: ViewProps) {
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
       <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(260px,330px)]">
-        <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2">
-          <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-0 flex-col gap-2">
+          <section className="min-h-0 flex-1 overflow-auto rounded-lg border bg-card p-2">
             <div className="grid gap-2">
               <ZoneTitle icon={FolderInput} label="路径和规则" />
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-              <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+              <ModeTabs value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
               <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </div>
-          </div>
+          </section>
           <ExecutionGate {...props} />
-        </section>
+        </div>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
           <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={GitCompare} label="改名计划" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
           <Separator />
@@ -273,27 +309,46 @@ function FullView(props: ViewProps) {
 function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="保存默认" onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="恢复默认" onClick={props.onRestoreDefault} />
+      <ConfigManagement {...props} />
       <IconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
     </div>
   )
 }
 
-function ActionMode(props: { disabled?: boolean; value: NameuAction; onChange: (value: NameuAction) => void }) {
+function ConfigManagement(props: ViewProps) {
   return (
-    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as NameuAction)} className="grid grid-cols-3" size="sm">
-      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.shortLabel}</span></ToggleGroupItem>)}
-    </ToggleGroup>
+    <NodeConfigPopover
+      configPath={props.configPath}
+      defaults={props.defaults as Record<string, unknown> | undefined}
+      dirty={props.configDirty}
+      disabled={props.running}
+      loading={props.configLoading}
+      t={props.t}
+      onOpenFile={props.onOpenConfigFile}
+      onReload={props.onLoadDefaults}
+      onRestore={props.onRestoreDefault}
+      onSave={props.onSaveDefault}
+    />
   )
 }
 
-function ModeToggle(props: { disabled?: boolean; value: NameuMode; onChange: (value: NameuMode) => void }) {
+function ActionTabs(props: { disabled?: boolean; value: NameuAction; onChange: (value: NameuAction) => void }) {
   return (
-    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as NameuMode)} className="grid grid-cols-2" size="sm">
-      {MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.label}</span></ToggleGroupItem>)}
-    </ToggleGroup>
+    <Tabs value={props.value} onValueChange={(value) => props.onChange(value as NameuAction)} className="w-full">
+      <TabsList aria-label="改名动作" variant="line" className="grid w-full grid-cols-3">
+        {ACTIONS.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{item.shortLabel}</span></TabsTrigger>)}
+      </TabsList>
+    </Tabs>
+  )
+}
+
+function ModeTabs(props: { disabled?: boolean; value: NameuMode; onChange: (value: NameuMode) => void }) {
+  return (
+    <Tabs value={props.value} onValueChange={(value) => props.onChange(value as NameuMode)} className="w-full">
+      <TabsList aria-label="路径模式" variant="line" className="grid w-full grid-cols-2">
+        {MODES.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{item.label}</span></TabsTrigger>)}
+      </TabsList>
+    </Tabs>
   )
 }
 
@@ -325,7 +380,7 @@ function ExecutionGate(props: ViewProps) {
   return (
     <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
       <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="执行" tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "预览" : "写入"}</Badge></div>
-      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <ActionTabs value={props.action} disabled={props.running} onChange={props.onActionChange} />
       <RunButton props={props} />
     </section>
   )
