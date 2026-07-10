@@ -1,16 +1,17 @@
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clipboard, Clock3, Copy, DatabaseZap, Eraser, FileSymlink, FolderInput, Info, Layers, ListChecks, PackageOpen, ShieldAlert, Terminal, Trash2, Undo2, XCircle } from "lucide-react"
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clipboard, Clock3, Copy, Eraser, FileSymlink, FolderInput, Info, Layers, ListChecks, PackageOpen, ShieldAlert, Terminal, Trash2, Undo2, XCircle } from "lucide-react"
 import type { DissolvefConflictMode } from "@xiranite/node-dissolvef/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -59,27 +60,22 @@ export function ModePicker(props: {
 
   return (
     <div data-testid="dissolvef-mode-picker" className="grid gap-1.5">
-      <ToggleGroup
+      <Tabs
         aria-label={tNode("dissolvef", "aria.modeStrategy", "dissolvef mode strategy")}
-        className="grid w-full grid-cols-2"
-        disabled={props.disabled}
-        size="sm"
-        type="single"
         value={props.direct ? "direct" : "bundle"}
-        variant="outline"
-        onValueChange={(value) => {
-          if (value) props.onSetDirect(value === "direct")
-        }}
+        onValueChange={(value) => props.onSetDirect(value === "direct")}
       >
-        <ToggleGroupItem className="w-full" value="bundle">
-          <Layers data-icon="inline-start" />
-          <span className="truncate">{tNode("dissolvef", "mode.bundle", "捆绑")}</span>
-        </ToggleGroupItem>
-        <ToggleGroupItem className="w-full" value="direct">
-          <PackageOpen data-icon="inline-start" />
-          <span className="truncate">{tNode("dissolvef", "mode.direct", "直提")}</span>
-        </ToggleGroupItem>
-      </ToggleGroup>
+        <TabsList className="grid w-full grid-cols-2" variant="default">
+          <TabsTrigger disabled={props.disabled} value="bundle">
+            <Layers data-icon="inline-start" />
+            <span className="truncate">{tNode("dissolvef", "mode.bundle", "捆绑")}</span>
+          </TabsTrigger>
+          <TabsTrigger disabled={props.disabled} value="direct">
+            <PackageOpen data-icon="inline-start" />
+            <span className="truncate">{tNode("dissolvef", "mode.direct", "直提")}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
       {!props.direct && (
         <ToggleGroup
           aria-label={tNode("dissolvef", "aria.bundleModes", "dissolvef bundle modes")}
@@ -193,6 +189,46 @@ export function PrimarySwitches(props: {
   )
 }
 
+export function CollisionPolicy(props: {
+  data: DissolvefCardState
+  disabled?: boolean
+  onPatch: (patch: Partial<DissolvefCardState>) => void
+}) {
+  const selected = props.data.fileConflict ?? "auto"
+  return (
+    <section data-testid="dissolvef-collision-policy" className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card/72 p-3">
+      <div>
+        <div className="text-sm font-semibold">{tNode("dissolvef", "collision.title", "冲突策略")}</div>
+        <p className="mt-0.5 text-xs text-muted-foreground">{tNode("dissolvef", "collision.description", "目标目录已存在同名文件时的处理方式。")}</p>
+      </div>
+      <RadioGroup
+        aria-label={tNode("dissolvef", "aria.collisionPolicy", "dissolvef collision policy")}
+        className="gap-1.5"
+        disabled={props.disabled}
+        value={selected}
+        onValueChange={(fileConflict) => props.onPatch({
+          fileConflict: fileConflict as DissolvefConflictMode,
+          dirConflict: fileConflict as DissolvefConflictMode,
+        })}
+      >
+        {CONFLICT_MODES.map((mode) => {
+          const id = `dissolvef-collision-${mode.value}`
+          const label = tNode("dissolvef", `conflictModes.${mode.value}.label`, mode.label)
+          return (
+            <Field key={mode.value} orientation="horizontal" className="items-start gap-2 rounded-md border bg-background/40 p-2 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5">
+              <RadioGroupItem id={id} value={mode.value} />
+              <FieldContent className="gap-0.5">
+                <FieldLabel htmlFor={id} className="cursor-pointer text-xs font-medium">{label}</FieldLabel>
+                <FieldDescription className="text-[11px]">{tNode("dissolvef", `conflictModes.${mode.value}.description`, mode.description)}</FieldDescription>
+              </FieldContent>
+            </Field>
+          )
+        })}
+      </RadioGroup>
+    </section>
+  )
+}
+
 export function AdvancedOptionsPopover(props: {
   data: DissolvefCardState
   direct: boolean
@@ -257,58 +293,6 @@ export function AdvancedOptionsPopover(props: {
               onChange={(dirConflict) => props.onPatch({ dirConflict: dirConflict as DissolvefConflictMode })}
             />
           </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-export function ConfigDefaultsPopover(props: {
-  configDirty: boolean
-  configFilePath?: string
-  defaults?: Partial<DissolvefCardState>
-  disabled?: boolean
-  onOpenConfigFile?: () => Promise<void> | void
-  onResetOverride: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label={tNode("dissolvef", "aria.defaults", "dissolvef defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
-              <DatabaseZap />
-              <span className="sr-only">{tNode("dissolvef", "defaults.title", "默认配置")}</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{tNode("dissolvef", "defaults.title", "默认配置")}</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">{tNode("dissolvef", "defaults.title", "默认配置")}</div>
-          <p className="text-xs text-muted-foreground">{tNode("dissolvef", "defaults.description", "保存 Dissolvef 的路径、模式和冲突策略到明文配置。")}</p>
-        </div>
-        <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{tNode("dissolvef", "defaults.save", "保存为默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{tNode("dissolvef", "defaults.restore", "恢复默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{tNode("dissolvef", "defaults.clear", "清除覆盖")}</Button>
-          <Separator />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{tNode("dissolvef", "defaults.view", "查看配置")}</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{tNode("dissolvef", "defaults.dialogTitle", "Dissolvef 配置")}</DialogTitle>
-                <DialogDescription>{tNode("dissolvef", "defaults.dialogDescription", "当前 nodes.dissolvef 默认值和配置文件位置。")}</DialogDescription>
-              </DialogHeader>
-              <ConfigPreview config={props.defaults} path={props.configFilePath} />
-            </DialogContent>
-          </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{tNode("dissolvef", "defaults.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -624,26 +608,6 @@ function dissolveModeIcon(mode: NonNullable<DissolvefCardState["result"]>["plan"
 
 function baseName(path: string) {
   return path.split(/[\\/]/).filter(Boolean).pop() || path || tNode("dissolvef", "boards.unspecified", "未指定")
-}
-
-function ConfigPreview(props: {
-  config?: Partial<DissolvefCardState>
-  path?: string
-}) {
-  const content = props.config === undefined
-    ? tNode("dissolvef", "defaults.none", "# nodes.dissolvef 暂无默认配置\n")
-    : JSON.stringify(props.config, null, 2)
-  return (
-    <div className="grid gap-3">
-      <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">{tNode("dissolvef", "defaults.configFile", "配置文件")}</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? tNode("dissolvef", "defaults.noConfigService", "未连接本地配置服务")}</div>
-      </div>
-      <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
-        {content}
-      </pre>
-    </div>
-  )
 }
 
 function InfoHint({ description, label }: { description: string; label: string }) {

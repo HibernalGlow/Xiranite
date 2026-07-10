@@ -1,8 +1,7 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { DissolvefConflictMode, DissolvefData, DissolvefInput } from "@xiranite/node-dissolvef/core"
-import type { LucideIcon } from "lucide-react"
-import { ArrowRight, Eye, History, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
+import { Eye, History, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
@@ -12,12 +11,13 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { BUNDLE_MODES, DEFAULT_THRESHOLD, DIRECT_ICON, DISSOLVE_ICON, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, DissolveHistoryBoard, DissolvePlanBoard, ModePicker, PathInput, PrimarySwitches, RichLogPanel, StatusStrip } from "./controls"
+import { DEFAULT_THRESHOLD, DISSOLVE_ICON, NODE_ICON } from "./constants"
+import { ActionIconButton, AdvancedOptionsPopover, CollisionPolicy, DissolveHistoryBoard, DissolvePlanBoard, ModePicker, PathInput, PrimarySwitches, RichLogPanel, StatusStrip } from "./controls"
 import type { DissolvefAction, DissolvefCardState, DissolvefPhase, DissolvefStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -49,19 +49,23 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (archive && !direct) modes.push("archive")
     return modes
   }, [nested, media, archive, direct])
-  const phase = phaseFromState(data, running)
   const status = statusFromState(data, running, result)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
+  async function reloadDefaults() {
+    try {
+      const response = await host.getNodeConfig?.<Partial<DissolvefCardState>>()
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // The web fixture has no desktop config service. Keep the node usable.
+    }
+  }
+
   useEffect(() => {
-    host.getNodeConfig?.<Partial<DissolvefCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -176,24 +180,6 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    patch({
-      pathText: undefined,
-      historyPath: undefined,
-      excludeText: undefined,
-      nested: undefined,
-      media: undefined,
-      archive: undefined,
-      direct: undefined,
-      preview: undefined,
-      protectFirstLevel: undefined,
-      enableSimilarity: undefined,
-      similarityThreshold: undefined,
-      fileConflict: undefined,
-      dirConflict: undefined,
-    })
-  }
-
   const commonProps = createViewProps({
     configDirty,
     configFilePath,
@@ -208,13 +194,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     running,
     selectedModes,
     status,
+    t,
     onCopyLogs: copyLogs,
     onExecute: execute,
     onOpenConfigFile: host.openConfigFile,
     onPastePath: pastePath,
     onPatch: patch,
+    onReloadDefaults: reloadDefaults,
     onReset: reset,
-    onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
     onSetDirect: setDirectMode,
@@ -254,13 +241,14 @@ function createViewProps(props: {
   running: boolean
   selectedModes: string[]
   status: DissolvefStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onCopyLogs: () => void
   onExecute: (action: DissolvefAction) => void
   onOpenConfigFile?: () => Promise<void> | void
   onPastePath: () => void
   onPatch: (patch: Partial<DissolvefCardState>) => void
+  onReloadDefaults: () => Promise<void>
   onReset: () => void
-  onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
   onSetDirect: (direct: boolean) => void
@@ -309,7 +297,7 @@ function CompactView(props: ViewProps) {
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
         <div className="min-h-0 flex-1">
-          <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
+          <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={() => props.onExecute("undo")} />
         </div>
       </div>
     </div>
@@ -336,7 +324,7 @@ function PortraitCompactView(props: ViewProps) {
         <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
       )}
       <div className="min-h-0 flex-1">
-        <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
+        <DissolvefDisplayTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={() => props.onExecute("undo")} />
       </div>
     </div>
   )
@@ -345,7 +333,6 @@ function PortraitCompactView(props: ViewProps) {
 function FullView(props: ViewProps) {
   const isRunning = props.status.tone === "running"
   const isError = props.status.tone === "error"
-  const live = !props.preview
   return (
     <div data-testid="dissolvef-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <div className="flex shrink-0 flex-col gap-2 @3xl/dissolvef:flex-row @3xl/dissolvef:items-center @3xl/dissolvef:justify-between">
@@ -358,42 +345,54 @@ function FullView(props: ViewProps) {
         <StatsPanel progress={props.progress} result={props.result} />
       </div>
 
-      <InputDropZone
-        disabled={props.running}
-        value={props.data.pathText ?? ""}
-        onChange={(pathText) => props.onPatch({ pathText })}
-        onClear={() => props.onPatch({ pathText: "" })}
-        onPaste={props.onPastePath}
-      />
+      <div className="grid min-h-0 flex-1 gap-2 @3xl/dissolvef:grid-cols-[minmax(14rem,0.78fr)_minmax(22rem,1.8fr)_minmax(16rem,0.86fr)]">
+        <aside className="flex min-h-0 flex-col gap-2">
+          <InputDropZone
+            disabled={props.running}
+            value={props.data.pathText ?? ""}
+            onChange={(pathText) => props.onPatch({ pathText })}
+            onClear={() => props.onPatch({ pathText: "" })}
+            onPaste={props.onPastePath}
+          />
+          <section className="flex min-h-0 flex-1 flex-col gap-3 rounded-lg border bg-card/72 p-3">
+            <div>
+              <div className="text-sm font-semibold">{tNode("dissolvef", "workspace.rules", "溶解规则")}</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{tNode("dissolvef", "workspace.rulesDescription", "选择结构策略与保护条件。")}</p>
+            </div>
+            <ModePicker direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
+            <PrimarySwitches className="mt-auto" showPreview={false} data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+          </section>
+        </aside>
 
-      <div className="grid shrink-0 gap-2 @2xl/dissolvef:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <ModePipeline
-          direct={props.direct}
-          disabled={props.running}
-          result={props.result}
-          selectedModes={props.selectedModes}
-          onSetDirect={props.onSetDirect}
-          onToggleMode={props.onToggleMode}
-        />
-        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2", live && "border-destructive/50")}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">{tNode("dissolvef", "execution.title", "执行闸门")}</span>
-            <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+        <section className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-3">
+          <div className="flex shrink-0 items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-base font-semibold">{tNode("dissolvef", "workspace.topology", "结构变换预览")}</div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{props.data.pathText || tNode("dissolvef", "workspace.noPath", "输入目标目录后生成变换计划")}</p>
+            </div>
+            <Badge variant={props.preview ? "secondary" : "destructive"}>{props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.live", "真实")}</Badge>
           </div>
-          <PrimarySwitches showPreview={false} data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
-          <ExecutionGate embedded props={props} />
-        </div>
+          {(isRunning || isError) && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={() => props.onExecute("undo")} />
+          </div>
+          <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
+        </section>
+
+        <aside className="flex min-h-0 flex-col gap-2">
+          <CollisionPolicy data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <section className={cn("mt-auto flex flex-col gap-3 rounded-lg border bg-card/72 p-3", !props.preview && "border-destructive/50")}>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">{tNode("dissolvef", "execution.title", "执行闸门")}</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{tNode("dissolvef", "execution.summary", "确认模式后启动一次任务。")}</p>
+              </div>
+              <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+            </div>
+            <ExecutionGate embedded props={props} />
+          </section>
+        </aside>
       </div>
-
-      {(isRunning || isError) && (
-        <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-      )}
-
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/72">
-        <DissolvefDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={(id) => props.onExecute("undo")} />
-      </div>
-
-      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
@@ -409,109 +408,6 @@ function InputDropZone(props: {
     <div className="shrink-0 overflow-hidden rounded-lg border bg-card/72 p-2">
       <PathInput compact disabled={props.disabled} value={props.value} onChange={props.onChange} onClear={props.onClear} onPaste={props.onPaste} />
     </div>
-  )
-}
-
-function ModePipeline(props: {
-  direct: boolean
-  disabled?: boolean
-  result: DissolvefData | null
-  selectedModes: string[]
-  onSetDirect: (direct: boolean) => void
-  onToggleMode: (mode: "nested" | "media" | "archive") => void
-}) {
-  const DirectIcon = DIRECT_ICON
-  if (props.direct) {
-    const directCount = (props.result?.directFiles ?? 0) + (props.result?.directDirs ?? 0)
-    return (
-      <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2">
-        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
-          <Badge variant="secondary">{tNode("dissolvef", "mode.direct", "直提")}</Badge>
-        </div>
-        <PipelineStage
-          icon={DirectIcon}
-          label={tNode("dissolvef", "mode.direct", "直提")}
-          hint={tNode("dissolvef", "pipeline.directHint", "全部上提到父级")}
-          count={directCount}
-          active
-          disabled={props.disabled}
-          onClick={() => props.onSetDirect(false)}
-        />
-        <Button aria-label={tNode("dissolvef", "aria.bundleMode", "捆绑模式")} disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onSetDirect(false)}>
-          <span className="truncate">{tNode("dissolvef", "pipeline.switchBundle", "切换到捆绑模式")}</span>
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-0 flex-col gap-2 rounded-lg border bg-card/72 p-2">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <span>{tNode("dissolvef", "labels.modePipeline", "溶解流水线")}</span>
-        <Badge variant="outline">{tNode("dissolvef", "mode.bundle", "捆绑")}</Badge>
-      </div>
-      <div className="flex items-stretch gap-1">
-        {BUNDLE_MODES.map((mode, index) => (
-          <Fragment key={mode.value}>
-            <PipelineStage
-              icon={mode.icon}
-              label={tNode("dissolvef", `bundleModes.${mode.value}.shortLabel`, mode.shortLabel)}
-              hint={tNode("dissolvef", `bundleModes.${mode.value}.description`, mode.description)}
-              count={modeCount(props.result, mode.value)}
-              active={props.selectedModes.includes(mode.value)}
-              disabled={props.disabled}
-              onClick={() => props.onToggleMode(mode.value)}
-            />
-            {index < BUNDLE_MODES.length - 1 && (
-              <div className="grid shrink-0 place-items-center text-muted-foreground/60">
-                <ArrowRight className="size-3" />
-              </div>
-            )}
-          </Fragment>
-        ))}
-      </div>
-      <Button aria-label={tNode("dissolvef", "aria.directMode", "直提模式")} disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onSetDirect(true)}>
-        <DirectIcon data-icon="inline-start" />
-        <span className="truncate">{tNode("dissolvef", "pipeline.switchDirect", "切换到直提模式")}</span>
-      </Button>
-    </div>
-  )
-}
-
-function PipelineStage(props: {
-  icon: LucideIcon
-  label: string
-  hint?: string
-  count: number
-  active: boolean
-  disabled?: boolean
-  onClick: () => void
-}) {
-  const Icon = props.icon
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={props.label}
-          disabled={props.disabled}
-          size="sm"
-          variant={props.active ? "secondary" : "outline"}
-          onClick={props.onClick}
-          className={cn(
-            "h-auto min-w-0 flex-1 flex-col items-center gap-0.5 px-1.5 py-1.5",
-            !props.active && "opacity-60",
-          )}
-        >
-          <Icon className="size-3.5 text-muted-foreground" />
-          <span className="truncate text-[11px] font-medium">{props.label}</span>
-          <span className="text-sm font-semibold tabular-nums">
-            {props.count > 0 ? <NumberTicker value={props.count} className="text-foreground" /> : props.count}
-          </span>
-        </Button>
-      </TooltipTrigger>
-      {props.hint && <TooltipContent side="bottom" className="max-w-[200px]">{props.hint}</TooltipContent>}
-    </Tooltip>
   )
 }
 
@@ -544,18 +440,17 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
       <ActionIconButton disabled={props.running || !props.result?.history.length} icon={Undo2} label={tNode("dissolvef", "actions.undoRecent", "撤销最近")} onClick={() => props.onExecute("undo")} />
       {!props.compact && !props.hidePrimaryAction && <PrimaryActionButton props={props} />}
       <ActionIconButton icon={RotateCcw} label={tNode("dissolvef", "actions.clearState", "清空状态")} onClick={props.onReset} />
-      {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
-      )}
+      <NodeConfigPopover
+        configPath={props.configFilePath}
+        defaults={props.defaults}
+        dirty={props.configDirty}
+        disabled={props.running}
+        t={props.t}
+        onOpenFile={props.onOpenConfigFile}
+        onReload={props.onReloadDefaults}
+        onRestore={props.onRestoreDefault}
+        onSave={props.onSaveDefault}
+      />
     </div>
   )
 }
@@ -774,11 +669,6 @@ function statusFromState(data: DissolvefCardState, running: boolean, result: Dis
   }
 }
 
-function phaseFromState(data: DissolvefCardState, running: boolean): DissolvefPhase {
-  if (running) return data.phase ?? "planning"
-  return data.phase ?? "idle"
-}
-
 function phaseForAction(action: DissolvefAction): DissolvefPhase {
   if (action === "plan") return "planning"
   if (action === "dissolve") return "dissolving"
@@ -799,11 +689,4 @@ function summaryText(props: ViewProps): string {
   if (props.result?.totalCount) return tNode("dissolvef", "summary.total", "{{total}} 项 / {{success}} 成功", { total: props.result.totalCount, success: props.result.successCount })
   if (props.data.pathText) return tNode("dissolvef", "summary.mode", "{{mode}} / {{preview}}", { mode: props.direct ? tNode("dissolvef", "mode.direct", "直提") : tNode("dissolvef", "mode.bundle", "捆绑"), preview: props.preview ? tNode("dissolvef", "mode.dry", "预演") : tNode("dissolvef", "mode.live", "真实") })
   return tNode("dissolvef", "summary.empty", "粘贴文件夹后开始溶解")
-}
-
-function modeCount(result: DissolvefData | null, mode: string): number {
-  if (mode === "nested") return result?.nestedCount ?? 0
-  if (mode === "media") return result?.mediaCount ?? 0
-  if (mode === "archive") return result?.archiveCount ?? 0
-  return 0
 }
