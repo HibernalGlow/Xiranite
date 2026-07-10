@@ -1856,6 +1856,84 @@
         "switchDirect": "Switch to direct mode"
       }
     },
+    "diny": {
+      "name": "Diny",
+      "description": "AI-powered git commit message generator wrapping the diny binary.",
+      "title": "diny",
+      "generate": "Generate",
+      "copyLogs": "Copy Logs",
+      "reset": "Reset",
+      "copy": "Copy",
+      "stop": "Stop",
+      "saveDefaults": "Save as Defaults",
+      "meta": "{{staged}} staged / {{branch}} / {{state}}",
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "success": "Done",
+        "error": "Failed"
+      },
+      "desc": {
+        "idle": "Generate an AI commit message or enter one manually.",
+        "running": "Diny is executing.",
+        "success": "Last operation completed.",
+        "error": "Last operation failed, check logs."
+      },
+      "actions": {
+        "generate": "Generate",
+        "commit": "Commit",
+        "dryCommit": "Dry Commit",
+        "push": "Push",
+        "copy": "Copy",
+        "stop": "Stop",
+        "reset": "Reset",
+        "saveDefaults": "Save as Defaults"
+      },
+      "labels": {
+        "commitMessage": "Commit Message",
+        "stagedFiles": "Staged Files",
+        "diffPreview": "Diff Preview",
+        "logs": "Logs"
+      },
+      "stats": {
+        "staged": "Staged",
+        "branch": "Branch",
+        "insertions": "Insertions",
+        "deletions": "Deletions"
+      },
+      "switches": {
+        "dryRunOn": "Dry Run",
+        "dryRunOff": "Live",
+        "noVerifyOn": "Skip Hooks",
+        "noVerifyOff": "Hooks"
+      },
+      "fields": {
+        "repoPath": {
+          "label": "Repo Path",
+          "placeholder": "Leave empty for current directory"
+        },
+        "dinyPath": {
+          "label": "diny Path",
+          "placeholder": "Leave empty to resolve from PATH"
+        },
+        "manualMessage": {
+          "label": "Manual Message"
+        }
+      },
+      "empty": {
+        "staged": "No staged files",
+        "message": "No message generated yet"
+      },
+      "placeholder": {
+        "manualMessage": "Enter a commit message manually, or leave empty to use diny AI..."
+      },
+      "progress": {
+        "start": "Starting..."
+      },
+      "error": {
+        "noRunEnv": "No local execution available in this host. Use desktop mode or CLI."
+      }
+    },
     "encodeb": {
       "name": "Encodeb",
       "description": "Preview and recover garbled filenames by re-decoding path components.",

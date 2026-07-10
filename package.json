@@ -81,6 +81,7 @@
     "@xiranite/node-coveru": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
+    "@xiranite/node-diny": "workspace:*",
     "@xiranite/node-encodeb": "workspace:*",
     "@xiranite/node-enginev": "workspace:*",
     "@xiranite/node-envuconfig": "workspace:*",

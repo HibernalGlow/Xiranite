@@ -51,6 +51,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-crashu/platform"),
     createRuntime: "createNodeCrashuRuntime",
   },
+  diny: {
+    loadCore: () => import("@xiranite/node-diny/core"),
+    run: "runDiny",
+    loadPlatform: () => import("@xiranite/node-diny/platform"),
+    createRuntime: "createNodeDinyRuntime",
+  },
   dissolvef: {
     loadCore: () => import("@xiranite/node-dissolvef/core"),
     run: "runDissolvef",

@@ -52,6 +52,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Match similar folder names and optionally move matched folders.",
   },
   {
+    id: "diny",
+    packageName: "@xiranite/node-diny",
+    bin: nodeCliName("diny"),
+    description: "AI-powered git commit message generator wrapping the diny binary.",
+  },
+  {
     id: "dissolvef",
     packageName: "@xiranite/node-dissolvef",
     bin: nodeCliName("dissolvef"),

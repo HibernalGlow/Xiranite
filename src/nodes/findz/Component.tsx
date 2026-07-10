@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
@@ -18,7 +19,6 @@ import {
   ActionIconButton,
   ActionPicker,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   PathInput,
   PrimarySwitches,
   StatusStrip,
@@ -54,13 +54,18 @@ export function Component({ host }: FindzProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
+  async function reloadDefaults() {
+    try {
+      const response = await host.config?.get()
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // Browser QA does not expose the desktop configuration service.
+    }
+  }
+
   useEffect(() => {
-    host.config?.get()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -175,29 +180,6 @@ export function Component({ host }: FindzProps) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    patch({
-      action: undefined,
-      pathText: undefined,
-      where: undefined,
-      noArchive: undefined,
-      followSymlinks: undefined,
-      withImageMeta: undefined,
-      longFormat: undefined,
-      continueOnError: undefined,
-      maxResults: undefined,
-      maxReturnFiles: undefined,
-      groupBy: undefined,
-      refine: undefined,
-      sortBy: undefined,
-      sortDesc: undefined,
-      outputFormat: undefined,
-      outputPath: undefined,
-      archiveSeparator: undefined,
-      printZero: undefined,
-    })
-  }
-
   const commonProps = createViewProps({
     action,
     actionMeta,
@@ -220,8 +202,8 @@ export function Component({ host }: FindzProps) {
     onOpenConfigFile: host.config?.openFile,
     onPaste: pastePaths,
     onPatch: patch,
+    onReloadDefaults: reloadDefaults,
     onReset: reset,
-    onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   })
@@ -268,8 +250,8 @@ function createViewProps(props: {
   onOpenConfigFile?: () => Promise<void> | void
   onPaste: () => void
   onPatch: (patch: Partial<FindzCardState>) => void
+  onReloadDefaults: () => Promise<void>
   onReset: () => void
-  onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
@@ -403,18 +385,17 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={FileSearch} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label={props.tNode("buttons.clearState", "清空状态")} onClick={props.onReset} />
-      {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
-          defaults={props.defaults}
-          disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
-        />
-      )}
+      <NodeConfigPopover
+        configPath={props.configFilePath}
+        defaults={props.defaults}
+        dirty={props.configDirty}
+        disabled={props.running}
+        t={props.tNode}
+        onOpenFile={props.onOpenConfigFile}
+        onReload={props.onReloadDefaults}
+        onRestore={props.onRestoreDefault}
+        onSave={props.onSaveDefault}
+      />
     </div>
   )
 }
