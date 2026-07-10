@@ -19,7 +19,7 @@ export const ACTIONS: BitvActionMeta[] = [
     value: "status",
     label: "查看状态",
     shortLabel: "状态",
-    description: "检查配置候选、数据库路径和将要调用的 Python 模块。",
+    description: "检查配置候选、报告记录位置和分析任务是否已就绪。",
     icon: ScanLine,
     destructive: false,
   },

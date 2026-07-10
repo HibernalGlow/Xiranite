@@ -92,7 +92,7 @@ describe("app-owned bitv Component", () => {
     expect(host.cardState.result?.command).toBeTruthy()
 
     await waitFor(() => {
-      expect(screen.getAllByText(/python/).length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByTestId("bitv-report-log")).toBeTruthy()
     })
   })
 
