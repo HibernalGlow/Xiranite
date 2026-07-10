@@ -2,16 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { CrashuData, CrashuInput } from "@xiranite/node-crashu/core"
 import type { LucideIcon } from "lucide-react"
-import { Archive, Copy, FolderSearch, MoveRight, RotateCcw, Search, ShieldAlert, Square, Zap } from "lucide-react"
+import { Archive, Copy, FolderSearch, MoveRight, RotateCcw, Search, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { cn } from "@/lib/utils"
@@ -41,7 +41,6 @@ export function Component({ compId, host }: NodeComponentProps) {
   const targetNames = useMemo(() => splitLines(data.targetNamesText), [data.targetNamesText])
   const threshold = data.similarityThreshold ?? DEFAULT_THRESHOLD
   const dryRun = data.dryRun ?? true
-  const autoMove = data.autoMove ?? false
   const direction = data.moveDirection ?? "to_target"
   const conflict = data.conflictPolicy ?? "skip"
   const phase = phaseFromState(data, running)
@@ -62,7 +61,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.sourcePathsText, data.targetPath, data.targetNamesText, data.destinationPath, data.similarityThreshold, data.autoMove, data.moveDirection, data.conflictPolicy, defaults])
+  }, [data.sourcePathsText, data.targetPath, data.targetNamesText, data.destinationPath, data.similarityThreshold, data.moveDirection, data.conflictPolicy, defaults])
 
   function patch(patchData: Partial<CrashuCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -170,7 +169,6 @@ export function Component({ compId, host }: NodeComponentProps) {
       targetNamesText: undefined,
       destinationPath: undefined,
       similarityThreshold: undefined,
-      autoMove: undefined,
       moveDirection: undefined,
       conflictPolicy: undefined,
     })
@@ -264,7 +262,7 @@ function CollapsedView(props: ViewProps) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Crashu</span>
+          <span>{tNode("crashu", "name", "Crashu")}</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
@@ -284,7 +282,6 @@ function CompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
@@ -292,7 +289,10 @@ function CompactView(props: ViewProps) {
           <SourcePathsInput compact disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
           <TargetNamesInput compact disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
         </div>
-        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <div className="flex min-w-0 items-center gap-2">
+          <PrimarySwitches compact className="min-w-0 flex-1" data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PrimaryActionButton compact props={props} />
+        </div>
         <ToolbarActions {...props} compact />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -314,13 +314,15 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
         <SourcePathsInput compact disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
         <TargetNamesInput compact disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
-        <PrimarySwitches compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <div className="flex min-w-0 items-center gap-2">
+          <PrimarySwitches compact className="min-w-0 flex-1" data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PrimaryActionButton compact props={props} />
+        </div>
         <ToolbarActions {...props} compact />
       </div>
       <div className="min-h-0 flex-1">
@@ -358,9 +360,6 @@ function FullView(props: ViewProps) {
           <ZoneLabel icon={FolderSearch} label={tNode("crashu", "zone.input", "匹配输入")} />
           <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
           <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
-          <Separator />
-          <div className="text-xs font-semibold">{tNode("crashu", "labels.switches", "关键开关")}</div>
-          <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </section>
 
         {/* Zone 2 + 3: Results and Execution Gate */}
@@ -390,22 +389,23 @@ function ExecutionGate(props: ViewProps) {
         <Badge variant={live ? "destructive" : "outline"}>{props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.live", "真实")}</Badge>
       </div>
 
-      <ToggleGroup
-        type="single"
-        value={props.dryRun ? "dry" : "live"}
-        onValueChange={(value) => { if (value) props.onPatch({ dryRun: value === "dry" }) }}
-        className="grid w-full grid-cols-2"
-        size="sm"
-      >
-        <ToggleGroupItem value="dry" className="min-w-0 gap-1">
-          <ShieldAlert className="size-3.5" />
-          <span className="truncate text-xs">{tNode("crashu", "mode.dry", "预演")}</span>
-        </ToggleGroupItem>
-        <ToggleGroupItem value="live" className="min-w-0 gap-1">
-          <Zap className="size-3.5" />
-          <span className="truncate text-xs">{tNode("crashu", "mode.live", "真实")}</span>
-        </ToggleGroupItem>
-      </ToggleGroup>
+      <div className="flex min-w-0 items-center gap-2 rounded-md border bg-card p-2">
+        <Field orientation="horizontal" className="min-w-0 flex-1 items-center gap-2">
+          <ShieldAlert className={cn("size-3.5 shrink-0", live ? "text-destructive" : "text-muted-foreground")} />
+          <FieldContent className="min-w-0 gap-0.5">
+            <FieldTitle className="truncate text-xs">{live ? tNode("crashu", "execution.liveState", "真实：将移动文件夹") : tNode("crashu", "execution.previewState", "预演：不移动文件夹")}</FieldTitle>
+            <FieldDescription className="line-clamp-2 text-[11px]">{live ? tNode("crashu", "execution.liveDescription", "执行前仍会要求确认真实移动。") : tNode("crashu", "execution.previewDescription", "生成匹配与移动计划，不会写入文件系统。")}</FieldDescription>
+          </FieldContent>
+          <Switch
+            aria-label={tNode("crashu", "aria.previewSwitch", "crashu 预演切换")}
+            checked={props.dryRun}
+            disabled={props.running}
+            size="sm"
+            onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
+          />
+        </Field>
+        <PrimaryActionButton props={props} />
+      </div>
 
       <Separator />
 
@@ -430,19 +430,18 @@ function ExecutionGate(props: ViewProps) {
 
       <Separator />
 
-      <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</Label>
+      <Field className="gap-1.5">
+        <FieldTitle className="text-xs text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</FieldTitle>
         <DirectionPicker disabled={props.running} value={props.data.moveDirection ?? "to_target"} onChange={(moveDirection) => props.onPatch({ moveDirection })} />
-      </div>
+      </Field>
 
-      <div className="grid gap-1.5">
-        <Label className="text-xs text-muted-foreground">{tNode("crashu", "labels.conflictPolicy", "冲突策略")}</Label>
+      <Field className="gap-1.5">
+        <FieldTitle className="text-xs text-muted-foreground">{tNode("crashu", "labels.conflictPolicy", "冲突策略")}</FieldTitle>
         <ConflictPicker disabled={props.running} value={props.data.conflictPolicy ?? "skip"} onChange={(conflictPolicy) => props.onPatch({ conflictPolicy })} />
-      </div>
+      </Field>
 
       <Separator />
 
-      <PrimaryActionButton props={props} />
     </section>
   )
 }
@@ -454,16 +453,18 @@ function GateTextField(props: {
   placeholder?: string
   value: string
 }) {
+  const id = `crashu-gate-${props.label}`
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <Label className="text-xs text-muted-foreground">{props.label}</Label>
+    <Field className="min-w-0 gap-1">
+      <FieldLabel htmlFor={id} className="text-xs text-muted-foreground">{props.label}</FieldLabel>
       <Input
+        id={id}
         disabled={props.disabled}
         placeholder={props.placeholder}
         value={props.value}
         onChange={(event) => props.onChange(event.currentTarget.value)}
       />
-    </div>
+    </Field>
   )
 }
 
@@ -476,10 +477,12 @@ function GateNumberField(props: {
   step?: number
   value: number
 }) {
+  const id = `crashu-gate-${props.label}`
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <Label className="text-xs text-muted-foreground">{props.label}</Label>
+    <Field className="min-w-0 gap-1">
+      <FieldLabel htmlFor={id} className="text-xs text-muted-foreground">{props.label}</FieldLabel>
       <Input
+        id={id}
         disabled={props.disabled}
         max={props.max}
         min={props.min}
@@ -488,7 +491,7 @@ function GateNumberField(props: {
         value={props.value}
         onChange={(event) => props.onChange(Number(event.currentTarget.value))}
       />
-    </div>
+    </Field>
   )
 }
 
@@ -647,7 +650,7 @@ function HeaderLine({ status, subtitle }: {
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">Crashu</h3>
+            <h3 className="truncate text-sm font-semibold leading-none">{tNode("crashu", "name", "Crashu")}</h3>
             <Badge variant={status.badgeVariant}>{status.label}</Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
@@ -705,7 +708,7 @@ function CrashuDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0">
+      <TabsList className="shrink-0">
         <TabsTrigger value="results">{tNode("crashu", "tabs.results", "结果")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("crashu", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>

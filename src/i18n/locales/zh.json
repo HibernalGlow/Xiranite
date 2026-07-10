@@ -1330,6 +1330,7 @@
         "scanMatch": "扫描匹配",
         "plan": "生成计划",
         "copyResults": "复制结果",
+        "copy": "复制",
         "clearState": "清空状态",
         "dryMove": "预演移动",
         "liveMove": "真实移动",
@@ -1343,6 +1344,36 @@
         "moveDirection": "移动方向",
         "conflictPolicy": "冲突策略"
       },
+      "input": {
+        "sourceFolders": "源目录",
+        "targetNames": "目标名称",
+        "sourcePlaceholder": "每行一个源根目录\nD:/source/gallery",
+        "targetPlaceholder": "每行一个目标文件夹名，或填写目标目录自动读取",
+        "pasteSources": "粘贴源目录",
+        "clearSources": "清空源目录",
+        "lineCount": "{{count}} 条"
+      },
+      "fields": {
+        "preview": "预演",
+        "previewDescription": "开启后只扫描和生成计划，不真实移动文件夹。关闭后会执行真实移动。",
+        "autoMove": "自动移动",
+        "autoMoveDescription": "扫描后直接执行移动，无需单独触发。需要填写目标目录。",
+        "similarityThreshold": "相似度阈值",
+        "targetFolder": "目标目录",
+        "targetFolderPlaceholder": "填写目录可自动读取子文件夹作为目标名",
+        "destinationRoot": "移动目标根目录",
+        "destinationRootPlaceholder": "移动操作的最终根目录"
+      },
+      "advanced": {
+        "title": "高级选项",
+        "description": "相似度阈值、目标目录和冲突策略集中在这里。"
+      },
+      "execution": {
+        "previewState": "预演：不移动文件夹",
+        "liveState": "真实：将移动文件夹",
+        "previewDescription": "生成匹配与移动计划，不会写入文件系统。",
+        "liveDescription": "执行前仍会要求确认真实移动。"
+      },
       "moveDirection": {
         "toTarget": "源→目标",
         "toSource": "目标→源"
@@ -1351,6 +1382,37 @@
         "skip": "跳过",
         "rename": "改名",
         "overwrite": "覆盖"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 Crashu 的源目录、目标和移动策略到明文配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "clear": "清除覆盖",
+        "view": "查看配置",
+        "openFile": "打开文件",
+        "dialogTitle": "Crashu 配置",
+        "dialogDescription": "当前 nodes.crashu 默认值和配置文件位置。",
+        "none": "# nodes.crashu 暂无默认配置\n",
+        "configFile": "配置文件",
+        "noConfigService": "未连接本地配置服务"
+      },
+      "boards": {
+        "itemCount": "{{count}} 项",
+        "lineCount": "{{count}} 行",
+        "matches": "匹配 {{count}}",
+        "waitingRun": "等待运行",
+        "waitingLogs": "等待日志",
+        "matchListEmpty": "运行后会显示匹配和移动计划。",
+        "matchBoardEmpty": "运行后显示匹配通道、相似度和移动计划。",
+        "logsEmpty": "运行日志会显示在这里。",
+        "unspecified": "未指定"
+      },
+      "planStatus": {
+        "success": "完成",
+        "error": "错误",
+        "skipped": "跳过",
+        "pending": "待执行"
       },
       "confirm": {
         "title": "确认真实执行 Crashu？",
@@ -1375,7 +1437,9 @@
         "moveDirection": "crashu move direction",
         "conflictPolicy": "crashu conflict policy",
         "advancedOptions": "crashu advanced options",
-        "defaults": "crashu defaults"
+        "defaults": "crashu defaults",
+        "description": "{{label}}说明",
+        "previewSwitch": "crashu 预演切换"
       },
       "error": {
         "noSource": "请先输入至少一个源目录。",

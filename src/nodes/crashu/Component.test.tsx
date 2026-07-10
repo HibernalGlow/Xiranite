@@ -64,7 +64,7 @@ describe("app-owned crashu Component", () => {
         expect(screen.getByTestId("crashu-primary-switches")).toBeTruthy()
       } else {
         expect(screen.getByTestId("crashu-full-view")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
+        expect(screen.getByLabelText("crashu 预演切换")).toBeTruthy()
         expect(screen.getByTestId("crashu-header-toolbar")).toBeTruthy()
       }
     },

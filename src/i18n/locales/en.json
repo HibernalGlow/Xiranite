@@ -1330,6 +1330,7 @@
         "scanMatch": "Scan matches",
         "plan": "Generate plan",
         "copyResults": "Copy results",
+        "copy": "Copy",
         "clearState": "Clear state",
         "dryMove": "Dry move",
         "liveMove": "Live move",
@@ -1343,6 +1344,36 @@
         "moveDirection": "Move direction",
         "conflictPolicy": "Conflict policy"
       },
+      "input": {
+        "sourceFolders": "Source folders",
+        "targetNames": "Target names",
+        "sourcePlaceholder": "One source root per line\nD:/source/gallery",
+        "targetPlaceholder": "One target folder name per line, or provide a target folder to read automatically",
+        "pasteSources": "Paste source folders",
+        "clearSources": "Clear source folders",
+        "lineCount": "{{count}} entries"
+      },
+      "fields": {
+        "preview": "Preview",
+        "previewDescription": "Scans and builds a plan only; no folders are moved until this is turned off.",
+        "autoMove": "Auto move",
+        "autoMoveDescription": "Moves immediately after scanning. A destination folder is required.",
+        "similarityThreshold": "Similarity threshold",
+        "targetFolder": "Target folder",
+        "targetFolderPlaceholder": "Read its child folders automatically as target names",
+        "destinationRoot": "Destination root",
+        "destinationRootPlaceholder": "Final root folder for move operations"
+      },
+      "advanced": {
+        "title": "Advanced options",
+        "description": "Similarity threshold, target folder, and conflict policy live here."
+      },
+      "execution": {
+        "previewState": "Preview: folders stay in place",
+        "liveState": "Live: folders will be moved",
+        "previewDescription": "Build matching and move plans without writing to the file system.",
+        "liveDescription": "A confirmation is still required before moving folders."
+      },
       "moveDirection": {
         "toTarget": "Source → Target",
         "toSource": "Target → Source"
@@ -1351,6 +1382,37 @@
         "skip": "Skip",
         "rename": "Rename",
         "overwrite": "Overwrite"
+      },
+      "defaults": {
+        "title": "Default settings",
+        "description": "Save Crashu source folders, targets, and move policy in a plain-text configuration.",
+        "save": "Save as default",
+        "restore": "Restore default",
+        "clear": "Clear override",
+        "view": "View settings",
+        "openFile": "Open file",
+        "dialogTitle": "Crashu settings",
+        "dialogDescription": "Current nodes.crashu defaults and the settings file location.",
+        "none": "# No nodes.crashu defaults\n",
+        "configFile": "Settings file",
+        "noConfigService": "No local settings service connected"
+      },
+      "boards": {
+        "itemCount": "{{count}} items",
+        "lineCount": "{{count}} lines",
+        "matches": "{{count}} matches",
+        "waitingRun": "Waiting to run",
+        "waitingLogs": "Waiting for logs",
+        "matchListEmpty": "Matches and move plans will appear here after a run.",
+        "matchBoardEmpty": "Matching lanes, similarity scores, and the move plan will appear after a run.",
+        "logsEmpty": "Run logs will appear here.",
+        "unspecified": "Unspecified"
+      },
+      "planStatus": {
+        "success": "Complete",
+        "error": "Error",
+        "skipped": "Skipped",
+        "pending": "Pending"
       },
       "confirm": {
         "title": "Confirm live Crashu?",
@@ -1375,7 +1437,9 @@
         "moveDirection": "crashu move direction",
         "conflictPolicy": "crashu conflict policy",
         "advancedOptions": "crashu advanced options",
-        "defaults": "crashu defaults"
+        "defaults": "crashu defaults",
+        "description": "{{label}} description",
+        "previewSwitch": "crashu preview switch"
       },
       "error": {
         "noSource": "Please enter at least one source directory.",

@@ -10,7 +10,6 @@ export interface CrashuCardState {
   targetNamesText?: string
   destinationPath?: string
   similarityThreshold?: number
-  autoMove?: boolean
   moveDirection?: CrashuMoveDirection
   conflictPolicy?: CrashuConflictPolicy
   dryRun?: boolean
@@ -35,7 +34,6 @@ export const CONFIG_FIELDS: Array<keyof CrashuCardState> = [
   "targetNamesText",
   "destinationPath",
   "similarityThreshold",
-  "autoMove",
   "moveDirection",
   "conflictPolicy",
 ]
