@@ -1274,6 +1274,141 @@
         "start": "{{action}}开始"
       }
     },
+    "classq": {
+      "name": "ClassQ",
+      "description": "通过关键词递归分类文件夹，并把等待项路由到对应目标。",
+      "identity": {
+        "subtitle": "关键词递归分类工具",
+        "description": "通过关键词递归识别目录，并把等待项路由到对应分类目标。"
+      },
+      "command": {
+        "title": "分类配置",
+        "description": "定义扫描根目录、关键词目录和等待目录规则。",
+        "input": "输入目录",
+        "inputDescription": "每行一个需要递归扫描的根目录。",
+        "folders": "分类目录规则",
+        "foldersDescription": "关键词目录负责命中，等待目录接收同级待分类项。"
+      },
+      "fields": {
+        "roots": "根目录，每行一个",
+        "keyword": "关键词目录",
+        "wait": "等待目录"
+      },
+      "action": {
+        "scanLabel": "扫描根目录",
+        "scanShort": "扫描",
+        "classifyLabel": "执行分类",
+        "classifyShort": "分类",
+        "classifyPreview": "预览分类"
+      },
+      "mode": {
+        "scan": {
+          "title": "递归扫描",
+          "description": "递归扫描关键词目录并生成等待项计划。"
+        },
+        "classify": {
+          "previewDescription": "按当前移动或复制规则生成分类结果，不改动文件。",
+          "liveDescription": "按当前规则实际处理就绪项，执行前需要确认。"
+        }
+      },
+      "transfer": {
+        "move": "移动",
+        "copy": "复制"
+      },
+      "risk": {
+        "dryRun": "预览",
+        "dryRunDescription": "不改动文件",
+        "live": "实时",
+        "liveDescription": "会改动文件"
+      },
+      "topology": {
+        "title": "路由拓扑",
+        "description": "显示来源、分类路由和目标目录。"
+      },
+      "explorer": {
+        "tree": "递归文件树",
+        "description": "按根目录和父目录展开真实扫描结果。"
+      },
+      "detail": {
+        "title": "结果详情"
+      },
+      "metrics": {
+        "roots": "根目录",
+        "keyword": "关键词",
+        "wait": "等待",
+        "ready": "就绪",
+        "moved": "已移动",
+        "progress": "进度"
+      },
+      "tabs": {
+        "plan": "计划",
+        "issues": "问题",
+        "log": "日志"
+      },
+      "table": {
+        "source": "源节点",
+        "target": "等待目录目标",
+        "type": "类型",
+        "status": "状态"
+      },
+      "type": {
+        "folder": "目录",
+        "file": "文件"
+      },
+      "empty": {
+        "addRoots": "添加根目录以预览分类计划。",
+        "runScan": "运行扫描后，这里会显示递归文件树和分类计划。",
+        "treeTitle": "等待递归文件树",
+        "topologyTitle": "等待路由拓扑",
+        "detailTitle": "等待分类结果",
+        "issues": "暂无问题",
+        "logs": "运行日志会显示在这里。",
+        "table": "此目录没有等待项。"
+      },
+      "plan": {
+        "itemCount": "{{count}} 项",
+        "waiting": "等待扫描"
+      },
+      "text": {
+        "lineCount": "{{count}} 行"
+      },
+      "actions": {
+        "copy": "复制",
+        "copyPlan": "复制计划",
+        "copyLogs": "复制日志"
+      },
+      "confirm": {
+        "title": "确认实时执行 ClassQ 分类？",
+        "description": "ClassQ 将移动或复制就绪的同级项目到等待目录；已存在的目标会作为冲突跳过。",
+        "cancel": "取消",
+        "classify": "确认分类"
+      },
+      "status": {
+        "ready": "就绪",
+        "readyDescription": "扫描根目录中的关键词目录和等待项。",
+        "running": "运行中",
+        "runningDescription": "正在扫描关键词目录或处理等待项。",
+        "done": "完成",
+        "doneDescription": "上次 ClassQ 任务已完成。",
+        "failed": "失败",
+        "failedDescription": "上次任务失败，请查看问题和日志。",
+        "started": "{{action}}已开始",
+        "item": {
+          "found": "已找到",
+          "ready": "就绪",
+          "skipped": "已跳过",
+          "moved": "已移动",
+          "copied": "已复制",
+          "conflict": "冲突",
+          "error": "错误"
+        }
+      },
+      "summary": {
+        "result": "关键词 {{keyword}} / 等待 {{wait}} / 就绪 {{ready}}",
+        "roots": "{{count}} 个根目录 / {{action}}",
+        "idle": "通过关键词递归分类文件夹"
+      }
+    },
     "crashu": {
       "name": "Crashu",
       "description": "匹配相似文件夹名并可选地移动匹配的文件夹。",

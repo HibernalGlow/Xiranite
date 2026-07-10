@@ -43,7 +43,7 @@ describe("app-owned classq Component", () => {
 
       expect(screen.getByText("ClassQ")).toBeTruthy()
       expect(screen.getByTestId("classq-surface").className).not.toContain("bg-card")
-      expect(screen.getByTestId("classq-theme-backdrop")).toBeTruthy()
+      expect(screen.queryByTestId("classq-theme-backdrop")).toBeNull()
       if (mode === "collapsed") {
         expect(screen.getByTestId("classq-collapsed-view")).toBeTruthy()
         expect(screen.queryByLabelText("classq roots")).toBeNull()
@@ -60,10 +60,12 @@ describe("app-owned classq Component", () => {
         expect(screen.getByTestId("classq-portrait-view")).toBeTruthy()
       } else {
         expect(screen.getByTestId("classq-full-view")).toBeTruthy()
-        expect(screen.getByTestId("classq-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("classq-identity-card")).toBeTruthy()
         expect(screen.getByTestId("classq-command-deck")).toBeTruthy()
+        expect(screen.getByTestId("classq-explorer")).toBeTruthy()
+        expect(screen.getByTestId("classq-routing-topology")).toBeTruthy()
         expect(screen.getByTestId("classq-spatial-workbench")).toBeTruthy()
-        expect(within(screen.getByTestId("classq-header-toolbar")).queryAllByRole("tab")).toHaveLength(0)
+        expect(screen.queryByTestId("classq-header-toolbar")).toBeNull()
         expect(screen.getByRole("button", { name: "扫描根目录" })).toBeTruthy()
       }
     },
@@ -148,11 +150,29 @@ describe("app-owned classq Component", () => {
     const list = screen.getByTestId("classq-result-list")
 
     expect(screen.getByTestId("classq-result-tabs").getAttribute("data-orientation")).toBe("horizontal")
+    expect(list.getAttribute("data-variant")).toBe("default")
     await user.click(within(list).getByRole("tab", { name: /日志/ }))
 
     expect(within(list).getByRole("tab", { name: /日志/ }).getAttribute("aria-selected")).toBe("true")
     expect(screen.getByText("scan complete")).toBeTruthy()
-    expect(within(screen.getByTestId("classq-header-toolbar")).queryAllByRole("tab")).toHaveLength(0)
+    expect(screen.queryByTestId("classq-header-toolbar")).toBeNull()
+  })
+
+  test("renders routing topology from real ClassQ plan items", () => {
+    setSurface("regular")
+    render(<Component compId="comp-classq" host={createHost({ pathsText: "D:/set", result: classqData })} />)
+
+    const topology = screen.getByTestId("classq-routing-topology")
+    expect(within(topology).getByText("pending.zip")).toBeTruthy()
+    expect(within(topology).getAllByText("wait/pending.zip").length).toBeGreaterThan(0)
+    expect(within(topology).getByText("移动")).toBeTruthy()
+  })
+
+  test("exposes draggable panel handles for all three full-view regions", () => {
+    setSurface("workspace")
+    render(<Component compId="comp-classq" host={createHost({ pathsText: "D:/set", result: classqData })} />)
+
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(3)
   })
 
   test("marks the card as error when run has no roots", async () => {

@@ -1274,6 +1274,141 @@
         "start": "{{action}} started"
       }
     },
+    "classq": {
+      "name": "ClassQ",
+      "description": "Recursively classify folders by keyword and route waiting items to their destinations.",
+      "identity": {
+        "subtitle": "Recursive keyword classifier",
+        "description": "Recursively identify keyword folders and route waiting items to the matching classification target."
+      },
+      "command": {
+        "title": "Classification rules",
+        "description": "Define root paths, keyword folders, and waiting-folder rules.",
+        "input": "Root directories",
+        "inputDescription": "Enter one recursively scanned root directory per line.",
+        "folders": "Folder rules",
+        "foldersDescription": "Keyword folders create matches; waiting folders receive sibling items."
+      },
+      "fields": {
+        "roots": "One root directory per line",
+        "keyword": "Keyword folder",
+        "wait": "Waiting folder"
+      },
+      "action": {
+        "scanLabel": "Scan roots",
+        "scanShort": "Scan",
+        "classifyLabel": "Run classification",
+        "classifyShort": "Classify",
+        "classifyPreview": "Preview classification"
+      },
+      "mode": {
+        "scan": {
+          "title": "Recursive scan",
+          "description": "Recursively scan keyword folders and build the waiting-item plan."
+        },
+        "classify": {
+          "previewDescription": "Build the current move or copy plan without changing files.",
+          "liveDescription": "Apply the current routing rules to ready items after confirmation."
+        }
+      },
+      "transfer": {
+        "move": "Move",
+        "copy": "Copy"
+      },
+      "risk": {
+        "dryRun": "Preview",
+        "dryRunDescription": "Files stay unchanged",
+        "live": "Live",
+        "liveDescription": "Files will change"
+      },
+      "topology": {
+        "title": "Routing topology",
+        "description": "Shows sources, the classification route, and destination folders."
+      },
+      "explorer": {
+        "tree": "Recursive file tree",
+        "description": "Expand real scan results by root and parent directory."
+      },
+      "detail": {
+        "title": "Result details"
+      },
+      "metrics": {
+        "roots": "Roots",
+        "keyword": "Keywords",
+        "wait": "Waiting",
+        "ready": "Ready",
+        "moved": "Moved",
+        "progress": "Progress"
+      },
+      "tabs": {
+        "plan": "Plan",
+        "issues": "Issues",
+        "log": "Logs"
+      },
+      "table": {
+        "source": "Source",
+        "target": "Waiting target",
+        "type": "Type",
+        "status": "Status"
+      },
+      "type": {
+        "folder": "Folder",
+        "file": "File"
+      },
+      "empty": {
+        "addRoots": "Add root directories to preview the classification plan.",
+        "runScan": "Run a scan to populate the recursive file tree and classification plan.",
+        "treeTitle": "Waiting for the file tree",
+        "topologyTitle": "Waiting for routing topology",
+        "detailTitle": "Waiting for results",
+        "issues": "No issues",
+        "logs": "Run logs will appear here.",
+        "table": "This directory has no waiting items."
+      },
+      "plan": {
+        "itemCount": "{{count}} items",
+        "waiting": "Waiting for scan"
+      },
+      "text": {
+        "lineCount": "{{count}} lines"
+      },
+      "actions": {
+        "copy": "Copy",
+        "copyPlan": "Copy plan",
+        "copyLogs": "Copy logs"
+      },
+      "confirm": {
+        "title": "Run live ClassQ classification?",
+        "description": "ClassQ will move or copy ready sibling items into waiting folders. Existing targets are skipped as conflicts.",
+        "cancel": "Cancel",
+        "classify": "Confirm classification"
+      },
+      "status": {
+        "ready": "Ready",
+        "readyDescription": "Scan keyword folders and waiting items inside the configured roots.",
+        "running": "Running",
+        "runningDescription": "ClassQ is scanning keyword folders or processing waiting items.",
+        "done": "Complete",
+        "doneDescription": "The previous ClassQ task completed.",
+        "failed": "Failed",
+        "failedDescription": "The previous task failed. Review issues and logs.",
+        "started": "{{action}} started",
+        "item": {
+          "found": "Found",
+          "ready": "Ready",
+          "skipped": "Skipped",
+          "moved": "Moved",
+          "copied": "Copied",
+          "conflict": "Conflict",
+          "error": "Error"
+        }
+      },
+      "summary": {
+        "result": "Keywords {{keyword}} / waiting {{wait}} / ready {{ready}}",
+        "roots": "{{count}} roots / {{action}}",
+        "idle": "Recursively classify folders by keyword"
+      }
+    },
     "crashu": {
       "name": "Crashu",
       "description": "Match similar folder names and optionally move matched folders.",

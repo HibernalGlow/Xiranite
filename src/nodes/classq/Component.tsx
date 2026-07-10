@@ -2,17 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassqAction, ClassqData, ClassqInput, ClassqPlanItem, ClassqTransferMode } from "@xiranite/node-classq/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, FolderOpen, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, FolderOpen, GitBranch, ListTree, Play, RotateCcw, Search, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { AnimatedBeam } from "@/components/ui/animated-beam"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -174,12 +177,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   return (
     <TooltipProvider>
       <div ref={surface.ref} data-testid="classq-surface" className="@container/classq relative flex h-full min-h-0 w-full overflow-hidden">
-        <div
-          aria-hidden
-          data-testid="classq-theme-backdrop"
-          className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_14%_0%,color-mix(in_oklch,var(--chart-3)_16%,transparent),transparent_38%),radial-gradient(circle_at_88%_6%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_32%)]"
-        />
-        <div className="relative flex min-h-0 w-full flex-col">
+        <div className="flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...props} />
           ) : compactSurface ? (
@@ -270,30 +268,74 @@ function FullView(props: ViewProps) {
   )
 }
 
+function IdentityCard(props: ViewProps) {
+  return (
+    <Card className="shrink-0 gap-0 py-0" data-testid="classq-identity-card">
+      <CardHeader className="border-b px-3 py-3 !pb-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
+            <NODE_ICON />
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-xl">ClassQ</span>
+              <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
+            </CardTitle>
+            <CardDescription className="mt-1 truncate text-xs">{props.t("identity.subtitle", "关键词递归分类工具")}</CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <ActionTools {...props} />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="grid gap-3 px-3 py-3">
+        <p className="text-xs leading-5 text-muted-foreground">
+          {props.t("identity.description", "通过关键词递归识别目录，并把等待项路由到对应分类目标。")}
+        </p>
+        <MetricsStrip progress={props.progress} result={props.result} roots={props.roots} t={props.t} />
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function CommandPanel(props: ViewProps) {
   return (
-    <section className="flex h-full min-h-0 flex-col bg-card/72" data-testid="classq-command-deck">
-      <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-        <Settings2 className="size-4 text-muted-foreground" />
-        <span className="text-xs font-semibold">{props.t("command.title", "分类配置")}</span>
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid min-w-0 gap-3 p-3">
-          <div className="grid min-w-0 gap-1.5">
-            <Label className="text-xs text-muted-foreground">{props.t("command.input", "输入目录")}</Label>
-            <CommandRootInput expanded data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} t={props.t} />
-          </div>
-          <div className="grid min-w-0 gap-1.5">
-            <Label className="text-xs text-muted-foreground">{props.t("command.folders", "分类目录规则")}</Label>
-            <div className="grid min-w-0 grid-cols-2 gap-1.5">
-              <Input aria-label="classq keyword" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.keyword", "关键词目录")} value={props.data.keyword ?? ""} onChange={(event) => props.onPatch({ keyword: event.currentTarget.value })} />
-              <Input aria-label="classq wait" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.wait", "等待目录")} value={props.data.waitKeyword ?? ""} onChange={(event) => props.onPatch({ waitKeyword: event.currentTarget.value })} />
-            </div>
-          </div>
+    <Card className="h-full min-h-0 gap-0 py-0" data-testid="classq-command-deck">
+      <CardHeader className="border-b px-3 py-3 !pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Settings2 />
+          {props.t("command.title", "分类配置")}
+        </CardTitle>
+        <CardDescription className="text-xs">
+          {props.t("command.description", "定义扫描根目录、关键词目录和等待目录规则。")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col px-0">
+        <div className="shrink-0 border-b p-3">
           <ModeExecutionTabs compact props={props} />
         </div>
-      </ScrollArea>
-    </section>
+        <ScrollArea className="min-h-0 flex-1">
+          <FieldGroup className="gap-4 p-3">
+            <Field>
+              <FieldTitle className="text-xs">{props.t("command.input", "输入目录")}</FieldTitle>
+              <FieldDescription className="text-xs">{props.t("command.inputDescription", "每行一个需要递归扫描的根目录。")}</FieldDescription>
+              <CommandRootInput expanded data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} t={props.t} />
+            </Field>
+            <Field>
+              <FieldTitle className="text-xs">{props.t("command.folders", "分类目录规则")}</FieldTitle>
+              <FieldDescription className="text-xs">{props.t("command.foldersDescription", "关键词目录负责命中，等待目录接收同级待分类项。")}</FieldDescription>
+              <div className="grid min-w-0 grid-cols-2 gap-1.5">
+                <Input aria-label="classq keyword" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.keyword", "关键词目录")} value={props.data.keyword ?? ""} onChange={(event) => props.onPatch({ keyword: event.currentTarget.value })} />
+                <Input aria-label="classq wait" className="h-8 min-w-0 font-mono text-xs" disabled={props.running} placeholder={props.t("fields.wait", "等待目录")} value={props.data.waitKeyword ?? ""} onChange={(event) => props.onPatch({ waitKeyword: event.currentTarget.value })} />
+              </div>
+            </Field>
+          </FieldGroup>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -327,26 +369,34 @@ function ModeExecutionTabs({ compact, props }: { compact?: boolean; props: ViewP
     <Tabs
       value={props.action}
       onValueChange={(value) => props.onActionChange(value as ClassqAction)}
-      className="min-w-0 gap-1 rounded-md border p-1"
+      className="min-w-0 gap-2"
       data-testid="classq-mode-tabs"
     >
-      <TabsList variant="line" className="h-8 w-full justify-start rounded-none border-b p-0">
-        <TabsTrigger value="plan" disabled={props.running} className="flex-none px-3 text-xs"><Search />{props.t("action.scan.short", "扫描")}</TabsTrigger>
-        <TabsTrigger value="classify" disabled={props.running} className="flex-none px-3 text-xs"><Play />{props.t("action.classify.short", "分类")}</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="plan" disabled={props.running}><Search />{props.t("action.scanShort", "扫描")}</TabsTrigger>
+        <TabsTrigger value="classify" disabled={props.running}><Play />{props.t("action.classifyShort", "分类")}</TabsTrigger>
       </TabsList>
       <TabsContent value="plan" className="min-w-0">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          {!compact && <p className="min-w-0 truncate px-1 text-[11px] text-muted-foreground">{props.t("mode.scan.description", "递归扫描关键词目录并生成等待项计划")}</p>}
-          <div className="ml-auto shrink-0"><RunButton action="plan" props={props} /></div>
-        </div>
+        <Item variant="muted" size="sm" className="min-w-0 flex-nowrap">
+          <ItemMedia variant="icon"><Search /></ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle>{props.t("mode.scan.title", "扫描根目录")}</ItemTitle>
+            {!compact && <ItemDescription className="truncate">{props.t("mode.scan.description", "递归扫描关键词目录并生成等待项计划")}</ItemDescription>}
+          </ItemContent>
+          <RunButton action="plan" props={props} />
+        </Item>
       </TabsContent>
       <TabsContent value="classify" className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} t={props.t} />
-          <RiskToggle compact={compact} checked={props.data.dryRun ?? true} disabled={props.running} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} t={props.t} />
-          {!compact && <p className="min-w-32 flex-1 truncate px-1 text-[11px] text-muted-foreground">{classifyDescription}</p>}
-          <div className="ml-auto shrink-0"><RunButton action="classify" props={props} /></div>
-        </div>
+        <Item variant="muted" size="sm" className="min-w-0">
+          <ItemContent className="min-w-0 basis-full gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} t={props.t} />
+              <RiskToggle compact={compact} checked={props.data.dryRun ?? true} disabled={props.running} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} t={props.t} />
+              <RunButton action="classify" props={props} />
+            </div>
+            {!compact && <ItemDescription className="truncate">{classifyDescription}</ItemDescription>}
+          </ItemContent>
+        </Item>
       </TabsContent>
     </Tabs>
   )
@@ -355,7 +405,7 @@ function ModeExecutionTabs({ compact, props }: { compact?: boolean; props: ViewP
 function TransferToggle(props: { disabled?: boolean; value: ClassqTransferMode; onChange: (value: ClassqTransferMode) => void; t: ViewProps["t"] }) {
   return (
     <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassqTransferMode)} className="grid grid-cols-2" size="sm">
-      {TRANSFER_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.value === "move" ? props.t("transfer.move", "移动") : props.t("transfer.copy", "复制")}</span></ToggleGroupItem>)}
+      {TRANSFER_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0"><item.icon /><span className="truncate">{item.value === "move" ? props.t("transfer.move", "移动") : props.t("transfer.copy", "复制")}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
 }
@@ -390,12 +440,12 @@ function KeywordFields(props: { compact?: boolean; data: ClassqCardState; disabl
 function RunButton({ action, compact, props }: { action?: ClassqAction; compact?: boolean; props: ViewProps }) {
   const resolvedAction = action ?? props.action
   const label = executionLabel(resolvedAction, props.data.dryRun ?? true, props.t)
-  if (props.running) return <Button aria-label="classq running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && <span>{props.t("status.running", "运行中")}</span>}</Button>
+  if (props.running) return <Button aria-label="classq running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square data-icon="inline-start" />{!compact && <span>{props.t("status.running", "运行中")}</span>}</Button>
   const live = resolvedAction === "classify" && !(props.data.dryRun ?? true)
   if (live) {
     return (
       <AlertDialog>
-        <AlertDialogTrigger asChild><Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive"><Play />{!compact && <span>{label}</span>}</Button></AlertDialogTrigger>
+        <AlertDialogTrigger asChild><Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive"><Play data-icon="inline-start" />{!compact && <span>{label}</span>}</Button></AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{props.t("confirm.title", "确认实时执行 ClassQ 分类？")}</AlertDialogTitle><AlertDialogDescription>{props.t("confirm.description", "ClassQ 将移动或复制就绪的同级项目到等待目录；已存在的目标会作为冲突跳过。")}</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>{props.t("confirm.cancel", "取消")}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute(resolvedAction)}>{props.t("confirm.classify", "确认分类")}</AlertDialogAction></AlertDialogFooter>
@@ -403,7 +453,7 @@ function RunButton({ action, compact, props }: { action?: ClassqAction; compact?
       </AlertDialog>
     )
   }
-  return <Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant={resolvedAction === "plan" ? "secondary" : "default"} onClick={() => props.onExecute(resolvedAction)}><Play />{!compact && <span>{label}</span>}</Button>
+  return <Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant={resolvedAction === "plan" ? "secondary" : "default"} onClick={() => props.onExecute(resolvedAction)}><Play data-icon="inline-start" />{!compact && <span>{label}</span>}</Button>
 }
 
 function PlanRows(props: { items: ClassqPlanItem[]; roots: string[] }) {
@@ -438,24 +488,26 @@ function SpatialWorkbench(props: ViewProps) {
       .map((item) => `${item.sourcePath}: ${item.reason}`),
   ]
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden" data-testid="classq-spatial-workbench">
-      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 px-2 py-1.5" data-testid="classq-header-toolbar">
-        <HeaderLine status={props.status} subtitle={viewSubtitle(props)} />
-        <MetricsStrip progress={props.progress} result={props.result} roots={props.roots} t={props.t} />
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          <IconButton disabled={!props.result?.items.length} icon={Copy} label="Copy plan" onClick={props.onCopyResults} />
-          <IconButton disabled={!props.logs.length} icon={Terminal} label="Copy log" onClick={props.onCopyLogs} />
-          <ActionTools {...props} />
-        </div>
-      </div>
-      {(props.status.tone === "running" || props.status.tone === "error") && <div className="shrink-0 border-b px-2 py-1.5"><StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} /></div>}
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/72" data-testid="classq-three-zone-workbench">
-        <ResizablePanel id="classq-command" defaultSize="27%" minSize="21%" maxSize="38%">
-          <CommandPanel {...props} />
+    <div className="flex min-h-0 flex-1 overflow-hidden" data-testid="classq-spatial-workbench">
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" data-testid="classq-three-zone-workbench">
+        <ResizablePanel id="classq-command" defaultSize="26%" minSize="22%" maxSize="36%">
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 pr-2">
+            <IdentityCard {...props} />
+            <CommandPanel {...props} />
+          </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel id="classq-results" defaultSize="73%" minSize="52%">
-          <ClassqResultsWorkspace items={props.result?.items ?? []} issueLines={issueLines} logs={props.logs} roots={props.roots} t={props.t} />
+        <ResizablePanel id="classq-results" defaultSize="74%" minSize="58%">
+          <ClassqResultsWorkspace
+            items={props.result?.items ?? []}
+            issueLines={issueLines}
+            logs={props.logs}
+            roots={props.roots}
+            transferMode={props.data.transferMode ?? "move"}
+            t={props.t}
+            onCopyLogs={props.onCopyLogs}
+            onCopyResults={props.onCopyResults}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
@@ -469,12 +521,12 @@ function ResultTabList(props: { issueCount: number; logCount: number; planCount:
     { count: props.logCount, icon: Terminal, label: props.t("tabs.log", "日志"), value: "logs" },
   ]
   return (
-    <TabsList variant="line" className="h-9 w-full shrink-0 justify-start border-b px-2" data-testid="classq-result-list">
+    <TabsList className="shrink-0" data-testid="classq-result-list">
       {items.map((item) => (
-        <TabsTrigger key={item.value} value={item.value} className="flex-none px-3 text-xs">
+        <TabsTrigger key={item.value} value={item.value}>
           <item.icon />
           <span>{item.label}</span>
-          <span className="text-[10px] tabular-nums text-muted-foreground">{item.count}</span>
+          <span className="tabular-nums text-muted-foreground">{item.count}</span>
         </TabsTrigger>
       ))}
     </TabsList>
@@ -491,11 +543,11 @@ function MetricsStrip(props: { progress: number; result: ClassqData | null; root
     { label: props.t("metrics.progress", "进度"), value: `${props.progress}%` },
   ]
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden px-1">
+    <div className="grid grid-cols-3 gap-2" data-testid="classq-metrics">
       {stats.map((item) => (
-        <div key={item.label} className="flex shrink-0 items-baseline gap-1 text-[11px]">
-          <span className="text-muted-foreground">{item.label}</span>
-          <span className="font-semibold tabular-nums">{item.value}</span>
+        <div key={item.label} className="grid gap-0.5 rounded-md border px-2 py-1.5">
+          <span className="text-[10px] text-muted-foreground">{item.label}</span>
+          <span className="text-sm font-semibold tabular-nums">{item.value}</span>
         </div>
       ))}
     </div>
@@ -512,7 +564,16 @@ function WorkbenchTextView(props: { empty: string; lines: string[] }) {
   )
 }
 
-function ClassqResultsWorkspace(props: { items: ClassqPlanItem[]; issueLines: string[]; logs: string[]; roots: string[]; t: ViewProps["t"] }) {
+function ClassqResultsWorkspace(props: {
+  items: ClassqPlanItem[]
+  issueLines: string[]
+  logs: string[]
+  roots: string[]
+  transferMode: ClassqTransferMode
+  t: ViewProps["t"]
+  onCopyLogs: () => void
+  onCopyResults: () => void
+}) {
   const groups = useMemo(() => groupByParent(props.items), [props.items])
   const [selectedParent, setSelectedParent] = useState("")
   const { elements, expandedIds, selectionMap } = useMemo(() => buildExplorerTree(groups), [groups])
@@ -533,50 +594,227 @@ function ClassqResultsWorkspace(props: { items: ClassqPlanItem[]; issueLines: st
     : props.t("empty.addRoots", "添加根目录以预览分类计划")
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full" data-testid="classq-results-workspace">
-      <ResizablePanel id="classq-tree" defaultSize="29%" minSize="20%" maxSize="44%">
-        <section className="flex h-full min-h-0 flex-col bg-muted/[0.12]" data-testid="classq-explorer">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2"><ListTree className="size-4 text-muted-foreground" /><span className="truncate text-xs font-semibold">{props.t("explorer.tree", "递归文件树")}</span></div>
-            <span className="text-[11px] tabular-nums text-muted-foreground">{groups.length}</span>
-          </div>
-          {selectedGroup ? (
-            <Tree
-              key={`${props.items.length}:${groups.length}`}
-              className="min-h-0 flex-1 py-2"
-              elements={elements}
-              initialExpandedItems={expandedIds}
-              initialSelectedId={`parent:${selectedGroup.parentPath}`}
-              onSelectedIdChange={(id) => {
-                const parentPath = selectionMap.get(id)
-                if (parentPath) setSelectedParent(parentPath)
-              }}
-              sort="none"
-            />
-          ) : (
-            <div className="flex min-h-32 flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">{emptyText}</div>
-          )}
-        </section>
+      <ResizablePanel id="classq-tree" defaultSize="32%" minSize="24%" maxSize="44%">
+        <div className="h-full min-h-0 px-2">
+          <Card className="h-full min-h-0 gap-0 py-0" data-testid="classq-explorer">
+            <CardHeader className="border-b px-3 py-3 !pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm"><ListTree />{props.t("explorer.tree", "递归文件树")}</CardTitle>
+              <CardDescription className="text-xs">{props.t("explorer.description", "按根目录和父目录展开真实扫描结果。")}</CardDescription>
+              <CardAction><Badge variant="outline">{groups.length}</Badge></CardAction>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 px-0 py-2">
+              {selectedGroup ? (
+                <Tree
+                  key={`${props.items.length}:${groups.length}`}
+                  className="min-h-0 flex-1"
+                  elements={elements}
+                  initialExpandedItems={expandedIds}
+                  initialSelectedId={`parent:${selectedGroup.parentPath}`}
+                  onSelectedIdChange={(id) => {
+                    const parentPath = selectionMap.get(id)
+                    if (parentPath) setSelectedParent(parentPath)
+                  }}
+                  sort="none"
+                />
+              ) : (
+                <Empty className="h-full border-0 p-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon"><ListTree /></EmptyMedia>
+                    <EmptyTitle className="text-sm">{props.t("empty.treeTitle", "等待递归文件树")}</EmptyTitle>
+                    <EmptyDescription className="text-xs">{emptyText}</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </ResizablePanel>
       <ResizableHandle withHandle />
-      <ResizablePanel id="classq-plan" defaultSize="71%" minSize="48%">
-        <Tabs defaultValue="plan" className="h-full min-h-0 gap-0" data-testid="classq-result-tabs">
-          <ResultTabList issueCount={props.issueLines.length} logCount={props.logs.length} planCount={props.items.length} t={props.t} />
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <TabsContent value="plan" className="h-full min-h-0">
-              {selectedGroup
-                ? <PlanDetailTable group={selectedGroup} t={props.t} />
-                : <div className="flex h-full min-h-40 items-center justify-center p-4 text-center text-sm text-muted-foreground">{emptyText}</div>}
-            </TabsContent>
-            <TabsContent value="issues" className="h-full min-h-0">
-              <WorkbenchTextView empty={props.t("empty.issues", "暂无问题")} lines={props.issueLines} />
-            </TabsContent>
-            <TabsContent value="logs" className="h-full min-h-0">
-              <WorkbenchTextView empty={props.t("empty.logs", "运行日志会显示在这里")} lines={props.logs} />
-            </TabsContent>
-          </div>
-        </Tabs>
+      <ResizablePanel id="classq-plan" defaultSize="68%" minSize="52%">
+        <ResizablePanelGroup orientation="vertical" className="h-full min-h-0">
+          <ResizablePanel id="classq-topology" defaultSize="56%" minSize="36%">
+            <div className="h-full min-h-0 pb-2 pl-2">
+              <RoutingTopology group={selectedGroup} transferMode={props.transferMode} t={props.t} emptyText={emptyText} />
+            </div>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="classq-detail" defaultSize="44%" minSize="32%">
+            <div className="h-full min-h-0 pl-2 pt-2">
+              <ResultDetailPanel
+                group={selectedGroup}
+                issueLines={props.issueLines}
+                logs={props.logs}
+                itemCount={props.items.length}
+                emptyText={emptyText}
+                t={props.t}
+                onCopyLogs={props.onCopyLogs}
+                onCopyResults={props.onCopyResults}
+              />
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </ResizablePanel>
     </ResizablePanelGroup>
+  )
+}
+
+function RoutingTopology(props: {
+  group?: { parentPath: string; items: ClassqPlanItem[] }
+  transferMode: ClassqTransferMode
+  emptyText: string
+  t: ViewProps["t"]
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const hubRef = useRef<HTMLDivElement>(null)
+  const sourceRefA = useRef<HTMLDivElement>(null)
+  const sourceRefB = useRef<HTMLDivElement>(null)
+  const sourceRefC = useRef<HTMLDivElement>(null)
+  const targetRefA = useRef<HTMLDivElement>(null)
+  const targetRefB = useRef<HTMLDivElement>(null)
+  const targetRefC = useRef<HTMLDivElement>(null)
+  const sourceRefs = [sourceRefA, sourceRefB, sourceRefC]
+  const targetRefs = [targetRefA, targetRefB, targetRefC]
+  const waitItems = props.group?.items.filter((item) => item.stage === "wait") ?? []
+  const sources = (waitItems.length ? waitItems : (props.group?.items ?? [])).slice(0, 3)
+  const targets = useMemo(() => {
+    const grouped = new Map<string, { label: string; path: string; count: number }>()
+    for (const item of props.group?.items ?? []) {
+      const key = item.targetPath || item.targetRelative
+      const current = grouped.get(key)
+      if (current) current.count += 1
+      else grouped.set(key, { label: item.targetRelative || baseName(item.targetPath), path: item.targetPath, count: 1 })
+    }
+    return [...grouped.values()].slice(0, 3)
+  }, [props.group])
+
+  return (
+    <Card className="h-full min-h-0 gap-0 py-0" data-testid="classq-routing-topology">
+      <CardHeader className="border-b px-3 py-3 !pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm"><GitBranch />{props.t("topology.title", "路由拓扑")}</CardTitle>
+        <CardDescription className="truncate text-xs">
+          {props.group?.parentPath ?? props.t("topology.description", "显示来源、分类路由和目标目录。")}
+        </CardDescription>
+        <CardAction><Badge variant="outline">{sources.length} → {targets.length}</Badge></CardAction>
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 px-3 py-2">
+        {props.group && sources.length ? (
+          <div ref={containerRef} className="relative grid h-full min-h-40 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 overflow-hidden">
+            <ItemGroup className="relative gap-2">
+              {sources.map((item, index) => {
+                const meta = itemStatusMeta(item.status)
+                return (
+                  <div ref={sourceRefs[index]} key={item.sourcePath} className="relative">
+                    <Item variant="outline" size="sm" className="flex-nowrap bg-card">
+                      <ItemMedia variant="icon">{item.kind === "folder" ? <Folder /> : <File />}</ItemMedia>
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="truncate text-xs">{item.sourceName}</ItemTitle>
+                        <ItemDescription className="truncate font-mono text-[10px]">{item.sourcePath}</ItemDescription>
+                      </ItemContent>
+                      <Badge variant={meta.variant}>{localizedItemStatus(item.status, props.t)}</Badge>
+                    </Item>
+                  </div>
+                )
+              })}
+            </ItemGroup>
+
+            <div ref={hubRef} className="relative grid justify-items-center gap-2">
+              <ItemMedia variant="icon" className="size-12 rounded-full bg-background"><GitBranch /></ItemMedia>
+              <Badge variant="secondary">{props.transferMode === "move" ? props.t("transfer.move", "移动") : props.t("transfer.copy", "复制")}</Badge>
+            </div>
+
+            <ItemGroup className="relative gap-2">
+              {targets.map((target, index) => (
+                <div ref={targetRefs[index]} key={target.path || target.label} className="relative">
+                  <Item variant="outline" size="sm" className="flex-nowrap bg-card">
+                    <ItemMedia variant="icon"><FolderOpen /></ItemMedia>
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="truncate text-xs">{target.label}</ItemTitle>
+                      <ItemDescription className="truncate font-mono text-[10px]">{target.path}</ItemDescription>
+                    </ItemContent>
+                    <Badge variant="outline">{target.count}</Badge>
+                  </Item>
+                </div>
+              ))}
+            </ItemGroup>
+
+            {sources.map((item, index) => (
+              <AnimatedBeam
+                key={`source:${item.sourcePath}`}
+                containerRef={containerRef}
+                fromRef={sourceRefs[index]!}
+                toRef={hubRef}
+                pathColor="var(--border)"
+                gradientStartColor="var(--primary)"
+                gradientStopColor="var(--primary)"
+                pathWidth={1.5}
+                duration={3.6 + index * 0.35}
+              />
+            ))}
+            {targets.map((target, index) => (
+              <AnimatedBeam
+                key={`target:${target.path || target.label}`}
+                containerRef={containerRef}
+                fromRef={hubRef}
+                toRef={targetRefs[index]!}
+                pathColor="var(--border)"
+                gradientStartColor="var(--primary)"
+                gradientStopColor="var(--primary)"
+                pathWidth={1.5}
+                duration={3.8 + index * 0.35}
+              />
+            ))}
+          </div>
+        ) : (
+          <Empty className="h-full border-0 p-4">
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><GitBranch /></EmptyMedia>
+              <EmptyTitle className="text-sm">{props.t("empty.topologyTitle", "等待路由拓扑")}</EmptyTitle>
+              <EmptyDescription className="text-xs">{props.emptyText}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ResultDetailPanel(props: {
+  group?: { parentPath: string; items: ClassqPlanItem[] }
+  issueLines: string[]
+  logs: string[]
+  itemCount: number
+  emptyText: string
+  t: ViewProps["t"]
+  onCopyLogs: () => void
+  onCopyResults: () => void
+}) {
+  return (
+    <Tabs defaultValue="plan" className="h-full min-h-0 gap-0" data-testid="classq-result-tabs">
+      <Card className="h-full min-h-0 gap-0 py-0">
+        <CardHeader className="border-b px-3 py-2 !pb-2">
+          <CardTitle className="text-sm">{props.t("detail.title", "结果详情")}</CardTitle>
+          <CardDescription className="truncate text-xs">{props.group?.parentPath ?? props.emptyText}</CardDescription>
+          <CardAction className="flex items-center gap-1">
+            <ResultTabList issueCount={props.issueLines.length} logCount={props.logs.length} planCount={props.itemCount} t={props.t} />
+            <IconButton disabled={!props.itemCount} icon={Copy} label={props.t("actions.copyPlan", "复制计划")} onClick={props.onCopyResults} />
+            <IconButton disabled={!props.logs.length} icon={Terminal} label={props.t("actions.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
+          </CardAction>
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 px-0">
+          <TabsContent value="plan" className="h-full min-h-0">
+            {props.group
+              ? <PlanDetailTable group={props.group} t={props.t} />
+              : <Empty className="h-full border-0 p-4"><EmptyHeader><EmptyMedia variant="icon"><FolderOpen /></EmptyMedia><EmptyTitle className="text-sm">{props.t("empty.detailTitle", "等待分类结果")}</EmptyTitle><EmptyDescription className="text-xs">{props.emptyText}</EmptyDescription></EmptyHeader></Empty>}
+          </TabsContent>
+          <TabsContent value="issues" className="h-full min-h-0">
+            <WorkbenchTextView empty={props.t("empty.issues", "暂无问题")} lines={props.issueLines} />
+          </TabsContent>
+          <TabsContent value="logs" className="h-full min-h-0">
+            <WorkbenchTextView empty={props.t("empty.logs", "运行日志会显示在这里")} lines={props.logs} />
+          </TabsContent>
+        </CardContent>
+      </Card>
+    </Tabs>
   )
 }
 
@@ -665,35 +903,44 @@ function ResultTabs(props: { compact?: boolean; logs: string[]; result: ClassqDa
     ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`),
   ]
   return (
-    <Tabs defaultValue="plan" className="h-full min-h-0 gap-0 rounded-lg border bg-card/72" data-testid="classq-result-tabs">
-      <ResultTabList issueCount={issueLines.length} logCount={props.logs.length} planCount={props.result?.items.length ?? 0} t={props.t} />
-      <div className="min-w-0 flex-1 overflow-hidden p-1.5">
-        <TabsContent value="plan" className="h-full min-h-0"><PlanPanel compact={props.compact} result={props.result} t={props.t} onCopy={props.onCopyResults} /></TabsContent>
-        <TabsContent value="issues" className="h-full min-h-0"><TextPanel empty={props.t("empty.issues", "暂无问题")} lines={issueLines} t={props.t} /></TabsContent>
-        <TabsContent value="logs" className="h-full min-h-0"><TextPanel actionLabel={props.t("actions.copy", "复制")} empty={props.t("empty.logs", "运行日志会显示在这里")} icon={Terminal} lines={props.logs} t={props.t} onAction={props.onCopyLogs} /></TabsContent>
-      </div>
+    <Tabs defaultValue="plan" className="h-full min-h-0 gap-0" data-testid="classq-result-tabs">
+      <Card className="h-full min-h-0 gap-0 py-0">
+        <CardHeader className="border-b px-2 py-2 !pb-2">
+          <CardTitle className="text-sm">{props.t("detail.title", "结果详情")}</CardTitle>
+          <CardAction><ResultTabList issueCount={issueLines.length} logCount={props.logs.length} planCount={props.result?.items.length ?? 0} t={props.t} /></CardAction>
+        </CardHeader>
+        <CardContent className="min-w-0 min-h-0 flex-1 overflow-hidden p-1.5">
+          <TabsContent value="plan" className="h-full min-h-0"><PlanPanel compact={props.compact} result={props.result} t={props.t} onCopy={props.onCopyResults} /></TabsContent>
+          <TabsContent value="issues" className="h-full min-h-0"><TextPanel empty={props.t("empty.issues", "暂无问题")} lines={issueLines} t={props.t} /></TabsContent>
+          <TabsContent value="logs" className="h-full min-h-0"><TextPanel actionLabel={props.t("actions.copy", "复制")} empty={props.t("empty.logs", "运行日志会显示在这里")} icon={Terminal} lines={props.logs} t={props.t} onAction={props.onCopyLogs} /></TabsContent>
+        </CardContent>
+      </Card>
     </Tabs>
   )
 }
 
 function PlanPanel(props: { compact?: boolean; result: ClassqData | null; t: ViewProps["t"]; onCopy: () => void }) {
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
-      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"><PLAN_ICON className="size-3.5" /><span>{props.result?.items.length ? props.t("plan.itemCount", "{{count}} 项", { count: props.result.items.length }) : props.t("plan.waiting", "等待扫描")}</span></div><Button disabled={!props.result?.items.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{props.t("actions.copy", "复制")}</Button></div>
-      <Separator />
-      <PlanRows items={props.result?.items ?? []} roots={[]} />
-    </section>
+    <Card className="h-full min-h-0 gap-0 py-0">
+      <CardHeader className={props.compact ? "border-b px-2 py-1.5 !pb-1.5" : "border-b px-3 py-2 !pb-2"}>
+        <CardTitle className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"><PLAN_ICON /><span>{props.result?.items.length ? props.t("plan.itemCount", "{{count}} 项", { count: props.result.items.length }) : props.t("plan.waiting", "等待扫描")}</span></CardTitle>
+        <CardAction><Button disabled={!props.result?.items.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{props.t("actions.copy", "复制")}</Button></CardAction>
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 px-0"><PlanRows items={props.result?.items ?? []} roots={[]} /></CardContent>
+    </Card>
   )
 }
 
 function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIcon; lines: string[]; t: ViewProps["t"]; onAction?: () => void }) {
   const Icon = props.icon
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card/72">
-      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{Icon && <Icon className="size-3.5" />}{props.lines.length ? props.t("text.lineCount", "{{count}} 行", { count: props.lines.length }) : props.empty}</span>{props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? props.t("actions.copy", "复制")}</Button>}</div>
-      <Separator />
-      <ScrollArea className="min-h-0 flex-1">{props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}</ScrollArea>
-    </section>
+    <Card className="h-full min-h-0 gap-0 py-0">
+      <CardHeader className="border-b px-3 py-2 !pb-2">
+        <CardTitle className="flex items-center gap-1.5 text-xs text-muted-foreground">{Icon && <Icon />}{props.lines.length ? props.t("text.lineCount", "{{count}} 行", { count: props.lines.length }) : props.empty}</CardTitle>
+        {props.onAction && <CardAction><Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? props.t("actions.copy", "复制")}</Button></CardAction>}
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 px-0"><ScrollArea className="h-full min-h-0">{props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}</ScrollArea></CardContent>
+    </Card>
   )
 }
 
@@ -703,7 +950,7 @@ function HeaderLine(props: { status: ClassqStatusMeta; subtitle: string }) {
 }
 
 function StatusStrip(props: { progress: number; status: ClassqStatusMeta; text?: string }) {
-  return <div className="rounded-md border bg-card/72 p-2"><div className="mb-1 flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></div>
+  return <Card className="gap-0 py-0"><CardContent className="grid gap-1 p-2"><div className="flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></CardContent></Card>
 }
 
 function RiskToggle(props: { checked: boolean; compact?: boolean; disabled?: boolean; onCheckedChange: (checked: boolean) => void; t: ViewProps["t"] }) {
@@ -769,12 +1016,12 @@ function viewSubtitle(props: ViewProps): string {
 }
 
 function actionLabel(action: ClassqAction, t: ViewProps["t"]): string {
-  return action === "plan" ? t("action.scan", "扫描根目录") : t("action.classify", "执行分类")
+  return action === "plan" ? t("action.scanLabel", "扫描根目录") : t("action.classifyLabel", "执行分类")
 }
 
 function executionLabel(action: ClassqAction, dryRun: boolean, t: ViewProps["t"]): string {
-  if (action === "plan") return t("action.scan", "扫描根目录")
-  return dryRun ? t("action.classify.preview", "预览分类") : t("action.classify", "执行分类")
+  if (action === "plan") return t("action.scanLabel", "扫描根目录")
+  return dryRun ? t("action.classifyPreview", "预览分类") : t("action.classifyLabel", "执行分类")
 }
 
 function buildInput(action: ClassqAction, data: ClassqCardState): ClassqInput {
