@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
-import type { FindzAction, FindzData, FindzInput } from "@xiranite/node-findz/core"
+import type { FindzAction, FindzData, FindzFileData, FindzInput } from "@xiranite/node-findz/core"
 import { formatFoundPath } from "@xiranite/node-findz/core"
 import { Copy, FileSearch, FolderOpen, HelpCircle, Play, RotateCcw, Search, Square } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
@@ -480,9 +481,9 @@ function FindzResultTabs(props: {
 }) {
   const { t: tNode } = useNodeI18n("findz")
   const isHelp = props.result?.action === "help"
-  const fileLines = useMemo(() => (props.result?.files ?? []).slice(0, 500).map((file) => `${file.type} ${formatFoundPath(file)} ${file.sizeFormatted}`), [props.result])
+  const files = useMemo(() => (props.result?.files ?? []).slice(0, 500), [props.result])
   const groupLines = useMemo(() => (props.result?.groups ?? []).map((group) => `${group.count} ${group.name} / ${group.totalSizeFormatted} / 均 ${group.avgSizeFormatted}`), [props.result])
-  const hasFiles = fileLines.length > 0
+  const hasFiles = files.length > 0
   const hasGroups = groupLines.length > 0
 
   const preferredTab = isHelp ? "output" : props.running ? "logs" : hasFiles ? "files" : hasGroups ? "groups" : props.logs.length ? "logs" : "files"
@@ -507,7 +508,7 @@ function FindzResultTabs(props: {
       ) : (
         <>
           <TabsContent value="files" className="min-h-0 flex-1">
-            <TextPanel compact={props.compact} emptyText={tNode("empty.files", "运行后会显示匹配的文件和归档成员。")} icon={FolderOpen} lines={fileLines} onCopy={props.onCopyResults} />
+            <FindzFileTable compact={props.compact} files={files} onCopy={props.onCopyResults} />
           </TabsContent>
           <TabsContent value="groups" className="min-h-0 flex-1">
             <TextPanel compact={props.compact} emptyText={tNode("empty.groups", "设置分组字段后会显示分组汇总。")} icon={Search} lines={groupLines} onCopy={props.onCopyResults} />
@@ -518,6 +519,19 @@ function FindzResultTabs(props: {
         </>
       )}
     </Tabs>
+  )
+}
+
+function FindzFileTable(props: { compact?: boolean; files: FindzFileData[]; onCopy: () => void }) {
+  const { t: tNode } = useNodeI18n("findz")
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><FolderOpen className="size-3.5" /><span>{props.files.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.files.length }) : tNode("empty.waitingRun", "等待运行")}</span></div><Button disabled={!props.files.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{tNode("buttons.copy", "复制")}</Button></div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.files.length ? <Table><TableHeader><TableRow><TableHead>{tNode("table.name", "名称")}</TableHead><TableHead>{tNode("table.type", "类型")}</TableHead><TableHead className="w-24 text-right">{tNode("table.size", "大小")}</TableHead></TableRow></TableHeader><TableBody>{props.files.map((file) => <TableRow key={file.path}><TableCell className="max-w-0 truncate font-mono text-xs" title={formatFoundPath(file)}>{file.name}</TableCell><TableCell><Badge variant={file.archive ? "secondary" : "outline"}>{file.archive ? tNode("table.archive", "归档") : file.ext || file.type}</Badge></TableCell><TableCell className="text-right font-mono text-xs text-muted-foreground">{file.sizeFormatted}</TableCell></TableRow>)}</TableBody></Table> : <div className="flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground">{tNode("empty.files", "运行后会显示匹配的文件和归档成员。")}</div>}
+      </ScrollArea>
+    </section>
   )
 }
 
