@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
@@ -17,7 +18,7 @@ import { FileTreePanel } from "./FileTreePanel"
 import { buildTreeModel } from "./treeModel"
 import { JsonEditorDialog } from "./JsonEditorDialog"
 import { TrenameDisplayTabs } from "./ResultPanels"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, KeySwitches, ModePicker, PathInput, StatusStrip } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, KeySwitches, ModePicker, PathInput, StatusStrip } from "./controls"
 import type { TrenameCardState, TrenamePhase, TrenameStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -55,6 +56,14 @@ export function Component({ compId, host }: NodeComponentProps) {
       })
       .catch(() => undefined)
   }, [host])
+
+  async function reloadDefaults() {
+    const response = await host.getNodeConfig?.<Partial<TrenameCardState>>()
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+    setConfigDirty(false)
+  }
 
   useEffect(() => {
     if (!defaults) return
@@ -215,6 +224,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     result,
     running,
     status,
+    t,
     tree,
     onCopyJson: copyJson,
     onCopyLogs: copyLogs,
@@ -226,6 +236,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPastePath: pastePath,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
@@ -267,6 +278,7 @@ function createViewProps(props: {
   result: TrenameData | null
   running: boolean
   status: TrenameStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   tree: ReturnType<typeof buildTreeModel>
   onCopyJson: () => void
   onCopyLogs: () => void
@@ -278,6 +290,7 @@ function createViewProps(props: {
   onPastePath: () => void
   onPatch: (patch: Partial<TrenameCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
@@ -607,15 +620,16 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
       <ActionIconButton disabled={!props.jsonText} icon={Copy} label={tNode("trename", "copyJson", "复制 JSON")} onClick={props.onCopyJson} />
       <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={tNode("trename", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
+        <NodeConfigPopover
+          configPath={props.configFilePath}
           defaults={props.defaults}
+          dirty={props.configDirty}
           disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
+          t={props.t}
+          onOpenFile={props.onOpenConfigFile}
+          onReload={props.onReloadDefaults}
+          onRestore={props.onRestoreDefault}
+          onSave={props.onSaveDefault}
         />
       )}
     </div>
