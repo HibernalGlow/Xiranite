@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
@@ -496,20 +497,23 @@ function ResultTabs(props: {
 }) {
   const { t: tNode } = useNodeI18n("formatv")
   const resultLines = buildResultLines(props.result, props.prefixName)
+  const files = buildFileRows(props.result, props.prefixName)
   const preferredTab = props.running
-    ? "results"
-    : resultLines.length
-      ? "results"
+    ? "files"
+    : files.length
+      ? "files"
       : props.logs.length
         ? "logs"
-        : "results"
+        : "files"
 
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
       <TabsList variant="line" className="shrink-0">
-        <TabsTrigger value="results">{tNode("tabs.results", "结果")}</TabsTrigger>
+        <TabsTrigger value="files">{tNode("tabs.files", "文件")}</TabsTrigger>
+        <TabsTrigger value="results">{tNode("tabs.results", "重复")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
+      <TabsContent value="files" className="min-h-0 flex-1"><FileTablePanel compact={props.compact} files={files} onCopy={props.onCopyResults} /></TabsContent>
       <TabsContent value="results" className="min-h-0 flex-1">
         <TextPanel
           compact={props.compact}
@@ -523,6 +527,19 @@ function ResultTabs(props: {
         <TextPanel compact={props.compact} emptyText={tNode("empty.logs", "运行日志会显示在这里。")} icon={Copy} lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
+  )
+}
+
+function FileTablePanel(props: { compact?: boolean; files: Array<{ path: string; state: string }>; onCopy: () => void }) {
+  const { t: tNode } = useNodeI18n("formatv")
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="text-xs font-medium text-muted-foreground">{props.files.length ? tNode("empty.itemCount", "{{count}} 项", { count: props.files.length }) : tNode("empty.waitingRun", "等待运行")}</span><Button disabled={!props.files.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{tNode("buttons.copy", "复制")}</Button></div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.files.length ? <Table><TableHeader><TableRow><TableHead>{tNode("table.filename", "文件")}</TableHead><TableHead className="w-24">{tNode("table.state", "状态")}</TableHead></TableRow></TableHeader><TableBody>{props.files.map((file) => <TableRow key={file.path}><TableCell className="max-w-0 truncate font-mono text-xs" title={file.path}>{file.path.split(/[\\/]/).at(-1)}</TableCell><TableCell><Badge variant={file.state === "重复" ? "destructive" : "outline"}>{file.state}</Badge></TableCell></TableRow>)}</TableBody></Table> : <div className="flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground">{tNode("empty.results", "扫描后会显示文件列表。")}</div>}
+      </ScrollArea>
+    </section>
   )
 }
 
@@ -575,6 +592,16 @@ function buildResultLines(result: FormatvData | null, prefixName: string): strin
     ...result.normalFiles.map((file) => `normal ${file}`),
     ...result.novFiles.map((file) => `.nov ${file}`),
     ...(result.prefixedFiles[prefixName] ?? []).map((file) => `${prefixName} ${file}`),
+  ]
+}
+
+function buildFileRows(result: FormatvData | null, prefixName: string): Array<{ path: string; state: string }> {
+  if (!result) return []
+  const duplicates = new Set(result.duplicates)
+  return [
+    ...result.normalFiles.map((path) => ({ path, state: duplicates.has(path) ? "重复" : "可见" })),
+    ...result.novFiles.map((path) => ({ path, state: "隐藏 (.nov)" })),
+    ...(result.prefixedFiles[prefixName] ?? []).map((path) => ({ path, state: "前缀文件" })),
   ]
 }
 
