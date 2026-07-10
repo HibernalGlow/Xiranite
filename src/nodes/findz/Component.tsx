@@ -24,7 +24,7 @@ import {
   StatusStrip,
   WhereInput,
 } from "./controls"
-import type { FindzCardState, FindzPhase, FindzStatusMeta } from "./types"
+import type { FindzCardState, FindzStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 type FindzProps = NodeComponentProps<FindzCardState, Partial<FindzCardState>>
