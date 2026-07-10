@@ -1527,7 +1527,11 @@
         "liveDissolve": "Live dissolve",
         "confirmExecute": "Confirm execute",
         "pasteFolder": "Paste folder",
-        "clearPath": "Clear path"
+        "clearPath": "Clear path",
+        "copy": "Copy",
+        "preview": "Preview",
+        "execute": "Execute",
+        "undoItem": "Undo {{id}}"
       },
       "labels": {
         "input": "Input",
@@ -1540,12 +1544,16 @@
         "excludeKeywords": "Exclude keywords",
         "historyPath": "History path",
         "fileConflict": "File conflict",
-        "dirConflict": "Dir conflict"
+        "dirConflict": "Dir conflict",
+        "modePipeline": "Dissolve pipeline"
       },
       "switches": {
         "preview": "Dry run",
         "protectFirstLevel": "Protect first level",
-        "enableSimilarity": "Similarity check"
+        "enableSimilarity": "Similarity check",
+        "previewDescription": "Builds a plan only. No folders are moved or deleted until this is turned off.",
+        "protectFirstLevelDescription": "Skips the first child-folder level to protect the top-level archive structure.",
+        "enableSimilarityDescription": "Compares parent and child names, skipping items below the selected similarity threshold."
       },
       "confirm": {
         "title": "Confirm live Dissolvef?",
@@ -1570,7 +1578,11 @@
         "advancedOptions": "dissolvef advanced options",
         "defaults": "dissolvef defaults",
         "bundleMode": "Bundle mode",
-        "directMode": "Direct mode"
+        "directMode": "Direct mode",
+        "modeStrategy": "dissolvef mode strategy",
+        "bundleModes": "dissolvef bundle modes",
+        "previewSwitch": "dissolvef preview switch",
+        "description": "{{label}} description"
       },
       "error": {
         "noPath": "Please enter a target folder.",
@@ -1602,6 +1614,86 @@
       },
       "progress": {
         "start": "{{action}} started"
+      },
+      "input": {
+        "pathPlaceholder": "Folder to dissolve\nD:/library/outer"
+      },
+      "bundleModes": {
+        "nested": {
+          "label": "Nested dissolve",
+          "shortLabel": "Nested",
+          "description": "Lifts contents from a single nested subfolder and removes the empty shell."
+        },
+        "media": {
+          "label": "Single-media dissolve",
+          "shortLabel": "Media",
+          "description": "Lifts one media file from its folder and removes the empty shell."
+        },
+        "archive": {
+          "label": "Single-archive dissolve",
+          "shortLabel": "Archive",
+          "description": "Lifts one archive file from its folder and removes the empty shell."
+        }
+      },
+      "advanced": {
+        "title": "Advanced options",
+        "description": "Similarity threshold, exclusions, conflict policy, and history path are kept here.",
+        "excludePlaceholder": "Comma or newline separated, for example: CG, pixiv",
+        "historyPlaceholder": "Leave blank to use the default history file"
+      },
+      "conflictModes": {
+        "auto": { "label": "Auto" },
+        "skip": { "label": "Skip" },
+        "overwrite": { "label": "Overwrite" },
+        "rename": { "label": "Rename" }
+      },
+      "boards": {
+        "itemCount": "{{count}} items",
+        "lineCount": "{{count}} lines",
+        "total": "Total {{count}}",
+        "waitingRun": "Waiting to run",
+        "waitingLogs": "Waiting for logs",
+        "planListEmpty": "Moves and empty-folder deletions will appear after a run.",
+        "planBoardEmpty": "Lifts, empty-shell deletions, and skipped conflicts will appear after a run.",
+        "historyCount": "{{count}} entries",
+        "noHistory": "No history",
+        "historyMeta": "{{mode}} / {{count}} items{{undone}}",
+        "undoneSuffix": " / undone",
+        "historyEmpty": "Completed operations are recorded here and can be undone.",
+        "logsEmpty": "Run logs will appear here.",
+        "unspecified": "Unspecified"
+      },
+      "planStatus": {
+        "success": "Complete",
+        "error": "Error",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "execution": {
+        "title": "Execution gate",
+        "previewState": "Preview: no folders change",
+        "liveState": "Live: content moves and empty shells are removed",
+        "previewDescription": "Builds the dissolve plan only; folders stay unchanged.",
+        "liveDescription": "Moves content and deletes empty folders; confirmation is still required."
+      },
+      "defaults": {
+        "title": "Default settings",
+        "description": "Save DissolveF paths, modes, and conflict policy in local defaults.",
+        "save": "Save as default",
+        "restore": "Restore default",
+        "clear": "Clear override",
+        "view": "View settings",
+        "openFile": "Open file",
+        "dialogTitle": "DissolveF settings",
+        "dialogDescription": "Current nodes.dissolvef defaults and the settings file location.",
+        "none": "# No nodes.dissolvef defaults\n",
+        "configFile": "Settings file",
+        "noConfigService": "No local settings service connected"
+      },
+      "pipeline": {
+        "directHint": "Lift every item to the parent folder.",
+        "switchBundle": "Switch to bundle mode",
+        "switchDirect": "Switch to direct mode"
       }
     },
     "encodeb": {

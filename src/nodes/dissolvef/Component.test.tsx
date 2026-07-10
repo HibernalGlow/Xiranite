@@ -44,7 +44,7 @@ describe("app-owned dissolvef Component", () => {
       setSurface(mode)
       render(<Component compId="comp-dissolvef" host={createHost({ pathText: "D:/library/outer" })} />)
 
-      expect(screen.getByText("Dissolvef")).toBeTruthy()
+      expect(screen.getByText("DissolveF")).toBeTruthy()
       if (mode === "collapsed") {
         expect(screen.getByTestId("dissolvef-collapsed-view")).toBeTruthy()
         expect(screen.getByText("捆绑 / 预演")).toBeTruthy()
@@ -53,6 +53,8 @@ describe("app-owned dissolvef Component", () => {
       }
 
       expect(screen.getByLabelText("dissolvef target folder")).toBeTruthy()
+      expect(screen.getByTestId("dissolvef-execution-gate")).toBeTruthy()
+      expect(screen.getByLabelText("dissolvef 预演切换")).toBeTruthy()
       expect(screen.getByRole("tab", { name: /计划/ })).toBeTruthy()
       expect(screen.getByRole("tab", { name: /历史/ })).toBeTruthy()
       expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
@@ -65,7 +67,7 @@ describe("app-owned dissolvef Component", () => {
         expect(screen.getByTestId("dissolvef-primary-switches")).toBeTruthy()
       } else {
         expect(screen.getByTestId("dissolvef-full-view")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
+        expect(screen.getByText("执行闸门")).toBeTruthy()
         expect(screen.getByTestId("dissolvef-header-toolbar")).toBeTruthy()
       }
     },

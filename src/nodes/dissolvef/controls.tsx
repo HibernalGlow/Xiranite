@@ -4,14 +4,15 @@ import type { DissolvefConflictMode } from "@xiranite/node-dissolvef/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
@@ -54,41 +55,57 @@ export function ModePicker(props: {
   onToggleMode: (mode: "nested" | "media" | "archive") => void
   onSetDirect: (direct: boolean) => void
 }) {
+  const bundleValues = BUNDLE_MODES.map((item) => item.value)
+
   return (
-    <div data-testid="dissolvef-mode-picker" className="grid grid-cols-2 gap-1 sm:grid-cols-4">
-      <Button
-        aria-label={tNode("dissolvef", "aria.bundleMode", "捆绑模式")}
+    <div data-testid="dissolvef-mode-picker" className="grid gap-1.5">
+      <ToggleGroup
+        aria-label={tNode("dissolvef", "aria.modeStrategy", "dissolvef mode strategy")}
+        className="grid w-full grid-cols-2"
         disabled={props.disabled}
         size="sm"
-        variant={!props.direct ? "secondary" : "outline"}
-        onClick={() => props.onSetDirect(false)}
+        type="single"
+        value={props.direct ? "direct" : "bundle"}
+        variant="outline"
+        onValueChange={(value) => {
+          if (value) props.onSetDirect(value === "direct")
+        }}
       >
-        <Layers data-icon="inline-start" />
-        <span className="truncate">捆绑</span>
-      </Button>
-      {BUNDLE_MODES.map((item) => (
-        <Button
-          key={item.value}
-          aria-label={item.label}
-          disabled={props.disabled || props.direct}
+        <ToggleGroupItem className="w-full" value="bundle">
+          <Layers data-icon="inline-start" />
+          <span className="truncate">{tNode("dissolvef", "mode.bundle", "捆绑")}</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem className="w-full" value="direct">
+          <PackageOpen data-icon="inline-start" />
+          <span className="truncate">{tNode("dissolvef", "mode.direct", "直提")}</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
+      {!props.direct && (
+        <ToggleGroup
+          aria-label={tNode("dissolvef", "aria.bundleModes", "dissolvef bundle modes")}
+          className="grid w-full grid-cols-3"
+          disabled={props.disabled}
           size="sm"
-          variant={!props.direct && props.selectedModes.includes(item.value) ? "secondary" : "outline"}
-          onClick={() => props.onToggleMode(item.value)}
+          type="multiple"
+          value={props.selectedModes}
+          variant="outline"
+          onValueChange={(nextValues) => {
+            const changed = bundleValues.find((value) => nextValues.includes(value) !== props.selectedModes.includes(value))
+            if (changed) props.onToggleMode(changed)
+          }}
         >
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </Button>
-      ))}
-      <Button
-        aria-label={tNode("dissolvef", "aria.directMode", "直提模式")}
-        disabled={props.disabled}
-        size="sm"
-        variant={props.direct ? "secondary" : "outline"}
-        onClick={() => props.onSetDirect(true)}
-      >
-        <PackageOpen data-icon="inline-start" />
-        <span className="truncate">直提</span>
-      </Button>
+          {BUNDLE_MODES.map((item) => {
+            const label = tNode("dissolvef", `bundleModes.${item.value}.label`, item.label)
+            const shortLabel = tNode("dissolvef", `bundleModes.${item.value}.shortLabel`, item.shortLabel)
+            return (
+              <ToggleGroupItem key={item.value} aria-label={label} className="w-full" value={item.value}>
+                <item.icon data-icon="inline-start" />
+                <span className="truncate">{shortLabel}</span>
+              </ToggleGroupItem>
+            )
+          })}
+        </ToggleGroup>
+      )}
     </div>
   )
 }
@@ -102,11 +119,9 @@ export function PathInput(props: {
   onPaste: () => void
 }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-col gap-1.5">
+    <Field className="min-h-0 min-w-0 gap-1.5">
       {!props.compact && (
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="dissolvef-path">目标文件夹</Label>
-        </div>
+        <FieldTitle>{tNode("dissolvef", "labels.targetFolder", "目标文件夹")}</FieldTitle>
       )}
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
@@ -114,24 +129,26 @@ export function PathInput(props: {
           aria-label={tNode("dissolvef", "aria.targetFolder", "dissolvef target folder")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-20")}
           disabled={props.disabled}
-          placeholder={"要溶解的文件夹路径\nD:/library/outer"}
+          placeholder={tNode("dissolvef", "input.pathPlaceholder", "要溶解的文件夹路径\nD:/library/outer")}
           value={props.value}
           onChange={(event) => props.onChange(event.currentTarget.value)}
         />
         <div className="grid content-start gap-1.5">
-          <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴文件夹" onClick={props.onPaste} />
-          <ActionIconButton disabled={props.disabled || !props.value} icon={Eraser} label="清空路径" onClick={props.onClear} />
+          <ActionIconButton disabled={props.disabled} icon={Clipboard} label={tNode("dissolvef", "actions.pasteFolder", "粘贴文件夹")} onClick={props.onPaste} />
+          <ActionIconButton disabled={props.disabled || !props.value} icon={Eraser} label={tNode("dissolvef", "actions.clearPath", "清空路径")} onClick={props.onClear} />
         </div>
       </div>
-    </div>
+    </Field>
   )
 }
 
 export function PrimarySwitches(props: {
+  className?: string
   compact?: boolean
   data: DissolvefCardState
   direct: boolean
   disabled?: boolean
+  showPreview?: boolean
   onPatch: (patch: Partial<DissolvefCardState>) => void
 }) {
   return (
@@ -139,31 +156,37 @@ export function PrimarySwitches(props: {
       className={cn(
         "grid gap-2",
         props.compact ? "grid-cols-1" : "grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))]",
+        props.className,
       )}
       data-testid="dissolvef-primary-switches"
     >
+      {props.showPreview !== false && (
+        <SwitchRow
+          compact={props.compact}
+          checked={props.data.preview ?? true}
+          disabled={props.disabled}
+          icon={ShieldAlert}
+          label={tNode("dissolvef", "switches.preview", "预演")}
+          description={tNode("dissolvef", "switches.previewDescription", "开启后只生成计划，不移动或删除文件。关闭后会真实执行。")}
+          onCheckedChange={(preview) => props.onPatch({ preview })}
+        />
+      )}
       <SwitchRow
-        checked={props.data.preview ?? true}
-        disabled={props.disabled}
-        icon={ShieldAlert}
-        label="预演"
-        description="开启后只生成计划，不移动或删除文件。关闭后会真实执行。"
-        onCheckedChange={(preview) => props.onPatch({ preview })}
-      />
-      <SwitchRow
+        compact={props.compact}
         checked={props.data.protectFirstLevel ?? true}
         disabled={props.disabled || props.direct}
         icon={FolderInput}
-        label="保护一级"
-        description="开启后跳过第一层子文件夹，避免误伤顶层归档结构。"
+        label={tNode("dissolvef", "switches.protectFirstLevel", "保护一级")}
+        description={tNode("dissolvef", "switches.protectFirstLevelDescription", "开启后跳过第一层子文件夹，避免误伤顶层归档结构。")}
         onCheckedChange={(protectFirstLevel) => props.onPatch({ protectFirstLevel })}
       />
       <SwitchRow
+        compact={props.compact}
         checked={props.data.enableSimilarity ?? true}
         disabled={props.disabled || props.direct}
         icon={Info}
-        label="相似度校验"
-        description="开启后比对父文件夹与子项名称相似度，低于阈值时跳过。"
+        label={tNode("dissolvef", "switches.enableSimilarity", "相似度校验")}
+        description={tNode("dissolvef", "switches.enableSimilarityDescription", "开启后比对父文件夹与子项名称相似度，低于阈值时跳过。")}
         onCheckedChange={(enableSimilarity) => props.onPatch({ enableSimilarity })}
       />
     </div>
@@ -183,20 +206,20 @@ export function AdvancedOptionsPopover(props: {
           <PopoverTrigger asChild>
             <Button aria-label={tNode("dissolvef", "aria.advancedOptions", "dissolvef advanced options")} disabled={props.disabled} size="icon-sm" variant="outline">
               <ShieldAlert />
-              <span className="sr-only">高级选项</span>
+              <span className="sr-only">{tNode("dissolvef", "advanced.title", "高级选项")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>高级选项</TooltipContent>
+        <TooltipContent>{tNode("dissolvef", "advanced.title", "高级选项")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,520px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">高级选项</div>
-          <p className="text-xs text-muted-foreground">相似度阈值、排除关键词、冲突策略和历史路径集中在这里。</p>
+          <div className="text-sm font-semibold">{tNode("dissolvef", "advanced.title", "高级选项")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("dissolvef", "advanced.description", "相似度阈值、排除关键词、冲突策略和历史路径集中在这里。")}</p>
         </div>
         <div className="grid gap-3">
           <NumberField
-            label="相似度阈值"
+            label={tNode("dissolvef", "labels.similarityThreshold", "相似度阈值")}
             value={props.data.similarityThreshold ?? DEFAULT_THRESHOLD}
             min={0}
             max={1}
@@ -205,32 +228,32 @@ export function AdvancedOptionsPopover(props: {
             onChange={(similarityThreshold) => props.onPatch({ similarityThreshold })}
           />
           <TextField
-            label="排除关键词"
-            placeholder="逗号或换行分隔，如: CG, pixiv"
+            label={tNode("dissolvef", "labels.excludeKeywords", "排除关键词")}
+            placeholder={tNode("dissolvef", "advanced.excludePlaceholder", "逗号或换行分隔，如: CG, pixiv")}
             value={props.data.excludeText ?? ""}
             disabled={props.disabled}
             onChange={(excludeText) => props.onPatch({ excludeText })}
           />
           <TextField
-            label="历史路径"
-            placeholder="留空则使用默认历史文件"
+            label={tNode("dissolvef", "labels.historyPath", "历史路径")}
+            placeholder={tNode("dissolvef", "advanced.historyPlaceholder", "留空则使用默认历史文件")}
             value={props.data.historyPath ?? ""}
             disabled={props.disabled}
             onChange={(historyPath) => props.onPatch({ historyPath })}
           />
           <div className="grid grid-cols-2 gap-2">
             <SelectField
-              label="文件冲突"
+              label={tNode("dissolvef", "labels.fileConflict", "文件冲突")}
               value={props.data.fileConflict ?? "auto"}
               disabled={props.disabled || !props.direct}
-              values={CONFLICT_MODES.map((item) => [item.value, item.label])}
+              values={CONFLICT_MODES.map((item) => [item.value, tNode("dissolvef", `conflictModes.${item.value}.label`, item.label)])}
               onChange={(fileConflict) => props.onPatch({ fileConflict: fileConflict as DissolvefConflictMode })}
             />
             <SelectField
-              label="目录冲突"
+              label={tNode("dissolvef", "labels.dirConflict", "目录冲突")}
               value={props.data.dirConflict ?? "auto"}
               disabled={props.disabled || !props.direct}
-              values={CONFLICT_MODES.map((item) => [item.value, item.label])}
+              values={CONFLICT_MODES.map((item) => [item.value, tNode("dissolvef", `conflictModes.${item.value}.label`, item.label)])}
               onChange={(dirConflict) => props.onPatch({ dirConflict: dirConflict as DissolvefConflictMode })}
             />
           </div>
@@ -257,35 +280,35 @@ export function ConfigDefaultsPopover(props: {
           <PopoverTrigger asChild>
             <Button aria-label={tNode("dissolvef", "aria.defaults", "dissolvef defaults")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
-              <span className="sr-only">默认配置</span>
+              <span className="sr-only">{tNode("dissolvef", "defaults.title", "默认配置")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
+        <TooltipContent>{tNode("dissolvef", "defaults.title", "默认配置")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 Dissolvef 的路径、模式和冲突策略到明文配置。</p>
+          <div className="text-sm font-semibold">{tNode("dissolvef", "defaults.title", "默认配置")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("dissolvef", "defaults.description", "保存 Dissolvef 的路径、模式和冲突策略到明文配置。")}</p>
         </div>
         <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
+          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{tNode("dissolvef", "defaults.save", "保存为默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{tNode("dissolvef", "defaults.restore", "恢复默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{tNode("dissolvef", "defaults.clear", "清除覆盖")}</Button>
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
+              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{tNode("dissolvef", "defaults.view", "查看配置")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>Dissolvef 配置</DialogTitle>
-                <DialogDescription>当前 nodes.dissolvef 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>{tNode("dissolvef", "defaults.dialogTitle", "Dissolvef 配置")}</DialogTitle>
+                <DialogDescription>{tNode("dissolvef", "defaults.dialogDescription", "当前 nodes.dissolvef 默认值和配置文件位置。")}</DialogDescription>
               </DialogHeader>
               <ConfigPreview config={props.defaults} path={props.configFilePath} />
             </DialogContent>
           </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
+          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{tNode("dissolvef", "defaults.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -310,6 +333,7 @@ export function StatusStrip(props: {
 }
 
 export function SwitchRow(props: {
+  compact?: boolean
   checked: boolean
   description?: string
   disabled?: boolean
@@ -319,16 +343,17 @@ export function SwitchRow(props: {
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-md border bg-card px-2 py-1.5">
-      <label className="flex min-w-0 flex-1 items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5">
+    <Field orientation="horizontal" className="min-w-0 items-center gap-1.5 rounded-md border bg-card px-2 py-1.5">
+      <FieldContent className="min-w-0 gap-0.5">
+        <FieldTitle className="min-w-0 text-xs">
           {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
           <span className="truncate text-xs font-medium">{props.label}</span>
-        </span>
-        <Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
-      </label>
+        </FieldTitle>
+        {!props.compact && props.description && <FieldDescription className="line-clamp-2 text-[11px]">{props.description}</FieldDescription>}
+      </FieldContent>
+      <Switch aria-label={props.label} checked={props.checked} disabled={props.disabled} size="default" onCheckedChange={props.onCheckedChange} />
       {props.description && <InfoHint label={props.label} description={props.description} />}
-    </div>
+    </Field>
   )
 }
 
@@ -342,9 +367,9 @@ export function PlanList(props: {
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>{lines.length ? `${lines.length} 项` : "等待运行"}</span>
+          <span>{lines.length ? tNode("dissolvef", "boards.itemCount", "{{count}} 项", { count: lines.length }) : tNode("dissolvef", "boards.waitingRun", "等待运行")}</span>
         </div>
-        <Badge variant="outline">总计 {props.result?.totalCount ?? 0}</Badge>
+        <Badge variant="outline">{tNode("dissolvef", "boards.total", "总计 {{count}}", { count: props.result?.totalCount ?? 0 })}</Badge>
       </div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
@@ -354,7 +379,7 @@ export function PlanList(props: {
           </pre>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            运行后会显示移动和删除计划。
+            {tNode("dissolvef", "boards.planListEmpty", "运行后会显示移动和删除计划。")}
           </div>
         )}
       </ScrollArea>
@@ -372,7 +397,7 @@ export function HistoryPanel(props: {
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>{history.length ? `${history.length} 条` : "无历史"}</span>
+          <span>{history.length ? tNode("dissolvef", "boards.historyCount", "{{count}} 条", { count: history.length }) : tNode("dissolvef", "boards.noHistory", "无历史")}</span>
         </div>
       </div>
       <Separator />
@@ -383,11 +408,11 @@ export function HistoryPanel(props: {
               <div key={item.id} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/45">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium">{item.id}</div>
-                  <div className="truncate text-[11px] text-muted-foreground">{item.mode} / {item.count} 项{item.undone ? " / 已撤销" : ""}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{tNode("dissolvef", "boards.historyMeta", "{{mode}} / {{count}} 项{{undone}}", { mode: item.mode, count: item.count, undone: item.undone ? tNode("dissolvef", "boards.undoneSuffix", " / 已撤销") : "" })}</div>
                 </div>
                 {!item.undone && (
-                  <Button aria-label={`撤销 ${item.id}`} disabled={props.result === undefined} size="xs" variant="ghost" onClick={() => props.onUndo(item.id)}>
-                    撤销
+                  <Button aria-label={tNode("dissolvef", "actions.undoItem", "撤销 {{id}}", { id: item.id })} disabled={props.result === undefined} size="xs" variant="ghost" onClick={() => props.onUndo(item.id)}>
+                    {tNode("dissolvef", "undo", "撤销")}
                   </Button>
                 )}
               </div>
@@ -395,7 +420,7 @@ export function HistoryPanel(props: {
           </div>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            执行操作后会记录历史，可用于撤销。
+            {tNode("dissolvef", "boards.historyEmpty", "执行操作后会记录历史，可用于撤销。")}
           </div>
         )}
       </ScrollArea>
@@ -412,10 +437,10 @@ export function LogPanel(props: {
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
+          <span>{props.logs.length ? tNode("dissolvef", "boards.lineCount", "{{count}} 行", { count: props.logs.length }) : tNode("dissolvef", "boards.waitingLogs", "等待日志")}</span>
         </div>
         <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
-          复制
+          {tNode("dissolvef", "actions.copy", "复制")}
         </Button>
       </div>
       <Separator />
@@ -426,7 +451,7 @@ export function LogPanel(props: {
           </pre>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            运行日志会显示在这里。
+            {tNode("dissolvef", "boards.logsEmpty", "运行日志会显示在这里。")}
           </div>
         )}
       </ScrollArea>
@@ -444,9 +469,9 @@ export function DissolvePlanBoard(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <ListChecks className="size-3.5 shrink-0" />
-          <span>{plan.length ? `${plan.length} 项` : "等待运行"}</span>
+          <span>{plan.length ? tNode("dissolvef", "boards.itemCount", "{{count}} 项", { count: plan.length }) : tNode("dissolvef", "boards.waitingRun", "等待运行")}</span>
         </div>
-        <Badge variant="outline">总计 {props.result?.totalCount ?? 0}</Badge>
+        <Badge variant="outline">{tNode("dissolvef", "boards.total", "总计 {{count}}", { count: props.result?.totalCount ?? 0 })}</Badge>
       </div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">
@@ -458,7 +483,7 @@ export function DissolvePlanBoard(props: {
           </div>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            运行后显示上提、删除空壳和冲突跳过项。
+            {tNode("dissolvef", "boards.planBoardEmpty", "运行后显示上提、删除空壳和冲突跳过项。")}
           </div>
         )}
       </ScrollArea>
@@ -477,7 +502,7 @@ export function DissolveHistoryBoard(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Clock3 className="size-3.5 shrink-0" />
-          <span>{history.length ? `${history.length} 条` : "无历史"}</span>
+          <span>{history.length ? tNode("dissolvef", "boards.historyCount", "{{count}} 条", { count: history.length }) : tNode("dissolvef", "boards.noHistory", "无历史")}</span>
         </div>
       </div>
       <Separator />
@@ -490,14 +515,14 @@ export function DissolveHistoryBoard(props: {
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
                     <span className="truncate">{item.mode}</span>
-                    <Badge variant={item.undone ? "outline" : "secondary"}>{item.count} 项</Badge>
+                    <Badge variant={item.undone ? "outline" : "secondary"}>{tNode("dissolvef", "boards.itemCount", "{{count}} 项", { count: item.count })}</Badge>
                   </div>
                   <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{item.id} / {item.path}</div>
                 </div>
                 {!item.undone && (
-                  <Button aria-label={`撤销 ${item.id}`} disabled={props.result === undefined} size="xs" variant="ghost" onClick={() => props.onUndo(item.id)}>
+                  <Button aria-label={tNode("dissolvef", "actions.undoItem", "撤销 {{id}}", { id: item.id })} disabled={props.result === undefined} size="xs" variant="ghost" onClick={() => props.onUndo(item.id)}>
                     <Undo2 data-icon="inline-start" />
-                    撤销
+                    {tNode("dissolvef", "undo", "撤销")}
                   </Button>
                 )}
               </div>
@@ -505,7 +530,7 @@ export function DissolveHistoryBoard(props: {
           </div>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            执行操作后会记录历史，可用于撤销。
+            {tNode("dissolvef", "boards.historyEmpty", "执行操作后会记录历史，可用于撤销。")}
           </div>
         )}
       </ScrollArea>
@@ -523,11 +548,11 @@ export function RichLogPanel(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Terminal className="size-3.5 shrink-0" />
-          <span>{props.logs.length ? `${props.logs.length} 行` : "等待日志"}</span>
+          <span>{props.logs.length ? tNode("dissolvef", "boards.lineCount", "{{count}} 行", { count: props.logs.length }) : tNode("dissolvef", "boards.waitingLogs", "等待日志")}</span>
         </div>
         <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
           <Copy data-icon="inline-start" />
-          复制
+          {tNode("dissolvef", "actions.copy", "复制")}
         </Button>
       </div>
       <Separator />
@@ -538,7 +563,7 @@ export function RichLogPanel(props: {
           </pre>
         ) : (
           <div className={props.compact ? "flex min-h-16 items-center justify-center p-3 text-center text-xs text-muted-foreground" : "flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground"}>
-            运行日志会显示在这里。
+            {tNode("dissolvef", "boards.logsEmpty", "运行日志会显示在这里。")}
           </div>
         )}
       </ScrollArea>
@@ -586,10 +611,10 @@ function DissolvePlanRow(props: {
 }
 
 function dissolveStatusMeta(status: NonNullable<DissolvefCardState["result"]>["plan"][number]["status"]) {
-  if (status === "success") return { icon: CheckCircle2, label: "完成", variant: "default" as const }
-  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const }
-  if (status === "skipped") return { icon: AlertTriangle, label: "跳过", variant: "outline" as const }
-  return { icon: CircleDashed, label: "待执行", variant: "secondary" as const }
+  if (status === "success") return { icon: CheckCircle2, label: tNode("dissolvef", "planStatus.success", "完成"), variant: "default" as const }
+  if (status === "error") return { icon: XCircle, label: tNode("dissolvef", "planStatus.error", "错误"), variant: "destructive" as const }
+  if (status === "skipped") return { icon: AlertTriangle, label: tNode("dissolvef", "planStatus.skipped", "跳过"), variant: "outline" as const }
+  return { icon: CircleDashed, label: tNode("dissolvef", "planStatus.pending", "待执行"), variant: "secondary" as const }
 }
 
 function dissolveModeIcon(mode: NonNullable<DissolvefCardState["result"]>["plan"][number]["mode"]) {
@@ -598,7 +623,7 @@ function dissolveModeIcon(mode: NonNullable<DissolvefCardState["result"]>["plan"
 }
 
 function baseName(path: string) {
-  return path.split(/[\\/]/).filter(Boolean).pop() || path || "未指定"
+  return path.split(/[\\/]/).filter(Boolean).pop() || path || tNode("dissolvef", "boards.unspecified", "未指定")
 }
 
 function ConfigPreview(props: {
@@ -606,13 +631,13 @@ function ConfigPreview(props: {
   path?: string
 }) {
   const content = props.config === undefined
-    ? "# nodes.dissolvef 暂无默认配置\n"
+    ? tNode("dissolvef", "defaults.none", "# nodes.dissolvef 暂无默认配置\n")
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+        <div className="text-xs font-medium text-muted-foreground">{tNode("dissolvef", "defaults.configFile", "配置文件")}</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? tNode("dissolvef", "defaults.noConfigService", "未连接本地配置服务")}</div>
       </div>
       <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
         {content}
@@ -626,7 +651,7 @@ function InfoHint({ description, label }: { description: string; label: string }
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          aria-label={`${label}说明`}
+          aria-label={tNode("dissolvef", "aria.description", "{{label}}说明", { label })}
           className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           role="img"
           tabIndex={0}
@@ -648,8 +673,8 @@ function TextField(props: {
 }) {
   const id = `dissolvef-${props.label}`
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor={id} className="text-xs">{props.label}</Label>
+    <Field className="min-w-0 gap-1.5">
+      <FieldLabel htmlFor={id} className="text-xs">{props.label}</FieldLabel>
       <Input
         id={id}
         disabled={props.disabled}
@@ -657,7 +682,7 @@ function TextField(props: {
         value={props.value}
         onChange={(event) => props.onChange(event.currentTarget.value)}
       />
-    </div>
+    </Field>
   )
 }
 
@@ -672,8 +697,8 @@ function NumberField(props: {
 }) {
   const id = `dissolvef-${props.label}`
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label htmlFor={id} className="text-xs">{props.label}</Label>
+    <Field className="min-w-0 gap-1.5">
+      <FieldLabel htmlFor={id} className="text-xs">{props.label}</FieldLabel>
       <Input
         id={id}
         disabled={props.disabled}
@@ -684,7 +709,7 @@ function NumberField(props: {
         value={props.value}
         onChange={(event) => props.onChange(Number(event.currentTarget.value))}
       />
-    </div>
+    </Field>
   )
 }
 
@@ -696,22 +721,29 @@ function SelectField(props: {
   values: Array<[string, string]>
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <Label className="text-xs">{props.label}</Label>
-      <div className="grid grid-cols-4 gap-1">
+    <Field className="min-w-0 gap-1.5">
+      <FieldTitle className="text-xs">{props.label}</FieldTitle>
+      <ToggleGroup
+        aria-label={props.label}
+        className="grid w-full grid-cols-4"
+        disabled={props.disabled}
+        size="sm"
+        type="single"
+        value={props.value}
+        variant="outline"
+        onValueChange={(value) => { if (value) props.onChange(value) }}
+      >
         {props.values.map(([value, label]) => (
-          <Button
+          <ToggleGroupItem
             key={value}
             aria-label={`${props.label} ${label}`}
-            disabled={props.disabled}
-            size="sm"
-            variant={props.value === value ? "secondary" : "outline"}
-            onClick={() => props.onChange(value)}
+            className="min-w-0"
+            value={value}
           >
             <span className="truncate">{label}</span>
-          </Button>
+          </ToggleGroupItem>
         ))}
-      </div>
-    </div>
+      </ToggleGroup>
+    </Field>
   )
 }

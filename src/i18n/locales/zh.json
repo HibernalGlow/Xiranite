@@ -1527,7 +1527,11 @@
         "liveDissolve": "真实溶解",
         "confirmExecute": "确认执行",
         "pasteFolder": "粘贴文件夹",
-        "clearPath": "清空路径"
+        "clearPath": "清空路径",
+        "copy": "复制",
+        "preview": "预演",
+        "execute": "执行",
+        "undoItem": "撤销 {{id}}"
       },
       "labels": {
         "input": "输入",
@@ -1540,12 +1544,16 @@
         "excludeKeywords": "排除关键词",
         "historyPath": "历史路径",
         "fileConflict": "文件冲突",
-        "dirConflict": "目录冲突"
+        "dirConflict": "目录冲突",
+        "modePipeline": "溶解流水线"
       },
       "switches": {
         "preview": "预演",
         "protectFirstLevel": "保护一级",
-        "enableSimilarity": "相似度校验"
+        "enableSimilarity": "相似度校验",
+        "previewDescription": "开启后只生成计划，不移动或删除文件。关闭后会真实执行。",
+        "protectFirstLevelDescription": "开启后跳过第一层子文件夹，避免误伤顶层归档结构。",
+        "enableSimilarityDescription": "开启后比对父文件夹与子项名称相似度，低于阈值时跳过。"
       },
       "confirm": {
         "title": "确认真实执行 Dissolvef？",
@@ -1570,7 +1578,11 @@
         "advancedOptions": "dissolvef advanced options",
         "defaults": "dissolvef defaults",
         "bundleMode": "捆绑模式",
-        "directMode": "直提模式"
+        "directMode": "直提模式",
+        "modeStrategy": "dissolvef 模式策略",
+        "bundleModes": "dissolvef 捆绑模式",
+        "previewSwitch": "dissolvef 预演切换",
+        "description": "{{label}}说明"
       },
       "error": {
         "noPath": "请先输入目标文件夹。",
@@ -1602,6 +1614,86 @@
       },
       "progress": {
         "start": "{{action}}开始"
+      },
+      "input": {
+        "pathPlaceholder": "要溶解的文件夹路径\nD:/library/outer"
+      },
+      "bundleModes": {
+        "nested": {
+          "label": "嵌套溶解",
+          "shortLabel": "嵌套",
+          "description": "把单层嵌套子文件夹的内容上提到父级，并删除空壳。"
+        },
+        "media": {
+          "label": "单媒体溶解",
+          "shortLabel": "媒体",
+          "description": "把文件夹中的单个媒体文件上提，并删除空壳。"
+        },
+        "archive": {
+          "label": "单归档溶解",
+          "shortLabel": "归档",
+          "description": "把文件夹中的单个归档文件上提，并删除空壳。"
+        }
+      },
+      "advanced": {
+        "title": "高级选项",
+        "description": "相似度阈值、排除关键词、冲突策略和历史路径集中在这里。",
+        "excludePlaceholder": "逗号或换行分隔，如：CG, pixiv",
+        "historyPlaceholder": "留空则使用默认历史文件"
+      },
+      "conflictModes": {
+        "auto": { "label": "自动" },
+        "skip": { "label": "跳过" },
+        "overwrite": { "label": "覆盖" },
+        "rename": { "label": "改名" }
+      },
+      "boards": {
+        "itemCount": "{{count}} 项",
+        "lineCount": "{{count}} 行",
+        "total": "总计 {{count}}",
+        "waitingRun": "等待运行",
+        "waitingLogs": "等待日志",
+        "planListEmpty": "运行后会显示移动和删除空壳的计划。",
+        "planBoardEmpty": "运行后显示上提、删除空壳和冲突跳过项。",
+        "historyCount": "{{count}} 条",
+        "noHistory": "无历史",
+        "historyMeta": "{{mode}} / {{count}} 项{{undone}}",
+        "undoneSuffix": " / 已撤销",
+        "historyEmpty": "执行操作后会记录历史，可用于撤销。",
+        "logsEmpty": "运行日志会显示在这里。",
+        "unspecified": "未指定"
+      },
+      "planStatus": {
+        "success": "完成",
+        "error": "错误",
+        "skipped": "跳过",
+        "pending": "待执行"
+      },
+      "execution": {
+        "title": "执行闸门",
+        "previewState": "预演：不移动或删除",
+        "liveState": "真实：将移动并删除空壳",
+        "previewDescription": "只生成溶解计划；文件夹保持不变。",
+        "liveDescription": "会移动内容并删除空文件夹；执行前仍需确认。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 DissolveF 的路径、模式和冲突策略到本地默认配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "clear": "清除覆盖",
+        "view": "查看配置",
+        "openFile": "打开文件",
+        "dialogTitle": "DissolveF 配置",
+        "dialogDescription": "当前 nodes.dissolvef 默认值和配置文件位置。",
+        "none": "# nodes.dissolvef 暂无默认配置\n",
+        "configFile": "配置文件",
+        "noConfigService": "未连接本地配置服务"
+      },
+      "pipeline": {
+        "directHint": "把全部内容上提到父级文件夹。",
+        "switchBundle": "切换到捆绑模式",
+        "switchDirect": "切换到直提模式"
       }
     },
     "encodeb": {

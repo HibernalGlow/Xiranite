@@ -2,12 +2,15 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { DissolvefConflictMode, DissolvefData, DissolvefInput } from "@xiranite/node-dissolvef/core"
 import type { LucideIcon } from "lucide-react"
-import { ArrowRight, History, RotateCcw, Square, Undo2 } from "lucide-react"
+import { ArrowRight, Eye, History, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -275,7 +278,7 @@ function CollapsedView(props: ViewProps) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Dissolvef</span>
+          <span>{tNode("dissolvef", "name", "DissolveF")}</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
@@ -292,7 +295,6 @@ function CompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
-          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
@@ -300,7 +302,8 @@ function CompactView(props: ViewProps) {
           <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
           <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
         </div>
-        <PrimarySwitches compact data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+        <ExecutionGate compact props={props} />
+        <PrimarySwitches compact showPreview={false} data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -320,13 +323,13 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
-          <PrimaryActionButton compact props={props} />
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
         <PathInput compact disabled={props.running} value={props.data.pathText ?? ""} onChange={(pathText) => props.onPatch({ pathText })} onClear={() => props.onPatch({ pathText: "" })} onPaste={props.onPastePath} />
         <ModePicker compact direct={props.direct} disabled={props.running} selectedModes={props.selectedModes} onSetDirect={props.onSetDirect} onToggleMode={props.onToggleMode} />
-        <PrimarySwitches compact data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+        <ExecutionGate compact props={props} />
+        <PrimarySwitches compact showPreview={false} data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
         <ToolbarActions {...props} compact />
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -372,13 +375,13 @@ function FullView(props: ViewProps) {
           onSetDirect={props.onSetDirect}
           onToggleMode={props.onToggleMode}
         />
-        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
+        <div className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50")}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">{tNode("dissolvef", "labels.switches", "关键开关")}</span>
+            <span className="text-sm font-semibold">{tNode("dissolvef", "execution.title", "执行闸门")}</span>
             <AdvancedOptionsPopover data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <PrimarySwitches data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
-          <PrimaryActionButton props={props} />
+          <PrimarySwitches showPreview={false} data={props.data} direct={props.direct} disabled={props.running} onPatch={props.onPatch} />
+          <ExecutionGate embedded props={props} />
         </div>
       </div>
 
@@ -453,8 +456,8 @@ function ModePipeline(props: {
           <Fragment key={mode.value}>
             <PipelineStage
               icon={mode.icon}
-              label={mode.shortLabel}
-              hint={mode.description}
+              label={tNode("dissolvef", `bundleModes.${mode.value}.shortLabel`, mode.shortLabel)}
+              hint={tNode("dissolvef", `bundleModes.${mode.value}.description`, mode.description)}
               count={modeCount(props.result, mode.value)}
               active={props.selectedModes.includes(mode.value)}
               disabled={props.disabled}
@@ -489,16 +492,15 @@ function PipelineStage(props: {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
+        <Button
           aria-label={props.label}
           disabled={props.disabled}
+          size="sm"
+          variant={props.active ? "secondary" : "outline"}
           onClick={props.onClick}
           className={cn(
-            "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border px-1.5 py-1.5 transition-colors",
-            props.active
-              ? "border-primary/40 bg-primary/[0.08]"
-              : "border-border bg-card opacity-50 hover:opacity-90",
+            "h-auto min-w-0 flex-1 flex-col items-center gap-0.5 px-1.5 py-1.5",
+            !props.active && "opacity-60",
           )}
         >
           <Icon className="size-3.5 text-muted-foreground" />
@@ -506,7 +508,7 @@ function PipelineStage(props: {
           <span className="text-sm font-semibold tabular-nums">
             {props.count > 0 ? <NumberTicker value={props.count} className="text-foreground" /> : props.count}
           </span>
-        </button>
+        </Button>
       </TooltipTrigger>
       {props.hint && <TooltipContent side="bottom" className="max-w-[200px]">{props.hint}</TooltipContent>}
     </Tooltip>
@@ -561,23 +563,24 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
 function PrimaryActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label={tNode("dissolvef", "aria.running", "dissolvef running")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("dissolvef", "aria.running", "dissolvef running")} disabled size={compact ? "xs" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>{tNode("dissolvef", "status.running", "运行中")}</span>}
+        <span>{tNode("dissolvef", "status.running", "运行中")}</span>
       </Button>
     )
   }
 
   const disabled = !props.data.pathText?.trim()
   const label = props.preview ? tNode("dissolvef", "actions.dryDissolve", "预演溶解") : tNode("dissolvef", "actions.liveDissolve", "真实溶解")
+  const compactLabel = props.preview ? tNode("dissolvef", "actions.preview", "预演") : tNode("dissolvef", "actions.execute", "执行")
   const Icon = DISSOLVE_ICON
   if (!props.preview) {
     return (
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} variant="destructive">
+          <Button aria-label={label} disabled={disabled} size={compact ? "xs" : "sm"} variant="destructive">
             <Icon />
-            {!compact && <span>{label}</span>}
+            <span>{compact ? compactLabel : label}</span>
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
@@ -597,10 +600,50 @@ function PrimaryActionButton({ compact, props }: { compact?: boolean; props: Vie
   }
 
   return (
-    <Button aria-label={label} disabled={disabled} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute("dissolve")}>
+    <Button aria-label={label} disabled={disabled} size={compact ? "xs" : "sm"} onClick={() => props.onExecute("dissolve")}>
       <Icon />
-      {!compact && <span>{label}</span>}
+      <span>{compact ? compactLabel : label}</span>
     </Button>
+  )
+}
+
+function ExecutionGate({ compact, embedded, props }: { compact?: boolean; embedded?: boolean; props: ViewProps }) {
+  const preview = props.preview
+  const modeTitle = preview
+    ? tNode("dissolvef", "execution.previewState", "预演：不移动或删除")
+    : tNode("dissolvef", "execution.liveState", "真实：将移动并删除空壳")
+  const modeDescription = preview
+    ? tNode("dissolvef", "execution.previewDescription", "只生成溶解计划；文件夹保持不变。")
+    : tNode("dissolvef", "execution.liveDescription", "会移动内容并删除空文件夹；执行前仍需确认。")
+
+  return (
+    <section
+      data-testid="dissolvef-execution-gate"
+      className={cn(
+        "flex min-w-0 items-center gap-2",
+        compact && "grid grid-cols-[minmax(0,1fr)_auto]",
+        !embedded && "rounded-lg border bg-card px-2 py-1.5",
+        embedded && "border-t pt-2",
+        !preview && "border-destructive/50",
+      )}
+    >
+      <Field orientation="horizontal" className="min-w-0 flex-1 items-center gap-2">
+        {preview ? <Eye className="shrink-0 text-muted-foreground" /> : <ShieldAlert className="shrink-0 text-destructive" />}
+        <FieldContent className="min-w-0 gap-0.5">
+          <FieldTitle className="truncate text-xs">{compact ? (preview ? tNode("dissolvef", "switches.preview", "预演") : tNode("dissolvef", "mode.liveExecute", "真实执行")) : modeTitle}</FieldTitle>
+          {!compact && <FieldDescription className="truncate text-[11px]">{modeDescription}</FieldDescription>}
+        </FieldContent>
+        <Switch
+          aria-label={tNode("dissolvef", "aria.previewSwitch", "dissolvef preview switch")}
+          checked={preview}
+          disabled={props.running}
+          size="default"
+          onCheckedChange={(nextPreview) => props.onPatch({ preview: nextPreview })}
+        />
+      </Field>
+      {!compact && !embedded && <Separator className="h-6 shrink-0" orientation="vertical" />}
+      <PrimaryActionButton compact={compact} props={props} />
+    </section>
   )
 }
 
@@ -617,7 +660,7 @@ function HeaderLine({ status, subtitle }: {
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">Dissolvef</h3>
+            <h3 className="truncate text-sm font-semibold leading-none">{tNode("dissolvef", "name", "DissolveF")}</h3>
             <Badge variant={status.badgeVariant}>{status.label}</Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
@@ -676,7 +719,7 @@ function DissolvefDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0">
+      <TabsList className="shrink-0">
         <TabsTrigger value="plan">{tNode("dissolvef", "tabs.plan", "计划")}</TabsTrigger>
         <TabsTrigger value="history">{tNode("dissolvef", "tabs.history", "历史")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("dissolvef", "tabs.logs", "日志")}</TabsTrigger>
