@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { KavvkaAction, KavvkaData, KavvkaInput } from "@xiranite/node-kavvka/core"
 import { parseKavvkaKeywords, parseKavvkaPaths } from "@xiranite/node-kavvka/core"
-import { Copy, Image, RotateCcw, Square } from "lucide-react"
+import { Copy, Folder, Image, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -553,7 +553,7 @@ function KavvkaReferenceWorkbench(props: ViewProps) {
         <ReferenceMetric label={props.tNode("metrics.recovery", "待处理路径")} value={resultPaths.length || props.sourcePaths.length} detail={props.tNode("metrics.recoveryDetail", "来自当前扫描和处理计划")} />
         <ReferenceMetric label={props.tNode("metrics.groups", "冲突组")} value={Math.ceil(resultPaths.length / 2)} detail={props.tNode("metrics.groupsDetail", "按真实结果分组显示")} />
         <ReferenceMetric label={props.tNode("metrics.root", "扫描根目录")} value={props.scanRoots.length} detail={scanReady ? props.scanRoots[0] : props.tNode("metrics.rootEmpty", "尚未设定扫描目录")} />
-        <div className="flex min-h-24 items-center"><PrimaryActionButton props={props} /></div>
+        <div className="flex min-h-24 [&>button]:h-full [&>button]:w-full [&>button]:rounded-xl [&>button]:text-base"><PrimaryActionButton props={props} /></div>
       </section>
       <section className="grid shrink-0 gap-2 border-y border-border/70 py-2 @5xl/kavvka:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <PathTextPanel ariaLabel="kavvka scan roots" badgeTone="secondary" compact count={props.scanRoots.length} disabled={props.running} inputId="kavvka-scan-roots" label={props.tNode("scanLabel", "扫描根目录")} placeholder="D:/library" value={props.data.scanRootText ?? ""} onChange={(scanRootText) => props.onPatch({ scanRootText })} onClear={() => props.onPatch({ scanRootText: "" })} onPaste={() => props.onPaste("scan")} />
@@ -562,7 +562,7 @@ function KavvkaReferenceWorkbench(props: ViewProps) {
       </section>
       <section className="flex min-h-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 items-center justify-between gap-3"><div><h4 className="text-base font-semibold">{props.tNode("workbench.conflicts", "活动冲突")}</h4><p className="text-xs text-muted-foreground">{resultPaths.length ? props.tNode("workbench.realResults", "基于最近一次扫描或处理的真实结果") : props.tNode("workbench.empty", "扫描后将在这里显示路径冲突组")}</p></div><ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} /></div>
-        <PathConflictWorkbench paths={resultPaths} />
+        <ReferenceConflictWorkbench paths={resultPaths} />
       </section>
       <div className="h-20 shrink-0 overflow-auto rounded-lg border bg-muted/10 p-2 font-mono text-xs text-muted-foreground">{props.logs.length ? props.logs.map((line, index) => <div key={index} className="truncate">{line}</div>) : <div className="grid h-full place-items-center">暂无日志</div>}</div>
     </div>
@@ -570,7 +570,48 @@ function KavvkaReferenceWorkbench(props: ViewProps) {
 }
 
 function ReferenceMetric({ detail, label, value }: { detail: string; label: string; value: number }) {
-  return <div className="min-h-24 rounded-lg border bg-muted/10 p-3"><div className="text-xs font-medium text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div><div className="mt-1 truncate text-xs text-muted-foreground">{detail}</div></div>
+  return <div className="min-h-24 rounded-xl border bg-card/70 p-3 shadow-sm"><div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground"><span>{label}</span><span className="font-mono text-foreground">{value}</span></div><div className="mt-3 flex gap-1">{Array.from({ length: 10 }, (_, index) => <span key={index} className={cn("h-1 flex-1 rounded-full bg-muted", index < Math.min(value, 10) && "bg-primary")} />)}</div><div className="mt-2 truncate text-xs text-muted-foreground">{detail}</div></div>
+}
+
+function ReferenceConflictWorkbench({ paths }: { paths: string[] }) {
+  const { t: tNode } = useNodeI18n("kavvka")
+  if (!paths.length) {
+    return <div className="grid min-h-0 flex-1 place-items-center p-6 text-center text-sm text-muted-foreground">{tNode("workbench.empty", "扫描后将在这里显示路径冲突组")}</div>
+  }
+  return (
+    <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
+      {chunk(paths, 3).map((group, groupIndex) => (
+        <article key={`${group[0]}-${groupIndex}`} className="overflow-hidden rounded-lg border bg-background/50">
+          <header className="flex items-center justify-between gap-3 border-b bg-muted/25 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <Folder className="size-4 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <h5 className="truncate text-sm font-medium">{pathLeaf(group[0] ?? "")}</h5>
+                <p className="text-xs text-muted-foreground">{tNode("workbench.groupSummary", "路径结果组 {{index}} · {{count}} 条候选", { index: groupIndex + 1, count: group.length })}</p>
+              </div>
+            </div>
+            <Badge variant="outline">{tNode("workbench.pending", "待处理")}</Badge>
+          </header>
+          <div className="grid gap-2 p-2 @5xl/kavvka:grid-cols-2">
+            {group.map((path, pathIndex) => (
+              <div key={path} className={cn("min-w-0 rounded-md border px-2.5 py-2", pathIndex === 0 ? "border-primary/35 bg-primary/5" : "border-border/70 bg-muted/15")}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">{pathIndex === 0 ? tNode("workbench.basePath", "基准路径") : tNode("workbench.comparePath", "对比路径")}</span>
+                  <span className="text-[11px] text-muted-foreground">#{pathIndex + 1}</span>
+                </div>
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{path}</p>
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function pathLeaf(value: string) {
+  const segments = value.split(/[\\/]/).filter(Boolean)
+  return segments.at(-1) ?? value
 }
 
 function PathConflictWorkbench({ paths }: { paths: string[] }) {
