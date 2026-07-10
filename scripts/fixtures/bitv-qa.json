@@ -1,0 +1,13 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "pathsText": "D:/videos/incoming/scene_01.mp4\nD:/videos/incoming/scene_02.mkv",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "已生成 2 个视频码率分析命令。",
+    "logs": ["[scan] 2 video files", "[plan] bitrate analysis ready"],
+    "result": { "spec": { "id": "bitv", "moduleName": "bitv", "sourceRoot": "D:/1VSCODE/Projects/PackU/VideoBrake/src", "configFiles": ["bitv/taskfile.yaml"], "databaseLabel": "video_bitrate_reports" }, "command": { "label": "bitv plan", "command": "python", "args": ["-m", "bitv", "D:/videos/incoming/scene_01.mp4"], "cwd": "D:/1VSCODE/Projects/PackU/VideoBrake/src" }, "integration": { "sourceRoot": "D:/1VSCODE/Projects/PackU/VideoBrake/src", "moduleName": "bitv", "configCandidates": ["bitv/taskfile.yaml"], "recordRun": false, "recordFormat": "jsonl" }, "selectedPaths": ["D:/videos/incoming/scene_01.mp4", "D:/videos/incoming/scene_02.mkv"], "errors": [] }
+  }
+}
