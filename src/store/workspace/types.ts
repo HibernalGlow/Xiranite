@@ -63,6 +63,7 @@ export interface WSState {
   cardDoubleClickAction: CardClickAction
   tabDisplayStyle: TabDisplayStyle
   switchDisplayStyle: SwitchDisplayStyle
+  hazardMode: boolean
 }
 
 export type ComponentPatch = {
@@ -116,6 +117,7 @@ export interface WorkspaceUiActions {
   setCardDoubleClickAction(action: CardClickAction): void
   setTabDisplayStyle(style: TabDisplayStyle): void
   setSwitchDisplayStyle(style: SwitchDisplayStyle): void
+  setHazardMode(enabled: boolean): void
 }
 
 export interface WorkspaceListActions {
@@ -223,6 +225,7 @@ export type WorkspaceUiPreferences = Pick<
   | "cardDoubleClickAction"
   | "tabDisplayStyle"
   | "switchDisplayStyle"
+  | "hazardMode"
 >
 
 export type SetWorkspaceStore = (

@@ -62,4 +62,5 @@ export const INITIAL_STATE: WSState = {
   cardDoubleClickAction: "focus",
   tabDisplayStyle: "underline",
   switchDisplayStyle: "outlined",
+  hazardMode: false,
 }

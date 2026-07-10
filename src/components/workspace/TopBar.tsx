@@ -2,6 +2,7 @@ import { useState, type ComponentType, type KeyboardEvent, type MouseEvent, type
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
+import { countHazardAffectedNodes, disableAllNodeDryRuns } from "@/lib/hazardMode"
 import { cn } from "@/lib/utils"
 import { translateLabel } from "@/lib/i18nLabel"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -17,8 +18,19 @@ import {
   Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette, Minus, Square, Minimize2, X,
   Code2, LayoutTemplate, Trash2, Edit3, Smile,
-  History,
+  History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert, ChevronRight,
 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -86,6 +98,7 @@ const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string;
 
 const THEME_PRESETS = THEME_PRESET_OPTIONS
 const CUSTOM_THEME_ACTIVE_VALUE = "__custom_theme_active__"
+type AppMenuPage = "root" | "workspaces" | "views" | "layouts"
 
 function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
   const colors = theme.cssVars.light
@@ -115,11 +128,16 @@ export function TopBar() {
     theme: workspace.theme,
     customThemes: workspace.customThemes,
     activeCustomThemeName: workspace.activeCustomThemeName,
+    components: workspace.components,
+    hazardMode: workspace.hazardMode,
   }))
   const workspaceActions = useWorkspaceActions()
   const { t } = useTranslation()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
+  const [appMenuPage, setAppMenuPage] = useState<AppMenuPage>("root")
+  const [hazardConfirmOpen, setHazardConfirmOpen] = useState(false)
+  const [hazardAffectedCount, setHazardAffectedCount] = useState(0)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -167,6 +185,23 @@ export function TopBar() {
     void controlMainWindow("maximize")
   }
 
+  function closeApp() {
+    setWsMenuOpen(false)
+    if (showWindowControls) {
+      void controlMainWindow("close")
+      return
+    }
+    window.close()
+  }
+
+  function enableHazardMode() {
+    const changed = disableAllNodeDryRuns(state.components, workspaceActions.patchComponentData)
+    setHazardAffectedCount(changed)
+    workspaceActions.setHazardMode(true)
+    setHazardConfirmOpen(false)
+    setWsMenuOpen(false)
+  }
+
   return (
     <header
       onDoubleClick={handleTitleBarDoubleClick}
@@ -181,6 +216,7 @@ export function TopBar() {
         open={wsMenuOpen}
         onOpenChange={(open) => {
           setWsMenuOpen(open)
+          if (open) setAppMenuPage("root")
           if (!open) setRenamingId(null)
         }}
       >
@@ -203,7 +239,59 @@ export function TopBar() {
 
         {wsMenuOpen && (
           <PopoverContent align="start" sideOffset={8} className="xiranite-app-region-no-drag w-80 overflow-hidden p-0">
+            {appMenuPage === "root" ? (
+              <AppMenuRoot
+                hazardMode={state.hazardMode}
+                onExit={closeApp}
+                onHazard={() => state.hazardMode ? workspaceActions.setHazardMode(false) : setHazardConfirmOpen(true)}
+                onNavigate={setAppMenuPage}
+                onOpenDashboard={() => {
+                  workspaceActions.setViewMode("dashboard")
+                  setWsMenuOpen(false)
+                }}
+                onOpenHistory={() => {
+                  workspaceActions.setOverlay("history")
+                  setWsMenuOpen(false)
+                }}
+                onOpenOperations={() => {
+                  workspaceActions.setOverlay("operations")
+                  setWsMenuOpen(false)
+                }}
+                onOpenRegistry={() => {
+                  workspaceActions.setOverlay("registry")
+                  setWsMenuOpen(false)
+                }}
+                onOpenSettings={() => {
+                  workspaceActions.setOverlay("settings")
+                  setWsMenuOpen(false)
+                }}
+              />
+            ) : appMenuPage === "views" ? (
+              <AppMenuViews
+                onBack={() => setAppMenuPage("root")}
+                onSelect={(viewMode) => {
+                  workspaceActions.setViewMode(viewMode)
+                  setWsMenuOpen(false)
+                }}
+                t={t}
+                value={state.viewMode}
+              />
+            ) : appMenuPage === "layouts" ? (
+              <AppMenuLayouts
+                onBack={() => setAppMenuPage("root")}
+                onSelect={(layout) => {
+                  workspaceActions.setViewMode("cards")
+                  workspaceActions.setCardLayout(layout)
+                  setWsMenuOpen(false)
+                }}
+                t={t}
+                value={state.cardLayout}
+              />
+            ) : null}
               {/* 当前工作区 */}
+            {appMenuPage === "workspaces" ? (
+              <>
+                <AppMenuBack label="工作空间" onBack={() => setAppMenuPage("root")} />
               {activeWorkspace ? (
                 <PopoverHeader className="border-b border-border/60 bg-muted/20 px-3 py-2">
                   <PopoverTitle className="font-mono text-[10px] tracking-widest text-muted-foreground">
@@ -318,9 +406,25 @@ export function TopBar() {
                   {t("topbar:workspace.new")}
                 </Button>
               </div>
+              </>
+            ) : null}
           </PopoverContent>
         )}
       </Popover>
+
+      <AlertDialog open={hazardConfirmOpen} onOpenChange={setHazardConfirmOpen}>
+        <AlertDialogContent size="sm" className="border-foreground/20 bg-background/95 backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogMedia className="border border-foreground/15 bg-muted/60 text-foreground"><ShieldAlert /></AlertDialogMedia>
+            <AlertDialogTitle className="font-mono tracking-tight">Hazard On</AlertDialogTitle>
+            <AlertDialogDescription>将关闭 {countHazardAffectedNodes(state.components)} 个节点的 dry run / 预演模式。此操作会让后续运行直接作用于真实文件；关闭 Hazard 提示不会自动恢复预演。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={enableHazardMode}>开启 Hazard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── ViewMode 切换：cards / dockview / flow 三种主形态 ── */}
       <div className="xiranite-app-region-no-drag flex shrink-0 items-center border-l border-border/60 pl-3">
@@ -755,5 +859,157 @@ function ThemeSwatchStrip({ colors, id }: { colors: string[]; id: string }) {
         <span key={`${id}-${index}`} className="min-w-0 flex-1" style={{ background: color }} />
       ))}
     </span>
+  )
+}
+
+function AppMenuRoot({
+  hazardMode,
+  onExit,
+  onHazard,
+  onNavigate,
+  onOpenDashboard,
+  onOpenHistory,
+  onOpenOperations,
+  onOpenRegistry,
+  onOpenSettings,
+}: {
+  hazardMode: boolean
+  onExit: () => void
+  onHazard: () => void
+  onNavigate: (page: AppMenuPage) => void
+  onOpenDashboard: () => void
+  onOpenHistory: () => void
+  onOpenOperations: () => void
+  onOpenRegistry: () => void
+  onOpenSettings: () => void
+}) {
+  return (
+    <div data-testid="app-menu" className="p-1.5">
+      <div className="flex items-center justify-between px-2.5 pb-2 pt-1">
+        <span className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground">XIRANITE</span>
+        <span className="font-mono text-[9px] tracking-widest text-muted-foreground/55">COMMAND</span>
+      </div>
+
+      <div className="grid gap-0.5">
+        <AppMenuRow icon={Settings} label="设置" shortcut="Alt+P" onSelect={onOpenSettings} />
+        <AppMenuRow icon={LayoutDashboard} label="面板" hasSubmenu onSelect={() => onNavigate("views")} />
+        <AppMenuRow icon={Grid} label="工作空间" hasSubmenu onSelect={() => onNavigate("workspaces")} />
+        <AppMenuRow icon={SplitSquareVertical} label="布局" hasSubmenu onSelect={() => onNavigate("layouts")} />
+      </div>
+
+      <Separator className="my-1.5" />
+
+      <div className="grid gap-0.5">
+        <AppMenuRow icon={Plus} label="模块库" onSelect={onOpenRegistry} />
+        <AppMenuRow icon={Activity} label="节点运行" onSelect={onOpenOperations} />
+        <AppMenuRow icon={History} label="运行历史" shortcut="Alt+H" onSelect={onOpenHistory} />
+        <AppMenuRow icon={Database} label="数据仪表盘" onSelect={onOpenDashboard} />
+      </div>
+
+      <Separator className="my-1.5" />
+
+      <div className="grid gap-0.5">
+        <AppMenuRow icon={BookOpen} label="运行时设置" onSelect={onOpenSettings} />
+        <AppMenuRow
+          active={hazardMode}
+          icon={ShieldAlert}
+          label={hazardMode ? "Hazard On" : "Hazard"}
+          shortcut={hazardMode ? "ON" : "ARM"}
+          tone="danger"
+          onSelect={onHazard}
+        />
+      </div>
+
+      <Separator className="my-1.5" />
+
+      <AppMenuRow icon={LogOut} label="退出应用" tone="danger" onSelect={onExit} />
+    </div>
+  )
+}
+
+function AppMenuViews({ onBack, onSelect, t, value }: {
+  onBack: () => void
+  onSelect: (view: ViewMode) => void
+  t: (key: string) => string
+  value: ViewMode
+}) {
+  return (
+    <div className="p-1.5">
+      <AppMenuBack label="面板" onBack={onBack} />
+      <div className="grid gap-0.5 px-1 pb-1">
+        {VIEW_OPTIONS.map(({ key, labelKey, icon: Icon }) => (
+          <AppMenuRow key={key} active={value === key} icon={Icon} label={t(labelKey)} onSelect={() => onSelect(key)} />
+        ))}
+        <AppMenuRow active={value === "dashboard"} icon={Gauge} label={t("topbar:viewMode.dashboard")} onSelect={() => onSelect("dashboard")} />
+      </div>
+    </div>
+  )
+}
+
+function AppMenuLayouts({ onBack, onSelect, t, value }: {
+  onBack: () => void
+  onSelect: (layout: CardLayout) => void
+  t: (key: string) => string
+  value: CardLayout
+}) {
+  return (
+    <div className="p-1.5">
+      <AppMenuBack label="布局" onBack={onBack} />
+      <div className="grid gap-0.5 px-1 pb-1">
+        {CARD_LAYOUT_OPTIONS.map(({ key, labelKey, icon: Icon }) => (
+          <AppMenuRow key={key} active={value === key} icon={Icon} label={t(labelKey)} onSelect={() => onSelect(key)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AppMenuBack({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+    >
+      <ArrowLeft className="size-3.5" />
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function AppMenuRow({
+  active = false,
+  hasSubmenu = false,
+  icon: Icon,
+  label,
+  onSelect,
+  shortcut,
+  tone = "default",
+}: {
+  active?: boolean
+  hasSubmenu?: boolean
+  icon: ComponentType<{ className?: string }>
+  label: string
+  onSelect: () => void
+  shortcut?: string
+  tone?: "default" | "danger"
+}) {
+  const danger = tone === "danger"
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "group flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        active && "bg-foreground text-background shadow-sm",
+        !active && !danger && "text-foreground hover:bg-muted/65",
+        !active && danger && "text-destructive hover:bg-destructive/10",
+      )}
+    >
+      <Icon className="size-3.5 shrink-0 opacity-80" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {shortcut ? <span className="shrink-0 text-[10px] tracking-wide opacity-55">{shortcut}</span> : null}
+      {hasSubmenu ? <ChevronRight className="size-3.5 shrink-0 opacity-55 transition-transform group-hover:translate-x-0.5" /> : null}
+    </button>
   )
 }

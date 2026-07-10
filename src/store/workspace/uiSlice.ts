@@ -62,6 +62,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setCardDoubleClickAction: (cardDoubleClickAction) => set({ cardDoubleClickAction }, false, "SET_CARD_DOUBLE_CLICK_ACTION"),
     setTabDisplayStyle: (tabDisplayStyle) => set({ tabDisplayStyle }, false, "SET_TAB_DISPLAY_STYLE"),
     setSwitchDisplayStyle: (switchDisplayStyle) => set({ switchDisplayStyle }, false, "SET_SWITCH_DISPLAY_STYLE"),
+    setHazardMode: (hazardMode) => set({ hazardMode }, false, "SET_HAZARD_MODE"),
   }
 }
 

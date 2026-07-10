@@ -44,6 +44,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     cardDoubleClickAction: state.cardDoubleClickAction,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    hazardMode: state.hazardMode,
   }
 }
 
@@ -143,6 +144,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     cardDoubleClickAction: store.cardDoubleClickAction,
     tabDisplayStyle: store.tabDisplayStyle,
     switchDisplayStyle: store.switchDisplayStyle,
+    hazardMode: store.hazardMode,
   }
 }
 
@@ -221,6 +223,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setCardDoubleClickAction: store.setCardDoubleClickAction,
     setTabDisplayStyle: store.setTabDisplayStyle,
     setSwitchDisplayStyle: store.setSwitchDisplayStyle,
+    setHazardMode: store.setHazardMode,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,
