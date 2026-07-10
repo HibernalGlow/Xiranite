@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
@@ -54,9 +54,11 @@ describe("app-owned rawfilter Component", () => {
 
       expect(screen.getByLabelText("rawfilter 目录路径")).toBeTruthy()
       expect(screen.getByTestId("rawfilter-action-picker")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "计划" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "分组" })).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.getByRole("tablist", { name: "过滤流程" })).toBeTruthy()
+      const resultTabs = within(screen.getByRole("tablist", { name: "过滤结果" }))
+      expect(resultTabs.getByRole("tab", { name: "计划" })).toBeTruthy()
+      expect(resultTabs.getByRole("tab", { name: "分组" })).toBeTruthy()
+      expect(resultTabs.getByRole("tab", { name: "日志" })).toBeTruthy()
 
       if (mode === "compact") {
         expect(screen.getByTestId("rawfilter-compact-view")).toBeTruthy()

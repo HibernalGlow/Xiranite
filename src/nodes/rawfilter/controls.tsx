@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ACTIONS, DEFAULT_MIN_SIMILARITY } from "./constants"
@@ -48,21 +49,11 @@ export function ActionPicker(props: {
   onActionChange: (value: RawfilterCardState["action"]) => void
 }) {
   return (
-    <div className="grid grid-cols-3 gap-1" data-testid="rawfilter-action-picker">
-      {ACTIONS.map((item) => (
-        <Button
-          key={item.value}
-          aria-label={item.label}
-          disabled={props.disabled}
-          size="sm"
-          variant={(props.value ?? "execute") === item.value ? "secondary" : "outline"}
-          onClick={() => props.onActionChange(item.value)}
-        >
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </Button>
-      ))}
-    </div>
+    <Tabs value={props.value ?? "execute"} onValueChange={(value) => props.onActionChange(value as RawfilterCardState["action"])} data-testid="rawfilter-action-picker">
+      <TabsList aria-label="过滤流程" variant="line" className="grid w-full grid-cols-3">
+        {ACTIONS.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{item.shortLabel}</span></TabsTrigger>)}
+      </TabsList>
+    </Tabs>
   )
 }
 
