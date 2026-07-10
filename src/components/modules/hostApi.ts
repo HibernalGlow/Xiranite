@@ -9,6 +9,7 @@ import type {
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   getNodeConfigFromBackend,
   getNodeUiConfigFromBackend,
@@ -56,8 +57,11 @@ export function useNodeHostApi(
         : "light"
 
   return useMemo(() => {
-    const readComponentData = () =>
-      getWorkspaceState().components.find((component) => component.id === compId)?.data
+    const readComponentData = () => {
+      const workspaceState = getWorkspaceState()
+      const component = workspaceState.components.find((item) => item.id === compId)
+      return resolveHazardComponentData(component, workspaceState.hazardMode)
+    }
 
     const stateCapability = {
       getData: () => {
@@ -105,8 +109,10 @@ export function useNodeHostApi(
         input: TInput,
         onEvent?: (event: NodeRunEvent) => void,
       ) => {
-        const workspaceId = getWorkspaceState().components.find((component) => component.id === compId)?.workspaceId
-        return runNodeOnLocalBackend<TInput, TData>(id, input, onEvent, {
+        const workspaceState = getWorkspaceState()
+        const workspaceId = workspaceState.components.find((component) => component.id === compId)?.workspaceId
+        const effectiveInput = applyHazardRunPolicy(id || nodeId, input, workspaceState.hazardMode)
+        return runNodeOnLocalBackend<TInput, TData>(id, effectiveInput, onEvent, {
           componentId: compId,
           workspaceId,
         })

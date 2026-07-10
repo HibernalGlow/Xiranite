@@ -9,6 +9,10 @@ const DRY_RUN_MODULE_IDS = new Set([
 
 const PREVIEW_MODULE_IDS = new Set(["dissolvef", "transq"])
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export function getHazardDisablePatch(component: ComponentInstance): Record<string, false> | null {
   if (component.moduleId === "cleanf") {
     return component.data?.previewMode === false ? null : { previewMode: false }
@@ -29,6 +33,15 @@ export function countHazardAffectedNodes(components: ComponentInstance[]): numbe
   return components.filter((component) => getHazardDisablePatch(component) !== null).length
 }
 
+export function resolveHazardComponentData(
+  component: ComponentInstance | undefined,
+  enabled: boolean,
+): Record<string, unknown> | undefined {
+  if (!component || !enabled) return component?.data
+  const patch = getHazardDisablePatch(component)
+  return patch ? { ...component.data, ...patch } : component.data
+}
+
 export function disableAllNodeDryRuns(
   components: ComponentInstance[],
   patchComponentData: (id: string, patch: Record<string, unknown>) => void,
@@ -43,4 +56,31 @@ export function disableAllNodeDryRuns(
   }
 
   return changed
+}
+
+/**
+ * Final execution boundary for Hazard mode. Node UIs may hold a render-time
+ * snapshot of their form state, so enforcing the policy here guarantees that
+ * an already-mounted node cannot send a dry-run payload after Hazard is armed.
+ */
+export function applyHazardRunPolicy<TInput>(
+  nodeId: string | undefined,
+  input: TInput,
+  enabled: boolean,
+): TInput {
+  if (!enabled || !nodeId || !isRecord(input)) return input
+
+  if (nodeId === "cleanf") {
+    return { ...input, preview: false } as TInput
+  }
+
+  if (PREVIEW_MODULE_IDS.has(nodeId)) {
+    return { ...input, preview: false } as TInput
+  }
+
+  if (DRY_RUN_MODULE_IDS.has(nodeId) || typeof input.dryRun === "boolean") {
+    return { ...input, dryRun: false } as TInput
+  }
+
+  return input
 }

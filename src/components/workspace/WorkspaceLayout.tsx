@@ -27,7 +27,6 @@ export function WorkspaceLayout() {
     bgOpacity: state.bgOpacity,
     bgBlur: state.bgBlur,
     bgCoverTopBar: state.bgCoverTopBar,
-    hazardMode: state.hazardMode,
   }))
   const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
@@ -41,11 +40,10 @@ export function WorkspaceLayout() {
 
   return (
     <div
-      className={cn("relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
+      className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
       <DefaultContextMenuItems />
-      {chrome.hazardMode ? <div aria-hidden="true" className="workspace-hazard-overlay" /> : null}
       <WorkspaceMusicDockProvider>
         <WorkspaceUrlState />
         <TopBar />

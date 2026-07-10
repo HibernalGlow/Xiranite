@@ -412,6 +412,8 @@ export function TopBar() {
         )}
       </Popover>
 
+      {state.hazardMode ? <HazardStatusBadge /> : null}
+
       <AlertDialog open={hazardConfirmOpen} onOpenChange={setHazardConfirmOpen}>
         <AlertDialogContent size="sm" className="border-foreground/20 bg-background/95 backdrop-blur-xl">
           <AlertDialogHeader>
@@ -859,6 +861,20 @@ function ThemeSwatchStrip({ colors, id }: { colors: string[]; id: string }) {
         <span key={`${id}-${index}`} className="min-w-0 flex-1" style={{ background: color }} />
       ))}
     </span>
+  )
+}
+
+function HazardStatusBadge() {
+  return (
+    <div
+      aria-label="Hazard On：节点将直接执行"
+      className="xiranite-app-region-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm border border-foreground/25 bg-muted/55 px-2 font-mono text-[10px] font-semibold tracking-[0.12em] text-foreground"
+      role="status"
+    >
+      <ShieldAlert className="size-3" />
+      <span>HAZARD ON</span>
+      <span className="border-l border-foreground/20 pl-1.5 text-[9px] font-normal tracking-[0.08em] text-muted-foreground">LIVE</span>
+    </div>
   )
 }
 
