@@ -106,6 +106,23 @@ export async function runDiny(
       runtime.getStagedDiff(normalized.repoPath, MAX_DIFF_PREVIEW_LINES),
     ])
 
+    if (normalized.action === "status") {
+      return success(
+        stagedFiles.length
+          ? `diny status: ${stagedFiles.length} file(s) staged on ${branch}.`
+          : `diny status: no staged files on ${branch}.`,
+        {
+          dinyInstalled: true,
+          dinyVersion: dinyCheck.version,
+          git: { branch, stagedFiles, diffStat, diffPreview },
+          commitMessage: null,
+          committed: false,
+          pushed: false,
+          commitHash: null,
+        },
+      )
+    }
+
     if (stagedFiles.length === 0) {
       return failure("No staged files found. Use `git add` to stage changes first.", {
         dinyInstalled: true,
@@ -120,19 +137,6 @@ export async function runDiny(
     }
 
     const git: DinyGitInfo = { branch, stagedFiles, diffStat, diffPreview }
-
-    // status: just return git info, no generation
-    if (normalized.action === "status") {
-      return success(`diny status: ${stagedFiles.length} file(s) staged on ${branch}.`, {
-        dinyInstalled: true,
-        dinyVersion: dinyCheck.version,
-        git,
-        commitMessage: null,
-        committed: false,
-        pushed: false,
-        commitHash: null,
-      })
-    }
 
     // 3. Generate or use provided message
     let commitMessage: string | null = null

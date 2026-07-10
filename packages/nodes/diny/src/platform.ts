@@ -46,13 +46,16 @@ async function resolveDiny(path?: string): Promise<{ found: boolean; path: strin
 }
 
 async function getDinyVersion(binaryPath: string): Promise<string | null> {
-  try {
-    const { stdout } = await execFileAsync(binaryPath, ["version"], { timeout: 10_000, windowsHide: true })
-    const match = stdout.match(/v?\d+\.\d+\.\d+/)
-    return match ? match[0] : stdout.trim() || null
-  } catch {
-    return null
+  for (const args of [["--version"], ["version"]]) {
+    try {
+      const { stdout } = await execFileAsync(binaryPath, args, { timeout: 10_000, windowsHide: true })
+      const match = stdout.match(/v?\d+\.\d+\.\d+/)
+      return match ? match[0] : stdout.trim() || null
+    } catch {
+      // Older diny releases accepted `version`; the current CLI uses `--version`.
+    }
   }
+  return null
 }
 
 async function runDinyPrint(options: {

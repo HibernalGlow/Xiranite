@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -185,6 +186,21 @@ export function Component({ compId, host }: NodeComponentProps) {
         {progress > 0 && progress < 100 && (
           <span className="text-xs text-muted-foreground">{progress}%</span>
         )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Input
+          aria-label={t("fields.repoPath", "Git 仓库路径")}
+          className="h-8 min-w-0 flex-1 font-mono text-xs"
+          disabled={running}
+          onChange={(event) => patch({ repoPath: event.target.value })}
+          placeholder={t("placeholder.repoPath", "留空使用当前仓库")}
+          value={data.repoPath ?? ""}
+        />
+        <Button className="h-8 gap-1.5" disabled={running} onClick={() => execute("status")} size="sm" variant="outline">
+          <Terminal className="h-3.5 w-3.5" />
+          {t("actions.analyze", "分析变更")}
+        </Button>
       </div>
 
       {/* Stats Row */}
