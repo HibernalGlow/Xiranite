@@ -1,0 +1,30 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "pathsText": "D:/sequence/raw_001.cbz\nD:/sequence/raw_002.zip",
+    "format": "gif",
+    "outDir": "D:/sequence/compiled",
+    "outMode": "separate",
+    "durationMs": "120",
+    "maxWorkers": "4",
+    "dryRun": true,
+    "recordRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "已检查 2 个归档，均可生成 GIF 序列。",
+    "logs": ["[inspect] raw_001.cbz: 24 frames", "[inspect] raw_002.zip: 18 frames", "[plan] 2 conversion commands ready"],
+    "result": {
+      "archives": [
+        { "archivePath": "D:/sequence/raw_001.cbz", "outputPath": "D:/sequence/compiled/raw_001.gif", "imageCount": 24, "status": "ready" },
+        { "archivePath": "D:/sequence/raw_002.zip", "outputPath": "D:/sequence/compiled/raw_002.gif", "imageCount": 18, "status": "ready" }
+      ],
+      "command": { "command": "python", "args": ["-m", "gifu", "make", "D:/sequence/raw_001.cbz", "--format", "gif"] },
+      "database": { "path": "D:/sequence/.xiranite/gifu-runs.jsonl", "enabled": true, "mode": "jsonl", "defaultPath": true },
+      "readyCount": 2,
+      "singleCount": 0,
+      "emptyCount": 0,
+      "errors": []
+    }
+  }
+}

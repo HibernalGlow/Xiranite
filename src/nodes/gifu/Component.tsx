@@ -329,8 +329,6 @@ function FullView(props: ViewProps) {
         <div className="flex min-w-0 flex-col gap-2 @4xl/gifu:flex-row @4xl/gifu:items-center">
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
           <div data-testid="gifu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/gifu:w-80" onActionChange={props.onActionChange} />
-            <RunActionButton props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
@@ -347,8 +345,8 @@ function FullView(props: ViewProps) {
         <GifuStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/gifu:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/gifu:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(230px,300px)]">
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1 @5xl/gifu:[&>:nth-child(2)]:hidden @5xl/gifu:[&>:nth-child(3)]:hidden @5xl/gifu:[&>:nth-child(4)]:hidden">
           <div className="grid gap-3 border-b pb-3">
             <div>
               <div className="text-sm font-semibold">输入</div>
@@ -369,6 +367,14 @@ function FullView(props: ViewProps) {
         <div className="min-h-0">
           <GifuResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
+        <section data-testid="gifu-compile-gate" className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
+          <div className="text-sm font-semibold">编译输出</div>
+          <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
+          <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <div className="mt-auto"><RunActionButton props={props} /></div>
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+        </section>
       </div>
     </div>
   )
