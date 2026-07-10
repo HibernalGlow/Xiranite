@@ -53,7 +53,7 @@ describe("app-owned movea Component", () => {
       }
 
       expect(screen.getByLabelText("根路径")).toBeTruthy()
-      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "匹配" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
 
       if (mode === "compact") {
