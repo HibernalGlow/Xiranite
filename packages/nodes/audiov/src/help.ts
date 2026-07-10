@@ -2,8 +2,8 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   "title": "AudioV",
-  "short": "Extract audio tracks from video files through PackU AudioV.",
-  "description": "Extract audio tracks from video files through PackU AudioV.",
+  "short": "Extract audio tracks from video files with the native ffmpeg workflow.",
+  "description": "Extract the first audio stream from each video using a fixed AAC/M4A ffmpeg profile.",
   "whenToUse": [
     "Use AudioV when you need this node's video workflow from either the workspace UI or CLI."
   ],
