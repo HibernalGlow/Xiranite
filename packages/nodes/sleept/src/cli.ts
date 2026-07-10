@@ -25,6 +25,7 @@ import { runSleept } from "./core.js"
 import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("sleept")
+export const SLEEPT_MAX_WAIT_HELP = "Maximum wait in seconds; use 0 to monitor indefinitely."
 
 interface SleeptNodeConfig {
   power_mode?: PowerMode
@@ -39,6 +40,7 @@ interface SleeptNodeConfig {
   net_trigger_mode?: NetTriggerMode
   cpu_threshold?: number
   cpu_duration?: number
+  max_wait_seconds?: number
 }
 
 interface SleeptDefaults {
@@ -54,6 +56,7 @@ interface SleeptDefaults {
   netTriggerMode?: NetTriggerMode
   cpuThreshold?: number
   cpuDuration?: number
+  maxWaitSeconds?: number
 }
 
 async function resolveSleeptDefaults(host: CliHost, json = false): Promise<SleeptDefaults> {
@@ -77,6 +80,7 @@ async function resolveSleeptDefaults(host: CliHost, json = false): Promise<Sleep
       netTriggerMode: nodeConfig?.net_trigger_mode,
       cpuThreshold: nodeConfig?.cpu_threshold,
       cpuDuration: nodeConfig?.cpu_duration,
+      maxWaitSeconds: nodeConfig?.max_wait_seconds,
     }
   } catch {
     return {}
@@ -97,6 +101,7 @@ interface SleeptCliOptions {
   duration?: string
   trigger?: string
   threshold?: string
+  maxWait?: string
   power?: string
   dryrun?: boolean
   json?: boolean
@@ -180,6 +185,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
           download: { type: "string", description: "Download threshold in KB/s." },
           duration: { type: "string", description: "Low-speed duration in minutes." },
           trigger: { type: "string", description: "both or any." },
+          maxWait: { type: "string", description: SLEEPT_MAX_WAIT_HELP },
           power: { type: "string", description: "sleep, shutdown, or restart." },
           dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
@@ -194,6 +200,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
               downloadThreshold: Number(args.download ?? defaults.downloadThreshold ?? 242),
               netDuration: Number(args.duration ?? defaults.netDuration ?? 2),
               netTriggerMode: (args.trigger ?? defaults.netTriggerMode ?? "both") === "any" ? "any" : "both",
+              maxWaitSeconds: Number(args.maxWait ?? defaults.maxWaitSeconds ?? 3600),
               powerMode: powerMode(args.power ?? defaults.powerMode),
               dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
             },
@@ -207,6 +214,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: {
           threshold: { type: "string", description: "CPU threshold percentage." },
           duration: { type: "string", description: "Low-CPU duration in minutes." },
+          maxWait: { type: "string", description: SLEEPT_MAX_WAIT_HELP },
           power: { type: "string", description: "sleep, shutdown, or restart." },
           dryrun: { type: "boolean", description: "Simulate the power action." },
           json: { type: "boolean", description: "Print JSON result." },
@@ -219,6 +227,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
               action: "cpu",
               cpuThreshold: Number(args.threshold ?? defaults.cpuThreshold ?? 10),
               cpuDuration: Number(args.duration ?? defaults.cpuDuration ?? 2),
+              maxWaitSeconds: Number(args.maxWait ?? defaults.maxWaitSeconds ?? 3600),
               powerMode: powerMode(args.power ?? defaults.powerMode),
               dryrun: Boolean(args.dryrun ?? defaults.dryrun ?? true),
             },
@@ -403,6 +412,7 @@ async function buildInputForAction(host: CliHost, action: GuidedAction, defaults
     const upload = await promptRich(host, "上传阈值 (KB/s)", String(defaults.uploadThreshold ?? 242))
     const download = await promptRich(host, "下载阈值 (KB/s)", String(defaults.downloadThreshold ?? 242))
     const duration = await promptRich(host, "持续低速时长 (分钟)", String(defaults.netDuration ?? 2))
+    const maxWait = await promptRich(host, "最长等待秒数，0 表示无限", String(defaults.maxWaitSeconds ?? 3600))
     const trigger = await selectRich<TriggerChoice>(
       host,
       "触发条件",
@@ -423,14 +433,17 @@ async function buildInputForAction(host: CliHost, action: GuidedAction, defaults
       downloadThreshold: nonNegativeNumber(download, defaults.downloadThreshold ?? 242),
       netDuration: nonNegativeNumber(duration, defaults.netDuration ?? 2),
       netTriggerMode: trigger,
+      maxWaitSeconds: nonNegativeNumber(maxWait, defaults.maxWaitSeconds ?? 3600),
     }
   } else if (action === "cpu") {
     const threshold = await promptRich(host, "CPU 阈值百分比", String(defaults.cpuThreshold ?? 10))
     const duration = await promptRich(host, "持续低 CPU 时长 (分钟)", String(defaults.cpuDuration ?? 2))
+    const maxWait = await promptRich(host, "最长等待秒数，0 表示无限", String(defaults.maxWaitSeconds ?? 3600))
     input = {
       ...input,
       cpuThreshold: nonNegativeNumber(threshold, defaults.cpuThreshold ?? 10),
       cpuDuration: nonNegativeNumber(duration, defaults.cpuDuration ?? 2),
+      maxWaitSeconds: nonNegativeNumber(maxWait, defaults.maxWaitSeconds ?? 3600),
     }
   }
 
@@ -484,9 +497,11 @@ function writeSelectedPlan(host: CliHost, input: SleeptInput): void {
     lines.push(`${rich(host, "下载", "cyan")}  ${input.downloadThreshold ?? 242} KB/s`)
     lines.push(`${rich(host, "持续", "cyan")}  ${input.netDuration ?? 2} 分钟`)
     lines.push(`${rich(host, "触发", "cyan")}  ${input.netTriggerMode === "any" ? "任一满足" : "全部满足"}`)
+    lines.push(`${rich(host, "等待", "cyan")}  ${input.maxWaitSeconds === 0 ? "无限，直到取消" : `${input.maxWaitSeconds ?? 3600} 秒`}`)
   } else if (input.action === "cpu") {
     lines.push(`${rich(host, "阈值", "cyan")}  ${input.cpuThreshold ?? 10}%`)
     lines.push(`${rich(host, "持续", "cyan")}  ${input.cpuDuration ?? 2} 分钟`)
+    lines.push(`${rich(host, "等待", "cyan")}  ${input.maxWaitSeconds === 0 ? "无限，直到取消" : `${input.maxWaitSeconds ?? 3600} 秒`}`)
   }
   lines.push(`${rich(host, "电源", "cyan")}  ${describePower(input.powerMode ?? "sleep")}`)
   lines.push(`${rich(host, "演练", "cyan")}  ${input.dryrun ? "dry-run 模拟" : "真实执行"}`)

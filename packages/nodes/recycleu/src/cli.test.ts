@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { runProgram } from "./cli.js"
+import { RECYCLEU_CYCLES_HELP, runProgram } from "./cli.js"
 import type { RecycleuResult } from "./core.js"
 
 afterEach(() => {
@@ -32,6 +32,10 @@ describe("recycleu CLI", () => {
     expect(result.success).toBe(true)
     expect(result.data?.timerStatus).toBe("idle")
     expect(result.data?.remainingSeconds).toBe(0)
+  })
+
+  test("documents zero cycles as unlimited", async () => {
+    expect(RECYCLEU_CYCLES_HELP).toContain("use 0 for unlimited")
   })
 })
 

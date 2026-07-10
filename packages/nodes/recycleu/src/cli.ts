@@ -25,6 +25,7 @@ import { normalizeDriveLetter, runRecycleu } from "./core.js"
 import { createNodeRecycleuRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("recycleu")
+export const RECYCLEU_CYCLES_HELP = "Maximum clean cycles; use 0 for unlimited."
 
 interface RecycleuNodeConfig {
   interval?: number
@@ -140,7 +141,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         },
       }),
       start: defineCommand({
-        meta: { name: "start", description: "Run auto-clean for a bounded number of cycles." },
+        meta: { name: "start", description: "Run auto-clean until its cycle limit or cancellation." },
         args: commonArgs(),
         async run({ args }) {
           const json = Boolean(args.json)
@@ -162,7 +163,7 @@ function commonArgs() {
   return {
     drive: { type: "string", description: "Limit cleanup to one drive letter, for example C." },
     interval: { type: "string", description: "Clean interval in seconds, minimum 5." },
-    cycles: { type: "string", description: "Maximum clean cycles." },
+    cycles: { type: "string", description: RECYCLEU_CYCLES_HELP },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
@@ -201,7 +202,7 @@ async function runGuided(host: CliHost): Promise<void> {
       writeRichPanel(host, "Run", [
         `task: ${choice.task.name}`,
         input.driveLetter ? `drive: ${input.driveLetter}:` : "drive: all",
-        ...(choice.task.name === "auto-clean" ? [`interval: ${input.interval}s`, `cycles: ${input.maxCycles}`] : []),
+        ...(choice.task.name === "auto-clean" ? [`interval: ${input.interval}s`, `cycles: ${input.maxCycles === 0 ? "unlimited" : input.maxCycles}`] : []),
       ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
 
       const confirmed = await confirmRich(host, `确认执行 ${choice.task.name}?`, true)
@@ -230,7 +231,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   writeRichPanel(host, "Xiranite Recycleu", [
     `${rich(host, "入口", "cyan")}  回收站清理工具，提供立即清理与定时自动清理两种模式`,
     `${rich(host, "执行", "cyan")}  直接调用 recycleu core/platform，不经过 lata 或 Taskfile`,
-    `${rich(host, "间隔", "cyan")}  默认 10 秒，最小 5 秒，自动清理可配置循环次数`,
+    `${rich(host, "间隔", "cyan")}  默认 10 秒，最小 5 秒；循环次数设为 0 时无限运行`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
   writeLine(host, rich(host, `提示: 自动清理会持续运行直到完成；需要查看状态请用 \`${CLI_NAME} status --json\`。`, "grey"))
@@ -269,9 +270,9 @@ async function resolveInterval(host: CliHost, defaultValue: number): Promise<num
 }
 
 async function resolveCycles(host: CliHost, defaultValue: number): Promise<number> {
-  const answer = await promptRich(host, "最大循环次数", String(defaultValue))
+  const answer = await promptRich(host, "最大循环次数，0 表示无限", String(defaultValue))
   const parsed = Number(answer)
-  return Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : defaultValue
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : defaultValue
 }
 
 async function resolveDriveLetter(host: CliHost): Promise<string> {

@@ -1,7 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type RecycleuAction = "status" | "clean_now" | "start"
-export type RecycleuTimerStatus = "idle" | "running" | "completed" | "error"
+export type RecycleuTimerStatus = "idle" | "running" | "completed" | "cancelled" | "error"
 export type RecycleBinStatus = "cleaned" | "empty" | "unsupported" | "failed"
 
 export interface RecycleuInput {
@@ -20,6 +20,7 @@ export interface RecycleuRuntime {
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
   emptyRecycleBin: (driveLetter?: string) => Promise<EmptyRecycleBinResult>
+  isCancelled?: () => boolean
 }
 
 export interface RecycleuState {
@@ -44,7 +45,7 @@ export function normalizeRecycleuInput(input: RecycleuInput): Required<RecycleuI
   return {
     action: input.action ?? "status",
     interval: Math.max(1, Math.trunc(input.interval ?? 10)),
-    maxCycles: Math.max(1, Math.trunc(input.maxCycles ?? 360)),
+    maxCycles: Math.max(0, Math.trunc(input.maxCycles ?? 360)),
     driveLetter: normalizeDriveLetter(input.driveLetter),
   }
 }
@@ -90,20 +91,34 @@ export async function runRecycleu(
   }
 
   state.timerStatus = "running"
-  onEvent({ type: "log", message: `Start auto-clean, interval ${normalized.interval}s.` })
+  const unlimited = normalized.maxCycles === 0
+  onEvent({
+    type: "log",
+    message: unlimited
+      ? `Start auto-clean, interval ${normalized.interval}s, unlimited cycles until cancelled.`
+      : `Start auto-clean, interval ${normalized.interval}s, ${normalized.maxCycles} cycle(s).`,
+  })
 
-  for (let cycle = 0; cycle < normalized.maxCycles; cycle += 1) {
+  for (let cycle = 0; unlimited || cycle < normalized.maxCycles; cycle += 1) {
+    if (runtime.isCancelled?.()) return cancelledResult(state, onEvent, normalized.interval)
+
     const cleanResult = await cleanOnce(runtime, state, onEvent, normalized.driveLetter, false)
     if (!cleanResult.success) {
       return cleanResult
     }
 
     for (let remaining = normalized.interval; remaining > 0; remaining -= 1) {
-      const progress = Math.min(99, Math.round(((cycle + (normalized.interval - remaining) / normalized.interval) / normalized.maxCycles) * 100))
+      if (runtime.isCancelled?.()) return cancelledResult(state, onEvent, remaining)
+      const cycleProgress = (normalized.interval - remaining) / normalized.interval
+      const progress = unlimited
+        ? Math.min(99, Math.round(cycleProgress * 100))
+        : Math.min(99, Math.round(((cycle + cycleProgress) / normalized.maxCycles) * 100))
       onEvent({
         type: "progress",
         progress,
-        message: `cleaned ${state.cleanCount} time(s), next clean in ${remaining}s`,
+        message: unlimited
+          ? `cleaned ${state.cleanCount} time(s), unlimited mode, next clean in ${remaining}s`
+          : `cleaned ${state.cleanCount} time(s), next clean in ${remaining}s`,
       })
       await runtime.sleep(1000)
     }
@@ -116,6 +131,21 @@ export async function runRecycleu(
     success: true,
     message: `Auto-clean completed, cleaned ${state.cleanCount} time(s).`,
     data: { ...state, remainingSeconds: 0 },
+  }
+}
+
+function cancelledResult(
+  state: RecycleuState,
+  onEvent: (event: NodeRunEvent) => void,
+  remainingSeconds: number,
+): RecycleuResult {
+  state.timerStatus = "cancelled"
+  const message = `Auto-clean cancelled after ${state.cleanCount} clean(s).`
+  onEvent({ type: "log", message })
+  return {
+    success: false,
+    message,
+    data: { ...state, remainingSeconds },
   }
 }
 

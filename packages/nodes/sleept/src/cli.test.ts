@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { runProgram } from "./cli.js"
+import { runProgram, SLEEPT_MAX_WAIT_HELP } from "./cli.js"
 import type { SleeptResult } from "./core.js"
 
 afterEach(() => {
@@ -37,13 +37,17 @@ describe("sleept CLI", () => {
   test("runs a short countdown dry-run as JSON", async () => {
     const host = createHost()
 
-    await runProgram(["countdown", "--seconds", "1", "--dryrun", "--json"], host)
+    await runProgram(["countdown", "--hours", "0", "--minutes", "0", "--seconds", "1", "--dryrun", "--json"], host)
 
     expect(process.exitCode).toBe(0)
     const result = JSON.parse(host.stdoutText()) as SleeptResult
     expect(result.success).toBe(true)
     expect(result.message).toBe("[dryrun] Countdown completed; simulated sleep.")
     expect(result.data?.timerStatus).toBe("completed")
+  })
+
+  test("documents zero maximum wait as indefinite monitoring", async () => {
+    expect(SLEEPT_MAX_WAIT_HELP).toContain("use 0 to monitor indefinitely")
   })
 })
 

@@ -191,12 +191,12 @@ export function AdvancedOptionsPopover(props: {
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
           <div className="text-sm font-semibold">高级选项</div>
-          <p className="text-xs text-muted-foreground">监控类模式的最多等待秒数，超过后视为超时取消。</p>
+          <p className="text-xs text-muted-foreground">监控类模式的最多等待秒数；设为 0 时持续监控，直到手动取消。</p>
         </div>
         <NumberField
-          label="最大等待(秒)"
+          label="最大等待(秒，0=无限)"
           value={props.data.maxWaitSeconds ?? 3600}
-          min={1}
+          min={0}
           disabled={props.disabled}
           onChange={(maxWaitSeconds) => props.onPatch({ maxWaitSeconds })}
         />

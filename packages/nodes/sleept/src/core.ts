@@ -41,6 +41,7 @@ export interface SleeptRuntime {
   getCpuPercent: () => Promise<number> | number
   getNetCounters: () => Promise<NetCounters> | NetCounters
   executePowerAction: (mode: PowerMode, dryrun: boolean) => Promise<void> | void
+  isCancelled?: () => boolean
 }
 
 export type SleeptResult = NodeRunResult<SleeptData>
@@ -107,6 +108,7 @@ export function normalizeInput(raw: SleeptInput): Required<SleeptInput> {
     action: raw.action ?? defaultSleeptInput.action,
     powerMode: raw.powerMode ?? defaultSleeptInput.powerMode,
     targetDatetime: raw.targetDatetime ?? "",
+    maxWaitSeconds: Math.max(0, Math.trunc(raw.maxWaitSeconds ?? defaultSleeptInput.maxWaitSeconds)),
   }
 }
 
@@ -190,8 +192,10 @@ async function runNetSpeedMonitor(
   let lastTime = runtime.now().getTime()
   let lowStart: number | null = null
 
-  for (let elapsedTotal = 0; elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+  for (let elapsedTotal = 0; input.maxWaitSeconds === 0 || elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+    if (runtime.isCancelled?.()) return monitorCancelled("Network")
     await runtime.sleep(1000)
+    if (runtime.isCancelled?.()) return monitorCancelled("Network")
     const nowCounters = await runtime.getNetCounters()
     const nowTime = runtime.now().getTime()
     const intervalSeconds = Math.max(0.001, (nowTime - lastTime) / 1000)
@@ -235,8 +239,10 @@ async function runCpuMonitor(
   const durationSeconds = Math.max(1, input.cpuDuration * 60)
   let lowStart: number | null = null
 
-  for (let elapsedTotal = 0; elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+  for (let elapsedTotal = 0; input.maxWaitSeconds === 0 || elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+    if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     await runtime.sleep(1000)
+    if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     const cpu = await runtime.getCpuPercent()
     const nowTime = runtime.now().getTime()
 
@@ -261,6 +267,14 @@ async function runCpuMonitor(
   }
 
   return { success: false, message: "CPU monitor timed out.", data: { ...idleData(), timerStatus: "cancelled" } }
+}
+
+function monitorCancelled(kind: "Network" | "CPU"): SleeptResult {
+  return {
+    success: false,
+    message: `${kind} monitor cancelled.`,
+    data: { ...idleData(), timerStatus: "cancelled" },
+  }
 }
 
 async function tickCountdown(totalSeconds: number, runtime: SleeptRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<void> {
