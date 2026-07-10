@@ -30,6 +30,7 @@ It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the
 - On wide cards, reserve columns for primary task content. Do not spend a permanent vertical column on a 2–5 item result switcher, metadata, or decorative controls when that width would improve a file tree, table, diff, gallery, or log.
 - Content tabs must read as tabs: use the shared `TabsList` line treatment with a visible selected indicator. Put a short content switcher inside the panel it changes as a horizontal strip; do not place it in the global header and do not turn three result views into a standalone vertical rail.
 - Use `ToggleGroup` for a parameter that merely changes a setting. When each mode has its own workflow body and execution semantics, use Tabs and place that mode's action, risk state, and status in the same tab panel so the user can tell exactly what will run.
+- Use the installed shadcn/Base UI component source for Tabs, Switches, Fields, tables, trees, and resizable panels. Do not reproduce a component's visual shell with a styled `div` or `label` when the component already provides the required composition. In particular, a `Switch` must be paired through `Field` / `FieldLabel` / `FieldContent`, not a hand-built bordered label row.
 
 ## Action placement rules
 
@@ -43,6 +44,7 @@ Execution controls are part of the workflow, not a loose toolbar.
 - Risk mode switches such as dry-run/live, overwrite, delete-after, and move/copy belong beside the execution gate or immediately before it. Avoid hiding them in low-frequency settings.
 - Avoid full-width action rows with unrelated commands. Group by intent: execute, configure, inspect/copy, reset/recover.
 - Do not make a small set of result views consume a dedicated vertical rail. In a three-zone workbench, keep the right result panel wide and put its `计划 / 问题 / 日志` switcher horizontally inside that panel.
+- For ClassQ specifically, use `配置 | 递归文件树 | 结果详情` at wide sizes. The active parent directory drives the detail table; the result tabs live as a horizontal strip in the result-detail panel.
 
 ## PackU rewrite requirement
 
@@ -607,5 +609,5 @@ Completion evidence must include:
 - Dangerous actions still gated.
 - PackU rewrite search returns no Python wrapper references for rewritten nodes.
 - Targeted tests and typecheck pass for the touched batch.
-- Existing Bento/card screenshot tooling has been used for visual checks where available. Default to one bento matrix screenshot per node so collapsed/compact/portrait/expanded widths are inspected together. Only capture extra screenshots when the matrix reveals a specific issue that needs a close-up.
-- Keep screenshot work token-efficient: use scripts rather than repeated manual captures, inspect the matrix or one decisive wide-screen state, and capture additional images only when they prove a specific interaction or responsive defect.
+- Existing Bento/card screenshot tooling has been used for visual checks where available. Default to one final scripted screenshot for the node's decisive workflow state; use a bento matrix only when cross-surface layout is itself under review. Only capture extra screenshots when the first image reveals a specific issue that needs a close-up.
+- Keep screenshot work token-efficient: use scripts rather than repeated manual captures, inspect one decisive wide-screen state or one matrix, and capture additional images only when they prove a specific interaction or responsive defect.
