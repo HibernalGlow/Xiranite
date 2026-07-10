@@ -50,7 +50,7 @@ describe("app-owned nameu Component", () => {
       }
 
       expect(screen.getByLabelText("nameu paths")).toBeTruthy()
-      expect(screen.getAllByRole("tab")).toHaveLength(mode === "compact" || mode === "portrait" ? 8 : 7)
+      expect(screen.getAllByRole("tab")).toHaveLength(8)
       expect(within(screen.getByRole("tablist", { name: "路径模式" })).getAllByRole("tab")).toHaveLength(2)
       expect(within(screen.getByRole("tablist", { name: "改名动作" })).getAllByRole("tab")).toHaveLength(3)
       expect(screen.queryByText(/python/i)).toBeNull()

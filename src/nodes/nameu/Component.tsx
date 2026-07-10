@@ -283,7 +283,7 @@ function FullView(props: ViewProps) {
         <StatsPanel result={props.result} paths={props.paths} progress={props.progress} />
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
-      <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(260px,330px)]">
+      <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)]">
         <div className="flex min-h-0 flex-col gap-2">
           <section className="min-h-0 flex-1 overflow-auto rounded-lg border bg-card p-2">
             <div className="grid gap-2">
@@ -298,9 +298,8 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
           <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={GitCompare} label="改名计划" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
           <Separator />
-          <PlanRows items={props.result?.items ?? []} paths={props.paths} />
+          <div className="min-h-0 flex-1 p-2"><ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
         </section>
-        <div className="min-h-0 @2xl/nameu:col-span-2 @4xl/nameu:col-span-1"><ResultTabs includePlan={false} logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
   )
