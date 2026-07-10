@@ -1,45 +1,48 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-// ── Types ──────────────────────────────────────────────
+export type GitalsoAction =
+  | "status" | "stage" | "unstage" | "stage_all" | "unstage_all"
+  | "branch_create" | "branch_checkout" | "fetch" | "pull" | "push"
+  | "generate" | "commit" | "gitbutler_commit"
 
-export type DinyAction = "status" | "generate" | "commit" | "push" | "gitbutler_commit"
-
-export interface DinyInput {
-  action?: DinyAction
-  /** Working directory for git operations. Defaults to cwd. */
+export interface GitalsoInput {
+  action?: GitalsoAction
   repoPath?: string
-  /** Override diny binary path. If empty, resolves from PATH. */
   dinyPath?: string
-  /** Pass --no-verify to diny (skip pre-commit hooks). */
+  paths?: string[]
+  branchName?: string
   noVerify?: boolean
-  /** Manually edited message — skip diny generation and commit directly. */
   message?: string
-  /** Dry-run: preview what would happen without committing. */
   dryRun?: boolean
-  /** Timeout in ms for diny AI generation. Defaults to 60_000. */
   timeout?: number
 }
 
-export interface DinyStagedFile {
+export interface GitalsoFile {
   path: string
-  status: string // "M", "A", "D", "R", "C"
-  insertions: number
-  deletions: number
+  index: string
+  workingTree: string
+  staged: boolean
+  unstaged: boolean
 }
 
-export interface DinyGitInfo {
+export interface GitalsoCommit { hash: string; message: string; author: string; date: string }
+export interface GitalsoBranch { name: string; current: boolean; remote?: string }
+export interface GitalsoRepository {
+  root: string
   branch: string
-  stagedFiles: DinyStagedFile[]
-  diffStat: { insertions: number; deletions: number; files: number }
-  diffPreview: string
+  files: GitalsoFile[]
+  branches: GitalsoBranch[]
+  commits: GitalsoCommit[]
+  remotes: string[]
+  ahead: number
+  behind: number
+  stagedDiff: string
 }
 
-export interface DinyData {
-  message: string
+export interface GitalsoData {
+  repository: GitalsoRepository | null
   dinyInstalled: boolean
   dinyVersion: string | null
-  git: DinyGitInfo | null
-  /** AI-generated commit message (from diny commit --print). */
   commitMessage: string | null
   committed: boolean
   pushed: boolean
@@ -47,288 +50,123 @@ export interface DinyData {
   errors: string[]
 }
 
-// ── Runtime interface ──────────────────────────────────
+// Temporary API aliases keep persisted cards and the app entry compatible while
+// GitAlso evolves from the original diny-only node into a Git workbench.
+export type DinyAction = GitalsoAction
+export type DinyInput = GitalsoInput
+export interface DinyStagedFile { path: string; status: string; insertions: number; deletions: number }
+export interface DinyGitInfo { branch: string; stagedFiles: DinyStagedFile[]; diffStat: { insertions: number; deletions: number; files: number }; diffPreview: string }
+export interface DinyData extends GitalsoData { git: DinyGitInfo | null }
 
-export interface DinyRuntime {
-  /** Check if diny binary exists in PATH or at the given path. */
-  resolveDiny: (path?: string) => Promise<{ found: boolean; path: string; version: string | null }>
-  /** Run `diny commit --print` and return stdout. */
-  runDinyPrint: (options: { dinyPath: string; repoPath: string; noVerify: boolean; timeout: number }) => Promise<{ stdout: string; stderr: string; code: number }>
-  /** Get staged file list with status codes. */
-  getStagedFiles: (repoPath: string) => Promise<DinyStagedFile[]>
-  /** Get staged diff text (truncated for preview). */
-  getStagedDiff: (repoPath: string, maxLines?: number) => Promise<string>
-  /** Get diff stat summary. */
-  getDiffStat: (repoPath: string) => Promise<{ insertions: number; deletions: number; files: number }>
-  /** Get current branch name. */
-  getCurrentBranch: (repoPath: string) => Promise<string>
-  /** Create a git commit with the given message. */
-  commit: (repoPath: string, message: string, noVerify: boolean) => Promise<{ hash: string; summary: string }>
-  /** Push current branch to remote. */
+export interface GitalsoRuntime {
+  defaultRepoPath: () => Promise<string>
+  getRepository: (repoPath: string) => Promise<GitalsoRepository>
+  stage: (repoPath: string, paths: string[]) => Promise<void>
+  unstage: (repoPath: string, paths: string[]) => Promise<void>
+  stageAll: (repoPath: string) => Promise<void>
+  unstageAll: (repoPath: string) => Promise<void>
+  createBranch: (repoPath: string, branchName: string) => Promise<void>
+  checkoutBranch: (repoPath: string, branchName: string) => Promise<void>
+  fetch: (repoPath: string) => Promise<void>
+  pull: (repoPath: string) => Promise<void>
   push: (repoPath: string) => Promise<{ remote: string; branch: string }>
+  commit: (repoPath: string, message: string, noVerify: boolean) => Promise<{ hash: string }>
+  resolveDiny: (path?: string) => Promise<{ found: boolean; path: string; version: string | null }>
+  runDinyPrint: (options: { dinyPath: string; repoPath: string; noVerify: boolean; timeout: number }) => Promise<{ stdout: string; stderr: string; code: number }>
   gitButlerCommit: (repoPath: string) => Promise<{ hash: string; message: string }>
 }
 
-// ── Constants ──────────────────────────────────────────
+export async function runGitalso(input: GitalsoInput, runtime: GitalsoRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<GitalsoData>> {
+  const action = input.action ?? "status"
+  const repoPath = clean(input.repoPath) || await runtime.defaultRepoPath()
+  const paths = input.paths?.map(clean).filter(Boolean) ?? []
+  const branchName = clean(input.branchName)
+  const noVerify = input.noVerify ?? false
 
-const MAX_DIFF_PREVIEW_LINES = 200
-
-// ── Main entry ─────────────────────────────────────────
-
-export async function runDiny(
-  input: DinyInput,
-  runtime: DinyRuntime,
-  onEvent: (event: NodeRunEvent) => void = () => {},
-): Promise<NodeRunResult<DinyData>> {
-  const normalized = normalizeInput(input)
   try {
-    if (normalized.action === "gitbutler_commit") {
-      onEvent({ type: "progress", progress: 20, message: "Setting up GitButler workspace." })
-      const result = await runtime.gitButlerCommit(normalized.repoPath)
-      onEvent({ type: "progress", progress: 100, message: "Landed GitButler commit on target branch." })
-      return success(`GitButler AI commit landed on target: ${result.hash.slice(0, 7)}`, {
-        commitMessage: result.message,
-        committed: true,
-        commitHash: result.hash,
-      })
-    }
-    // 1. Check diny installation
-    onEvent({ type: "progress", progress: 10, message: "Checking diny installation." })
-    const dinyCheck = await runtime.resolveDiny(normalized.dinyPath)
-    if (!dinyCheck.found) {
-      return failure("diny binary not found. Install it via `scoop install diny` or download from https://github.com/dinoDanic/diny/releases.", {
-        dinyInstalled: false,
-        dinyVersion: null,
-        git: null,
-        commitMessage: null,
-        committed: false,
-        pushed: false,
-        commitHash: null,
-        errors: ["diny not found in PATH"],
-      })
+    if (action === "gitbutler_commit") {
+      onEvent({ type: "progress", progress: 20, message: "Setting up the GitButler workspace (fallback workflow)." })
+      const commit = await runtime.gitButlerCommit(repoPath)
+      return ok(`GitButler AI commit landed: ${commit.hash.slice(0, 7)}`, { commitMessage: commit.message, committed: true, commitHash: commit.hash })
     }
 
-    // 2. Gather git info
-    onEvent({ type: "progress", progress: 20, message: "Reading staged changes." })
-    const [branch, stagedFiles, diffStat, diffPreview] = await Promise.all([
-      runtime.getCurrentBranch(normalized.repoPath),
-      runtime.getStagedFiles(normalized.repoPath),
-      runtime.getDiffStat(normalized.repoPath),
-      runtime.getStagedDiff(normalized.repoPath, MAX_DIFF_PREVIEW_LINES),
-    ])
-
-    if (normalized.action === "status") {
-      return success(
-        stagedFiles.length
-          ? `diny status: ${stagedFiles.length} file(s) staged on ${branch}.`
-          : `diny status: no staged files on ${branch}.`,
-        {
-          dinyInstalled: true,
-          dinyVersion: dinyCheck.version,
-          git: { branch, stagedFiles, diffStat, diffPreview },
-          commitMessage: null,
-          committed: false,
-          pushed: false,
-          commitHash: null,
-        },
-      )
+    if (action === "stage") {
+      ensurePaths(paths, "Select one or more changed files to stage.")
+      await runtime.stage(repoPath, paths)
+      return refreshed(runtime, repoPath, `Staged ${paths.length} file(s).`)
     }
-
-    if (stagedFiles.length === 0) {
-      return failure("No staged files found. Use `git add` to stage changes first.", {
-        dinyInstalled: true,
-        dinyVersion: dinyCheck.version,
-        git: { branch, stagedFiles: [], diffStat, diffPreview: "" },
-        commitMessage: null,
-        committed: false,
-        pushed: false,
-        commitHash: null,
-        errors: ["No staged files"],
-      })
+    if (action === "unstage") {
+      ensurePaths(paths, "Select one or more staged files to unstage.")
+      await runtime.unstage(repoPath, paths)
+      return refreshed(runtime, repoPath, `Unstaged ${paths.length} file(s).`)
     }
-
-    const git: DinyGitInfo = { branch, stagedFiles, diffStat, diffPreview }
-
-    // 3. Generate or use provided message
-    let commitMessage: string | null = null
-
-    if (normalized.message) {
-      // User provided a manual message, skip diny generation
-      commitMessage = normalized.message
-      onEvent({ type: "progress", progress: 50, message: "Using manually provided commit message." })
-    } else {
-      // Call diny commit --print
-      onEvent({ type: "progress", progress: 30, message: "Generating commit message with diny AI." })
-      const result = await runtime.runDinyPrint({
-        dinyPath: dinyCheck.path,
-        repoPath: normalized.repoPath,
-        noVerify: normalized.noVerify,
-        timeout: normalized.timeout,
-      })
-
-      if (result.code !== 0 && !result.stdout.trim()) {
-        return failure(`diny failed: ${result.stderr || "Unknown error"}`, {
-          dinyInstalled: true,
-          dinyVersion: dinyCheck.version,
-          git,
-          commitMessage: null,
-          committed: false,
-          pushed: false,
-          commitHash: null,
-          errors: [result.stderr || `diny exited with code ${result.code}`],
-        })
+    if (action === "stage_all") { await runtime.stageAll(repoPath); return refreshed(runtime, repoPath, "Staged all changed files.") }
+    if (action === "unstage_all") { await runtime.unstageAll(repoPath); return refreshed(runtime, repoPath, "Unstaged all files.") }
+    if (action === "branch_create") {
+      if (!branchName) throw new Error("Enter a branch name.")
+      await runtime.createBranch(repoPath, branchName)
+      return refreshed(runtime, repoPath, `Created and switched to ${branchName}.`)
+    }
+    if (action === "branch_checkout") {
+      if (!branchName) throw new Error("Choose a branch.")
+      await runtime.checkoutBranch(repoPath, branchName)
+      return refreshed(runtime, repoPath, `Switched to ${branchName}.`)
+    }
+    if (action === "fetch") { await runtime.fetch(repoPath); return refreshed(runtime, repoPath, "Fetched remotes.") }
+    if (action === "pull") { await runtime.pull(repoPath); return refreshed(runtime, repoPath, "Pulled remote changes.") }
+    if (action === "push") {
+      if (!input.message && !(await runtime.getRepository(repoPath)).files.some((file) => file.staged)) {
+        const pushed = await runtime.push(repoPath)
+        return refreshed(runtime, repoPath, `Pushed ${pushed.branch} to ${pushed.remote}.`, { pushed: true })
       }
-
-      commitMessage = parseDinyOutput(result.stdout)
-      if (!commitMessage) {
-        return failure("diny produced no commit message output.", {
-          dinyInstalled: true,
-          dinyVersion: dinyCheck.version,
-          git,
-          commitMessage: null,
-          committed: false,
-          pushed: false,
-          commitHash: null,
-          errors: ["diny output was empty"],
-        })
-      }
+      return commitWithDiny(input, runtime, repoPath, "push", onEvent)
     }
-
-    onEvent({ type: "progress", progress: 60, message: "Commit message generated." })
-
-    // generate: return message without committing
-    if (normalized.action === "generate") {
-      return success(`Generated commit message for ${stagedFiles.length} file(s).`, {
-        dinyInstalled: true,
-        dinyVersion: dinyCheck.version,
-        git,
-        commitMessage,
-        committed: false,
-        pushed: false,
-        commitHash: null,
-      })
-    }
-
-    // 4. Dry-run: preview without committing
-    if (normalized.dryRun) {
-      return success(`Dry-run: would commit "${commitMessage}" on ${branch}.`, {
-        dinyInstalled: true,
-        dinyVersion: dinyCheck.version,
-        git,
-        commitMessage,
-        committed: false,
-        pushed: false,
-        commitHash: null,
-      })
-    }
-
-    // 5. Commit
-    onEvent({ type: "progress", progress: 75, message: "Creating commit." })
-    const commitResult = await runtime.commit(normalized.repoPath, commitMessage, normalized.noVerify)
-
-    // 6. Push (if action is "push")
-    let pushed = false
-    if (normalized.action === "push") {
-      onEvent({ type: "progress", progress: 90, message: "Pushing to remote." })
-      await runtime.push(normalized.repoPath)
-      pushed = true
-    }
-
-    onEvent({ type: "progress", progress: 100, message: "Done." })
-    return success(`Committed${pushed ? " and pushed" : ""}: ${commitResult.hash.slice(0, 7)}`, {
-      dinyInstalled: true,
-      dinyVersion: dinyCheck.version,
-      git,
-      commitMessage,
-      committed: true,
-      pushed,
-      commitHash: commitResult.hash,
-    })
+    if (action === "status") return refreshed(runtime, repoPath, "Repository refreshed.")
+    return commitWithDiny(input, runtime, repoPath, action, onEvent)
   } catch (error) {
-    return failure(error instanceof Error ? error.message : String(error))
+    return fail(error instanceof Error ? error.message : String(error))
   }
 }
 
-// ── Helpers ─────────────────────────────────────────────
+async function commitWithDiny(input: GitalsoInput, runtime: GitalsoRuntime, repoPath: string, action: "generate" | "commit" | "push", onEvent: (event: NodeRunEvent) => void): Promise<NodeRunResult<GitalsoData>> {
+  const repository = await runtime.getRepository(repoPath)
+  if (!repository.files.some((file) => file.staged)) return fail("No staged files. Stage changes before generating a commit message.", { repository })
+  const noVerify = input.noVerify ?? false
+  const dryRun = input.dryRun ?? false
+  const diny = await runtime.resolveDiny(input.dinyPath)
+  if (!diny.found && !clean(input.message)) return fail("diny is not installed. Enter a commit message manually, or install diny for AI generation.", { repository, dinyInstalled: false })
+  let message = clean(input.message)
+  if (!message) {
+    onEvent({ type: "progress", progress: 35, message: "Generating a commit message with diny." })
+    const result = await runtime.runDinyPrint({ dinyPath: diny.path, repoPath, noVerify, timeout: input.timeout ?? 60_000 })
+    if (result.code !== 0 && !result.stdout.trim()) return fail(`diny failed: ${result.stderr || "Unknown error"}`, { repository, dinyInstalled: true, dinyVersion: diny.version })
+    message = parseDinyOutput(result.stdout) ?? ""
+    if (!message) return fail("diny produced no commit message.", { repository, dinyInstalled: true, dinyVersion: diny.version })
+  }
+  if (action === "generate") return ok("Commit message generated.", { repository, dinyInstalled: diny.found, dinyVersion: diny.version, commitMessage: message })
+  if (dryRun) return ok(`Dry-run: would commit on ${repository.branch}.`, { repository, dinyInstalled: diny.found, dinyVersion: diny.version, commitMessage: message })
+  onEvent({ type: "progress", progress: 75, message: "Creating commit." })
+  const commit = await runtime.commit(repoPath, message, noVerify)
+  if (action === "push") await runtime.push(repoPath)
+  return refreshed(runtime, repoPath, `${action === "push" ? "Committed and pushed" : "Committed"}: ${commit.hash.slice(0, 7)}`, { dinyInstalled: diny.found, dinyVersion: diny.version, commitMessage: message, committed: true, pushed: action === "push", commitHash: commit.hash })
+}
 
-/**
- * Parse diny commit --print stdout.
- *
- * diny prints the commit message to stdout. It may include:
- * - ANSI color codes (stripped)
- * - A trailing newline
- * - Optional prefix lines like "Generated commit message:"
- *
- * We take the first non-empty meaningful block and strip ANSI.
- */
+async function refreshed(runtime: GitalsoRuntime, repoPath: string, message: string, extra: Partial<GitalsoData> = {}): Promise<NodeRunResult<GitalsoData>> {
+  return ok(message, { repository: await runtime.getRepository(repoPath), ...extra })
+}
+
+function ensurePaths(paths: string[], message: string) { if (!paths.length) throw new Error(message) }
 export function parseDinyOutput(stdout: string): string | null {
-  // Strip ANSI escape sequences
-  const clean = stdout.replace(/\x1b\[[0-9;]*m/g, "")
-
-  // diny may print informational lines before the message.
-  // The actual commit message is typically the last meaningful block.
-  const lines = clean.split(/\r?\n/).filter((line) => line.trim())
-
-  if (lines.length === 0) return null
-
-  // If there's only one line, that's the message
-  if (lines.length === 1) return lines[0]!.trim()
-
-  // If diny outputs a known prefix, skip lines up to and including it
-  const knownPrefixes = ["Generated commit message:", "Commit message:", "Suggested message:"]
-  let startIndex = 0
-  for (let i = 0; i < lines.length; i++) {
-    if (knownPrefixes.some((p) => lines[i]!.startsWith(p))) {
-      startIndex = i + 1
-      break
-    }
-  }
-
-  // Take remaining lines as the commit message
-  const messageLines = lines.slice(startIndex)
-  if (messageLines.length === 0) return null
-
-  // If it's a conventional commit (e.g., "feat: ..."), take the whole block
-  return messageLines.join("\n").trim()
+  const lines = stdout.replace(/\x1b\[[0-9;]*m/g, "").split(/\r?\n/).filter((line) => line.trim())
+  if (!lines.length) return null
+  const prefix = lines.findIndex((line) => /^(generated )?commit message:|^suggested message:/i.test(line.trim()))
+  return lines.slice(prefix >= 0 ? prefix + 1 : 0).join("\n").trim() || null
 }
-
-export function normalizeInput(input: DinyInput): Required<DinyInput> {
-  return {
-    action: input.action ?? "generate",
-    repoPath: clean(input.repoPath) || process.cwd(),
-    dinyPath: clean(input.dinyPath),
-    noVerify: input.noVerify ?? false,
-    message: clean(input.message),
-    dryRun: input.dryRun ?? false,
-    timeout: input.timeout ?? 60_000,
-  }
+function clean(value?: string) { return (value ?? "").trim().replace(/^["']|["']$/g, "") }
+function data(partial: Partial<GitalsoData>): DinyData {
+  const value = { repository: null, dinyInstalled: false, dinyVersion: null, commitMessage: null, committed: false, pushed: false, commitHash: null, errors: [], ...partial }
+  const repository = value.repository
+  return { ...value, git: repository ? { branch: repository.branch, stagedFiles: repository.files.filter((file) => file.staged).map((file) => ({ path: file.path, status: file.index, insertions: 0, deletions: 0 })), diffStat: { insertions: 0, deletions: 0, files: repository.files.filter((file) => file.staged).length }, diffPreview: repository.stagedDiff } : null }
 }
-
-// ── Internal utilities ─────────────────────────────────
-
-function data(partial: Partial<DinyData>): DinyData {
-  return {
-    message: "",
-    dinyInstalled: false,
-    dinyVersion: null,
-    git: null,
-    commitMessage: null,
-    committed: false,
-    pushed: false,
-    commitHash: null,
-    errors: [],
-    ...partial,
-  }
-}
-
-function success(message: string, partial: Partial<DinyData>): NodeRunResult<DinyData> {
-  return { success: true, message, data: data(partial) }
-}
-
-function failure(message: string, partial?: Partial<DinyData>): NodeRunResult<DinyData> {
-  return { success: false, message, data: data({ ...partial, errors: partial?.errors ?? [message] }) }
-}
-
-function clean(value?: string): string {
-  return (value ?? "").trim().replace(/^["']|["']$/g, "")
-}
+function ok(message: string, partial: Partial<GitalsoData>): NodeRunResult<DinyData> { return { success: true, message, data: data(partial) } }
+function fail(message: string, partial: Partial<GitalsoData> = {}): NodeRunResult<DinyData> { return { success: false, message, data: data({ ...partial, errors: [message] }) } }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
-import type { DinyAction, DinyData, DinyInput } from "@xiranite/node-diny/core"
+import type { DinyAction, DinyData, DinyInput } from "@xiranite/node-gitalso/core"
 import {
   CheckCircle2,
   Copy,
@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -30,7 +31,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
-  const { t } = useNodeI18n("diny")
+  const { t } = useNodeI18n("gitalso")
   const data = host.getData<DinyCardState>(compId) ?? {}
   const dataRef = useRef<DinyCardState>(data)
   dataRef.current = data
@@ -102,7 +103,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
     try {
       patch({ phase: phaseMap[action], progress: 0, progressText: t("progress.start", "开始执行..."), result: null })
-      const response = await run<DinyInput, DinyData>("diny", input, (event) => {
+      const response = await run<DinyInput, DinyData>("gitalso", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
           pushLog(`[${event.progress ?? 0}%] ${event.message}`)
@@ -324,10 +325,6 @@ export function Component({ compId, host }: NodeComponentProps) {
           <Sparkles className="h-3.5 w-3.5" />
           {t("actions.generate", "生成消息")}
         </Button>
-        <Button className="gap-1.5" disabled={running || dryRun} onClick={() => execute("gitbutler_commit")} size="sm" variant="secondary">
-          <GitPullRequestArrow className="h-3.5 w-3.5" />
-          GitButler → main
-        </Button>
         <Button
           size="sm"
           variant={dryRun ? "outline" : "default"}
@@ -379,6 +376,24 @@ export function Component({ compId, host }: NodeComponentProps) {
               {t("actions.reset", "重置")}
             </Button>
           )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button className="h-7 gap-1 text-xs" disabled={running} size="sm" title="备用：会初始化 GitButler 工作区并创建临时分支" variant="ghost">
+                <GitPullRequestArrow className="h-3 w-3" />
+                GitButler 备用
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>使用 GitButler 作为备用提交方式？</AlertDialogTitle>
+                <AlertDialogDescription>这会执行 GitButler setup，切换到其 workspace、创建临时分支，并在 AI 提交后直接 land 到已配置的目标分支。日常提交请优先使用 diny。</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => execute("gitbutler_commit")}>继续使用 GitButler</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

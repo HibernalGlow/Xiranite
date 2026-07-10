@@ -52,12 +52,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Match similar folder names and optionally move matched folders.",
   },
   {
-    id: "diny",
-    packageName: "@xiranite/node-diny",
-    bin: nodeCliName("diny"),
-    description: "AI-powered git commit message generator wrapping the diny binary.",
-  },
-  {
     id: "dissolvef",
     packageName: "@xiranite/node-dissolvef",
     bin: nodeCliName("dissolvef"),
@@ -98,6 +92,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-gifu",
     bin: nodeCliName("gifu"),
     description: "Scan archive image sequences and run gifu animation conversion.",
+  },
+  {
+    id: "gitalso",
+    packageName: "@xiranite/node-gitalso",
+    bin: "also",
+    description: "Diny-first commit assistant with an optional GitButler AI landing workflow.",
   },
   {
     id: "jellypot",
@@ -224,6 +224,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-snf",
     bin: nodeCliName("snf"),
     description: "Repair numbered folder sequence order with native renames.",
+  },
+  {
+    id: "soundw",
+    packageName: "@xiranite/node-soundw",
+    bin: nodeCliName("soundw"),
+    description: "Quickly switch SoundSwitch recording devices and microphone mute state.",
   },
   {
     id: "synct",

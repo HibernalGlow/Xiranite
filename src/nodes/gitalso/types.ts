@@ -1,4 +1,4 @@
-import type { DinyData } from "@xiranite/node-diny/core"
+import type { DinyData } from "@xiranite/node-gitalso/core"
 
 export type DinyPhase = "idle" | "generating" | "committing" | "pushing" | "completed" | "error"
 

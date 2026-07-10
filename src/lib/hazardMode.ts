@@ -1,7 +1,7 @@
 import type { ComponentInstance } from "@/types/workspace"
 
 const DRY_RUN_MODULE_IDS = new Set([
-  "audiov", "bandia", "bitv", "classf", "classq", "coveru", "crashu", "diny", "enginev",
+  "audiov", "bandia", "bitv", "classf", "classq", "coveru", "crashu", "gitalso", "enginev",
   "envuconfig", "formatv", "gifu", "jellypot", "kavvka", "marku", "migratef", "movea",
   "mvz", "nameu", "rawfilter", "repacku", "scoolp", "seriex", "simiu", "smartzip",
   "snf", "synct", "timeu", "trename",

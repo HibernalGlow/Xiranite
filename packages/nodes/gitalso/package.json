@@ -1,13 +1,12 @@
 {
-  "name": "@xiranite/node-diny",
+  "name": "@xiranite/node-gitalso",
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "Safe commit-message assistant powered by diny, with GitButler-aware guidance.",
+  "description": "Diny-first commit assistant with an optional GitButler AI landing workflow.",
   "license": "UNLICENSED",
   "bin": {
-    "also": "./dist/cli.js",
-    "xdiny": "./dist/cli.js"
+    "also": "./dist/cli.js"
   },
   "exports": {
     ".": {

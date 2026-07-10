@@ -1,5 +1,5 @@
 import type { AppNodeEntry } from "@xiranite/contract"
-import { core, def } from "@xiranite/node-diny"
+import { core, def } from "@xiranite/node-gitalso"
 import { Component } from "./Component"
 
 export default {

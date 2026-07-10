@@ -2,11 +2,11 @@ import type { HeadlessNodePackage, NodeDef } from "@xiranite/contract"
 import * as core from "./core.js"
 
 export const def = {
-  id: "diny",
+  id: "gitalso",
   name: "GitAlso",
   version: "0.1.0",
   category: "dev",
-  description: "Safe commit-message assistant powered by diny, with GitButler-aware guidance.",
+  description: "Diny-first commit assistant with an optional GitButler AI landing workflow.",
   icon: "GitCommitHorizontal",
   keywords: ["git", "commit", "ai", "diny", "gitbutler", "also", "message"],
 } satisfies NodeDef

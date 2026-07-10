@@ -13,8 +13,8 @@ import {
 import type { CliHost } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
-import { runDiny } from "./core.js"
-import { createNodeDinyRuntime } from "./platform.js"
+import { runGitalso } from "./core.js"
+import { createNodeGitalsoRuntime } from "./platform.js"
 
 const CLI_NAME = "also"
 
@@ -40,7 +40,7 @@ function bool(value: string | boolean | string[] | undefined): boolean | undefin
 }
 
 async function loadConfig(json: boolean): Promise<DinyNodeConfig | undefined> {
-  const { config } = await loadNodeConfigWithHints<DinyNodeConfig>("diny", {
+  const { config } = await loadNodeConfigWithHints<DinyNodeConfig>("gitalso", {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
@@ -51,7 +51,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
       name: CLI_NAME,
-      description: "Generate git commit messages safely with diny. GitButler mutations are never invoked.",
+      description: "Use diny by default for staged commits; optionally land a GitButler AI commit on its target branch.",
     },
     subCommands: {
       status: defineCommand({
@@ -64,11 +64,11 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const nodeConfig = await loadConfig(json)
-          const result = await runDiny({
+          const result = await runGitalso({
             action: "status",
             repoPath: str(args.repoPath) ?? nodeConfig?.repo_path,
             dinyPath: str(args.dinyPath) ?? nodeConfig?.diny_path,
-          }, createNodeDinyRuntime())
+          }, createNodeGitalsoRuntime())
           if (json) writeJson(host, result)
           else writeLine(host, result.message)
           if (!result.success) process.exitCode = 1
@@ -86,13 +86,13 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const nodeConfig = await loadConfig(json)
-          const result = await runDiny({
+          const result = await runGitalso({
             action: "generate",
             repoPath: str(args.repoPath) ?? nodeConfig?.repo_path,
             dinyPath: str(args.dinyPath) ?? nodeConfig?.diny_path,
             noVerify: bool(args.noVerify) ?? nodeConfig?.no_verify,
             timeout: str(args.timeout) ? Number(args.timeout) : nodeConfig?.timeout,
-          }, createNodeDinyRuntime())
+          }, createNodeGitalsoRuntime())
           if (json) writeJson(host, result)
           else if (result.success && result.data?.commitMessage) writeLine(host, result.data.commitMessage)
           else writeLine(host, result.message)
@@ -118,7 +118,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
             const stdinText = await readStdinText(host.stdin)
             if (stdinText.trim()) message = stdinText.trim()
           }
-          const result = await runDiny({
+          const result = await runGitalso({
             action: "commit",
             repoPath: str(args.repoPath) ?? nodeConfig?.repo_path,
             dinyPath: str(args.dinyPath) ?? nodeConfig?.diny_path,
@@ -126,7 +126,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
             noVerify: bool(args.noVerify) ?? nodeConfig?.no_verify,
             dryRun: bool(args.dryRun),
             timeout: str(args.timeout) ? Number(args.timeout) : nodeConfig?.timeout,
-          }, createNodeDinyRuntime())
+          }, createNodeGitalsoRuntime())
           if (json) writeJson(host, result)
           else writeLine(host, result.message)
           if (!result.success) process.exitCode = 1
@@ -151,7 +151,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
             const stdinText = await readStdinText(host.stdin)
             if (stdinText.trim()) message = stdinText.trim()
           }
-          const result = await runDiny({
+          const result = await runGitalso({
             action: "push",
             repoPath: str(args.repoPath) ?? nodeConfig?.repo_path,
             dinyPath: str(args.dinyPath) ?? nodeConfig?.diny_path,
@@ -159,7 +159,22 @@ function createProgram(host: CliHost = createDefaultHost()) {
             noVerify: bool(args.noVerify) ?? nodeConfig?.no_verify,
             dryRun: bool(args.dryRun),
             timeout: str(args.timeout) ? Number(args.timeout) : nodeConfig?.timeout,
-          }, createNodeDinyRuntime())
+          }, createNodeGitalsoRuntime())
+          if (json) writeJson(host, result)
+          else writeLine(host, result.message)
+          if (!result.success) process.exitCode = 1
+        },
+      }),
+      gitbutler: defineCommand({
+        meta: { name: "gitbutler", description: "Create an AI commit with GitButler and land it on the configured target branch." },
+        args: {
+          repoPath: { type: "string", description: "Git repository path.", alias: "path" },
+          json: { type: "boolean", description: "Output as JSON." },
+        },
+        async run({ args }) {
+          const json = Boolean(args.json)
+          const nodeConfig = await loadConfig(json)
+          const result = await runGitalso({ action: "gitbutler_commit", repoPath: str(args.repoPath) ?? nodeConfig?.repo_path }, createNodeGitalsoRuntime())
           if (json) writeJson(host, result)
           else writeLine(host, result.message)
           if (!result.success) process.exitCode = 1
@@ -173,7 +188,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
             process.exitCode = 2
             return
           }
-          const result = await runDiny({ action: "generate" }, createNodeDinyRuntime())
+          const result = await runGitalso({ action: "generate" }, createNodeGitalsoRuntime())
           writeLine(host, result.message)
           if (result.success && result.data?.commitMessage) {
             writeLine(host, `\nGenerated message:\n  ${result.data.commitMessage}`)

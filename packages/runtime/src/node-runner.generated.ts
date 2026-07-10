@@ -51,12 +51,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-crashu/platform"),
     createRuntime: "createNodeCrashuRuntime",
   },
-  diny: {
-    loadCore: () => import("@xiranite/node-diny/core"),
-    run: "runDiny",
-    loadPlatform: () => import("@xiranite/node-diny/platform"),
-    createRuntime: "createNodeDinyRuntime",
-  },
   dissolvef: {
     loadCore: () => import("@xiranite/node-dissolvef/core"),
     run: "runDissolvef",
@@ -98,6 +92,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runGifu",
     loadPlatform: () => import("@xiranite/node-gifu/platform"),
     createRuntime: "createNodeGifuRuntime",
+  },
+  gitalso: {
+    loadCore: () => import("@xiranite/node-gitalso/core"),
+    run: "runGitalso",
+    loadPlatform: () => import("@xiranite/node-gitalso/platform"),
+    createRuntime: "createNodeGitalsoRuntime",
   },
   jellypot: {
     loadCore: () => import("@xiranite/node-jellypot/core"),
@@ -223,6 +223,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runSnf",
     loadPlatform: () => import("@xiranite/node-snf/platform"),
     createRuntime: "createNodeSnfRuntime",
+  },
+  soundw: {
+    loadCore: () => import("@xiranite/node-soundw/core"),
+    run: "runSoundw",
+    loadPlatform: () => import("@xiranite/node-soundw/platform"),
+    createRuntime: "createNodeSoundwRuntime",
   },
   synct: {
     loadCore: () => import("@xiranite/node-synct/core"),

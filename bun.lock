@@ -31,7 +31,6 @@
         "@xiranite/node-cleanf": "workspace:*",
         "@xiranite/node-coveru": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
-        "@xiranite/node-diny": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-enginev": "workspace:*",
@@ -39,6 +38,7 @@
         "@xiranite/node-findz": "workspace:*",
         "@xiranite/node-formatv": "workspace:*",
         "@xiranite/node-gifu": "workspace:*",
+        "@xiranite/node-gitalso": "workspace:*",
         "@xiranite/node-jellypot": "workspace:*",
         "@xiranite/node-kavvka": "workspace:*",
         "@xiranite/node-lata": "workspace:*",
@@ -60,6 +60,7 @@
         "@xiranite/node-sleept": "workspace:*",
         "@xiranite/node-smartzip": "workspace:*",
         "@xiranite/node-snf": "workspace:*",
+        "@xiranite/node-soundw": "workspace:*",
         "@xiranite/node-synct": "workspace:*",
         "@xiranite/node-timeu": "workspace:*",
         "@xiranite/node-transq": "workspace:*",
@@ -375,24 +376,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "packages/nodes/diny": {
-      "name": "@xiranite/node-diny",
-      "version": "0.1.0",
-      "bin": {
-        "xdiny": "./dist/cli.js",
-      },
-      "dependencies": {
-        "@xiranite/cli-runtime": "workspace:*",
-        "@xiranite/config": "workspace:*",
-        "@xiranite/contract": "workspace:*",
-        "simple-git": "^3.27.0",
-      },
-      "devDependencies": {
-        "@types/node": "^24.12.0",
-        "typescript": "^7.0.2",
-        "vitest": "^4.1.10",
-      },
-    },
     "packages/nodes/dissolvef": {
       "name": "@xiranite/node-dissolvef",
       "version": "0.1.0",
@@ -501,6 +484,24 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/gitalso": {
+      "name": "@xiranite/node-gitalso",
+      "version": "0.1.0",
+      "bin": {
+        "also": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "simple-git": "^3.27.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -843,6 +844,22 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/soundw": {
+      "name": "@xiranite/node-soundw",
+      "version": "0.1.0",
+      "bin": {
+        "xsoundw": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {
@@ -1812,8 +1829,6 @@
 
     "@xiranite/node-crashu": ["@xiranite/node-crashu@workspace:packages/nodes/crashu"],
 
-    "@xiranite/node-diny": ["@xiranite/node-diny@workspace:packages/nodes/diny"],
-
     "@xiranite/node-dissolvef": ["@xiranite/node-dissolvef@workspace:packages/nodes/dissolvef"],
 
     "@xiranite/node-encodeb": ["@xiranite/node-encodeb@workspace:packages/nodes/encodeb"],
@@ -1827,6 +1842,8 @@
     "@xiranite/node-formatv": ["@xiranite/node-formatv@workspace:packages/nodes/formatv"],
 
     "@xiranite/node-gifu": ["@xiranite/node-gifu@workspace:packages/nodes/gifu"],
+
+    "@xiranite/node-gitalso": ["@xiranite/node-gitalso@workspace:packages/nodes/gitalso"],
 
     "@xiranite/node-jellypot": ["@xiranite/node-jellypot@workspace:packages/nodes/jellypot"],
 
@@ -1869,6 +1886,8 @@
     "@xiranite/node-smartzip": ["@xiranite/node-smartzip@workspace:packages/nodes/smartzip"],
 
     "@xiranite/node-snf": ["@xiranite/node-snf@workspace:packages/nodes/snf"],
+
+    "@xiranite/node-soundw": ["@xiranite/node-soundw@workspace:packages/nodes/soundw"],
 
     "@xiranite/node-synct": ["@xiranite/node-synct@workspace:packages/nodes/synct"],
 
