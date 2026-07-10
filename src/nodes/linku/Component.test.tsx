@@ -161,7 +161,7 @@ describe("app-owned linku Component", () => {
     expect(thrownHost.state.logs?.at(-1)).toBe("backend offline")
   })
 
-  test("saves, restores, clears, and opens default config controls", async () => {
+  test("uses shared configuration management controls", async () => {
     setSurface("regular")
     const host = createHost(
       { path: "D:/current", target: "D:/link" },
@@ -170,22 +170,17 @@ describe("app-owned linku Component", () => {
     render(<Component compId="comp-linku" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "linku defaults" }).className).toContain("bg-secondary"))
-    await user.click(screen.getByRole("button", { name: "linku defaults" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.state.path).toBe("D:/default")
     expect(host.state.target).toBe("D:/default-link")
     expect(host.state.configPath).toBe("D:/linku.toml")
 
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.path).toBeUndefined()
-    expect(host.state.target).toBeUndefined()
-    expect(host.state.configPath).toBeUndefined()
-
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
-    expect(host.savedConfig).toEqual({})
+    expect(host.savedConfig).toEqual({ path: "D:/default", target: "D:/default-link", configPath: "D:/linku.toml" })
 
-    await user.click(screen.getByRole("button", { name: "打开文件" }))
+    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })

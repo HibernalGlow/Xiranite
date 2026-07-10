@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { RunningTint } from "@/nodes/shared/controls"
 import {
   ActionBar,
   ActionIconButton,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   LinkuIcon,
   PathField,
   StatusStrip,
@@ -25,6 +26,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("linku")
   const data = host.getData<LinkuCardState>(compId) ?? {}
   const dataRef = useRef<LinkuCardState>(data)
   dataRef.current = data
@@ -54,6 +56,14 @@ export function Component({ compId, host }: NodeComponentProps) {
       })
       .catch(() => undefined)
   }, [host])
+
+  async function reloadDefaults() {
+    const response = await host.getNodeConfig?.<Partial<LinkuCardState>>()
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+    setConfigDirty(false)
+  }
 
   useEffect(() => {
     if (!defaults) return
@@ -180,6 +190,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPastePath: () => paste("path"),
     onPasteTarget: () => paste("target"),
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onRunAction: runAction,
@@ -189,6 +200,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     result,
     running,
     status,
+    t,
   })
 
   return (
@@ -238,6 +250,7 @@ function createViewProps(props: {
   onPastePath: () => void
   onPasteTarget: () => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onResetOverride: () => void
   onRestoreDefault: () => void
   onRunAction: (action: LinkuAction) => void
@@ -247,6 +260,7 @@ function createViewProps(props: {
   result: LinkuData | null
   running: boolean
   status: LinkuStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
 }) {
   return props
 }
@@ -395,15 +409,16 @@ function FullView(props: ViewProps) {
             <ActionBar disabled={props.running} onRun={props.onRunAction} />
             <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
+            <NodeConfigPopover
+              configPath={props.configFilePath}
               defaults={props.defaults}
+              dirty={props.configDirty}
               disabled={props.running}
-              onOpenConfigFile={props.host.openConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
+              t={props.t}
+              onOpenFile={props.host.openConfigFile}
+              onReload={props.onReloadDefaults}
+              onRestore={props.onRestoreDefault}
+              onSave={props.onSaveDefault}
             />
           </div>
         </div>

@@ -277,8 +277,8 @@ function preferredDisplayTab(input: {
 }): LinkuDisplayTab {
   if (input.running || input.phase === "running") return "logs"
   if (input.conflictCount && input.phase === "completed") return "logs"
-  if (input.hasPathInfo) return "pathInfo"
   if (input.hasLinks) return "links"
+  if (input.hasPathInfo) return "pathInfo"
   if (input.logCount) return "logs"
   return "links"
 }
