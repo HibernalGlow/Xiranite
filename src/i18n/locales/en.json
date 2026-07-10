@@ -2670,6 +2670,104 @@
       "phaseError": "error",
       "phaseCancelled": "cancelled"
     },
+    "transq": {
+      "name": "TransQ",
+      "description": "Organize manga-translator result queues with native filesystem operations.",
+      "input": {
+        "title": "Translation workspace queue",
+        "placeholder": "One root path per line\nD:/translation/project",
+        "description": "Scans original_images/manga_translator_work/result folders beneath each root."
+      },
+      "actions": {
+        "pastePaths": "Paste paths",
+        "clearPaths": "Clear paths",
+        "copyQueue": "Copy queue",
+        "clearState": "Clear state",
+        "copyLogs": "Copy logs",
+        "preview": "Preview queue",
+        "previewShort": "Preview",
+        "organize": "Organize queue",
+        "organizeShort": "Organize",
+        "confirm": "Confirm organize"
+      },
+      "aria": {
+        "paths": "transq translation workspaces",
+        "previewSwitch": "transq preview switch",
+        "running": "transq running"
+      },
+      "mode": {
+        "preview": "Preview",
+        "live": "Live"
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Done",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "idle": "Add a translation workspace to preview its result queues.",
+        "running": "TransQ is planning or organizing translation queues.",
+        "completed": "The last translation queue operation completed.",
+        "error": "The last translation queue operation failed."
+      },
+      "execution": {
+        "previewState": "Preview: no files change",
+        "liveState": "Live: files move and originals are removed",
+        "previewDescription": "Builds the queue only; no files are copied, moved, or deleted.",
+        "liveDescription": "Copies missing files, moves results, and removes original work folders after confirmation."
+      },
+      "confirm": {
+        "title": "Organize translation queues?",
+        "description": "This copies missing images, moves result folders, and removes original work folders. Confirm the planned queues before continuing.",
+        "cancel": "Cancel"
+      },
+      "queue": {
+        "title": "Queue board",
+        "count": "{{count}} queues"
+      },
+      "lanes": {
+        "pending": "Needs copy",
+        "ready": "Ready",
+        "output": "Output",
+        "conflict": "Conflict",
+        "empty": "No queue items"
+      },
+      "item": {
+        "original": "Original",
+        "result": "Result",
+        "copy": "Copy",
+        "missing": "Missing mapped files"
+      },
+      "rules": {
+        "title": "Native rules",
+        "map": "Use translation_map.json to identify expected result files.",
+        "copy": "Copy mapped originals missing from result.",
+        "output": "Move the completed result beside original_images."
+      },
+      "stats": {
+        "pending": "Needs copy",
+        "ready": "Ready",
+        "output": "Output",
+        "conflict": "Conflicts"
+      },
+      "empty": {
+        "title": "Awaiting translation queues",
+        "description": "Add a workspace path, then preview its result queues."
+      },
+      "summary": {
+        "items": "{{count}} queues / {{conflicts}} conflicts",
+        "preview": "Preview queue is armed",
+        "live": "Live organization is armed"
+      },
+      "progress": {
+        "start": "{{action}} started"
+      },
+      "error": {
+        "pathRequired": "Add at least one translation workspace path first.",
+        "noRunEnv": "Local execution is unavailable here. Use desktop mode or the CLI."
+      }
+    },
     "trename": {
       "name": "Trename",
       "description": "Scan folders into rename JSON, validate translated targets, rename, and undo.",

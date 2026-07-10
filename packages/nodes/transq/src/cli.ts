@@ -26,7 +26,7 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const result = await runTransq({
     action,
     paths,
-    preview: action === "plan" || args.includes("--preview") || config?.preview !== false,
+    preview: action === "plan" || (!args.includes("--live") && (args.includes("--preview") || config?.preview !== false)),
   }, createNodeTransqRuntime())
 
   if (json) console.log(JSON.stringify(result, null, 2))

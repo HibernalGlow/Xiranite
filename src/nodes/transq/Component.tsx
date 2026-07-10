@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { TransqData, TransqInput } from "@xiranite/node-transq/core"
-import { Eye, FileOutput, Languages, Play, ShieldAlert, Square } from "lucide-react"
+import { Eye, FileOutput, Languages, Play, RotateCcw, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -204,8 +204,8 @@ function FullView(props: ViewProps) {
       <div className="flex shrink-0 flex-col gap-2 @4xl/transq:flex-row @4xl/transq:items-center @4xl/transq:justify-between">
         <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
         <div data-testid="transq-header-toolbar" className="flex items-center gap-1">
-          <ActionIconButton disabled={props.running} icon={FileOutput} label={props.t("actions.copyQueue", "Copy queue")} onClick={props.onCopyResults} />
-          <ActionIconButton disabled={props.running} icon={Languages} label={props.t("actions.clearState", "Clear state")} onClick={props.onReset} />
+          <ActionIconButton disabled={props.running || !props.result} icon={FileOutput} label={props.t("actions.copyQueue", "Copy queue")} onClick={props.onCopyResults} />
+          <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.t("actions.clearState", "Clear state")} onClick={props.onReset} />
         </div>
       </div>
       <div className="grid min-h-0 flex-1 gap-3 @4xl/transq:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(230px,280px)]">
@@ -238,7 +238,16 @@ function ExecutionGate({ compact, props }: { compact?: boolean; props: ViewProps
   const previewTitle = props.preview ? props.t("execution.previewState", "Preview: no files change") : props.t("execution.liveState", "Live: files move and originals are removed")
   const previewDescription = props.preview ? props.t("execution.previewDescription", "Builds the queue only; no files are copied, moved, or deleted.") : props.t("execution.liveDescription", "Copies missing files, moves results, and removes original work folders after confirmation.")
   return (
-    <section data-testid="transq-execution-gate" className={cn("flex min-w-0 items-center gap-2", compact && "grid grid-cols-[minmax(0,1fr)_auto] rounded-lg border bg-card px-2 py-1.5", !props.preview && "border-destructive/50")}>
+    <section
+      data-testid="transq-execution-gate"
+      className={cn(
+        "min-w-0",
+        compact
+          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border bg-card px-2 py-1.5"
+          : "flex flex-col gap-3",
+        !props.preview && compact && "border-destructive/50",
+      )}
+    >
       <Field orientation="horizontal" className="min-w-0 flex-1 items-center gap-2">
         {props.preview ? <Eye className="shrink-0 text-muted-foreground" /> : <ShieldAlert className="shrink-0 text-destructive" />}
         <FieldContent className="min-w-0 gap-0.5">
@@ -247,28 +256,28 @@ function ExecutionGate({ compact, props }: { compact?: boolean; props: ViewProps
         </FieldContent>
         <Switch aria-label={props.t("aria.previewSwitch", "transq preview switch")} checked={props.preview} disabled={props.running} size="default" onCheckedChange={(preview) => props.onPatch({ preview })} />
       </Field>
-      {!compact && <Separator className="h-6 shrink-0" orientation="vertical" />}
-      <RunActionButton compact={compact} props={props} />
+      {!compact && <Separator />}
+      <RunActionButton compact={compact} wide={!compact} props={props} />
     </section>
   )
 }
 
-function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
-  if (props.running) return <Button aria-label={props.t("aria.running", "transq running")} disabled size={compact ? "xs" : "sm"} variant="secondary"><Square /><span>{props.t("status.running", "Running")}</span></Button>
+function RunActionButton({ compact, props, wide }: { compact?: boolean; props: ViewProps; wide?: boolean }) {
+  if (props.running) return <Button aria-label={props.t("aria.running", "transq running")} className={cn(wide && "w-full")} disabled size={compact ? "xs" : "sm"} variant="secondary"><Square /><span>{props.t("status.running", "Running")}</span></Button>
   const label = props.preview ? props.t("actions.preview", "Preview queue") : props.t("actions.organize", "Organize queue")
   const compactLabel = props.preview ? props.t("actions.previewShort", "Preview") : props.t("actions.organizeShort", "Organize")
   if (!props.preview) {
     return (
       <AlertDialog>
-        <AlertDialogTrigger asChild><Button aria-label={label} disabled={!props.data.pathsText?.trim()} size={compact ? "xs" : "sm"} variant="destructive"><Play /><span>{compact ? compactLabel : label}</span></Button></AlertDialogTrigger>
+        <AlertDialogTrigger asChild><Button aria-label={label} className={cn(wide && "w-full")} disabled={!props.data.pathsText?.trim()} size={compact ? "xs" : "sm"} variant="destructive"><Play /><span>{compact ? compactLabel : label}</span></Button></AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{props.t("confirm.title", "Organize translation queues?")}</AlertDialogTitle><AlertDialogDescription>{props.t("confirm.description", "This copies missing images, moves result folders, and removes original work folders. Confirm the planned queues before continuing.")}</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>{props.t("common:cancel", "Cancel")}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={props.onExecute}>{props.t("actions.confirm", "Confirm organize")}</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>{props.t("confirm.cancel", "Cancel")}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={props.onExecute}>{props.t("actions.confirm", "Confirm organize")}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     )
   }
-  return <Button aria-label={label} disabled={!props.data.pathsText?.trim()} size={compact ? "xs" : "sm"} onClick={props.onExecute}><Play /><span>{compact ? compactLabel : label}</span></Button>
+  return <Button aria-label={label} className={cn(wide && "w-full")} disabled={!props.data.pathsText?.trim()} size={compact ? "xs" : "sm"} onClick={props.onExecute}><Play /><span>{compact ? compactLabel : label}</span></Button>
 }
 
 function HeaderLine({ status, subtitle, t }: { status: TransqStatusMeta; subtitle: string; t: ViewProps["t"] }) {
@@ -283,7 +292,7 @@ function RuleSummary({ t }: { t: ViewProps["t"] }) {
 
 function ResultSummary({ result, t }: { result: TransqData | null; t: ViewProps["t"] }) {
   const stats = [[t("stats.pending", "Needs copy"), result?.pendingCount ?? 0], [t("stats.ready", "Ready"), result?.readyCount ?? 0], [t("stats.output", "Output"), result?.outputCount ?? 0], [t("stats.conflict", "Conflicts"), result?.conflictCount ?? 0]]
-  return <div className="grid grid-cols-2 gap-2">{stats.map(([label, value]) => <div key={label} className="rounded-md bg-muted/35 px-2 py-2"><div className="truncate text-[11px] text-muted-foreground">{label}</div><div className={cn("text-base font-semibold tabular-nums", label === t("stats.conflict", "Conflicts") && Number(value) > 0 && "text-destructive")}>{value}</div></div>)}</div>
+  return <div className="grid grid-cols-2 gap-2">{stats.map(([label, value]) => <div key={label} className="rounded-md border bg-card px-2 py-2"><div className="truncate text-[11px] text-muted-foreground">{label}</div><div className={cn("text-base font-semibold tabular-nums", label === t("stats.conflict", "Conflicts") && Number(value) > 0 && "text-destructive")}>{value}</div></div>)}</div>
 }
 
 function StatusStrip({ compact, progress, status, text }: { compact?: boolean; progress: number; status: TransqStatusMeta; text?: string }) {

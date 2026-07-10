@@ -41,7 +41,7 @@ export const PACKAGE_MODULES = [
   { id: "snf", name: "SNF", version: "0.1.0", category: "file", description: "Repair numbered folder sequence order with native renames.", icon: "ListOrdered", keywords: ["sequence", "folder", "rename", "numbered"] },
   { id: "synct", name: "Synct", version: "0.1.0", category: "file", description: "Archive files and folders into date-based paths from extracted timestamps.", icon: "CalendarClock", keywords: ["timestamp", "archive", "sync", "date"] },
   { id: "timeu", name: "TimeU", version: "0.1.0", category: "file", description: "Back up and restore file timestamps from JSON records.", icon: "Clock3", keywords: ["timestamp", "backup", "restore", "mtime", "atime"] },
-  { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize translation result files with PackU TransQ.", icon: "Languages", keywords: ["packu", "translation", "organize", "queue"] },
+  { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize manga-translator result queues with native filesystem operations.", icon: "Languages", keywords: ["translation", "manga-translator", "organize", "queue"] },
   { id: "trename", name: "Trename", version: "0.1.0", category: "file", description: "Scan folders into rename JSON, validate translated targets, rename, and undo.", icon: "FilePenLine", keywords: ["rename", "translate", "json", "undo", "batch"] },
 ] satisfies NodeDef[]
 

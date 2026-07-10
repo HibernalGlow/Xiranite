@@ -235,7 +235,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "transq",
     packageName: "@xiranite/node-transq",
     bin: nodeCliName("transq"),
-    description: "Organize translation result files with PackU TransQ.",
+    description: "Organize manga-translator result queues with native filesystem operations.",
   },
   {
     id: "trename",

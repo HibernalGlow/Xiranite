@@ -2670,6 +2670,104 @@
       "phaseError": "错误",
       "phaseCancelled": "已取消"
     },
+    "transq": {
+      "name": "TransQ",
+      "description": "使用原生文件系统操作整理漫画翻译结果队列。",
+      "input": {
+        "title": "翻译工作区队列",
+        "placeholder": "每行一个根目录\nD:/translation/project",
+        "description": "递归扫描各根目录下的 original_images/manga_translator_work/result。"
+      },
+      "actions": {
+        "pastePaths": "粘贴路径",
+        "clearPaths": "清空路径",
+        "copyQueue": "复制队列",
+        "clearState": "清空状态",
+        "copyLogs": "复制日志",
+        "preview": "预演队列",
+        "previewShort": "预演",
+        "organize": "整理队列",
+        "organizeShort": "整理",
+        "confirm": "确认整理"
+      },
+      "aria": {
+        "paths": "transq 翻译工作区",
+        "previewSwitch": "transq 预演开关",
+        "running": "transq 运行中"
+      },
+      "mode": {
+        "preview": "预演",
+        "live": "真实执行"
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "idle": "添加翻译工作区后即可预演结果队列。",
+        "running": "TransQ 正在规划或整理翻译队列。",
+        "completed": "上一次翻译队列操作已完成。",
+        "error": "上一次翻译队列操作失败。"
+      },
+      "execution": {
+        "previewState": "预演：不改动文件",
+        "liveState": "真实执行：移动结果并删除原工作目录",
+        "previewDescription": "只生成队列，不复制、移动或删除任何文件。",
+        "liveDescription": "确认后补齐缺失文件、移动结果，并删除已完成的原工作目录。"
+      },
+      "confirm": {
+        "title": "确认整理翻译队列？",
+        "description": "此操作会复制缺失图片、移动结果目录，并删除原工作目录。继续前请确认预演队列。",
+        "cancel": "取消"
+      },
+      "queue": {
+        "title": "队列看板",
+        "count": "{{count}} 个队列"
+      },
+      "lanes": {
+        "pending": "待补齐",
+        "ready": "可整理",
+        "output": "已输出",
+        "conflict": "冲突",
+        "empty": "暂无队列项"
+      },
+      "item": {
+        "original": "原图",
+        "result": "结果",
+        "copy": "待复制",
+        "missing": "映射文件缺失"
+      },
+      "rules": {
+        "title": "原生整理规则",
+        "map": "读取 translation_map.json 确认结果应包含的文件。",
+        "copy": "从原图目录补齐结果中缺失的映射文件。",
+        "output": "将完成的 result 移到 original_images 同级目录。"
+      },
+      "stats": {
+        "pending": "待补齐",
+        "ready": "可整理",
+        "output": "已输出",
+        "conflict": "冲突"
+      },
+      "empty": {
+        "title": "等待翻译队列",
+        "description": "添加工作区路径，然后先预演结果队列。"
+      },
+      "summary": {
+        "items": "{{count}} 个队列 / {{conflicts}} 个冲突",
+        "preview": "已准备预演队列",
+        "live": "已准备真实整理"
+      },
+      "progress": {
+        "start": "开始{{action}}"
+      },
+      "error": {
+        "pathRequired": "请先输入至少一个翻译工作区路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      }
+    },
     "trename": {
       "name": "Trename",
       "description": "将文件夹扫描为重命名 JSON，校验翻译目标，执行重命名与撤销。",
