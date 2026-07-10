@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -371,7 +371,7 @@ function FullView(props: ViewProps) {
         <StatsPanel durationSec={props.durationSec} progress={props.progress} stats={props.stats} timerMode={props.timerMode} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/sleept:grid-cols-[minmax(250px,310px)_minmax(0,1fr)_minmax(260px,320px)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/sleept:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.45fr)]">
         <Card className="flex min-h-0 flex-col">
           <CardHeader className="shrink-0"><CardTitle>触发序列</CardTitle><CardDescription>先确定计时或监控条件，再进入电源操作。</CardDescription></CardHeader>
           <CardContent className="min-h-0 flex-1 overflow-auto">
@@ -380,6 +380,16 @@ function FullView(props: ViewProps) {
             <TimerSettings data={props.data} disabled={props.running} onPatch={props.onPatch} />
             <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
             <AdvancedOptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <Separator />
+            <div className="grid gap-2">
+              <div>
+                <div className="text-sm font-semibold">执行动作</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">动作、演练状态与启动在同一处确认。</p>
+              </div>
+              <PowerModePicker disabled={props.running} mode={props.powerMode} onModeChange={props.onPowerModeChange} />
+              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"><span className="text-xs font-medium">配置管理</span><ConfigDefaultsPopover configDirty={props.configDirty} configFilePath={props.configFilePath} defaults={props.defaults} disabled={props.running} onOpenConfigFile={props.onOpenConfigFile} onResetOverride={props.onResetOverride} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /></div>
+              <PrimaryActionButton props={props} />
+            </div>
             </div>
           </CardContent>
         </Card>
@@ -401,16 +411,6 @@ function FullView(props: ViewProps) {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col">
-          <CardHeader className="shrink-0"><CardTitle>执行命令</CardTitle><CardDescription>确认电源动作与风险状态后执行。</CardDescription></CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-auto">
-            <div className="grid gap-4">
-              <PowerModePicker disabled={props.running} mode={props.powerMode} onModeChange={props.onPowerModeChange} />
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"><span className="text-xs font-medium">配置管理</span><ConfigDefaultsPopover configDirty={props.configDirty} configFilePath={props.configFilePath} defaults={props.defaults} disabled={props.running} onOpenConfigFile={props.onOpenConfigFile} onResetOverride={props.onResetOverride} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /></div>
-            </div>
-          </CardContent>
-          <CardFooter className="shrink-0 border-t pt-4"><PrimaryActionButton props={props} /></CardFooter>
-        </Card>
       </div>
     </div>
   )

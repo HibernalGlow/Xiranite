@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NET_TRIGGER_MODES, POWER_MODES, TIMER_MODES } from "./constants"
@@ -51,11 +52,18 @@ export function TimerModePicker(props: {
   onModeChange: (mode: SleeptTimerMode) => void
 }) {
   return (
-    <Tabs value={props.mode} onValueChange={(value) => props.onModeChange(value as SleeptTimerMode)} className="w-full" data-testid="sleept-timer-modes">
-      <TabsList aria-label="触发模式" variant="line" className={cn("grid w-full", props.compact ? "grid-cols-4" : "grid-cols-2 sm:grid-cols-4")}>
-        {TIMER_MODES.map((item) => <TabsTrigger key={item.value} disabled={props.disabled} value={item.value}><item.icon /><span className="truncate">{props.compact ? item.shortLabel : item.label}</span></TabsTrigger>)}
-      </TabsList>
-    </Tabs>
+    <ToggleGroup
+      aria-label="触发模式"
+      className="grid w-full grid-cols-4"
+      disabled={props.disabled}
+      type="single"
+      value={props.mode}
+      variant="outline"
+      onValueChange={(value) => { if (value) props.onModeChange(value as SleeptTimerMode) }}
+      data-testid="sleept-timer-modes"
+    >
+      {TIMER_MODES.map((item) => <ToggleGroupItem key={item.value} className="min-w-0" value={item.value}><item.icon data-icon="inline-start" /><span className="truncate">{props.compact ? item.shortLabel : item.label}</span></ToggleGroupItem>)}
+    </ToggleGroup>
   )
 }
 
