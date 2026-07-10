@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { OwithuAction, OwithuData, OwithuInput } from "@xiranite/node-owithu/core"
 import { buildOwithuPlan, parseOwithuConfig } from "@xiranite/node-owithu/core"
@@ -6,6 +7,7 @@ import { Copy, ListChecks, MousePointerClick, Play, RotateCcw, ScrollText, Squar
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -350,6 +352,86 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  if (!props.result) return <FullViewLegacy {...props} />
+
+  return (
+    <div data-testid="owithu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex shrink-0 flex-col gap-3 @4xl/owithu:flex-row @4xl/owithu:items-center @4xl/owithu:justify-between">
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || `${props.result.entries.length} entries / ${props.result.plan.length} registry operations`} />
+        <div data-testid="owithu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+          <ActionPicker disabled={props.running} value={props.action} onActionChange={(value) => props.onPatch({ action: value })} />
+          <ConfigDefaultsPopover
+            configDirty={props.configDirty}
+            configFilePath={props.configFilePath}
+            defaults={props.defaults}
+            disabled={props.running}
+            onOpenConfigFile={props.onOpenConfigFile}
+            onResetOverride={props.onResetOverride}
+            onRestoreDefault={props.onRestoreDefault}
+            onSaveDefault={props.onSaveDefault}
+          />
+        </div>
+        <StatsPanel progress={props.progress} result={props.result} />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/owithu:grid-cols-[minmax(190px,.72fr)_minmax(280px,1.35fr)_minmax(190px,.75fr)]">
+        <Card className="min-h-0 gap-0 overflow-hidden py-0">
+          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+            <CardTitle className="text-sm">Menu config.toml</CardTitle>
+            <CardDescription className="text-[11px]">Configuration source and validation input.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+            <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePath} onPatch={props.onPatch} />
+            <ConfigTextInput compact data={props.data} disabled={props.running} onPaste={props.onPasteConfig} onPatch={props.onPatch} />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+          </CardContent>
+        </Card>
+
+        <RegistryTopology entries={props.result.entries} plan={props.result.plan} runAction={<RunActionButton props={props} />} />
+
+        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
+          <LivePreview entries={props.result.entries} />
+          <Card className="gap-0 py-0">
+            <CardHeader className="px-3 py-2.5 !pb-2.5"><CardTitle className="text-xs">System log</CardTitle></CardHeader>
+            <CardContent className="max-h-32 overflow-auto px-3 pb-3"><pre className="whitespace-pre-wrap text-[11px] leading-5 text-muted-foreground">{props.logs.join("\n") || "Waiting for registry activity."}</pre></CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RegistryTopology({ entries, plan, runAction }: { entries: OwithuData["entries"]; plan: OwithuData["plan"]; runAction: ReactNode }) {
+  return (
+    <Card className="min-h-0 gap-0 overflow-hidden py-0">
+      <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">Registry topology</CardTitle><Badge variant="outline">HKCU</Badge></div>
+        <CardDescription className="text-[11px]">Live system mapping from menu item to registry scope.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+        <div className="grid min-h-0 flex-1 content-center gap-3">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-primary/60 bg-primary/10 text-xs font-semibold text-primary">HKCU</div>
+          <div className="grid grid-cols-2 gap-2">
+            {entries.map((entry) => <div key={entry.key} className="min-w-0 rounded-md border bg-background/60 p-2"><div className="truncate text-xs font-medium">{entry.label}</div><div className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{entry.key}</div></div>)}
+          </div>
+          <div className="grid gap-1.5 text-[11px] text-muted-foreground">{plan.map((item) => <div key={`${item.registryPath}:${item.scope}`} className="truncate rounded-md bg-muted/30 px-2 py-1.5 font-mono" title={item.registryPath}>{item.scope} → {item.registryPath}</div>)}</div>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t pt-3"><span className="text-xs text-muted-foreground">Active mode</span>{runAction}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LivePreview({ entries }: { entries: OwithuData["entries"] }) {
+  return (
+    <Card className="min-h-0 gap-0 overflow-hidden py-0">
+      <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5"><CardTitle className="text-sm">Live preview</CardTitle><CardDescription className="text-[11px]">Context-menu emulation for the selected item.</CardDescription></CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col justify-center p-3"><div className="rounded-md border bg-background/60 p-2">{entries.map((entry) => <div key={entry.key} className="flex items-center gap-2 rounded-sm px-2 py-2 text-xs hover:bg-muted"><MousePointerClick className="size-3.5 text-primary" /><span className="truncate">{entry.label}</span></div>)}</div></CardContent>
+    </Card>
+  )
+}
+
+function FullViewLegacy(props: ViewProps) {
   return (
     <div data-testid="owithu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/owithu:flex-row @4xl/owithu:items-center @4xl/owithu:justify-between">
@@ -391,7 +473,7 @@ function FullView(props: ViewProps) {
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimary?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       {!props.compact && (props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton props={props} />)}
