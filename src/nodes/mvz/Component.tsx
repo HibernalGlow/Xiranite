@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
-import type { MvzAction, MvzData, MvzInput } from "@xiranite/node-mvz/core"
+import type { ArchiveEntry, MvzAction, MvzData, MvzInput } from "@xiranite/node-mvz/core"
 import { parseMvzEntries } from "@xiranite/node-mvz/core"
 import { Copy, Package, Play, RotateCcw, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -365,6 +367,88 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  if (!props.result) return <FullViewLegacy {...props} />
+
+  const entries = parseMvzEntries(props.data.entryText ?? "", props.data.separator || "//")
+  const selected = entries[0]
+
+  return (
+    <div data-testid="mvz-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex shrink-0 flex-col gap-3 @4xl/mvz:flex-row @4xl/mvz:items-center @4xl/mvz:justify-between">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || `${props.archiveCount} archives / ${props.entryCount} entries`} />
+        <div data-testid="mvz-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+          <ActionPicker disabled={props.running} value={props.action} onChange={props.onActionChange} />
+          <ToolbarActions {...props} hidePrimary />
+        </div>
+        <StatsPanel progress={props.progress} result={props.result} />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/mvz:grid-cols-[minmax(360px,1.65fr)_minmax(250px,.8fr)]">
+        <Card className="min-h-0 gap-0 overflow-hidden py-0">
+          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm">Archive explorer</CardTitle>
+              <Badge variant="outline">{props.entryCount} selected</Badge>
+            </div>
+            <CardDescription className="text-[11px]">Browse archive entries before the operation is committed.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+            <EntryInput compact disabled={props.running} entryCount={props.entryCount} archiveCount={props.archiveCount} value={props.data.entryText ?? ""} onChange={(entryText) => props.onPatch({ entryText })} onClear={() => props.onPatch({ entryText: "" })} onPaste={props.onPasteEntries} />
+            <ArchiveExplorer entries={entries} />
+          </CardContent>
+        </Card>
+
+        <Card className="min-h-0 gap-0 overflow-hidden py-0">
+          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+            <CardTitle className="text-sm">Commit preview</CardTitle>
+            <CardDescription className="text-[11px]">Review destination and write protection before execution.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+            <CommitPreview action={props.actionMeta.label} entry={selected} output={props.data.output} />
+            {!props.pathOptionsDisabled && <OutputInput disabled={props.running || props.outputDisabled} value={props.data.output ?? ""} onChange={(output) => props.onPatch({ output })} onPaste={props.onPasteOutput} />}
+            <PrimarySwitches data={props.data} disabled={props.running} action={props.action} onPatch={props.onPatch} />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+            <div className="mt-auto"><PrimaryActionButton props={props} /></div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function ArchiveExplorer({ entries }: { entries: ArchiveEntry[] }) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto rounded-md border bg-background/60">
+      <Table className="min-w-[360px] text-xs">
+        <TableHeader className="sticky top-0 z-10 bg-muted/70 backdrop-blur-sm">
+          <TableRow><TableHead>Internal path</TableHead><TableHead>Archive</TableHead><TableHead className="text-right">State</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry) => (
+            <TableRow key={entry.rawLine} data-state={entry === entries[0] ? "selected" : undefined}>
+              <TableCell className="max-w-0 truncate font-mono" title={entry.internalPath}>{entry.internalPath}</TableCell>
+              <TableCell className="max-w-32 truncate font-mono text-muted-foreground" title={entry.archivePath}>{entry.archivePath}</TableCell>
+              <TableCell className="text-right"><Badge variant="outline">ready</Badge></TableCell>
+            </TableRow>
+          ))}
+          {!entries.length && <TableRow><TableCell className="h-32 text-center text-muted-foreground" colSpan={3}>Paste archive entries to build the explorer.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function CommitPreview({ action, entry, output }: { action: string; entry?: ArchiveEntry; output?: string }) {
+  return (
+    <div className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs">
+      <div className="flex items-center justify-between gap-2"><span className="font-medium text-muted-foreground">Pending operation</span><Badge>{action}</Badge></div>
+      <div className="grid gap-1 font-mono"><span className="text-muted-foreground">Target</span><span className="truncate" title={entry?.internalPath}>{entry?.internalPath || "No entry selected"}</span></div>
+      <div className="grid gap-1 font-mono"><span className="text-muted-foreground">Destination</span><span className="truncate" title={output}>{output || "Near archive / automatic directory"}</span></div>
+    </div>
+  )
+}
+
+function FullViewLegacy(props: ViewProps) {
   return (
     <div data-testid="mvz-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/mvz:flex-row @4xl/mvz:items-center @4xl/mvz:justify-between">
@@ -414,10 +498,10 @@ function FullView(props: ViewProps) {
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimary?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {!props.compact && <PrimaryActionButton props={props} />}
+      {!props.compact && !props.hidePrimary && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={props.running || !props.result?.results.length} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
