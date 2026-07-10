@@ -16,12 +16,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { DEFAULT_OUTPUT_PREFIX, MODES } from "./constants"
 import {
   ActionIconButton,
-  ConfigDefaultsPopover,
   MappingInput,
   ModePicker,
   OptionsFields,
@@ -69,6 +69,14 @@ export function Component({ compId, host }: NodeComponentProps) {
       })
       .catch(() => undefined)
   }, [host])
+
+  async function reloadDefaults() {
+    const response = await host.getNodeConfig?.<Partial<BandiaCardState>>()
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+    setConfigDirty(false)
+  }
 
   useEffect(() => {
     if (!defaults) return
@@ -230,6 +238,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPaste: pasteInput,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
@@ -281,6 +290,7 @@ function createViewProps(props: {
   onPaste: () => void
   onPatch: (patch: Partial<BandiaCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
@@ -631,6 +641,7 @@ function VerticalStage({ icon: Icon, label, value }: {
 }
 
 function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryAction?: boolean }) {
+  const { t } = useNodeI18n("bandia")
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
       {!props.compact && !props.hidePrimaryAction && (
@@ -650,15 +661,16 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
       <ActionIconButton disabled={!props.logs.length} icon={Archive} label={tNode("bandia", "copyLogs", "Copy logs")} onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label={tNode("bandia", "actions.clearState", "Clear state")} onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
+        <NodeConfigPopover
+          configPath={props.configFilePath}
           defaults={props.defaults}
+          dirty={props.configDirty}
           disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
+          t={t}
+          onOpenFile={props.onOpenConfigFile}
+          onReload={props.onReloadDefaults}
+          onRestore={props.onRestoreDefault}
+          onSave={props.onSaveDefault}
         />
       )}
     </div>

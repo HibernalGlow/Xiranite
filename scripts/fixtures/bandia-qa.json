@@ -1,0 +1,33 @@
+{
+  "theme": "wuling",
+  "data": {
+    "mode": "compress",
+    "pathText": "D:/archives/artist/book-a\nD:/archives/artist/book-b\nD:/archives/artist/gallery",
+    "mappingText": "",
+    "outputDir": "D:/archives/output",
+    "compressFormat": "zip",
+    "dryRun": true,
+    "deleteSource": false,
+    "parallel": true,
+    "workers": 4,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "压缩计划已生成：3 项。",
+    "result": {
+      "action": "compress",
+      "extractedCount": 0,
+      "compressedCount": 3,
+      "failedCount": 0,
+      "totalCount": 3,
+      "exportedCount": 0,
+      "pathMappings": [],
+      "results": [
+        { "kind": "compress", "sourcePath": "D:/archives/artist/book-a", "archivePath": "D:/archives/output/book-a.zip", "success": true, "durationMs": 1200, "command": "bz a book-a.zip", "skipped": false },
+        { "kind": "compress", "sourcePath": "D:/archives/artist/book-b", "archivePath": "D:/archives/output/book-b.zip", "success": true, "durationMs": 980, "command": "bz a book-b.zip", "skipped": false },
+        { "kind": "compress", "sourcePath": "D:/archives/artist/gallery", "archivePath": "D:/archives/output/gallery.zip", "success": true, "durationMs": 1440, "command": "bz a gallery.zip", "skipped": false }
+      ],
+      "errors": []
+    },
+    "logs": ["Loading archive paths...", "Compression plan complete: 3 operations.", "All output mappings verified."]
+  }
+}

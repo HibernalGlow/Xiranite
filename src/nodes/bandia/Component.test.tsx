@@ -82,6 +82,17 @@ describe("app-owned bandia Component", () => {
     expect(host.state.pathText).toBe("D:/archives/book.zip")
   })
 
+  test("uses the shared configuration-management workflow", async () => {
+    surfaceState.mode = "regular"
+    render(<Component compId="comp-bandia" host={createHost({ pathText: "D:/archives/book.zip" })} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    expect(screen.getByRole("button", { name: "保存为默认" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
+  })
+
   test("runs compress mode with real source paths and renders Dice data table results", async () => {
     surfaceState.mode = "regular"
     const host = createHost({
