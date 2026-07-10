@@ -407,7 +407,7 @@ function PortraitCompactView(props: ViewProps) {
   )
 }
 
-function FullView(props: ViewProps) {
+function LegacyFullView(props: ViewProps) {
   return (
     <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/kavvka:flex-row @4xl/kavvka:items-center @4xl/kavvka:justify-between">
@@ -506,6 +506,49 @@ function FullView(props: ViewProps) {
       </div>
     </div>
   )
+}
+
+function FullView(props: ViewProps) {
+  if ((props.data.action as string | undefined) === "legacy") return <LegacyFullView {...props} />
+  return <KavvkaWorkbench {...props} />
+}
+
+function KavvkaWorkbench(props: ViewProps) {
+  const resultPaths = props.result?.allCombinedPaths.length ? props.result.allCombinedPaths : props.result?.matchedPaths ?? []
+  return (
+    <div data-testid="kavvka-full-view" className="flex min-h-0 flex-1 flex-col p-3 @4xl/kavvka:p-4">
+      <div className="flex shrink-0 flex-col gap-3 border-b pb-3 @5xl/kavvka:flex-row @5xl/kavvka:items-center @5xl/kavvka:justify-between">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.tNode("workbench.subtitle", "扫描、整理并处理重复路径组")} />
+        <div data-testid="kavvka-header-toolbar"><ToolbarActions {...props} /></div>
+      </div>
+      <StatsPanel progress={props.progress} result={props.result} scanRoots={props.scanRoots} sourcePaths={props.sourcePaths} />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 pt-4 @5xl/kavvka:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col gap-4">
+          <div className="rounded-lg border bg-muted/15 p-3"><div className="mb-2 text-sm font-semibold">扫描范围</div><PathTextPanel ariaLabel="kavvka scan roots" badgeTone="secondary" count={props.scanRoots.length} disabled={props.running} inputId="kavvka-scan-roots" label={props.tNode("scanLabel", "扫描根目录")} placeholder="D:/library" value={props.data.scanRootText ?? ""} onChange={(scanRootText) => props.onPatch({ scanRootText })} onClear={() => props.onPatch({ scanRootText: "" })} onPaste={() => props.onPaste("scan")} /></div>
+          <div className="rounded-lg border bg-muted/15 p-3"><div className="mb-2 text-sm font-semibold">处理目标</div><PathTextPanel ariaLabel="kavvka source paths" count={props.sourcePaths.length} disabled={props.running} inputId="kavvka-source-paths" label={props.tNode("sourceLabel", "源路径")} placeholder="D:/library/[artist] bundle/gallery" value={props.data.sourceText ?? ""} onChange={(sourceText) => props.onPatch({ sourceText })} onClear={() => props.onPatch({ sourceText: "" })} onPaste={() => props.onPaste("source")} /></div>
+          <div className="rounded-lg border bg-muted/15 p-3"><KeywordAndDepthFields data={props.data} disabled={props.running} onPatch={props.onPatch} /><div className="mt-3"><PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} /></div></div>
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+        </aside>
+        <section className="flex min-h-0 flex-col gap-3">
+          <div className="flex shrink-0 items-center justify-between gap-3"><div><h4 className="text-base font-semibold">{props.tNode("workbench.conflicts", "待处理路径组")}</h4><p className="text-xs text-muted-foreground">{resultPaths.length ? props.tNode("workbench.realResults", "基于最近一次扫描或处理的真实结果") : props.tNode("workbench.empty", "运行扫描后将在这里显示路径冲突组")}</p></div><ActionIconButton disabled={!props.result} icon={Copy} label={props.tNode("buttons.copyResults", "复制结果")} onClick={props.onCopyResults} /></div>
+          <PathConflictWorkbench paths={resultPaths} />
+          <div className="h-28 shrink-0 overflow-auto rounded-lg border bg-muted/10 p-2 font-mono text-xs text-muted-foreground">{props.logs.length ? props.logs.map((line, index) => <div key={index} className="truncate">{line}</div>) : <div className="grid h-full place-items-center">暂无日志</div>}</div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function PathConflictWorkbench({ paths }: { paths: string[] }) {
+  if (!paths.length) return <div className="grid min-h-0 flex-1 place-items-center rounded-lg border border-dashed bg-muted/10 p-6 text-center text-sm text-muted-foreground">扫描或生成计划后，将按路径组在这里呈现结果。</div>
+  const groups = chunk(paths, 3)
+  return <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1">{groups.map((group, index) => <div key={`${group[0]}-${index}`} className="rounded-lg border bg-background/50"><div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-3 py-2"><div className="min-w-0"><div className="truncate text-sm font-medium">{group[0]}</div><div className="text-xs text-muted-foreground">路径组 {index + 1} · {group.length} 项</div></div><Badge variant="outline">待处理</Badge></div><div className="grid gap-1 p-2">{group.map((path) => <div key={path} className="truncate rounded-md border border-transparent bg-muted/20 px-2 py-1.5 font-mono text-xs text-muted-foreground">{path}</div>)}</div></div>)}</div>
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const groups: T[][] = []
+  for (let index = 0; index < items.length; index += size) groups.push(items.slice(index, index + size))
+  return groups
 }
 
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {

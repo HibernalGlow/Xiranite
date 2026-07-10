@@ -63,8 +63,8 @@ describe("app-owned kavvka Component", () => {
         expect(screen.getByTestId("kavvka-key-switches")).toBeTruthy()
       } else {
         expect(screen.getByTestId("kavvka-full-view")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
-        expect(screen.getByText("源路径")).toBeTruthy()
+        expect(screen.getByText("扫描范围")).toBeTruthy()
+        expect(screen.getByText("待处理路径组")).toBeTruthy()
         expect(screen.getByTestId("kavvka-header-toolbar")).toBeTruthy()
       }
     },
