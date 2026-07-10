@@ -412,7 +412,7 @@ export function TopBar() {
         )}
       </Popover>
 
-      {state.hazardMode ? <HazardStatusBadge /> : null}
+      {state.hazardMode ? <HazardStatusBadge onDisable={() => workspaceActions.setHazardMode(false)} /> : null}
 
       <AlertDialog open={hazardConfirmOpen} onOpenChange={setHazardConfirmOpen}>
         <AlertDialogContent size="sm" className="border-foreground/20 bg-background/95 backdrop-blur-xl">
@@ -864,17 +864,19 @@ function ThemeSwatchStrip({ colors, id }: { colors: string[]; id: string }) {
   )
 }
 
-function HazardStatusBadge() {
+function HazardStatusBadge({ onDisable }: { onDisable: () => void }) {
   return (
-    <div
-      aria-label="Hazard On：节点将直接执行"
-      className="xiranite-app-region-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm border border-foreground/25 bg-muted/55 px-2 font-mono text-[10px] font-semibold tracking-[0.12em] text-foreground"
-      role="status"
+    <button
+      aria-label="关闭 Hazard On"
+      className="xiranite-app-region-no-drag flex h-7 shrink-0 items-center gap-1.5 rounded-sm border border-foreground/25 bg-muted/55 px-2 font-mono text-[10px] font-semibold tracking-[0.12em] text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      onClick={onDisable}
+      title="关闭 Hazard 提示（不会恢复节点预演）"
+      type="button"
     >
       <ShieldAlert className="size-3" />
       <span>HAZARD ON</span>
       <span className="border-l border-foreground/20 pl-1.5 text-[9px] font-normal tracking-[0.08em] text-muted-foreground">LIVE</span>
-    </div>
+    </button>
   )
 }
 
