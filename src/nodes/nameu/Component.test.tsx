@@ -50,7 +50,7 @@ describe("app-owned nameu Component", () => {
       }
 
       expect(screen.getByLabelText("nameu paths")).toBeTruthy()
-      expect(screen.getAllByRole("tab")).toHaveLength(3)
+      expect(screen.getAllByRole("tab")).toHaveLength(mode === "compact" || mode === "portrait" ? 3 : 2)
       expect(screen.queryByText(/python/i)).toBeNull()
       expect(screen.queryByText(/sourceRoot|moduleName/)).toBeNull()
 
