@@ -43,6 +43,7 @@ describe("app-owned classq Component", () => {
 
       expect(screen.getByText("ClassQ")).toBeTruthy()
       expect(screen.getByTestId("classq-surface").className).not.toContain("bg-card")
+      expect(screen.getByTestId("classq-theme-backdrop")).toBeTruthy()
       if (mode === "collapsed") {
         expect(screen.getByTestId("classq-collapsed-view")).toBeTruthy()
         expect(screen.queryByLabelText("classq roots")).toBeNull()

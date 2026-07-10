@@ -173,14 +173,21 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} data-testid="classq-surface" className="@container/classq flex h-full min-h-0 w-full overflow-hidden">
-        {surface.mode === "collapsed" || forceCollapsedSurface ? (
-          <CollapsedView {...props} />
-        ) : compactSurface ? (
-          portraitCompact ? <PortraitView {...props} /> : <CompactView {...props} />
-        ) : (
-          <FullView {...props} />
-        )}
+      <div ref={surface.ref} data-testid="classq-surface" className="@container/classq relative flex h-full min-h-0 w-full overflow-hidden">
+        <div
+          aria-hidden
+          data-testid="classq-theme-backdrop"
+          className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_14%_0%,color-mix(in_oklch,var(--chart-3)_16%,transparent),transparent_38%),radial-gradient(circle_at_88%_6%,color-mix(in_oklch,var(--primary)_12%,transparent),transparent_32%)]"
+        />
+        <div className="relative flex min-h-0 w-full flex-col">
+          {surface.mode === "collapsed" || forceCollapsedSurface ? (
+            <CollapsedView {...props} />
+          ) : compactSurface ? (
+            portraitCompact ? <PortraitView {...props} /> : <CompactView {...props} />
+          ) : (
+            <FullView {...props} />
+          )}
+        </div>
       </div>
     </TooltipProvider>
   )
@@ -431,7 +438,7 @@ function SpatialWorkbench(props: ViewProps) {
       .map((item) => `${item.sourcePath}: ${item.reason}`),
   ]
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card/72" data-testid="classq-spatial-workbench">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden" data-testid="classq-spatial-workbench">
       <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 px-2 py-1.5" data-testid="classq-header-toolbar">
         <HeaderLine status={props.status} subtitle={viewSubtitle(props)} />
         <MetricsStrip progress={props.progress} result={props.result} roots={props.roots} t={props.t} />
@@ -441,9 +448,8 @@ function SpatialWorkbench(props: ViewProps) {
           <ActionTools {...props} />
         </div>
       </div>
-      <Separator />
       {(props.status.tone === "running" || props.status.tone === "error") && <div className="shrink-0 border-b px-2 py-1.5"><StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} /></div>}
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" data-testid="classq-three-zone-workbench">
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/72" data-testid="classq-three-zone-workbench">
         <ResizablePanel id="classq-command" defaultSize="27%" minSize="21%" maxSize="38%">
           <CommandPanel {...props} />
         </ResizablePanel>
