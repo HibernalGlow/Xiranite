@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlanItem, ClassfTransferMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, Archive, CheckCircle2, Clipboard, Copy, DatabaseZap, File, Folder, FolderInput, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, Archive, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,24 +12,29 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, CLASSIFY_MODES, NODE_ICON, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassfCardState, ClassfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
   const surface = useNodeSurface()
+  const { t: tNode } = useNodeI18n("classf")
   const data = getHostData(host, compId)
   const dataRef = useRef<ClassfCardState>(data)
   dataRef.current = data
 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<ClassfCardState> | undefined>()
+  const [configFilePath, setConfigFilePath] = useState<string | undefined>()
   const [configDirty, setConfigDirty] = useState(false)
 
   const action = data.action ?? "plan"
@@ -43,10 +48,21 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
+  const reloadDefaults = useCallback(async () => {
     const loadConfig = host.config?.get?.<Partial<ClassfCardState>>() ?? host.getNodeConfig?.<Partial<ClassfCardState>>()
-    loadConfig?.then((response) => setDefaults(response.config)).catch(() => undefined)
+    if (!loadConfig) return
+    try {
+      const response = await loadConfig
+      setDefaults(response.config)
+      setConfigFilePath(response.path)
+    } catch {
+      // Configuration management is optional in lightweight hosts.
+    }
   }, [host])
+
+  useEffect(() => {
+    void reloadDefaults()
+  }, [reloadDefaults])
 
   useEffect(() => {
     if (!defaults) return
@@ -133,6 +149,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   const props: ViewProps = {
     action,
     actionMeta,
+    configFilePath,
     configDirty,
     data,
     defaults,
@@ -142,6 +159,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
     result,
     running,
     status,
+    tNode,
     onActionChange: (value) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -149,6 +167,8 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
     onPastePaths: pastePaths,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
+    onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
     onRestoreDefault: () => defaults && patch(defaults),
     onSaveDefault: saveAsDefault,
   }
@@ -171,6 +191,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
 interface ViewProps {
   action: ClassfAction
   actionMeta: (typeof ACTIONS)[number]
+  configFilePath?: string
   configDirty: boolean
   data: ClassfCardState
   defaults?: Partial<ClassfCardState>
@@ -180,6 +201,7 @@ interface ViewProps {
   result: ClassfData | null
   running: boolean
   status: ClassfStatusMeta
+  tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onActionChange: (value: ClassfAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -187,6 +209,8 @@ interface ViewProps {
   onPastePaths: () => void
   onPatch: (patch: Partial<ClassfCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
+  onOpenConfigFile?: () => Promise<void> | void
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }
@@ -247,22 +271,21 @@ function FullView(props: ViewProps) {
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
       <div className="grid min-h-0 flex-1 gap-2 @2xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(270px,340px)]">
-        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
-          <ZoneTitle icon={FolderInput} label="Selection and target" />
+        <section data-testid="classf-scan-sources" className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+          <ZoneTitle icon={FolderInput} label={props.tNode("sections.scanSources", "扫描来源")} />
           <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
           <TargetField data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} />
           <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label="Dry run" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
         </section>
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={PLAN_ICON} label="Classification plan" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
+        <section data-testid="classf-classification-matrix" className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={PLAN_ICON} label={props.tNode("sections.classificationMatrix", "分类矩阵")} /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
           <Separator />
           <PlanRows items={props.result?.items ?? []} paths={props.paths} />
         </section>
-        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/classf:col-span-2 @4xl/classf:col-span-1">
+        <div className="min-h-0 @2xl/classf:col-span-2 @4xl/classf:col-span-1">
           <ExecutionGate {...props} />
-          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
       </div>
     </div>
@@ -273,8 +296,17 @@ function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
       {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="Save defaults" onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="Restore defaults" onClick={props.onRestoreDefault} />
+      <NodeConfigPopover
+        configPath={props.configFilePath}
+        defaults={props.defaults}
+        dirty={props.configDirty}
+        disabled={props.running}
+        t={props.tNode}
+        onOpenFile={props.onOpenConfigFile}
+        onReload={props.onReloadDefaults}
+        onRestore={props.onRestoreDefault}
+        onSave={props.onSaveDefault}
+      />
       <IconButton icon={RotateCcw} label="Clear state" onClick={props.onReset} />
     </div>
   )
@@ -327,13 +359,19 @@ function TargetField(props: { compact?: boolean; data: ClassfCardState; disabled
 
 function ExecutionGate(props: ViewProps) {
   const live = props.action === "classify" && !(props.data.dryRun ?? true)
+  const readyRatio = props.result?.items.length ? Math.round((props.result.readyCount / props.result.items.length) * 100) : props.progress
   return (
-    <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
-      <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="Run" tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "dry run" : "live"}</Badge></div>
+    <section className={cn("flex h-full min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
+      <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label={props.tNode("sections.executionGate", "执行门")} tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? props.tNode("modes.dryRun", "预演") : props.tNode("modes.live", "实际执行")}</Badge></div>
       <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
       <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} onChange={(transferMode) => props.onPatch({ transferMode })} />
       <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label="Dry run" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-      <RunButton props={props} />
+      <div className="rounded-md border bg-muted/20 p-3">
+        <div className="mb-2 flex items-end justify-between gap-2"><span className="text-xs font-medium text-muted-foreground">{props.tNode("execution.planReadiness", "计划就绪度")}</span><span className="text-sm font-semibold tabular-nums">{readyRatio}%</span></div>
+        <Progress value={readyRatio} className="h-2" />
+        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground"><span>{props.tNode("execution.ready", "可执行")} {props.result?.readyCount ?? 0}</span><span>{props.tNode("execution.pending", "待确认")} {(props.result?.waitCount ?? 0) + (props.result?.conflictCount ?? 0)}</span></div>
+      </div>
+      <div className="mt-auto"><RunButton props={props} /></div>
     </section>
   )
 }
@@ -363,19 +401,33 @@ function PlanRows(props: { items: ClassfPlanItem[]; paths: string[] }) {
   }
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className="grid gap-1.5 p-3">
-        {props.items.slice(0, 180).map((item, index) => {
-          const meta = itemStatusMeta(item.status)
-          const StatusIcon = meta.icon
-          const KindIcon = item.kind === "folder" ? Folder : File
-          return (
-            <div key={`${item.sourcePath}:${index}`} className={cn("grid gap-1 rounded-md border px-2 py-1.5", (item.status === "conflict" || item.status === "error") && "border-destructive/40")}>
-              <div className="flex min-w-0 items-center gap-2"><KindIcon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{item.sourceName}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{"->"} {item.targetRelative}</div></div><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
-              <div className="truncate text-[11px] text-muted-foreground">{item.stage}{item.reason ? ` / ${item.reason}` : ""}</div>
-            </div>
-          )
-        })}
-      </div>
+      <Table className="min-w-[540px] text-xs">
+        <TableHeader>
+          <TableRow>
+            <TableHead>文件标识</TableHead>
+            <TableHead>状态</TableHead>
+            <TableHead>目标位置</TableHead>
+            <TableHead>阶段</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {props.items.slice(0, 180).map((item, index) => {
+            const meta = itemStatusMeta(item.status)
+            const StatusIcon = meta.icon
+            const KindIcon = item.kind === "folder" ? Folder : File
+            return (
+              <TableRow key={`${item.sourcePath}:${index}`} data-state={item.status === "conflict" || item.status === "error" ? "selected" : undefined}>
+                <TableCell>
+                  <div className="flex min-w-40 items-center gap-2"><KindIcon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0"><div className="truncate font-medium">{item.sourceName}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{item.sourcePath}</div></div></div>
+                </TableCell>
+                <TableCell><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></TableCell>
+                <TableCell className="max-w-44 truncate font-mono text-[11px] text-muted-foreground">{item.targetRelative}</TableCell>
+                <TableCell className="max-w-36 truncate text-muted-foreground">{item.stage}{item.reason ? ` / ${item.reason}` : ""}</TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
     </ScrollArea>
   )
 }

@@ -50,7 +50,9 @@ describe("app-owned classf Component", () => {
       }
 
       expect(screen.getByLabelText("classf paths")).toBeTruthy()
-      expect(screen.getAllByRole("tab")).toHaveLength(3)
+      if (mode === "compact" || mode === "portrait") {
+        expect(screen.getAllByRole("tab")).toHaveLength(3)
+      }
 
       if (mode === "compact") {
         expect(screen.getByTestId("classf-compact-view")).toBeTruthy()
@@ -59,8 +61,8 @@ describe("app-owned classf Component", () => {
       } else {
         expect(screen.getByTestId("classf-full-view")).toBeTruthy()
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("Selection and target")).toBeTruthy()
-        expect(screen.getByText("Classification plan")).toBeTruthy()
+        expect(screen.getByTestId("classf-scan-sources")).toBeTruthy()
+        expect(screen.getByTestId("classf-classification-matrix")).toBeTruthy()
         expect(screen.getByRole("button", { name: ACTIONS[0]!.label })).toBeTruthy()
       }
     },
