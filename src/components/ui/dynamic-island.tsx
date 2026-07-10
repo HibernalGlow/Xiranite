@@ -1,48 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from "react"
+import { useCallback, useMemo, useReducer, type ReactNode } from "react"
 import { motion, useWillChange, type Transition } from "motion/react"
+import {
+  DEFAULT_DYNAMIC_ISLAND_PRESETS,
+  DynamicIslandContext,
+  useDynamicIslandSize,
+  type DynamicIslandPreset,
+  type DynamicIslandState,
+  type SizePresets,
+} from "@/components/ui/dynamic-island-context"
 import { cn } from "@/lib/utils"
-
-export type SizePresets = "minimalLeading" | "compact"
-export type DynamicIslandTransition = Transition
-
-type Preset = {
-  width: number
-  aspectRatio: number
-  borderRadius: number
-}
-
-const DEFAULT_PRESETS: Record<SizePresets, Preset> = {
-  minimalLeading: {
-    width: 52,
-    aspectRatio: 44 / 52,
-    borderRadius: 22,
-  },
-  compact: {
-    width: 235,
-    aspectRatio: 44 / 235,
-    borderRadius: 22,
-  },
-}
-
-type IslandState = {
-  size: SizePresets
-  previousSize: SizePresets
-}
 
 type IslandAction = {
   type: "SET_SIZE"
   size: SizePresets
 }
 
-type DynamicIslandContextValue = {
-  state: IslandState
-  setSize: (size: SizePresets) => void
-  presets: Record<SizePresets, Preset>
-}
-
-const DynamicIslandContext = createContext<DynamicIslandContextValue | undefined>(undefined)
-
-function islandReducer(state: IslandState, action: IslandAction): IslandState {
+function islandReducer(state: DynamicIslandState, action: IslandAction): DynamicIslandState {
   if (action.size === state.size) return state
   return {
     size: action.size,
@@ -57,13 +30,13 @@ export function DynamicIslandProvider({
 }: {
   children: ReactNode
   initialSize?: SizePresets
-  presets?: Partial<Record<SizePresets, Preset>>
+  presets?: Partial<Record<SizePresets, DynamicIslandPreset>>
 }) {
   const [state, dispatch] = useReducer(islandReducer, {
     size: initialSize,
     previousSize: initialSize,
   })
-  const presets = useMemo(() => ({ ...DEFAULT_PRESETS, ...customPresets }), [customPresets])
+  const presets = useMemo(() => ({ ...DEFAULT_DYNAMIC_ISLAND_PRESETS, ...customPresets }), [customPresets])
   const setSize = useCallback((size: SizePresets) => dispatch({ type: "SET_SIZE", size }), [])
   const value = useMemo(() => ({ state, setSize, presets }), [presets, setSize, state])
 
@@ -72,14 +45,6 @@ export function DynamicIslandProvider({
       {children}
     </DynamicIslandContext.Provider>
   )
-}
-
-export function useDynamicIslandSize() {
-  const context = useContext(DynamicIslandContext)
-  if (!context) {
-    throw new Error("useDynamicIslandSize must be used within a DynamicIslandProvider")
-  }
-  return context
 }
 
 export function DynamicIsland({
@@ -91,7 +56,7 @@ export function DynamicIsland({
   children: ReactNode
   className?: string
   id: string
-  transition?: DynamicIslandTransition
+  transition?: Transition
 }) {
   const willChange = useWillChange()
   const { presets, state } = useDynamicIslandSize()

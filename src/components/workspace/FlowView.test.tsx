@@ -7,7 +7,7 @@ import { XIRANITE_MODULE_MIME } from "@/lib/moduleDragDrop"
 const setOverlayMock = vi.hoisted(() => vi.fn())
 const deployComponentMock = vi.hoisted(() => vi.fn())
 
-vi.mock("@/store/workspaceContext", () => ({
+vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceActions: () => ({ setOverlay: setOverlayMock, deployComponent: deployComponentMock }),
 }))
 

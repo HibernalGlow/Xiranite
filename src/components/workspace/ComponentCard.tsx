@@ -1,7 +1,7 @@
 import { memo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"

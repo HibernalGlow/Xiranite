@@ -25,9 +25,9 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
 import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
-import { useTheme } from "@/components/theme-provider"
+import { useTheme } from "@/components/use-theme"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
-import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import type { ComponentInstance, FlowCanvasSnapshot } from "@/types/workspace"
 // Patched zh-cn translation including the 4 keys missing from tldraw's official CDN
 // (action.copy-hovered-styles, action.frame-selection, page-menu.max-pages-reached,

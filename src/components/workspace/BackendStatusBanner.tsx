@@ -1,7 +1,7 @@
 import { RefreshCcw, Server, Settings } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
-import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceActions } from "@/store/workspaceStore"
 import { Button } from "@/components/ui/button"
 
 export function BackendStatusBanner() {

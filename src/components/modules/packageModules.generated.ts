@@ -3,7 +3,7 @@
 import type { AppNodeEntry, HeadlessNodePackage, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
-  { id: "audiov", name: "AudioV", version: "0.1.0", category: "video", description: "Extract audio tracks from video files through PackU AudioV.", icon: "AudioLines", keywords: ["packu", "ffmpeg", "audio", "video"] },
+  { id: "audiov", name: "AudioV", version: "0.1.0", category: "video", description: "Extract audio tracks from video files with a native ffmpeg workflow.", icon: "AudioLines", keywords: ["ffmpeg", "audio", "video", "media"] },
   { id: "bandia", name: "Bandia", version: "0.1.0", category: "file", description: "Batch extract, compress, repack, and export archive paths with Bandizip.", icon: "FileArchive", keywords: ["archive", "bandizip", "extract", "compress", "efu"] },
   { id: "bitv", name: "BitV", version: "0.1.0", category: "video", description: "Analyze and classify video bitrate with PackU BitV.", icon: "Gauge", keywords: ["packu", "video", "bitrate", "classification"] },
   { id: "classf", name: "ClassF", version: "0.1.0", category: "file", description: "Plan and apply native already/wait classification transfers.", icon: "Workflow", keywords: ["classify", "transfer", "already", "wait", "move"] },

@@ -26,7 +26,7 @@ const moduleLoadCounts = vi.hoisted(() => ({
   history: vi.fn(),
 }))
 
-vi.mock("@/store/workspaceContext", () => ({
+vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceActions: () => ({
     setOverlay: setOverlayMock,
     setOverlayMode: setOverlayModeMock,

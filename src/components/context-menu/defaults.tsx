@@ -19,9 +19,10 @@ import {
   Palette,
   Square,
 } from "lucide-react"
-import { getWorkspaceState, useWorkspaceActions } from "@/store/workspaceContext"
+import { getWorkspaceState, useWorkspaceActions } from "@/store/workspaceStore"
 import { useWindowControls } from "@/hooks/useWindowControls"
-import { useContextMenuBuilder, type ContextMenuItemDef, type ContextMenuContext } from "./ContextMenuProvider"
+import { useContextMenuBuilder } from "./context"
+import type { ContextMenuItemDef, ContextMenuContext } from "./ContextMenuProvider"
 import { copyToClipboard } from "./helpers"
 import type { ViewMode, CardLayout } from "@/types/workspace"
 
@@ -37,7 +38,7 @@ import type { ViewMode, CardLayout } from "@/types/workspace"
  *  - `flow-node`:        actions for a flow node (data-component-id)
  *  - `bento-cell`:       actions for a bento cell (data-component-id)
  */
-export function useDefaultContextMenuItems() {
+export function DefaultContextMenuItems() {
   const actions = useWorkspaceActions()
   const { openComponent } = useWindowControls()
   const { t } = useTranslation()
@@ -663,4 +664,6 @@ export function useDefaultContextMenuItems() {
   useContextMenuBuilder("dockview-panel", dockviewPanelBuilder)
   useContextMenuBuilder("flow-node", flowNodeBuilder)
   useContextMenuBuilder("bento-cell", bentoCellBuilder)
+
+  return null
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react"
 import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs"
-import { getWorkspaceState, useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { getWorkspaceState, useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { ViewMode } from "@/types/workspace"
 
 const VIEW_MODES = ["dashboard", "cards", "dockview", "flow", "lane", "bento"] as const satisfies readonly ViewMode[]

@@ -4,9 +4,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event"
 import {
   ContextMenuProvider,
-  useContextMenuBuilder,
   type ContextMenuItemDef,
 } from "./ContextMenuProvider"
+import { useContextMenuBuilder } from "./context"
 
 afterEach(() => {
   cleanup()

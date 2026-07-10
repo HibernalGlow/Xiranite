@@ -4,9 +4,9 @@ import { getAppConfigFromBackend, getBackgroundImageFromBackend, getCustomThemes
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJson, type ThemeMode } from "@/lib/appearance"
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
-import { useTheme } from "@/components/theme-provider"
+import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
 

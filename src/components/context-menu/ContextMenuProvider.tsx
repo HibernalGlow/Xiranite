@@ -1,13 +1,16 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react"
+import {
+  ContextMenuBuilderContext,
+  type ContextMenuAPI,
+  type ContextMenuBuilder,
+} from "./context"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -33,7 +36,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button-variants"
 
 // NOTE: The global context menu is rendered with DropdownMenu primitives instead of
 // Radix ContextMenu because Radix ContextMenu.Root does not accept a controlled
@@ -115,21 +118,6 @@ export interface ContextMenuContext {
   data: Record<string, string>
 }
 
-type Builder = (ctx: ContextMenuContext) => ContextMenuItemDef[] | null
-
-interface ContextMenuAPI {
-  /** Register a builder for a scope. Returns an unregister function. */
-  register: (scope: string, builder: Builder) => () => void
-  /** Programmatically show a menu at coordinates. */
-  show: (x: number, y: number, items: ContextMenuItemDef[]) => void
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Context
-// ──────────────────────────────────────────────────────────────────────────
-
-const ContextMenuBuilderContext = createContext<ContextMenuAPI | null>(null)
-
 // ──────────────────────────────────────────────────────────────────────────
 // Provider
 // ──────────────────────────────────────────────────────────────────────────
@@ -141,7 +129,7 @@ interface OpenMenu {
 }
 
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
-  const buildersRef = useRef(new Map<string, Builder>())
+  const buildersRef = useRef(new Map<string, ContextMenuBuilder>())
   const [openMenu, setOpenMenu] = useState<OpenMenu | null>(null)
   // Confirm state lives at the provider level so the dialog persists even after
   // the menu unmounts (Radix may close the menu on item select in some envs).
@@ -152,7 +140,7 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
     setOpenMenu({ x, y, items })
   }, [])
 
-  const register = useCallback((scope: string, builder: Builder) => {
+  const register = useCallback((scope: string, builder: ContextMenuBuilder) => {
     buildersRef.current.set(scope, builder)
     return () => {
       buildersRef.current.delete(scope)
@@ -234,28 +222,6 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
       )}
     </ContextMenuBuilderContext.Provider>
   )
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Hook: register a builder for a scope
-// ──────────────────────────────────────────────────────────────────────────
-
-export function useContextMenuBuilder(scope: string, builder: Builder) {
-  const ctx = useContext(ContextMenuBuilderContext)
-  const builderRef = useRef(builder)
-  builderRef.current = builder
-  useEffect(() => {
-    if (!ctx) return
-    return ctx.register(scope, (args) => builderRef.current(args))
-  }, [ctx, scope])
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Hook: imperative access (for programmatic show)
-// ──────────────────────────────────────────────────────────────────────────
-
-export function useContextMenu() {
-  return useContext(ContextMenuBuilderContext)
 }
 
 // ──────────────────────────────────────────────────────────────────────────

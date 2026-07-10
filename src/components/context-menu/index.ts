@@ -1,8 +1,7 @@
 export {
   ContextMenuProvider,
-  useContextMenuBuilder,
-  useContextMenu,
 } from "./ContextMenuProvider"
+export { useContextMenuBuilder, useContextMenu } from "./context"
 export type {
   ContextMenuItemDef,
   ContextMenuContext,

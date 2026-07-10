@@ -17,8 +17,8 @@ import {
   saveNodeUiConfigToBackend,
 } from "@/backend/configRpcClient"
 import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
-import { useTheme } from "@/components/theme-provider"
-import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceContext"
+import { useTheme } from "@/components/use-theme"
+import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceStore"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
 
 type ComponentVisibilityMode = Exclude<ViewMode, "dashboard">

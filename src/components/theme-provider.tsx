@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import {
   ThemeProvider as NextThemeProvider,
@@ -99,5 +98,3 @@ export function ThemeProvider({
     </NextThemeProvider>
   )
 }
-
-export const useTheme = useNextTheme

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { TopBar } from "./TopBar"
 import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
@@ -7,7 +7,7 @@ import { SelectionToolbar } from "./SelectionToolbar"
 import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
-import { useDefaultContextMenuItems } from "@/components/context-menu/defaults"
+import { DefaultContextMenuItems } from "@/components/context-menu/defaults"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
 
@@ -18,7 +18,6 @@ const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: 
 const UsageDashboard = lazy(() => import("@/components/views/UsageDashboard").then((module) => ({ default: module.UsageDashboard })))
 
 export function WorkspaceLayout() {
-  useDefaultContextMenuItems()
   const chrome = useWorkspaceShallowSelector((state) => ({
     theme: state.theme,
     activeCustomThemeName: state.activeCustomThemeName,
@@ -44,6 +43,7 @@ export function WorkspaceLayout() {
       className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
+      <DefaultContextMenuItems />
       <WorkspaceMusicDockProvider>
         <WorkspaceUrlState />
         <TopBar />

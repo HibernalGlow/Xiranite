@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, type DragEvent as ReactDragEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceActions } from "@/store/workspaceStore"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
 import { cn } from "@/lib/utils"
 

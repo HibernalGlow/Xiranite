@@ -23,9 +23,13 @@ const storeListenerRef = vi.hoisted(() => ({
 const workspaceStateMock = vi.hoisted(() => vi.fn(() => ({
   activeWorkspaceId: "ws-test",
   workspaces: [{ id: "ws-test", label: "Test" }],
+  selectedComponentIds: [],
 })))
 const editorMock = vi.hoisted(() => ({
   getCurrentPageShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
+  getSelectedShapeIds: vi.fn<() => string[]>(() => []),
+  getSelectedShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
+  setSelectedShapes: vi.fn<(shapeIds: string[]) => void>(),
   deleteShapes: vi.fn<(shapeIds: unknown[]) => void>(),
   createShapes: vi.fn<(shapes: unknown[]) => void>(),
   updateShapes: vi.fn<(shapes: unknown[]) => void>(),
@@ -43,18 +47,19 @@ const editorMock = vi.hoisted(() => ({
   },
 }))
 
-vi.mock("@/store/workspaceContext", () => ({
+vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceActions: () => ({
     setComponentFlowPos: vi.fn(),
     setComponentFlowSize: vi.fn(),
     setComponentVisibility: setComponentVisibilityMock,
     setWorkspaceFlowCanvas: setWorkspaceFlowCanvasMock,
+    setSelection: vi.fn(),
   }),
   useWorkspaceShallowSelector: (selector: (state: ReturnType<typeof workspaceStateMock>) => unknown) => selector(workspaceStateMock()),
   useWorkspaceVisibleComponents: visibleComponentsMock,
 }))
 
-vi.mock("@/components/theme-provider", () => ({
+vi.mock("@/components/use-theme", () => ({
   useTheme: () => ({ theme: "light" }),
 }))
 
@@ -83,9 +88,12 @@ afterEach(() => {
   workspaceStateMock.mockReturnValue({
     activeWorkspaceId: "ws-test",
     workspaces: [{ id: "ws-test", label: "Test" }],
+    selectedComponentIds: [],
   })
   visibleComponentsMock.mockReturnValue([])
   editorMock.getCurrentPageShapes.mockReturnValue([])
+  editorMock.getSelectedShapeIds.mockReturnValue([])
+  editorMock.getSelectedShapes.mockReturnValue([])
   editorMock.store.getStoreSnapshot.mockReturnValue({ store: {}, schema: {} })
 })
 
@@ -161,6 +169,7 @@ describe("FlowCanvasView", () => {
     workspaceStateMock.mockReturnValue({
       activeWorkspaceId: "ws-test",
       workspaces: [{ id: "ws-test", label: "Test", flowCanvas }],
+      selectedComponentIds: [],
     })
 
     render(<FlowCanvasView />)

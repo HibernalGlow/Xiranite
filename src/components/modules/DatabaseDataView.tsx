@@ -40,7 +40,7 @@ import type {
   WhereNode,
 } from "@hibernalglow/ocean-dataview/types"
 
-import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { getModule, MODULE_REGISTRY } from "@/components/modules/registry"
 import type { ModuleProps } from "./ModuleRenderer"
 import type { ComponentInstance, ViewMode } from "@/types/workspace"

@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { applyCustomTheme, applyFontPreset, applyThemePreset, getActiveCustomTheme, mirrorAestivusThemeStorage, type ThemeMode } from "@/lib/appearance"
-import { useTheme } from "@/components/theme-provider"
-import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useTheme } from "@/components/use-theme"
+import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 
 export function WorkspaceAppearance() {
   const { theme: colorMode } = useTheme()
@@ -10,6 +10,8 @@ export function WorkspaceAppearance() {
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
+    tabDisplayStyle: state.tabDisplayStyle,
+    switchDisplayStyle: state.switchDisplayStyle,
   }))
 
   useEffect(() => {
@@ -19,6 +21,14 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     applyThemePreset(appearance.theme)
   }, [appearance.theme])
+
+  useEffect(() => {
+    document.documentElement.dataset.tabsStyle = appearance.tabDisplayStyle
+  }, [appearance.tabDisplayStyle])
+
+  useEffect(() => {
+    document.documentElement.dataset.switchStyle = appearance.switchDisplayStyle
+  }, [appearance.switchDisplayStyle])
 
   useEffect(() => {
     const root = document.documentElement

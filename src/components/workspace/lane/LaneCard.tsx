@@ -13,7 +13,7 @@
 import { useRef, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { X } from "lucide-react"
-import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { KanbanItem, KanbanItemHandle } from "@/components/ui/kanban"

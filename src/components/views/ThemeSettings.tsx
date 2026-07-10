@@ -3,8 +3,8 @@ import { motion } from "motion/react"
 import { restartLocalBackend, type LocalBackendControlRestartResult } from "@/backend/localBackendControl"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceContext"
-import { useTheme } from "@/components/theme-provider"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import { useTheme } from "@/components/use-theme"
 import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, THEME_PRESET_DEFAULT_MODE, THEME_PRESET_OPTIONS, type ThemePresetOption } from "@/lib/appearance"
 import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
@@ -16,6 +16,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
+import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -175,6 +178,8 @@ export function ThemeSettings() {
     chromeIslandIdleOffset: workspace.chromeIslandIdleOffset,
     cardClickAction: workspace.cardClickAction,
     cardDoubleClickAction: workspace.cardDoubleClickAction,
+    tabDisplayStyle: workspace.tabDisplayStyle,
+    switchDisplayStyle: workspace.switchDisplayStyle,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -1135,6 +1140,66 @@ export function ThemeSettings() {
           />
 
           <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "view" && "hidden")}>
+            <div className="space-y-3 border-b border-border/60 pb-4">
+              <div>
+                <h3 className="text-sm font-semibold">{t("settings:view.componentDisplay.title", "Component display")}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{t("settings:view.componentDisplay.description", "Choose a shared visual treatment for tab navigation. It changes appearance only; tab semantics and keyboard behavior remain Radix Tabs.")}</p>
+              </div>
+              <ToggleGroup
+                type="single"
+                value={state.tabDisplayStyle}
+                onValueChange={(value) => value && workspaceActions.setTabDisplayStyle(value as TabDisplayStyle)}
+                variant="outline"
+                size="sm"
+                className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
+                spacing={2}
+              >
+                {TAB_DISPLAY_STYLES.map((style) => (
+                  <ToggleGroupItem key={style} value={style} className="min-w-0 px-2 text-[11px]">
+                    {t(`settings:view.componentDisplay.styles.${style}`)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <Tabs defaultValue="preview" className="gap-2 rounded-md border bg-muted/15 p-2">
+                <TabsList className="max-w-full overflow-x-auto">
+                  <TabsTrigger value="preview">{t("settings:view.componentDisplay.preview", "Preview")}</TabsTrigger>
+                  <TabsTrigger value="history">{t("settings:view.componentDisplay.history", "History")}</TabsTrigger>
+                  <TabsTrigger value="details">{t("settings:view.componentDisplay.details", "Details")}</TabsTrigger>
+                </TabsList>
+                <TabsContent value="preview" className="px-1 text-xs text-muted-foreground">
+                  {t("settings:view.componentDisplay.previewHint", "This is the same shared component used by node result tabs.")}
+                </TabsContent>
+                <TabsContent value="history" className="px-1 text-xs text-muted-foreground">{t("settings:view.componentDisplay.historyHint", "Changing the display type never changes tab content or actions.")}</TabsContent>
+                <TabsContent value="details" className="px-1 text-xs text-muted-foreground">{t("settings:view.componentDisplay.detailsHint", "Other component preferences can be added here without changing node implementations.")}</TabsContent>
+              </Tabs>
+              <div className="space-y-2 pt-1">
+                <div>
+                  <p className="text-xs font-medium">{t("settings:view.componentDisplay.switches.title", "Switches")}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{t("settings:view.componentDisplay.switches.description", "The outlined default keeps an unchecked switch visible on every theme.")}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ToggleGroup
+                    type="single"
+                    value={state.switchDisplayStyle}
+                    onValueChange={(value) => value && workspaceActions.setSwitchDisplayStyle(value as SwitchDisplayStyle)}
+                    variant="outline"
+                    size="sm"
+                    spacing={2}
+                  >
+                    {SWITCH_DISPLAY_STYLES.map((style) => (
+                      <ToggleGroupItem key={style} value={style} className="px-2 text-[11px]">
+                        {t(`settings:view.componentDisplay.switches.styles.${style}`)}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                  <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>{t("settings:view.componentDisplay.switches.preview", "Off")}</span>
+                    <Switch checked={false} aria-label={t("settings:view.componentDisplay.switches.preview", "Off")} onCheckedChange={() => undefined} />
+                    <Switch checked aria-label={t("settings:view.componentDisplay.switches.previewOn", "On")} onCheckedChange={() => undefined} />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div>
               <h3 className="text-sm font-semibold">{t("settings:view.cardInteraction")}</h3>
               <p className="text-xs text-muted-foreground mt-1">{t("settings:view.cardInteractionDesc")}</p>

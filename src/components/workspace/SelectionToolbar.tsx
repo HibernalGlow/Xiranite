@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { AnimatePresence, motion } from "motion/react"
 import { Copy, Trash2, ChevronsUpDown, Share2, ArrowRight, X } from "lucide-react"
-import { useWorkspaceShallowSelector, useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceShallowSelector, useWorkspaceActions } from "@/store/workspaceStore"
 import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "@/store/workspace/constants"
 import {
   DropdownMenu,

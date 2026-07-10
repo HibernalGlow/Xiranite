@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useChromeAppearance } from "@/components/workspace/useChromeAppearance"
 import { cn } from "@/lib/utils"
-import { useWorkspaceShallowSelector } from "@/store/workspaceContext"
 
 /** 操作栏动作语义，用于红绿灯样式下决定圆点颜色。 */
 export type ChromeActionTone = "close" | "minimize" | "maximize" | "neutral"
@@ -22,32 +22,6 @@ export interface NodeSurfaceChromeAction {
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
   /** 若提供子菜单，点击按钮将展开下拉菜单而非直接触发 onClick。 */
   submenu?: NodeSurfaceChromeAction[]
-}
-
-export interface ChromeAppearance {
-  visible: boolean
-  position: "left" | "right" | "island"
-  style: "default" | "traffic-light"
-  islandScale: number
-  islandMotion: number
-  islandDelay: number
-  islandIdleOffset: number
-}
-
-/**
- * 从 store 读取操作栏外观设置（可见性 / 位置 / 样式）。
- * CardView 与各节点视图共享同一份设置。
- */
-export function useChromeAppearance(): ChromeAppearance {
-  return useWorkspaceShallowSelector((store) => ({
-    visible: store.chromeVisible,
-    position: store.chromePosition,
-    style: store.chromeStyle,
-    islandScale: store.chromeIslandScale,
-    islandMotion: store.chromeIslandMotion,
-    islandDelay: store.chromeIslandDelay,
-    islandIdleOffset: store.chromeIslandIdleOffset,
-  }))
 }
 
 /** 由 tone + danger 推断红绿灯颜色。danger 优先视作 close（红）。 */
