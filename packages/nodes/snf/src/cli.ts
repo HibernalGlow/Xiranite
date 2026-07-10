@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSnf } from "./core.js"
 import type { SnfAction, SnfInput, SnfMode } from "./core.js"
@@ -17,9 +18,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: SnfInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     mode: valueFor(args, "--mode") as SnfMode | undefined ?? config?.mode,
     keepTimestamp: args.includes("--no-keep-time") ? false : config?.keep_timestamp,
     dryRun: action !== "rename" || args.includes("--dry-run") || config?.dry_run === true,

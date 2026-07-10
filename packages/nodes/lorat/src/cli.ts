@@ -5,8 +5,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -104,41 +106,46 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a LoRA folder and infer trigger rows." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
-          await runAction(await inputFromArgs("scan", args as LoratCliOptions, defaults), Boolean(args.json), host)
+          const opts = await resolveLoratArgs(args as LoratCliOptions, host)
+          const defaults = await resolveLoratDefaults(host, Boolean(opts.json))
+          await runAction(await inputFromArgs("scan", opts, defaults), Boolean(opts.json), host)
         },
       }),
       "apply-db": defineCommand({
         meta: { name: "apply-db", description: "Apply TriggerDB JSON to existing rows JSON." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
-          await runAction(await inputFromArgs("apply_db", args as LoratCliOptions, defaults), Boolean(args.json), host)
+          const opts = await resolveLoratArgs(args as LoratCliOptions, host)
+          const defaults = await resolveLoratDefaults(host, Boolean(opts.json))
+          await runAction(await inputFromArgs("apply_db", opts, defaults), Boolean(opts.json), host)
         },
       }),
       write: defineCommand({
         meta: { name: "write", description: "Write selected rows as .trigger.txt sidecars." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
-          await runAction(await inputFromArgs("write_triggers", args as LoratCliOptions, defaults), Boolean(args.json), host)
+          const opts = await resolveLoratArgs(args as LoratCliOptions, host)
+          const defaults = await resolveLoratDefaults(host, Boolean(opts.json))
+          await runAction(await inputFromArgs("write_triggers", opts, defaults), Boolean(opts.json), host)
         },
       }),
       "no-trigger": defineCommand({
         meta: { name: "no-trigger", description: "Write selected rows as .notrigger.txt sidecars." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
-          await runAction(await inputFromArgs("mark_no_trigger", args as LoratCliOptions, defaults), Boolean(args.json), host)
+          const opts = await resolveLoratArgs(args as LoratCliOptions, host)
+          const defaults = await resolveLoratDefaults(host, Boolean(opts.json))
+          await runAction(await inputFromArgs("mark_no_trigger", opts, defaults), Boolean(opts.json), host)
         },
       }),
       "export-db": defineCommand({
         meta: { name: "export-db", description: "Export rows to TriggerDB JSON." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLoratDefaults(host, Boolean(args.json))
-          const result = await runAction(await inputFromArgs("export_db", args as LoratCliOptions, defaults), Boolean(args.json), host)
-          const output = (args as LoratCliOptions).output
+          const opts = await resolveLoratArgs(args as LoratCliOptions, host)
+          const defaults = await resolveLoratDefaults(host, Boolean(opts.json))
+          const result = await runAction(await inputFromArgs("export_db", opts, defaults), Boolean(opts.json), host)
+          const output = opts.output
           if (output && result.success) await writeTextFile(output, result.data?.triggerDbJson ?? "{}\n")
         },
       }),
@@ -165,6 +172,12 @@ function commonArgs() {
     output: { type: "string", description: "Output file for export-db." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveLoratArgs(args: LoratCliOptions, host: CliHost): Promise<LoratCliOptions> {
+  if (!(args.folder === "-" || (!args.folder && hasPipedInput(host.stdin)))) return args
+  const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
+  return { ...args, folder: stdinLine }
 }
 
 async function inputFromArgs(action: LoratAction, args: LoratCliOptions, defaults: LoratDefaults = {}): Promise<LoratInput> {

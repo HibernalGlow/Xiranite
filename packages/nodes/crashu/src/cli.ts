@@ -5,8 +5,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -172,7 +174,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
-          await runAction({ action: "scan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "scan", ...inputFromArgs({ ...args, sourcePaths: (args.sourcePaths === "-" || (!args.sourcePaths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.sourcePaths, source: (args.source === "-" || (!args.source && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.source } as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       plan: defineCommand({
@@ -180,7 +182,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
-          await runAction({ action: "plan", ...inputFromArgs(args as CrashuCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "plan", ...inputFromArgs({ ...args, sourcePaths: (args.sourcePaths === "-" || (!args.sourcePaths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.sourcePaths, source: (args.source === "-" || (!args.source && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.source } as CrashuCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       move: defineCommand({
@@ -188,7 +190,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
-          await runAction({ action: "move", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
+          await runAction({ action: "move", ...inputFromArgs({ ...args, sourcePaths: (args.sourcePaths === "-" || (!args.sourcePaths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.sourcePaths, source: (args.source === "-" || (!args.source && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.source } as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
       execute: defineCommand({
@@ -196,7 +198,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveCrashuDefaults(host, Boolean(args.json))
-          await runAction({ action: "execute", ...inputFromArgs(args as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
+          await runAction({ action: "execute", ...inputFromArgs({ ...args, sourcePaths: (args.sourcePaths === "-" || (!args.sourcePaths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.sourcePaths, source: (args.source === "-" || (!args.source && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.source } as CrashuCliOptions, defaults), autoMove: true }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

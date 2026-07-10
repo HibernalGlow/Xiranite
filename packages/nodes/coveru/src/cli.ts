@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runCoveru } from "./core.js"
 import type { CoveruInput, CoveruOutputMode } from "./core.js"
@@ -20,9 +21,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: CoveruInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     outputDir: valueFor(args, "--output-dir") ?? config?.output_dir,
     outputMode: (valueFor(args, "--output-mode") as CoveruOutputMode | undefined) ?? config?.output_mode,
     overwrite: args.includes("--overwrite") || config?.overwrite === true,

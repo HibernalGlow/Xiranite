@@ -5,8 +5,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -152,40 +154,45 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "info", description: "Show file, directory, or symlink information." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
-          await runAction({ action: "info", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(opts.json))
+          await runAction({ action: "info", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
       create: defineCommand({
         meta: { name: "create", description: "Create a symlink from --target to --path." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
-          await runAction({ action: "create", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(opts.json))
+          await runAction({ action: "create", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move --path to --target and create a link at the original path." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
-          await runAction({ action: "move_link", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(opts.json))
+          await runAction({ action: "move_link", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
       list: defineCommand({
         meta: { name: "list", description: "List recorded links." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
-          await runAction({ action: "list", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(opts.json))
+          await runAction({ action: "list", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
       recover: defineCommand({
         meta: { name: "recover", description: "Recover missing or incorrect recorded symlinks." },
         args: commonArgs(),
         async run({ args }) {
-          const defaults = await resolveLinkuDefaults(host, Boolean(args.json))
-          await runAction({ action: "recover", ...inputFromArgs(args as LinkuCliOptions, defaults) }, Boolean(args.json), host)
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          const defaults = await resolveLinkuDefaults(host, Boolean(opts.json))
+          await runAction({ action: "recover", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
       guided: defineCommand({
@@ -205,6 +212,12 @@ function commonArgs() {
     configPath: { type: "string", description: "xiranite.config.toml path (defaults to XIRANITE_CONFIG_PATH / XIRANITE_DATA_DIR / system dir)." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveLinkuPathArgs(args: LinkuCliOptions, host: CliHost): Promise<LinkuCliOptions> {
+  if (!(args.path === "-" || (!args.path && hasPipedInput(host.stdin)))) return args
+  const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
+  return { ...args, path: stdinLine }
 }
 
 function inputFromArgs(args: LinkuCliOptions, defaults: LinkuDefaults = {}): LinkuInput {

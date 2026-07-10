@@ -56,5 +56,65 @@ export const help = {
       "Review configuration and affected system state before running live actions.",
       "Prefer preview modes when available."
     ]
+  },
+  "translations": {
+    "zh-CN": {
+      "title": "Sleept",
+      "short": "系统计时器，支持倒计时、定时、网络和 CPU 触发。",
+      "description": "系统计时器，支持倒计时、定时、网络和 CPU 触发。",
+      "whenToUse": [
+        "需要从工作区 UI 或 CLI 使用此节点的系统工作流时，可使用 Sleept。"
+      ],
+      "workflows": [
+        {
+          "title": "工作区 UI",
+          "summary": "从模块库部署 Sleept，并在节点面板中运行。",
+          "ui": [
+            "打开模块库，将 Sleept 部署到当前工作区。",
+            "填写节点字段，或将路径/配置粘贴到节点面板。",
+            "先运行预览或主操作，查看结果与日志后再实际应用变更。"
+          ]
+        },
+        {
+          "title": "CLI",
+          "summary": "直接在终端中运行 Sleept。",
+          "cli": [
+            "当命令支持交互式提示时，运行 `xiranite sleept` 进入引导模式。",
+            "运行 `xiranite sleept --help` 查看节点命令的具体标志与子命令。"
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "title": "节点 CLI",
+          "command": "xiranite sleept",
+          "description": "打开节点 CLI 或查看命令专属标志。",
+          "examples": [
+            {
+              "label": "引导模式",
+              "command": "xiranite sleept",
+              "description": "启动节点的交互式终端工作流。"
+            },
+            {
+              "label": "命令标志",
+              "command": "xiranite sleept --help",
+              "description": "查看节点 CLI 的子命令与选项。"
+            },
+            {
+              "label": "共享帮助",
+              "command": "xiranite help sleept",
+              "description": "在根 CLI 中渲染此共享帮助条目。"
+            }
+          ]
+        }
+      ],
+      "safety": {
+        "defaultMode": "preview",
+        "notes": [
+          "在实际运行前，先检查配置与受影响的系统状态。",
+          "可用时优先使用预览模式。"
+        ]
+      }
+    }
   }
 } satisfies NodeHelp

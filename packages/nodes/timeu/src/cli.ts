@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runTimeu } from "./core.js"
 import type { TimeuAction, TimeuInput } from "./core.js"
@@ -18,9 +19,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: TimeuInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     recordPath: valueFor(args, "--record") ?? config?.record_path,
     recursive: args.includes("--no-recursive") ? false : config?.recursive,
     includeDirectories: args.includes("--include-directories") || config?.include_directories === true,

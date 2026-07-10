@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -134,7 +136,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const defaults = await resolveMvzDefaults(host, json)
-          await runAction("extract", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
+          await runAction("extract", await inputFromArgs(args as MvzCliOptions, defaults, host), json, host)
         },
       }),
       move: defineCommand({
@@ -143,7 +145,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const defaults = await resolveMvzDefaults(host, json)
-          await runAction("move", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
+          await runAction("move", await inputFromArgs(args as MvzCliOptions, defaults, host), json, host)
         },
       }),
       delete: defineCommand({
@@ -152,7 +154,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const defaults = await resolveMvzDefaults(host, json)
-          await runAction("delete", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
+          await runAction("delete", await inputFromArgs(args as MvzCliOptions, defaults, host), json, host)
         },
       }),
       rename: defineCommand({
@@ -161,7 +163,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         async run({ args }) {
           const json = Boolean(args.json)
           const defaults = await resolveMvzDefaults(host, json)
-          await runAction("rename", await inputFromArgs(args as MvzCliOptions, defaults), json, host)
+          await runAction("rename", await inputFromArgs(args as MvzCliOptions, defaults, host), json, host)
         },
       }),
       guided: defineCommand({
@@ -191,11 +193,17 @@ function commonArgs() {
   } as const
 }
 
-async function inputFromArgs(args: MvzCliOptions, defaults: MvzDefaults = {}): Promise<MvzInput> {
+async function inputFromArgs(args: MvzCliOptions, defaults: MvzDefaults = {}, host: CliHost): Promise<MvzInput> {
   const fileText = args.file ? await readFile(args.file, "utf8") : undefined
+  let files: string[]
+  if (args.entry === "-" || args.entries === "-" || ((!args.entry && !args.entries) && hasPipedInput(host.stdin))) {
+    files = await readStdinLines(host.stdin)
+  } else {
+    files = splitArg(args.entries, args.entry ? [args.entry] : [])
+  }
   return {
     fileText,
-    files: splitArg(args.entries, args.entry ? [args.entry] : []),
+    files,
     output: args.output ?? defaults.output,
     pattern: args.pattern,
     replacement: args.replacement,

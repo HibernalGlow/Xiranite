@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runEnvuConfig } from "./core.js"
 import { createNodeEnvuConfigRuntime } from "./platform.js"
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 interface EnvuConfigNodeConfig {
@@ -14,10 +15,15 @@ interface EnvuConfigNodeConfig {
 export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action = args.includes("backup") ? "backup" : args.includes("manifest") ? "manifest" : "scan"
-  const root = args.find((arg, index) => {
+  let root = args.find((arg, index) => {
     if (arg.startsWith("--") || ["scan", "manifest", "backup"].includes(arg)) return false
     return !["--backup-dir", "--database-path"].includes(args[index - 1] ?? "")
   })
+  if (root === "-") {
+    root = (await readStdinLines())[0]
+  } else if (root === undefined && hasPipedInput()) {
+    root = (await readStdinLines())[0]
+  }
   const backupIndex = args.indexOf("--backup-dir")
   const backupDir = backupIndex >= 0 ? args[backupIndex + 1] : undefined
   const databaseIndex = args.indexOf("--database-path")

@@ -7,9 +7,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -273,11 +275,13 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: FindzCliOptions, action: FindzAction, defaults: FindzDefaults, host: CliHost): Promise<FindzInput> {
-  return resolveFindzInput(inputFromArgsSync(args, defaults), action, defaults, host)
+async function inputFromArgs(args: FindzCliOptions, action: FindzAction, defaults: FindzDefaults, host: CliHost): Promise<FindzInput> {
+  const useStdin = args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))
+  const stdinPaths = useStdin ? await readStdinLines(host.stdin) : []
+  return resolveFindzInput(inputFromArgsSync(args, defaults, stdinPaths, useStdin), action, defaults, host)
 }
 
-function inputFromArgsSync(args: FindzCliOptions, defaults: FindzDefaults): FindzInput {
+function inputFromArgsSync(args: FindzCliOptions, defaults: FindzDefaults, stdinPaths: string[] = [], useStdin: boolean = false): FindzInput {
   const queryDefaults = defaults.defaults
   const where = args.where || queryDefaults?.where || buildWhereFromDefaults(queryDefaults) || "1"
   const seedPaths: string[] = []
@@ -286,7 +290,7 @@ function inputFromArgsSync(args: FindzCliOptions, defaults: FindzDefaults): Find
   const defaultPaths = queryDefaults?.paths ?? []
   return {
     where,
-    paths: [...splitArg(args.paths, seedPaths), ...defaultPaths],
+    paths: [...(useStdin ? [...seedPaths, ...stdinPaths] : splitArg(args.paths, seedPaths)), ...defaultPaths],
     noArchive: args.noArchive ?? queryDefaults?.noArchive,
     followSymlinks: args.followSymlinks ?? queryDefaults?.followSymlinks,
     withImageMeta: args.imageMeta ?? queryDefaults?.imageMeta,

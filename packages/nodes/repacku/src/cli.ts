@@ -5,8 +5,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -358,17 +360,30 @@ async function runGuidedTask(task: GuidedTask, paths: string[], host: CliHost, d
 }
 
 async function runSingleAction(action: RepackuAction, args: RepackuCliOptions, host: CliHost): Promise<boolean> {
-  const input = await inputFromArgs(args)
-  return await runActions([{ action, ...input }], Boolean(args.json), host)
+  const opts = await resolveRepackuArgs(args, host)
+  const input = await inputFromArgs(opts)
+  return await runActions([{ action, ...input }], Boolean(opts.json), host)
 }
 
 async function runCompressCommand(args: RepackuCliOptions, host: CliHost): Promise<boolean> {
-  const input = await inputFromArgs(args)
+  const opts = await resolveRepackuArgs(args, host)
+  const input = await inputFromArgs(opts)
   const actions: RepackuAction[] = []
-  if (args.gallery) actions.push("gallery-pack")
-  if (args.single) actions.push("single-pack")
+  if (opts.gallery) actions.push("gallery-pack")
+  if (opts.single) actions.push("single-pack")
   if (!actions.length) actions.push("compress")
-  return await runActions(actions.map((action) => ({ action, ...input })), Boolean(args.json), host)
+  return await runActions(actions.map((action) => ({ action, ...input })), Boolean(opts.json), host)
+}
+
+async function resolveRepackuArgs(args: RepackuCliOptions, host: CliHost): Promise<RepackuCliOptions> {
+  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const pathsFromStdin = args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))
+  if (!pathFromStdin && !pathsFromStdin) return args
+  const stdinLines = await readStdinLines(host.stdin)
+  const resolved: RepackuCliOptions = { ...args }
+  if (pathFromStdin) resolved.path = stdinLines[0] ?? ""
+  if (pathsFromStdin) resolved.paths = stdinLines.join(";")
+  return resolved
 }
 
 async function inputFromArgs(args: RepackuCliOptions): Promise<Omit<RepackuInput, "action">> {

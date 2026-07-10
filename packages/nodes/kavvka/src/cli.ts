@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -117,7 +119,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "process", ...inputFromArgs(args as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "process", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       plan: defineCommand({
@@ -125,7 +127,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "plan", ...inputFromArgs(args as KavvkaCliOptions, defaults), dryRun: true }, Boolean(args.json), host)
+          await runAction({ action: "plan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults), dryRun: true }, Boolean(args.json), host)
         },
       }),
       scan: defineCommand({
@@ -133,7 +135,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "scan", ...inputFromArgs(args as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "scan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

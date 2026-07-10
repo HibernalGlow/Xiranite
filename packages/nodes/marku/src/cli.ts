@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinText,
   renderProgressBar,
   rich,
   runMain,
@@ -182,7 +184,11 @@ function commonArgs() {
 
 async function inputFromArgs(args: MarkuCliOptions, host: CliHost, json: boolean): Promise<MarkuInput> {
   const defaults = await resolveMarkuDefaults(host, json)
-  const inputText = args.inputFile ? await readFile(args.inputFile, "utf8") : args.input
+  const inputText = args.inputFile
+    ? await readFile(args.inputFile, "utf8")
+    : args.input === "-" || (!args.input && hasPipedInput(host.stdin))
+      ? await readStdinText(host.stdin)
+      : args.input
   const module = args.module
     ? (isMarkuModule(args.module) ? args.module : "markt")
     : (defaults.defaultModule && isMarkuModule(defaults.defaultModule) ? defaults.defaultModule : "markt")

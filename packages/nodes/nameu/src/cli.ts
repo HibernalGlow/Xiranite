@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runNameu } from "./core.js"
 import type { NameuAction, NameuInput, NameuMode } from "./core.js"
@@ -20,9 +21,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
     hintSink: { stderr: process.stderr },
     jsonMode: json,
   })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: NameuInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     mode: valueFor(args, "--mode") as NameuMode | undefined ?? config?.mode,
     recursive: args.includes("--no-recursive") ? false : config?.recursive,
     addArtistName: args.includes("--no-artist") ? false : config?.add_artist_name,

@@ -7,8 +7,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinText,
   renderProgressBar,
   rich,
   runMain,
@@ -99,21 +101,21 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "preview", description: "Preview registry operations from TOML." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "preview", ...inputFromArgs(args as OwithuCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "preview", ...await inputFromArgs(args as OwithuCliOptions, host) }, Boolean(args.json), host)
         },
       }),
       register: defineCommand({
         meta: { name: "register", description: "Register enabled context-menu entries." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "register", ...inputFromArgs(args as OwithuCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "register", ...await inputFromArgs(args as OwithuCliOptions, host) }, Boolean(args.json), host)
         },
       }),
       unregister: defineCommand({
         meta: { name: "unregister", description: "Remove context-menu entries." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "unregister", ...inputFromArgs(args as OwithuCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "unregister", ...await inputFromArgs(args as OwithuCliOptions, host) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -135,7 +137,14 @@ function commonArgs() {
   } as const
 }
 
-function inputFromArgs(args: OwithuCliOptions): Omit<OwithuInput, "action"> {
+async function inputFromArgs(args: OwithuCliOptions, host: CliHost): Promise<Omit<OwithuInput, "action">> {
+  if (args.config === "-" || (!args.config && hasPipedInput(host.stdin))) {
+    return {
+      configText: await readStdinText(host.stdin),
+      hive: args.hive,
+      onlyKey: args.key,
+    }
+  }
   return {
     path: args.config,
     hive: args.hive,

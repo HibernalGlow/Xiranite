@@ -6,8 +6,10 @@ import {
   canRunInteractiveCli,
   CliPromptExitError,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinText,
   rich,
   runMain,
   selectRich,
@@ -404,8 +406,12 @@ async function readGuidedFile(host: CliHost, filePath: string, kind: "source" | 
 }
 
 async function runFilter(options: FilterOptions, host: CliHost, defaults: LinedupDefaults = {}): Promise<void> {
-  const sourceText = await readInput(options.source, options.sourceFile)
-  const filterText = await readInput(options.filter, options.filterFile)
+  const sourceText = options.source === "-" || (!options.source && hasPipedInput(host.stdin))
+    ? await readStdinText(host.stdin)
+    : await readInput(options.source, options.sourceFile)
+  const filterText = options.filter === "-" || (!options.filter && hasPipedInput(host.stdin))
+    ? await readStdinText(host.stdin)
+    : await readInput(options.filter, options.filterFile)
 
   if (!sourceText.trim()) {
     throw new Error("Missing source content. Use --source or --sourceFile, or run guided mode.")

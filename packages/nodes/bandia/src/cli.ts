@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -109,28 +111,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "extract", description: "Extract archive paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("extract", await inputFromArgs("extract", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("extract", await inputFromArgs("extract", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       compress: defineCommand({
         meta: { name: "compress", description: "Compress source paths to archives." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("compress", await inputFromArgs("compress", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("compress", await inputFromArgs("compress", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       repack: defineCommand({
         meta: { name: "repack", description: "Compress extracted folders back through archive mappings." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("repack", await inputFromArgs("repack", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("repack", await inputFromArgs("repack", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       "export-efu": defineCommand({
         meta: { name: "export-efu", description: "Export archive or extracted paths to Everything EFU." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("export_efu", await inputFromArgs("export_efu", args as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("export_efu", await inputFromArgs("export_efu", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

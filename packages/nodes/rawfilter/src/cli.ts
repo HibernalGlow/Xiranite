@@ -5,8 +5,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -152,27 +154,30 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan and group archives without changing files." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveRawfilterArgs(args as RawfilterCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveRawfilterDefaults(host, json)
-          await runAction({ action: "scan", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
+          await runAction({ action: "scan", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       plan: defineCommand({
         meta: { name: "plan", description: "Preview file operations." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveRawfilterArgs(args as RawfilterCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveRawfilterDefaults(host, json)
-          await runAction({ action: "plan", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
+          await runAction({ action: "plan", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       execute: defineCommand({
         meta: { name: "execute", description: "Move duplicate/raw versions according to the plan." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveRawfilterArgs(args as RawfilterCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveRawfilterDefaults(host, json)
-          await runAction({ action: "execute", ...inputFromArgs(args as RawfilterCliOptions, defaults) }, json, host)
+          await runAction({ action: "execute", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       guided: defineCommand({
@@ -196,6 +201,12 @@ function commonArgs() {
     dryRun: { type: "boolean", description: "Preview without changing files." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveRawfilterArgs(args: RawfilterCliOptions, host: CliHost): Promise<RawfilterCliOptions> {
+  if (!(args.path === "-" || (!args.path && hasPipedInput(host.stdin)))) return args
+  const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
+  return { ...args, path: stdinLine }
 }
 
 function inputFromArgs(args: RawfilterCliOptions, defaults: RawfilterDefaults = {}): RawfilterInput {

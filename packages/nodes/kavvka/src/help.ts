@@ -56,5 +56,65 @@ export const help = {
       "Prefer preview or dry-run modes before changing files.",
       "Keep backups or undo records when processing large folders."
     ]
+  },
+  translations: {
+    "zh-CN": {
+      "title": "Kavvka",
+      "short": "通过扫描、移动同源文件并生成 include 路径，为 Czkawka 对比准备图像文件夹。",
+      "description": "通过扫描、移动同源文件并生成 include 路径，为 Czkawka 对比准备图像文件夹。",
+      "whenToUse": [
+        "需要在工作区 UI 或 CLI 中使用该节点的图像工作流时，使用 Kavvka。"
+      ],
+      "workflows": [
+        {
+          "title": "工作区 UI",
+          "summary": "从模块库部署 Kavvka，并在节点面板上运行。",
+          "ui": [
+            "打开模块库，将 Kavvka 部署到当前工作区。",
+            "填写节点字段，或将路径/配置粘贴到节点面板。",
+            "先运行预览或主操作，再检查结果与日志，最后才应用真实变更。"
+          ]
+        },
+        {
+          "title": "CLI",
+          "summary": "直接从终端运行 Kavvka。",
+          "cli": [
+            "命令支持交互提示时，运行 `xiranite kavvka` 进入引导模式。",
+            "运行 `xiranite kavvka --help` 查看该节点命令的具体参数与子命令。"
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "title": "节点 CLI",
+          "command": "xiranite kavvka",
+          "description": "打开节点 CLI 或查看命令专属参数。",
+          "examples": [
+            {
+              "label": "引导模式",
+              "command": "xiranite kavvka",
+              "description": "启动该节点的交互式终端流程。"
+            },
+            {
+              "label": "命令参数",
+              "command": "xiranite kavvka --help",
+              "description": "显示该节点 CLI 的子命令与选项。"
+            },
+            {
+              "label": "共享帮助",
+              "command": "xiranite help kavvka",
+              "description": "在根 CLI 中渲染该共享帮助条目。"
+            }
+          ]
+        }
+      ],
+      "safety": {
+        "defaultMode": "preview",
+        "notes": [
+          "在修改文件前，优先使用预览或 dry-run 模式。",
+          "处理大文件夹时请保留备份或撤销记录。"
+        ]
+      }
+    }
   }
 } satisfies NodeHelp

@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -129,7 +131,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "init", description: "Install scoop, optionally into --dir." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "init", scoopDir: opts.dir, dryRun: Boolean(opts.dryRun) }, Boolean(args.json), host)
         },
       }),
@@ -137,7 +139,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "list", description: "List manifests in a local bucket." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "list_packages", bucketPath: bucketPathArg(opts) ?? opts.path }, Boolean(args.json), host)
         },
       }),
@@ -145,7 +147,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "info", description: "Show manifest info from a local bucket." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "package_info", bucketPath: bucketPathArg(opts) ?? opts.path, packageName: opts.package }, Boolean(args.json), host)
         },
       }),
@@ -153,7 +155,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "install", description: "Install packages by name or local manifest path." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({
             action: "install",
             bucketPath: bucketPathArg(opts) ?? opts.path,
@@ -167,7 +169,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "show-config", description: "Parse and show a scoop sync TOML config." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           const resolved = await resolveScoolpSyncConfig(opts, host, Boolean(args.json))
           await runAction({ action: "show_config", ...resolved }, Boolean(args.json), host)
         },
@@ -176,7 +178,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "sync", description: "Run or dry-run scoop bucket sync commands." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           const resolved = await resolveScoolpSyncConfig(opts, host, Boolean(args.json))
           await runAction({ action: "sync", ...resolved, dryRun: Boolean(opts.dryRun) }, Boolean(args.json), host)
         },
@@ -185,7 +187,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "cache-list", description: "List obsolete scoop cache files." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "cache_list", cachePath: opts.path, scoopRoot: opts.root }, Boolean(args.json), host)
         },
       }),
@@ -193,7 +195,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "cache-backup", description: "Move obsolete cache files into a timestamped backup folder." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "cache_backup", cachePath: opts.path, scoopRoot: opts.root, dryRun: Boolean(opts.dryRun) }, Boolean(args.json), host)
         },
       }),
@@ -201,7 +203,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "cache-delete", description: "Delete obsolete scoop cache files." },
         args: commonArgs(),
         async run({ args }) {
-          const opts = args as ScoolpCliOptions
+          const opts = await resolveScoolpArgs(args as ScoolpCliOptions, host)
           await runAction({ action: "cache_delete", cachePath: opts.path, scoopRoot: opts.root, dryRun: Boolean(opts.dryRun) }, Boolean(args.json), host)
         },
       }),
@@ -235,6 +237,17 @@ function parseList(value?: string): string[] {
 
 function bucketPathArg(args: ScoolpCliOptions): string | undefined {
   return args.bucketPath ?? args["bucket-path"]
+}
+
+async function resolveScoolpArgs(args: ScoolpCliOptions, host: CliHost): Promise<ScoolpCliOptions> {
+  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const rootFromStdin = args.root === "-" || (!args.root && hasPipedInput(host.stdin))
+  if (!pathFromStdin && !rootFromStdin) return args
+  const stdinLines = await readStdinLines(host.stdin)
+  const resolved: ScoolpCliOptions = { ...args }
+  if (pathFromStdin) resolved.path = stdinLines[0] ?? ""
+  if (rootFromStdin) resolved.root = stdinLines[0] ?? ""
+  return resolved
 }
 
 interface ScoolpSyncTomlShape {

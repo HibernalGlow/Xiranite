@@ -7,7 +7,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "audiov",
     packageName: "@xiranite/node-audiov",
     bin: nodeCliName("audiov"),
-    description: "Extract audio tracks from video files through PackU AudioV.",
+    description: "Extract audio tracks from video files with a native ffmpeg workflow.",
   },
   {
     id: "bandia",

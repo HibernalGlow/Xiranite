@@ -6,9 +6,9 @@ export const def = {
   name: "TransQ",
   version: "0.1.0",
   category: "text",
-  description: "Organize translation result files with PackU TransQ.",
+  description: "Organize manga-translator result queues with native filesystem operations.",
   icon: "Languages",
-  keywords: ["packu", "translation", "organize", "queue"],
+  keywords: ["translation", "manga-translator", "organize", "queue"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

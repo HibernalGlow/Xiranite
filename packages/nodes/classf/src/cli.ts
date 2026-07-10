@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runClassf } from "./core.js"
 import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfTransferMode } from "./core.js"
@@ -16,9 +17,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action: ClassfAction = args.includes("classify") || args.includes("run") ? "classify" : "plan"
   const { config } = await loadNodeConfigWithHints<ClassfNodeConfig>("classf", { hintSink: { stderr: process.stderr }, jsonMode: json })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: ClassfInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     targetDir: valueFor(args, "--target") ?? config?.target_dir,
     transferMode: valueFor(args, "--transfer") as ClassfTransferMode | undefined ?? config?.transfer_mode,
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,

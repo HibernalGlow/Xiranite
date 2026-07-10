@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -141,27 +143,30 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a root path for movable archives and folders." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveMoveaArgs(args as MoveaCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveMoveaDefaults(host, json)
-          await runAction({ action: "scan", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
+          await runAction({ action: "scan", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       match: defineCommand({
         meta: { name: "match", description: "Preview target folders for an archive name." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveMoveaArgs(args as MoveaCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveMoveaDefaults(host, json)
-          await runAction({ action: "match", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
+          await runAction({ action: "match", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       move: defineCommand({
         meta: { name: "move", description: "Move items according to --plan JSON inside --level1." },
         args: commonArgs(),
         async run({ args }) {
-          const json = Boolean(args.json)
+          const opts = await resolveMoveaArgs(args as MoveaCliOptions, host)
+          const json = Boolean(opts.json)
           const defaults = await resolveMoveaDefaults(host, json)
-          await runAction({ action: "move_single", ...inputFromArgs(args as MoveaCliOptions, defaults) }, json, host)
+          await runAction({ action: "move_single", ...inputFromArgs(opts, defaults) }, json, host)
         },
       }),
       guided: defineCommand({
@@ -186,6 +191,17 @@ function commonArgs() {
     dryRun: { type: "boolean", description: "Preview moves without changing files." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveMoveaArgs(args: MoveaCliOptions, host: CliHost): Promise<MoveaCliOptions> {
+  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const rootFromStdin = args.root === "-" || (!args.root && hasPipedInput(host.stdin))
+  if (!pathFromStdin && !rootFromStdin) return args
+  const stdinLines = await readStdinLines(host.stdin)
+  const resolved: MoveaCliOptions = { ...args }
+  if (pathFromStdin) resolved.path = stdinLines[0] ?? ""
+  if (rootFromStdin) resolved.root = stdinLines[0] ?? ""
+  return resolved
 }
 
 function inputFromArgs(args: MoveaCliOptions, defaults: MoveaDefaults = {}): MoveaInput {

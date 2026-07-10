@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -115,7 +117,8 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: cleanfArgs(true),
         async run({ args }) {
           const defaults = await resolveCleanfDefaults(host, Boolean(args.json))
-          await runAction(inputFromArgs(args as CleanfCliOptions, true, defaults), Boolean(args.json), host)
+          const pathsValue = (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths
+          await runAction(inputFromArgs({ ...args, paths: pathsValue } as CleanfCliOptions, true, defaults), Boolean(args.json), host)
         },
       }),
       run: defineCommand({
@@ -123,8 +126,9 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: cleanfArgs(false),
         async run({ args }) {
           const defaults = await resolveCleanfDefaults(host, Boolean(args.json))
+          const pathsValue = (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths
           const preview = args.preview || defaults.preview || false
-          await runAction(inputFromArgs(args as CleanfCliOptions, preview, defaults), Boolean(args.json), host)
+          await runAction(inputFromArgs({ ...args, paths: pathsValue } as CleanfCliOptions, preview, defaults), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

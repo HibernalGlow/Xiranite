@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runGifu } from "./core.js"
 import { createNodeGifuRuntime } from "./platform.js"
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 interface GifuNodeConfig {
@@ -15,7 +16,12 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const dryRun = args.includes("--dry-run")
   const action = args.includes("make") ? "make" : args.includes("plan") ? "plan" : "inspect"
   const valueOptions = new Set(["--config-path", "--database-path"])
-  const paths = args.filter((arg, index) => !arg.startsWith("--") && !["make", "plan", "inspect"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  let paths = args.filter((arg, index) => !arg.startsWith("--") && !["make", "plan", "inspect"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  if (paths.includes("-")) {
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const { config: nodeConfig } = await loadNodeConfigWithHints<GifuNodeConfig>("gifu", {
     hintSink: { stderr: process.stderr },
     jsonMode: json,

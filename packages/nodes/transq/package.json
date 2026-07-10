@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "PackU TransQ translation result organizer node.",
+  "description": "Native translation result queue organizer node.",
   "license": "UNLICENSED",
   "bin": {
     "xtransq": "./dist/cli.js"
@@ -37,9 +37,9 @@
     "test": "vitest run src --passWithNoTests"
   },
   "dependencies": {
+    "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*",
-    "@xiranite/packu-node-runtime": "workspace:*"
+    "@xiranite/contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

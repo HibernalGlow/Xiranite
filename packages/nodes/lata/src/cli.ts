@@ -5,9 +5,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   padVisibleEnd,
   promptRich,
+  readStdinLines,
   rich,
   runMain,
   shellQuote,
@@ -151,8 +153,16 @@ export async function resolveLataTaskfilePath(
 }
 
 async function runLataAction(args: LataCliOptions, action: "list" | "plan" | "execute", host: CliHost): Promise<void> {
-  const input: LataInput = { action, ...inputFromArgs(args) }
-  const resolved = await resolveLataTaskfilePath(args, host, Boolean(args.json))
+  const resolvedArgs: LataCliOptions = { ...args }
+  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const taskfileFromStdin = args.taskfile === "-" || (!args.taskfile && hasPipedInput(host.stdin))
+  if (pathFromStdin || taskfileFromStdin) {
+    const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
+    if (pathFromStdin) resolvedArgs.path = stdinLine
+    if (taskfileFromStdin) resolvedArgs.taskfile = stdinLine
+  }
+  const input: LataInput = { action, ...inputFromArgs(resolvedArgs) }
+  const resolved = await resolveLataTaskfilePath(resolvedArgs, host, Boolean(args.json))
   if (resolved) input.taskfilePath = resolved
   await runAction(input, Boolean(args.json), host)
 }

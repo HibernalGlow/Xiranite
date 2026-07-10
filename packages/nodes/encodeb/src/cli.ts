@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -155,7 +157,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: encodebArgs(),
         async run({ args }) {
           const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "find" }, Boolean(args.json), host)
+          await runAction({ ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths } as EncodebCliOptions, defaults), action: "find" }, Boolean(args.json), host)
         },
       }),
       preview: defineCommand({
@@ -163,7 +165,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: encodebArgs(),
         async run({ args }) {
           const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "preview" }, Boolean(args.json), host)
+          await runAction({ ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths } as EncodebCliOptions, defaults), action: "preview" }, Boolean(args.json), host)
         },
       }),
       recover: defineCommand({
@@ -171,7 +173,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: encodebArgs(),
         async run({ args }) {
           const defaults = await resolveEncodebDefaults(host, Boolean(args.json))
-          await runAction({ ...inputFromArgs(args as EncodebCliOptions, defaults), action: "recover" }, Boolean(args.json), host)
+          await runAction({ ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths } as EncodebCliOptions, defaults), action: "recover" }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -103,35 +105,35 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a Wallpaper Engine workshop folder." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("scan", args as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("scan", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
         },
       }),
       filter: defineCommand({
         meta: { name: "filter", description: "Filter scanned or freshly scanned wallpapers." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("filter", args as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("filter", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
         },
       }),
       rename: defineCommand({
         meta: { name: "rename", description: "Plan or execute batch folder rename/copy." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("rename", args as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("rename", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
         },
       }),
       delete: defineCommand({
         meta: { name: "delete", description: "Plan or execute wallpaper folder deletion." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("delete", args as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("delete", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
         },
       }),
       export: defineCommand({
         meta: { name: "export", description: "Export filtered wallpapers as JSON or paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("export", args as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("export", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

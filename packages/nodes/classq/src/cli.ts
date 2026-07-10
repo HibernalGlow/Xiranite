@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runClassq } from "./core.js"
 import type { ClassqAction, ClassqExistingPolicy, ClassqInput, ClassqTransferMode } from "./core.js"
@@ -16,9 +17,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action: ClassqAction = args.includes("classify") || args.includes("run") ? "classify" : "plan"
   const { config } = await loadNodeConfigWithHints<ClassqNodeConfig>("classq", { hintSink: { stderr: process.stderr }, jsonMode: json })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: ClassqInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     keyword: valueFor(args, "--keyword") ?? config?.keyword,
     waitKeyword: valueFor(args, "--wait") ?? config?.wait_keyword,
     transferMode: valueFor(args, "--transfer") as ClassqTransferMode | undefined ?? config?.transfer_mode,

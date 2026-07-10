@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -143,20 +145,22 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "plan", description: "Generate a series extraction plan." },
         args: commonArgs(),
         async run({ args }) {
-          const input: SeriexInput = { action: "plan", ...inputFromArgs(args as SeriexCliOptions) }
-          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host, Boolean(args.json))
+          const opts = await resolveSeriexArgs(args as SeriexCliOptions, host)
+          const input: SeriexInput = { action: "plan", ...inputFromArgs(opts) }
+          const resolved = await resolveSeriexConfig(opts, host, Boolean(opts.json))
           if (resolved.configText) input.configText = resolved.configText
-          await runAction(input, Boolean(args.json), host)
+          await runAction(input, Boolean(opts.json), host)
         },
       }),
       execute: defineCommand({
         meta: { name: "execute", description: "Generate and apply a series extraction plan." },
         args: commonArgs(),
         async run({ args }) {
-          const input: SeriexInput = { action: "execute", ...inputFromArgs(args as SeriexCliOptions) }
-          const resolved = await resolveSeriexConfig(args as SeriexCliOptions, host, Boolean(args.json))
+          const opts = await resolveSeriexArgs(args as SeriexCliOptions, host)
+          const input: SeriexInput = { action: "execute", ...inputFromArgs(opts) }
+          const resolved = await resolveSeriexConfig(opts, host, Boolean(opts.json))
           if (resolved.configText) input.configText = resolved.configText
-          await runAction(input, Boolean(args.json), host)
+          await runAction(input, Boolean(opts.json), host)
         },
       }),
       guided: defineCommand({
@@ -185,6 +189,12 @@ function commonArgs() {
     lengthDiff: { type: "string", description: "Maximum length difference (0-1)." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveSeriexArgs(args: SeriexCliOptions, host: CliHost): Promise<SeriexCliOptions> {
+  if (!(args.path === "-" || (!args.path && hasPipedInput(host.stdin)))) return args
+  const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
+  return { ...args, path: stdinLine }
 }
 
 function inputFromArgs(args: SeriexCliOptions): Omit<SeriexInput, "action"> {

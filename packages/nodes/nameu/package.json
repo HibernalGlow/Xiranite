@@ -39,6 +39,7 @@
     "test": "vitest run src --passWithNoTests"
   },
   "dependencies": {
+    "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*"
   },

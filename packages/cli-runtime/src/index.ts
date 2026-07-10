@@ -98,6 +98,42 @@ export function canRunInteractiveCli(host: CliHost = createCliHost()): boolean {
   return Boolean(host.stdin.isTTY && host.stdout.isTTY)
 }
 
+/**
+ * Detect whether stdin is piped (not a TTY).
+ * Use this to decide if stdin input should be read automatically.
+ */
+export function hasPipedInput(stream: NodeJS.ReadableStream & { isTTY?: boolean } = process.stdin): boolean {
+  return !stream.isTTY
+}
+
+/**
+ * Read all non-empty lines from a readable stream (defaults to process.stdin).
+ * Returns an empty array when stdin is a TTY (no piped input), so it is safe
+ * to call unconditionally without blocking on interactive terminals.
+ */
+export async function readStdinLines(stream: NodeJS.ReadableStream & { isTTY?: boolean } = process.stdin): Promise<string[]> {
+  if (stream.isTTY) return []
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString("utf8").split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+}
+
+/**
+ * Read all text from a readable stream (defaults to process.stdin).
+ * Returns an empty string when stdin is a TTY (no piped input).
+ * Use this for nodes that need raw text (JSON, Markdown, TOML) rather than line-based paths.
+ */
+export async function readStdinText(stream: NodeJS.ReadableStream & { isTTY?: boolean } = process.stdin): Promise<string> {
+  if (stream.isTTY) return ""
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString("utf8")
+}
+
 export type RichColor = "blue" | "cyan" | "green" | "grey" | "magenta" | "red" | "white" | "yellow"
 export type RichStyle = RichColor | "bold" | "dim" | "inverse"
 

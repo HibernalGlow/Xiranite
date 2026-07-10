@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSimiu } from "./core.js"
 import { createNodeSimiuRuntime } from "./platform.js"
@@ -20,7 +21,12 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action = args.includes("apply") ? "apply" : args.includes("plan") ? "plan" : "scan"
   const valueOptions = new Set(["--config-path", "--database-path"])
-  const roots = args.filter((arg, index) => !arg.startsWith("--") && !["scan", "plan", "apply"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  let roots = args.filter((arg, index) => !arg.startsWith("--") && !["scan", "plan", "apply"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  if (roots.includes("-")) {
+    roots = roots.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (roots.length === 0 && hasPipedInput()) {
+    roots = await readStdinLines()
+  }
 
   const { config: nodeConfig } = await loadNodeConfigWithHints<SimiuNodeConfig>("simiu", {
     hintSink: { stderr: process.stderr },

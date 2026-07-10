@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -176,28 +178,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs(args as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "scan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
         },
       }),
       "add-nov": defineCommand({
         meta: { name: "add-nov", description: "Add .nov suffix to normal video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "add_nov", ...inputFromArgs(args as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "add_nov", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
         },
       }),
       "remove-nov": defineCommand({
         meta: { name: "remove-nov", description: "Remove .nov suffix from .nov video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "remove_nov", ...inputFromArgs(args as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "remove_nov", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
         },
       }),
       duplicates: defineCommand({
         meta: { name: "duplicates", description: "Check prefixed files against original duplicates." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "check_duplicates", ...inputFromArgs(args as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "check_duplicates", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

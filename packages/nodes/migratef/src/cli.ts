@@ -5,9 +5,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -155,7 +157,15 @@ function createDefaultHost(): CliHost {
 
 async function runSubcommand(action: MigratefAction, args: MigratefCliOptions, host: CliHost): Promise<void> {
   const defaults = await resolveMigratefDefaults(host, Boolean(args.json))
-  await runAction({ action, ...inputFromArgs(args, defaults) }, Boolean(args.json), host)
+  const resolvedArgs: MigratefCliOptions = { ...args }
+  const sourceFromStdin = args.source === "-" || (!args.source && hasPipedInput(host.stdin))
+  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  if (sourceFromStdin || pathFromStdin) {
+    const stdinValue = (await readStdinLines(host.stdin)).join(";")
+    if (sourceFromStdin) resolvedArgs.source = stdinValue
+    if (pathFromStdin) resolvedArgs.path = stdinValue
+  }
+  await runAction({ action, ...inputFromArgs(resolvedArgs, defaults) }, Boolean(args.json), host)
 }
 
 function createProgram(host: CliHost = createDefaultHost()) {

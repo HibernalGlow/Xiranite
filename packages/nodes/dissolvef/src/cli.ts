@@ -6,8 +6,10 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptRich,
+  readStdinLines,
   renderProgressBar,
   rich,
   runMain,
@@ -137,63 +139,63 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "plan", description: "Preview the operations without changing files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "plan", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       dissolve: defineCommand({
         meta: { name: "dissolve", description: "Run the selected dissolve modes." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "dissolve", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "dissolve", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       nested: defineCommand({
         meta: { name: "nested", description: "Flatten single-subfolder chains." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "nested", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "nested", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       media: defineCommand({
         meta: { name: "media", description: "Release folders containing exactly one media file." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "media", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "media", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       archive: defineCommand({
         meta: { name: "archive", description: "Release folders containing exactly one archive." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "archive", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "archive", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       direct: defineCommand({
         meta: { name: "direct", description: "Move a folder's contents to its parent." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "direct", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "direct", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       "collect-archives": defineCommand({
         meta: { name: "collect-archives", description: "Print matching single-archive paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "collect_archives", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "collect_archives", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       history: defineCommand({
         meta: { name: "history", description: "Show undo history." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "history", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "history", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       undo: defineCommand({
         meta: { name: "undo", description: "Undo the latest or selected dissolve record." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "undo", ...inputFromArgs(args as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "undo", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({

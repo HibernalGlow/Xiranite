@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSmartZip } from "./core.js"
 import { createNodeSmartZipRuntime } from "./platform.js"
@@ -17,7 +18,12 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action = args.includes("x") ? "extract" : args.includes("xc") ? "extract_codepage" : args.includes("o") ? "open" : args.includes("a") ? "archive" : "status"
   const valueOptions = new Set(["--ini-path", "--database-path", "--smartzip-exe", "--smartzip-ahk", "--autohotkey-exe"])
-  const paths = args.filter((arg, index) => !arg.startsWith("--") && !["x", "xc", "o", "a", "status"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  let paths = args.filter((arg, index) => !arg.startsWith("--") && !["x", "xc", "o", "a", "status"].includes(arg) && !valueOptions.has(args[index - 1] ?? ""))
+  if (paths.includes("-")) {
+    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
 
   const { config: nodeConfig } = await loadNodeConfigWithHints<SmartzipNodeConfig>("smartzip", {
     hintSink: { stderr: process.stderr },

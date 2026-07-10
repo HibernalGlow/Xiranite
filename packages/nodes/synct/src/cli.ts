@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runSynct } from "./core.js"
 import type { SynctAction, SynctFormatKey, SynctInput, SynctSourceMode } from "./core.js"
@@ -18,9 +19,15 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = args.includes("--json")
   const action: SynctAction = args.includes("archive") || args.includes("run") ? "archive" : args.includes("scan") ? "scan" : "plan"
   const { config } = await loadNodeConfigWithHints<SynctNodeConfig>("synct", { hintSink: { stderr: process.stderr }, jsonMode: json })
+  let paths = pathArgs(args)
+  if (paths.includes("-")) {
+    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const input: SynctInput = {
     action,
-    paths: pathArgs(args),
+    paths,
     sourceMode: valueFor(args, "--source-mode") as SynctSourceMode | undefined ?? config?.source_mode,
     formatKey: valueFor(args, "--format") as SynctFormatKey | undefined ?? config?.format_key,
     recursive: args.includes("--recursive") || config?.recursive === true,

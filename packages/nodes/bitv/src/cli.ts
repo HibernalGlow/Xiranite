@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runBitv } from "./core.js"
 import { createNodeBitvRuntime } from "./platform.js"
+import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 interface BitvNodeConfig {
@@ -20,7 +21,12 @@ export async function runProgram(args = process.argv.slice(2)): Promise<void> {
   const json = commandArgs.includes("--json")
   const action = commandArgs.includes("run") ? "run" : commandArgs.includes("plan") ? "plan" : "status"
   const valueOptions = new Set(["--config-path", "--database-path", "--python", "--source-root", "--module-name"])
-  const paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
+  let paths = commandArgs.filter((arg, index) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg) && !valueOptions.has(commandArgs[index - 1] ?? ""))
+  if (paths.includes("-")) {
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
+  } else if (paths.length === 0 && hasPipedInput()) {
+    paths = await readStdinLines()
+  }
   const { config: nodeConfig } = await loadNodeConfigWithHints<BitvNodeConfig>("bitv", {
     hintSink: { stderr: process.stderr },
     jsonMode: json,

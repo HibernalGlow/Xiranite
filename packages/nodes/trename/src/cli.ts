@@ -6,9 +6,11 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
+  hasPipedInput,
   nodeCliName,
   promptPathLines,
   promptRich,
+  readStdinText,
   renderProgressBar,
   rich,
   runMain,
@@ -243,7 +245,7 @@ async function runSingleAction(action: TrenameAction, args: TrenameCliOptions, h
     return false
   }
 
-  const input = await inputFromArgs(action, args, defaults)
+  const input = await inputFromArgs(action, args, defaults, host)
   const result = await runAction(input, Boolean(args.json), host)
   if (args.output && action === "scan" && result.success) await writeSegments(args.output, result.data?.segments ?? [])
   return result.success
@@ -276,9 +278,18 @@ async function runAction(input: TrenameInput, json: boolean, host: CliHost): Pro
   return result
 }
 
-async function inputFromArgs(action: TrenameAction, args: TrenameCliOptions, defaults: TrenameDefaults): Promise<TrenameInput> {
+async function inputFromArgs(action: TrenameAction, args: TrenameCliOptions, defaults: TrenameDefaults, host: CliHost): Promise<TrenameInput> {
   const inputFile = args.inputFile || args.input
-  const jsonContent = args.jsonContent ?? (inputFile ? await readFile(inputFile, "utf8") : "")
+  let jsonContent = args.jsonContent
+  if (jsonContent === undefined) {
+    if (inputFile === "-" || (!inputFile && hasPipedInput(host.stdin))) {
+      jsonContent = await readStdinText(host.stdin)
+    } else if (inputFile) {
+      jsonContent = await readFile(inputFile, "utf8")
+    } else {
+      jsonContent = ""
+    }
+  }
   return {
     action,
     paths: args.paths || args.path,

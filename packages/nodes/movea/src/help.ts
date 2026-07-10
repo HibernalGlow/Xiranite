@@ -56,5 +56,65 @@ export const help = {
       "Prefer preview or dry-run modes before changing files.",
       "Keep backups or undo records when processing large folders."
     ]
-  }
+  },
+  "translations": {
+    "zh-CN": {
+      "title": "Movea",
+      "short": "扫描一级文件夹，将归档文件或散装文件夹移动到编号目标位置。",
+      "description": "扫描一级文件夹，将归档文件或散装文件夹移动到编号目标位置。",
+      "whenToUse": [
+        "当需要从工作区 UI 或 CLI 使用该节点的文件工作流时，使用 Movea。"
+      ],
+      "workflows": [
+        {
+          "title": "工作区 UI",
+          "summary": "从模块库部署 Movea，并在节点面板上运行。",
+          "ui": [
+            "打开模块库，将 Movea 部署到当前工作区。",
+            "填写节点字段，或将路径/配置粘贴到节点面板。",
+            "运行预览或主操作，查看结果与日志后再应用真实变更。"
+          ]
+        },
+        {
+          "title": "CLI",
+          "summary": "直接在终端运行 Movea。",
+          "cli": [
+            "命令支持交互式提示时，运行 `xiranite movea` 进入引导模式。",
+            "运行 `xiranite movea --help` 查看该节点命令的完整参数与子命令。"
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "title": "节点 CLI",
+          "command": "xiranite movea",
+          "description": "打开节点 CLI，或查看命令专属参数。",
+          "examples": [
+            {
+              "label": "引导模式",
+              "command": "xiranite movea",
+              "description": "启动该节点的交互式终端工作流。"
+            },
+            {
+              "label": "命令参数",
+              "command": "xiranite movea --help",
+              "description": "显示节点 CLI 的子命令与选项。"
+            },
+            {
+              "label": "共享帮助",
+              "command": "xiranite help movea",
+              "description": "在根 CLI 中渲染这条共享帮助条目。"
+            }
+          ]
+        }
+      ],
+      "safety": {
+        "defaultMode": "preview",
+        "notes": [
+          "修改文件前优先使用预览或 dry-run 模式。",
+          "处理大文件夹时保留备份或撤销记录。"
+        ]
+      }
+    }
+  },
 } satisfies NodeHelp
