@@ -1,8 +1,8 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "Diny",
-  "short": "AI-powered git commit message generator wrapping the diny binary.",
+  "title": "GitAlso",
+  "short": "Safe AI-powered git commit-message assistant wrapping the diny binary.",
   "description": "Wraps the diny CLI binary (`diny commit --print`) to generate AI commit messages from staged git changes. Uses simple-git for local git operations (staged files, diff, commit, push). Does not modify or fork diny source — only depends on the binary being in PATH.",
   "whenToUse": [
     "Use diny when you want AI-generated commit messages from your staged git changes.",

@@ -4,7 +4,6 @@ import {
   createCliHost,
   defineCommand,
   hasPipedInput,
-  nodeCliName,
   readStdinText,
   runMain,
   writeError,
@@ -17,7 +16,7 @@ import { loadNodeConfigWithHints } from "@xiranite/config"
 import { runDiny } from "./core.js"
 import { createNodeDinyRuntime } from "./platform.js"
 
-const CLI_NAME = nodeCliName("diny")
+const CLI_NAME = "also"
 
 interface DinyNodeConfig {
   diny_path?: string
@@ -52,7 +51,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
     meta: {
       name: CLI_NAME,
-      description: "AI-powered git commit message generator wrapping the diny binary.",
+      description: "Generate git commit messages safely with diny. GitButler mutations are never invoked.",
     },
     subCommands: {
       status: defineCommand({

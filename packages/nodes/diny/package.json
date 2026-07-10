@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "AI-powered git commit message generator wrapping the diny binary.",
+  "description": "Safe commit-message assistant powered by diny, with GitButler-aware guidance.",
   "license": "UNLICENSED",
   "bin": {
+    "also": "./dist/cli.js",
     "xdiny": "./dist/cli.js"
   },
   "exports": {

@@ -180,7 +180,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         )}
         {result?.dinyVersion && (
           <Badge variant="secondary" className="text-xs">
-            diny v{result.dinyVersion}
+            GitAlso · diny v{result.dinyVersion}
           </Badge>
         )}
         {progress > 0 && progress < 100 && (

@@ -3,12 +3,12 @@ import * as core from "./core.js"
 
 export const def = {
   id: "diny",
-  name: "Diny",
+  name: "GitAlso",
   version: "0.1.0",
   category: "dev",
-  description: "AI-powered git commit message generator wrapping the diny binary.",
+  description: "Safe commit-message assistant powered by diny, with GitButler-aware guidance.",
   icon: "GitCommitHorizontal",
-  keywords: ["git", "commit", "ai", "diny", "message"],
+  keywords: ["git", "commit", "ai", "diny", "gitbutler", "also", "message"],
 } satisfies NodeDef
 
 const entry = {
