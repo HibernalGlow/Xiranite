@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { access, mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -444,7 +444,7 @@ function defaultScreenshotPath(options) {
 async function resolveReferencePath(options) {
   if (!options.moduleId || options.reference === false) return undefined
   const candidate = options.reference === "auto"
-    ? path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)", options.moduleId, "screen.png")
+    ? await findAutoReferencePath(options.moduleId)
     : path.resolve(options.reference)
   try {
     await access(candidate)
@@ -452,6 +452,22 @@ async function resolveReferencePath(options) {
   } catch {
     if (options.reference !== "auto") throw new Error(`Reference image does not exist: ${candidate}`)
     return undefined
+  }
+}
+
+async function findAutoReferencePath(moduleId) {
+  const referenceRoot = path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)")
+  const direct = path.join(referenceRoot, moduleId, "screen.png")
+  try {
+    await access(direct)
+    return direct
+  } catch {
+    const entries = await readdir(referenceRoot, { withFileTypes: true })
+    const numbered = entries
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${moduleId}_`))
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+    return path.join(referenceRoot, numbered[0] ?? moduleId, "screen.png")
   }
 }
 
