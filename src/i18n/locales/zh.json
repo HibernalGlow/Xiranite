@@ -2664,7 +2664,12 @@
       },
       "execution": {
         "preview": "预演模式",
-        "live": "真实执行"
+        "live": "真实执行",
+        "previewState": "预演：不写入文件",
+        "liveState": "真实：将写入文件",
+        "previewDescription": "生成命令和输出路径，不会修改文件。",
+        "liveDescription": "将以固定 AAC / M4A 预设写入音轨文件。",
+        "profile": "固定预设：AAC · 192 kbps · M4A"
       },
       "paths": {
         "title": "视频路径",
@@ -2704,7 +2709,9 @@
         "pastePaths": "粘贴路径",
         "copy": "复制",
         "cancel": "取消",
-        "confirmExtract": "确认提取"
+        "confirmExtract": "确认提取",
+        "previewExtract": "预览提取",
+        "liveExtract": "立即提取"
       },
       "confirm": {
         "title": "确认提取音轨？",

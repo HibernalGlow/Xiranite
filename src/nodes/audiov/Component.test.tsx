@@ -69,13 +69,16 @@ describe("native AudioV component", () => {
     expect(host.cardState.result?.command?.command).toBe("ffmpeg")
   })
 
-  test("requires confirmation before a non-preview extraction", async () => {
+  test("keeps preview state beside the execution action and requires confirmation before a live extraction", async () => {
     setSurface("regular")
     const host = createHost({ action: "run", pathsText: "D:/Video/clip.mp4", dryRun: false, logs: [] })
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(within(screen.getByTestId("audiov-execution-controls")).getByRole("button", { name: "提取音轨" }))
+    const executionControls = screen.getByTestId("audiov-execution-controls")
+    expect(within(executionControls).getByText("真实：将写入文件")).toBeTruthy()
+    expect(within(executionControls).getByText("固定预设：AAC · 192 kbps · M4A")).toBeTruthy()
+    await user.click(within(executionControls).getByRole("button", { name: "立即提取" }))
     expect(host.runCalls).toHaveLength(0)
     expect(screen.getByText("确认提取音轨？")).toBeTruthy()
 
@@ -90,7 +93,7 @@ describe("native AudioV component", () => {
     render(<Component compId="comp-audiov" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(within(screen.getByTestId("audiov-execution-controls")).getByRole("button", { name: "提取音轨" }))
+    await user.click(within(screen.getByTestId("audiov-execution-controls")).getByRole("button", { name: "预览提取" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))

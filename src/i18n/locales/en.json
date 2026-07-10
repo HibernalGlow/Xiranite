@@ -2664,7 +2664,12 @@
       },
       "execution": {
         "preview": "Preview mode",
-        "live": "Live execution"
+        "live": "Live execution",
+        "previewState": "Preview: no files written",
+        "liveState": "Live: files will be written",
+        "previewDescription": "Generate commands and output paths without changing files.",
+        "liveDescription": "Write audio files with the fixed AAC / M4A profile.",
+        "profile": "Fixed profile: AAC · 192 kbps · M4A"
       },
       "paths": {
         "title": "Video paths",
@@ -2704,7 +2709,9 @@
         "pastePaths": "Paste paths",
         "copy": "Copy",
         "cancel": "Cancel",
-        "confirmExtract": "Confirm extraction"
+        "confirmExtract": "Confirm extraction",
+        "previewExtract": "Preview extraction",
+        "liveExtract": "Extract now"
       },
       "confirm": {
         "title": "Extract audio?",

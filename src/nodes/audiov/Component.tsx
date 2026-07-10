@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
@@ -349,14 +350,27 @@ function FullView(props: ViewProps) {
 
 function ExecutionControls({ compact, props }: { compact?: boolean; props: ViewProps }) {
   const dryRun = props.data.dryRun ?? true
+  const previewTitle = dryRun
+    ? props.t("execution.previewState", "预演：不写入文件")
+    : props.t("execution.liveState", "真实：将写入文件")
+  const previewDescription = dryRun
+    ? props.t("execution.previewDescription", "生成命令和输出路径，不会修改文件。")
+    : props.t("execution.liveDescription", "将以固定 AAC / M4A 预设写入音轨文件。")
   return (
-    <div
+    <section
       data-testid="audiov-execution-controls"
-      className={cn("flex shrink-0 items-center justify-between gap-2 rounded-md border bg-background/60 px-2 py-1.5", !compact && "min-h-9")}
+      className={cn(
+        "flex min-w-0 shrink-0 items-center gap-2 rounded-lg border bg-card px-2 py-1.5",
+        !compact && "min-h-11",
+        props.action === "run" && !dryRun && "border-destructive/50 bg-destructive/[0.03]",
+      )}
     >
-      <label className="flex min-w-0 items-center gap-2">
+      <Field orientation="horizontal" className="min-w-0 flex-1 items-center gap-2">
         {dryRun ? <Eye className="size-3.5 shrink-0 text-muted-foreground" /> : <Play className="size-3.5 shrink-0 text-destructive" />}
-        <span className="truncate text-[11px] font-medium">{dryRun ? props.t("execution.preview", "预演模式") : props.t("execution.live", "真实执行")}</span>
+        <FieldContent className="min-w-0 gap-0.5">
+          <FieldTitle className="truncate text-xs">{previewTitle}</FieldTitle>
+          {!compact && <FieldDescription className="truncate text-[11px]">{previewDescription}</FieldDescription>}
+        </FieldContent>
         <Switch
           aria-label={props.t("aria.previewSwitch", "audiov 预演切换")}
           checked={dryRun}
@@ -364,11 +378,13 @@ function ExecutionControls({ compact, props }: { compact?: boolean; props: ViewP
           size="sm"
           onCheckedChange={(checked) => props.onPatch({ dryRun: checked })}
         />
-      </label>
+      </Field>
+      {!compact && <Badge variant={dryRun ? "outline" : "destructive"} className="shrink-0 text-[10px]">{props.t("execution.profile", "固定预设：AAC · 192 kbps · M4A")}</Badge>}
+      <Separator className="h-6 shrink-0" orientation="vertical" />
       <div className="shrink-0">
         <RunActionButton props={props} />
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -382,7 +398,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
     )
   }
 
-  const label = actionLabel(props.action, props.t)
+  const label = executionLabel(props.action, props.data.dryRun ?? true, props.t)
   const destructive = props.action === "run" && !(props.data.dryRun ?? true)
   if (destructive) {
     return (
@@ -410,7 +426,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
   }
 
   return (
-    <Button aria-label={label} disabled={props.running} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}>
+    <Button aria-label={label} disabled={props.running} size={compact ? "icon-sm" : "sm"} variant={props.action === "plan" ? "secondary" : props.action === "status" ? "outline" : "default"} onClick={() => props.onExecute(props.action)}>
       <Play />
       {!compact && <span>{label}</span>}
     </Button>
@@ -710,6 +726,13 @@ function summaryText(props: ViewProps): string {
 
 function actionLabel(action: AudiovAction, t: ViewProps["t"]): string {
   return getActionMeta(action, t).label
+}
+
+function executionLabel(action: AudiovAction, dryRun: boolean, t: ViewProps["t"]): string {
+  if (action !== "run") return actionLabel(action, t)
+  return dryRun
+    ? t("buttons.previewExtract", "预览提取")
+    : t("buttons.liveExtract", "立即提取")
 }
 
 function getActionMeta(action: AudiovAction, t: ViewProps["t"]): AudiovActionMeta {
