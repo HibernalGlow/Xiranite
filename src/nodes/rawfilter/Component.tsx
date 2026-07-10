@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
@@ -496,7 +497,7 @@ function RawfilterResultTabs(props: {
         <TabsTrigger value="logs">日志</TabsTrigger>
       </TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1">
-        <TextPanel compact={props.compact} emptyText="运行后会显示保留/移动/快捷方式计划。" icon={ListChecks} lines={planLines} onCopy={props.onCopyResults} />
+        <RawfilterPlanTable compact={props.compact} plan={props.result?.plan ?? []} onCopy={props.onCopyResults} />
       </TabsContent>
       <TabsContent value="groups" className="min-h-0 flex-1">
         <TextPanel compact={props.compact} emptyText="扫描后按相似度归组的结果会显示在这里。" icon={Layers} lines={groupLines} onCopy={props.onCopyResults} />
@@ -505,6 +506,18 @@ function RawfilterResultTabs(props: {
         <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" icon={FileSearch} lines={props.logs} onCopy={props.onCopyLogs} />
       </TabsContent>
     </Tabs>
+  )
+}
+
+function RawfilterPlanTable(props: { compact?: boolean; plan: RawfilterData["plan"]; onCopy: () => void }) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><ListChecks className="size-3.5" /><span>{props.plan.length ? `${props.plan.length} 项` : "等待运行"}</span></div><Button disabled={!props.plan.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />复制</Button></div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.plan.length ? <Table><TableHeader><TableRow><TableHead>归档</TableHead><TableHead>处理</TableHead><TableHead>原因</TableHead><TableHead className="w-20">状态</TableHead></TableRow></TableHeader><TableBody>{props.plan.map((item) => <TableRow key={`${item.sourcePath}:${item.destination}`}><TableCell className="max-w-0 truncate font-mono text-xs" title={item.sourcePath}>{item.fileName}</TableCell><TableCell><Badge variant={item.destination === "trash" ? "destructive" : "outline"}>{item.destination}</Badge></TableCell><TableCell className="max-w-0 truncate text-xs text-muted-foreground" title={item.reason}>{item.reason}</TableCell><TableCell><Badge variant={item.status === "error" ? "destructive" : item.status === "kept" ? "secondary" : "outline"}>{item.status}</Badge></TableCell></TableRow>)}</TableBody></Table> : <div className="flex min-h-36 items-center justify-center p-6 text-center text-sm text-muted-foreground">运行后会显示保留、移动与快捷方式计划。</div>}
+      </ScrollArea>
+    </section>
   )
 }
 

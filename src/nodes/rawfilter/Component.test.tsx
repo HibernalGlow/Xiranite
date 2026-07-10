@@ -129,7 +129,8 @@ describe("app-owned rawfilter Component", () => {
     await waitFor(() => expect(host.state.phase).toBe("completed"))
     expect(host.state.result?.archiveCount).toBe(2)
     expect(host.state.logs?.at(-1)).toBe("Plan generated: 1 operation(s).")
-    expect(screen.getAllByText(/pending trash book-raw\.zip/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("book-raw.zip").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("trash").length).toBeGreaterThanOrEqual(1)
   })
 
   test("requires AlertDialog confirmation before executing the destructive execute action", async () => {
