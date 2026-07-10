@@ -7,7 +7,7 @@ import type {
   EngineVResult,
 } from "@xiranite/node-enginev/core"
 import { filterWallpapers } from "@xiranite/node-enginev/core"
-import { Copy, Eye, FolderInput, Image, Images, ListChecks, Play, RotateCcw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react"
+import { Copy, Eye, FolderInput, Image, Images, ListChecks, RotateCcw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, CONFIG_FIELDS, UI_CONFIG_FIELDS } from "./constants"
 import {
   ActionIconButton,
-  ActionSelect,
+  EngineWorkflowTabs,
   ConfigDefaultsPopover,
   FilterFields,
   FilterPopover,
@@ -417,7 +417,6 @@ function CollapsedView(props: ViewProps) {
 }
 
 function CompactView(props: ViewProps) {
-  const ActionIcon = props.actionMeta.icon
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
@@ -425,21 +424,11 @@ function CompactView(props: ViewProps) {
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <Button aria-label={props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
-            <ActionIcon />
-            <span className="sr-only">{props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })}</span>
-          </Button>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
         <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
-          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-            <Play data-icon="inline-start" />
-            {props.tNode("buttons.run", "运行")}
-          </Button>
-        </div>
+        <EngineExecutionBar {...props} />
         <div className="grid grid-cols-2 gap-2">
           <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "预演")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
           <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "复制")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
@@ -471,7 +460,6 @@ function CompactView(props: ViewProps) {
 }
 
 function PortraitCompactView(props: ViewProps) {
-  const ActionIcon = props.actionMeta.icon
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2">
@@ -479,22 +467,12 @@ function PortraitCompactView(props: ViewProps) {
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <Button aria-label={props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })} disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
-            <ActionIcon />
-            <span className="sr-only">{props.tNode("buttons.executeAction", "执行{{action}}", { action: props.actionMeta.shortLabel })}</span>
-          </Button>
         </div>
       </div>
 
       <div className="grid shrink-0 gap-2">
         <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
-          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-            <Play data-icon="inline-start" />
-            {props.tNode("buttons.run", "运行")}
-          </Button>
-        </div>
+        <EngineExecutionBar {...props} />
         <div className="grid grid-cols-2 gap-2">
           <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "预演")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
           <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "复制")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
@@ -549,7 +527,6 @@ function FullView(props: ViewProps) {
             subtitle={props.data.progressText || props.tNode("summary.headerLine", "{{visible}} 可见 / {{scanned}} 已扫描 / {{selected}} 选中", { visible: props.galleryWallpapers.length, scanned: props.wallpapers.length, selected: props.selectedIds.length })}
           />
           <div data-testid="enginev-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-36 @4xl/enginev:w-40" onActionChange={props.onActionChange} />
             <ToolbarActions {...props} />
             <ActionIconButton label={props.tNode("buttons.clearState", "清空状态")} icon={RotateCcw} disabled={props.running} onClick={props.onReset} />
           </div>
@@ -580,6 +557,7 @@ function FullView(props: ViewProps) {
                 description={props.tNode("sections.inputDesc", "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。")}
               />
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+              <EngineExecutionBar {...props} />
             </section>
             <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
               <NodeSectionHeader icon={SlidersHorizontal} title={props.tNode("sections.filter", "筛选")} />
@@ -630,19 +608,22 @@ function FullView(props: ViewProps) {
   )
 }
 
+function EngineExecutionBar(props: ViewProps) {
+  const ActionIcon = props.actionMeta.icon
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <EngineWorkflowTabs action={props.action} className="min-w-0 flex-1" disabled={props.running} onActionChange={props.onActionChange} />
+      <Button disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}>
+        <ActionIcon data-icon="inline-start" />
+        {props.tNode("buttons.run", "运行")} {props.actionMeta.shortLabel}
+      </Button>
+    </div>
+  )
+}
+
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {ACTIONS.filter((item) => item.value !== "delete").map((item) => (
-        <ActionIconButton
-          key={item.value}
-          active={props.action === item.value}
-          disabled={props.running || isActionDisabled(item.value, props)}
-          icon={item.icon}
-          label={item.label}
-          onClick={() => props.onExecute(item.value)}
-        />
-      ))}
       <DeleteConfirmButton disabled={props.running || !props.selectedIds.length} onConfirm={() => props.onExecute("delete")} selectedCount={props.selectedIds.length} tNode={props.tNode} />
       <ActionIconButton label={props.tNode("buttons.copyResults", "复制结果")} icon={Copy} disabled={!props.galleryWallpapers.length && !props.result} onClick={props.onCopyResults} />
     </div>

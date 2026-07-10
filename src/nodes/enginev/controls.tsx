@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { tNode } from "@/nodes/shared/useNodeI18n"
@@ -31,26 +32,23 @@ interface PatchProps {
   onPatch: (patch: Partial<EngineVCardState>) => void
 }
 
-export function ActionSelect(props: {
+export function EngineWorkflowTabs(props: {
   action: EngineVAction
   disabled?: boolean
-  triggerClassName?: string
+  className?: string
   onActionChange: (value: EngineVAction) => void
 }) {
   return (
-    <Select value={props.action} disabled={props.disabled} onValueChange={(value) => props.onActionChange(value as EngineVAction)}>
-      <SelectTrigger aria-label="enginev action" className={cn("min-w-0", props.triggerClassName)}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+    <Tabs className={cn("min-w-0", props.className)} value={props.action} onValueChange={(value) => props.onActionChange(value as EngineVAction)}>
+      <TabsList aria-label="EngineV 工作流" variant="line" className="grid h-auto w-full grid-cols-3">
         {ACTIONS.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
+          <TabsTrigger key={item.value} disabled={props.disabled} value={item.value} className="min-w-0 gap-1.5 px-1.5 text-xs">
             <item.icon />
             {item.label}
-          </SelectItem>
+          </TabsTrigger>
         ))}
-      </SelectContent>
-    </Select>
+      </TabsList>
+    </Tabs>
   )
 }
 

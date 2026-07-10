@@ -100,7 +100,7 @@ describe("app-owned enginev Component", () => {
     render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "扫描工坊" }))
+    await user.click(screen.getByRole("button", { name: "运行 扫描" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -132,6 +132,21 @@ describe("app-owned enginev Component", () => {
     const image = screen.getByAltText("Ocean Loop") as HTMLImageElement
     expect(image.dataset.enginevPreview).toBe("true")
     expect(image.getAttribute("src")).toBe("http://local.test/local-files?path=D%3A%2Fworkshop%2F111%2Fpreview.png")
+  })
+
+  test("switches the EngineV workflow tab before running the selected workflow", async () => {
+    surfaceState.mode = "compact"
+    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })
+    const view = render(<Component compId="comp-enginev" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "筛选结果" }))
+    expect(host.cardState.action).toBe("filter")
+    view.rerender(<Component compId="comp-enginev" host={host} />)
+    expect(screen.getByRole("tab", { name: "筛选结果" }).getAttribute("aria-selected")).toBe("true")
+
+    await user.click(screen.getByRole("button", { name: "运行 筛选" }))
+    await waitFor(() => expect(host.runCalls[0]?.input.action).toBe("filter"))
   })
 
   test("selects gallery items and copies their paths without text-only rows", async () => {
@@ -214,7 +229,7 @@ describe("app-owned enginev Component", () => {
     render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "扫描工坊" }))
+    await user.click(screen.getByRole("button", { name: "运行 扫描" }))
 
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
     expect(host.cardState.progressText).toContain("暂不可用")
