@@ -41,7 +41,7 @@ export function JellyPotResultTabs(props: {
   const preferredTab = props.running ? "logs" : props.result?.checks.length ? "checks" : hasCommands ? "commands" : "logs"
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="checks">检查</TabsTrigger>
         <TabsTrigger value="commands">命令</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

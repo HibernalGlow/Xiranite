@@ -393,7 +393,7 @@ function PortraitCompactView(props: {
       </div>
 
       <Tabs defaultValue="operations" className="flex min-h-0 flex-1 flex-col" data-testid="repacku-portrait-results">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList variant="line" className="grid w-full grid-cols-3">
           <TabsTrigger value="operations">操作</TabsTrigger>
           <TabsTrigger value="tree">目录树</TabsTrigger>
           <TabsTrigger value="logs">日志</TabsTrigger>
@@ -518,7 +518,7 @@ function FullView(props: {
         </ScrollArea>
 
         <Tabs defaultValue="operations" className="min-h-0">
-          <TabsList>
+          <TabsList variant="line">
             <TabsTrigger value="operations">操作</TabsTrigger>
             <TabsTrigger value="tree">目录树</TabsTrigger>
             <TabsTrigger value="logs">日志</TabsTrigger>

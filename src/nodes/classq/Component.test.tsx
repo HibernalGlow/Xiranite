@@ -49,19 +49,19 @@ describe("app-owned classq Component", () => {
       }
 
       expect(screen.getByLabelText("classq roots")).toBeTruthy()
+      expect(within(screen.getByTestId("classq-mode-tabs")).getAllByRole("tab")).toHaveLength(2)
+      expect(within(screen.getByTestId("classq-result-list")).getAllByRole("tab")).toHaveLength(3)
 
       if (mode === "compact") {
         expect(screen.getByTestId("classq-compact-view")).toBeTruthy()
-        expect(screen.getAllByRole("tab")).toHaveLength(3)
       } else if (mode === "portrait") {
         expect(screen.getByTestId("classq-portrait-view")).toBeTruthy()
-        expect(screen.getAllByRole("tab")).toHaveLength(3)
       } else {
         expect(screen.getByTestId("classq-full-view")).toBeTruthy()
         expect(screen.getByTestId("classq-header-toolbar")).toBeTruthy()
         expect(screen.getByTestId("classq-command-deck")).toBeTruthy()
         expect(screen.getByTestId("classq-spatial-workbench")).toBeTruthy()
-        expect(screen.getAllByRole("tab")).toHaveLength(3)
+        expect(within(screen.getByTestId("classq-header-toolbar")).queryAllByRole("tab")).toHaveLength(0)
         expect(screen.getByRole("button", { name: "扫描根目录" })).toBeTruthy()
       }
     },
@@ -106,15 +106,51 @@ describe("app-owned classq Component", () => {
     render(<Component compId="comp-classq" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "执行分类" }))
+    const executeButton = screen.getByRole("button", { name: "执行分类" })
+    expect(executeButton.getAttribute("data-variant")).toBe("destructive")
+    await user.click(executeButton)
     expect(host.runCalls).toHaveLength(0)
 
     const dialog = screen.getByRole("alertdialog")
-    await user.click(within(dialog).getByRole("button", { name: "Confirm classify" }))
+    await user.click(within(dialog).getByRole("button", { name: "确认分类" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("classify")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
+  })
+
+  test("switches mode tabs and runs preview classify from the active mode panel", async () => {
+    setSurface("regular")
+    const host = createHost({ action: "plan", pathsText: "D:/set", dryRun: true, logs: [] })
+    render(<Component compId="comp-classq" host={host} />)
+    const user = userEvent.setup()
+    const modeTabs = screen.getByTestId("classq-mode-tabs")
+
+    expect(within(modeTabs).getByRole("button", { name: "扫描根目录" }).getAttribute("data-variant")).toBe("secondary")
+    await user.click(within(modeTabs).getByRole("tab", { name: "分类" }))
+
+    expect(within(modeTabs).getByRole("tab", { name: "分类" }).getAttribute("aria-selected")).toBe("true")
+    const previewButton = within(modeTabs).getByRole("button", { name: "预览分类" })
+    expect(previewButton.getAttribute("data-variant")).toBe("default")
+    await user.click(previewButton)
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.action).toBe("classify")
+    expect(host.runCalls[0]?.input.dryRun).toBe(true)
+  })
+
+  test("uses a horizontal result tab list inside the result panel", async () => {
+    setSurface("regular")
+    render(<Component compId="comp-classq" host={createHost({ pathsText: "D:/set", logs: ["scan complete"] })} />)
+    const user = userEvent.setup()
+    const list = screen.getByTestId("classq-result-list")
+
+    expect(screen.getByTestId("classq-result-tabs").getAttribute("data-orientation")).toBe("horizontal")
+    await user.click(within(list).getByRole("tab", { name: /日志/ }))
+
+    expect(within(list).getByRole("tab", { name: /日志/ }).getAttribute("aria-selected")).toBe("true")
+    expect(screen.getByText("scan complete")).toBeTruthy()
+    expect(within(screen.getByTestId("classq-header-toolbar")).queryAllByRole("tab")).toHaveLength(0)
   })
 
   test("marks the card as error when run has no roots", async () => {

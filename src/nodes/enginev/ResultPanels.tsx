@@ -51,7 +51,7 @@ export function ResultTabs(props: {
 
   return (
     <Tabs defaultValue="results" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="results" className="gap-1.5 px-2.5">
           <ListChecks className="size-3.5 shrink-0" />
           {tNode("tabs.results", "结果")}

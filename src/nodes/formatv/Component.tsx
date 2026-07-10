@@ -506,7 +506,7 @@ function ResultTabs(props: {
 
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="results">{tNode("tabs.results", "结果")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("tabs.logs", "日志")}</TabsTrigger>
       </TabsList>

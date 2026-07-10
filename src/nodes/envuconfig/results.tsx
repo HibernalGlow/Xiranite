@@ -41,7 +41,7 @@ export function EnvuConfigResultTabs(props: {
   const preferredTab = props.running ? "logs" : hasOperations ? "operations" : hasFiles ? "files" : "logs"
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="files">文件</TabsTrigger>
         <TabsTrigger value="operations">操作</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

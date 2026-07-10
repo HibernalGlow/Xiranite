@@ -527,7 +527,7 @@ function OwithuResultTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="plan">计划</TabsTrigger>
         <TabsTrigger value="entries">条目</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

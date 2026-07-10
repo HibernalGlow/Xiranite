@@ -676,7 +676,7 @@ function DissolvefDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="plan">{tNode("dissolvef", "tabs.plan", "计划")}</TabsTrigger>
         <TabsTrigger value="history">{tNode("dissolvef", "tabs.history", "历史")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("dissolvef", "tabs.logs", "日志")}</TabsTrigger>

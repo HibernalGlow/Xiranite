@@ -41,7 +41,7 @@ export function TrenameDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as TrenameDisplayTab)} className="flex h-full min-h-0 flex-col">
-      <TabsList className={cn("shrink-0", props.compact && "grid w-full grid-cols-5")}>
+      <TabsList variant="line" className={cn("shrink-0", props.compact && "grid w-full grid-cols-5")}>
         <DisplayTabTrigger compact={props.compact} count={model.total} label="文件" value="tree" />
         <DisplayTabTrigger compact={props.compact} count={props.result?.operations.length ?? 0} label="计划" value="plan" />
         <DisplayTabTrigger compact={props.compact} count={props.result?.conflicts.length ?? 0} label="冲突" tone={(props.result?.conflicts.length ?? 0) ? "destructive" : "outline"} value="conflicts" />

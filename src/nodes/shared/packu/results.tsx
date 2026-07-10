@@ -48,7 +48,7 @@ export function PackuResultTabs(props: {
   const preferredTab = props.running ? "logs" : hasCommand ? "command" : hasConfig ? "integration" : "logs"
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="command">
           <Terminal />
           命令

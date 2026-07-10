@@ -37,7 +37,7 @@ export function LinedupDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as LinedupDisplayTab)} className="flex h-full min-h-0 flex-col">
-      <TabsList className={cn("shrink-0", props.compact && "grid w-full grid-cols-4")}>
+      <TabsList variant="line" className={cn("shrink-0", props.compact && "grid w-full grid-cols-4")}>
         <DisplayTab compact={props.compact} count={diffRows.length} label="预览" value="preview" />
         <DisplayTab compact={props.compact} count={props.result?.keptCount ?? 0} label="保留" value="kept" />
         <DisplayTab compact={props.compact} count={props.result?.removedCount ?? 0} label="移除" value="removed" />

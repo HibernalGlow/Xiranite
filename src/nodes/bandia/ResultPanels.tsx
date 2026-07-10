@@ -137,7 +137,7 @@ export function ResultTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         {hasQueue && <TabsTrigger value="queue">Queue</TabsTrigger>}
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="logs">Logs</TabsTrigger>

@@ -371,7 +371,7 @@ function TimestampRows(props: { plan: Array<TimeuPlanItem | { path: string; oper
 function ResultTabs(props: { compact?: boolean; logs: string[]; result: TimeuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
     <Tabs defaultValue="records" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0"><TabsTrigger value="records">记录</TabsTrigger><TabsTrigger value="errors">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="records">记录</TabsTrigger><TabsTrigger value="errors">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
       <TabsContent value="records" className="min-h-0 flex-1"><RecordPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>
       <TabsContent value="errors" className="min-h-0 flex-1"><TextPanel empty="暂无问题" lines={[...(props.result?.errors ?? []), ...(props.result?.plan ?? []).filter((item) => item.reason && item.status !== "pending").map((item) => `${item.path}: ${item.reason}`)]} /></TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel="复制" empty="运行日志会显示在这里。" icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>

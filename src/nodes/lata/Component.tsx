@@ -445,7 +445,7 @@ function LataDisplayTabs(props: {
 }) {
   return (
     <Tabs defaultValue="tasks" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="tasks">任务</TabsTrigger>
         <TabsTrigger value="commands">命令</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

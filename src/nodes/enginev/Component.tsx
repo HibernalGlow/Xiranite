@@ -596,7 +596,7 @@ function FullView(props: ViewProps) {
 
         <Tabs defaultValue="gallery" className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2">
-            <TabsList>
+            <TabsList variant="line">
               <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
                 <Images className="size-3.5 shrink-0" />
                 {props.tNode("tabs.gallery", "画廊")}

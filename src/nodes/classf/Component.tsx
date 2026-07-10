@@ -383,7 +383,7 @@ function PlanRows(props: { items: ClassfPlanItem[]; paths: string[] }) {
 function ResultTabs(props: { compact?: boolean; logs: string[]; result: ClassfData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
     <Tabs defaultValue="plan" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0"><TabsTrigger value="plan"><PLAN_ICON className="size-3.5" />Plan</TabsTrigger><TabsTrigger value="issues"><AlertTriangle className="size-3.5" />Issues</TabsTrigger><TabsTrigger value="logs"><Terminal className="size-3.5" />Log</TabsTrigger></TabsList>
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan"><PLAN_ICON className="size-3.5" />Plan</TabsTrigger><TabsTrigger value="issues"><AlertTriangle className="size-3.5" />Issues</TabsTrigger><TabsTrigger value="logs"><Terminal className="size-3.5" />Log</TabsTrigger></TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>
       <TabsContent value="issues" className="min-h-0 flex-1"><TextPanel empty="No issues yet." lines={[...(props.result?.errors ?? []), ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} /></TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel="Copy" empty="Run log will appear here." icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>

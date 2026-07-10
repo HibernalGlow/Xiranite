@@ -40,7 +40,7 @@ export function SimiuResultTabs(props: {
   const preferredTab = props.running ? "logs" : props.result?.groups.length ? "groups" : props.result?.operations.length ? "operations" : "groups"
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="groups">分组</TabsTrigger>
         <TabsTrigger value="operations">操作</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

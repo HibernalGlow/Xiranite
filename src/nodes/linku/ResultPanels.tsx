@@ -37,7 +37,7 @@ export function LinkuDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as LinkuDisplayTab)} className="flex h-full min-h-0 flex-col">
-      <TabsList className={cn("shrink-0", props.compact && "grid w-full grid-cols-3")}>
+      <TabsList variant="line" className={cn("shrink-0", props.compact && "grid w-full grid-cols-3")}>
         <DisplayTabTrigger compact={props.compact} count={links.length} label="链接" value="links" />
         <DisplayTabTrigger compact={props.compact} count={pathInfo ? 1 : 0} label="路径" value="pathInfo" />
         <DisplayTabTrigger compact={props.compact} count={props.logs.length} label="日志" value="logs" />

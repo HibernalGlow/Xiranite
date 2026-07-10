@@ -705,7 +705,7 @@ function CrashuDisplayTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="results">{tNode("crashu", "tabs.results", "结果")}</TabsTrigger>
         <TabsTrigger value="logs">{tNode("crashu", "tabs.logs", "日志")}</TabsTrigger>
       </TabsList>

@@ -52,7 +52,7 @@ export function ModePicker(props: {
 }) {
   return (
     <Tabs data-testid="migratef-mode-picker" value={props.mode} onValueChange={(v) => v && props.onModeChange(v)}>
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList variant="line" className="grid w-full grid-cols-3">
         {MODES.map((item) => {
           const Icon = item.icon
           return (
@@ -79,7 +79,7 @@ export function ActionPicker(props: {
 }) {
   return (
     <Tabs data-testid="migratef-action-picker" value={props.value} onValueChange={(v) => v && props.onChange(v as "move" | "copy")}>
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList variant="line" className="grid w-full grid-cols-2">
         {ACTIONS.map((item) => (
           <TabsTrigger
             key={item.value}

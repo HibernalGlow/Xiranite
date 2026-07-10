@@ -514,7 +514,7 @@ function CoverPlaceholder(props: { item: CoveruCandidate; index: number }) {
 function ResultTabs(props: { compact?: boolean; logs: string[]; result: CoveruData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
     <Tabs defaultValue="candidates" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="candidates">结果</TabsTrigger>
         <TabsTrigger value="errors">问题</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

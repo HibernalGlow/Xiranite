@@ -60,7 +60,7 @@ export function ModePicker(props: {
         if (v) props.onModeChange(v as TrenameScanMode)
       }}
     >
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList variant="line" className="grid w-full grid-cols-2">
         {SCAN_MODES.map((item) => {
           const Icon = item.icon
           return (

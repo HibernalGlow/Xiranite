@@ -60,7 +60,7 @@ export function ModePicker(props: {
 }) {
   return (
     <Tabs value={props.mode} onValueChange={(v) => v && props.onModeChange(v as BandiaMode)}>
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList variant="line" className="grid w-full grid-cols-3">
         {MODES.map((item) => {
           const Icon = item.icon
           return (

@@ -519,7 +519,7 @@ function SleeptDisplayTabs(props: {
 }) {
   return (
     <Tabs defaultValue="stats" className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="stats">状态</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>
       </TabsList>

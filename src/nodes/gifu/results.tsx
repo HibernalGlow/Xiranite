@@ -40,7 +40,7 @@ export function GifuResultTabs(props: {
 
   return (
     <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="archives">归档</TabsTrigger>
         <TabsTrigger value="command">命令</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>

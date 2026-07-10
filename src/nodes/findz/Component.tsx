@@ -510,7 +510,7 @@ function FindzResultTabs(props: {
 
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
-      <TabsList className="shrink-0">
+      <TabsList variant="line" className="shrink-0">
         {isHelp ? <TabsTrigger value="output">{tNode("tabs.help", "帮助")}</TabsTrigger> : (
           <>
             <TabsTrigger value="files">{tNode("tabs.files", "文件")}</TabsTrigger>
