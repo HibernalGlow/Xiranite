@@ -60,4 +60,6 @@ export const INITIAL_STATE: WSState = {
   chromeIslandIdleOffset: -3,
   cardClickAction: "none",
   cardDoubleClickAction: "focus",
+  tabDisplayStyle: "underline",
+  switchDisplayStyle: "outlined",
 }

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { NodeRunHistoryPopover } from "@/nodes/shared/NodeRunHistoryPopover"
-import { useWorkspaceActions } from "@/store/workspaceContext"
+import { useWorkspaceActions } from "@/store/workspaceStore"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
   ActionSelect,

@@ -7,7 +7,8 @@ import { I18nextProvider, initReactI18next } from "react-i18next"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
-import { WorkspaceProvider, useWorkspaceShallowSelector } from "./workspaceContext"
+import { WorkspaceProvider } from "./workspaceContext"
+import { useWorkspaceShallowSelector } from "./workspaceStore"
 
 const healthMock = vi.hoisted(() => vi.fn())
 const loadSnapshotMock = vi.hoisted(() => vi.fn())

@@ -58,6 +58,8 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setChromeIslandIdleOffset: (chromeIslandIdleOffset) => set({ chromeIslandIdleOffset }, false, "SET_CHROME_ISLAND_IDLE_OFFSET"),
     setCardClickAction: (cardClickAction) => set({ cardClickAction }, false, "SET_CARD_CLICK_ACTION"),
     setCardDoubleClickAction: (cardDoubleClickAction) => set({ cardDoubleClickAction }, false, "SET_CARD_DOUBLE_CLICK_ACTION"),
+    setTabDisplayStyle: (tabDisplayStyle) => set({ tabDisplayStyle }, false, "SET_TAB_DISPLAY_STYLE"),
+    setSwitchDisplayStyle: (switchDisplayStyle) => set({ switchDisplayStyle }, false, "SET_SWITCH_DISPLAY_STYLE"),
   }
 }
 

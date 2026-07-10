@@ -21,7 +21,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   }),
 }))
 
-vi.mock("@/store/workspaceContext", () => ({
+vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceActions: () => ({ setOverlay: vi.fn() }),
 }))
 

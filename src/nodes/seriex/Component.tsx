@@ -12,7 +12,6 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
-  ActionMeta,
   ActionPicker,
   AdvancedOptionsPopover,
   ConfigDefaultsPopover,
@@ -20,8 +19,8 @@ import {
   PathFields,
   PrimarySwitches,
   StatusStrip,
-  defaultConfigIfEmpty,
 } from "./controls"
+import { defaultConfigIfEmpty, getActionMeta } from "./utils"
 import type { SeriexCardState, SeriexStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -41,7 +40,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const result = data.result ?? null
   const progress = data.progress ?? 0
   const action = data.action ?? "plan"
-  const actionMeta = ActionMeta(action)
+  const actionMeta = getActionMeta(action)
   const dryRun = data.dryRun ?? false
   const knownSeriesArray = useMemo(() => splitLines(data.knownSeriesText), [data.knownSeriesText])
   const status = statusFromState(data, running)
@@ -104,7 +103,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction: SeriexAction) {
     if (running) return
-    const nextActionMeta = ActionMeta(nextAction)
+    const nextActionMeta = getActionMeta(nextAction)
 
     const run = host.actions?.run
     if (!run) {

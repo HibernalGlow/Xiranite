@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { ACTIONS, DEFAULT_CONFIG_TEXT } from "./constants"
+import { ACTIONS } from "./constants"
 import type { ScoolpCardState, ScoolpStatusMeta } from "./types"
 
 export function ActionIconButton(props: {
@@ -395,12 +395,4 @@ function InfoHint({ description, label }: { description: string; label: string }
       <TooltipContent>{description}</TooltipContent>
     </Tooltip>
   )
-}
-
-export function ActionMeta(value: ScoolpCardState["action"]) {
-  return ACTIONS.find((item) => item.value === value) ?? ACTIONS[0]!
-}
-
-export function defaultConfigIfEmpty(value: string | undefined): string {
-  return value && value.trim() ? value : DEFAULT_CONFIG_TEXT
 }

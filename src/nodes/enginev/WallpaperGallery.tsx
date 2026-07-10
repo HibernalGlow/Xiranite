@@ -148,7 +148,7 @@ function WallpaperTile(props: {
   )
 }
 
-export function resolvePreviewPath(item: EngineVWallpaper): string {
+function resolvePreviewPath(item: EngineVWallpaper): string {
   const preview = item.preview.trim()
   if (!preview) return ""
   if (isRemoteUrl(preview)) return preview

@@ -114,7 +114,7 @@
 }
 
 :root[data-custom-theme="enabled"] .xiranite-node-surface :where(
-  button:not([data-slot="tabs-trigger"]),
+  button:not([data-slot="tabs-trigger"]):not([data-slot="switch"]),
   [role="button"],
   [data-slot="button"],
   [data-slot="select-trigger"],

@@ -205,7 +205,7 @@
 }
 
 :where(:root[data-theme-node-interior]) .xiranite-node-surface :where(
-  button,
+  button:not([data-slot="switch"]),
   [role="button"],
   input,
   textarea,
@@ -221,7 +221,7 @@
 }
 
 :where(:root[data-theme-node-interior]) .xiranite-node-surface :where(
-  button,
+  button:not([data-slot="switch"]),
   [role="button"]
 ):hover {
   background-color: var(--node-control-bg-hover);
@@ -241,7 +241,7 @@
 }
 
 :where(:root[data-theme-node-interior="dense-controls"]) .xiranite-node-surface :where(
-  button,
+  button:not([data-slot="switch"]),
   [role="button"],
   input,
   select

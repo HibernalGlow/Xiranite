@@ -9,7 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { buildTreeModel, FileTreePanel } from "./FileTreePanel"
+import { FileTreePanel } from "./FileTreePanel"
+import { buildTreeModel } from "./treeModel"
 import type { TrenameDisplayTab, TrenamePhase } from "./types"
 
 export function TrenameDisplayTabs(props: {

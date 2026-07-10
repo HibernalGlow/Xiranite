@@ -15,6 +15,8 @@ import type {
   WorkspaceItem,
 } from "@/types/workspace"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
+import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
+import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 
 export interface WSState {
   theme: AppTheme
@@ -59,6 +61,8 @@ export interface WSState {
   chromeIslandIdleOffset: number
   cardClickAction: CardClickAction
   cardDoubleClickAction: CardClickAction
+  tabDisplayStyle: TabDisplayStyle
+  switchDisplayStyle: SwitchDisplayStyle
 }
 
 export type ComponentPatch = {
@@ -110,6 +114,8 @@ export interface WorkspaceUiActions {
   setChromeIslandIdleOffset(offset: number): void
   setCardClickAction(action: CardClickAction): void
   setCardDoubleClickAction(action: CardClickAction): void
+  setTabDisplayStyle(style: TabDisplayStyle): void
+  setSwitchDisplayStyle(style: SwitchDisplayStyle): void
 }
 
 export interface WorkspaceListActions {
@@ -215,6 +221,8 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeIslandIdleOffset"
   | "cardClickAction"
   | "cardDoubleClickAction"
+  | "tabDisplayStyle"
+  | "switchDisplayStyle"
 >
 
 export type SetWorkspaceStore = (

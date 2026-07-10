@@ -1,14 +1,4 @@
 @import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=LXGW+WenKai+Screen&display=swap");
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "./styles/themes/index.css";
-
-/* 扫描 ocean-dataview-vite 包内的 class 名，否则其内部 Tailwind class 不会被生成 */
-/* 包通过 git submodule 引入到 vendor/ocean-dataview，src 相对路径为 ./vendor/ocean-dataview/src */
-@source "./vendor/ocean-dataview/src";
-
-/* 扫描 @blocknote/shadcn 内的 class 名 */
-@source "../node_modules/@blocknote/shadcn";
 
 /* 隐藏 tldraw 未授权水印（个人项目用途） */
 [data-testid^="tl-watermark"] {
@@ -41,101 +31,28 @@
   --bn-colors-side-menu: var(--muted-foreground);
 }
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  /* workspace tokens */
-  --color-ws-canvas: var(--ws-canvas);
-  --color-ws-grid: var(--ws-grid-color);
-  --font-mono: var(--font-app-sans);
-  --font-sans: var(--font-app-sans);
-
-  /* ocean badge 扩展色 — 与 ocean-dataview 内部 bg-badge-*-subtle 等类对齐 */
-  --color-badge-gray: var(--badge-gray);
-  --color-badge-gray-foreground: var(--badge-gray-foreground);
-  --color-badge-gray-subtle: var(--badge-gray-subtle);
-  --color-badge-gray-subtle-foreground: var(--badge-gray-subtle-foreground);
-  --color-badge-blue: var(--badge-blue);
-  --color-badge-blue-foreground: var(--badge-blue-foreground);
-  --color-badge-blue-subtle: var(--badge-blue-subtle);
-  --color-badge-blue-subtle-foreground: var(--badge-blue-subtle-foreground);
-  --color-badge-purple: var(--badge-purple);
-  --color-badge-purple-foreground: var(--badge-purple-foreground);
-  --color-badge-purple-subtle: var(--badge-purple-subtle);
-  --color-badge-purple-subtle-foreground: var(--badge-purple-subtle-foreground);
-  --color-badge-yellow: var(--badge-yellow);
-  --color-badge-yellow-foreground: var(--badge-yellow-foreground);
-  --color-badge-yellow-subtle: var(--badge-yellow-subtle);
-  --color-badge-yellow-subtle-foreground: var(--badge-yellow-subtle-foreground);
-  --color-badge-orange: var(--badge-orange);
-  --color-badge-orange-foreground: var(--badge-orange-foreground);
-  --color-badge-orange-subtle: var(--badge-orange-subtle);
-  --color-badge-orange-subtle-foreground: var(--badge-orange-subtle-foreground);
-  --color-badge-red: var(--badge-red);
-  --color-badge-red-foreground: var(--badge-red-foreground);
-  --color-badge-red-subtle: var(--badge-red-subtle);
-  --color-badge-red-subtle-foreground: var(--badge-red-subtle-foreground);
-  --color-badge-pink: var(--badge-pink);
-  --color-badge-pink-foreground: var(--badge-pink-foreground);
-  --color-badge-pink-subtle: var(--badge-pink-subtle);
-  --color-badge-pink-subtle-foreground: var(--badge-pink-subtle-foreground);
-  --color-badge-green: var(--badge-green);
-  --color-badge-green-foreground: var(--badge-green-foreground);
-  --color-badge-green-subtle: var(--badge-green-subtle);
-  --color-badge-green-subtle-foreground: var(--badge-green-subtle-foreground);
-  --color-badge-teal: var(--badge-teal);
-  --color-badge-teal-foreground: var(--badge-teal-foreground);
-  --color-badge-teal-subtle: var(--badge-teal-subtle);
-  --color-badge-teal-subtle-foreground: var(--badge-teal-subtle-foreground);
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--background, #141414);
+  color: var(--foreground, #f5f5f5);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: var(--font-app-sans);
-  }
-  code, pre, kbd, samp {
-    font-family: var(--font-app-mono);
-  }
+* {
+  border-color: var(--border);
+}
+
+body {
+  font-family: var(--font-app-sans);
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-app-mono);
 }
 
 :root[data-custom-font="enabled"] body {
@@ -638,3 +555,183 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* Shared Tabs display preference. The Radix structure stays unchanged; this
+   only switches its visual treatment through the workspace appearance setting. */
+:root[data-tabs-style] [data-slot="tabs-list"] {
+  isolation: isolate;
+}
+
+/* The upstream Radix line variant uses a trigger pseudo-element. A global
+   display preference must suppress that local decoration for every non-line
+   treatment, otherwise an underline leaks below surface, pill, boxed, and
+   quiet tabs. */
+:root[data-tabs-style="surface"] [data-slot="tabs-trigger"]::after,
+:root[data-tabs-style="pill"] [data-slot="tabs-trigger"]::after,
+:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"]::after,
+:root[data-tabs-style="quiet"] [data-slot="tabs-trigger"]::after {
+  display: none !important;
+}
+
+:root[data-tabs-style="surface"] [data-slot="tabs-list"] {
+  gap: 0 !important;
+  border: 0 !important;
+  border-radius: var(--radius-lg) !important;
+  background: var(--muted) !important;
+  padding: 3px !important;
+}
+
+:root[data-tabs-style="surface"] [data-slot="tabs-trigger"] {
+  border-radius: calc(var(--radius-lg) - 3px) !important;
+}
+
+:root[data-tabs-style="surface"] [data-slot="tabs-trigger"][data-state="active"] {
+  background: var(--background) !important;
+  box-shadow: var(--shadow-xs, 0 1px 2px oklch(0 0 0 / 0.08)) !important;
+}
+
+:root[data-tabs-style="underline"] [data-slot="tabs-list"] {
+  height: auto !important;
+  gap: 0.25rem !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+:root[data-tabs-style="underline"] [data-slot="tabs-trigger"] {
+  height: 2.25rem !important;
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0.75rem !important;
+}
+
+:root[data-tabs-style="underline"] [data-slot="tabs-trigger"][data-state="active"] {
+  border-bottom-color: var(--primary) !important;
+  color: var(--foreground) !important;
+}
+
+:root[data-tabs-style="pill"] [data-slot="tabs-list"] {
+  height: auto !important;
+  gap: 0.25rem !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  background: color-mix(in oklch, var(--muted) 82%, transparent) !important;
+  padding: 0.25rem !important;
+}
+
+:root[data-tabs-style="pill"] [data-slot="tabs-trigger"] {
+  height: 2rem !important;
+  border: 0 !important;
+  border-radius: 9999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0.875rem !important;
+}
+
+:root[data-tabs-style="pill"] [data-slot="tabs-trigger"][data-state="active"] {
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  box-shadow: var(--shadow-xs, 0 1px 2px oklch(0 0 0 / 0.08)) !important;
+}
+
+:root[data-tabs-style="boxed"] [data-slot="tabs-list"] {
+  height: auto !important;
+  gap: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"] {
+  height: 2.125rem !important;
+  border: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0.75rem !important;
+}
+
+:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"]:last-child {
+  border-right: 0 !important;
+}
+
+:root[data-tabs-style="boxed"] [data-slot="tabs-trigger"][data-state="active"] {
+  background: color-mix(in oklch, var(--primary) 11%, transparent) !important;
+  color: var(--foreground) !important;
+}
+
+:root[data-tabs-style="quiet"] [data-slot="tabs-list"] {
+  height: auto !important;
+  gap: 0.5rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+:root[data-tabs-style="quiet"] [data-slot="tabs-trigger"] {
+  height: 2rem !important;
+  border: 0 !important;
+  border-radius: var(--radius-sm) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0.5rem !important;
+}
+
+:root[data-tabs-style="quiet"] [data-slot="tabs-trigger"][data-state="active"] {
+  color: var(--primary) !important;
+  font-weight: 600 !important;
+}
+
+:root[data-tabs-style] [data-slot="tabs"][data-orientation="vertical"] [data-slot="tabs-list"] {
+  border-bottom: 0 !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+:root[data-tabs-style] [data-slot="tabs"][data-orientation="vertical"] [data-slot="tabs-trigger"] {
+  border-right: 2px solid transparent !important;
+  border-bottom: 0 !important;
+}
+
+:root[data-tabs-style] [data-slot="tabs"][data-orientation="vertical"] [data-slot="tabs-trigger"][data-state="active"] {
+  border-right-color: var(--primary) !important;
+}
+
+/* Shared Switch display preference. This augments the upstream Radix-backed
+   shadcn component instead of replacing its control or accessibility model. */
+:root[data-switch-style="outlined"] [data-slot="switch"][data-state="unchecked"] {
+  border-color: var(--muted-foreground) !important;
+  background: var(--background) !important;
+}
+
+:root[data-switch-style="outlined"] [data-slot="switch"][data-state="unchecked"] [data-slot="switch-thumb"] {
+  background: var(--muted-foreground) !important;
+  opacity: 0.8;
+}
+
+:root[data-switch-style="filled"] [data-slot="switch"][data-state="unchecked"] {
+  border-color: var(--input) !important;
+  background: var(--muted) !important;
+}
+
+:root[data-switch-style="filled"] [data-slot="switch"][data-state="unchecked"] [data-slot="switch-thumb"] {
+  background: var(--background) !important;
+}
+
+:root[data-switch-style="minimal"] [data-slot="switch"][data-state="unchecked"] {
+  border-color: var(--border) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-switch-style="minimal"] [data-slot="switch"][data-state="unchecked"] [data-slot="switch-thumb"] {
+  background: var(--muted-foreground) !important;
+  opacity: 0.7;
+}

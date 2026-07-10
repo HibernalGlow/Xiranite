@@ -297,7 +297,7 @@
   letter-spacing: 0.035em;
 }
 
-.theme-wuling .xiranite-node-surface .rounded-full:not([data-slot="progress"]):not([data-slot="progress-indicator"]) {
+.theme-wuling .xiranite-node-surface .rounded-full:not([data-slot="progress"]):not([data-slot="progress-indicator"]):not([data-slot="switch"]):not([data-slot="switch-thumb"]) {
   border-radius: 4px;
 }
 

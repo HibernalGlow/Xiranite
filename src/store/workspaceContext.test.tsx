@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceContext"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceStore"
 
 afterEach(() => {
   cleanup()
@@ -38,6 +38,8 @@ describe("workspace UI preference persistence", () => {
     expect(persisted.state?.bgMode).toBe("image")
     expect(persisted.state?.bgImageUrl).toBe("D:/Images/background.jpg")
     expect(persisted.state?.bgOpacity).toBe(55)
+    expect(persisted.state?.tabDisplayStyle).toBe("boxed")
+    expect(persisted.state?.switchDisplayStyle).toBe("filled")
     expect(persisted.state?.workspaces).toBeUndefined()
     expect(persisted.state?.components).toBeUndefined()
     expect(localStorage.getItem("xiranite-bg-mode")).toBeNull()
@@ -68,7 +70,7 @@ describe("workspace UI preference persistence", () => {
     await user.click(screen.getByRole("button", { name: "set user overrides then switch preset" }))
 
     await waitFor(() => {
-      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117")
+      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117/underline/outlined")
     })
   })
 })
@@ -84,12 +86,14 @@ function WorkspacePreferenceProbe() {
     chromePosition: state.chromePosition,
     chromeStyle: state.chromeStyle,
     chromeIslandScale: state.chromeIslandScale,
+    tabDisplayStyle: state.tabDisplayStyle,
+    switchDisplayStyle: state.switchDisplayStyle,
   }))
   const workspaceActions = useWorkspaceActions()
 
   return (
     <div>
-      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}`}</output>
+      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}/${prefs.tabDisplayStyle}/${prefs.switchDisplayStyle}`}</output>
       <button
         type="button"
         onClick={() => {
@@ -108,6 +112,8 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setBgMode("image")
           workspaceActions.setBgImageUrl("D:/Images/background.jpg")
           workspaceActions.setBgOpacity(55)
+          workspaceActions.setTabDisplayStyle("boxed")
+          workspaceActions.setSwitchDisplayStyle("filled")
         }}
       >
         set persisted prefs
@@ -151,6 +157,8 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setChromePosition("right")
           workspaceActions.setChromeStyle("default")
           workspaceActions.setChromeIslandScale(90)
+          workspaceActions.setTabDisplayStyle("underline")
+          workspaceActions.setSwitchDisplayStyle("outlined")
         }}
       >
         reset persisted prefs

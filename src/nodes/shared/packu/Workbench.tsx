@@ -447,12 +447,12 @@ function HeaderLine({ actionMeta, nodeTitle, status, subtitle }: {
   )
 }
 
-export function clean(value: unknown): string | undefined {
+function clean(value: unknown): string | undefined {
   const text = String(value ?? "").trim()
   return text || undefined
 }
 
-export function buildInput(action: PackuToolAction, data: PackuCardState, spec: PackuToolSpec): PackuToolInput {
+function buildInput(action: PackuToolAction, data: PackuCardState, spec: PackuToolSpec): PackuToolInput {
   const pathsText = clean(data.pathsText)
   const argsText = clean(data.argsText)
   return {

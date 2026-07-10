@@ -1,23 +1,20 @@
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, DatabaseZap, Eye, Info, Languages, Settings2 } from "lucide-react"
+import type { TransqQueueItem, TransqQueueStatus } from "@xiranite/node-transq/core"
+import { Clipboard, Copy, FileCheck2, FileClock, FileWarning, FolderOutput, Languages, RotateCcw } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Progress } from "@/components/ui/progress"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { ACTIONS, type TransqAction } from "./constants"
-import type { TransqCardState, TransqStatusMeta } from "./types"
+import type { TransqCardState } from "./types"
+
+type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 
 export function ActionIconButton(props: {
-  active?: boolean
-  destructive?: boolean
   disabled?: boolean
   icon: LucideIcon
   label: string
@@ -27,13 +24,7 @@ export function ActionIconButton(props: {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          aria-label={props.label}
-          disabled={props.disabled}
-          size="icon-sm"
-          variant={props.destructive ? "destructive" : props.active ? "secondary" : "outline"}
-          onClick={props.onClick}
-        >
+        <Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant="outline" onClick={props.onClick}>
           <Icon />
           <span className="sr-only">{props.label}</span>
         </Button>
@@ -43,317 +34,143 @@ export function ActionIconButton(props: {
   )
 }
 
-export function ActionPicker(props: {
-  action: TransqAction
-  disabled?: boolean
-  triggerClassName?: string
-  onActionChange: (action: TransqAction) => void
-}) {
-  return (
-    <ToggleGroup
-      aria-label="transq action"
-      className={cn("grid w-full grid-cols-3", props.triggerClassName)}
-      disabled={props.disabled}
-      size="sm"
-      type="single"
-      value={props.action}
-      variant="outline"
-      onValueChange={(value) => {
-        if (value) props.onActionChange(value as TransqAction)
-      }}
-    >
-      {ACTIONS.map((item) => (
-        <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
-          <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
-}
-
 export function PathsInput(props: {
   compact?: boolean
   data: TransqCardState
   disabled?: boolean
+  t: Translate
+  onClear: () => void
   onPaste: () => void
   onPatch: (patch: Partial<TransqCardState>) => void
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <Field className="min-h-0 min-w-0 gap-1.5">
       {!props.compact && (
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="transq-paths" className="flex items-center gap-1.5">
-            <Languages className="size-3.5 text-muted-foreground" />
-            翻译文件路径
-          </Label>
-        </div>
+        <FieldTitle className="text-sm">{props.t("input.title", "Translation workspace queue")}</FieldTitle>
       )}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        {props.compact ? (
-          <Input
-            id="transq-paths"
-            aria-label="transq 翻译文件路径"
-            disabled={props.disabled}
-            className="font-mono text-xs"
-            placeholder="每行一个翻译文件路径"
-            value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
-          />
-        ) : (
-          <Textarea
-            id="transq-paths"
-            aria-label="transq 翻译文件路径"
-            disabled={props.disabled}
-            className="min-h-20 font-mono text-xs"
-            placeholder={"每行一个翻译文件路径，例如：\nD:/Trans/projects/a.json\nD:/Trans/projects/b.json"}
-            value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
-          />
-        )}
-        <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+      <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+        <Textarea
+          id="transq-paths"
+          aria-label={props.t("aria.paths", "transq translation workspaces")}
+          className={cn("resize-none font-mono text-xs", props.compact ? "h-14" : "min-h-24")}
+          disabled={props.disabled}
+          placeholder={props.t("input.placeholder", "One root path per line\nD:/translation/project")}
+          value={props.data.pathsText ?? ""}
+          onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+        />
+        <div className="grid content-start gap-1.5">
+          <ActionIconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.pastePaths", "Paste paths")} onClick={props.onPaste} />
+          <ActionIconButton disabled={props.disabled || !props.data.pathsText} icon={RotateCcw} label={props.t("actions.clearPaths", "Clear paths")} onClick={props.onClear} />
+        </div>
       </div>
-    </div>
+      {!props.compact && <FieldDescription>{props.t("input.description", "Scans original_images/manga_translator_work/result folders beneath each root.")}</FieldDescription>}
+    </Field>
   )
 }
 
-export function PathFields(props: {
-  data: TransqCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<TransqCardState>) => void
-}) {
-  return (
-    <div className="grid gap-2 @3xl/transq:grid-cols-2">
-      <Input
-        aria-label="transq 配置文件"
-        disabled={props.disabled}
-        placeholder="配置文件，可选"
-        value={props.data.configPath ?? ""}
-        onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="transq 运行记录 JSONL"
-        disabled={props.disabled}
-        placeholder=".xiranite/transq-runs.jsonl"
-        value={props.data.databasePath ?? ""}
-        onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="transq 额外参数"
-        disabled={props.disabled}
-        placeholder="额外参数，空格分隔"
-        value={props.data.argsText ?? ""}
-        onChange={(event) => props.onPatch({ argsText: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="transq Python 可执行文件"
-        disabled={props.disabled}
-        placeholder="python，可留空"
-        value={props.data.python ?? ""}
-        onChange={(event) => props.onPatch({ python: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="transq 源码目录"
-        disabled={props.disabled}
-        placeholder="源码目录，可留空"
-        value={props.data.sourceRoot ?? ""}
-        onChange={(event) => props.onPatch({ sourceRoot: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="transq 模块名"
-        disabled={props.disabled}
-        placeholder="模块名，可留空"
-        value={props.data.moduleName ?? ""}
-        onChange={(event) => props.onPatch({ moduleName: event.currentTarget.value })}
-      />
-    </div>
-  )
-}
-
-export function RuntimeOptions(props: {
-  data: TransqCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<TransqCardState>) => void
-}) {
-  return (
-    <div className="grid gap-2 @3xl/transq:grid-cols-2">
-      <SwitchRow
-        checked={props.data.dryRun ?? true}
-        disabled={props.disabled}
-        icon={Eye}
-        label="预演"
-        description="只生成命令计划，不真正调用 Python 模块。"
-        onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
-      />
-      <SwitchRow
-        checked={props.data.recordRun ?? false}
-        disabled={props.disabled}
-        icon={DatabaseZap}
-        label="记录运行"
-        description="把运行结果写入 JSONL。"
-        onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
-      />
-    </div>
-  )
-}
-
-export function OptionsPopover(props: {
-  data: TransqCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<TransqCardState>) => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label="transq 运行选项" disabled={props.disabled} size="icon-sm" variant="outline">
-              <Settings2 />
-              <span className="sr-only">运行选项</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>运行选项</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-[min(92vw,460px)]">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">运行选项</div>
-          <p className="text-xs text-muted-foreground">配置文件、记录路径、Python、源码目录和预演开关集中在这里。</p>
-        </div>
-        <div className="grid gap-3">
-          <PathFields {...props} />
-          <RuntimeOptions {...props} />
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-export function ConfigDefaultsPopover(props: {
-  configDirty: boolean
-  configFilePath?: string
-  defaults?: Partial<TransqCardState>
-  disabled?: boolean
-  onOpenConfigFile?: () => Promise<void> | void
-  onResetOverride: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label="transq 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
-              <DatabaseZap />
-              <span className="sr-only">默认配置</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 TransQ 的路径和运行选项。</p>
-        </div>
-        <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
-          <Separator />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>TransQ 配置</DialogTitle>
-                <DialogDescription>当前 nodes.transq 默认值和配置文件位置。</DialogDescription>
-              </DialogHeader>
-              <ConfigPreview config={props.defaults} path={props.configFilePath} />
-            </DialogContent>
-          </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-export function StatusStrip(props: {
+export function QueueBoard(props: {
   compact?: boolean
-  progress: number
-  status: TransqStatusMeta
-  text?: string
+  items: TransqQueueItem[]
+  t: Translate
 }) {
+  const lanes: Array<{ status: TransqQueueStatus; title: string; icon: LucideIcon }> = [
+    { status: "pending", title: props.t("lanes.pending", "Needs copy"), icon: FileClock },
+    { status: "ready", title: props.t("lanes.ready", "Ready"), icon: FileCheck2 },
+    { status: "output", title: props.t("lanes.output", "Output"), icon: FolderOutput },
+    { status: "conflict", title: props.t("lanes.conflict", "Conflict"), icon: FileWarning },
+  ]
+  const missing = props.items.filter((item) => item.status === "missing")
+  const conflictItems = props.items.filter((item) => item.status === "conflict").concat(missing)
+
   return (
-    <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
-      <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
-        <div className="truncate text-xs font-medium">{props.text || props.status.description}</div>
-      </div>
-      <Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} />
-    </div>
+    <section data-testid="transq-queue-board" className={cn("grid min-h-0 gap-2", props.compact ? "grid-cols-2" : "grid-cols-2 @4xl/transq:grid-cols-4")}>
+      {lanes.map((lane) => {
+        const items = lane.status === "conflict" ? conflictItems : props.items.filter((item) => item.status === lane.status)
+        return <QueueLane key={lane.status} compact={props.compact} icon={lane.icon} items={items} title={lane.title} t={props.t} tone={lane.status} />
+      })}
+    </section>
   )
 }
 
-export function SwitchRow(props: {
-  checked: boolean
-  description?: string
-  disabled?: boolean
-  icon?: LucideIcon
-  label: string
-  onCheckedChange: (checked: boolean) => void
+function QueueLane(props: {
+  compact?: boolean
+  icon: LucideIcon
+  items: TransqQueueItem[]
+  title: string
+  tone: TransqQueueStatus
+  t: Translate
 }) {
   const Icon = props.icon
   return (
-    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-background/60 p-2">
-      <label className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
-          <span className="truncate text-xs font-medium">{props.label}</span>
-        </span>
-        <Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
-      </label>
-      {props.description && <InfoHint label={props.label} description={props.description} />}
-    </div>
-  )
-}
-
-function ConfigPreview(props: {
-  config?: Partial<TransqCardState>
-  path?: string
-}) {
-  const content = props.config === undefined
-    ? "# nodes.transq 暂无默认配置\n"
-    : JSON.stringify(props.config, null, 2)
-  return (
-    <div className="grid gap-3">
-      <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+    <section className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card", props.tone === "conflict" && "border-destructive/50")}>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-2.5 py-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
+          <Icon className={cn("shrink-0 text-muted-foreground", props.tone === "conflict" && "text-destructive")} />
+          <span className="truncate">{props.title}</span>
+        </div>
+        <Badge variant={props.tone === "conflict" ? "destructive" : props.tone === "output" ? "default" : "outline"}>{props.items.length}</Badge>
       </div>
-      <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
-        {content}
-      </pre>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.items.length ? (
+          <div className="grid gap-1.5 p-2">
+            {props.items.map((item) => <QueueCard key={item.id} compact={props.compact} item={item} t={props.t} />)}
+          </div>
+        ) : (
+          <div className="flex min-h-24 items-center justify-center p-3 text-center text-xs text-muted-foreground">
+            {props.t("lanes.empty", "No queue items")}
+          </div>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
+function QueueCard(props: { compact?: boolean; item: TransqQueueItem; t: Translate }) {
+  const issueCount = props.item.errors.length + props.item.missingFiles.length
+  return (
+    <div className={cn("grid gap-1 rounded-md border px-2 py-1.5", props.item.status === "conflict" || props.item.status === "missing" ? "border-destructive/40" : "bg-muted/25")}>
+      <div className="truncate text-xs font-medium" title={props.item.originalImagesPath}>{baseName(props.item.originalImagesPath)}</div>
+      <div className="grid grid-cols-2 gap-1 text-[11px] text-muted-foreground">
+        <span>{props.t("item.original", "Original")} {props.item.originalCount}</span>
+        <span>{props.t("item.result", "Result")} {props.item.resultCount}</span>
+      </div>
+      {props.item.missingFiles.length > 0 && <div className="truncate text-[11px] text-muted-foreground">{props.t("item.copy", "Copy")} {props.item.missingFiles.length}</div>}
+      {issueCount > 0 && <div className="truncate text-[11px] text-destructive">{props.item.errors[0] ?? props.t("item.missing", "Missing mapped files")}</div>}
+      {!props.compact && <div className="truncate font-mono text-[10px] text-muted-foreground">{props.item.outputPath}</div>}
     </div>
   )
 }
 
-function InfoHint({ description, label }: { description: string; label: string }) {
+export function QueueEmptyState({ t }: { t: Translate }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          aria-label={`${label}说明`}
-          className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-          role="img"
-          tabIndex={0}
-        >
-          <Info className="size-3.5" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{description}</TooltipContent>
-    </Tooltip>
+    <Empty className="min-h-48 border-0 p-4">
+      <EmptyHeader>
+        <EmptyMedia variant="icon"><Languages /></EmptyMedia>
+        <EmptyTitle className="text-sm">{t("empty.title", "Awaiting translation queues")}</EmptyTitle>
+        <EmptyDescription className="text-xs">{t("empty.description", "Add a workspace path, then preview its result queues.")}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
+}
+
+export function LogStrip(props: { logs: string[]; t: Translate; onCopy: () => void }) {
+  if (!props.logs.length) return null
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1.5">
+      <ScrollArea className="min-w-0 flex-1">
+        <div className="flex gap-3 font-mono text-[11px] text-muted-foreground">
+          {props.logs.slice(-4).map((line, index) => <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>)}
+        </div>
+      </ScrollArea>
+      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
+        <Copy data-icon="inline-start" />
+        {props.t("actions.copyLogs", "Copy logs")}
+      </Button>
+    </div>
+  )
+}
+
+function baseName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
 }

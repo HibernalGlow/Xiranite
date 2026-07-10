@@ -1,5 +1,5 @@
 import { useCallback } from "react"
-import { useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceContext"
+import { useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceStore"
 
 /**
  * useComponentData — 让模块把状态持久化到 store 的 comp.data。

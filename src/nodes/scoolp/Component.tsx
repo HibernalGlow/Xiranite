@@ -13,7 +13,6 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
-  ActionMeta,
   ActionPicker,
   AdvancedOptionsPopover,
   ConfigDefaultsPopover,
@@ -21,8 +20,8 @@ import {
   PathFields,
   PrimarySwitches,
   StatusStrip,
-  defaultConfigIfEmpty,
 } from "./controls"
+import { defaultConfigIfEmpty, getActionMeta } from "./utils"
 import type { ScoolpCardState, ScoolpStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -42,7 +41,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const result = data.result ?? null
   const progress = data.progress ?? 0
   const action = data.action ?? "status"
-  const actionMeta = ActionMeta(action)
+  const actionMeta = getActionMeta(action)
   const dryRun = data.dryRun ?? true
   const packagesArray = useMemo(() => splitPackages(data.packages), [data.packages])
   const status = statusFromState(data, running)
@@ -104,7 +103,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   async function execute(nextAction: ScoolpAction) {
     if (running) return
-    const nextActionMeta = ActionMeta(nextAction)
+    const nextActionMeta = getActionMeta(nextAction)
 
     if ((nextAction === "sync" || nextAction === "show_config") && dataRef.current.configText?.trim()) {
       try {
