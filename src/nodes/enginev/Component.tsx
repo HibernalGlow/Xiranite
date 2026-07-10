@@ -7,17 +7,15 @@ import type {
   EngineVResult,
 } from "@xiranite/node-enginev/core"
 import { filterWallpapers } from "@xiranite/node-enginev/core"
-import { Copy, Eye, FolderInput, Image, Images, ListChecks, RotateCcw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react"
+import { Copy, Eye, Image, Images, ListChecks, RotateCcw, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { NodeSectionHeader } from "@/nodes/shared/NodeSectionHeader"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, CONFIG_FIELDS, UI_CONFIG_FIELDS } from "./constants"
 import {
@@ -27,13 +25,12 @@ import {
   FilterFields,
   FilterPopover,
   GallerySettingsPopover,
-  OptionsFields,
   OptionsPopover,
   PathInput,
   StatusStrip,
   SwitchRow,
 } from "./controls"
-import { ResultTabs, StatsPanel } from "./ResultPanels"
+import { ResultTabs } from "./ResultPanels"
 import type { EngineVCardState, EngineVNodeConfig, EngineVStatusMeta, EngineVUiConfig } from "./types"
 import { WallpaperGallery } from "./WallpaperGallery"
 
@@ -519,7 +516,7 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 @5xl/enginev:p-5">
       <div className="flex shrink-0 flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row @4xl/enginev:items-center">
           <HeaderLine
@@ -547,32 +544,22 @@ function FullView(props: ViewProps) {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/enginev:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
-        <ScrollArea className="min-h-0">
-          <div className="flex min-h-0 flex-col gap-3 pr-1">
-            <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <NodeSectionHeader
-                icon={FolderInput}
-                title={props.tNode("sections.input", "输入")}
-                description={props.tNode("sections.inputDesc", "工坊路径、执行动作和高频按钮固定在顶部，不被画廊和日志挤出视野。")}
-              />
-              <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-              <EngineExecutionBar {...props} />
-            </section>
-            <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <NodeSectionHeader icon={SlidersHorizontal} title={props.tNode("sections.filter", "筛选")} />
-              <FilterFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            </section>
-            <section className="flex shrink-0 flex-col gap-3 border-b pb-3">
-              <NodeSectionHeader icon={Settings2} title={props.tNode("sections.writeOptions", "写入选项")} />
-              <OptionsFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            </section>
-            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-            <StatsPanel result={props.result} selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} />
+      <section className="flex shrink-0 flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row">
+          <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+          <div className="flex shrink-0 items-center gap-1">
+            <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <ActionIconButton label={props.tNode("buttons.clearState", "清空状态")} icon={RotateCcw} disabled={props.running} onClick={props.onReset} />
           </div>
-        </ScrollArea>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">{props.tNode("sections.filter", "筛选")}</span>
+          <FilterFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        </div>
+      </section>
 
-        <Tabs defaultValue="gallery" className="flex min-h-0 flex-col">
+      <Tabs defaultValue="gallery" className="flex min-h-0 flex-1 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2">
             <TabsList variant="line">
               <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
@@ -586,7 +573,7 @@ function FullView(props: ViewProps) {
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <TabsContent value="gallery" className="min-h-0 flex-1">
+          <TabsContent value="gallery" className="min-h-0 flex-1 pt-2">
             <WallpaperGallery
               columns={props.data.galleryColumns}
               compact={props.data.galleryCompact}
@@ -599,10 +586,14 @@ function FullView(props: ViewProps) {
               onToggle={props.onToggleWallpaper}
             />
           </TabsContent>
-          <TabsContent value="results" className="min-h-0 flex-1">
+          <TabsContent value="results" className="min-h-0 flex-1 pt-2">
             <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
           </TabsContent>
-        </Tabs>
+      </Tabs>
+
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 px-3 py-2 shadow-sm @4xl/enginev:mx-auto @4xl/enginev:min-w-[30rem]">
+        <div className="flex items-center gap-2"><strong className="text-lg tabular-nums">{props.selectedIds.length}</strong><span className="text-xs text-muted-foreground">{props.tNode("summary.selected", "已选中")}</span></div>
+        <div className="flex items-center gap-1"><EngineWorkflowTabs action={props.action} disabled={props.running} onActionChange={props.onActionChange} /><Button size="sm" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}><props.actionMeta.icon data-icon="inline-start" />{props.tNode("buttons.run", "运行")} {props.actionMeta.shortLabel}</Button><ToolbarActions {...props} /></div>
       </div>
     </div>
   )

@@ -57,10 +57,9 @@ describe("app-owned enginev Component", () => {
         return
       }
 
-      expect(screen.getByText("输入")).toBeTruthy()
       expect(screen.getByText("筛选")).toBeTruthy()
-      expect(screen.getByText("写入选项")).toBeTruthy()
       expect(screen.getByRole("tab", { name: "画廊" })).toBeTruthy()
+      expect(screen.getByText("已选中")).toBeTruthy()
       expect(screen.getByTestId("enginev-header-toolbar")).toBeTruthy()
     },
   )
