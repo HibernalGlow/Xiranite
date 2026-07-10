@@ -357,14 +357,25 @@ function TimestampRows(props: { plan: Array<TimeuPlanItem | { path: string; oper
           const current = "current" in item ? item.current : undefined
           const stored = "stored" in item ? item.stored : undefined
           return (
-            <div key={`${item.path}:${index}`} className={cn("grid gap-1 rounded-md border px-2 py-1.5", item.status === "error" && "border-destructive/40", item.status === "skipped" && "opacity-75")}>
-              <div className="flex min-w-0 items-center gap-2"><Clock3 className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{baseName(item.path)}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{item.path}</div></div><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
-              {(current || stored) && <div className="grid gap-1 text-[11px] text-muted-foreground @md/timeu:grid-cols-2"><span className="truncate">当前 {current ? formatMs(current.mtimeMs) : "缺失"}</span><span className="truncate">记录 {stored ? formatMs(stored.mtimeMs) : "未写入"}</span></div>}
+            <div key={`${item.path}:${index}`} className={cn("grid gap-2 rounded-md border px-2 py-2", item.status === "error" && "border-destructive/40", item.status === "skipped" && "opacity-75")}>
+              <div className="flex min-w-0 items-center gap-2"><Clock3 className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{baseName(item.path)}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{item.path}</div></div><Badge variant={meta.variant} className="shrink-0 gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
+              {(current || stored) && <div className="grid gap-1.5 @md/timeu:grid-cols-2"><TimestampCell current={current?.atimeMs} label="访问时间" stored={stored?.atimeMs} /><TimestampCell current={current?.mtimeMs} label="修改时间" stored={stored?.mtimeMs} /></div>}
             </div>
           )
         })}
       </div>
     </ScrollArea>
+  )
+}
+
+function TimestampCell(props: { current?: number; label: string; stored?: number }) {
+  const drifted = props.current !== undefined && props.stored !== undefined && props.current !== props.stored
+  return (
+    <div className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-[11px]">
+      <div className="mb-1 flex items-center justify-between gap-2"><span className="text-muted-foreground">{props.label}</span>{drifted && <span className="text-destructive">有差异</span>}</div>
+      <div className="truncate font-mono text-foreground">现 {props.current === undefined ? "缺失" : formatMs(props.current)}</div>
+      <div className={cn("truncate font-mono", drifted ? "text-destructive" : "text-muted-foreground")}>档 {props.stored === undefined ? "未写入" : formatMs(props.stored)}</div>
+    </div>
   )
 }
 
