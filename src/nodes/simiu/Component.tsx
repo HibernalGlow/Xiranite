@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SimiuAction, SimiuData, SimiuInput } from "@xiranite/node-simiu/core"
 import { Images, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { RunningTint } from "@/nodes/shared/controls"
@@ -322,6 +324,71 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  if (!props.result) return <FullViewLegacy {...props} />
+
+  return (
+    <div data-testid="simiu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <div className="flex shrink-0 flex-col gap-3 @4xl/simiu:flex-row @4xl/simiu:items-center @4xl/simiu:justify-between">
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || `${props.result.groupCount} clusters / ${props.result.imageCount} images`} />
+        <div data-testid="simiu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+          <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
+          <ConfigDefaultsPopover
+            configDirty={props.configDirty}
+            configFilePath={props.configFilePath}
+            defaults={props.defaults}
+            disabled={props.running}
+            onOpenConfigFile={props.onOpenConfigFile}
+            onResetOverride={props.onResetOverride}
+            onRestoreDefault={props.onRestoreDefault}
+            onSaveDefault={props.onSaveDefault}
+          />
+        </div>
+        <SimiuStatsPanel result={props.result} />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/simiu:grid-cols-[minmax(190px,.7fr)_minmax(0,1.7fr)]">
+        <Card className="min-h-0 gap-0 overflow-auto py-0">
+          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5"><CardTitle className="text-sm">Scanning parameters</CardTitle><CardDescription className="text-[11px]">Source path, clustering rule, and run mode.</CardDescription></CardHeader>
+          <CardContent className="grid gap-3 p-3">
+            <RootsInput compact data={props.data} disabled={props.running} onPaste={props.onPasteRoots} onPatch={props.onPatch} />
+            <GroupFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+          </CardContent>
+        </Card>
+        <ClusterHub result={props.result} runAction={<RunActionButton props={props} />} />
+      </div>
+    </div>
+  )
+}
+
+function ClusterHub({ result, runAction }: { result: SimiuData; runAction: ReactNode }) {
+  return (
+    <Card className="min-h-0 gap-0 overflow-hidden py-0">
+      <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">Cluster hub</CardTitle><Badge>{result.groupCount} confirmed</Badge></div>
+        <CardDescription className="text-[11px]">Size and signature groups derived from the current image batches.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col p-3">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="grid gap-4">
+            {result.groups.map((group, index) => (
+              <section key={`${group.parentDir}:${group.name}`} className="grid gap-2 rounded-lg border bg-background/55 p-3">
+                <div className="flex min-w-0 items-center justify-between gap-2"><div className="min-w-0"><div className="truncate text-sm font-semibold">Cluster {String(index + 1).padStart(2, "0")}: {group.name}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{group.parentDir}</div></div><Badge variant="outline">{group.files.length} items</Badge></div>
+                <div className="grid grid-cols-2 gap-2 @4xl/simiu:grid-cols-3">
+                  {group.files.map((file) => <div key={file} className="min-w-0 rounded-md border border-dashed bg-muted/20 p-2"><div className="truncate font-mono text-xs" title={file}>{file.split(/[\\/]/).at(-1)}</div><div className="mt-1 truncate text-[10px] text-muted-foreground">planned → {group.name}</div></div>)}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t pt-3"><span className="text-xs text-muted-foreground">Selected items: {result.groups.reduce((sum, group) => sum + group.files.length, 0)}</span>{runAction}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function FullViewLegacy(props: ViewProps) {
   return (
     <div data-testid="simiu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/simiu:flex-row @4xl/simiu:items-center @4xl/simiu:justify-between">
