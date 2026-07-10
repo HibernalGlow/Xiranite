@@ -1,0 +1,45 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "plan",
+    "pathsText": "D:/Video/clip1.mp4\nD:/Video/clip2.mkv",
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "已生成 2 条音轨提取计划。",
+    "logs": [
+      "[plan] D:/Video/clip1.mp4 -> D:/Video/clip1.audio.m4a",
+      "[plan] D:/Video/clip2.mkv -> D:/Video/clip2.audio.m4a"
+    ],
+    "result": {
+      "command": {
+        "label": "提取 clip1.mp4 的 AAC 音轨",
+        "command": "ffmpeg",
+        "args": ["-i", "D:/Video/clip1.mp4", "-vn", "-c:a", "aac", "-b:a", "192k", "D:/Video/clip1.audio.m4a"],
+        "inputPath": "D:/Video/clip1.mp4",
+        "outputPath": "D:/Video/clip1.audio.m4a"
+      },
+      "commands": [
+        {
+          "label": "提取 clip1.mp4 的 AAC 音轨",
+          "command": "ffmpeg",
+          "args": ["-i", "D:/Video/clip1.mp4", "-vn", "-c:a", "aac", "-b:a", "192k", "D:/Video/clip1.audio.m4a"],
+          "inputPath": "D:/Video/clip1.mp4",
+          "outputPath": "D:/Video/clip1.audio.m4a"
+        },
+        {
+          "label": "提取 clip2.mkv 的 AAC 音轨",
+          "command": "ffmpeg",
+          "args": ["-i", "D:/Video/clip2.mkv", "-vn", "-c:a", "aac", "-b:a", "192k", "D:/Video/clip2.audio.m4a"],
+          "inputPath": "D:/Video/clip2.mkv",
+          "outputPath": "D:/Video/clip2.audio.m4a"
+        }
+      ],
+      "commandResults": [],
+      "selectedPaths": ["D:/Video/clip1.mp4", "D:/Video/clip2.mkv"],
+      "outputPaths": ["D:/Video/clip1.audio.m4a", "D:/Video/clip2.audio.m4a"],
+      "errors": [],
+      "ffmpegPath": "ffmpeg"
+    }
+  }
+}
