@@ -59,7 +59,7 @@ describe("app-owned repacku Component", () => {
           expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
           return
         }
-        expect(screen.getByRole("button", { name: "启动" })).toBeTruthy()
+        expect(screen.getByRole("button", { name: "启动 完整流程" })).toBeTruthy()
         expect(screen.queryByText("操作")).toBeNull()
         return
       }
@@ -82,7 +82,7 @@ describe("app-owned repacku Component", () => {
     expect(host.state.path).toBe("D:/library/book")
     view.rerender(<Component compId="comp-repacku" host={host} />)
 
-    await user.click(screen.getByRole("button", { name: "启动", exact: true }))
+    await user.click(screen.getByRole("button", { name: "启动 完整流程" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({
@@ -97,6 +97,21 @@ describe("app-owned repacku Component", () => {
     expect(host.state.progress).toBe(100)
     expect(host.state.result?.plannedCount).toBe(1)
     expect(host.state.logs).toContain("Compression plan complete: 1 operation(s).")
+  })
+
+  test("switches the visible workflow tab before executing that workflow", async () => {
+    surfaceState.mode = "compact"
+    const host = createHost({ path: "D:/library", dryRun: true })
+    const view = render(<Component compId="comp-repacku" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "分析" }))
+    expect(host.state.action).toBe("analyze")
+    view.rerender(<Component compId="comp-repacku" host={host} />)
+    expect(screen.getByRole("tab", { name: "分析" }).getAttribute("aria-selected")).toBe("true")
+
+    await user.click(screen.getByRole("button", { name: "启动 分析" }))
+    await waitFor(() => expect(host.runCalls[0]?.input.action).toBe("analyze"))
   })
 
   test("persists backend failures as visible node state", async () => {
@@ -139,20 +154,21 @@ describe("app-owned repacku Component", () => {
 
     expect(screen.getByTestId("repacku-portrait-surface")).toBeTruthy()
     expect(screen.getByTestId("repacku-portrait-results")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "启动" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "启动 完整流程" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "操作" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "目录树" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
   })
 
-  test("keeps primary actions beside configuration rather than duplicating them in the header", () => {
+  test("keeps the workflow tabs and execution button in the left work area", () => {
     surfaceState.mode = "expanded"
     render(<Component compId="comp-repacku" host={createHost({ path: "D:/library", action: "analyze" })} />)
 
     const toolbar = screen.getByTestId("repacku-header-toolbar")
 
     expect(toolbar.textContent).not.toContain("启动")
-    expect(screen.getByRole("combobox")).toBeTruthy()
+    expect(screen.getByRole("tablist", { name: "打包流程" })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "分析" }).getAttribute("aria-selected")).toBe("true")
     expect(screen.getByRole("button", { name: "启动 分析" })).toBeTruthy()
     expect(screen.getByText("打包配置")).toBeTruthy()
   })

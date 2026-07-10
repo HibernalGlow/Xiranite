@@ -9,7 +9,7 @@ import type {
 import { ArrowRight, Check, Copy, FileImage, FileText, Film, ListTodo, Package, Play, RotateCcw, Settings2, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,11 +22,11 @@ import { NodeRunHistoryPopover } from "@/nodes/shared/NodeRunHistoryPopover"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
-  ActionSelect,
   ConfigFilePanel,
   CompactOptionsPanel,
   OptionsPanel,
   PathInput,
+  RepackWorkflowTabs,
   StatusStrip,
 } from "./controls"
 import { FileTreePreview } from "./FileTreePreview"
@@ -311,25 +311,13 @@ function CompactView(props: {
   const ModeIcon = props.modeIcon
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
+      <div className="flex shrink-0 items-start gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || props.modeDescription} />
-        <div className="flex shrink-0 items-center gap-1">
-          <Button disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
-            <ModeIcon />
-            <span className="sr-only">快速启动</span>
-          </Button>
-        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex min-h-0 flex-col gap-2 px-3 pb-3">
           <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-            <ActionSelect action={props.action} disabled={props.running} triggerClassName="min-w-0" onActionChange={props.onActionChange} />
-            <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-              <ModeIcon data-icon="inline-start" />
-              启动
-            </Button>
-          </div>
+          <RepackExecutionBar action={props.action} data={props.data} disabled={props.running} modeIcon={ModeIcon} onActionChange={props.onActionChange} onExecute={props.onExecute} />
           {(props.status.tone === "running" || props.status.tone === "error") && (
             <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
           )}
@@ -371,23 +359,13 @@ function PortraitCompactView(props: {
   const ModeIcon = props.modeIcon
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2" data-testid="repacku-portrait-surface">
-      <div className="flex shrink-0 items-start justify-between gap-2">
+      <div className="flex shrink-0 items-start gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || props.modeDescription} />
-        <Button disabled={props.running} size="icon-sm" onClick={() => props.onExecute(props.action)}>
-          <ModeIcon />
-          <span className="sr-only">快速启动</span>
-        </Button>
       </div>
 
       <div className="grid shrink-0 gap-2">
         <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
-          <Button disabled={props.running} onClick={() => props.onExecute(props.action)}>
-            <ModeIcon data-icon="inline-start" />
-            启动
-          </Button>
-        </div>
+        <RepackExecutionBar action={props.action} data={props.data} disabled={props.running} modeIcon={ModeIcon} onActionChange={props.onActionChange} onExecute={props.onExecute} />
         <CompactOptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -478,8 +456,15 @@ function FullView(props: {
       </div>
 
       <WorkflowRail action={props.action} status={props.status} />
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
         <div className="flex min-h-0 flex-col gap-3">
+          <section className="grid shrink-0 gap-3 rounded-lg border bg-background/70 p-3">
+            <div className="flex min-w-0 flex-col gap-3 @3xl/repacku:flex-row @3xl/repacku:items-end">
+              <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+              <div className="min-w-44 shrink-0 text-xs text-muted-foreground">选择流程后立即执行；配置始终显示在右侧。</div>
+            </div>
+            <RepackExecutionBar action={props.action} data={props.data} disabled={props.running} onActionChange={props.onActionChange} onExecute={props.onExecute} />
+          </section>
           <FolderMatrix result={props.result} />
           <Tabs defaultValue="operations" className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-2">
@@ -502,7 +487,6 @@ function FullView(props: {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 overflow-auto">
             <div className="grid gap-4">
-              <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
               <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
               <ConfigFilePanel
                 configFilePath={props.configFilePath}
@@ -519,13 +503,30 @@ function FullView(props: {
               />
             </div>
           </CardContent>
-          <CardFooter className="grid shrink-0 gap-2 border-t pt-4">
-            <ActionSelect action={props.action} disabled={props.running} triggerClassName="w-full" onActionChange={props.onActionChange} />
-            <Button disabled={props.running} variant={props.data.deleteAfter && !(props.data.dryRun ?? true) ? "destructive" : "default"} onClick={() => props.onExecute(props.action)}><Play data-icon="inline-start" />启动 {ACTIONS.find((item) => item.value === props.action)?.label}</Button>
-          </CardFooter>
         </Card>
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
+    </div>
+  )
+}
+
+function RepackExecutionBar(props: {
+  action: RepackuAction
+  data: RepackuCardState
+  disabled: boolean
+  modeIcon?: typeof Play
+  onActionChange: (value: RepackuAction) => void
+  onExecute: (action?: RepackuAction) => void
+}) {
+  const action = ACTIONS.find((item) => item.value === props.action) ?? ACTIONS[1]!
+  const ModeIcon = props.modeIcon ?? action.icon
+  return (
+    <div className="flex min-w-0 flex-col gap-2 @3xl/repacku:flex-row @3xl/repacku:items-end">
+      <RepackWorkflowTabs action={props.action} className="min-w-0 flex-1" disabled={props.disabled} onActionChange={props.onActionChange} />
+      <Button disabled={props.disabled} variant={props.data.deleteAfter && !(props.data.dryRun ?? true) ? "destructive" : "default"} onClick={() => props.onExecute(props.action)}>
+        <ModeIcon data-icon="inline-start" />
+        启动 {action.label}
+      </Button>
     </div>
   )
 }
@@ -534,21 +535,18 @@ function WorkflowRail(props: { action: RepackuAction; status: RepackuStatusMeta 
   const currentIndex = props.action === "analyze" ? 0 : props.action === "full" ? 1 : props.action === "compress" ? 2 : 3
   const steps = ["分析", "配置", "打包", "核验"]
   return (
-    <Card className="shrink-0">
-      <CardContent className="grid grid-cols-4 gap-2 py-3">
+    <div className="flex w-fit max-w-full shrink-0 items-center gap-3 overflow-x-auto rounded-md border bg-background/60 px-3 py-1.5" aria-label="打包进度">
         {steps.map((label, index) => {
           const active = index === currentIndex
           const complete = index < currentIndex || (props.status.tone === "success" && index <= currentIndex)
           return (
-            <div key={label} className="flex min-w-0 items-center gap-2">
-              <Badge variant={active ? "default" : complete ? "secondary" : "outline"}>{complete ? <Check /> : index + 1}</Badge>
-              <span className={cn("truncate text-xs font-medium", active && "text-primary")}>{label}</span>
-              {index < steps.length - 1 && <ArrowRight className="ml-auto shrink-0 text-muted-foreground" />}
+            <div key={label} className="flex shrink-0 items-center gap-1.5">
+              <Badge className="size-5 justify-center p-0" variant={active ? "default" : complete ? "secondary" : "outline"}>{complete ? <Check /> : index + 1}</Badge>
+              <span className={cn("text-xs font-medium", active && "text-primary")}>{label}</span>
             </div>
           )
         })}
-      </CardContent>
-    </Card>
+    </div>
   )
 }
 

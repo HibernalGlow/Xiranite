@@ -8,8 +8,8 @@ import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTit
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ACTIONS } from "./constants"
@@ -49,25 +49,22 @@ export function PathInput({ compact = false, data, disabled, id = "repacku-path"
   )
 }
 
-export function ActionSelect({ action, disabled, triggerClassName, onActionChange }: {
+export function RepackWorkflowTabs({ action, disabled, className, onActionChange }: {
   action: RepackuAction
   disabled: boolean
-  triggerClassName?: string
+  className?: string
   onActionChange: (value: RepackuAction) => void
 }) {
   return (
-    <Select disabled={disabled} value={action} onValueChange={(value) => onActionChange(value as RepackuAction)}>
-      <SelectTrigger className={cn("min-w-32", triggerClassName)}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {ACTIONS.map((item) => (
-            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+    <Tabs className={cn("min-w-0", className)} value={action} onValueChange={(value) => onActionChange(value as RepackuAction)}>
+      <TabsList aria-label="打包流程" variant="line" className="flex w-full justify-start overflow-x-auto">
+        {ACTIONS.map((item) => (
+          <TabsTrigger key={item.value} disabled={disabled} value={item.value} className="shrink-0">
+            {item.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }
 
