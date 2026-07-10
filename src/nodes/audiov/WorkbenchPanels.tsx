@@ -1,4 +1,4 @@
-import type { CommandResult, PackuCommandPlan, PackuToolData } from "@xiranite/packu-node-runtime/core"
+import type { AudiovCommandPlan, AudiovData } from "@xiranite/node-audiov/core"
 import { Clipboard, Copy, FileVideo, ScrollText, Terminal, Volume2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,9 +8,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import type { AudiovCardState } from "./types"
 
+type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
+
 export function PathsColumn(props: {
   data: AudiovCardState
   disabled?: boolean
+  t: Translate
   onPaste: () => void
   onPatch: (patch: Partial<AudiovCardState>) => void
 }) {
@@ -19,24 +22,24 @@ export function PathsColumn(props: {
       <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <FileVideo className="size-3.5" />
-          <span>视频路径</span>
+          <span>{props.t("paths.title", "视频路径")}</span>
         </div>
-        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">每行一条</span>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/70">{props.t("paths.onePerLine", "每行一条")}</span>
       </div>
       <Separator className="shrink-0" />
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">
         <Textarea
           id="audiov-paths"
-          aria-label="audiov 视频路径"
+          aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
           disabled={props.disabled}
           className="min-h-0 flex-1 resize-none font-mono text-xs leading-5"
-          placeholder={"粘贴视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv"}
+          placeholder={props.t("paths.placeholder", "粘贴视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv")}
           value={props.data.pathsText ?? ""}
           onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
         />
         <Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onPaste}>
           <Clipboard data-icon="inline-start" />
-          粘贴路径
+          {props.t("buttons.pastePaths", "粘贴路径")}
         </Button>
       </div>
     </section>
@@ -45,12 +48,13 @@ export function PathsColumn(props: {
 
 export function CommandPreview(props: {
   compact?: boolean
-  result: PackuToolData | null
+  result: AudiovData | null
   running?: boolean
+  t: Translate
   onCopy: () => void
 }) {
-  const command: PackuCommandPlan | undefined = props.result?.command
-  const commandResult: CommandResult | undefined = props.result?.commandResult
+  const command: AudiovCommandPlan | undefined = props.result?.command
+  const commandResult = props.result?.commandResults.find((result) => result.code !== 0) ?? props.result?.commandResults[0]
   const hasCommand = Boolean(command?.command)
   const status = commandResult ? (commandResult.code === 0 ? "success" : "error") : hasCommand ? "planned" : "idle"
 
@@ -65,7 +69,7 @@ export function CommandPreview(props: {
           <span className="size-2 rounded-full bg-amber-500/80" />
           <span className="size-2 rounded-full bg-emerald-500/80" />
           <Terminal className="ml-1 size-3.5 text-zinc-400" />
-          <span className="truncate text-xs font-semibold text-zinc-200">命令预览</span>
+          <span className="truncate text-xs font-semibold text-zinc-200">{props.t("command.title", "命令预览")}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {hasCommand && (
@@ -73,14 +77,14 @@ export function CommandPreview(props: {
               variant={status === "error" ? "destructive" : status === "success" ? "default" : "outline"}
               className="shrink-0"
             >
-              {status === "planned" && "待执行"}
-              {status === "success" && "成功"}
-              {status === "error" && "失败"}
+              {status === "planned" && props.t("command.status.planned", "待执行")}
+              {status === "success" && props.t("command.status.success", "成功")}
+              {status === "error" && props.t("command.status.error", "失败")}
             </Badge>
           )}
           <Button disabled={!hasCommand} size="xs" variant="ghost" className="text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={props.onCopy}>
             <Copy data-icon="inline-start" />
-            复制
+            {props.t("buttons.copy", "复制")}
           </Button>
         </div>
       </div>
@@ -112,21 +116,17 @@ export function CommandPreview(props: {
 
             <div className="grid gap-1 font-mono text-[11px] text-zinc-400">
               <div className="flex min-w-0 gap-2">
-                <span className="shrink-0 text-zinc-600">label</span>
+                <span className="shrink-0 text-zinc-600">{props.t("command.label", "标签")}</span>
                 <span className="truncate text-zinc-300" title={command.label}>{command.label}</span>
               </div>
-              {command.cwd && (
+              <div className="flex min-w-0 gap-2">
+                <span className="shrink-0 text-zinc-600">{props.t("command.output", "输出")}</span>
+                <span className="truncate text-zinc-300" title={command.outputPath}>{command.outputPath}</span>
+              </div>
+              {props.result && props.result.commands.length > 1 && (
                 <div className="flex min-w-0 gap-2">
-                  <span className="shrink-0 text-zinc-600">cwd</span>
-                  <span className="truncate text-zinc-300" title={command.cwd}>{command.cwd}</span>
-                </div>
-              )}
-              {command.env && Object.keys(command.env).length > 0 && (
-                <div className="flex min-w-0 gap-2">
-                  <span className="shrink-0 text-zinc-600">env</span>
-                  <span className="truncate text-zinc-300" title={JSON.stringify(command.env)}>
-                    {Object.entries(command.env).map(([k, v]) => `${k}=${v}`).join(" ")}
-                  </span>
+                  <span className="shrink-0 text-zinc-600">{props.t("command.batchLabel", "批次")}</span>
+                  <span className="truncate text-zinc-300">{props.t("command.batch", "{{count}} 个提取命令", { count: props.result.commands.length })}</span>
                 </div>
               )}
             </div>
@@ -145,8 +145,8 @@ export function CommandPreview(props: {
         ) : (
           <div className={props.compact ? "flex h-full min-h-20 flex-col items-center justify-center gap-1.5 p-4 text-center" : "flex h-full min-h-28 flex-col items-center justify-center gap-2 p-6 text-center"}>
             <Volume2 className="text-zinc-600" />
-            <div className="text-xs font-medium text-zinc-400">等待 ffmpeg 命令</div>
-            <div className="text-[11px] text-zinc-600">运行生成计划后会显示音轨提取命令。</div>
+            <div className="text-xs font-medium text-zinc-400">{props.t("command.emptyTitle", "等待 ffmpeg 命令")}</div>
+            <div className="text-[11px] text-zinc-600">{props.t("command.emptyDescription", "运行生成计划后会显示音轨提取命令。")}</div>
           </div>
         )}
       </ScrollArea>
@@ -173,6 +173,7 @@ export function OutputConsole(props: {
   compact?: boolean
   logs: string[]
   running?: boolean
+  t: Translate
   onCopy: () => void
 }) {
   return (
@@ -183,15 +184,15 @@ export function OutputConsole(props: {
       <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <ScrollText className="size-3.5" />
-          <span>输出</span>
+          <span>{props.t("output.title", "输出")}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {props.logs.length > 0 && (
-            <span className="text-[10px] tabular-nums text-muted-foreground/70">{props.logs.length} 行</span>
+            <span className="text-[10px] tabular-nums text-muted-foreground/70">{props.t("output.lines", "{{count}} 行", { count: props.logs.length })}</span>
           )}
           <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
             <Copy data-icon="inline-start" />
-            复制
+            {props.t("buttons.copy", "复制")}
           </Button>
         </div>
       </div>
@@ -205,7 +206,7 @@ export function OutputConsole(props: {
           <div className={props.compact ? "flex h-full min-h-20 items-center justify-center p-3 text-center text-[11px] text-muted-foreground" : "flex h-full min-h-28 items-center justify-center p-6 text-center text-xs text-muted-foreground"}>
             <span className="flex flex-col items-center gap-1.5">
               <ScrollText className="size-4" />
-              <span>运行日志会显示在这里。</span>
+              <span>{props.t("output.empty", "运行日志会显示在这里。")}</span>
             </span>
           </div>
         )}

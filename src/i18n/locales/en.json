@@ -144,6 +144,34 @@
         "none": "None",
         "focus": "Focus",
         "fullscreen": "Fullscreen"
+      },
+      "componentDisplay": {
+        "title": "Component display",
+        "description": "Choose a shared visual treatment for tab navigation. It changes appearance only; tab semantics and keyboard behavior remain Radix Tabs.",
+        "preview": "Preview",
+        "history": "History",
+        "details": "Details",
+        "previewHint": "This is the same shared component used by node result tabs.",
+        "historyHint": "Changing the display type never changes tab content or actions.",
+        "detailsHint": "Other component preferences can be added here without changing node implementations.",
+        "styles": {
+          "underline": "Underline",
+          "surface": "Surface",
+          "pill": "Pill",
+          "boxed": "Boxed",
+          "quiet": "Quiet"
+        },
+        "switches": {
+          "title": "Switches",
+          "description": "The outlined default keeps an unchecked switch visible on every theme.",
+          "preview": "Off",
+          "previewOn": "On",
+          "styles": {
+            "outlined": "Outlined",
+            "filled": "Filled",
+            "minimal": "Minimal"
+          }
+        }
       }
     },
     "data": {
@@ -1129,13 +1157,68 @@
         "clearState": "Clear state",
         "dryClean": "Dry clean",
         "liveClean": "Live clean",
-        "confirmExecute": "Confirm execute"
+        "confirmExecute": "Confirm execute",
+        "pastePaths": "Paste paths",
+        "clearPaths": "Clear paths"
       },
       "labels": {
         "input": "Input",
         "inputHint": "Paste directories, pick presets, dry-run before live delete.",
         "presets": "Clean presets",
         "switches": "Key switches"
+      },
+      "fields": {
+        "scanPaths": {
+          "label": "Scan paths",
+          "count": "{{count}} paths",
+          "placeholder": "One folder path per line\nD:/gallery\nD:/archives"
+        },
+        "previewMode": {
+          "label": "Preview mode",
+          "description": "Scan and preview deletions without writing to the file system. Turning it off enables real deletion."
+        },
+        "excludeKeywords": {
+          "label": "Exclude keywords",
+          "placeholder": "Comma-separated, for example: node_modules, .git"
+        }
+      },
+      "presets": {
+        "emptyFolders": { "label": "Empty folders", "description": "Recursively remove empty folders." },
+        "backupFiles": { "label": "Backup files", "description": "Remove .bak backup files." },
+        "tempFolders": { "label": "Temporary folders", "description": "Remove folders beginning with temp_." },
+        "trashFiles": { "label": "Trash files", "description": "Remove .trash files and folders." },
+        "hbTxtFiles": { "label": "[#hb] text", "description": "Remove txt files beginning with [#hb]." },
+        "logFiles": { "label": "Log files", "description": "Remove .log and rotated log files." },
+        "upscale": { "label": "Upscale cache", "description": "Remove .upbak files." }
+      },
+      "advanced": {
+        "title": "Advanced options",
+        "description": "Exclude keywords skip items whose paths contain these strings."
+      },
+      "defaults": {
+        "title": "Defaults",
+        "description": "Save Cleanf paths, presets, and preview mode as plain-text configuration.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "clearOverride": "Clear override",
+        "view": "View configuration",
+        "dialogTitle": "Cleanf configuration",
+        "dialogDescription": "Current nodes.cleanf defaults and configuration file location.",
+        "openFile": "Open file",
+        "noConfig": "No default nodes.cleanf configuration",
+        "configFile": "Configuration file",
+        "noConfigService": "No local configuration service connected"
+      },
+      "results": {
+        "itemCount": "{{count}} items",
+        "waiting": "Waiting to run",
+        "total": "Total {{count}}",
+        "empty": "Deleted-item previews and category counts appear here after running."
+      },
+      "logs": {
+        "lineCount": "{{count}} lines",
+        "waiting": "Waiting for logs",
+        "empty": "Run logs appear here."
       },
       "confirm": {
         "title": "Confirm live Cleanf?",
@@ -1157,7 +1240,8 @@
         "running": "cleanf running",
         "scanPaths": "cleanf scan paths",
         "advancedOptions": "cleanf advanced options",
-        "defaults": "cleanf defaults"
+        "defaults": "cleanf defaults",
+        "description": "{{label}} description"
       },
       "error": {
         "noScanPath": "Please enter at least one scan path.",
@@ -2541,6 +2625,113 @@
         "rename": "Rename",
         "undo": "Undo",
         "history": "Read history"
+      },
+      "progress": {
+        "start": "{{action}} started"
+      }
+    },
+    "audiov": {
+      "name": "AudioV",
+      "description": "Extract audio tracks from video files using the built-in ffmpeg profile.",
+      "actions": {
+        "status": {
+          "label": "Check ffmpeg",
+          "shortLabel": "Status",
+          "description": "Check whether ffmpeg is available locally."
+        },
+        "plan": {
+          "label": "Generate plan",
+          "shortLabel": "Plan",
+          "description": "Generate the fixed AAC / M4A extraction plan without writing files."
+        },
+        "run": {
+          "label": "Extract audio",
+          "shortLabel": "Extract",
+          "description": "Extract the first audio stream from each video with the built-in AAC / M4A profile."
+        }
+      },
+      "status": {
+        "idle": "Ready",
+        "running": "Running",
+        "completed": "Complete",
+        "error": "Failed"
+      },
+      "statusDesc": {
+        "idle": "Choose an action to inspect the profile, preview extraction, or extract audio.",
+        "running": "AudioV is generating ffmpeg commands or extracting audio.",
+        "completed": "The previous task completed.",
+        "error": "The previous task failed. Check the log."
+      },
+      "execution": {
+        "preview": "Preview mode",
+        "live": "Live execution"
+      },
+      "paths": {
+        "title": "Video paths",
+        "onePerLine": "One per line",
+        "compactPlaceholder": "One video path per line",
+        "placeholder": "Paste video file paths, for example:\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv"
+      },
+      "command": {
+        "title": "Command preview",
+        "label": "Label",
+        "output": "Output",
+        "batchLabel": "Batch",
+        "status": {
+          "planned": "Planned",
+          "success": "Succeeded",
+          "error": "Failed"
+        },
+        "batch": "{{count}} extraction commands",
+        "emptyTitle": "Waiting for an ffmpeg command",
+        "emptyDescription": "Generate a plan to show the audio extraction command."
+      },
+      "output": {
+        "title": "Output",
+        "lines": "{{count}} lines",
+        "empty": "Run logs will appear here."
+      },
+      "stats": {
+        "videos": "Videos",
+        "outputs": "Outputs",
+        "errors": "Errors"
+      },
+      "summary": {
+        "files": "{{videos}} videos / {{errors}} errors"
+      },
+      "buttons": {
+        "clearState": "Clear state",
+        "pastePaths": "Paste paths",
+        "copy": "Copy",
+        "cancel": "Cancel",
+        "confirmExtract": "Confirm extraction"
+      },
+      "confirm": {
+        "title": "Extract audio?",
+        "description": "Preview is off. AudioV will write audio files using the built-in AAC / M4A profile. Confirm the video paths and destination directory before continuing."
+      },
+      "defaults": {
+        "title": "Default settings",
+        "description": "Save the AudioV preview-mode preference.",
+        "save": "Save as default",
+        "restore": "Restore default",
+        "clear": "Clear override",
+        "view": "View settings",
+        "openFile": "Open file",
+        "dialogTitle": "AudioV settings",
+        "dialogDescription": "Current nodes.audiov defaults and the settings file location.",
+        "none": "# No nodes.audiov defaults\n",
+        "configFile": "Settings file",
+        "noConfigService": "No local settings service connected"
+      },
+      "aria": {
+        "previewSwitch": "audiov preview switch",
+        "videoPaths": "audiov video paths",
+        "defaults": "audiov default settings"
+      },
+      "error": {
+        "pathRequired": "Enter at least one video file path first.",
+        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
       },
       "progress": {
         "start": "{{action}} started"

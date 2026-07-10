@@ -144,6 +144,34 @@
         "none": "无",
         "focus": "聚焦",
         "fullscreen": "全屏"
+      },
+      "componentDisplay": {
+        "title": "组件显示样式",
+        "description": "为 Tab 导航选择全局视觉样式。它只改变外观；Radix Tabs 的语义和键盘操作保持不变。",
+        "preview": "预览",
+        "history": "历史",
+        "details": "详情",
+        "previewHint": "这里使用的就是节点结果面板所用的共享组件。",
+        "historyHint": "切换显示类型不会改变 Tab 内容或操作。",
+        "detailsHint": "后续组件偏好可在此扩展，不需要重写节点实现。",
+        "styles": {
+          "underline": "下划线",
+          "surface": "表面",
+          "pill": "胶囊",
+          "boxed": "分段",
+          "quiet": "极简"
+        },
+        "switches": {
+          "title": "开关",
+          "description": "默认的描边样式确保关闭状态在任意主题中都清晰可见。",
+          "preview": "关闭",
+          "previewOn": "开启",
+          "styles": {
+            "outlined": "描边",
+            "filled": "填充",
+            "minimal": "极简"
+          }
+        }
       }
     },
     "data": {
@@ -1129,13 +1157,68 @@
         "clearState": "清空状态",
         "dryClean": "预演清理",
         "liveClean": "真实清理",
-        "confirmExecute": "确认执行"
+        "confirmExecute": "确认执行",
+        "pastePaths": "粘贴路径",
+        "clearPaths": "清空路径"
       },
       "labels": {
         "input": "输入",
         "inputHint": "粘贴目录，选择清理预设，预演确认后再执行真实删除。",
         "presets": "清理预设",
         "switches": "关键开关"
+      },
+      "fields": {
+        "scanPaths": {
+          "label": "扫描路径",
+          "count": "{{count}} 条",
+          "placeholder": "每行一个文件夹路径\nD:/gallery\nD:/archives"
+        },
+        "previewMode": {
+          "label": "预演模式",
+          "description": "开启后只扫描并预览将要删除的项目，不写入文件系统。关闭后会真实删除。"
+        },
+        "excludeKeywords": {
+          "label": "排除关键词",
+          "placeholder": "逗号分隔，如: node_modules, .git"
+        }
+      },
+      "presets": {
+        "emptyFolders": { "label": "空文件夹", "description": "递归删除所有空文件夹。" },
+        "backupFiles": { "label": "备份文件", "description": "删除 .bak 备份文件。" },
+        "tempFolders": { "label": "临时文件夹", "description": "删除 temp_ 开头的文件夹。" },
+        "trashFiles": { "label": "垃圾文件", "description": "删除 .trash 文件和文件夹。" },
+        "hbTxtFiles": { "label": "[#hb] 文本", "description": "删除 [#hb] 开头的 txt 文件。" },
+        "logFiles": { "label": "日志文件", "description": "删除 .log 和轮转日志文件。" },
+        "upscale": { "label": "Upscale 缓存", "description": "删除 .upbak 文件。" }
+      },
+      "advanced": {
+        "title": "高级选项",
+        "description": "排除关键词用于跳过路径中包含这些字符串的项目。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 Cleanf 的路径、预设和预演开关到明文配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "view": "查看配置",
+        "dialogTitle": "Cleanf 配置",
+        "dialogDescription": "当前 nodes.cleanf 默认值和配置文件位置。",
+        "openFile": "打开文件",
+        "noConfig": "nodes.cleanf 暂无默认配置",
+        "configFile": "配置文件",
+        "noConfigService": "未连接本地配置服务"
+      },
+      "results": {
+        "itemCount": "{{count}} 项",
+        "waiting": "等待运行",
+        "total": "总计 {{count}}",
+        "empty": "运行后会显示待删除项目和分类统计。"
+      },
+      "logs": {
+        "lineCount": "{{count}} 行",
+        "waiting": "等待日志",
+        "empty": "运行日志会显示在这里。"
       },
       "confirm": {
         "title": "确认真实执行 Cleanf？",
@@ -1157,7 +1240,8 @@
         "running": "cleanf running",
         "scanPaths": "cleanf scan paths",
         "advancedOptions": "cleanf advanced options",
-        "defaults": "cleanf defaults"
+        "defaults": "cleanf defaults",
+        "description": "{{label}}说明"
       },
       "error": {
         "noScanPath": "请先输入至少一个扫描路径。",
@@ -2541,6 +2625,113 @@
         "rename": "重命名",
         "undo": "撤销",
         "history": "读取历史"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      }
+    },
+    "audiov": {
+      "name": "AudioV",
+      "description": "从视频文件中提取音轨，使用内置 ffmpeg 配置。",
+      "actions": {
+        "status": {
+          "label": "检查 ffmpeg",
+          "shortLabel": "状态",
+          "description": "检查本机 ffmpeg 是否可用。"
+        },
+        "plan": {
+          "label": "生成计划",
+          "shortLabel": "计划",
+          "description": "生成固定 AAC / M4A 音轨提取计划，不写入文件。"
+        },
+        "run": {
+          "label": "提取音轨",
+          "shortLabel": "提取",
+          "description": "使用内置 AAC / M4A 配置提取每个视频的第一条音轨。"
+        }
+      },
+      "status": {
+        "idle": "就绪",
+        "running": "运行中",
+        "completed": "完成",
+        "error": "失败"
+      },
+      "statusDesc": {
+        "idle": "选择动作后查看配置、预览提取或执行音轨提取。",
+        "running": "AudioV 正在生成 ffmpeg 命令或提取音轨。",
+        "completed": "上次任务已完成。",
+        "error": "上次任务失败，请查看日志。"
+      },
+      "execution": {
+        "preview": "预演模式",
+        "live": "真实执行"
+      },
+      "paths": {
+        "title": "视频路径",
+        "onePerLine": "每行一条",
+        "compactPlaceholder": "每行一个视频文件路径",
+        "placeholder": "粘贴视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv"
+      },
+      "command": {
+        "title": "命令预览",
+        "label": "标签",
+        "output": "输出",
+        "batchLabel": "批次",
+        "status": {
+          "planned": "待执行",
+          "success": "成功",
+          "error": "失败"
+        },
+        "batch": "{{count}} 个提取命令",
+        "emptyTitle": "等待 ffmpeg 命令",
+        "emptyDescription": "运行生成计划后会显示音轨提取命令。"
+      },
+      "output": {
+        "title": "输出",
+        "lines": "{{count}} 行",
+        "empty": "运行日志会显示在这里。"
+      },
+      "stats": {
+        "videos": "视频",
+        "outputs": "输出",
+        "errors": "错误"
+      },
+      "summary": {
+        "files": "{{videos}} 视频 / {{errors}} 错误"
+      },
+      "buttons": {
+        "clearState": "清空状态",
+        "pastePaths": "粘贴路径",
+        "copy": "复制",
+        "cancel": "取消",
+        "confirmExtract": "确认提取"
+      },
+      "confirm": {
+        "title": "确认提取音轨？",
+        "description": "当前已关闭预演。AudioV 会使用内置 AAC / M4A 配置写入音轨文件；请确认视频路径和目标目录无误。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 AudioV 的预演模式设置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "clear": "清除覆盖",
+        "view": "查看配置",
+        "openFile": "打开文件",
+        "dialogTitle": "AudioV 配置",
+        "dialogDescription": "当前 nodes.audiov 默认值和配置文件位置。",
+        "none": "# nodes.audiov 暂无默认配置\n",
+        "configFile": "配置文件",
+        "noConfigService": "未连接本地配置服务"
+      },
+      "aria": {
+        "previewSwitch": "audiov 预演切换",
+        "videoPaths": "audiov 视频路径",
+        "defaults": "audiov 默认配置"
+      },
+      "error": {
+        "pathRequired": "请先输入至少一个视频文件路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
       },
       "progress": {
         "start": "{{action}}开始"

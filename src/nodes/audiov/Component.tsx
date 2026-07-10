@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { PackuToolAction, PackuToolData, PackuToolInput, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
+import type { AudiovData, AudiovInput } from "@xiranite/node-audiov/core"
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, Copy, DatabaseZap, Eye, Info, Play, RotateCcw, Settings2, Square } from "lucide-react"
+import { Clipboard, Copy, DatabaseZap, Eye, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,19 +13,22 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { RunningTint } from "@/nodes/shared/controls"
-import { ACTIONS, NODE_META, type AudiovAction } from "./constants"
+import { ACTIONS, NODE_META, type AudiovAction, type AudiovActionMeta } from "./constants"
 import type { AudiovCardState, AudiovStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 import { CommandPreview, OutputConsole, PathsColumn } from "./WorkbenchPanels"
 
 export function Component({ compId, host }: NodeComponentProps<AudiovCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("audiov")
   const data = getHostData(host, compId)
   const dataRef = useRef<AudiovCardState>(data)
   dataRef.current = data
@@ -36,11 +39,11 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
   const [configDirty, setConfigDirty] = useState(false)
 
   const action = data.action ?? "status"
-  const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
+  const actionMeta = getActionMeta(action, t)
   const result = data.result ?? null
   const logs = data.logs ?? []
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running)
+  const status = statusFromState(data, running, t)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -58,17 +61,7 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [
-    data.configPath,
-    data.databasePath,
-    data.argsText,
-    data.python,
-    data.sourceRoot,
-    data.moduleName,
-    data.dryRun,
-    data.recordRun,
-    defaults,
-  ])
+  }, [data.dryRun, defaults])
 
   function patch(patchData: Partial<AudiovCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -93,16 +86,9 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
   async function copyResults() {
     const current = dataRef.current.result
     if (!current) return
-    const lines: string[] = []
-    if (current.command.command) {
-      lines.push(`${current.command.label}\t${current.command.command} ${current.command.args.join(" ")}`)
-    }
-    lines.push(`sourceRoot\t${current.integration.sourceRoot}`)
-    lines.push(`moduleName\t${current.integration.moduleName}`)
-    for (const candidate of current.integration.configCandidates) {
-      lines.push(`configCandidate\t${candidate}`)
-    }
-    if (current.integration.databasePath) lines.push(`databasePath\t${current.integration.databasePath}`)
+    const lines = current.commands.map((command) => `${command.label}\t${command.command} ${command.args.join(" ")}`)
+    for (const outputPath of current.outputPaths) lines.push(`output\t${outputPath}`)
+    for (const error of current.errors) lines.push(`error\t${error}`)
     await host.clipboard?.writeText?.(lines.join("\n"))
   }
 
@@ -132,12 +118,12 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
     patch(empty)
   }
 
-  async function execute(nextAction: PackuToolAction = action) {
+  async function execute(nextAction: AudiovAction = action) {
     if (running) return
     const current = dataRef.current
 
-    if (nextAction !== "status" && !clean(current.pathsText)) {
-      const message = "请先输入至少一个视频文件路径。"
+    if (nextAction !== "status" && !current.pathsText?.trim()) {
+      const message = t("error.pathRequired", "请先输入至少一个视频文件路径。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
@@ -145,23 +131,23 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
 
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      const message = t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(nextAction, t) }), result: null })
     try {
-      const response = await run<PackuToolInput, PackuToolData>(NODE_META.id, buildInput(nextAction, current, NODE_META.spec), (event: NodeRunEvent) => {
+      const response = await run<AudiovInput, AudiovData>(NODE_META.id, buildInput(nextAction, current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
           pushLog(`[${event.progress ?? 0}%] ${event.message}`)
           return
         }
         pushLog(event.message)
-      }) as NodeRunResult<PackuToolData>
+      }) as NodeRunResult<AudiovData>
 
       patch({
         phase: response.success ? "completed" : "error",
@@ -191,6 +177,7 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
     result,
     running,
     status,
+    t,
     onActionChange: (value: AudiovAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -225,21 +212,22 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
 type ViewProps = ReturnType<typeof createViewProps>
 
 function createViewProps(props: {
-  action: PackuToolAction
-  actionMeta: typeof ACTIONS[number]
+  action: AudiovAction
+  actionMeta: AudiovActionMeta
   configDirty: boolean
   configFilePath?: string
   data: AudiovCardState
   defaults?: Partial<AudiovCardState>
   logs: string[]
   progress: number
-  result: PackuToolData | null
+  result: AudiovData | null
   running: boolean
   status: AudiovStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: AudiovAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
-  onExecute: (action?: PackuToolAction) => void
+  onExecute: (action?: AudiovAction) => void
   onOpenConfigFile?: () => Promise<void> | void
   onPastePaths: () => void
   onPatch: (patch: Partial<AudiovCardState>) => void
@@ -262,7 +250,7 @@ function CollapsedView(props: ViewProps) {
       </div>
       <div className="relative min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>{NODE_META.title}</span>
+          <span>{props.t("name", "AudioV")}</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
         <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
@@ -280,21 +268,18 @@ function CompactView(props: ViewProps) {
   return (
     <div data-testid="audiov-compact-view" className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
-        </div>
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionPicker action={props.action} disabled={props.running} t={props.t} onActionChange={props.onActionChange} />
+        <ExecutionControls compact props={props} />
+        <PathsInput compact data={props.data} disabled={props.running} t={props.t} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         {(props.status.tone === "running" || props.status.tone === "error") && (
-          <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+          <StatusStrip compact progress={props.progress} status={props.status} t={props.t} text={props.data.progressText} />
         )}
         <div className="grid min-h-0 flex-1 gap-2 @3xl/audiov:grid-cols-2">
-          <CommandPreview compact result={props.result} running={props.running} onCopy={props.onCopyResults} />
-          <OutputConsole compact logs={props.logs} running={props.running} onCopy={props.onCopyLogs} />
+          <CommandPreview compact result={props.result} running={props.running} t={props.t} onCopy={props.onCopyResults} />
+          <OutputConsole compact logs={props.logs} running={props.running} t={props.t} onCopy={props.onCopyLogs} />
         </div>
       </div>
     </div>
@@ -305,19 +290,16 @@ function PortraitCompactView(props: ViewProps) {
   return (
     <div data-testid="audiov-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
-        </div>
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
       </div>
       <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionPicker action={props.action} disabled={props.running} t={props.t} onActionChange={props.onActionChange} />
+        <ExecutionControls compact props={props} />
+        <PathsInput compact data={props.data} disabled={props.running} t={props.t} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       </div>
       <div className="grid min-h-0 flex-1 gap-2">
-        <CommandPreview compact result={props.result} running={props.running} onCopy={props.onCopyResults} />
-        <OutputConsole compact logs={props.logs} running={props.running} onCopy={props.onCopyLogs} />
+        <CommandPreview compact result={props.result} running={props.running} t={props.t} onCopy={props.onCopyResults} />
+        <OutputConsole compact logs={props.logs} running={props.running} t={props.t} onCopy={props.onCopyLogs} />
       </div>
     </div>
   )
@@ -329,15 +311,17 @@ function FullView(props: ViewProps) {
       {/* 顶部: Header + Stats + ActionPicker */}
       <div className="flex shrink-0 flex-col gap-3 @4xl/audiov:flex-row @4xl/audiov:items-center @4xl/audiov:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/audiov:flex-row @4xl/audiov:items-center">
-          <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+          <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} t={props.t} />
           <div data-testid="audiov-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/audiov:w-72" onActionChange={props.onActionChange} />
-            <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ActionPicker action={props.action} disabled={props.running} t={props.t} triggerClassName="@4xl/audiov:w-72" onActionChange={props.onActionChange} />
+            <ExecutionControls props={props} />
+            <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.t("buttons.clearState", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
               defaults={props.defaults}
               disabled={props.running}
+              t={props.t}
               onOpenConfigFile={props.onOpenConfigFile}
               onResetOverride={props.onResetOverride}
               onRestoreDefault={props.onRestoreDefault}
@@ -345,46 +329,43 @@ function FullView(props: ViewProps) {
             />
           </div>
         </div>
-        <AudiovStatsPanel result={props.result} />
+        <AudiovStatsPanel result={props.result} t={props.t} />
       </div>
 
       {/* 中央三栏: 视频路径 | 命令预览 (主角) | 输出 */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/audiov:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,260px)]">
-        <PathsColumn data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-        <CommandPreview result={props.result} running={props.running} onCopy={props.onCopyResults} />
-        <OutputConsole logs={props.logs} running={props.running} onCopy={props.onCopyLogs} />
+        <PathsColumn data={props.data} disabled={props.running} t={props.t} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <CommandPreview result={props.result} running={props.running} t={props.t} onCopy={props.onCopyResults} />
+        <OutputConsole logs={props.logs} running={props.running} t={props.t} onCopy={props.onCopyLogs} />
       </div>
 
       {/* 底部: 运行闸门 (预演/真实切换 + 执行按钮) + 配置选项 */}
-      <RunGate props={props} />
+      {(props.status.tone === "running" || props.status.tone === "error") && (
+        <StatusStrip progress={props.progress} status={props.status} t={props.t} text={props.data.progressText} />
+      )}
     </div>
   )
 }
 
-function RunGate({ props }: { props: ViewProps }) {
+function ExecutionControls({ compact, props }: { compact?: boolean; props: ViewProps }) {
   const dryRun = props.data.dryRun ?? true
   return (
     <div
-      data-testid="audiov-run-gate"
-      className="flex shrink-0 flex-col gap-2 rounded-lg border bg-background/60 p-2 @md/audiov:flex-row @md/audiov:items-center @md/audiov:gap-3"
+      data-testid="audiov-execution-controls"
+      className={cn("flex shrink-0 items-center justify-between gap-2 rounded-md border bg-background/60 px-2 py-1.5", !compact && "min-h-9")}
     >
-      <div className="min-w-0 flex-1">
-        <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-      </div>
-      <Separator className="@md/audiov:hidden" />
-      <div className="flex shrink-0 items-center gap-2">
-        <div className="flex items-center gap-1.5 rounded-md border bg-background/70 px-2 py-1">
-          {dryRun ? <Eye className="size-3.5 text-muted-foreground" /> : <Play className="size-3.5 text-destructive" />}
-          <span className="text-[11px] font-medium text-muted-foreground">{dryRun ? "预演" : "真实"}</span>
-          <Switch
-            aria-label="audiov 预演切换"
-            checked={dryRun}
-            disabled={props.running}
-            size="sm"
-            onCheckedChange={(checked) => props.onPatch({ dryRun: checked })}
-          />
-        </div>
-        <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      <label className="flex min-w-0 items-center gap-2">
+        {dryRun ? <Eye className="size-3.5 shrink-0 text-muted-foreground" /> : <Play className="size-3.5 shrink-0 text-destructive" />}
+        <span className="truncate text-[11px] font-medium">{dryRun ? props.t("execution.preview", "预演模式") : props.t("execution.live", "真实执行")}</span>
+        <Switch
+          aria-label={props.t("aria.previewSwitch", "audiov 预演切换")}
+          checked={dryRun}
+          disabled={props.running}
+          size="sm"
+          onCheckedChange={(checked) => props.onPatch({ dryRun: checked })}
+        />
+      </label>
+      <div className="shrink-0">
         <RunActionButton props={props} />
       </div>
     </div>
@@ -396,12 +377,12 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
     return (
       <Button aria-label="audiov running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{props.t("status.running", "运行中")}</span>}
       </Button>
     )
   }
 
-  const label = actionLabel(props.action)
+  const label = actionLabel(props.action, props.t)
   const destructive = props.action === "run" && !(props.data.dryRun ?? true)
   if (destructive) {
     return (
@@ -414,14 +395,14 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认提取音轨？</AlertDialogTitle>
+            <AlertDialogTitle>{props.t("confirm.title", "确认提取音轨？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，会调用 PackU AudioV 的 ffmpeg 边界执行真实音轨提取，这一步会从视频中分离并写入音轨文件。请确认视频路径、ffmpeg 可执行文件和输出目录无误。
+              {props.t("confirm.description", "当前已关闭预演。AudioV 会使用内置 AAC / M4A 配置写入音轨文件；请确认视频路径和目标目录无误。")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认提取</AlertDialogAction>
+            <AlertDialogCancel>{props.t("buttons.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>{props.t("buttons.confirmExtract", "确认提取")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -436,10 +417,11 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
   )
 }
 
-function HeaderLine({ actionMeta, status, subtitle }: {
+function HeaderLine({ actionMeta, status, subtitle, t }: {
   actionMeta: typeof ACTIONS[number]
   status: AudiovStatusMeta
   subtitle: string
+  t: ViewProps["t"]
 }) {
   return (
     <div className="min-w-0">
@@ -449,7 +431,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">{NODE_META.title}</h3>
+            <h3 className="truncate text-sm font-semibold leading-none">{t("name", "AudioV")}</h3>
             <Badge variant={status.badgeVariant}>{status.label}</Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
@@ -459,19 +441,19 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   )
 }
 
-function AudiovStatsPanel({ result }: { result: PackuToolData | null }) {
+function AudiovStatsPanel({ result, t }: { result: AudiovData | null; t: ViewProps["t"] }) {
   const stats = [
-    ["视频", result?.selectedPaths.length ?? 0],
-    ["配置项", result?.config?.keys.length ?? 0],
-    ["错误", result?.errors.length ?? 0],
+    [t("stats.videos", "视频"), result?.selectedPaths.length ?? 0, false],
+    [t("stats.outputs", "输出"), result?.outputPaths.length ?? 0, false],
+    [t("stats.errors", "错误"), result?.errors.length ?? 0, true],
   ] as const
 
   return (
     <div data-testid="audiov-stats-panel" className="grid shrink-0 grid-cols-3 gap-1">
-      {stats.map(([label, value]) => (
+      {stats.map(([label, value, destructive]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-          <div className={cn("text-sm font-semibold tabular-nums", label === "错误" && Number(value) > 0 && "text-destructive")}>{value}</div>
+          <div className={cn("text-sm font-semibold tabular-nums", destructive && Number(value) > 0 && "text-destructive")}>{value}</div>
         </div>
       ))}
     </div>
@@ -481,6 +463,7 @@ function AudiovStatsPanel({ result }: { result: PackuToolData | null }) {
 function ActionPicker(props: {
   action: AudiovAction
   disabled?: boolean
+  t: ViewProps["t"]
   triggerClassName?: string
   onActionChange: (action: AudiovAction) => void
 }) {
@@ -497,12 +480,15 @@ function ActionPicker(props: {
         if (value) props.onActionChange(value as AudiovAction)
       }}
     >
-      {ACTIONS.map((item) => (
-        <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
+      {ACTIONS.map((item) => {
+        const actionMeta = getActionMeta(item.value, props.t)
+        return (
+        <ToggleGroupItem key={item.value} aria-label={actionMeta.label} className="min-w-0" value={item.value}>
           <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
+          <span className="truncate">{actionMeta.shortLabel}</span>
         </ToggleGroupItem>
-      ))}
+        )
+      })}
     </ToggleGroup>
   )
 }
@@ -511,6 +497,7 @@ function PathsInput(props: {
   compact?: boolean
   data: AudiovCardState
   disabled?: boolean
+  t: ViewProps["t"]
   onPaste: () => void
   onPatch: (patch: Partial<AudiovCardState>) => void
 }) {
@@ -520,27 +507,27 @@ function PathsInput(props: {
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
           <Input
             id="audiov-paths-compact"
-            aria-label="audiov 视频路径"
+            aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
             disabled={props.disabled}
             className="font-mono text-xs"
-            placeholder="每行一个视频文件路径"
+            placeholder={props.t("paths.compactPlaceholder", "每行一个视频文件路径")}
             value={props.data.pathsText ?? ""}
             onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
           />
-          <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+          <ActionIconButton disabled={props.disabled} icon={Clipboard} label={props.t("buttons.pastePaths", "粘贴路径")} onClick={props.onPaste} />
         </div>
       ) : (
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
           <Textarea
             id="audiov-paths-compact"
-            aria-label="audiov 视频路径"
+            aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
             disabled={props.disabled}
             className="min-h-20 font-mono text-xs"
-            placeholder={"每行一个视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv"}
+            placeholder={props.t("paths.placeholder", "每行一个视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv")}
             value={props.data.pathsText ?? ""}
             onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
           />
-          <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+          <ActionIconButton disabled={props.disabled} icon={Clipboard} label={props.t("buttons.pastePaths", "粘贴路径")} onClick={props.onPaste} />
         </div>
       )}
     </div>
@@ -580,6 +567,7 @@ function StatusStrip(props: {
   progress: number
   status: AudiovStatusMeta
   text?: string
+  t: ViewProps["t"]
 }) {
   return (
     <div className={cn("rounded-md border bg-background/70 p-2", props.compact && "p-1.5")}>
@@ -592,146 +580,12 @@ function StatusStrip(props: {
   )
 }
 
-function OptionsPopover(props: {
-  data: AudiovCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<AudiovCardState>) => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label="audiov 运行选项" disabled={props.disabled} size="icon-sm" variant="outline">
-              <Settings2 />
-              <span className="sr-only">运行选项</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>运行选项</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-[min(92vw,460px)]">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">运行选项</div>
-          <p className="text-xs text-muted-foreground">配置文件、记录路径、Python、源码目录集中在这里。</p>
-        </div>
-        <div className="grid gap-3">
-          <PathFields {...props} />
-          <RuntimeOptions {...props} />
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function PathFields(props: {
-  data: AudiovCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<AudiovCardState>) => void
-}) {
-  return (
-    <div className="grid gap-2 @3xl/audiov:grid-cols-2">
-      <Input
-        aria-label="audiov 配置文件"
-        disabled={props.disabled}
-        placeholder="配置文件，可选"
-        value={props.data.configPath ?? ""}
-        onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="audiov 运行记录 JSONL"
-        disabled={props.disabled}
-        placeholder=".xiranite/audiov-runs.jsonl"
-        value={props.data.databasePath ?? ""}
-        onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="audiov 额外参数"
-        disabled={props.disabled}
-        placeholder="额外参数，空格分隔"
-        value={props.data.argsText ?? ""}
-        onChange={(event) => props.onPatch({ argsText: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="audiov Python 可执行文件"
-        disabled={props.disabled}
-        placeholder="python，可留空"
-        value={props.data.python ?? ""}
-        onChange={(event) => props.onPatch({ python: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="audiov 源码目录"
-        disabled={props.disabled}
-        placeholder="源码目录，可留空"
-        value={props.data.sourceRoot ?? ""}
-        onChange={(event) => props.onPatch({ sourceRoot: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="audiov 模块名"
-        disabled={props.disabled}
-        placeholder="模块名，可留空"
-        value={props.data.moduleName ?? ""}
-        onChange={(event) => props.onPatch({ moduleName: event.currentTarget.value })}
-      />
-    </div>
-  )
-}
-
-function RuntimeOptions(props: {
-  data: AudiovCardState
-  disabled?: boolean
-  onPatch: (patch: Partial<AudiovCardState>) => void
-}) {
-  return (
-    <div className="grid gap-2 @3xl/audiov:grid-cols-2">
-      <SwitchRow
-        checked={props.data.dryRun ?? true}
-        disabled={props.disabled}
-        icon={Eye}
-        label="预演"
-        description="只生成 ffmpeg 命令计划，不真正调用模块。"
-        onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
-      />
-      <SwitchRow
-        checked={props.data.recordRun ?? false}
-        disabled={props.disabled}
-        icon={DatabaseZap}
-        label="记录运行"
-        description="把运行结果写入 JSONL。"
-        onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
-      />
-    </div>
-  )
-}
-
-function SwitchRow(props: {
-  checked: boolean
-  description?: string
-  disabled?: boolean
-  icon?: LucideIcon
-  label: string
-  onCheckedChange: (checked: boolean) => void
-}) {
-  const Icon = props.icon
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-background/60 p-2">
-      <label className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
-          <span className="truncate text-xs font-medium">{props.label}</span>
-        </span>
-        <Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
-      </label>
-      {props.description && <InfoHint label={props.label} description={props.description} />}
-    </div>
-  )
-}
-
 function ConfigDefaultsPopover(props: {
   configDirty: boolean
   configFilePath?: string
   defaults?: Partial<AudiovCardState>
   disabled?: boolean
+  t: ViewProps["t"]
   onOpenConfigFile?: () => Promise<void> | void
   onResetOverride: () => void
   onRestoreDefault: () => void
@@ -742,37 +596,37 @@ function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="audiov 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={props.t("aria.defaults", "audiov 默认配置")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
-              <span className="sr-only">默认配置</span>
+              <span className="sr-only">{props.t("defaults.title", "默认配置")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
+        <TooltipContent>{props.t("defaults.title", "默认配置")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 AudioV 的路径和运行选项。</p>
+          <div className="text-sm font-semibold">{props.t("defaults.title", "默认配置")}</div>
+          <p className="text-xs text-muted-foreground">{props.t("defaults.description", "保存 AudioV 的预演模式设置。")}</p>
         </div>
         <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
+          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{props.t("defaults.save", "保存为默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{props.t("defaults.restore", "恢复默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{props.t("defaults.clear", "清除覆盖")}</Button>
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
+              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{props.t("defaults.view", "查看配置")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>AudioV 配置</DialogTitle>
-                <DialogDescription>当前 nodes.audiov 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>{props.t("defaults.dialogTitle", "AudioV 配置")}</DialogTitle>
+                <DialogDescription>{props.t("defaults.dialogDescription", "当前 nodes.audiov 默认值和配置文件位置。")}</DialogDescription>
               </DialogHeader>
-              <ConfigPreview config={props.defaults} path={props.configFilePath} />
+              <ConfigPreview config={props.defaults} path={props.configFilePath} t={props.t} />
             </DialogContent>
           </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
+          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{props.t("defaults.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -782,15 +636,16 @@ function ConfigDefaultsPopover(props: {
 function ConfigPreview(props: {
   config?: Partial<AudiovCardState>
   path?: string
+  t: ViewProps["t"]
 }) {
   const content = props.config === undefined
-    ? "# nodes.audiov 暂无默认配置\n"
+    ? props.t("defaults.none", "# nodes.audiov 暂无默认配置\n")
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+        <div className="text-xs font-medium text-muted-foreground">{props.t("defaults.configFile", "配置文件")}</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? props.t("defaults.noConfigService", "未连接本地配置服务")}</div>
       </div>
       <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
         {content}
@@ -799,46 +654,20 @@ function ConfigPreview(props: {
   )
 }
 
-function InfoHint({ description, label }: { description: string; label: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          aria-label={`${label}说明`}
-          className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-          role="img"
-          tabIndex={0}
-        >
-          <Info className="size-3.5" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{description}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function buildInput(action: PackuToolAction, data: AudiovCardState, spec: PackuToolSpec): PackuToolInput {
-  const pathsText = clean(data.pathsText)
-  const argsText = clean(data.argsText)
+function buildInput(action: AudiovAction, data: AudiovCardState): AudiovInput {
+  const pathsText = data.pathsText?.trim()
   return {
     action,
     paths: pathsText ? pathsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : [],
-    args: argsText ? argsText.split(/\s+/).filter(Boolean) : [],
-    configPath: clean(data.configPath),
-    databasePath: clean(data.databasePath),
-    python: clean(data.python),
-    sourceRoot: clean(data.sourceRoot) || spec.sourceRoot,
-    moduleName: clean(data.moduleName) || spec.moduleName,
     dryRun: data.dryRun ?? true,
-    recordRun: data.recordRun ?? false,
   }
 }
 
-function statusFromState(data: AudiovCardState, running: boolean): AudiovStatusMeta {
+function statusFromState(data: AudiovCardState, running: boolean, t: ViewProps["t"]): AudiovStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: "运行中",
-      description: data.progressText || "AudioV 正在生成 ffmpeg 命令或提取音轨。",
+      label: t("status.running", "运行中"),
+      description: data.progressText || t("statusDesc.running", "AudioV 正在生成 ffmpeg 命令或提取音轨。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -846,8 +675,8 @@ function statusFromState(data: AudiovCardState, running: boolean): AudiovStatusM
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: t("status.completed", "完成"),
+      description: data.progressText || t("statusDesc.completed", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -855,16 +684,16 @@ function statusFromState(data: AudiovCardState, running: boolean): AudiovStatusM
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
+      label: t("status.error", "失败"),
+      description: data.progressText || t("statusDesc.error", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "选择动作后查看配置、预览提取或执行音轨提取。",
+    label: t("status.idle", "就绪"),
+    description: t("statusDesc.idle", "选择动作后查看配置、预览提取或执行音轨提取。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -874,18 +703,23 @@ function statusFromState(data: AudiovCardState, running: boolean): AudiovStatusM
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
   if (props.result?.selectedPaths.length) {
-    return `${props.result.selectedPaths.length} 视频 / ${props.result.errors.length} 错误`
+    return props.t("summary.files", "{{videos}} 视频 / {{errors}} 错误", { videos: props.result.selectedPaths.length, errors: props.result.errors.length })
   }
   return props.actionMeta.description
 }
 
-function actionLabel(action: PackuToolAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
+function actionLabel(action: AudiovAction, t: ViewProps["t"]): string {
+  return getActionMeta(action, t).label
 }
 
-function clean(value: unknown): string | undefined {
-  const text = String(value ?? "").trim()
-  return text || undefined
+function getActionMeta(action: AudiovAction, t: ViewProps["t"]): AudiovActionMeta {
+  const meta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
+  return {
+    ...meta,
+    label: t(`actions.${meta.value}.label`, meta.label),
+    shortLabel: t(`actions.${meta.value}.shortLabel`, meta.shortLabel),
+    description: t(`actions.${meta.value}.description`, meta.description),
+  }
 }
 
 function getHostData(host: NodeComponentProps<AudiovCardState>["host"], compId: string): AudiovCardState {

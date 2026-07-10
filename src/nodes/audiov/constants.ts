@@ -1,9 +1,8 @@
 import { AudioLines, Play, Route, ScanLine } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import type { PackuToolAction, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-import type { PackuNodeMeta } from "@/nodes/shared/packu/types"
+import type { AudiovAction } from "@xiranite/node-audiov/core"
 
-export type AudiovAction = PackuToolAction
+export type { AudiovAction }
 
 export interface AudiovActionMeta {
   value: AudiovAction
@@ -17,9 +16,9 @@ export interface AudiovActionMeta {
 export const ACTIONS: AudiovActionMeta[] = [
   {
     value: "status",
-    label: "查看状态",
+    label: "检查 ffmpeg",
     shortLabel: "状态",
-    description: "检查 ffmpeg 调用边界、配置候选和数据库标签。",
+    description: "检查本机 ffmpeg 是否可用。",
     icon: ScanLine,
     destructive: false,
   },
@@ -27,7 +26,7 @@ export const ACTIONS: AudiovActionMeta[] = [
     value: "plan",
     label: "生成计划",
     shortLabel: "计划",
-    description: "生成 ffmpeg 音轨提取命令计划，不执行原工具。",
+    description: "生成固定 AAC / M4A 音轨提取计划，不写入文件。",
     icon: Route,
     destructive: false,
   },
@@ -35,22 +34,15 @@ export const ACTIONS: AudiovActionMeta[] = [
     value: "run",
     label: "提取音轨",
     shortLabel: "提取",
-    description: "调用 PackU AudioV 的 ffmpeg 边界执行真实音轨提取。",
+    description: "使用内置 AAC / M4A 配置提取每个视频的第一条音轨。",
     icon: Play,
     destructive: true,
   },
 ]
 
-export const NODE_META: PackuNodeMeta = {
+export const NODE_META = {
   id: "audiov",
   title: "AudioV",
-  description: "从视频中提取音轨，保留 PackU AudioV 的 ffmpeg 调用边界。",
+  description: "从视频文件中提取音轨，使用内置 ffmpeg 配置。",
   icon: AudioLines,
-  spec: {
-    id: "audiov",
-    moduleName: "audiov.audiov_cli",
-    sourceRoot: "D:/1VSCODE/Projects/PackU/VideoBrake/src",
-    configFiles: ["audiov/config.json"],
-    databaseLabel: "audio_extractions",
-  } satisfies PackuToolSpec,
-}
+} as const
