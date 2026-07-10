@@ -2708,6 +2708,8 @@
         "settings": "Cleanup settings",
         "start": "Start",
         "startTitle": "Start automatic cleanup?",
+        "stop": "Stop automatic cleanup",
+        "stopping": "Stopping",
         "status": "Status",
         "statusShort": "Status"
       },
@@ -2724,6 +2726,19 @@
         "title": "Cleanup controls",
         "description": "Set the target drive, cleanup interval, and cycle limit."
       },
+      "config": {
+        "trigger": "Configuration management",
+        "title": "Configuration management",
+        "description": "Save reusable defaults or restore this node's saved configuration.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No configuration file is connected",
+        "openFile": "Open configuration file",
+        "dirty": "Current parameters differ from the saved defaults."
+      },
       "dial": {
         "aria": "Cleanup cycle progress",
         "cleaned": "{{count}} cleanups",
@@ -2731,7 +2746,9 @@
         "unlimited": "Unlimited cycles"
       },
       "errors": {
-        "backendUnavailable": "Local Backend is unavailable; recycleu cannot run."
+        "backendUnavailable": "Local Backend is unavailable; recycleu cannot run.",
+        "cancelUnavailable": "This host cannot cancel a task from the node.",
+        "noActiveRun": "There is no active Recycleu task to cancel."
       },
       "fields": {
         "allDrives": "All drives",
@@ -2790,7 +2807,8 @@
         "running": "Running",
         "runningDescription": "Waiting for the next cleanup.",
         "starting": "Automatic cleanup started.",
-        "startingUnlimited": "Unlimited cleanup started until cancelled."
+        "startingUnlimited": "Unlimited cleanup started until cancelled.",
+        "stopping": "Stopping automatic cleanup…"
       },
       "summary": {
         "last": "{{count}} cleanups · last at {{time}}",

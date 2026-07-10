@@ -180,6 +180,69 @@ describe("app-owned recycleu Component", () => {
     expect(host.state.logs).toContain("Auto-clean completed, cleaned 1 time(s).")
   })
 
+  test("cancels the active backend operation from the node", async () => {
+    surfaceState.mode = "regular"
+    const deferred = createDeferred<NodeRunResult<RecycleuData>>()
+    const host = createHost({ interval: 10, maxCycles: 0, driveLetter: "C" }, { cancellable: true, pending: deferred.promise })
+    render(<Component compId="comp-recycleu" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "启动" }))
+    await user.click(screen.getByRole("button", { name: "确认启动" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(screen.getByRole("button", { name: "停止自动清理" })).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "停止自动清理" }))
+    await waitFor(() => expect(host.cancelCalls).toBe(1))
+    expect(host.state.progressText).toBe("正在停止自动清理…")
+
+    deferred.resolve({
+      success: false,
+      message: "Node operation cancelled.",
+      data: {
+        timerStatus: "cancelled",
+        cleanCount: 1,
+        lastCleanTime: "01:02:03",
+        remainingSeconds: 5,
+      },
+    })
+
+    await waitFor(() => expect(host.state.phase).toBe("cancelled"))
+    expect(host.state.logs).toContain("Node operation cancelled.")
+  })
+
+  test("saves and restores only reusable cleanup defaults", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost(
+      { interval: 10, maxCycles: 2, driveLetter: "C", logs: ["do not persist"], phase: "completed" },
+      { config: { interval: 25, maxCycles: 0, driveLetter: "D" } },
+    )
+    const rendered = render(<Component compId="comp-recycleu" host={host} />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" })).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await waitFor(() => expect((screen.getByRole("button", { name: "恢复默认" }) as HTMLButtonElement).disabled).toBe(false))
+    await user.click(screen.getByRole("button", { name: "恢复默认" }))
+    await waitFor(() => expect(host.state.interval).toBe(25))
+    rendered.rerender(<Component compId="comp-recycleu" host={host} />)
+    await waitFor(() => expect((screen.getByLabelText("清理间隔秒数") as HTMLInputElement).value).toBe("25"))
+    expect((screen.getByLabelText("最大循环次数") as HTMLInputElement).value).toBe("0")
+    expect((screen.getByLabelText("盘符") as HTMLInputElement).value).toBe("D")
+
+  })
+
+  test("persists only reusable cleanup fields as defaults", async () => {
+    surfaceState.mode = "regular"
+    const host = createHost({ interval: 40, maxCycles: 2, driveLetter: "C", logs: ["do not persist"], phase: "completed" })
+    render(<Component compId="comp-recycleu" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await user.click(screen.getByRole("button", { name: "保存为默认" }))
+    await waitFor(() => expect(host.savedConfig).toEqual({ interval: 40, maxCycles: 2, driveLetter: "C" }))
+  })
+
   test("persists backend failures as visible node state", async () => {
     surfaceState.mode = "regular"
     const host = createHost({ interval: 10, maxCycles: 1 }, { fail: true })
@@ -208,6 +271,8 @@ describe("app-owned recycleu Component", () => {
 })
 
 type TestHost = NodeHostApi & {
+  cancelCalls: number
+  savedConfig?: Partial<RecycleuCardState>
   state: RecycleuCardState
   runCalls: Array<{ nodeId: string; input: RecycleuInput }>
   copiedText: string
@@ -215,10 +280,17 @@ type TestHost = NodeHostApi & {
 
 function createHost(
   initial: RecycleuCardState,
-  options: { fail?: boolean; noBackend?: boolean; pending?: Promise<NodeRunResult<RecycleuData>> } = {},
+  options: {
+    cancellable?: boolean
+    config?: Partial<RecycleuCardState>
+    fail?: boolean
+    noBackend?: boolean
+    pending?: Promise<NodeRunResult<RecycleuData>>
+  } = {},
 ): TestHost {
   const host: TestHost = {
     state: { ...initial },
+    cancelCalls: 0,
     runCalls: [],
     copiedText: "",
     getData: <T,>() => host.state as T,
@@ -237,28 +309,44 @@ function createHost(
       theme: "light",
       platform: "web",
     },
+    config: {
+      get: async () => ({ config: options.config, path: "D:/config/xiranite.config.toml" }),
+      save: async (config) => {
+        host.savedConfig = config as Partial<RecycleuCardState>
+      },
+      openFile: () => undefined,
+    },
   }
 
   if (!options.noBackend) {
-    host.actions = {
-      run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => {
-        host.runCalls.push({ nodeId, input: input as RecycleuInput })
-        onEvent?.({ type: "progress", progress: 40, message: "cleaned 1 time(s), next clean in 5s" })
-        if (options.pending) return await options.pending as NodeRunResult<TData>
-        if (options.fail) {
-          return {
-            success: false,
-            message: "Failed to empty recycle bin.",
-            data: {
-              timerStatus: "error",
-              cleanCount: 0,
-              lastCleanTime: null,
-              remainingSeconds: 0,
-            },
-          } as NodeRunResult<TData>
-        }
-        return successResult("Recycle bin emptied for drive C:.") as NodeRunResult<TData>
-      },
+    const run = async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => {
+      host.runCalls.push({ nodeId, input: input as RecycleuInput })
+      onEvent?.({ type: "progress", progress: 40, message: "cleaned 1 time(s), next clean in 5s" })
+      if (options.pending) return await options.pending as NodeRunResult<TData>
+      if (options.fail) {
+        return {
+          success: false,
+          message: "Failed to empty recycle bin.",
+          data: {
+            timerStatus: "error",
+            cleanCount: 0,
+            lastCleanTime: null,
+            remainingSeconds: 0,
+          },
+        } as NodeRunResult<TData>
+      }
+      return successResult("Recycle bin emptied for drive C:.") as NodeRunResult<TData>
+    }
+
+    host.actions = { run }
+    if (options.cancellable) {
+      host.runner = {
+        run,
+        cancelCurrent: async () => {
+          host.cancelCalls += 1
+          return true
+        },
+      }
     }
   }
 

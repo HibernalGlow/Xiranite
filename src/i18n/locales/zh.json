@@ -2708,6 +2708,8 @@
         "settings": "清理参数",
         "start": "启动",
         "startTitle": "启动自动清理？",
+        "stop": "停止自动清理",
+        "stopping": "正在停止",
         "status": "状态",
         "statusShort": "状态"
       },
@@ -2724,6 +2726,19 @@
         "title": "清理控制",
         "description": "设置目标盘符、清理间隔与循环上限。"
       },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。"
+      },
       "dial": {
         "aria": "清理周期进度",
         "cleaned": "已清理 {{count}} 次",
@@ -2731,7 +2746,9 @@
         "unlimited": "无限循环"
       },
       "errors": {
-        "backendUnavailable": "Local Backend 暂不可用，无法执行 recycleu。"
+        "backendUnavailable": "Local Backend 暂不可用，无法执行 recycleu。",
+        "cancelUnavailable": "当前宿主不支持从节点取消任务。",
+        "noActiveRun": "没有可取消的 Recycleu 任务。"
       },
       "fields": {
         "allDrives": "全部",
@@ -2790,7 +2807,8 @@
         "running": "运行中",
         "runningDescription": "正在等待下一次清理。",
         "starting": "自动清理已启动。",
-        "startingUnlimited": "无限清理已启动，直到取消。"
+        "startingUnlimited": "无限清理已启动，直到取消。",
+        "stopping": "正在停止自动清理…"
       },
       "summary": {
         "last": "已清理 {{count}} 次 · 上次 {{time}}",

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { RecycleuData, RecycleuInput, RecycleuResult } from "@xiranite/node-recycleu/core"
 import type { LucideIcon } from "lucide-react"
@@ -12,6 +12,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { statusFromState } from "./constants"
@@ -26,6 +27,8 @@ import {
 } from "./controls"
 import type { RecycleuCardState, RecycleuStatusMeta } from "./types"
 
+const CONFIG_FIELDS = ["interval", "maxCycles", "driveLetter"] as const satisfies ReadonlyArray<keyof RecycleuCardState>
+
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
   const { t } = useNodeI18n("recycleu")
@@ -36,6 +39,9 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   const [running, setRunning] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<RecycleuCardState> | undefined>()
+  const [configPath, setConfigPath] = useState<string | undefined>()
+  const [configLoading, setConfigLoading] = useState(false)
   const interval = clampNumber(data.interval, 10, 5, 3600)
   const maxCycles = clampNumber(data.maxCycles, 360, 0, 360)
   const driveLetter = sanitizeDrive(data.driveLetter)
@@ -49,6 +55,11 @@ export function Component({ compId, host }: NodeComponentProps) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.height >= 430)
   const crampedCompact = surface.mode === "compact" && surface.height > 0 && surface.height < 280
+  const configDirty = defaults !== undefined && CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? ""))
+
+  useEffect(() => {
+    void loadDefaults()
+  }, [host])
 
   function patch(patchData: Partial<RecycleuCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -67,6 +78,48 @@ export function Component({ compId, host }: NodeComponentProps) {
     if (next.maxCycles !== undefined) next.maxCycles = clampNumber(next.maxCycles, 360, 0, 360)
     if (next.driveLetter !== undefined) next.driveLetter = sanitizeDrive(next.driveLetter)
     patch(next)
+  }
+
+  function pickConfig(source: RecycleuCardState): Partial<RecycleuCardState> {
+    return Object.fromEntries(
+      CONFIG_FIELDS.flatMap((field) => source[field] === undefined ? [] : [[field, source[field]]]),
+    ) as Partial<RecycleuCardState>
+  }
+
+  async function loadDefaults() {
+    const getConfig = host.config?.get?.<Partial<RecycleuCardState>>() ?? host.getNodeConfig?.<Partial<RecycleuCardState>>()
+    if (!getConfig) return
+
+    setConfigLoading(true)
+    try {
+      const response = await getConfig
+      setDefaults(response.config)
+      setConfigPath(response.path)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  async function saveAsDefault() {
+    const config = pickConfig(dataRef.current)
+    const saveConfig = host.config?.save ?? host.saveNodeConfig
+    if (!saveConfig) return
+
+    setConfigLoading(true)
+    try {
+      await saveConfig(config)
+      setDefaults(config)
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  function restoreDefaults() {
+    if (defaults) updateSettings(defaults)
+  }
+
+  async function openConfigFile() {
+    await (host.config?.openFile?.() ?? host.openConfigFile?.())
   }
 
   async function execute(action: RecycleuInput["action"]) {
@@ -184,6 +237,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   const commonProps: ViewProps = {
+    canCancel: Boolean(host.runner?.cancelCurrent ?? host.actions?.cancelCurrent),
+    configDirty,
+    configLoading,
+    configPath,
     cleanCount,
     data: { ...data, interval, maxCycles, driveLetter },
     driveLetter,
@@ -197,7 +254,12 @@ export function Component({ compId, host }: NodeComponentProps) {
     cancelling,
     status,
     t,
+    defaults: defaults as Record<string, unknown> | undefined,
     onCopyLogs: copyLogs,
+    onLoadDefaults: loadDefaults,
+    onOpenConfigFile: openConfigFile,
+    onRestoreDefaults: restoreDefaults,
+    onSaveDefault: saveAsDefault,
     onCancel: cancelCurrentRun,
     onExecute: execute,
     onPatch: updateSettings,
@@ -226,8 +288,13 @@ export function Component({ compId, host }: NodeComponentProps) {
 }
 
 interface ViewProps {
+  canCancel: boolean
+  configDirty: boolean
+  configLoading: boolean
+  configPath?: string
   cleanCount: number
   data: RecycleuCardState
+  defaults?: Record<string, unknown>
   driveLetter: string
   interval: number
   lastCleanTime: string | null
@@ -240,10 +307,31 @@ interface ViewProps {
   status: RecycleuStatusMeta
   t: ReturnType<typeof useNodeI18n>["t"]
   onCopyLogs: () => void
+  onLoadDefaults: () => Promise<void>
+  onOpenConfigFile: () => Promise<void>
+  onRestoreDefaults: () => void
+  onSaveDefault: () => Promise<void>
   onCancel: () => void
   onExecute: (action: RecycleuInput["action"]) => void
   onPatch: (patch: Partial<RecycleuCardState>) => void
   onReset: () => void
+}
+
+function ConfigManagement(props: ViewProps) {
+  return (
+    <NodeConfigPopover
+      configPath={props.configPath}
+      defaults={props.defaults}
+      dirty={props.configDirty}
+      disabled={props.running}
+      loading={props.configLoading}
+      t={props.t}
+      onOpenFile={props.onOpenConfigFile}
+      onReload={props.onLoadDefaults}
+      onRestore={props.onRestoreDefaults}
+      onSave={props.onSaveDefault}
+    />
+  )
 }
 
 function CollapsedView(props: ViewProps) {
@@ -260,7 +348,10 @@ function CollapsedView(props: ViewProps) {
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
         <div className="mt-1 truncate text-[11px] text-muted-foreground">{settingsText(props)}</div>
       </div>
-      <CollapsedCommandPopover {...props} />
+      <div className="relative flex shrink-0 items-center gap-1">
+        <ConfigManagement {...props} />
+        <CollapsedCommandPopover {...props} />
+      </div>
     </div>
   )
 }
@@ -339,12 +430,12 @@ function FullView(props: ViewProps & { wide: boolean }) {
   if (props.wide) {
     return (
       <div className="flex min-h-0 flex-1 p-3">
-        <ResizablePanelGroup orientation="horizontal" className="min-h-0 overflow-hidden rounded-xl border bg-background/35">
-          <ResizablePanel defaultSize={29} minSize={23}><div className="h-full min-h-0 p-2"><ConfigCard {...props} /></div></ResizablePanel>
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 overflow-hidden">
+          <ResizablePanel defaultSize={29} minSize={23}><div className="h-full min-h-0 pr-2"><ConfigCard {...props} /></div></ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={34} minSize={29}><div className="h-full min-h-0 p-2"><MonitorCard {...props} /></div></ResizablePanel>
+          <ResizablePanel defaultSize={34} minSize={29}><div className="h-full min-h-0 px-2"><MonitorCard {...props} /></div></ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={37} minSize={25}><div className="h-full min-h-0 p-2"><LogPanel logs={props.logs} t={props.t} onCopyLogs={props.onCopyLogs} onReset={props.onReset} /></div></ResizablePanel>
+          <ResizablePanel defaultSize={37} minSize={25}><div className="h-full min-h-0 pl-2"><LogPanel logs={props.logs} t={props.t} onCopyLogs={props.onCopyLogs} onReset={props.onReset} /></div></ResizablePanel>
         </ResizablePanelGroup>
       </div>
     )
@@ -380,7 +471,7 @@ function MonitorCard(props: ViewProps & { compact?: boolean }) {
       <CardHeader className="border-b px-3 py-3 !pb-3">
         <CardTitle className="flex items-center gap-2 text-sm"><Gauge /><span>Recycleu</span><span className="text-muted-foreground">· {props.t("monitor.title", "清理监控")}</span></CardTitle>
         <CardDescription className="text-xs">{summaryText(props)}</CardDescription>
-        <CardAction><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></CardAction>
+        <CardAction className="flex items-center gap-1"><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge><ConfigManagement {...props} /></CardAction>
       </CardHeader>
       <CardContent className={cn("flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-4", props.compact && "flex-row justify-between gap-3 p-3")}>
         <TimerDial compact={props.compact} cleanCount={props.cleanCount} interval={props.interval} maxCycles={props.maxCycles} progress={props.progress} remainingSeconds={props.remainingSeconds} running={props.running} status={props.status} t={props.t} />
@@ -416,13 +507,28 @@ function HeaderLine(props: ViewProps) {
         <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive text-destructive-foreground"><Trash2 /></div>
         <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">Recycleu</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</p></div>
       </div>
-      <SettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} t={props.t} />
+      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><SettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} t={props.t} /></div>
     </div>
   )
 }
 
 function ActionCluster({ compact = false, props }: { compact?: boolean; props: ViewProps }) {
   const cancelLabel = props.t("actions.cancel", "取消")
+  if (props.running) {
+    return (
+      <Button
+        aria-label={props.t("actions.stop", "停止自动清理")}
+        disabled={!props.canCancel || props.cancelling}
+        size="sm"
+        variant="destructive"
+        onClick={props.onCancel}
+      >
+        <Square data-icon="inline-start" />
+        {props.cancelling ? props.t("actions.stopping", "正在停止") : props.t("actions.stop", "停止自动清理")}
+      </Button>
+    )
+  }
+
   return (
     <div className={cn("grid gap-2", compact ? "grid-cols-3" : "grid-cols-[1fr_1fr_auto]")}>
       <ConfirmActionButton
