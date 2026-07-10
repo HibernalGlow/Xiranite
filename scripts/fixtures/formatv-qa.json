@@ -1,0 +1,30 @@
+{
+  "theme": "wuling",
+  "data": {
+    "pathText": "D:/Media/ingest",
+    "prefixName": "hb",
+    "recursive": true,
+    "dryRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "扫描完成：4 个视频，发现 1 个重复项。",
+    "logs": ["[scan] 4 video files", "[duplicate] hb_seq_alpha_8942_copy.mp4"],
+    "result": {
+      "normalCount": 2,
+      "novCount": 1,
+      "prefixedCounts": { "hb": 1 },
+      "normalFiles": ["D:/Media/ingest/seq_alpha_8942.mp4", "D:/Media/ingest/seq_beta_1105.mp4"],
+      "novFiles": ["D:/Media/ingest/render_v2_final.mp4.nov"],
+      "prefixedFiles": { "hb": ["D:/Media/ingest/hb_seq_alpha_8942_copy.mp4"] },
+      "successCount": 4,
+      "errorCount": 0,
+      "skippedCount": 0,
+      "duplicateCount": 1,
+      "duplicates": ["D:/Media/ingest/seq_alpha_8942.mp4"],
+      "prefixedLarger": [],
+      "operations": [],
+      "reportPath": "D:/Media/ingest/formatv-hb-duplicates.json",
+      "errors": []
+    }
+  }
+}
