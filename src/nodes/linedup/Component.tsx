@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
 import { filterLines, splitLines } from "@xiranite/node-linedup/core"
@@ -6,6 +7,7 @@ import type { LucideIcon } from "lucide-react"
 import { Clipboard, Copy, Eraser, Filter, RotateCcw, Settings2, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
@@ -290,24 +292,27 @@ function FullView(props: ViewProps) {
         <div className="flex min-w-0 flex-col gap-2 @4xl/linedup:flex-row @4xl/linedup:items-center">
           <HeaderLine status={props.status} subtitle={summaryText(props)} />
           <div data-testid="linedup-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <Button disabled={!props.sourceCount} size="sm" onClick={props.onExecute}>
-              <Zap />
-              运行过滤
-            </Button>
             <ActionIconButton disabled={!props.result} icon={Copy} label="复制保留结果" onClick={props.onCopyKept} />
             <ActionIconButton disabled={!props.result} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
             <ConfigManagement {...props} />
-            <OptionsPopover {...props} />
           </div>
         </div>
         <StatsPanel progress={props.progress} result={props.result} sourceCount={props.sourceCount} filterCount={props.filterCount} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/linedup:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <TextAreas {...props} />
-        </section>
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/linedup:h-full">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/linedup:grid-cols-[minmax(250px,1fr)_minmax(220px,0.72fr)_minmax(280px,1fr)]">
+        <WorkbenchPanel description="粘贴待处理文本；每行都会保留原始顺序与差分位置。" eyebrow="RAW INPUT" title="源文本">
+          <TextAreaField
+            label="源文本"
+            placeholder="每行一条"
+            value={props.sourceText}
+            onChange={(sourceText) => props.onPatch({ sourceText })}
+            onClear={() => props.onPatch({ sourceText: "" })}
+            onPaste={props.onPasteSource}
+          />
+        </WorkbenchPanel>
+        <FilterLogicPanel {...props} />
+        <WorkbenchPanel description="切换预览、保留、移除和日志，检查每条文本的最终去向。" eyebrow="FILTERED OUTPUT" title="处理输出" flush>
           <LinedupDisplayTabs
             logs={props.logs}
             phase={props.phase}
@@ -317,10 +322,58 @@ function FullView(props: ViewProps) {
             onCopyRemoved={props.onCopyRemoved}
             onDownload={props.onDownload}
           />
-        </div>
+        </WorkbenchPanel>
       </div>
     </div>
   )
+}
+
+function WorkbenchPanel(props: {
+  children: ReactNode
+  description: string
+  eyebrow: string
+  flush?: boolean
+  title: string
+}) {
+  return (
+    <Card className="min-h-0 gap-0 overflow-hidden py-0">
+      <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">{props.title}</CardTitle><span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground">{props.eyebrow}</span></div>
+        <CardDescription className="text-[11px]">{props.description}</CardDescription>
+      </CardHeader>
+      <CardContent className={cn("min-h-0 flex-1", props.flush ? "p-0" : "p-3")}>{props.children}</CardContent>
+    </Card>
+  )
+}
+
+function FilterLogicPanel(props: ViewProps) {
+  return (
+    <WorkbenchPanel description="每个过滤词单独一行。命中词的源行会移入“移除”结果。" eyebrow="FILTER LOGIC" title="过滤逻辑">
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <TextAreaField
+          compact
+          label="过滤词"
+          placeholder="移除包含这些词的源行"
+          value={props.filterText}
+          onChange={(filterText) => props.onPatch({ filterText })}
+          onClear={() => props.onPatch({ filterText: "" })}
+          onPaste={props.onPasteFilter}
+        />
+        <div className="grid gap-2 border-y py-3">
+          <SwitchRow checked={props.caseSensitive} description="beta 不会匹配 Beta" label="区分大小写" onCheckedChange={(caseSensitive) => props.onPatch({ caseSensitive })} />
+          <SwitchRow checked={props.sort} description="保留与移除的结果按自然顺序排列" label="结果排序" onCheckedChange={(sort) => props.onPatch({ sort })} />
+        </div>
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2 text-xs"><Metric label="保留" value={props.result?.keptCount ?? 0} /><Metric destructive label="移除" value={props.result?.removedCount ?? 0} /></div>
+          <Button disabled={!props.sourceCount} size="sm" onClick={props.onExecute}><Zap data-icon="inline-start" />运行过滤</Button>
+        </div>
+      </div>
+    </WorkbenchPanel>
+  )
+}
+
+function Metric(props: { destructive?: boolean; label: string; value: number }) {
+  return <div className="rounded-md bg-muted/40 px-2 py-1.5"><div className="text-[11px] text-muted-foreground">{props.label}</div><div className={cn("text-base font-semibold tabular-nums", props.destructive && props.value > 0 && "text-destructive")}>{props.value}</div></div>
 }
 
 function TextAreas(props: ViewProps & { compact?: boolean }) {
