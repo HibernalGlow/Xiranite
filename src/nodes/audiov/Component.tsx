@@ -2,22 +2,20 @@ import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { AudiovData, AudiovInput } from "@xiranite/node-audiov/core"
 import type { LucideIcon } from "lucide-react"
-import { Clipboard, Copy, DatabaseZap, Eye, Play, RotateCcw, Square } from "lucide-react"
+import { Clipboard, Eye, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { RunningTint } from "@/nodes/shared/controls"
@@ -59,6 +57,14 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
       })
       .catch(() => undefined)
   }, [host])
+
+  async function reloadDefaults() {
+    const response = await (host.config?.get?.<Partial<AudiovCardState>>() ?? host.getNodeConfig?.<Partial<AudiovCardState>>())
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+    setConfigDirty(false)
+  }
 
   useEffect(() => {
     if (!defaults) return
@@ -187,6 +193,7 @@ export function Component({ compId, host }: NodeComponentProps<AudiovCardState>)
     onPastePaths: pastePaths,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
@@ -232,6 +239,7 @@ function createViewProps(props: {
   onPastePaths: () => void
   onPatch: (patch: Partial<AudiovCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
@@ -313,17 +321,7 @@ function FullView(props: ViewProps) {
           <div data-testid="audiov-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ExecutionControls props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label={props.t("buttons.clearState", "清空状态")} onClick={props.onReset} />
-            <ConfigDefaultsPopover
-              configDirty={props.configDirty}
-              configFilePath={props.configFilePath}
-              defaults={props.defaults}
-              disabled={props.running}
-              t={props.t}
-              onOpenConfigFile={props.onOpenConfigFile}
-              onResetOverride={props.onResetOverride}
-              onRestoreDefault={props.onRestoreDefault}
-              onSaveDefault={props.onSaveDefault}
-            />
+            <NodeConfigPopover configPath={props.configFilePath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfigFile} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefault} onSave={props.onSaveDefault} />
           </div>
         </div>
         <AudiovStatsPanel result={props.result} t={props.t} />
@@ -560,80 +558,6 @@ function StatusStrip(props: {
         <Badge variant={props.status.badgeVariant} className="shrink-0">{props.status.label}</Badge>
       </div>
       <Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} />
-    </div>
-  )
-}
-
-function ConfigDefaultsPopover(props: {
-  configDirty: boolean
-  configFilePath?: string
-  defaults?: Partial<AudiovCardState>
-  disabled?: boolean
-  t: ViewProps["t"]
-  onOpenConfigFile?: () => Promise<void> | void
-  onResetOverride: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button aria-label={props.t("aria.defaults", "audiov 默认配置")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
-              <DatabaseZap />
-              <span className="sr-only">{props.t("defaults.title", "默认配置")}</span>
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{props.t("defaults.title", "默认配置")}</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-72">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">{props.t("defaults.title", "默认配置")}</div>
-          <p className="text-xs text-muted-foreground">{props.t("defaults.description", "保存 AudioV 的预演模式设置。")}</p>
-        </div>
-        <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{props.t("defaults.save", "保存为默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{props.t("defaults.restore", "恢复默认")}</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{props.t("defaults.clear", "清除覆盖")}</Button>
-          <Separator />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{props.t("defaults.view", "查看配置")}</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{props.t("defaults.dialogTitle", "AudioV 配置")}</DialogTitle>
-                <DialogDescription>{props.t("defaults.dialogDescription", "当前 nodes.audiov 默认值和配置文件位置。")}</DialogDescription>
-              </DialogHeader>
-              <ConfigPreview config={props.defaults} path={props.configFilePath} t={props.t} />
-            </DialogContent>
-          </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{props.t("defaults.openFile", "打开文件")}</Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function ConfigPreview(props: {
-  config?: Partial<AudiovCardState>
-  path?: string
-  t: ViewProps["t"]
-}) {
-  const content = props.config === undefined
-    ? props.t("defaults.none", "# nodes.audiov 暂无默认配置\n")
-    : JSON.stringify(props.config, null, 2)
-  return (
-    <div className="grid gap-3">
-      <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">{props.t("defaults.configFile", "配置文件")}</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? props.t("defaults.noConfigService", "未连接本地配置服务")}</div>
-      </div>
-      <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
-        {content}
-      </pre>
     </div>
   )
 }
