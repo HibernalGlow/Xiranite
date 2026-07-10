@@ -61,9 +61,9 @@ describe("app-owned migratef Component", () => {
         }
       } else {
         expect(screen.getByTestId("migratef-full-view")).toBeTruthy()
-        expect(screen.getByText("任务")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
+        expect(screen.getByText("配置")).toBeTruthy()
+        expect(screen.getByText("迁移清单")).toBeTruthy()
+        expect(screen.getByText("操作")).toBeTruthy()
         expect(screen.getByTestId("migratef-header-toolbar")).toBeTruthy()
       }
     },
@@ -96,6 +96,16 @@ describe("app-owned migratef Component", () => {
     await user.click(screen.getByRole("button", { name: "粘贴源" }))
 
     expect(host.state.sourceText).toBe("D:/gallery")
+  })
+
+  test("uses shared configuration management in full view", async () => {
+    setSurface("regular")
+    render(<Component compId="comp-migratef" host={createHost({ sourceText: "D:/source/a", targetPath: "D:/target" })} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    expect(screen.getByRole("button", { name: "保存为默认" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
   })
 
   test("runs move action in dry-run mode and stores the result", async () => {

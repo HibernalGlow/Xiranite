@@ -5,8 +5,11 @@ import { Copy, FolderSync, History, Play, RotateCcw, ShieldAlert, Square, Undo2 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, MODES } from "./constants"
@@ -14,13 +17,11 @@ import {
   ActionIconButton,
   ActionPicker,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   ModePicker,
   PrimarySwitches,
   ResultTabs,
   SourceInput,
   StatusStrip,
-  SwitchRow,
   TargetInput,
 } from "./controls"
 import type { MigratefActionMode, MigratefCardState, MigratefPhase, MigratefStatusMeta } from "./types"
@@ -28,6 +29,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("migratef")
   const data = host.getData<MigratefCardState>(compId) ?? {}
   const dataRef = useRef<MigratefCardState>(data)
   dataRef.current = data
@@ -60,6 +62,14 @@ export function Component({ compId, host }: NodeComponentProps) {
       })
       .catch(() => undefined)
   }, [host])
+
+  async function reloadDefaults() {
+    const response = await host.getNodeConfig?.<Partial<MigratefCardState>>()
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+    setConfigDirty(false)
+  }
 
   useEffect(() => {
     if (!defaults) return
@@ -195,6 +205,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     running,
     sourceCount: sources.length,
     status,
+    t,
     onActionChange: (value: MigratefActionMode) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onExecute: execute,
@@ -204,6 +215,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onPasteTarget: pasteTarget,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
@@ -248,6 +260,7 @@ function createViewProps(props: {
   running: boolean
   sourceCount: number
   status: MigratefStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: MigratefActionMode) => void
   onCopyLogs: () => void
   onExecute: (action: MigratefAction, override?: Partial<MigratefCardState>) => void
@@ -257,6 +270,7 @@ function createViewProps(props: {
   onPasteTarget: () => void
   onPatch: (patch: Partial<MigratefCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
@@ -351,34 +365,49 @@ function FullView(props: ViewProps) {
         <StatsPanel progress={props.progress} result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/migratef:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">任务</div>
-              <div className="text-xs text-muted-foreground">选择模式与动作，危险写入默认以预演保护。</div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/migratef:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.45fr)_minmax(220px,0.65fr)]">
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader>
+            <CardTitle>配置</CardTitle>
+            <CardDescription>源、目标和目录结构策略。</CardDescription>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-auto">
+            <div className="grid gap-4">
+              <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
+              <SourceInput disabled={props.running} pathCount={props.sourceCount} value={props.data.sourceText ?? ""} onChange={(sourceText) => props.onPatch({ sourceText })} onClear={() => props.onPatch({ sourceText: "" })} onPaste={props.onPasteSource} />
+              <TargetInput disabled={props.running} value={props.data.targetPath ?? ""} onChange={(targetPath) => props.onPatch({ targetPath })} onPaste={props.onPasteTarget} />
+              <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
             </div>
-            <ModePicker disabled={props.running} mode={props.mode} onModeChange={props.onModeChange} />
-            <ActionPicker disabled={props.running} value={props.action} onChange={props.onActionChange} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">路径</div>
-              <div className="text-xs text-muted-foreground">每行一个源路径，目标必须存在或可创建。</div>
-            </div>
-            <SourceInput disabled={props.running} pathCount={props.sourceCount} value={props.data.sourceText ?? ""} onChange={(sourceText) => props.onPatch({ sourceText })} onClear={() => props.onPatch({ sourceText: "" })} onPaste={props.onPasteSource} />
-            <TargetInput disabled={props.running} value={props.data.targetPath ?? ""} onChange={(targetPath) => props.onPatch({ targetPath })} onPaste={props.onPasteTarget} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">关键开关</div>
-            <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+          </CardContent>
+        </Card>
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/migratef:h-full">
-          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={props.onUndo} />
-        </div>
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0">
+            <CardTitle>迁移清单</CardTitle>
+            <CardDescription>预演结果、冲突和运行记录集中在同一视图。</CardDescription>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-hidden">
+            <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onUndo={props.onUndo} />
+          </CardContent>
+        </Card>
+
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader>
+            <CardTitle>操作</CardTitle>
+            <CardDescription>先预演，确认后再执行真实写入。</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+            <ActionPicker disabled={props.running} value={props.action} onChange={props.onActionChange} />
+            <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <StatsPanel progress={props.progress} result={props.result} />
+            <div className="mt-auto grid gap-2">
+              <PrimaryActionButton props={props} />
+              <Button disabled={props.running || !props.result?.operationId} size="sm" variant="outline" onClick={() => props.onUndo(props.result?.operationId)}>
+                <Undo2 data-icon="inline-start" />撤销最近
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
@@ -387,21 +416,21 @@ function FullView(props: ViewProps) {
 function ToolbarActions(props: ViewProps & { compact?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      {!props.compact && <PrimaryActionButton props={props} />}
       <ActionIconButton disabled={props.running} icon={History} label="读取历史" onClick={() => props.onExecute("history")} />
       <ActionIconButton disabled={props.running} icon={Undo2} label="撤销最近" onClick={() => props.onUndo()} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
+        <NodeConfigPopover
+          configPath={props.configFilePath}
           defaults={props.defaults}
+          dirty={props.configDirty}
           disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
+          t={props.t}
+          onOpenFile={props.onOpenConfigFile}
+          onReload={props.onReloadDefaults}
+          onRestore={props.onRestoreDefault}
+          onSave={props.onSaveDefault}
         />
       )}
     </div>
