@@ -2,14 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { CrashuData, CrashuInput } from "@xiranite/node-crashu/core"
 import type { LucideIcon } from "lucide-react"
-import { Archive, Copy, FolderSearch, MoveRight, RotateCcw, Search, ShieldAlert, Square } from "lucide-react"
+import { Copy, FolderSearch, MoveRight, RotateCcw, Search, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -354,26 +352,22 @@ function FullView(props: ViewProps) {
       )}
 
       {/* Main 3-zone pipeline grid: Input → Results → Execution Gate */}
-      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @2xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] @2xl/crashu:grid-rows-1 @4xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(240px,300px)]">
+      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 @2xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)] @4xl/crashu:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(240px,300px)]">
         {/* Zone 1: Input */}
-        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+        <section data-testid="crashu-source-panel" className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
           <ZoneLabel icon={FolderSearch} label={tNode("crashu", "zone.input", "匹配输入")} />
           <SourcePathsInput disabled={props.running} pathCount={props.sourcePaths.length} value={props.data.sourcePathsText ?? ""} onChange={(sourcePathsText) => props.onPatch({ sourcePathsText })} onClear={() => props.onPatch({ sourcePathsText: "" })} onPaste={props.onPasteSources} />
           <TargetNamesInput disabled={props.running || Boolean(props.data.targetPath?.trim())} targetCount={props.targetNames.length} value={props.data.targetNamesText ?? ""} onChange={(targetNamesText) => props.onPatch({ targetNamesText })} />
         </section>
 
-        {/* Zone 2 + 3: Results and Execution Gate */}
-        <div className="grid min-h-0 gap-2 grid-rows-[minmax(0,1fr)_auto] @4xl/crashu:contents">
-          {/* Zone 2: Results */}
-          <div className="min-h-0">
-            <CrashuDisplayTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-          </div>
-          {/* Zone 3: Execution Gate */}
+        <section data-testid="crashu-match-matrix" className="flex min-h-0 flex-col gap-2">
+          <SimilarityRibbon result={props.result} />
+          <MatchPlanBoard result={props.result} />
+        </section>
+        <div className="min-h-0">
           <ExecutionGate {...props} />
         </div>
       </div>
-
-      <LogsStrip logs={props.logs} onCopy={props.onCopyLogs} />
     </div>
   )
 }
@@ -383,7 +377,7 @@ function FullView(props: ViewProps) {
 function ExecutionGate(props: ViewProps) {
   const live = !props.dryRun
   return (
-    <section className={cn("flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
+    <section className={cn("flex h-full min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
       <div className="flex shrink-0 items-center justify-between gap-2">
         <ZoneLabel icon={ShieldAlert} label={tNode("crashu", "zone.gate", "执行闸门")} tone={live ? "danger" : "default"} />
         <Badge variant={live ? "destructive" : "outline"}>{props.dryRun ? tNode("crashu", "mode.dry", "预演") : tNode("crashu", "mode.live", "真实")}</Badge>
@@ -404,10 +398,7 @@ function ExecutionGate(props: ViewProps) {
             onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
           />
         </Field>
-        <PrimaryActionButton props={props} />
       </div>
-
-      <Separator />
 
       <div className="grid gap-2">
         <GateTextField
@@ -428,8 +419,6 @@ function ExecutionGate(props: ViewProps) {
         />
       </div>
 
-      <Separator />
-
       <Field className="gap-1.5">
         <FieldTitle className="text-xs text-muted-foreground">{tNode("crashu", "labels.moveDirection", "移动方向")}</FieldTitle>
         <DirectionPicker disabled={props.running} value={props.data.moveDirection ?? "to_target"} onChange={(moveDirection) => props.onPatch({ moveDirection })} />
@@ -440,8 +429,29 @@ function ExecutionGate(props: ViewProps) {
         <ConflictPicker disabled={props.running} value={props.data.conflictPolicy ?? "skip"} onChange={(conflictPolicy) => props.onPatch({ conflictPolicy })} />
       </Field>
 
-      <Separator />
+      <div className="mt-auto pt-2 [&>button]:w-full"><PrimaryActionButton props={props} /></div>
+    </section>
+  )
+}
 
+function SimilarityRibbon(props: { result: CrashuData | null }) {
+  const matches = props.result?.similarFolders ?? []
+  return (
+    <section className="shrink-0 rounded-lg border bg-card p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <ZoneLabel icon={Search} label={tNode("crashu", "matrix.similarityIndex", "相似度索引")} />
+        <Badge variant="outline">{tNode("crashu", "matrix.matches", "{{count}} 个匹配", { count: matches.length })}</Badge>
+      </div>
+      <div className="grid min-h-8 grid-flow-col auto-cols-fr gap-1">
+        {matches.length ? matches.slice(0, 12).map((match) => (
+          <div
+            key={`${match.path}:${match.target}`}
+            className={cn("rounded-sm bg-primary", match.similarity < 0.75 && "bg-muted-foreground/60", match.similarity < 0.5 && "bg-destructive/70")}
+            style={{ opacity: Math.max(0.25, match.similarity) }}
+            title={`${match.name}: ${Math.round(match.similarity * 100)}%`}
+          />
+        )) : <div className="rounded-sm bg-muted" />}
+      </div>
     </section>
   )
 }
@@ -492,28 +502,6 @@ function GateNumberField(props: {
         onChange={(event) => props.onChange(Number(event.currentTarget.value))}
       />
     </Field>
-  )
-}
-
-function LogsStrip(props: {
-  logs: string[]
-  onCopy: () => void
-}) {
-  if (!props.logs.length) return null
-  return (
-    <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2 py-1">
-      <Archive className="size-3.5 shrink-0 text-muted-foreground" />
-      <ScrollArea className="min-w-0 flex-1">
-        <div className="flex items-center gap-3 font-mono text-[11px] leading-5 text-muted-foreground">
-          {props.logs.slice(-5).map((line, index) => (
-            <span key={`${line}:${index}`} className="whitespace-nowrap">{line}</span>
-          ))}
-        </div>
-      </ScrollArea>
-      <Button disabled={!props.logs.length} size="xs" variant="ghost" onClick={props.onCopy}>
-        <Copy data-icon="inline-start" />
-      </Button>
-    </div>
   )
 }
 

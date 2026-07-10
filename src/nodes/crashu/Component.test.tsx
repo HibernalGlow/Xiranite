@@ -53,8 +53,11 @@ describe("app-owned crashu Component", () => {
       }
 
       expect(screen.getByLabelText("crashu source paths")).toBeTruthy()
+      if (mode === "compact" || mode === "portrait") {
       expect(screen.getByRole("tab", { name: /结果/ })).toBeTruthy()
       expect(screen.getByRole("tab", { name: /日志/ })).toBeTruthy()
+
+      }
 
       if (mode === "compact") {
         expect(screen.getByTestId("crashu-compact-view")).toBeTruthy()
@@ -66,6 +69,8 @@ describe("app-owned crashu Component", () => {
         expect(screen.getByTestId("crashu-full-view")).toBeTruthy()
         expect(screen.getByLabelText("crashu 预演切换")).toBeTruthy()
         expect(screen.getByTestId("crashu-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("crashu-source-panel")).toBeTruthy()
+        expect(screen.getByTestId("crashu-match-matrix")).toBeTruthy()
       }
     },
   )
