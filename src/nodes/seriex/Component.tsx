@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { SeriexAction, SeriexData, SeriexInput } from "@xiranite/node-seriex/core"
-import { Copy, FolderTree, RotateCcw, Square } from "lucide-react"
+import { Copy, FileText, FolderTree, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
@@ -335,6 +336,11 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  if ((props.data.action as string | undefined) === "legacy") return <LegacyFullView {...props} />
+  return <SeriexReferenceWorkspace {...props} />
+}
+
+function LegacyFullView(props: ViewProps) {
   return (
     <div data-testid="seriex-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/seriex:flex-row @4xl/seriex:items-center @4xl/seriex:justify-between">
@@ -393,6 +399,75 @@ function FullView(props: ViewProps) {
   )
 }
 
+function SeriexReferenceWorkspace(props: ViewProps) {
+  const planItems = props.result?.planItems ?? []
+  return (
+    <div data-testid="seriex-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3 @4xl/seriex:p-4">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 pb-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || props.t("workbench.subtitle", "扫描目录，识别系列结构，再执行归档计划")} />
+        <div data-testid="seriex-header-toolbar"><ToolbarActions {...props} showPrimary={false} /></div>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/seriex:grid-cols-[minmax(15rem,.82fr)_minmax(0,1.25fr)_minmax(16rem,.9fr)]">
+        <Card className="min-h-0 gap-4 py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="text-base">{props.t("workbench.scanTitle", "系列扫描")}</CardTitle>
+            <CardDescription>{props.t("workbench.scanDesc", "设置来源目录与归档命名规则")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4">
+            <ActionPicker action={props.action} disabled={props.running} dryRun={props.dryRun} result={props.result} onExecute={props.onExecute} onPatch={props.onPatch} />
+            <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <PrimarySwitches data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+            <div className="min-h-24 flex-1 overflow-auto rounded-md border bg-muted/15 p-2 font-mono text-xs text-muted-foreground">
+              {props.logs.length ? props.logs.map((line, index) => <div key={index} className="truncate">{line}</div>) : <div className="grid h-full place-items-center">{props.t("empty.logs", "暂无运行日志")}</div>}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="min-h-0 gap-4 py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="text-base">{props.t("workbench.clusters", "检测到的系列")}</CardTitle>
+            <CardDescription>{planItems.length ? props.t("workbench.clusterCount", "已识别 {{count}} 个可归档系列", { count: planItems.length }) : props.t("workbench.clusterEmpty", "先运行预览以生成聚类结果")}</CardDescription>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-auto px-4">
+            <SeriesClusterList items={planItems} t={props.t} />
+          </CardContent>
+        </Card>
+        <Card className="min-h-0 gap-4 py-4">
+          <CardHeader className="px-4">
+            <CardTitle className="text-base">{props.t("workbench.execution", "归档执行")}</CardTitle>
+            <CardDescription>{props.dryRun ? props.t("workbench.dryRun", "预演模式不会移动文件") : props.t("workbench.live", "执行会修改文件系统")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 px-4">
+            <div data-testid="seriex-stats-panel" className="grid gap-2 text-sm">
+              <ExecutionMetric label={props.t("stats.series", "系列") } value={planItems.length} />
+              <ExecutionMetric label={props.t("stats.files", "文件") } value={props.result?.totalFiles ?? 0} />
+              <ExecutionMetric label={props.t("stats.progress", "进度") } value={`${props.progress}%`} />
+            </div>
+            <div className="min-h-0 flex-1 rounded-md border bg-muted/15 p-3 text-xs text-muted-foreground">
+              <div className="font-medium text-foreground">{props.t("workbench.destination", "目标目录")}</div>
+              <p className="mt-1 break-all font-mono">{props.data.directoryPath || props.t("workbench.destinationEmpty", "尚未设置来源目录")}</p>
+              <p className="mt-3">{props.t("workbench.executeHint", "执行将按左侧预览生成的计划整理文件；危险操作会要求确认。")}</p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex-col gap-2 px-4">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-[width]" style={{ width: `${props.progress}%` }} /></div>
+            <div className="w-full [&>button]:w-full [&>button]:justify-center [&>button]:py-5"><PrimaryActionButton props={props} /></div>
+          </CardFooter>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function SeriesClusterList({ items, t }: { items: NonNullable<SeriexData["planItems"]>; t: ViewProps["t"] }) {
+  if (!items.length) return <div className="grid h-full min-h-40 place-items-center text-center text-sm text-muted-foreground">{t("workbench.clusterEmpty", "先运行预览以生成聚类结果")}</div>
+  return <div className="flex flex-col gap-3">{items.map((item) => <Card key={`${item.directory}:${item.folder}`} className="gap-3 py-3 shadow-none"><CardHeader className="px-3"><CardTitle className="flex items-center gap-2 text-sm"><FolderTree className="size-4 text-primary" />{item.folder}<Badge variant="secondary">{item.files.length}</Badge></CardTitle><CardDescription className="truncate font-mono text-xs">{item.directory}</CardDescription></CardHeader><CardContent className="flex gap-2 overflow-x-auto px-3 pb-1">{item.files.slice(0, 4).map((file) => <div key={file} className="flex w-20 shrink-0 flex-col gap-1 rounded-md border bg-muted/15 p-2"><FileText className="size-5 text-muted-foreground" /><span className="truncate font-mono text-[10px]">{file.split(/[\\/]/).at(-1)}</span></div>)}{item.files.length > 4 && <div className="grid w-20 shrink-0 place-items-center rounded-md border border-dashed text-xs text-muted-foreground">+{item.files.length - 4}</div>}</CardContent></Card>)}</div>
+}
+
+function ExecutionMetric({ label, value }: { label: string; value: number | string }) {
+  return <div className="flex items-center justify-between border-b border-border/70 py-1.5"><span className="text-muted-foreground">{label}</span><span className="font-mono font-semibold tabular-nums">{value}</span></div>
+}
+
 function ActiveFieldPanel(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="grid gap-2">
@@ -426,10 +501,10 @@ function ActiveFieldPanel(props: ViewProps & { compact?: boolean }) {
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ToolbarActions(props: ViewProps & { compact?: boolean; showPrimary?: boolean }) {
   return (
     <div className={cn("flex min-w-0 flex-wrap items-center gap-1", props.compact && "justify-between")}>
-      <PrimaryActionButton compact={props.compact} props={props} />
+      {props.showPrimary !== false && <PrimaryActionButton compact={props.compact} props={props} />}
       <ActionIconButton disabled={!props.result} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={Copy} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />

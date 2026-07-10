@@ -61,8 +61,8 @@ describe("app-owned seriex Component", () => {
         expect(screen.getByTestId("seriex-key-switches")).toBeTruthy()
       } else {
         expect(screen.getByTestId("seriex-full-view")).toBeTruthy()
-        expect(screen.getByText("关键开关")).toBeTruthy()
-        expect(screen.getByText("路径与前缀")).toBeTruthy()
+        expect(screen.getByText("系列扫描")).toBeTruthy()
+        expect(screen.getByText("检测到的系列")).toBeTruthy()
         expect(screen.getByTestId("seriex-header-toolbar")).toBeTruthy()
         expect(screen.getByTestId("seriex-stats-panel")).toBeTruthy()
       }
