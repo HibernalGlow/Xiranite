@@ -1,9 +1,6 @@
-import { FolderTree, Play, Route, ScanLine } from "lucide-react"
+import { ClipboardList, Copy, FolderSearch, FolderTree, MoveRight, Play, Search, TimerReset } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import type { PackuToolAction, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-import type { PackuNodeMeta } from "@/nodes/shared/packu/types"
-
-export type ClassqAction = PackuToolAction
+import type { ClassqAction, ClassqTransferMode } from "@xiranite/node-classq/core"
 
 export interface ClassqActionMeta {
   value: ClassqAction
@@ -11,47 +8,48 @@ export interface ClassqActionMeta {
   shortLabel: string
   description: string
   icon: LucideIcon
-  destructive: boolean
+}
+
+export interface ClassqTransferMeta {
+  value: ClassqTransferMode
+  label: string
+  description: string
+  icon: LucideIcon
 }
 
 export const ACTIONS: ClassqActionMeta[] = [
   {
-    value: "status",
-    label: "查看状态",
-    shortLabel: "状态",
-    description: "检查配置候选、数据库路径和将要调用的 Python 模块。",
-    icon: ScanLine,
-    destructive: false,
-  },
-  {
     value: "plan",
-    label: "生成计划",
-    shortLabel: "计划",
-    description: "生成关键词分类计划，不执行原工具。",
-    icon: Route,
-    destructive: false,
+    label: "Scan roots",
+    shortLabel: "Scan",
+    description: "Find keyword folders and preview wait transfers.",
+    icon: Search,
   },
   {
-    value: "run",
-    label: "执行分类",
-    shortLabel: "分类",
-    description: "调用 ClassQ 模块按关键词分类文件夹，需要真实改动时再关闭预演。",
+    value: "classify",
+    label: "Classify wait",
+    shortLabel: "Classify",
+    description: "Apply ready wait-folder transfers.",
     icon: Play,
-    destructive: true,
   },
 ]
 
-export const NODE_META: PackuNodeMeta = {
-  id: "classq",
-  title: "ClassQ",
-  description: "按关键词快速分类文件夹，适合轻量整理和预分组。",
-  icon: FolderTree,
-  spec: {
-    id: "classq",
-    moduleName: "classq",
-    sourceRoot: "D:/1VSCODE/Projects/PackU/OrganizeFolder/src",
-    defaultArgs: ["classify"],
-    configFiles: ["classq.toml"],
-    databaseLabel: "quick_classification_runs",
-  } satisfies PackuToolSpec,
-}
+export const TRANSFER_MODES: ClassqTransferMeta[] = [
+  {
+    value: "move",
+    label: "Move",
+    description: "Move sibling items into wait folders.",
+    icon: MoveRight,
+  },
+  {
+    value: "copy",
+    label: "Copy",
+    description: "Copy sibling items and keep originals.",
+    icon: Copy,
+  },
+]
+
+export const NODE_ICON = FolderSearch
+export const PLAN_ICON = ClipboardList
+export const ROOT_ICON = FolderTree
+export const WAIT_ICON = TimerReset

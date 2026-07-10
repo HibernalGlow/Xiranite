@@ -1,60 +1,37 @@
 import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
-  "title": "ClassQ",
-  "short": "Quickly classify folders by keyword into wait/already style groups.",
-  "description": "Quickly classify folders by keyword into wait/already style groups.",
-  "whenToUse": [
-    "Use ClassQ when you need this node's file workflow from either the workspace UI or CLI."
+  title: "ClassQ",
+  short: "Find keyword folders and move sibling items into wait folders.",
+  description: "Recursively scans root directories for folders containing a keyword such as already, then plans same-level sibling files and folders into a wait folder.",
+  whenToUse: [
+    "Use ClassQ when reviewed folders are marked by name and everything beside them should be queued into a wait folder.",
   ],
-  "workflows": [
+  workflows: [
     {
-      "title": "Workspace UI",
-      "summary": "Deploy ClassQ from the module registry and run it from the node surface.",
-      "ui": [
-        "Open the module registry and deploy ClassQ to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
-        "Run preview or the primary action, then review results and logs before applying live changes."
-      ]
+      title: "Keyword scan",
+      summary: "Scan roots, find keyword folders, and preview wait-folder transfers.",
+      ui: ["Paste one or more root directories.", "Set keyword and wait folder name.", "Review grouped wait transfers before live classify."],
     },
     {
-      "title": "CLI",
-      "summary": "Run ClassQ directly from a terminal.",
-      "cli": [
-        "Run `xiranite classq` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite classq --help` for the node command's exact flags and subcommands."
-      ]
-    }
+      title: "Live classify",
+      summary: "Move or copy ready siblings into the planned wait folders.",
+      ui: ["Run a plan first.", "Choose move or copy.", "Disable dry run and confirm live classify."],
+    },
   ],
-  "commands": [
+  commands: [
     {
-      "title": "Node CLI",
-      "command": "xiranite classq",
-      "description": "Open the node CLI or inspect command-specific flags.",
-      "examples": [
-        {
-          "label": "Guided mode",
-          "command": "xiranite classq",
-          "description": "Start the node's interactive terminal workflow."
-        },
-        {
-          "label": "Command flags",
-          "command": "xiranite classq --help",
-          "description": "Show the node CLI's subcommands and options."
-        },
-        {
-          "label": "Shared help",
-          "command": "xiranite help classq",
-          "description": "Render this shared help entry in the root CLI."
-        }
-      ]
-    }
+      title: "Preview keyword classification",
+      command: "xiranite classq plan D:/set --keyword already --wait wait",
+      description: "Preview wait transfers under roots containing already folders.",
+      examples: [
+        { label: "Copy wait candidates", command: "xiranite classq classify D:/set --keyword done --wait wait --transfer copy", description: "Copy wait candidates instead of moving them." },
+      ],
+    },
   ],
-  "safety": {
-    "defaultMode": "preview",
-    "notes": [
-      "Prefer preview or dry-run modes before changing files.",
-      "Keep backups or undo records when processing large folders."
-    ]
-  }
+  safety: {
+    defaultMode: "dry-run",
+    destructive: ["classify"],
+    notes: ["Live move/copy is gated by confirmation in the UI.", "Existing targets are reported as conflicts and skipped."],
+  },
 } satisfies NodeHelp

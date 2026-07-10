@@ -6,9 +6,9 @@ export const def = {
   name: "ClassQ",
   version: "0.1.0",
   category: "file",
-  description: "Quickly classify folders by keyword into wait/already style groups.",
+  description: "Find keyword folders and plan sibling items into wait folders.",
   icon: "FolderTree",
-  keywords: ["packu", "classify", "keyword", "folders"],
+  keywords: ["classify", "keyword", "folders", "wait"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>
