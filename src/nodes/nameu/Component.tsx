@@ -1,52 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { NameuAction, NameuData, NameuInput } from "@xiranite/node-nameu/core"
+import type { NameuAction, NameuData, NameuInput, NameuMode, NameuPlanItem } from "@xiranite/node-nameu/core"
 import type { LucideIcon } from "lucide-react"
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Copy,
-  DatabaseZap,
-  FilePenLine,
-  FolderInput,
-  GitCompare,
-  HardDrive,
-  RotateCcw,
-  ScanLine,
-  Settings2,
-  ShieldAlert,
-} from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, FileArchive, FilePenLine, FolderInput, GitCompare, ListChecks, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { RunningTint } from "@/nodes/shared/controls"
-import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { ACTIONS, NODE_ICON } from "./constants"
-import {
-  ActionMode,
-  actionLabel,
-  ModeToggle,
-  PathField,
-  PlanTable,
-  ResultTabs,
-  RunButton,
-  SettingsPopover,
-  StatusStrip,
-  SwitchPanel,
-  TechLatch,
-  Metric,
-} from "./controls"
+import { ACTIONS, MODES, NODE_ICON } from "./constants"
 import type { NameuCardState, NameuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<NameuCardState>) {
   const surface = useNodeSurface()
-  const { t } = useNodeI18n("nameu")
   const data = getHostData(host, compId)
   const dataRef = useRef<NameuCardState>(data)
   dataRef.current = data
@@ -61,7 +37,7 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
   const result = data.result ?? null
   const logs = data.logs ?? []
   const progress = data.progress ?? 0
-  const status = statusFromState(data, running, result, t)
+  const status = statusFromState(data, running, result)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
@@ -119,21 +95,21 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
   async function execute(nextAction: NameuAction = action) {
     if (running) return
     if (!splitLines(dataRef.current.pathsText).length) {
-      const message = t("errors.noPaths", "请先输入至少一个库目录或艺术家目录。")
+      const message = "请先输入至少一个库目录或艺术家目录。"
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
     }
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
-      const message = t("errors.backendUnavailable", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
+      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("status.starting", "{{action}}开始", { action: actionLabel(nextAction) }), result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
     try {
       const response = await run<NameuInput, NameuData>("nameu", buildInput(nextAction, dataRef.current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
@@ -166,7 +142,6 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
     result,
     running,
     status,
-    t,
     onActionChange: (value) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -186,7 +161,7 @@ export function Component({ compId, host }: NodeComponentProps<NameuCardState>) 
         ) : compactSurface ? (
           portraitCompact ? <PortraitView {...props} /> : <CompactView {...props} />
         ) : (
-          <FullView {...props} wide={surface.width >= 860} />
+          <FullView {...props} />
         )}
       </div>
     </TooltipProvider>
@@ -205,7 +180,6 @@ interface ViewProps {
   result: NameuData | null
   running: boolean
   status: NameuStatusMeta
-  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: NameuAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -220,53 +194,30 @@ interface ViewProps {
 function CollapsedView(props: ViewProps) {
   const Icon = NODE_ICON
   return (
-    <div
-      data-testid="nameu-collapsed-view"
-      className="relative flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-background/85 px-3 py-2 shadow-sm backdrop-blur-sm"
-    >
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <Icon />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>NameU</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-        </div>
+    <div data-testid="nameu-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
+      <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-xs font-semibold leading-none"><span>NameU</span><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div>
         <div className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</div>
       </div>
-      <div className="relative flex shrink-0 items-center gap-1">
-        <SettingsPopover
-          t={props.t}
-          data={props.data}
-          disabled={props.running}
-          action={props.action}
-          onActionChange={props.onActionChange}
-          onPatch={props.onPatch}
-          onPaste={props.onPastePaths}
-        />
-        <RunButton t={props.t} compact running={props.running} action={props.action} dryRun={props.data.dryRun ?? true} onExecute={props.onExecute} />
-      </div>
+      <RunButton compact props={props} />
     </div>
   )
 }
 
 function CompactView(props: ViewProps) {
   return (
-    <div data-testid="nameu-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine t={props.t} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <ActionTools {...props} compact />
-          <RunButton t={props.t} compact running={props.running} action={props.action} dryRun={props.data.dryRun ?? true} onExecute={props.onExecute} />
-        </div>
+    <div data-testid="nameu-compact-view" className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
+        <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+        <div className="flex shrink-0 items-center gap-1"><ActionTools {...props} compact /><RunButton compact props={props} /></div>
       </div>
-      <ActionMode t={props.t} value={props.action} disabled={props.running} onChange={props.onActionChange} />
-      <ModeToggle t={props.t} value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
-      <PathField t={props.t} compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-      <SwitchPanel t={props.t} compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-      <div className="min-h-0 flex-1">
-        <ResultTabs t={props.t} compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
+        <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+        <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+        <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
   )
@@ -275,357 +226,244 @@ function CompactView(props: ViewProps) {
 function PortraitView(props: ViewProps) {
   return (
     <div data-testid="nameu-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine t={props.t} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <RunButton t={props.t} compact running={props.running} action={props.action} dryRun={props.data.dryRun ?? true} onExecute={props.onExecute} />
-      </div>
-      <ActionMode t={props.t} value={props.action} disabled={props.running} onChange={props.onActionChange} />
-      <ModeToggle t={props.t} value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
-      <PathField t={props.t} compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-      <SwitchPanel t={props.t} compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
-      <div className="min-h-0 flex-1">
-        <ResultTabs t={props.t} compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-      </div>
+      <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><RunButton compact props={props} /></div>
+      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+      <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+      <SwitchPanel compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
     </div>
   )
 }
 
-function FullView(props: ViewProps & { wide: boolean }) {
+function FullView(props: ViewProps) {
   return (
     <div data-testid="nameu-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <div className="flex shrink-0 flex-col gap-2 @3xl/nameu:flex-row @3xl/nameu:items-center @3xl/nameu:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @3xl/nameu:flex-row @3xl/nameu:items-center">
-          <HeaderLine t={props.t} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-          <div data-testid="nameu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
-            <ActionTools {...props} />
-          </div>
+          <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+          <div data-testid="nameu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1"><ActionTools {...props} /></div>
         </div>
-        <StatsPanel t={props.t} paths={props.paths} progress={props.progress} result={props.result} />
+        <StatsPanel result={props.result} paths={props.paths} progress={props.progress} />
       </div>
-      {(props.status.tone === "running" || props.status.tone === "error") && (
-        <StatusStrip t={props.t} progress={props.progress} status={props.status} text={props.data.progressText} />
-      )}
-      {props.wide ? <FullViewWide {...props} /> : <FullViewRegular {...props} />}
-    </div>
-  )
-}
-
-function FullViewRegular(props: ViewProps) {
-  return (
-    <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(260px,330px)]">
-      <ConfigCard {...props} />
-      <ReviewCard {...props} />
-      <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/nameu:col-span-2 @4xl/nameu:col-span-1">
-        <OperationsCard {...props} />
-        <ResultTabs logs={props.logs} result={props.result} t={props.t} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+      {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
+      <div className="grid min-h-0 flex-1 gap-2 @2xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/nameu:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(260px,330px)]">
+        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+          <ZoneTitle icon={FolderInput} label="路径和规则" />
+          <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <ModeToggle value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
+          <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        </section>
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={GitCompare} label="改名计划" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
+          <Separator />
+          <PlanRows items={props.result?.items ?? []} paths={props.paths} />
+        </section>
+        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/nameu:col-span-2 @4xl/nameu:col-span-1">
+          <ExecutionGate {...props} />
+          <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
       </div>
     </div>
-  )
-}
-
-function FullViewWide(props: ViewProps) {
-  return (
-    <div className="flex min-h-0 flex-1">
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 overflow-hidden rounded-xl border border-border/60 bg-background/35 backdrop-blur-sm">
-        <ResizablePanel defaultSize={27} minSize={22}>
-          <div className="h-full min-h-0 p-2">
-            <ConfigCard {...props} />
-          </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={43} minSize={30}>
-          <div className="h-full min-h-0 p-2">
-            <ReviewCard {...props} />
-          </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={30} minSize={24}>
-          <div className="flex h-full min-h-0 flex-col gap-2 p-2">
-            <OperationsCard {...props} />
-            <div className="min-h-0 flex-1">
-              <ResultTabs logs={props.logs} result={props.result} t={props.t} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-            </div>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  )
-}
-
-function ConfigCard(props: ViewProps) {
-  const queueCount = props.result?.items.length ?? props.paths.length
-  return (
-    <Card className="relative flex h-full min-h-0 flex-col gap-0 border-border/60 bg-card/40 py-0 shadow-sm backdrop-blur-sm" data-testid="nameu-config-panel">
-      <TechLatch label={props.t("latch.config", "CFG_R")} />
-      <CardHeader className="border-b border-border/60 px-3 py-3 !pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Settings2 className="size-4" />
-          {props.t("cards.rules", "规则矩阵")}
-        </CardTitle>
-        <CardDescription className="text-xs">
-          {props.t("cards.rulesDescription", "配置路径、模式和改名规则。")}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3">
-        <PathField t={props.t} data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-        <ModeToggle t={props.t} value={props.data.mode ?? "multi"} disabled={props.running} onChange={(mode) => props.onPatch({ mode })} />
-        <SwitchPanel t={props.t} data={props.data} disabled={props.running} onPatch={props.onPatch} />
-      </CardContent>
-      <div className="flex shrink-0 items-center justify-between border-t border-border/60 bg-muted/20 px-3 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          {props.t("labels.queue", "Queue")}
-        </span>
-        <Badge variant="outline" className="font-mono text-xs">
-          {queueCount} items
-        </Badge>
-      </div>
-    </Card>
-  )
-}
-
-function ReviewCard(props: ViewProps) {
-  const readyCount = props.result?.readyCount ?? 0
-  const conflictCount = props.result?.conflictCount ?? 0
-  const flagCount = (props.result?.items ?? []).filter((i) => i.status === "error" || i.status === "skipped").length
-  const hasItems = (props.result?.items.length ?? 0) > 0
-  return (
-    <Card className="relative flex h-full min-h-0 flex-col gap-0 border-border/60 bg-card/40 py-0 shadow-sm backdrop-blur-sm" data-testid="nameu-review-panel">
-      <TechLatch label={props.t("latch.review", "DIFF_VIEW")} />
-      <CardHeader className="border-b border-border/60 px-3 py-3 !pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <GitCompare className="size-4" />
-              {props.t("cards.review", "审查台")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {props.t("cards.reviewDescription", "源名称 → 目标投影，差异高亮显示。")}
-            </CardDescription>
-          </div>
-          <CardAction>
-            <Badge variant="outline" className="font-mono text-xs">
-              {props.result?.items.length ?? props.paths.length}
-            </Badge>
-          </CardAction>
-        </div>
-      </CardHeader>
-      {hasItems && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-muted/20 px-3 py-2">
-          <Badge variant="secondary" className="gap-1 text-xs">
-            <CheckCircle2 className="size-3" />
-            {readyCount} Auto-Match
-          </Badge>
-          {(conflictCount > 0 || flagCount > 0) && (
-            <Badge variant="destructive" className="gap-1 text-xs">
-              <AlertTriangle className="size-3" />
-              {conflictCount + flagCount} Flag
-            </Badge>
-          )}
-        </div>
-      )}
-      <CardContent className="min-h-0 flex-1 p-0">
-        <PlanTable t={props.t} items={props.result?.items ?? []} paths={props.paths} />
-      </CardContent>
-    </Card>
-  )
-}
-
-function OperationsCard(props: ViewProps) {
-  const live = props.action === "rename" && !(props.data.dryRun ?? true)
-  const dryRunPassed = (props.data.dryRun ?? true) || props.action !== "rename"
-  const estTime = (props.result?.items.length ?? 0) > 0 ? (props.result!.items.length * 0.008 + 0.2).toFixed(1) : "0.0"
-  return (
-    <Card
-      className={cn("relative shrink-0 gap-0 border-border/60 bg-card/40 py-0 shadow-sm backdrop-blur-sm", live && "border-destructive/50")}
-      data-testid="nameu-operations-panel"
-    >
-      <TechLatch label={props.t("latch.exec", "EXEC")} />
-      <CardHeader className="border-b border-border/60 px-3 py-3 !pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              {live ? <AlertTriangle className="size-4 text-destructive" /> : <ShieldAlert className="size-4" />}
-              {props.t("cards.operations", "操作台")}
-            </CardTitle>
-          </div>
-          <CardAction>
-            <Badge variant={live ? "destructive" : "outline"} className="text-xs">
-              {props.data.dryRun ?? true ? props.t("badge.preview", "预览") : props.t("badge.live", "写入")}
-            </Badge>
-          </CardAction>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 p-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1 rounded-md border border-border/60 bg-background/50 p-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {props.t("labels.dryRunStatus", "Dry Run Status")}
-            </span>
-            <Badge variant={dryRunPassed ? "default" : "destructive"} className="w-fit gap-1 text-xs">
-              {dryRunPassed ? <CheckCircle2 className="size-3" /> : <AlertTriangle className="size-3" />}
-              {dryRunPassed ? "PASSED" : "ACTIVE"}
-            </Badge>
-          </div>
-          <div className="flex flex-col gap-1 rounded-md border border-border/60 bg-background/50 p-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {props.t("labels.estTime", "Est. Time")}
-            </span>
-            <span className="flex items-center gap-1 text-xs font-medium tabular-nums">
-              <Clock className="size-3 text-muted-foreground" />
-              ~{estTime}s
-            </span>
-          </div>
-        </div>
-        <ActionMode t={props.t} value={props.action} disabled={props.running} onChange={props.onActionChange} />
-        <div className="flex flex-col gap-2">
-          <RunButton t={props.t} running={props.running} action={props.action} dryRun={props.data.dryRun ?? true} onExecute={props.onExecute} />
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 gap-1 text-xs"
-              disabled={props.running}
-              onClick={props.onReset}
-            >
-              <RotateCcw className="size-3.5" />
-              {props.t("actions.rollback", "Rollback Last")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 gap-1 text-xs"
-              disabled={!props.result}
-              onClick={props.onCopyResults}
-            >
-              <Copy className="size-3.5" />
-              {props.t("actions.copy", "复制结果")}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
 function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label={props.t("actions.saveDefault", "保存默认")} onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label={props.t("actions.restoreDefault", "恢复默认")} onClick={props.onRestoreDefault} />
-      <IconButton icon={RotateCcw} label={props.t("actions.reset", "清空状态")} onClick={props.onReset} />
+      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
+      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="保存默认" onClick={props.onSaveDefault} />
+      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="恢复默认" onClick={props.onRestoreDefault} />
+      <IconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
     </div>
   )
 }
 
-function HeaderLine(props: { t: ReturnType<typeof useNodeI18n>["t"]; status: NameuStatusMeta; subtitle: string }) {
-  const Icon = NODE_ICON
+function ActionMode(props: { disabled?: boolean; value: NameuAction; onChange: (value: NameuAction) => void }) {
   return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-          <Icon />
-        </div>
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">NameU</h3>
-            <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-          </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p>
-        </div>
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as NameuAction)} className="grid grid-cols-3" size="sm">
+      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.shortLabel}</span></ToggleGroupItem>)}
+    </ToggleGroup>
+  )
+}
+
+function ModeToggle(props: { disabled?: boolean; value: NameuMode; onChange: (value: NameuMode) => void }) {
+  return (
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as NameuMode)} className="grid grid-cols-2" size="sm">
+      {MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.label}</span></ToggleGroupItem>)}
+    </ToggleGroup>
+  )
+}
+
+function PathInput(props: { compact?: boolean; data: NameuCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<NameuCardState>) => void }) {
+  return (
+    <div className="grid gap-1.5">
+      {!props.compact && <Label htmlFor="nameu-paths" className="text-xs">库目录或艺术家目录</Label>}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+        <Textarea id="nameu-paths" aria-label="nameu paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"每行一个目录\nD:/archives"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+        <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="清空路径" onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
     </div>
   )
 }
 
-function StatsPanel(props: {
-  t: ReturnType<typeof useNodeI18n>["t"]
-  paths: string[]
-  progress: number
-  result: NameuData | null
-}) {
-  const { t } = props
-  const stats: Array<{ icon: LucideIcon; label: string; value: string | number; suffix?: string }> = [
-    { icon: FolderInput, label: t("metrics.paths", "路径"), value: props.paths.length },
-    { icon: ScanLine, label: t("metrics.scanned", "扫描"), value: props.result?.scannedCount ?? 0 },
-    { icon: GitCompare, label: t("metrics.ready", "待改"), value: props.result?.readyCount ?? 0 },
-    { icon: FilePenLine, label: t("metrics.renamed", "已改"), value: props.result?.renamedCount ?? 0 },
-    { icon: AlertTriangle, label: t("metrics.conflict", "冲突"), value: props.result?.conflictCount ?? 0 },
-    { icon: HardDrive, label: t("metrics.progress", "进度"), value: props.progress, suffix: "%" },
-  ]
+function SwitchPanel(props: { compact?: boolean; data: NameuCardState; disabled?: boolean; onPatch: (patch: Partial<NameuCardState>) => void }) {
   return (
-    <div className="grid shrink-0 grid-cols-2 gap-1.5 @3xl/nameu:grid-cols-3 @4xl/nameu:grid-cols-6">
-      {stats.map((item) => (
-        <Metric key={item.label} icon={item.icon} label={item.label} value={item.value} suffix={item.suffix} />
-      ))}
+    <div className={cn("grid gap-2", props.compact ? "grid-cols-1" : "grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]")}>
+      <SwitchRow checked={props.data.dryRun ?? true} disabled={props.disabled} icon={ShieldAlert} label="预览" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+      <SwitchRow checked={props.data.addArtistName ?? true} disabled={props.disabled} icon={FilePenLine} label="补作者名" onCheckedChange={(addArtistName) => props.onPatch({ addArtistName })} />
+      <SwitchRow checked={props.data.recursive ?? true} disabled={props.disabled} icon={FolderInput} label="递归" onCheckedChange={(recursive) => props.onPatch({ recursive })} />
+      <SwitchRow checked={props.data.normalizeFolders ?? true} disabled={props.disabled} icon={ListChecks} label="整理目录" onCheckedChange={(normalizeFolders) => props.onPatch({ normalizeFolders })} />
     </div>
   )
 }
 
-function IconButton(props: { active?: boolean; disabled?: boolean; icon: LucideIcon; label: string; onClick: () => void }) {
-  const Icon = props.icon
+function ExecutionGate(props: ViewProps) {
+  const live = props.action === "rename" && !(props.data.dryRun ?? true)
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant={props.active ? "secondary" : "outline"} onClick={props.onClick}>
-          <Icon />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{props.label}</TooltipContent>
-    </Tooltip>
+    <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
+      <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="执行" tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "预览" : "写入"}</Badge></div>
+      <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
+      <RunButton props={props} />
+    </section>
   )
 }
 
-function statusFromState(data: NameuCardState, running: boolean, result: NameuData | null, t: ReturnType<typeof useNodeI18n>["t"]): NameuStatusMeta {
-  if (running || data.phase === "running") {
-    return {
-      label: t("status.running", "运行中"),
-      description: data.progressText || t("status.runningDescription", "NameU 正在扫描或改名。"),
-      tone: "running",
-      badgeVariant: "secondary",
-      iconClass: "bg-primary text-primary-foreground",
-    }
+function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  if (props.running) return <Button aria-label="nameu running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && <span>运行中</span>}</Button>
+  const label = actionLabel(props.action)
+  const live = props.action === "rename" && !(props.data.dryRun ?? true)
+  if (live) {
+    return (
+      <AlertDialog>
+        <AlertDialogTrigger asChild><Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive"><Play />{!compact && <span>{label}</span>}</Button></AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>确认执行改名？</AlertDialogTitle><AlertDialogDescription>当前会重命名文件或目录。请先确认路径、模式和冲突列表。</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认执行</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
   }
-  if (data.phase === "error" || result?.errorCount) {
-    return {
-      label: t("status.error", "失败"),
-      description: data.progressText || result?.errors[0] || t("status.errorDescription", "上次任务失败，请查看问题列表。"),
-      tone: "error",
-      badgeVariant: "destructive",
-      iconClass: "bg-destructive text-destructive-foreground",
-    }
+  return <Button aria-label={label} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}><Play />{!compact && <span>{label}</span>}</Button>
+}
+
+function PlanRows(props: { items: NameuPlanItem[]; paths: string[] }) {
+  if (!props.items.length) {
+    const text = props.paths.length ? "运行预览后显示改名计划。" : "输入目录后预览改名计划。"
+    return <div className="flex min-h-32 flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">{text}</div>
   }
-  if (data.phase === "completed") {
-    return {
-      label: t("status.completed", "完成"),
-      description: data.progressText || t("status.completedDescription", "上次 NameU 任务已完成。"),
-      tone: "success",
-      badgeVariant: "default",
-      iconClass: "bg-primary text-primary-foreground",
-    }
-  }
-  return {
-    label: t("status.idle", "就绪"),
-    description: t("status.idleDescription", "输入目录后预览改名计划。"),
-    tone: "idle",
-    badgeVariant: "outline",
-    iconClass: "bg-secondary text-secondary-foreground",
-  }
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="grid gap-1.5 p-3">
+        {props.items.slice(0, 180).map((item, index) => {
+          const meta = itemStatusMeta(item.status)
+          const StatusIcon = meta.icon
+          return (
+            <div key={`${item.sourcePath}:${index}`} className={cn("grid gap-1 rounded-md border px-2 py-1.5", item.status === "conflict" && "border-destructive/40", item.status === "error" && "border-destructive/40", item.status === "unchanged" && "opacity-75")}>
+              <div className="flex min-w-0 items-center gap-2"><FileArchive className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{item.sourceName}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{"->"} {item.targetName}</div></div><Badge variant={meta.variant} className="gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
+              <div className="truncate text-[11px] text-muted-foreground">{item.artistName}{item.reason ? ` / ${item.reason}` : ""}</div>
+            </div>
+          )
+        })}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function ResultTabs(props: { compact?: boolean; logs: string[]; result: NameuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
+  return (
+    <Tabs defaultValue="plan" className="flex h-full min-h-0 flex-col">
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan">计划</TabsTrigger><TabsTrigger value="issues">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
+      <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>
+      <TabsContent value="issues" className="min-h-0 flex-1"><TextPanel empty="暂无问题" lines={[...(props.result?.errors ?? []), ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} /></TabsContent>
+      <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel="复制" empty="运行日志会显示在这里。" icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
+    </Tabs>
+  )
+}
+
+function PlanPanel(props: { compact?: boolean; result: NameuData | null; onCopy: () => void }) {
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"><GitCompare className="size-3.5" /><span>{props.result?.items.length ? `${props.result.items.length} 项` : "等待运行"}</span></div><Button disabled={!props.result?.items.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />复制</Button></div>
+      <Separator />
+      <PlanRows items={props.result?.items ?? []} paths={[]} />
+    </section>
+  )
+}
+
+function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIcon; lines: string[]; onAction?: () => void }) {
+  const Icon = props.icon
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{Icon && <Icon className="size-3.5" />}{props.lines.length ? `${props.lines.length} 行` : props.empty}</span>{props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? "复制"}</Button>}</div>
+      <Separator />
+      <ScrollArea className="min-h-0 flex-1">{props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}</ScrollArea>
+    </section>
+  )
+}
+
+function HeaderLine(props: { status: NameuStatusMeta; subtitle: string }) {
+  const Icon = NODE_ICON
+  return <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">NameU</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div>
+}
+
+function StatsPanel(props: { paths: string[]; progress: number; result: NameuData | null }) {
+  const stats = [
+    { label: "路径", value: props.paths.length },
+    { label: "扫描", value: props.result?.scannedCount ?? 0 },
+    { label: "待改", value: props.result?.readyCount ?? 0 },
+    { label: "已改", value: props.result?.renamedCount ?? 0 },
+    { label: "冲突", value: props.result?.conflictCount ?? 0 },
+    { label: "进度", value: props.progress, suffix: "%" },
+  ]
+  return <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/nameu:grid-cols-6">{stats.map((item) => <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center"><div className="truncate text-[11px] text-muted-foreground">{item.label}</div><div className="text-sm font-semibold tabular-nums">{item.value}{item.suffix ?? ""}</div></div>)}</div>
+}
+
+function StatusStrip(props: { progress: number; status: NameuStatusMeta; text?: string }) {
+  return <div className="rounded-md border bg-card p-2"><div className="mb-1 flex min-w-0 items-center justify-between gap-2"><div className="truncate text-xs font-medium">{props.text || props.status.description}</div><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><Progress value={props.progress} className={cn("h-1.5", props.status.tone === "error" && "bg-destructive/20")} /></div>
+}
+
+function SwitchRow(props: { checked: boolean; disabled?: boolean; icon: LucideIcon; label: string; onCheckedChange: (checked: boolean) => void }) {
+  const Icon = props.icon
+  return <label className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"><span className="flex min-w-0 items-center gap-1.5"><Icon className="size-4 shrink-0 text-muted-foreground" /><span className="truncate text-xs font-medium">{props.label}</span></span><Switch checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} /></label>
+}
+
+function IconButton(props: { active?: boolean; disabled?: boolean; icon: LucideIcon; label: string; onClick: () => void }) {
+  const Icon = props.icon
+  return <Tooltip><TooltipTrigger asChild><Button aria-label={props.label} disabled={props.disabled} size="icon-sm" variant={props.active ? "secondary" : "outline"} onClick={props.onClick}><Icon /></Button></TooltipTrigger><TooltipContent>{props.label}</TooltipContent></Tooltip>
+}
+
+function ZoneTitle(props: { icon: LucideIcon; label: string; tone?: "default" | "danger" }) {
+  const Icon = props.icon
+  return <div className="flex shrink-0 items-center gap-1.5"><Icon className={cn("size-3.5", props.tone === "danger" ? "text-destructive" : "text-muted-foreground")} /><span className="text-xs font-semibold">{props.label}</span></div>
+}
+
+function statusFromState(data: NameuCardState, running: boolean, result: NameuData | null): NameuStatusMeta {
+  if (running || data.phase === "running") return { label: "运行中", description: data.progressText || "NameU 正在扫描或改名。", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
+  if (data.phase === "error" || result?.errorCount) return { label: "失败", description: data.progressText || result?.errors[0] || "上次任务失败，请查看问题列表。", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
+  if (data.phase === "completed") return { label: "完成", description: data.progressText || "上次 NameU 任务已完成。", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
+  return { label: "就绪", description: "输入目录后预览改名计划。", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
+}
+
+function itemStatusMeta(status: NameuPlanItem["status"]) {
+  if (status === "renamed") return { icon: CheckCircle2, label: "已改", variant: "default" as const }
+  if (status === "ready") return { icon: GitCompare, label: "待改", variant: "secondary" as const }
+  if (status === "conflict") return { icon: AlertTriangle, label: "冲突", variant: "destructive" as const }
+  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const }
+  if (status === "skipped") return { icon: AlertTriangle, label: "跳过", variant: "outline" as const }
+  return { icon: CheckCircle2, label: "不变", variant: "outline" as const }
 }
 
 function summaryText(props: ViewProps): string {
-  const { t } = props
   if (props.data.progressText) return props.data.progressText
-  if (props.result) {
-    return t("summary.result", "{{count}} 项 / 待改 {{ready}} / 冲突 {{conflict}}", {
-      count: props.result.items.length,
-      ready: props.result.readyCount,
-      conflict: props.result.conflictCount,
-    })
-  }
-  if (props.paths.length) {
-    return t("summary.paths", "{{count}} 条路径 / {{action}}", { count: props.paths.length, action: props.actionMeta.shortLabel })
-  }
+  if (props.result) return `${props.result.items.length} 项 / 待改 ${props.result.readyCount} / 冲突 ${props.result.conflictCount}`
+  if (props.paths.length) return `${props.paths.length} 条路径 / ${props.actionMeta.shortLabel}`
   return props.actionMeta.description
+}
+
+function actionLabel(action: NameuAction): string {
+  return ACTIONS.find((item) => item.value === action)?.label ?? action
 }
 
 function buildInput(action: NameuAction, data: NameuCardState): NameuInput {
