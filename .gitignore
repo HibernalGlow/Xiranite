@@ -37,3 +37,4 @@ repacku-direct*/*
 tmp/*
 output/playwright/*
 output/qa/*
+src/styles/.tailwind-candidates.txt

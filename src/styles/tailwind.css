@@ -1,5 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
+
+/* 由 Vite 启动/构建时生成；避免组件 class 编辑触发全局 CSS HMR。 */
+@source ".tailwind-candidates.txt";
 
 /* 扫描 ocean-dataview-vite 包内的 class 名，否则其内部 Tailwind class 不会被生成。 */
 @source "../../vendor/ocean-dataview/src";
