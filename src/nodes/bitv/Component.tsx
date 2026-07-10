@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, NODE_META, type BitvAction } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   OptionsPopover,
   PathFields,
   PathsInput,
@@ -26,6 +27,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("bitv")
   const data = getHostData(host, compId)
   const dataRef = useRef<BitvCardState>(data)
   dataRef.current = data
@@ -45,14 +47,18 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
+  async function reloadDefaults() {
+    try {
+      const response = await (host.config?.get?.<Partial<BitvCardState>>() ?? host.getNodeConfig?.<Partial<BitvCardState>>())
+      setDefaults(response?.config)
+      setConfigFilePath(response?.path)
+    } catch {
+      // Browser QA does not expose the desktop configuration service.
+    }
+  }
+
   useEffect(() => {
-    const loadConfig = host.config?.get?.<Partial<BitvCardState>>() ?? host.getNodeConfig?.<Partial<BitvCardState>>()
-    loadConfig
-      ?.then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -126,12 +132,6 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
     if (defaults) patch(defaults)
   }
 
-  function resetOverride() {
-    const empty: Partial<BitvCardState> = {}
-    for (const field of CONFIG_FIELDS) empty[field] = undefined
-    patch(empty)
-  }
-
   async function execute(nextAction: PackuToolAction = action) {
     if (running) return
     const current = dataRef.current
@@ -191,6 +191,7 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
     result,
     running,
     status,
+    t,
     onActionChange: (value: BitvAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
@@ -198,8 +199,8 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
     onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
     onPastePaths: pastePaths,
     onPatch: patch,
+    onReloadDefaults: reloadDefaults,
     onReset: reset,
-    onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   }
@@ -236,6 +237,7 @@ function createViewProps(props: {
   result: PackuToolData | null
   running: boolean
   status: BitvStatusMeta
+  t: ReturnType<typeof useNodeI18n>["t"]
   onActionChange: (value: BitvAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
@@ -243,8 +245,8 @@ function createViewProps(props: {
   onOpenConfigFile?: () => Promise<void> | void
   onPastePaths: () => void
   onPatch: (patch: Partial<BitvCardState>) => void
+  onReloadDefaults: () => Promise<void>
   onReset: () => void
-  onResetOverride: () => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
@@ -330,15 +332,16 @@ function FullView(props: ViewProps) {
           <ActionPicker action={props.action} disabled={props.running} triggerClassName="@3xl/bitv:w-72" onActionChange={props.onActionChange} />
           <RunActionButton props={props} />
           <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-          <ConfigDefaultsPopover
-            configDirty={props.configDirty}
-            configFilePath={props.configFilePath}
+          <NodeConfigPopover
+            configPath={props.configFilePath}
             defaults={props.defaults}
+            dirty={props.configDirty}
             disabled={props.running}
-            onOpenConfigFile={props.onOpenConfigFile}
-            onResetOverride={props.onResetOverride}
-            onRestoreDefault={props.onRestoreDefault}
-            onSaveDefault={props.onSaveDefault}
+            t={props.t}
+            onOpenFile={props.onOpenConfigFile}
+            onReload={props.onReloadDefaults}
+            onRestore={props.onRestoreDefault}
+            onSave={props.onSaveDefault}
           />
         </div>
       </div>
