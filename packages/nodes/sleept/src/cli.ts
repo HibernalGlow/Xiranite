@@ -6,18 +6,11 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
-  listTerminalThemes,
   promptRich,
-  requireInteractiveMode,
   renderProgressBar,
-  resolveCliInvocation,
-  resolveInteractionPreferences,
-  resolveTerminalLanguage,
-  resolveTerminalUiFlags,
   rich,
   runGuidedInteraction,
   runMain,
-  runTerminalUi,
   selectRich,
   terminalColumns,
   writeError,
@@ -28,14 +21,23 @@ import {
 import type {
   CliCommand,
   CliHost,
+} from "@xiranite/cli-runtime"
+import {
+  requireInteractiveMode,
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalUiFlags,
+} from "@xiranite/cli-runtime/interaction"
+import type {
   CliInteractionPreferencesSource,
   TerminalInteractionDefinition,
-  TerminalLanguage,
   TerminalRenderer,
-} from "@xiranite/cli-runtime"
+} from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { listTerminalThemes, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
-import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult } from "./core.js"
+import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
 import { runSleept } from "./core.js"
 import { createSleeptInteractionSchema, type SleeptInteractionValues } from "./interaction.js"
 import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
@@ -147,6 +149,7 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export interface SleeptCliDependencies {
+  createRuntime: () => SleeptRuntime
   runGuide: <Input, Result>(
     definition: TerminalInteractionDefinition<Input, Result>,
     options: { host: CliHost; language: TerminalLanguage },
@@ -164,6 +167,7 @@ export interface SleeptCliDependencies {
 }
 
 const defaultDependencies: SleeptCliDependencies = {
+  createRuntime: createNodeSleeptRuntime,
   runGuide: runGuidedInteraction,
   runUi: runTerminalUi,
 }
@@ -221,7 +225,7 @@ export async function runProgram(
     return
   }
 
-  const definition = createSleeptUiDefinition(defaults, flags.language)
+  const definition = createSleeptUiDefinition(defaults, flags.language, dependencies.createRuntime)
   if (invocation === "gd") {
     await dependencies.runGuide(definition, { host, language: flags.language })
     return
@@ -238,6 +242,7 @@ export async function runProgram(
 function createSleeptUiDefinition(
   defaults: SleeptDefaults,
   language: TerminalLanguage,
+  createRuntime: () => SleeptRuntime,
 ): TerminalInteractionDefinition<SleeptInput, SleeptResult> {
   let cancelled = false
   const schema = createSleeptInteractionSchema({
@@ -260,7 +265,7 @@ function createSleeptUiDefinition(
     schema,
     async run(input, onEvent) {
       cancelled = false
-      const runtime = createNodeSleeptRuntime()
+      const runtime = createRuntime()
       return runSleept(input, { ...runtime, isCancelled: () => cancelled }, onEvent)
     },
     cancel() {
@@ -740,7 +745,7 @@ function endProgress(host: CliHost, active: boolean): void {
   if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
 
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   try {
     await runProgram()
   } catch (error) {

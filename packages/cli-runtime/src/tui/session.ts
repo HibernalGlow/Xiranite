@@ -8,15 +8,16 @@ import type {
   TerminalInteractionSchema,
 } from "../interaction.js"
 
-export type TerminalUiPhase = "editing" | "preview" | "running" | "result"
+export type TerminalUiPhase = "ready" | "running" | "result"
+export type TerminalResultTab = "status" | "logs"
 
 export interface TerminalUiSession<Result> {
   phase: TerminalUiPhase
   values: InteractionValues
   fields: readonly InteractionField[]
-  field?: InteractionField
-  fieldIndex: number
-  fieldValue?: InteractionValue
+  fieldErrors: Readonly<Record<string, string>>
+  focusedControlId?: string
+  confirming: boolean
   error?: string
   preview: readonly string[]
   dangerous: boolean
@@ -24,28 +25,35 @@ export interface TerminalUiSession<Result> {
   status: string
   logs: readonly string[]
   result?: Result
+  resultTab: TerminalResultTab
   resultSummary?: {
     success: boolean
     message: string
     lines: readonly string[]
   }
-  changeValue: (value: InteractionValue) => void
-  submitValue: (value: InteractionValue) => void
-  back: () => boolean
-  execute: () => Promise<void>
+  setField: (fieldId: string, value: InteractionValue) => void
+  focus: (controlId: string) => void
+  moveFocus: (controlIds: readonly string[], direction: -1 | 1) => void
+  requestExecute: () => Promise<void>
+  confirmExecute: () => Promise<void>
+  dismissConfirmation: () => void
   cancel: () => void
   reset: () => void
+  selectResultTab: (tab: TerminalResultTab) => void
 }
 
 interface TerminalUiState<Result> {
   phase: TerminalUiPhase
   values: InteractionValues
-  fieldIndex: number
+  fieldErrors: Record<string, string>
+  focusedControlId?: string
+  confirming: boolean
   error?: string
   progress: number
   status: string
   logs: string[]
   result?: Result
+  resultTab: TerminalResultTab
   fatalError?: string
 }
 
@@ -56,6 +64,24 @@ export function visibleInteractionFields<Input, Result>(
   return schema.fields.filter((field) => field.visibleWhen?.(values) ?? true)
 }
 
+export function validateInteractionValues<Input, Result>(
+  schema: TerminalInteractionSchema<Input, Result>,
+  values: Readonly<InteractionValues>,
+): { fieldErrors: Record<string, string>; formError?: string } {
+  const fieldErrors: Record<string, string> = {}
+  for (const field of visibleInteractionFields(schema, values)) {
+    const value = values[field.id]
+    if (value === undefined) continue
+    const message = field.validate?.(value, values)
+    if (message) fieldErrors[field.id] = message
+  }
+  const input = schema.toInput(values)
+  const formError = Object.keys(fieldErrors).length === 0
+    ? schema.validate?.(values, input) ?? undefined
+    : undefined
+  return { fieldErrors, formError }
+}
+
 export function useTerminalUiSession<Input, Result>(
   definition: TerminalInteractionDefinition<Input, Result>,
 ): TerminalUiSession<Result> {
@@ -63,90 +89,66 @@ export function useTerminalUiSession<Input, Result>(
   const mountedRef = useRef(true)
   const [state, setState] = useState<TerminalUiState<Result>>(() => initialState(schema))
   const fields = visibleInteractionFields(schema, state.values)
-  const fieldIndex = Math.min(state.fieldIndex, Math.max(0, fields.length - 1))
-  const field = fields[fieldIndex]
   const input = useMemo(() => schema.toInput(state.values), [schema, state.values])
-  const preview = state.phase === "preview" ? schema.preview(input) : []
-  const dangerous = state.phase === "preview" && schema.isDangerous(input)
+  const preview = useMemo(() => schema.preview(input), [input, schema])
+  const dangerous = schema.isDangerous(input)
 
   useEffect(() => () => {
     mountedRef.current = false
   }, [])
 
-  const changeValue = useCallback((value: InteractionValue) => {
+  const setField = useCallback((fieldId: string, value: InteractionValue) => {
     setState((current) => {
-      const currentFields = visibleInteractionFields(schema, current.values)
-      const currentField = currentFields[Math.min(current.fieldIndex, Math.max(0, currentFields.length - 1))]
-      if (!currentField) return current
+      if (current.phase === "running") return current
+      const field = schema.fields.find((candidate) => candidate.id === fieldId)
+      if (!field) return current
+      const normalizedValue = normalizeFieldValue(field, value)
+      const nextValues = { ...current.values, [fieldId]: normalizedValue }
+      const nextErrors = { ...current.fieldErrors }
+      const validationError = field.validate?.(normalizedValue, nextValues) ?? null
+      if (validationError) nextErrors[fieldId] = validationError
+      else delete nextErrors[fieldId]
       return {
         ...current,
-        values: { ...current.values, [currentField.id]: value },
+        phase: current.phase === "result" ? "ready" : current.phase,
+        values: nextValues,
+        fieldErrors: nextErrors,
+        focusedControlId: fieldId,
+        confirming: false,
         error: undefined,
       }
     })
   }, [schema])
 
-  const submitValue = useCallback((value: InteractionValue) => {
+  const focus = useCallback((controlId: string) => {
+    setState((current) => ({ ...current, focusedControlId: controlId }))
+  }, [])
+
+  const moveFocus = useCallback((controlIds: readonly string[], direction: -1 | 1) => {
+    if (controlIds.length === 0) return
     setState((current) => {
-      const currentFields = visibleInteractionFields(schema, current.values)
-      const currentIndex = Math.min(current.fieldIndex, Math.max(0, currentFields.length - 1))
-      const currentField = currentFields[currentIndex]
-      if (!currentField) return current
-
-      const normalizedValue = normalizeFieldValue(currentField, value)
-      const nextValues = { ...current.values, [currentField.id]: normalizedValue }
-      const validationError = currentField.validate?.(normalizedValue, nextValues) ?? null
-      if (validationError) return { ...current, values: nextValues, error: validationError }
-
-      const nextFields = visibleInteractionFields(schema, nextValues)
-      if (currentIndex < nextFields.length - 1) {
-        return { ...current, values: nextValues, fieldIndex: currentIndex + 1, error: undefined }
-      }
-
-      const nextInput = schema.toInput(nextValues)
-      const formError = schema.validate?.(nextValues, nextInput) ?? null
-      if (formError) return { ...current, values: nextValues, error: formError }
-      return { ...current, values: nextValues, phase: "preview", error: undefined }
+      const currentIndex = current.focusedControlId ? controlIds.indexOf(current.focusedControlId) : -1
+      const nextIndex = currentIndex < 0
+        ? direction === 1 ? 0 : controlIds.length - 1
+        : (currentIndex + direction + controlIds.length) % controlIds.length
+      return { ...current, focusedControlId: controlIds[nextIndex] }
     })
-  }, [schema])
+  }, [])
 
-  const back = useCallback((): boolean => {
-    if (state.phase === "preview") {
-      setState((current) => {
-        const currentFields = visibleInteractionFields(schema, current.values)
-        return { ...current, phase: "editing", fieldIndex: Math.max(0, currentFields.length - 1), error: undefined }
-      })
-      return true
-    }
-    if (state.phase === "result") {
-      setState(initialState(schema))
-      return true
-    }
-    if (state.phase === "editing" && state.fieldIndex > 0) {
-      setState((current) => ({ ...current, fieldIndex: Math.max(0, current.fieldIndex - 1), error: undefined }))
-      return true
-    }
-    return false
-  }, [schema, state.fieldIndex, state.phase])
-
-  const execute = useCallback(async (): Promise<void> => {
-    const values = state.values
+  const executeValues = useCallback(async (values: Readonly<InteractionValues>): Promise<void> => {
     const executionInput = schema.toInput(values)
-    const validationError = schema.validate?.(values, executionInput) ?? null
-    if (validationError) {
-      setState((current) => ({ ...current, error: validationError }))
-      return
-    }
-
     setState((current) => ({
       ...current,
       phase: "running",
+      confirming: false,
       error: undefined,
+      fieldErrors: {},
       fatalError: undefined,
       progress: 0,
-      status: "Starting...",
+      status: "",
       logs: [],
       result: undefined,
+      resultTab: "status",
     }))
 
     try {
@@ -167,6 +169,7 @@ export function useTerminalUiSession<Input, Result>(
         progress: summary.success ? 100 : current.progress,
         status: summary.message,
         result,
+        resultTab: summary.success ? "status" : "logs",
       }))
     } catch (error) {
       if (!mountedRef.current) return
@@ -177,17 +180,55 @@ export function useTerminalUiSession<Input, Result>(
         status: message,
         fatalError: message,
         logs: [...current.logs, message].slice(-100),
+        resultTab: "logs",
       }))
     }
-  }, [definition, schema, state.values])
+  }, [definition, schema])
+
+  const requestExecute = useCallback(async (): Promise<void> => {
+    if (state.phase === "running") return
+    const validation = validateInteractionValues(schema, state.values)
+    if (Object.keys(validation.fieldErrors).length > 0 || validation.formError) {
+      setState((current) => ({
+        ...current,
+        fieldErrors: validation.fieldErrors,
+        focusedControlId: Object.keys(validation.fieldErrors)[0] ?? current.focusedControlId,
+        error: validation.formError,
+        confirming: false,
+      }))
+      return
+    }
+    if (schema.isDangerous(schema.toInput(state.values))) {
+      setState((current) => ({ ...current, confirming: true, focusedControlId: "confirm-execute", error: undefined }))
+      return
+    }
+    await executeValues(state.values)
+  }, [executeValues, schema, state.phase, state.values])
+
+  const confirmExecute = useCallback(async (): Promise<void> => {
+    if (!state.confirming || state.phase === "running") return
+    await executeValues(state.values)
+  }, [executeValues, state.confirming, state.phase, state.values])
+
+  const dismissConfirmation = useCallback(() => {
+    setState((current) => ({ ...current, confirming: false, focusedControlId: "execute" }))
+  }, [])
 
   const cancel = useCallback(() => {
+    if (state.confirming) {
+      dismissConfirmation()
+      return
+    }
     definition.cancel?.()
-  }, [definition])
+  }, [definition, dismissConfirmation, state.confirming])
 
   const reset = useCallback(() => {
     setState(initialState(schema))
   }, [schema])
+
+  const selectResultTab = useCallback((resultTab: TerminalResultTab) => {
+    setState((current) => ({ ...current, resultTab, focusedControlId: `tab-${resultTab}` }))
+  }, [])
 
   const resultSummary = state.fatalError
     ? { success: false, message: state.fatalError, lines: [] as readonly string[] }
@@ -202,9 +243,9 @@ export function useTerminalUiSession<Input, Result>(
     phase: state.phase,
     values: state.values,
     fields,
-    field,
-    fieldIndex,
-    fieldValue: field ? state.values[field.id] : undefined,
+    fieldErrors: state.fieldErrors,
+    focusedControlId: state.focusedControlId,
+    confirming: state.confirming,
     error: state.error,
     preview,
     dangerous,
@@ -212,24 +253,32 @@ export function useTerminalUiSession<Input, Result>(
     status: state.status,
     logs: state.logs,
     result: state.result,
+    resultTab: state.resultTab,
     resultSummary,
-    changeValue,
-    submitValue,
-    back,
-    execute,
+    setField,
+    focus,
+    moveFocus,
+    requestExecute,
+    confirmExecute,
+    dismissConfirmation,
     cancel,
     reset,
+    selectResultTab,
   }
 }
 
 function initialState<Input, Result>(schema: TerminalInteractionSchema<Input, Result>): TerminalUiState<Result> {
+  const firstField = visibleInteractionFields(schema, schema.initialValues)[0]
   return {
-    phase: "editing",
+    phase: "ready",
     values: { ...schema.initialValues },
-    fieldIndex: 0,
+    fieldErrors: {},
+    focusedControlId: firstField?.id,
+    confirming: false,
     progress: 0,
-    status: "Ready",
+    status: "",
     logs: [],
+    resultTab: "status",
   }
 }
 

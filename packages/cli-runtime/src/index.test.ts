@@ -1,20 +1,22 @@
 import { describe, expect, test } from "vitest"
 import {
-  createTerminalTranslator,
-  listTerminalThemes,
   nodeCliName,
   normalizeNodeCliName,
   renderCliEvent,
   renderProgressBar,
   renderRichPanel,
-  resolveCliInvocation,
-  resolveInteractionPreferences,
-  resolveTerminalUiFlags,
-  runTerminalUi,
   visibleWidth,
   writeCliEvent,
 } from "./index.js"
 import type { CliHost } from "./index.js"
+import { createTerminalTranslator, resolveTerminalLanguage } from "./i18n.js"
+import {
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalUiFlags,
+} from "./interaction.js"
+import { listTerminalThemes, runTerminalUi } from "./terminal.js"
+import { enterInkFullscreen, leaveInkFullscreen } from "./tui/ink/lifecycle.js"
 
 describe("cli-runtime", () => {
   test("derives short node command names and normalizes legacy names", () => {
@@ -94,6 +96,27 @@ describe("cli-runtime", () => {
     expect(zh("cancel")).toBe("取消")
     expect(zh("confirm")).toBe("确认")
     expect(zh("reset")).toBe("重置")
+  })
+
+  test("defaults terminal UI to Chinese while preserving explicit English overrides", () => {
+    expect(resolveTerminalLanguage(undefined, {})).toBe("zh")
+    expect(resolveTerminalLanguage("en", {})).toBe("en")
+    expect(resolveTerminalLanguage(undefined, { LANG: "en_US.UTF-8" })).toBe("en")
+  })
+
+  test("restores Ink alternate-screen, cursor, and every enabled mouse mode", () => {
+    let output = ""
+    const stream = { write: (chunk: string) => { output += chunk } }
+
+    enterInkFullscreen(stream)
+    leaveInkFullscreen(stream)
+
+    expect(output).toContain("\u001b[?1049h")
+    expect(output).toContain("\u001b[?1049l")
+    expect(output).toContain("\u001b[?25h")
+    for (const mode of [1000, 1002, 1003, 1006]) {
+      expect(output).toContain(`\u001b[?${mode}l`)
+    }
   })
 
   test("keeps Node hosts safe when OpenTUI needs a Bun re-exec", async () => {

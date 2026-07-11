@@ -1,13 +1,13 @@
 # CLI interaction modes
 
 This document defines the shared interaction contract for Xiranite node CLIs.
-All node migrations to Ink must follow it.
+All node terminal-UI migrations must follow it.
 
 ## Modes
 
 | Mode | Entry | Intended use |
 | --- | --- | --- |
-| `ui` | `xnode ui` | Full Ink terminal UI that mirrors the node GUI's fields, preview, confirmation, progress, and result views. |
+| `ui` | `xnode ui` | Fullscreen, mouse-first terminal workbench that mirrors the node GUI's fields, preview, confirmation, progress, and result views through the selected Ink or OpenTUI renderer. |
 | `gd` | `xnode gd` | Compact guided flow for quick selection and confirmation. Existing `guided` remains a compatibility alias for `gd`. |
 | `pipe` | normal subcommands, arguments, `--json`, or stdin | Scriptable and composable command path. It never renders Ink or prompt UI. |
 
@@ -51,7 +51,7 @@ write a plain usage error to stderr and exit with code 2.
 - `ui` and `gd` require both stdin and stdout to be TTYs.
 - Calling `ui` or `gd` without a TTY writes no ANSI bytes to stdout, writes a
   concise TTY requirement error to stderr, and exits with code 2.
-- `NO_COLOR=1` disables colour in `gd`; Ink follows the terminal's colour
+- `NO_COLOR=1` disables colour in `gd`; UI renderers follow the terminal's colour
   capability and must not alter pipe output.
 
 ## Package-owned interaction schema
@@ -68,13 +68,20 @@ installable and prevents a frontend dependency from leaking into distribution.
 
 ## GUI parity
 
-Ink `ui` is a projection of the GUI node, not a separate workflow. It must use
+`ui` is a projection of the GUI node, not a separate workflow. It must use
 the same core input type, defaults, validation, preview/dry-run policy, danger
 confirmation, progress events, and result model as the GUI component.
 
+The fullscreen UI is a workbench, not a guided wizard. All relevant controls
+remain visible and editable in place. Mouse interaction is primary where the
+renderer supports it; Tab, arrows, Enter, and Escape remain keyboard fallbacks.
+Ink enters the terminal alternate screen and restores the cursor, mouse mode,
+and original screen on normal exit, Ctrl+C, and exceptions. OpenTUI uses its
+equivalent alternate-screen lifecycle.
+
 ## TUI component policy
 
-Use an established Ink component library before writing terminal primitives:
+Use an established terminal component library before writing primitives:
 
 1. [Termcn](https://github.com/shadcn-labs/termcn) is the preferred source for
    terminal UI components and layouts.
@@ -82,6 +89,8 @@ Use an established Ink component library before writing terminal primitives:
    Termcn does not provide the required interaction.
 3. A custom component is allowed only when neither library offers an equivalent;
    it must be small, accessible, and reusable through `cli-runtime`.
+4. Ink mouse hit testing uses `@ink-tools/ink-mouse`; OpenTUI uses its native
+   mouse events. Node packages never import either mouse API directly.
 
 ## Shared themes and i18n
 
@@ -96,7 +105,8 @@ Each invocation creates an isolated i18next instance with English fallback,
 interpolation, and node-owned resource namespaces. The GUI continues to use
 `react-i18next` but merges the same package-owned node resources, so shared
 field labels are not translated twice. Language resolution is, in order:
-`--lang`, node `interaction_language`, locale environment variables, English.
+`--lang`, node `interaction_language`, locale environment variables, Chinese.
+English remains the i18next fallback for an individual missing translation key.
 
 ## Renderer compatibility
 
@@ -110,7 +120,7 @@ node interaction schema + core action runner
              ↓
 renderer-neutral screen model and intents
              ↓
-Ink/Termcn adapter now  |  OpenTUI/Termcn adapter later
+Ink/Termcn adapter  |  OpenTUI/Termcn adapter
 ```
 
 The two adapters must preserve the same commands (`ui`, `gd`), field IDs,
@@ -126,6 +136,30 @@ all pipe commands retain normal Node compatibility. This compatibility bridge
 is centralized in `cli-runtime` and can be removed when upstream Node ESM
 support is fixed.
 
+## Browser and terminal entry isolation
+
+OpenTUI is terminal-only. It must never be reachable from the desktop/Vite
+browser module graph, even through a dynamic import. Its native platform
+modules and Bun `with: { type: "file" }` imports are not valid browser input.
+
+- `@xiranite/cli-runtime` contains general CLI helpers and must not export or
+  import `runTerminalUi`, OpenTUI, or a renderer adapter.
+- `@xiranite/cli-runtime/i18n` and `@xiranite/cli-runtime/interaction` are the
+  browser-safe shared entrypoints for translations, schemas, and interaction
+  types.
+- `@xiranite/cli-runtime/terminal` is the only public entrypoint allowed to
+  reach Ink, OpenTUI, Bun re-execution, terminal themes, or renderer runners.
+- Desktop node components import a node's explicit `./interaction` or `./i18n`
+  subpath. A node root `index.ts` exposes only `def` and `core`; it must not
+  re-export CLI, TUI, interaction, or translation adapters.
+- Backend node discovery also loads only `def` and `core`. CLI entrypoints are
+  loaded explicitly by the CLI registry, not as a side effect of node import.
+- Do not mark `@opentui/core-*-arm64` packages as Vite externals. That hides the
+  invalid dependency edge during compilation and moves the failure to runtime.
+
+The boundary tests plus a desktop production build are required whenever these
+exports change.
+
 ## Required tests for every migrated node
 
 1. **Pipe:** a scripted subcommand with `--json` produces parseable JSON on
@@ -138,6 +172,42 @@ support is fixed.
    write the error to stderr.
 5. **Default routing:** no arguments route to `interaction_mode` only with a
    real TTY; otherwise they use the pipe-safe fallback.
+6. **Mouse workbench:** automated PTY or renderer-native mouse tests change a
+   mode, edit a field or toggle, open and dismiss danger confirmation, execute
+   or cancel a safe task, and switch result/log tabs. Manual clicking is not an
+   acceptance test.
+7. **Fullscreen lifecycle:** tests prove the alternate screen and mouse modes
+   are enabled for the UI and restored after exit.
+8. **Language:** no flag, config, or locale defaults to Chinese; explicit or
+   configured English still overrides it.
+9. **Browser boundary:** importing a desktop node's interaction/i18n subpaths
+   cannot reach `@xiranite/cli-runtime/terminal`, Ink, OpenTUI, or Bun-native
+   modules; the desktop Vite production build must pass.
+
+## Test safety for dangerous actions
+
+This rule was added after an automated Sleept mouse test used the production
+runtime and two adjacent hitboxes overlapped: the click intended for “返回检查”
+also activated “确认执行”, causing the developer computer to enter real sleep.
+That incident is a test-harness failure; it must not be possible to repeat it.
+
+UI, mouse, visual, snapshot, and integration tests must never connect a node to
+a real destructive or machine-state-changing executor. This includes sleep,
+shutdown, restart, deletion, device switching, and comparable host actions.
+
+- Tests must inject a no-op/fake runtime at the action boundary before starting
+  the terminal UI. A dry-run value in the form is not a sufficient safety
+  boundary because the test intentionally toggles that value.
+- A test may turn dry-run off only to verify the warning and confirmation flow.
+  Even if a hit-test or focus bug activates the confirm control, the injected
+  executor must remain harmless.
+- The test must assert that the real executor was never called. Tests covering
+  dispatch use a spy/fake executor and assert only the fake call.
+- Adjacent click targets need non-overlapping bounds. Mouse regression tests
+  must cover dismiss versus confirm so a boundary click cannot trigger both.
+- Never run a mouse scenario against the production CLI entrypoint when its
+  runtime can reach real host actions. Use a dedicated test entrypoint or an
+  injected runtime dependency.
 
 ## Migration order
 

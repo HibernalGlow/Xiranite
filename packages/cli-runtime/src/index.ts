@@ -10,49 +10,8 @@ import type {
   InteractionValues,
   TerminalInteractionDefinition,
 } from "./interaction.js"
-import { createTerminalTranslator, type TerminalLanguage } from "./tui/i18n.js"
+import { createTerminalTranslator, type TerminalLanguage } from "./i18n.js"
 export { defineCommand, runMain } from "citty"
-export {
-  requireInteractiveMode,
-  resolveCliInvocation,
-  resolveInteractionPreferences,
-  resolveTerminalRenderer,
-  resolveTerminalUiFlags,
-  type CliInvocationMode,
-  type CliInteractionPreferences,
-  type CliInteractionPreferencesSource,
-  type InteractionField,
-  type InteractionMode,
-  type InteractionOption,
-  type InteractionValue,
-  type InteractionValues,
-  type TerminalInteractionDefinition,
-  type TerminalInteractionEvent,
-  type TerminalInteractionSchema,
-  type TerminalRenderer,
-  type TerminalRendererResolution,
-  type TerminalUiFlagDefaults,
-  type TerminalUiFlagResolution,
-} from "./interaction.js"
-export {
-  createTerminalTranslator,
-  createCliI18n,
-  createI18nTranslator,
-  listTerminalThemes,
-  isBunRuntime,
-  registerTerminalTheme,
-  reexecTerminalUiWithBun,
-  resolveTerminalLanguage,
-  resolveTerminalTheme,
-  runTerminalUi,
-  terminalMessages,
-  type RunTerminalUiOptions,
-  type CliI18nResources,
-  type I18nInterpolationValues,
-  type TerminalLanguage,
-  type TerminalMessageKey,
-  type TerminalTheme,
-} from "./tui/index.js"
 
 export interface CliHost {
   cwd: string

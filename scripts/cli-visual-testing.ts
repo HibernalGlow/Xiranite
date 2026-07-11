@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "@playwright/test"
 import serializeAddonModule from "@xterm/addon-serialize"
+import unicode11AddonModule from "@xterm/addon-unicode11"
 import xtermHeadlessModule from "@xterm/headless"
 import { spawn as spawnPty } from "node-pty"
 
@@ -32,6 +33,38 @@ export interface CliVisualCapture {
   pngPath: string
 }
 
+export interface CliMouseRegion {
+  minX?: number
+  maxX?: number
+  minY?: number
+  maxY?: number
+}
+
+export interface CliMouseStep {
+  clickText: string
+  region?: CliMouseRegion
+  waitForText?: string
+  waitForAbsentText?: string
+}
+
+export interface CliMouseScenarioOptions {
+  cliPath: string
+  args?: string[]
+  cwd?: string
+  columns?: number
+  rows?: number
+  timeoutMs?: number
+  env?: Record<string, string>
+  initialWaitFor: string
+  steps: readonly CliMouseStep[]
+}
+
+export interface CliMouseScenarioResult {
+  ansi: string
+  finalScreen: string
+  clicks: readonly { text: string; x: number; y: number }[]
+}
+
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url))
 const VISUAL_LOCK_DIR = resolve(REPO_ROOT, "artifacts", ".locks", "cli-visual")
 const VISUAL_LOCK_STALE_MS = 120_000
@@ -39,6 +72,7 @@ const DEFAULT_COLUMNS = 100
 const DEFAULT_ROWS = 24
 const DEFAULT_VIEWPORT = { width: 1180, height: 420 }
 const { SerializeAddon } = serializeAddonModule as typeof import("@xterm/addon-serialize")
+const { Unicode11Addon } = unicode11AddonModule as typeof import("@xterm/addon-unicode11")
 const { Terminal } = xtermHeadlessModule as typeof import("@xterm/headless")
 
 export async function captureCliVisual(options: CliVisualCaptureOptions): Promise<CliVisualCapture> {
@@ -73,6 +107,85 @@ export async function captureCliVisual(options: CliVisualCaptureOptions): Promis
     htmlPath,
     pngPath,
   }
+}
+
+/**
+ * Drives a real PTY through SGR mouse events. Text is located from xterm's
+ * active screen buffer, so tests remain independent of pixel coordinates and
+ * do not require a person to click the terminal.
+ */
+export async function runCliMouseScenario(options: CliMouseScenarioOptions): Promise<CliMouseScenarioResult> {
+  const columns = options.columns ?? DEFAULT_COLUMNS
+  const rows = options.rows ?? DEFAULT_ROWS
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const screen = new Terminal({ allowProposedApi: true, cols: columns, rows })
+  screen.loadAddon(new Unicode11Addon())
+  screen.unicode.activeVersion = "11"
+  let ansi = ""
+  let exited = false
+  let finalScreen = ""
+  const clicks: { text: string; x: number; y: number }[] = []
+  const env = {
+    ...process.env,
+    ...options.env,
+    FORCE_COLOR: "1",
+    XIRANITE_FORCE_COLOR: "1",
+    XIRANITE_CLI_COLUMNS: String(columns),
+  }
+  delete env.NO_COLOR
+  const pty = spawnPty(bunExecutable(), [options.cliPath, ...(options.args ?? [])], {
+    cols: columns,
+    rows,
+    cwd: options.cwd ?? REPO_ROOT,
+    env,
+  })
+  pty.onData((data) => {
+    ansi += data
+    screen.write(data)
+  })
+  pty.onExit(() => {
+    exited = true
+  })
+
+  try {
+    await waitForOutput(() => terminalScreenText(screen).includes(options.initialWaitFor), timeoutMs)
+    await waitForOutput(() => ansi.includes("\u001b[?1006h"), timeoutMs)
+    await waitForOutputStability(() => ansi, 75, timeoutMs)
+
+    for (const step of options.steps) {
+      const point = findTerminalText(screen, step.clickText, step.region)
+      if (!point) {
+        throw new Error(`Could not find clickable text ${JSON.stringify(step.clickText)} in terminal screen:\n${terminalScreenText(screen)}`)
+      }
+      clicks.push({ text: step.clickText, x: point.x, y: point.y })
+      safeTerminalWrite(pty, sgrMouseClick(point.x + 1, point.y + 1))
+      try {
+        if (step.waitForText) {
+          await waitForOutput(() => terminalScreenText(screen).includes(step.waitForText!), timeoutMs)
+        }
+        if (step.waitForAbsentText) {
+          await waitForOutput(() => !terminalScreenText(screen).includes(step.waitForAbsentText!), timeoutMs)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Mouse step ${JSON.stringify(step.clickText)} at ${point.x + 1},${point.y + 1} failed: ${message}\n${terminalScreenText(screen)}`)
+      }
+      await waitForOutputStability(() => ansi, 50, timeoutMs)
+    }
+
+    finalScreen = terminalScreenText(screen)
+  } finally {
+    if (!exited) safeTerminalWrite(pty, "\u0003")
+    try {
+      await waitForOutput(() => exited, Math.min(timeoutMs, 2_000))
+    } catch {
+      // The process is terminated below if it does not honor Ctrl+C.
+    }
+    if (!exited) safeTerminalKill(pty)
+    await waitForOutputStability(() => ansi, 100, 500)
+    screen.dispose()
+  }
+  return { ansi, finalScreen, clicks }
 }
 
 export function plainTerminalText(ansi: string): string {
@@ -127,13 +240,17 @@ async function captureCliAnsi(options: {
 
   try {
     await waitForOutput(() => matchesOutput(ansi, options.waitForText), options.timeoutMs)
+    await waitForOutputStability(() => ansi, 125, options.timeoutMs)
+    // Capture the live alternate-screen frame before sending the close input.
+    // Returning the post-exit stream would correctly restore the user's main
+    // screen, but it would also produce a blank visual artifact.
+    const visualAnsi = ansi
     if (!exited && options.closeInput && !safeTerminalWrite(terminal, options.closeInput)) exited = true
     if (!exited) await waitForExit(terminal, options.timeoutMs)
+    return visualAnsi
   } finally {
     if (!exited) safeTerminalKill(terminal)
   }
-
-  return ansi
 }
 
 async function renderTerminalHtml(ansi: string, options: { columns: number; rows: number }): Promise<string> {
@@ -148,6 +265,8 @@ async function renderTerminalHtml(ansi: string, options: { columns: number; rows
     },
   })
   const serializer = new SerializeAddon()
+  terminal.loadAddon(new Unicode11Addon())
+  terminal.unicode.activeVersion = "11"
   terminal.loadAddon(serializer)
   await new Promise<void>((resolveWrite) => terminal.write(ansi, resolveWrite))
   const serialized = serializer.serializeAsHTML()
@@ -179,7 +298,7 @@ async function renderTerminalHtml(ansi: string, options: { columns: number; rows
       pre * {
         background: #101014 !important;
         color: #d7dae0;
-        font-family: "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "Microsoft YaHei UI", monospace !important;
+        font-family: "Cascadia Mono", "Consolas", "NSimSun", "Noto Sans Mono CJK SC", monospace !important;
         font-size: 13px !important;
         line-height: 1.35 !important;
         letter-spacing: 0 !important;
@@ -308,6 +427,56 @@ function safeTerminalKill(terminal: ReturnType<typeof spawnPty>): void {
   }
 }
 
+function sgrMouseClick(x: number, y: number): string {
+  return `\u001b[<0;${x};${y}M\u001b[<0;${x};${y}m`
+}
+
+function terminalScreenText(terminal: InstanceType<typeof Terminal>): string {
+  const buffer = terminal.buffer.active
+  const lines: string[] = []
+  for (let row = 0; row < terminal.rows; row += 1) {
+    lines.push(buffer.getLine(row)?.translateToString(true) ?? "")
+  }
+  return lines.join("\n")
+}
+
+function findTerminalText(
+  terminal: InstanceType<typeof Terminal>,
+  needle: string,
+  region: CliMouseRegion = {},
+): { x: number; y: number } | undefined {
+  const minY = Math.max(0, region.minY ?? 0)
+  const maxY = Math.min(terminal.rows - 1, region.maxY ?? terminal.rows - 1)
+  for (let y = minY; y <= maxY; y += 1) {
+    const line = terminal.buffer.active.getLine(y)
+    if (!line) continue
+    let logical = ""
+    const columns: number[] = []
+    for (let x = 0; x < terminal.cols; x += 1) {
+      const cell = line.getCell(x)
+      if (!cell || cell.getWidth() === 0) continue
+      const chars = cell.getChars() || " "
+      for (const char of chars) {
+        logical += char
+        columns.push(x)
+      }
+    }
+    let from = 0
+    while (from <= logical.length - needle.length) {
+      const index = logical.indexOf(needle, from)
+      if (index < 0) break
+      const startX = columns[index] ?? 0
+      const endX = columns[index + needle.length - 1] ?? startX
+      const centerX = Math.floor((startX + endX) / 2)
+      if (centerX >= (region.minX ?? 0) && centerX <= (region.maxX ?? terminal.cols - 1)) {
+        return { x: centerX, y }
+      }
+      from = index + needle.length
+    }
+  }
+  return undefined
+}
+
 function isClosedPtyError(error: unknown): boolean {
   const candidate = error as { code?: unknown; message?: unknown }
   const code = typeof candidate?.code === "string" ? candidate.code : ""
@@ -320,6 +489,21 @@ async function waitForOutput(condition: () => boolean, timeoutMs: number): Promi
   while (!condition()) {
     if (Date.now() - startedAt > timeoutMs) throw new Error("Timed out waiting for CLI visual output.")
     await new Promise((resolveWait) => setTimeout(resolveWait, 25))
+  }
+}
+
+async function waitForOutputStability(read: () => string, stableMs: number, timeoutMs: number): Promise<void> {
+  const startedAt = Date.now()
+  let previous = read()
+  let stableSince = Date.now()
+  while (Date.now() - stableSince < stableMs) {
+    if (Date.now() - startedAt > timeoutMs) return
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25))
+    const current = read()
+    if (current !== previous) {
+      previous = current
+      stableSince = Date.now()
+    }
   }
 }
 

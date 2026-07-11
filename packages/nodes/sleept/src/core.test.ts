@@ -42,6 +42,30 @@ describe("sleept core", () => {
     expect(result.data?.timerStatus).toBe("completed")
   })
 
+  test("cancels countdowns before executing the power action", async () => {
+    let cancelled = false
+    let powerCalled = false
+    const runtime: SleeptRuntime = {
+      now: () => new Date("2026-01-01T00:00:00"),
+      sleep: async () => {
+        cancelled = true
+      },
+      getCpuPercent: () => 0,
+      getNetCounters: () => ({ bytesSent: 0, bytesReceived: 0 }),
+      executePowerAction: () => {
+        powerCalled = true
+      },
+      isCancelled: () => cancelled,
+    }
+
+    const result = await runSleept({ action: "countdown", seconds: 5, dryrun: true }, runtime)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe("Countdown cancelled.")
+    expect(result.data?.timerStatus).toBe("cancelled")
+    expect(powerCalled).toBe(false)
+  })
+
   test("keeps a zero-limit CPU monitor running until it triggers", async () => {
     let now = new Date("2026-01-01T00:00:00")
     let powerCalled = false

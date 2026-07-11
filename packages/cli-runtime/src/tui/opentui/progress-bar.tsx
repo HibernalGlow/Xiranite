@@ -9,7 +9,7 @@ export function ProgressBar({ value, width = 30, label }: { value: number; width
   return (
     <box flexDirection="column">
       {label ? <text>{label}</text> : null}
-      <box gap={1}>
+      <box flexDirection="row" gap={1}>
         <text fg={theme.colors.primary}>{"█".repeat(filled)}{"░".repeat(width - filled)}</text>
         <text fg={theme.colors.mutedForeground}>{percent}%</text>
       </box>

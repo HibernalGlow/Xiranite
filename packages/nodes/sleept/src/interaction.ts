@@ -3,8 +3,8 @@ import type {
   InteractionValue,
   InteractionValues,
   TerminalInteractionSchema,
-  TerminalLanguage,
-} from "@xiranite/cli-runtime"
+} from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 import {
   countdownSeconds,
@@ -55,7 +55,7 @@ export const defaultSleeptInteractionValues: SleeptInteractionValues = {
 
 export function createSleeptInteractionSchema(
   defaults: Partial<SleeptInteractionValues> = {},
-  language: TerminalLanguage = "en",
+  language: TerminalLanguage = "zh",
 ): TerminalInteractionSchema<SleeptInput, SleeptResult> {
   const t = createSleeptTranslator(language)
   const initialValues: SleeptInteractionValues = { ...defaultSleeptInteractionValues }
@@ -78,9 +78,9 @@ export function createSleeptInteractionSchema(
         { value: "get_stats", label: t("statusAction") },
       ],
     },
-    { id: "hours", label: t("hours"), kind: "number", visibleWhen: forAction("countdown"), validate: nonNegative },
-    { id: "minutes", label: t("minutes"), kind: "number", visibleWhen: forAction("countdown"), validate: nonNegative },
-    { id: "seconds", label: t("seconds"), kind: "number", visibleWhen: forAction("countdown"), validate: nonNegative },
+    { id: "hours", label: t("hours"), kind: "number", min: 0, max: 23, visibleWhen: forAction("countdown"), validate: nonNegative },
+    { id: "minutes", label: t("minutes"), kind: "number", min: 0, max: 59, visibleWhen: forAction("countdown"), validate: nonNegative },
+    { id: "seconds", label: t("seconds"), kind: "number", min: 0, max: 59, visibleWhen: forAction("countdown"), validate: nonNegative },
     {
       id: "targetDatetime",
       label: t("targetDatetime"),
@@ -89,9 +89,9 @@ export function createSleeptInteractionSchema(
       visibleWhen: forAction("specific_time"),
       validate: (value) => validateTarget(String(value), t("targetRequired")),
     },
-    { id: "uploadThreshold", label: t("uploadThreshold"), kind: "number", visibleWhen: forAction("netspeed"), validate: nonNegative },
-    { id: "downloadThreshold", label: t("downloadThreshold"), kind: "number", visibleWhen: forAction("netspeed"), validate: nonNegative },
-    { id: "netDuration", label: t("sustainedMinutes"), kind: "number", visibleWhen: forAction("netspeed"), validate: nonNegative },
+    { id: "uploadThreshold", label: t("uploadThreshold"), kind: "number", min: 0, visibleWhen: forAction("netspeed"), validate: nonNegative },
+    { id: "downloadThreshold", label: t("downloadThreshold"), kind: "number", min: 0, visibleWhen: forAction("netspeed"), validate: nonNegative },
+    { id: "netDuration", label: t("sustainedMinutes"), kind: "number", min: 0.5, step: 0.5, visibleWhen: forAction("netspeed"), validate: (value) => validateNumber(value, 0.5, t("invalidNumber", { min: 0.5 })) },
     {
       id: "netTriggerMode",
       label: t("triggerMode"),
@@ -102,9 +102,9 @@ export function createSleeptInteractionSchema(
         { value: "any", label: t("triggerAny") },
       ],
     },
-    { id: "cpuThreshold", label: t("thresholdPct"), kind: "number", visibleWhen: forAction("cpu"), validate: nonNegative },
-    { id: "cpuDuration", label: t("sustainedMinutes"), kind: "number", visibleWhen: forAction("cpu"), validate: nonNegative },
-    { id: "maxWaitSeconds", label: t("maxWait"), kind: "number", visibleWhen: forAction("netspeed", "cpu"), validate: nonNegative },
+    { id: "cpuThreshold", label: t("thresholdPct"), kind: "number", min: 1, max: 100, visibleWhen: forAction("cpu"), validate: (value) => validateNumber(value, 1, t("invalidNumber", { min: 1 })) },
+    { id: "cpuDuration", label: t("sustainedMinutes"), kind: "number", min: 0.5, step: 0.5, visibleWhen: forAction("cpu"), validate: (value) => validateNumber(value, 0.5, t("invalidNumber", { min: 0.5 })) },
+    { id: "maxWaitSeconds", label: t("maxWait"), kind: "number", min: 0, visibleWhen: forAction("netspeed", "cpu"), validate: nonNegative },
     {
       id: "powerMode",
       label: t("powerMode"),
@@ -131,6 +131,57 @@ export function createSleeptInteractionSchema(
     description: t("description"),
     initialValues,
     fields,
+    workbench: {
+      left: {
+        title: t("triggerSequence"),
+        description: t("triggerSequenceHint"),
+        fieldIds: [
+          "action",
+          "hours",
+          "minutes",
+          "seconds",
+          "targetDatetime",
+          "uploadThreshold",
+          "downloadThreshold",
+          "netDuration",
+          "netTriggerMode",
+          "cpuThreshold",
+          "cpuDuration",
+          "maxWaitSeconds",
+        ],
+      },
+      center: {
+        title: t("systemStandby"),
+        description: t("systemStandbyHint"),
+        display(values) {
+          const action = values.action as SleeptInteractionAction
+          const powerMode = asPowerMode(values.powerMode)
+          const primary = action === "countdown"
+            ? formatDuration(countdownSeconds(sleeptInputFromInteractionValues(values)))
+            : action === "specific_time"
+              ? String(values.targetDatetime || "YYYY-MM-DD HH:MM:SS")
+              : action === "netspeed"
+                ? t("monitorNetwork")
+                : action === "cpu"
+                  ? t("monitorCpu")
+                  : t("statusDisplay")
+          return {
+            primary,
+            secondary: actionLabel(action, t),
+            metrics: [
+              { label: t("metricMode"), value: actionLabel(action, t) },
+              { label: t("metricPower"), value: action === "get_stats" ? t("notApplicable") : powerLabel(powerMode, t) },
+              { label: t("metricSafety"), value: action === "get_stats" ? t("notApplicable") : values.dryrun !== false ? t("dryRun") : t("live") },
+            ],
+          }
+        },
+      },
+      right: {
+        title: t("executionAction"),
+        description: t("executionActionHint"),
+        fieldIds: ["powerMode", "dryrun"],
+      },
+    },
     toInput: sleeptInputFromInteractionValues,
     validate(_values, input) {
       if (input.action === "countdown" && countdownSeconds(input) <= 0) return t("durationRequired")

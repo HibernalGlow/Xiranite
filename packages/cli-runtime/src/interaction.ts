@@ -20,8 +20,42 @@ export interface InteractionField {
   kind: "text" | "number" | "select" | "boolean"
   options?: readonly InteractionOption[]
   placeholder?: string
+  min?: number
+  max?: number
+  step?: number
   visibleWhen?: (values: Readonly<InteractionValues>) => boolean
   validate?: (value: InteractionValue, values: Readonly<InteractionValues>) => string | null
+}
+
+export interface TerminalWorkbenchPanel {
+  title: string
+  description?: string
+  fieldIds: readonly string[]
+}
+
+export interface TerminalWorkbenchMetric {
+  label: string
+  value: string
+}
+
+export interface TerminalWorkbenchDisplay {
+  primary: string
+  secondary?: string
+  metrics?: readonly TerminalWorkbenchMetric[]
+}
+
+/**
+ * Renderer-neutral layout hints owned by the independently distributed node.
+ * Renderers decide how to project these regions at the current terminal size.
+ */
+export interface TerminalWorkbenchLayout {
+  left: TerminalWorkbenchPanel
+  center: {
+    title: string
+    description?: string
+    display: (values: Readonly<InteractionValues>) => TerminalWorkbenchDisplay
+  }
+  right: TerminalWorkbenchPanel
 }
 
 export interface TerminalInteractionSchema<Input, Result> {
@@ -30,6 +64,7 @@ export interface TerminalInteractionSchema<Input, Result> {
   description: string
   initialValues: InteractionValues
   fields: readonly InteractionField[]
+  workbench?: TerminalWorkbenchLayout
   toInput: (values: Readonly<InteractionValues>) => Input
   validate?: (values: Readonly<InteractionValues>, input: Input) => string | null
   preview: (input: Input) => readonly string[]

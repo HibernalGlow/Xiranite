@@ -1,14 +1,19 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
+import { useMemo } from "react"
 
 import type { InteractionField, InteractionValue, TerminalInteractionDefinition } from "../../interaction.js"
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
-import { dangerConfirmationOptions, displayInteractionValue, optionsForField, resultOptions, safeConfirmationOptions } from "../screen.js"
+import {
+  fieldsForWorkbenchPanel,
+  nextInteractionValue,
+  resolveWorkbenchLayout,
+  stepInteractionNumber,
+} from "../screen.js"
 import { useTerminalUiSession } from "../session.js"
 import { resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
 import { ProgressBar } from "./progress-bar.js"
-import { Select } from "./select.js"
-import { TextInput } from "./text-input.js"
+import { ClickTarget, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "./workbench-controls.js"
 
 export function OpenTuiTerminalApp<Input, Result>({
   definition,
@@ -40,135 +45,229 @@ function OpenTuiTerminalScreen<Input, Result>({
 }) {
   const theme = useTerminalTheme()
   const session = useTerminalUiSession(definition)
+  const layout = resolveWorkbenchLayout(definition.schema, session.values, t)
+  const leftFields = fieldsForWorkbenchPanel(session.fields, layout.left.fieldIds)
+  const rightFields = fieldsForWorkbenchPanel(session.fields, layout.right.fieldIds)
+  const display = layout.center.display(session.values)
+  const controlIds = useMemo(
+    () => [...session.fields.map((field) => field.id), "execute", "reset", "tab-status", "tab-logs", "exit"],
+    [session.fields],
+  )
 
   useKeyboard((key) => {
+    const focusedField = session.fields.find((field) => field.id === session.focusedControlId)
+    const editingText = focusedField?.kind === "text"
     if (key.name === "escape") {
-      if (session.phase === "running") {
-        session.cancel()
-      } else if (!session.back()) {
-        onExit()
-      }
+      if (session.confirming) session.dismissConfirmation()
+      else if (session.phase === "running") session.cancel()
+      else onExit()
       return
     }
-    const editingText = session.phase === "editing" && (session.field?.kind === "text" || session.field?.kind === "number")
-    if (key.name === "q" && !editingText && session.phase !== "running") onExit()
+    if (key.name === "tab") {
+      session.moveFocus(controlIds, key.shift ? -1 : 1)
+      return
+    }
+    if (key.name === "q" && !editingText && session.phase !== "running") {
+      onExit()
+      return
+    }
+    if (focusedField) {
+      handleFieldKeyboard(focusedField, session.values[focusedField.id], key, t, session.setField)
+      return
+    }
+    if (key.name === "return" || key.name === "space" || key.sequence === " ") {
+      activateControl(session.focusedControlId, session, onExit)
+    }
   })
 
   return (
-    <box flexDirection="column" paddingLeft={1} paddingRight={1}>
-      <box justifyContent="space-between">
-        <text fg={theme.colors.primary}><b>{definition.schema.title}</b></text>
-        <text fg={theme.colors.mutedForeground}>{t("rendererHelp", { renderer: "OpenTUI" })}</text>
+    <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
+      <box flexDirection="row" justifyContent="space-between" height={2}>
+        <box flexDirection="row" gap={1}>
+          <text fg={theme.colors.primary}><b>{definition.schema.title}</b></text>
+          <text fg={phaseColor(session.phase, theme)}>{phaseLabel(session.phase, t)}</text>
+        </box>
+        <text fg={theme.colors.mutedForeground}>{`OpenTUI · ${t("mouseHelp")}`}</text>
       </box>
-      <text fg={theme.colors.mutedForeground}>{definition.schema.description}</text>
-      <box marginTop={1} flexDirection="column">
-        {session.phase === "editing" ? (
-          <EditingScreen session={session} t={t} />
-        ) : session.phase === "preview" ? (
-          <PreviewScreen session={session} t={t} />
-        ) : session.phase === "running" ? (
-          <RunningScreen session={session} t={t} />
-        ) : (
-          <ResultScreen session={session} onExit={onExit} t={t} />
-        )}
+      <box flexDirection="row" flexGrow={1} minHeight={0} gap={1}>
+        <WorkbenchPanel title={layout.left.title} width="34%">
+          <FieldList fields={leftFields} session={session} t={t} />
+        </WorkbenchPanel>
+
+        <WorkbenchPanel title={layout.center.title} width="36%">
+          <box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
+            <text fg={theme.colors.primary}><b>{display.primary}</b></text>
+            {display.secondary ? <text fg={theme.colors.mutedForeground}>{display.secondary}</text> : null}
+          </box>
+          <box flexDirection="row" justifyContent="space-between" flexWrap="wrap">
+            {display.metrics?.map((metric) => (
+              <box key={metric.label} flexDirection="column" alignItems="center" paddingLeft={1} paddingRight={1}>
+                <text fg={theme.colors.mutedForeground}>{metric.label}</text>
+                <text><b>{metric.value}</b></text>
+              </box>
+            ))}
+          </box>
+          <box flexDirection="column" marginTop={1}>
+            {session.preview.slice(0, 3).map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{line}</text>)}
+          </box>
+        </WorkbenchPanel>
+
+        <WorkbenchPanel title={layout.right.title} width="28%">
+          {session.confirming ? (
+            <Confirmation session={session} t={t} />
+          ) : (
+            <>
+              <FieldList fields={rightFields} session={session} t={t} />
+              <box flexDirection="column" marginTop={1}>
+                <WorkbenchButton
+                  id="execute"
+                  focused={session.focusedControlId === "execute"}
+                  danger={session.dangerous}
+                  onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}
+                >
+                  {executeLabel(session, t)}
+                </WorkbenchButton>
+                <box flexDirection="row" gap={1} marginTop={1}>
+                  <ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>{t("resetParameters")}</ClickTarget>
+                  <ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>{t("exit")}</ClickTarget>
+                </box>
+              </box>
+            </>
+          )}
+        </WorkbenchPanel>
+      </box>
+
+      <box height={7} marginTop={1}>
+        <WorkbenchPanel title="" flexGrow={1}>
+          <box flexDirection="row" gap={1}>
+            <ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget>
+            <ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget>
+          </box>
+          {session.resultTab === "logs" ? (
+            <box flexDirection="column" marginTop={1}>
+              {session.logs.length
+                ? session.logs.slice(-3).map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{line}</text>)
+                : <text fg={theme.colors.mutedForeground}>{t("emptyLogs")}</text>}
+            </box>
+          ) : (
+            <box flexDirection="column" marginTop={1}>
+              <ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />
+              {session.error ? <text fg={theme.colors.error}>{session.error}</text> : null}
+              {session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}
+              {session.resultSummary?.lines.slice(0, 2).map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
+            </box>
+          )}
+        </WorkbenchPanel>
       </box>
     </box>
   )
 }
 
-function EditingScreen({ session, t }: { session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>; t: TerminalTranslator }) {
-  const theme = useTerminalTheme()
-  const field = session.field
-  if (!field) return <text fg={theme.colors.error}>{t("noFields")}</text>
-  const completed = session.fields.slice(0, session.fieldIndex).slice(-4)
-  return (
-    <box flexDirection="column">
-      <text fg={theme.colors.mutedForeground}>{t("step", { current: session.fieldIndex + 1, total: session.fields.length })}</text>
-      {completed.map((item) => (
-        <text key={item.id} fg={theme.colors.mutedForeground}>
-          {item.label}: {displayInteractionValue(item, session.values[item.id])}
-        </text>
-      ))}
-      {field.description ? <text fg={theme.colors.mutedForeground}>{field.description}</text> : null}
-      <FieldEditor key={field.id} field={field} value={session.fieldValue} error={session.error} onChange={session.changeValue} onSubmit={session.submitValue} t={t} />
-    </box>
-  )
-}
-
-function FieldEditor({
-  field,
-  value,
-  error,
-  onChange,
-  onSubmit,
+function FieldList({
+  fields,
+  session,
   t,
 }: {
-  field: InteractionField
-  value?: InteractionValue
-  error?: string
-  onChange: (value: InteractionValue) => void
-  onSubmit: (value: InteractionValue) => void
+  fields: readonly InteractionField[]
+  session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>
   t: TerminalTranslator
 }) {
-  if (field.kind === "select" || field.kind === "boolean") {
-    return <Select options={optionsForField(field, t)} value={value} label={field.label} onSubmit={onSubmit} />
-  }
-  return (
-    <TextInput
-      value={value === undefined ? "" : String(value)}
-      label={field.label}
-      placeholder={field.placeholder}
-      error={error}
-      onChange={onChange}
-      onSubmit={onSubmit}
-    />
-  )
-}
-
-function PreviewScreen({ session, t }: { session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>; t: TerminalTranslator }) {
-  const theme = useTerminalTheme()
-  const options = session.dangerous ? dangerConfirmationOptions(t) : safeConfirmationOptions(t)
   return (
     <box flexDirection="column">
-      <text><b>{t("preview")}</b></text>
-      {session.preview.map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
-      <text fg={session.dangerous ? theme.colors.error : theme.colors.success}>
-        <b>{session.dangerous ? t("hazardNotice") : t("safeNotice")}</b>
-      </text>
-      {session.error ? <text fg={theme.colors.error}>{session.error}</text> : null}
-      <Select options={options} onSubmit={(choice) => choice === "execute" ? void session.execute() : session.back()} />
+      {fields.map((field) => (
+        <WorkbenchField
+          key={field.id}
+          field={field}
+          value={session.values[field.id]}
+          error={session.fieldErrors[field.id]}
+          focused={session.focusedControlId === field.id}
+          disabled={session.phase === "running"}
+          t={t}
+          onFocus={() => session.focus(field.id)}
+          onChange={(value) => session.setField(field.id, value)}
+        />
+      ))}
     </box>
   )
 }
 
-function RunningScreen({ session, t }: { session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>; t: TerminalTranslator }) {
-  const theme = useTerminalTheme()
-  return (
-    <box flexDirection="column">
-      <text><b>{t("running")}</b></text>
-      <ProgressBar value={session.progress} label={session.status} />
-      {session.logs.slice(-5).map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{line}</text>)}
-      <text fg={theme.colors.mutedForeground}>{t("cancelHint")}</text>
-    </box>
-  )
-}
-
-function ResultScreen({
+function Confirmation({
   session,
-  onExit,
   t,
 }: {
   session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>
-  onExit: () => void
   t: TerminalTranslator
 }) {
   const theme = useTerminalTheme()
-  const summary = session.resultSummary
   return (
     <box flexDirection="column">
-      <text fg={summary?.success ? theme.colors.success : theme.colors.error}><b>{summary?.message ?? session.status}</b></text>
-      {summary?.lines.map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
-      <Select options={resultOptions(t)} onSubmit={(choice) => choice === "again" ? session.reset() : onExit()} />
+      <text fg={theme.colors.error}><b>{t("confirmLiveTitle")}</b></text>
+      <text fg={theme.colors.error}>{t("confirmLiveBody")}</text>
+      <box flexDirection="column" marginTop={1}>
+        <WorkbenchButton id="confirm-execute" danger focused={session.focusedControlId === "confirm-execute"} onClick={() => void session.confirmExecute()}>{t("confirmLiveAction")}</WorkbenchButton>
+        <box marginTop={1}>
+          <ClickTarget id="confirm-dismiss" onClick={session.dismissConfirmation}>{t("dismiss")}</ClickTarget>
+        </box>
+      </box>
     </box>
   )
+}
+
+function handleFieldKeyboard(
+  field: InteractionField,
+  value: InteractionValue | undefined,
+  key: { name: string; sequence: string },
+  t: TerminalTranslator,
+  setField: (fieldId: string, value: InteractionValue) => void,
+) {
+  if (field.kind === "select" || field.kind === "boolean") {
+    const direction = key.name === "left" || key.name === "up" ? -1 : key.name === "right" || key.name === "down" || key.name === "return" || key.name === "space" || key.sequence === " " ? 1 : 0
+    if (direction) {
+      const next = nextInteractionValue(field, value, direction, t)
+      if (next !== undefined) setField(field.id, next)
+    }
+    return
+  }
+  if (field.kind === "number") {
+    const direction = key.name === "up" || key.name === "right" ? 1 : key.name === "down" || key.name === "left" ? -1 : 0
+    if (direction) setField(field.id, stepInteractionNumber(field, value, direction))
+    return
+  }
+  if (key.name === "backspace" || key.name === "delete") {
+    setField(field.id, String(value ?? "").slice(0, -1))
+  } else if (key.sequence && key.sequence.length === 1 && key.name !== "return") {
+    setField(field.id, `${String(value ?? "")}${key.sequence}`)
+  }
+}
+
+function activateControl<Result>(
+  controlId: string | undefined,
+  session: ReturnType<typeof useTerminalUiSession<unknown, Result>>,
+  onExit: () => void,
+) {
+  if (controlId === "execute") void session.requestExecute()
+  if (controlId === "reset") session.reset()
+  if (controlId === "tab-status") session.selectResultTab("status")
+  if (controlId === "tab-logs") session.selectResultTab("logs")
+  if (controlId === "exit") onExit()
+  if (controlId === "confirm-execute") void session.confirmExecute()
+}
+
+function executeLabel(session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>, t: TerminalTranslator): string {
+  if (session.phase === "running") return t("stopAction")
+  const dryRunField = session.fields.find((field) => field.kind === "boolean" && /dry/i.test(field.id))
+  if (dryRunField && session.values[dryRunField.id] === true) return t("dryRunAction")
+  return session.dangerous ? t("liveAction") : t("run")
+}
+
+function phaseLabel(phase: ReturnType<typeof useTerminalUiSession<unknown, unknown>>["phase"], t: TerminalTranslator) {
+  if (phase === "running") return t("running")
+  if (phase === "result") return t("statusTab")
+  return t("ready")
+}
+
+function phaseColor(phase: ReturnType<typeof useTerminalUiSession<unknown, unknown>>["phase"], theme: ReturnType<typeof useTerminalTheme>) {
+  if (phase === "running") return theme.colors.warning
+  if (phase === "result") return theme.colors.success
+  return theme.colors.mutedForeground
 }

@@ -1,46 +1,125 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
 import { describe, expect, test } from "bun:test"
+import { act } from "react"
 
 import type { TerminalInteractionDefinition } from "../../interaction.js"
 import { OpenTuiTerminalApp } from "./app.js"
 
-describe("OpenTUI terminal adapter", () => {
-  test("renders the shared schema, i18next language, and theme", async () => {
-    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false
-    const definition: TerminalInteractionDefinition<{ action: string }, { success: boolean; message: string }> = {
-      schema: {
-        id: "demo",
-        title: "Demo",
-        description: "Renderer-neutral schema",
-        initialValues: { action: "run" },
-        fields: [{
+interface DemoInput {
+  action: string
+  powerMode: string
+  dryrun: boolean
+}
+
+function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteractionDefinition<DemoInput, { success: boolean; message: string }> {
+  return {
+    schema: {
+      id: "demo",
+      title: "Demo",
+      description: "Renderer-neutral schema",
+      initialValues: { action: "run", powerMode: "sleep", dryrun: true },
+      fields: [
+        {
           id: "action",
           label: "操作",
           kind: "select",
           options: [{ value: "run", label: "运行" }, { value: "status", label: "状态" }],
-        }],
-        toInput: (values) => ({ action: String(values.action) }),
-        preview: (input) => [`Action: ${input.action}`],
-        isDangerous: () => false,
-        result: (result) => ({ ...result, lines: [] }),
+        },
+        {
+          id: "powerMode",
+          label: "电源操作",
+          kind: "select",
+          options: [{ value: "sleep", label: "睡眠" }, { value: "shutdown", label: "关机" }],
+        },
+        { id: "dryrun", label: "演练模式", kind: "boolean" },
+      ],
+      workbench: {
+        left: { title: "触发序列", fieldIds: ["action"] },
+        center: { title: "系统待命", display: (values) => ({ primary: String(values.action), secondary: "状态监控" }) },
+        right: { title: "执行动作", fieldIds: ["powerMode", "dryrun"] },
       },
-      run: async () => ({ success: true, message: "ok" }),
-    }
+      toInput: (values) => ({
+        action: String(values.action),
+        powerMode: String(values.powerMode),
+        dryrun: values.dryrun !== false,
+      }),
+      preview: (input) => [`Action: ${input.action}`, `Power: ${input.powerMode}`],
+      isDangerous: (input) => !input.dryrun,
+      result: (result) => ({ ...result, lines: [] }),
+    },
+    run: async (input, onEvent) => {
+      onRun?.(input)
+      onEvent({ type: "log", message: "event log" })
+      return { success: true, message: "ok" }
+    },
+  }
+}
 
-    const setup = await testRender(
-      <OpenTuiTerminalApp definition={definition} language="zh" theme="high-contrast" onExit={() => undefined} />,
-      { width: 80, height: 18 },
-    )
+describe("OpenTUI terminal adapter", () => {
+  test("renders the full shared workbench at the terminal dimensions", async () => {
+    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => {
+      setup = await testRender(
+        <OpenTuiTerminalApp definition={createDefinition()} language="zh" theme="high-contrast" onExit={() => undefined} />,
+        { width: 110, height: 24, useMouse: true },
+      )
+    })
     try {
-      await setup.renderOnce()
+      await act(async () => setup.renderOnce())
       const frame = setup.captureCharFrame()
+      expect(frame.split("\n").slice(0, -1)).toHaveLength(24)
       expect(frame).toContain("Demo")
-      expect(frame).toContain("OpenTUI · Esc 返回 · q 退出")
-      expect(frame).toContain("操作")
-      expect(frame).toContain("运行")
+      expect(frame).toContain("OpenTUI · 优先使用鼠标")
+      expect(frame).toContain("触发序列")
+      expect(frame).toContain("系统待命")
+      expect(frame).toContain("执行动作")
+      expect(frame).not.toContain("步骤")
     } finally {
-      setup.renderer.destroy()
+      await act(async () => setup.renderer.destroy())
+    }
+  })
+
+  test("handles mouse mode, power, safety, confirmation, execution, and log-tab actions", async () => {
+    let capturedInput: DemoInput | undefined
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => {
+      setup = await testRender(
+        <OpenTuiTerminalApp definition={createDefinition((input) => { capturedInput = input })} language="zh" onExit={() => undefined} />,
+        { width: 110, height: 24, useMouse: true },
+      )
+    })
+    const click = async (id: string) => {
+      const target = setup.renderer.root.findDescendantById(id)
+      expect(target).toBeDefined()
+      await act(async () => {
+        await setup.mockMouse.click(target!.x + Math.max(0, Math.floor(target!.width / 2)), target!.y + Math.max(0, Math.floor(target!.height / 2)))
+      })
+      await act(async () => setup.flush())
+    }
+    try {
+      await act(async () => setup.renderOnce())
+      await click("field-action-status")
+      expect(setup.captureCharFrame()).toContain("● 状态")
+      await click("field-action-run")
+      await click("field-powerMode-shutdown")
+      await click("field-dryrun-false")
+
+      await click("execute")
+      expect(setup.captureCharFrame()).toContain("确认真实执行")
+      await click("confirm-dismiss")
+      expect(setup.captureCharFrame()).not.toContain("确认真实执行")
+
+      await click("execute")
+      await click("confirm-execute")
+      await setup.waitFor(() => capturedInput !== undefined)
+      expect(capturedInput).toEqual({ action: "run", powerMode: "shutdown", dryrun: false })
+
+      await click("tab-logs")
+      expect(setup.captureCharFrame()).toContain("event log")
+    } finally {
+      await act(async () => setup.renderer.destroy())
     }
   })
 })

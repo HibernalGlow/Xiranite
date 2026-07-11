@@ -1,4 +1,4 @@
-import { createI18nTranslator, type TerminalLanguage } from "@xiranite/cli-runtime"
+import { createI18nTranslator, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 // The shared keys below replace the duplicated GUI-only Sleept dictionary.
 // Existing values are preserved from src/i18n/locales/{en,zh}.json.
@@ -64,6 +64,19 @@ export const sleeptLocaleResources = {
     unlimited: "unlimited",
     resultState: "State: {{value}}",
     resultTarget: "Target: {{value}}",
+    triggerSequence: "Trigger sequence",
+    triggerSequenceHint: "Choose a timer or monitor and edit its parameters in place.",
+    systemStandby: "System standby",
+    systemStandbyHint: "The center display mirrors the GUI timer console.",
+    executionAction: "Power action",
+    executionActionHint: "Review safety mode, then start or stop the task.",
+    monitorNetwork: "NETWORK MONITOR",
+    monitorCpu: "CPU MONITOR",
+    statusDisplay: "SYSTEM STATUS",
+    metricMode: "Mode",
+    metricPower: "Power",
+    metricSafety: "Safety",
+    notApplicable: "N/A",
   },
   zh: {
     name: "Sleept",
@@ -126,6 +139,19 @@ export const sleeptLocaleResources = {
     unlimited: "无限",
     resultState: "状态：{{value}}",
     resultTarget: "目标：{{value}}",
+    triggerSequence: "触发序列",
+    triggerSequenceHint: "选择计时或监控方式，并直接修改当前参数。",
+    systemStandby: "系统待命",
+    systemStandbyHint: "中央区域与 GUI 一样持续显示计时和监控状态。",
+    executionAction: "执行动作",
+    executionActionHint: "确认电源动作和演练状态后直接启动或停止。",
+    monitorNetwork: "网络监控",
+    monitorCpu: "CPU 监控",
+    statusDisplay: "系统状态",
+    metricMode: "模式",
+    metricPower: "电源",
+    metricSafety: "安全",
+    notApplicable: "无",
   },
 } as const
 

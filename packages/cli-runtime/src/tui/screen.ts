@@ -1,4 +1,11 @@
-import type { InteractionField, InteractionOption, InteractionValue } from "../interaction.js"
+import type {
+  InteractionField,
+  InteractionOption,
+  InteractionValue,
+  InteractionValues,
+  TerminalInteractionSchema,
+  TerminalWorkbenchLayout,
+} from "../interaction.js"
 import type { TerminalTranslator } from "./i18n.js"
 
 export function optionsForField(field: InteractionField, t: TerminalTranslator): readonly InteractionOption[] {
@@ -11,30 +18,68 @@ export function optionsForField(field: InteractionField, t: TerminalTranslator):
   return field.options ?? []
 }
 
-export function displayInteractionValue(field: InteractionField, value: InteractionValue | undefined): string {
+export function displayInteractionValue(
+  field: InteractionField,
+  value: InteractionValue | undefined,
+  t?: TerminalTranslator,
+): string {
   const option = field.options?.find((candidate) => candidate.value === value)
   if (option) return option.label
-  if (typeof value === "boolean") return value ? "Yes" : "No"
+  if (typeof value === "boolean") return value ? (t?.("yes") ?? "Yes") : (t?.("no") ?? "No")
   return value === undefined ? "" : String(value)
 }
 
-export function safeConfirmationOptions(t: TerminalTranslator) {
-  return [
-    { value: "execute", label: t("run"), hint: t("executeHint") },
-    { value: "back", label: t("back"), hint: t("editHint") },
-  ] as const
+export function nextInteractionValue(
+  field: InteractionField,
+  value: InteractionValue | undefined,
+  direction: -1 | 1,
+  t: TerminalTranslator,
+): InteractionValue | undefined {
+  const options = optionsForField(field, t).filter((option) => !option.disabled)
+  if (options.length === 0) return value
+  const currentIndex = options.findIndex((option) => option.value === value)
+  const nextIndex = currentIndex < 0
+    ? 0
+    : (currentIndex + direction + options.length) % options.length
+  return options[nextIndex]?.value
 }
 
-export function dangerConfirmationOptions(t: TerminalTranslator) {
-  return [
-    { value: "back", label: t("cancel"), hint: t("editHint") },
-    { value: "execute", label: t("runReal"), hint: t("runRealHint") },
-  ] as const
+export function stepInteractionNumber(
+  field: InteractionField,
+  value: InteractionValue | undefined,
+  direction: -1 | 1,
+): number {
+  const current = Number(value)
+  const next = (Number.isFinite(current) ? current : 0) + (field.step ?? 1) * direction
+  return Math.max(field.min ?? Number.NEGATIVE_INFINITY, Math.min(field.max ?? Number.POSITIVE_INFINITY, next))
 }
 
-export function resultOptions(t: TerminalTranslator) {
-  return [
-    { value: "again", label: t("runAgain") },
-    { value: "exit", label: t("exit") },
-  ] as const
+export function fieldsForWorkbenchPanel(
+  fields: readonly InteractionField[],
+  fieldIds: readonly string[],
+): readonly InteractionField[] {
+  const visibleIds = new Set(fields.map((field) => field.id))
+  return fieldIds.flatMap((id) => {
+    if (!visibleIds.has(id)) return []
+    const field = fields.find((candidate) => candidate.id === id)
+    return field ? [field] : []
+  })
+}
+
+export function resolveWorkbenchLayout<Input, Result>(
+  schema: TerminalInteractionSchema<Input, Result>,
+  values: Readonly<InteractionValues>,
+  t: TerminalTranslator,
+): TerminalWorkbenchLayout {
+  if (schema.workbench) return schema.workbench
+  const midpoint = Math.ceil(schema.fields.length / 2)
+  return {
+    left: { title: t("parameters"), fieldIds: schema.fields.slice(0, midpoint).map((field) => field.id) },
+    center: {
+      title: t("liveStatus"),
+      description: schema.description,
+      display: () => ({ primary: schema.title, secondary: schema.preview(schema.toInput(values))[0] }),
+    },
+    right: { title: t("execution"), fieldIds: schema.fields.slice(midpoint).map((field) => field.id) },
+  }
 }

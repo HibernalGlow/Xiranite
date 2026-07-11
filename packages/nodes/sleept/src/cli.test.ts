@@ -2,7 +2,8 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import type { CliHost, TerminalInteractionDefinition, TerminalRenderer } from "@xiranite/cli-runtime"
+import type { CliHost } from "@xiranite/cli-runtime"
+import type { TerminalInteractionDefinition, TerminalRenderer } from "@xiranite/cli-runtime/interaction"
 import { runProgram, SLEEPT_MAX_WAIT_HELP, type SleeptCliDependencies } from "./cli.js"
 import type { SleeptInput, SleeptResult } from "./core.js"
 import { sleeptInputFromInteractionValues } from "./interaction.js"
@@ -100,6 +101,23 @@ describe("sleept CLI interaction contract", () => {
     expect(runGuide).toHaveBeenCalledTimes(1)
   })
 
+  test("uses configured English as an override to the Chinese UI default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "sleept-language-"))
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.sleept]",
+      'interaction_language = "en"',
+    ].join("\n"), "utf8")
+    let language: string | undefined
+    const runUi: SleeptCliDependencies["runUi"] = async (_definition, options) => {
+      language = options.language
+    }
+
+    await runProgram(["ui"], createHost({ tty: true, configPath }), createDependencies({ runUi }))
+
+    expect(language).toBe("en")
+  })
+
   test("runs a short countdown dry-run as JSON", async () => {
     const host = createHost()
 
@@ -157,6 +175,13 @@ function createHost(options: { tty?: boolean; configPath?: string } = {}): TestH
 
 function createDependencies(overrides: Partial<SleeptCliDependencies> = {}): SleeptCliDependencies {
   return {
+    createRuntime: () => ({
+      now: () => new Date("2026-01-01T00:00:00"),
+      sleep: async () => undefined,
+      getCpuPercent: () => 0,
+      getNetCounters: () => ({ bytesSent: 0, bytesReceived: 0 }),
+      executePowerAction: () => undefined,
+    }),
     runGuide: vi.fn(async () => undefined),
     runUi: vi.fn(async () => undefined) as SleeptCliDependencies["runUi"],
     ...overrides,

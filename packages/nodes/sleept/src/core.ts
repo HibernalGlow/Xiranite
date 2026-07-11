@@ -147,7 +147,9 @@ async function runCountdown(
   }
 
   const target = new Date(runtime.now().getTime() + totalSeconds * 1000)
-  await tickCountdown(totalSeconds, runtime, onEvent)
+  if (!await tickCountdown(totalSeconds, runtime, onEvent)) {
+    return countdownCancelled("Countdown")
+  }
   await runtime.executePowerAction(input.powerMode, input.dryrun)
 
   return {
@@ -168,7 +170,9 @@ async function runSpecificTime(
 ): Promise<SleeptResult> {
   const target = parseTargetDatetime(input.targetDatetime, runtime.now())
   const totalSeconds = Math.ceil((target.getTime() - runtime.now().getTime()) / 1000)
-  await tickCountdown(totalSeconds, runtime, onEvent)
+  if (!await tickCountdown(totalSeconds, runtime, onEvent)) {
+    return countdownCancelled("Scheduled timer")
+  }
   await runtime.executePowerAction(input.powerMode, input.dryrun)
 
   return {
@@ -277,13 +281,24 @@ function monitorCancelled(kind: "Network" | "CPU"): SleeptResult {
   }
 }
 
-async function tickCountdown(totalSeconds: number, runtime: SleeptRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<void> {
+function countdownCancelled(kind: "Countdown" | "Scheduled timer"): SleeptResult {
+  return {
+    success: false,
+    message: `${kind} cancelled.`,
+    data: { ...idleData(), timerStatus: "cancelled" },
+  }
+}
+
+async function tickCountdown(totalSeconds: number, runtime: SleeptRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<boolean> {
   for (let remaining = totalSeconds; remaining > 0; remaining -= 1) {
+    if (runtime.isCancelled?.()) return false
     const progress = Math.floor((1 - remaining / totalSeconds) * 100)
     onEvent?.({ type: "progress", progress, message: `remaining ${formatDuration(remaining)}` })
     await runtime.sleep(1000)
+    if (runtime.isCancelled?.()) return false
   }
   onEvent?.({ type: "progress", progress: 100, message: "time reached" })
+  return true
 }
 
 async function getStats(runtime: SleeptRuntime): Promise<SleeptResult> {

@@ -20,6 +20,8 @@ export async function runOpenTuiTerminalUi<Input, Result>(
     stdout: options.host.stdout as WriteStream,
     exitOnCtrlC: true,
     clearOnShutdown: true,
+    useMouse: true,
+    enableMouseMovement: true,
     screenMode: "alternate-screen",
     onDestroy: () => resolveDestroyed?.(),
   })
