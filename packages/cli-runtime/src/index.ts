@@ -5,6 +5,7 @@ import stringWidth from "string-width"
 import type { Readable, Writable } from "node:stream"
 import type { ReactNode } from "react"
 export { defineCommand, runMain } from "citty"
+export { requireInteractiveMode, resolveCliInvocation, type CliInvocationMode, type InteractionMode } from "./interaction.js"
 
 export interface CliHost {
   cwd: string

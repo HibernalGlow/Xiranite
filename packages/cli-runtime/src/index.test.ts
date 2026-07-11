@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { nodeCliName, normalizeNodeCliName, renderCliEvent, renderProgressBar, renderRichPanel, visibleWidth, writeCliEvent } from "./index.js"
+import { nodeCliName, normalizeNodeCliName, renderCliEvent, renderProgressBar, renderRichPanel, resolveCliInvocation, visibleWidth, writeCliEvent } from "./index.js"
 import type { CliHost } from "./index.js"
 
 describe("cli-runtime", () => {
@@ -46,6 +46,15 @@ describe("cli-runtime", () => {
     expect(host.output[0]).toContain("enginev")
     expect(host.output[0]).toContain("━━━━━━━━")
     expect(host.output[0]).toContain("100%")
+  })
+
+  test("routes ui, gd, and pipe without leaking interactive mode into pipelines", () => {
+    const tty = createHost(); tty.stdin.isTTY = true; tty.stdout.isTTY = true
+    expect(resolveCliInvocation([], tty, "ui")).toBe("ui")
+    expect(resolveCliInvocation(["gd"], tty)).toBe("gd")
+    expect(resolveCliInvocation(["guided"], tty)).toBe("gd")
+    expect(resolveCliInvocation([], createHost(), "ui")).toBe("pipe")
+    expect(resolveCliInvocation(["status", "--json"], tty)).toBe("pipe")
   })
 })
 
