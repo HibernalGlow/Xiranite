@@ -16,7 +16,7 @@ const REFERENCE_ALIASES = {
   envuconfig: "envu",
   lata: "lata_taskfile",
   lorat: "lorat_lora",
-  marku: "marku_markdown",
+  marku: "marku",
   scoolp: "scoolp_scoop_1",
   soundw: "songswitcher",
 }
