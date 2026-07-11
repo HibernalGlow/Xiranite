@@ -3,6 +3,17 @@
 This document defines the shared interaction contract for Xiranite node CLIs.
 All node terminal-UI migrations must follow it.
 
+Before implementing or reviewing a node TUI, look for the node's existing GUI
+captures under `output/playwright` first. Most package nodes already have one
+or more decisive workflow screenshots there. Use `bun run qa:node-baselines --
+--only <id>` only to fill a missing fullscreen baseline or refresh a stale one.
+The script opens entries from the generated external/package-node registry as
+a fullscreen Cards workspace and writes stable PNG names plus `manifest.json`
+under `output/playwright/node-gui-baselines`. The GUI image is the TUI
+interaction/layout reference, and the same command is the post-implementation
+visual regression check. `src/nodes/__backup__` remains a read-only archive and
+is never used as the capture source.
+
 ## Modes
 
 | Mode | Entry | Intended use |
@@ -13,18 +24,26 @@ All node terminal-UI migrations must follow it.
 
 ## Default interactive mode
 
-Node configuration may contain:
+GUI and CLI/TUI preferences are intentionally separated. Node configuration may contain:
 
-```json
-{
-  "interaction_mode": "ui",
-  "interaction_renderer": "opentui",
-  "interaction_language": "zh",
-  "interaction_theme": "dracula"
-}
+```toml
+[nodes.sleept.ui]
+theme = "inherit"
+default_mode = "workbench"
+
+[nodes.sleept.cli]
+theme = "dracula"
+default_mode = "ui"
+language = "zh"
 ```
 
-Allowed values are `ui` and `gd`; `ui` is the default when unset.
+`nodes.<id>.ui` belongs only to the desktop/browser node. `nodes.<id>.cli`
+belongs to `ui`, `gd`, and `pipe`. The two sections may independently use
+`inherit`, which resolves against the app-wide GUI or CLI preference rather
+than against each other. CLI `default_mode` accepts `ui`, `gd`, or `pipe`;
+`ui` is the default when unset. The old top-level `interaction_mode`,
+`interaction_language`, `interaction_theme`, and camel-case variants are not
+read or migrated; node interaction settings must live in the `cli` table.
 
 When launched with no arguments in a real terminal, a node enters the configured
 default mode. Users can always override it explicitly with `ui` or `gd`.
@@ -36,8 +55,7 @@ xsleept ui --renderer opentui --lang en --theme high-contrast
 ```
 
 The preference field names and normalization live in `@xiranite/cli-runtime`,
-so every migrated node reads the same configuration model. Camel-case names are
-accepted for compatibility with existing GUI-saved node configuration.
+so every migrated node reads the same configuration model.
 
 When stdin or stdout is not a TTY, no-argument invocation must not enter an
 interactive mode. The command must either process the documented stdin format or
@@ -79,19 +97,41 @@ and original screen on normal exit, Ctrl+C, and exceptions.
 
 ## TUI component policy
 
-Use established renderer-native components before writing primitives:
+The shared runtime is a termcn/OpenTUI component host. Nodes never copy or
+fork terminal components. Use this order before writing a primitive:
 
-1. OpenTUI uses its official native components first, including `ascii-font`,
-   `input`, `select`, `tab-select`, and `scrollbox` where they fit the workflow.
-2. Before writing a screen-local control, check the official OpenTUI examples
-   under `ref/opentui/packages/examples` and the existing runtime components.
-3. Any custom control with reuse value must first be implemented as an
+1. Use `@termcn/opentui/*` through the shadcn registry. Shared runtime owns the
+   checked-in source and nodes import only the runtime abstraction.
+2. If termcn has no matching component, use the official OpenTUI native
+   component or example under `ref/opentui/packages/examples`.
+3. Any unavoidable custom control with reuse value must first be implemented as an
    independent component under `cli-runtime/src/tui/opentui`; compositions
    import it instead of embedding the implementation in `app.tsx`.
-4. A custom component is allowed only when OpenTUI has no equivalent;
-   it must be small, accessible, and reusable through `cli-runtime`.
+4. A custom component is allowed only when termcn and OpenTUI both lack the
+   required behavior, or when an upstream component cannot meet a tested mouse
+   or safety requirement. The reason must be recorded beside the adapter.
 5. OpenTUI uses native mouse events. Node packages never import mouse APIs
    directly.
+
+### Terminal icons and editable controls
+
+- Every section, field kind, action, status, and result surface uses the shared
+  semantic icon registry.
+- Glyph priority is Unicode, optional Nerd Font mapping, Iconify JSON mapping,
+  then Braille/box-drawing characters for charts and dense visualizations.
+  Unicode is always the portable fallback; Nerd Font is never required.
+- Numeric controls must support direct text entry as well as mouse wheel and
+  `-` / `+` controls. A stepper-only numeric field is not accepted.
+- Path lists and multiline values use termcn/OpenTUI editors with a plain text
+  fallback in `gd`; pipe values remain unchanged.
+
+### Shared preference workbench
+
+Every migrated TUI exposes one shared preferences surface for live theme
+preview, default-mode selection, current-config inspection, save, and restore.
+Saving writes the node's `nodes.<id>.cli` table in the global TOML. It must not
+modify `nodes.<id>.ui`. GUI nodes use their existing shared configuration UI to
+read and write the separate `nodes.<id>.ui` table.
 
 ## Shared themes and i18n
 
@@ -106,7 +146,7 @@ Each invocation creates an isolated i18next instance with English fallback,
 interpolation, and node-owned resource namespaces. The GUI continues to use
 `react-i18next` but merges the same package-owned node resources, so shared
 field labels are not translated twice. Language resolution is, in order:
-`--lang`, node `interaction_language`, locale environment variables, Chinese.
+`--lang`, node `cli.language`, locale environment variables, Chinese.
 English remains the i18next fallback for an individual missing translation key.
 
 ## Renderer compatibility
@@ -183,7 +223,7 @@ exports change.
    same implementation as a compatibility alias.
 4. **Non-TTY guard:** `ui` and `gd` on a non-TTY exit 2, keep stdout empty, and
    write the error to stderr.
-5. **Default routing:** no arguments route to `interaction_mode` only with a
+5. **Default routing:** no arguments route to `cli.default_mode` only with a
    real TTY; otherwise they use the pipe-safe fallback.
 6. **Mouse workbench:** automated PTY or renderer-native mouse tests change a
    mode, edit a field or toggle, open and dismiss danger confirmation, execute
