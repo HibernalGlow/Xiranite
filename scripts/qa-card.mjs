@@ -12,11 +12,18 @@ const CARD_LAYOUTS = new Set(["grid", "stack", "split", "focus"])
 const SURFACES = new Set(["collapsed", "compact", "portrait", "regular", "expanded", "workspace"])
 const DEFAULT_MATRIX_SURFACES = ["collapsed", "compact", "portrait", "expanded"]
 const REFERENCE_ALIASES = {
+  gitalso: "diny_git",
   envuconfig: "envu",
   lata: "lata_taskfile",
   lorat: "lorat_lora",
+  marku: "marku_markdown",
   scoolp: "scoolp_scoop_1",
+  soundw: "songswitcher",
 }
+const REFERENCE_ROOTS = [
+  path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)"),
+  path.resolve(REPO_ROOT, "ref", "node3"),
+]
 const BENTO_MATRIX_LAYOUTS = {
   collapsed: { x: 0, y: 0, w: 3, h: 2 },
   compact: { x: 3, y: 0, w: 5, h: 3 },
@@ -466,20 +473,28 @@ async function resolveReferencePath(options) {
 }
 
 async function findAutoReferencePath(moduleId) {
-  const referenceRoot = path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)")
   const referenceId = REFERENCE_ALIASES[moduleId] ?? moduleId
-  const direct = path.join(referenceRoot, referenceId, "screen.png")
-  try {
-    await access(direct)
-    return direct
-  } catch {
-    const entries = await readdir(referenceRoot, { withFileTypes: true })
-    const numbered = entries
-      .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${referenceId}_`))
-      .map((entry) => entry.name)
-      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
-    return path.join(referenceRoot, numbered[0] ?? referenceId, "screen.png")
+  for (const referenceRoot of REFERENCE_ROOTS) {
+    const direct = path.join(referenceRoot, referenceId, "screen.png")
+    try {
+      await access(direct)
+      return direct
+    } catch {
+      try {
+        const entries = await readdir(referenceRoot, { withFileTypes: true })
+        const numbered = entries
+          .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${referenceId}_`))
+          .map((entry) => entry.name)
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+        const candidate = path.join(referenceRoot, numbered[0] ?? referenceId, "screen.png")
+        await access(candidate)
+        return candidate
+      } catch {
+        // The next reference pack may contain this node.
+      }
+    }
   }
+  return undefined
 }
 
 async function referenceAudit() {

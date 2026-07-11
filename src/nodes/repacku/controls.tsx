@@ -199,7 +199,7 @@ export function ConfigFilePanel(props: {
         />
         {!props.compact && <FieldDescription>按配置压缩会使用它；分析完成后也会回填。</FieldDescription>}
       </Field>
-      <div className="grid grid-cols-2 gap-2 @md/repacku:grid-cols-5">
+      {!props.compact && <div className="grid grid-cols-2 gap-2 @md/repacku:grid-cols-5">
         <Dialog>
           <DialogTrigger asChild>
             <Button disabled={!props.configFilePath} size={props.compact ? "sm" : "default"} variant="outline">
@@ -222,7 +222,7 @@ export function ConfigFilePanel(props: {
         <Button disabled={props.disabled} size={props.compact ? "sm" : "default"} variant="outline" onClick={props.onSaveDefault}>保存默认</Button>
         <Button disabled={props.disabled} size={props.compact ? "sm" : "default"} variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
         <Button disabled={props.disabled} size={props.compact ? "sm" : "default"} variant="ghost" onClick={props.onResetOverride}>清除覆盖</Button>
-      </div>
+      </div>}
       {!props.compact && (
         <Button disabled={props.disabled} variant="ghost" onClick={props.onReset}>清空输出</Button>
       )}

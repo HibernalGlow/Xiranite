@@ -18,7 +18,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { NodeRunHistoryPopover } from "@/nodes/shared/NodeRunHistoryPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { ACTIONS, CONFIG_FIELDS } from "./constants"
 import {
@@ -34,6 +36,7 @@ import type { RepackuCardState, RepackuStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("repacku")
   const workspaceActions = useWorkspaceActions()
   const data = host.getData<RepackuCardState>(compId) ?? {}
   const dataRef = useRef<RepackuCardState>(data)
@@ -53,13 +56,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   const status = statusFromState(data, running)
   const operationPreview = result?.operations.slice(0, 120) ?? []
 
-  useEffect(() => {
-    host.getNodeConfig?.<Partial<RepackuCardState>>()
+  async function loadDefaults() {
+    await host.getNodeConfig?.<Partial<RepackuCardState>>()
       .then((response) => {
         setDefaults(response.config)
         setConfigFilePath(response.path)
       })
       .catch(() => undefined)
+  }
+
+  useEffect(() => {
+    void loadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -190,6 +197,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     onSaveDefault: saveAsDefault,
     onResetOverride: resetOverride,
     onOpenConfigFile: host.openConfigFile,
+    onLoadDefaults: loadDefaults,
+    t,
   }
 
   return (
@@ -417,6 +426,7 @@ function FullView(props: {
   onCopyResults: () => void
   onExecute: (action?: RepackuAction) => void
   onOpenConfigFile?: () => Promise<void> | void
+  onLoadDefaults: () => Promise<void>
   onOpenHistory: () => void
   onPaste: () => void
   onPatch: (patch: Partial<RepackuCardState>) => void
@@ -425,6 +435,7 @@ function FullView(props: {
   onRestoreHistory: (input: unknown) => void
   onSaveDefault: () => void
   onResetOverride: () => void
+  t: ReturnType<typeof useNodeI18n>["t"]
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
@@ -456,9 +467,9 @@ function FullView(props: {
       </div>
 
       <WorkflowRail action={props.action} status={props.status} />
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/repacku:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] @6xl/repacku:gap-4">
         <div className="flex min-h-0 flex-col gap-3">
-          <section className="grid shrink-0 gap-3 rounded-lg border bg-background/70 p-3">
+          <section className="grid shrink-0 gap-3 rounded-lg border border-border/70 bg-background/60 p-3 shadow-sm">
             <div className="flex min-w-0 flex-col gap-3 @3xl/repacku:flex-row @3xl/repacku:items-end">
               <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
               <div className="min-w-44 shrink-0 text-xs text-muted-foreground">选择流程后立即执行；配置始终显示在右侧。</div>
@@ -480,15 +491,29 @@ function FullView(props: {
             <TabsContent value="logs" className="min-h-0 flex-1"><PreviewPanel emptyText="运行日志会显示在这里。" lines={props.logs} onCopy={props.onCopyLogs} /></TabsContent>
           </Tabs>
         </div>
-        <Card className="flex min-h-0 flex-col">
-          <CardHeader className="shrink-0">
+        <section className="flex min-h-0 flex-col rounded-lg border border-border/70 bg-background/70 shadow-sm">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3">
+            <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base"><Settings2 />打包配置</CardTitle>
             <CardDescription>路径、压缩条件与风险开关在同一处确认。</CardDescription>
-          </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-auto">
-            <div className="grid gap-4">
+            </div>
+            <NodeConfigPopover
+              configPath={props.configFilePath}
+              defaults={props.defaults as Record<string, unknown> | undefined}
+              dirty={props.configDirty}
+              disabled={props.running}
+              t={props.t}
+              onOpenFile={props.onOpenConfigFile}
+              onReload={props.onLoadDefaults}
+              onRestore={props.onRestoreDefault}
+              onSave={props.onSaveDefault}
+            />
+          </div>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="grid gap-4 p-4">
               <OptionsPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
               <ConfigFilePanel
+                compact
                 configFilePath={props.configFilePath}
                 configDirty={props.configDirty}
                 data={props.data}
@@ -502,8 +527,8 @@ function FullView(props: {
                 onResetOverride={props.onResetOverride}
               />
             </div>
-          </CardContent>
-        </Card>
+          </ScrollArea>
+        </section>
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
     </div>
