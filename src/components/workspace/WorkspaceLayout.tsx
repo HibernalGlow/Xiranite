@@ -5,6 +5,7 @@ import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
 import { SelectionToolbar } from "./SelectionToolbar"
 import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
+import { AlphabetNodeRail } from "./AlphabetNodeRail"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { DefaultContextMenuItems } from "@/components/context-menu/defaults"
@@ -66,6 +67,7 @@ export function WorkspaceLayout() {
           </div>
           <OverlayHost />
           <SelectionToolbar />
+          <AlphabetNodeRail />
           <WorkspaceMusicDockPanel />
         </main>
       </WorkspaceMusicDockProvider>
