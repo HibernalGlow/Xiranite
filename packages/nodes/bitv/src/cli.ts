@@ -51,7 +51,7 @@ interface BitvNodeConfig extends CliInteractionPreferencesSource {
 }
 
 interface BitvDefaults {
-  interactionMode?: "ui" | "gd"
+  interactionMode?: "ui" | "gd" | "pipe"
   interactionRenderer?: TerminalRenderer
   interactionLanguage?: TerminalLanguage
   interactionTheme?: string

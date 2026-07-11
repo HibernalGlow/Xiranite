@@ -79,11 +79,11 @@ describe("BitV CLI interaction contract", () => {
     const root = await mkdtemp(join(tmpdir(), "bitv-mode-"))
     const configPath = join(root, "xiranite.config.toml")
     await writeFile(configPath, [
-      "[nodes.bitv]",
-      'interaction_mode = "gd"',
-      'interaction_renderer = "opentui"',
-      'interaction_language = "zh"',
-      'interaction_theme = "dracula"',
+      "[nodes.bitv.cli]",
+      'default_mode = "gd"',
+      'renderer = "opentui"',
+      'language = "zh"',
+      'theme = "dracula"',
     ].join("\n"), "utf8")
     const runGuide = vi.fn(async () => undefined)
     const dependencies = createDependencies({ runGuide })

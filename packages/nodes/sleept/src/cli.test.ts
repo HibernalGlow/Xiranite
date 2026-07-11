@@ -78,11 +78,11 @@ describe("sleept CLI interaction contract", () => {
     const root = await mkdtemp(join(tmpdir(), "sleept-mode-"))
     const configPath = join(root, "xiranite.config.toml")
     await writeFile(configPath, [
-      "[nodes.sleept]",
-      'interaction_mode = "gd"',
-      'interaction_renderer = "opentui"',
-      'interaction_language = "zh"',
-      'interaction_theme = "dracula"',
+      "[nodes.sleept.cli]",
+      'default_mode = "gd"',
+      'renderer = "opentui"',
+      'language = "zh"',
+      'theme = "dracula"',
     ].join("\n"), "utf8")
     const runGuide = vi.fn(async () => undefined)
     const dependencies = createDependencies({ runGuide })
@@ -104,8 +104,8 @@ describe("sleept CLI interaction contract", () => {
     const root = await mkdtemp(join(tmpdir(), "sleept-language-"))
     const configPath = join(root, "xiranite.config.toml")
     await writeFile(configPath, [
-      "[nodes.sleept]",
-      'interaction_language = "en"',
+      "[nodes.sleept.cli]",
+      'language = "en"',
     ].join("\n"), "utf8")
     let language: string | undefined
     const runUi: SleeptCliDependencies["runUi"] = async (_definition, options) => {

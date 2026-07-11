@@ -19,6 +19,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
+    "@termcn": "https://termcn.dev/r/{name}.json",
     "@niko-table": "https://niko-table.com/r/{name}.json",
     "@diceui": "https://diceui.com/r/{style}/{name}.json",
     "@magicui": "https://raw.githubusercontent.com/magicuidesign/magicui/main/apps/www/public/r/{name}.json"

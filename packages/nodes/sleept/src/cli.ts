@@ -64,7 +64,7 @@ interface SleeptNodeConfig extends CliInteractionPreferencesSource {
 }
 
 interface SleeptDefaults {
-  interactionMode?: "ui" | "gd"
+  interactionMode?: "ui" | "gd" | "pipe"
   interactionRenderer?: TerminalRenderer
   interactionLanguage?: TerminalLanguage
   interactionTheme?: string

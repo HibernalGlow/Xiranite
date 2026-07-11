@@ -66,7 +66,7 @@ interface GifuNodeConfig extends CliInteractionPreferencesSource {
 }
 
 interface GifuDefaults extends Partial<GifuInteractionValues> {
-  interactionMode?: "ui" | "gd"
+  interactionMode?: "ui" | "gd" | "pipe"
   interactionRenderer?: TerminalRenderer
   interactionLanguage?: TerminalLanguage
   interactionTheme?: string
