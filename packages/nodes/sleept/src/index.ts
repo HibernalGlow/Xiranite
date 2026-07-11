@@ -18,4 +18,6 @@ const entry = {
 
 export { core }
 export * from "./core.js"
+export * from "./i18n.js"
+export * from "./interaction.js"
 export default entry

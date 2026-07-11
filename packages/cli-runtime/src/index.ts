@@ -4,8 +4,55 @@ import { Chalk } from "chalk"
 import stringWidth from "string-width"
 import type { Readable, Writable } from "node:stream"
 import type { ReactNode } from "react"
+import type {
+  InteractionField,
+  InteractionValue,
+  InteractionValues,
+  TerminalInteractionDefinition,
+} from "./interaction.js"
+import { createTerminalTranslator, type TerminalLanguage } from "./tui/i18n.js"
 export { defineCommand, runMain } from "citty"
-export { requireInteractiveMode, resolveCliInvocation, type CliInvocationMode, type InteractionMode } from "./interaction.js"
+export {
+  requireInteractiveMode,
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalRenderer,
+  resolveTerminalUiFlags,
+  type CliInvocationMode,
+  type CliInteractionPreferences,
+  type CliInteractionPreferencesSource,
+  type InteractionField,
+  type InteractionMode,
+  type InteractionOption,
+  type InteractionValue,
+  type InteractionValues,
+  type TerminalInteractionDefinition,
+  type TerminalInteractionEvent,
+  type TerminalInteractionSchema,
+  type TerminalRenderer,
+  type TerminalRendererResolution,
+  type TerminalUiFlagDefaults,
+  type TerminalUiFlagResolution,
+} from "./interaction.js"
+export {
+  createTerminalTranslator,
+  createCliI18n,
+  createI18nTranslator,
+  listTerminalThemes,
+  isBunRuntime,
+  registerTerminalTheme,
+  reexecTerminalUiWithBun,
+  resolveTerminalLanguage,
+  resolveTerminalTheme,
+  runTerminalUi,
+  terminalMessages,
+  type RunTerminalUiOptions,
+  type CliI18nResources,
+  type I18nInterpolationValues,
+  type TerminalLanguage,
+  type TerminalMessageKey,
+  type TerminalTheme,
+} from "./tui/index.js"
 
 export interface CliHost {
   cwd: string
@@ -292,6 +339,91 @@ export async function selectRich<Value extends string | number | boolean>(
   } catch (error) {
     if (isPromptExitError(error)) throw new CliPromptExitError()
     throw error
+  }
+}
+
+export async function runGuidedInteraction<Input, Result>(
+  definition: TerminalInteractionDefinition<Input, Result>,
+  options: { host: CliHost; language: TerminalLanguage },
+): Promise<void> {
+  const { host, language } = options
+  const { schema } = definition
+  const t = createTerminalTranslator(language)
+  const values: InteractionValues = { ...schema.initialValues }
+
+  try {
+    writeRichPanel(host, schema.title, schema.description, { color: "blue", minWidth: 48 })
+    let fieldIndex = 0
+    while (true) {
+      const fields = schema.fields.filter((field) => field.visibleWhen?.(values) ?? true)
+      if (fieldIndex >= fields.length) break
+      const field = fields[fieldIndex]
+      if (!field) break
+      const value = await promptGuidedField(host, field, values, t)
+      values[field.id] = value
+      fieldIndex += 1
+    }
+
+    const input = schema.toInput(values)
+    const formError = schema.validate?.(values, input) ?? null
+    if (formError) {
+      writeError(host, formError)
+      process.exitCode = 2
+      return
+    }
+
+    writeRichPanel(host, t("preview"), [...schema.preview(input)], {
+      color: schema.isDangerous(input) ? "red" : "cyan",
+      minWidth: 48,
+    })
+    if (schema.isDangerous(input)) writeLine(host, rich(host, t("hazardNotice"), "red", "bold"))
+    const confirmed = await confirmRich(host, schema.isDangerous(input) ? t("runReal") : t("confirm"), !schema.isDangerous(input))
+    if (!confirmed) {
+      writeLine(host, rich(host, t("cancel"), "yellow"))
+      return
+    }
+
+    const result = await definition.run(input, (event) => {
+      if (event.type === "progress") {
+        writeLine(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: schema.id }))
+      } else if (event.message.trim()) {
+        writeLine(host, rich(host, event.message, "grey"))
+      }
+    })
+    const summary = schema.result(result)
+    writeLine(host, rich(host, summary.message, summary.success ? "green" : "red", "bold"))
+    if (summary.lines?.length) {
+      writeRichPanel(host, schema.title, [...summary.lines], { color: summary.success ? "green" : "red", minWidth: 48 })
+    }
+    if (!summary.success) process.exitCode = 1
+  } catch (error) {
+    if (error instanceof CliPromptExitError) {
+      writeLine(host, rich(host, t("cancel"), "yellow"))
+      return
+    }
+    throw error
+  }
+}
+
+async function promptGuidedField(
+  host: CliHost,
+  field: InteractionField,
+  values: InteractionValues,
+  t: ReturnType<typeof createTerminalTranslator>,
+): Promise<InteractionValue> {
+  if (field.kind === "select" || field.kind === "boolean") {
+    const fieldOptions = field.kind === "boolean"
+      ? [{ value: true, label: t("yes") }, { value: false, label: t("no") }]
+      : [...(field.options ?? [])]
+    return selectRich(host, field.label, fieldOptions, { initialValue: values[field.id] })
+  }
+
+  while (true) {
+    const raw = await promptRich(host, field.label, String(values[field.id] ?? ""))
+    const value: InteractionValue = field.kind === "number" && raw.trim() !== "" ? Number(raw) : raw
+    const validationError = field.validate?.(value, values) ?? null
+    if (!validationError) return value
+    writeError(host, validationError)
   }
 }
 

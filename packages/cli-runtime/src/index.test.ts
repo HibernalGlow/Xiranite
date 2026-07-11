@@ -1,5 +1,19 @@
 import { describe, expect, test } from "vitest"
-import { nodeCliName, normalizeNodeCliName, renderCliEvent, renderProgressBar, renderRichPanel, resolveCliInvocation, visibleWidth, writeCliEvent } from "./index.js"
+import {
+  createTerminalTranslator,
+  listTerminalThemes,
+  nodeCliName,
+  normalizeNodeCliName,
+  renderCliEvent,
+  renderProgressBar,
+  renderRichPanel,
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalUiFlags,
+  runTerminalUi,
+  visibleWidth,
+  writeCliEvent,
+} from "./index.js"
 import type { CliHost } from "./index.js"
 
 describe("cli-runtime", () => {
@@ -55,6 +69,52 @@ describe("cli-runtime", () => {
     expect(resolveCliInvocation(["guided"], tty)).toBe("gd")
     expect(resolveCliInvocation([], createHost(), "ui")).toBe("pipe")
     expect(resolveCliInvocation(["status", "--json"], tty)).toBe("pipe")
+  })
+
+  test("extracts shared renderer, language, and theme flags", () => {
+    expect(resolveTerminalUiFlags(["--renderer=opentui", "--lang", "zh", "--theme", "dracula"]))
+      .toEqual({ renderer: "opentui", language: "zh", theme: "dracula", args: [] })
+    expect(resolveTerminalUiFlags(["--renderer", "unknown"]).error).toContain("Unknown terminal renderer")
+    expect(resolveTerminalUiFlags(["--lang", "fr"]).error).toContain("Unknown terminal language")
+  })
+
+  test("normalizes shared interaction preferences from CLI and GUI config spellings", () => {
+    expect(resolveInteractionPreferences({
+      interactionMode: "gd",
+      interaction_renderer: "opentui",
+      interactionLanguage: "zh",
+      interaction_theme: "dracula",
+    })).toEqual({ mode: "gd", renderer: "opentui", language: "zh", theme: "dracula" })
+    expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "ink", language: undefined, theme: "default" })
+  })
+
+  test("shares terminal themes and GUI-compatible Chinese common labels", () => {
+    expect(listTerminalThemes()).toEqual(expect.arrayContaining(["default", "dracula", "high-contrast"]))
+    const zh = createTerminalTranslator("zh")
+    expect(zh("cancel")).toBe("取消")
+    expect(zh("confirm")).toBe("确认")
+    expect(zh("reset")).toBe("重置")
+  })
+
+  test("keeps Node hosts safe when OpenTUI needs a Bun re-exec", async () => {
+    const host = createHost()
+    const definition = {
+      schema: {
+        id: "demo",
+        title: "Demo",
+        description: "Demo",
+        initialValues: { action: "run" },
+        fields: [{ id: "action", label: "Action", kind: "text" as const }],
+        toInput: () => ({ action: "run" }),
+        preview: () => ["run"],
+        isDangerous: () => false,
+        result: () => ({ success: true, message: "ok" }),
+      },
+      run: async () => ({ success: true }),
+    }
+
+    await expect(runTerminalUi(definition, { renderer: "opentui", host }))
+      .rejects.toThrow("OpenTUI requires the Bun runtime")
   })
 })
 

@@ -6,10 +6,18 @@ import {
   confirmRich,
   defineCommand,
   nodeCliName,
+  listTerminalThemes,
   promptRich,
+  requireInteractiveMode,
   renderProgressBar,
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalLanguage,
+  resolveTerminalUiFlags,
   rich,
+  runGuidedInteraction,
   runMain,
+  runTerminalUi,
   selectRich,
   terminalColumns,
   writeError,
@@ -17,17 +25,27 @@ import {
   writeLine,
   writeRichPanel,
 } from "@xiranite/cli-runtime"
-import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import type {
+  CliCommand,
+  CliHost,
+  CliInteractionPreferencesSource,
+  TerminalInteractionDefinition,
+  TerminalLanguage,
+  TerminalRenderer,
+} from "@xiranite/cli-runtime"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult } from "./core.js"
 import { runSleept } from "./core.js"
+import { createSleeptInteractionSchema, type SleeptInteractionValues } from "./interaction.js"
 import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("sleept")
 export const SLEEPT_MAX_WAIT_HELP = "Maximum wait in seconds; use 0 to monitor indefinitely."
 
-interface SleeptNodeConfig {
+interface SleeptNodeConfig extends CliInteractionPreferencesSource {
+  timerMode?: SleeptInteractionValues["action"]
+  powerMode?: PowerMode
   power_mode?: PowerMode
   dryrun?: boolean
   hours?: number
@@ -44,6 +62,11 @@ interface SleeptNodeConfig {
 }
 
 interface SleeptDefaults {
+  interactionMode?: "ui" | "gd"
+  interactionRenderer?: TerminalRenderer
+  interactionLanguage?: TerminalLanguage
+  interactionTheme?: string
+  action?: SleeptInteractionValues["action"]
   powerMode?: PowerMode
   dryrun?: boolean
   hours?: number
@@ -67,8 +90,14 @@ async function resolveSleeptDefaults(host: CliHost, json = false): Promise<Sleep
       hintSink: { stderr: host.stderr },
       jsonMode: json,
     })
+    const interaction = resolveInteractionPreferences(nodeConfig)
     return {
-      powerMode: nodeConfig?.power_mode,
+      interactionMode: interaction.mode,
+      interactionRenderer: interaction.renderer,
+      interactionLanguage: interaction.language,
+      interactionTheme: interaction.theme,
+      action: nodeConfig?.timerMode,
+      powerMode: nodeConfig?.power_mode ?? nodeConfig?.powerMode,
       dryrun: nodeConfig?.dryrun,
       hours: nodeConfig?.hours,
       minutes: nodeConfig?.minutes,
@@ -117,12 +146,127 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
+export interface SleeptCliDependencies {
+  runGuide: <Input, Result>(
+    definition: TerminalInteractionDefinition<Input, Result>,
+    options: { host: CliHost; language: TerminalLanguage },
+  ) => Promise<void>
+  runUi: <Input, Result>(
+    definition: TerminalInteractionDefinition<Input, Result>,
+    options: {
+      host: CliHost
+      renderer: TerminalRenderer
+      language: TerminalLanguage
+      theme?: string
+      reexec?: { entrypoint: string; args: readonly string[] }
+    },
+  ) => Promise<void>
+}
+
+const defaultDependencies: SleeptCliDependencies = {
+  runGuide: runGuidedInteraction,
+  runUi: runTerminalUi,
+}
+
+export async function runProgram(
+  args = process.argv.slice(2),
+  host: CliHost = createDefaultHost(),
+  dependencies: SleeptCliDependencies = defaultDependencies,
+): Promise<void> {
+  if (args.length === 0 && (!host.stdin.isTTY || !host.stdout.isTTY)) {
+    writeError(host, `No interactive terminal detected. Use \`${CLI_NAME} status --json\` or run \`${CLI_NAME} ui\` in a terminal.`)
+    process.exitCode = 2
     return
   }
-  await runMain(createProgram(host), { rawArgs: args })
+
+  const explicitInvocation = resolveCliInvocation(args, host, "ui")
+  if (args.length > 0 && explicitInvocation !== "pipe") {
+    const ttyError = requireInteractiveMode(host, explicitInvocation)
+    if (ttyError) {
+      writeError(host, ttyError)
+      process.exitCode = 2
+      return
+    }
+  }
+
+  if (explicitInvocation === "pipe") {
+    await runMain(createProgram(host), { rawArgs: args })
+    return
+  }
+
+  if (args.includes("--help") || args.includes("-h")) {
+    await runMain(createProgram(host), { rawArgs: args })
+    return
+  }
+
+  // Interactive renderers own the full screen; config hints would corrupt it.
+  const defaults = await resolveSleeptDefaults(host, true)
+  const invocation = args.length === 0
+    ? resolveCliInvocation(args, host, defaults.interactionMode ?? "ui")
+    : explicitInvocation
+
+  const flags = resolveTerminalUiFlags(args.slice(1), {
+    renderer: defaults.interactionRenderer ?? "ink",
+    language: defaults.interactionLanguage ?? resolveTerminalLanguage(undefined, host.env),
+    theme: defaults.interactionTheme,
+  })
+  if (flags.error || flags.args.length > 0 || !flags.renderer || !flags.language) {
+    writeError(host, flags.error ?? `Unknown ui argument: ${flags.args[0]}.`)
+    process.exitCode = 2
+    return
+  }
+  if (flags.theme && !listTerminalThemes().includes(flags.theme)) {
+    writeError(host, `Unknown terminal theme: ${flags.theme}. Available themes: ${listTerminalThemes().join(", ")}.`)
+    process.exitCode = 2
+    return
+  }
+
+  const definition = createSleeptUiDefinition(defaults, flags.language)
+  if (invocation === "gd") {
+    await dependencies.runGuide(definition, { host, language: flags.language })
+    return
+  }
+  await dependencies.runUi(definition, {
+    host,
+    renderer: flags.renderer,
+    language: flags.language,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined,
+  })
+}
+
+function createSleeptUiDefinition(
+  defaults: SleeptDefaults,
+  language: TerminalLanguage,
+): TerminalInteractionDefinition<SleeptInput, SleeptResult> {
+  let cancelled = false
+  const schema = createSleeptInteractionSchema({
+    action: defaults.action,
+    powerMode: defaults.powerMode,
+    dryrun: defaults.dryrun,
+    hours: defaults.hours,
+    minutes: defaults.minutes,
+    seconds: defaults.seconds,
+    targetDatetime: defaults.targetDatetime,
+    uploadThreshold: defaults.uploadThreshold,
+    downloadThreshold: defaults.downloadThreshold,
+    netDuration: defaults.netDuration,
+    netTriggerMode: defaults.netTriggerMode,
+    cpuThreshold: defaults.cpuThreshold,
+    cpuDuration: defaults.cpuDuration,
+    maxWaitSeconds: defaults.maxWaitSeconds,
+  }, language)
+  return {
+    schema,
+    async run(input, onEvent) {
+      cancelled = false
+      const runtime = createNodeSleeptRuntime()
+      return runSleept(input, { ...runtime, isCancelled: () => cancelled }, onEvent)
+    },
+    cancel() {
+      cancelled = true
+    },
+  }
 }
 
 function createDefaultHost(): CliHost {
@@ -137,8 +281,29 @@ function createDefaultHost(): CliHost {
 
 function createProgram(host: CliHost = createDefaultHost()) {
   return defineCommand({
-    meta: { name: CLI_NAME, description: "System timer CLI with subcommands and a Clack guided mode." },
+    meta: { name: CLI_NAME, description: "System timer CLI with ui, gd, and pipe-safe subcommands." },
     subCommands: {
+      ui: defineCommand({
+        meta: { name: "ui", description: "Open the full terminal UI using Ink or OpenTUI." },
+        args: {
+          renderer: { type: "string", description: "ink or opentui." },
+          lang: { type: "string", description: "en or zh." },
+          theme: { type: "string", description: "default, dracula, or high-contrast." },
+        },
+        async run({ args }) {
+          const rawArgs = ["ui"]
+          if (args.renderer) rawArgs.push("--renderer", String(args.renderer))
+          if (args.lang) rawArgs.push("--lang", String(args.lang))
+          if (args.theme) rawArgs.push("--theme", String(args.theme))
+          await runProgram(rawArgs, host)
+        },
+      }),
+      gd: defineCommand({
+        meta: { name: "gd", description: "Open the compact guided terminal workflow." },
+        async run() {
+          await runProgram(["gd"], host)
+        },
+      }),
       status: defineCommand({
         meta: { name: "status", description: "Print current system status." },
         args: { json: { type: "boolean", description: "Print JSON result." } },
@@ -237,9 +402,9 @@ function createProgram(host: CliHost = createDefaultHost()) {
         },
       }),
       guided: defineCommand({
-        meta: { name: "guided", description: "Open the Clack guided terminal workflow." },
+        meta: { name: "guided", description: "Compatibility alias for gd." },
         async run() {
-          await runGuided(host)
+          await runProgram(["guided"], host)
         },
       }),
     },

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { PowerMode, SleeptData, SleeptInput } from "@xiranite/node-sleept/core"
 import { countdownSeconds, formatDuration } from "@xiranite/node-sleept/core"
+import { sleeptInputFromInteractionValues, type SleeptInteractionAction } from "@xiranite/node-sleept/interaction"
 import { Clock, Copy, Play, RotateCcw, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { AnimatedCircularProgressBar } from "@/components/ui/animated-circular-progress-bar"
@@ -615,8 +616,13 @@ function LogBoard(props: {
 }
 
 function buildInput(action: SleeptInput["action"], data: SleeptCardState): SleeptInput {
-  return {
-    action,
+  const interactionAction: SleeptInteractionAction = action === "get_stats" || action === "status"
+    ? "get_stats"
+    : action === "countdown" || action === "specific_time" || action === "netspeed" || action === "cpu"
+      ? action
+      : data.timerMode ?? "countdown"
+  return sleeptInputFromInteractionValues({
+    action: interactionAction,
     powerMode: data.powerMode ?? "sleep",
     hours: data.hours ?? 0,
     minutes: data.minutes ?? 0,
@@ -630,7 +636,7 @@ function buildInput(action: SleeptInput["action"], data: SleeptCardState): Sleep
     cpuDuration: data.cpuDuration ?? 2,
     dryrun: data.dryrun ?? true,
     maxWaitSeconds: data.maxWaitSeconds ?? 3600,
-  }
+  })
 }
 
 function statusFromState(data: SleeptCardState, running: boolean): SleeptStatusMeta {
