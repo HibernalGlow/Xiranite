@@ -276,6 +276,20 @@
       "islandDelay": "按钮延迟",
       "islandIdleOffset": "横条上移"
     },
+    "alphabetIndex": {
+      "title": "字母索引",
+      "description": "位于工作区底部的紧凑节点启动器。悬停字母浏览对应节点，点击节点即可添加。",
+      "visible": "显示字母索引",
+      "visibleDesc": "让启动器常驻在工作区底部。",
+      "style": "样式",
+      "styles": {
+        "glass": "玻璃",
+        "solid": "实色",
+        "minimal": "极简"
+      },
+      "opacity": "不透明度",
+      "wave": "波浪响应"
+    },
     "texture": {
       "title": "纹理画布",
       "basePalette": "基础调色板",

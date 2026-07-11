@@ -276,6 +276,20 @@
       "islandDelay": "Button Delay",
       "islandIdleOffset": "Idle Offset"
     },
+    "alphabetIndex": {
+      "title": "Alphabet Index",
+      "description": "A compact launcher at the bottom of the workspace. Hover a letter to browse matching nodes, then click a node to add it.",
+      "visible": "Show alphabet index",
+      "visibleDesc": "Keep the launcher available at the bottom of the workspace.",
+      "style": "Style",
+      "styles": {
+        "glass": "Glass",
+        "solid": "Solid",
+        "minimal": "Minimal"
+      },
+      "opacity": "Opacity",
+      "wave": "Wave response"
+    },
     "texture": {
       "title": "Texture Canvas",
       "basePalette": "BASE PALETTE",

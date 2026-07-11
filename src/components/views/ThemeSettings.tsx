@@ -94,7 +94,14 @@ function AlphabetIndexSlider({
         <span className="text-xs font-mono text-foreground">{label}</span>
         <span className="text-xs font-mono text-muted-foreground">{value}</span>
       </div>
-      <Slider value={[current]} onValueChange={([next]) => onValueChange(next)} min={min} max={max} step={1} />
+      <Slider
+        aria-label={label}
+        value={[current]}
+        onValueChange={([next]) => onValueChange(next)}
+        min={min}
+        max={max}
+        step={1}
+      />
     </div>
   )
 }
@@ -995,32 +1002,32 @@ export function ThemeSettings() {
               <div className="flex items-start gap-2">
                 <PanelBottom className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
-                  <h3 className="text-lg font-semibold text-foreground">{t("settings:alphabetIndex.title", "Alphabet index")}</h3>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:alphabetIndex.description", "A compact bottom launcher. Hover to browse matching nodes, then click a node to add it.")}</p>
+                  <h3 className="text-lg font-semibold text-foreground">{t("settings:alphabetIndex.title")}</h3>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("settings:alphabetIndex.description")}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
                 <PanelBottom className="size-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{t("settings:alphabetIndex.visible", "Show alphabet index")}</p>
-                  <p className="text-[11px] text-muted-foreground">{t("settings:alphabetIndex.visibleDesc", "Keep the launcher at the bottom of the workspace.")}</p>
+                  <p className="text-sm font-medium text-foreground">{t("settings:alphabetIndex.visible")}</p>
+                  <p className="text-[11px] text-muted-foreground">{t("settings:alphabetIndex.visibleDesc")}</p>
                 </div>
                 <Switch checked={state.alphabetIndexVisible} onCheckedChange={workspaceActions.setAlphabetIndexVisible} />
               </div>
 
-              <div className={cn("flex flex-col gap-4 transition-opacity", !state.alphabetIndexVisible && "pointer-events-none opacity-40")}>
+              <div className={cn("flex flex-col gap-4 transition-opacity", !state.alphabetIndexVisible && "opacity-60")}>
                 <div className="flex flex-col gap-2">
-                  <span className="text-xs font-mono text-foreground">{t("settings:alphabetIndex.style", "Style")}</span>
+                  <span className="text-xs font-mono text-foreground">{t("settings:alphabetIndex.style")}</span>
                   <ToggleGroup type="single" value={state.alphabetIndexStyle} onValueChange={(value) => value && workspaceActions.setAlphabetIndexStyle(value as typeof state.alphabetIndexStyle)} variant="outline" size="sm" className="grid w-full grid-cols-3 gap-2" spacing={2}>
-                    <ToggleGroupItem value="glass" className="text-[11px]">{t("settings:alphabetIndex.styles.glass", "Glass")}</ToggleGroupItem>
-                    <ToggleGroupItem value="solid" className="text-[11px]">{t("settings:alphabetIndex.styles.solid", "Solid")}</ToggleGroupItem>
-                    <ToggleGroupItem value="minimal" className="text-[11px]">{t("settings:alphabetIndex.styles.minimal", "Minimal")}</ToggleGroupItem>
+                    <ToggleGroupItem value="glass" className="text-[11px]">{t("settings:alphabetIndex.styles.glass")}</ToggleGroupItem>
+                    <ToggleGroupItem value="solid" className="text-[11px]">{t("settings:alphabetIndex.styles.solid")}</ToggleGroupItem>
+                    <ToggleGroupItem value="minimal" className="text-[11px]">{t("settings:alphabetIndex.styles.minimal")}</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
 
-                <AlphabetIndexSlider label={t("settings:alphabetIndex.opacity", "Opacity")} value={`${state.alphabetIndexOpacity}%`} min={35} max={100} current={state.alphabetIndexOpacity} onValueChange={workspaceActions.setAlphabetIndexOpacity} />
-                <AlphabetIndexSlider label={t("settings:alphabetIndex.wave", "Wave response")} value={`${state.alphabetIndexWaveIntensity}%`} min={0} max={100} current={state.alphabetIndexWaveIntensity} onValueChange={workspaceActions.setAlphabetIndexWaveIntensity} />
+                <AlphabetIndexSlider label={t("settings:alphabetIndex.opacity")} value={`${state.alphabetIndexOpacity}%`} min={35} max={100} current={state.alphabetIndexOpacity} onValueChange={workspaceActions.setAlphabetIndexOpacity} />
+                <AlphabetIndexSlider label={t("settings:alphabetIndex.wave")} value={`${state.alphabetIndexWaveIntensity}%`} min={0} max={100} current={state.alphabetIndexWaveIntensity} onValueChange={workspaceActions.setAlphabetIndexWaveIntensity} />
               </div>
             </div>
 
