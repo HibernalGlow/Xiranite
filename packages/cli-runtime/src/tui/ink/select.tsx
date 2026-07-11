@@ -3,6 +3,7 @@ import { useState } from "react"
 
 import type { InteractionOption, InteractionValue } from "../../interaction.js"
 import { useTerminalTheme } from "../theme.js"
+import { MouseTarget } from "./mouse-target.js"
 
 // Adapted from @termcn/ink/select.
 export function Select<Value extends InteractionValue>({
@@ -37,8 +38,8 @@ export function Select<Value extends InteractionValue>({
       {options.map((option, index) => {
         const active = index === activeIndex
         const selected = option.value === value
-        return (
-          <Box key={`${String(option.value)}-${index}`} gap={1}>
+        const row = (
+          <Box gap={1}>
             <Text color={active ? theme.colors.primary : undefined}>{active ? "›" : " "}</Text>
             <Text
               bold={active || selected}
@@ -49,6 +50,19 @@ export function Select<Value extends InteractionValue>({
             </Text>
             {option.hint ? <Text color={theme.colors.mutedForeground}>{option.hint}</Text> : null}
           </Box>
+        )
+        return option.disabled ? (
+          <Box key={`${String(option.value)}-${index}`}>{row}</Box>
+        ) : (
+          <MouseTarget
+            key={`${String(option.value)}-${index}`}
+            onClick={() => {
+              setActiveIndex(index)
+              onSubmit(option.value)
+            }}
+          >
+            {row}
+          </MouseTarget>
         )
       })}
     </Box>

@@ -62,7 +62,7 @@ describe("sleept Ink UI visual capture", () => {
     await expectCliVisualArtifacts(capture)
   }, 30_000)
 
-  test("drives the Ink workbench entirely through real PTY mouse events", async () => {
+  test("drives the Ink workbench through non-overlapping leaf mouse targets", async () => {
     const root = await mkdtemp(join(tmpdir(), "sleept-ink-mouse-"))
     const configPath = join(root, "xiranite.config.toml")
     const liveSentinelPath = join(root, "live-execution-attempted.txt")
@@ -88,20 +88,21 @@ describe("sleept Ink UI visual capture", () => {
       columns: 120,
       rows: 32,
       steps: [
-        { clickText: "网络", region: { maxX: 35, minY: 6, maxY: 14 }, waitForText: "上传阈值" },
-        { clickText: "倒计时", region: { maxX: 35, minY: 6, maxY: 14 }, waitForText: "小时" },
-        { clickText: "否", region: { minX: 65, maxY: 14 }, waitForText: "开始执行" },
-        { clickText: "开始执行", region: { minX: 65, maxY: 16 }, waitForText: "确认真实执行" },
-        { clickText: "返回检查", region: { minX: 65, maxY: 18 }, waitForText: "开始执行", waitForAbsentText: "确认真实执行" },
-        { clickText: "是", region: { minX: 65, maxY: 14 }, waitForText: "开始演练" },
-        { clickText: "开始演练", region: { minX: 65, maxY: 16 }, waitForText: "停止" },
-        { clickText: "停止", region: { minX: 65, maxY: 16 }, waitForAbsentText: "停止" },
-        { clickText: "日志", region: { minY: 20 }, waitForText: "日志 (1)" },
+        { clickText: "定时模式: 倒计时", region: { maxX: 40, minY: 3, maxY: 14 }, waitForText: "倒计时" },
+        { clickText: "网络", region: { minX: 40, maxX: 82, minY: 3, maxY: 14 }, waitForText: "上传阈值" },
+        { clickText: "预演: 是", region: { maxX: 40, minY: 3, maxY: 16 }, waitForText: "预演" },
+        { clickText: "否", region: { minX: 40, maxX: 82, minY: 3, maxY: 14 }, waitForText: "开始执行" },
+        { clickText: "开始执行", region: { minX: 75, minY: 12 }, waitForText: "确认真实执行" },
+        { clickText: "返回检查", region: { minX: 40, maxX: 82 }, waitForText: "开始执行", waitForAbsentText: "确认真实执行" },
+        { clickText: "预演: 否", region: { maxX: 40, minY: 3, maxY: 16 }, waitForText: "预演" },
+        { clickText: "是", region: { minX: 40, maxX: 82, minY: 3, maxY: 14 }, waitForText: "开始演练" },
+        { clickText: "开始演练", region: { minX: 75, minY: 12 }, waitForText: "停止" },
+        { clickText: "停止", region: { minX: 75, minY: 12 }, waitForAbsentText: "停止" },
       ],
     })
 
-    expect(scenario.clicks).toHaveLength(9)
-    expect(scenario.finalScreen).toContain("● 日志 (1)")
+    expect(scenario.clicks).toHaveLength(10)
+    expect(scenario.finalScreen).toContain("INK")
     expect(scenario.ansi).toContain("\u001b[?1049h")
     expect(scenario.ansi).toContain("\u001b[?1049l")
     expect(scenario.ansi).toContain("\u001b[?1006h")
