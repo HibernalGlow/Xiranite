@@ -47,6 +47,7 @@ function OpenTuiTerminalScreen<Input, Result>({
   const [activeSectionId, setActiveSectionId] = useState(() => sections[0]?.id ?? "")
   const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
   const display = view.dashboard.display(session.values)
+  const dashboardTable = session.resultSummary?.table ?? display.table
   useEffect(() => {
     if (!sections.some((section) => section.id === activeSectionId)) setActiveSectionId(sections[0]?.id ?? "")
   }, [activeSectionId, sections])
@@ -150,10 +151,20 @@ function OpenTuiTerminalScreen<Input, Result>({
               </box>
             ) : null}
           </box>
-          {display.table ? <PreviewTable table={display.table} /> : null}
-          <scrollbox flexGrow={display.table ? 0 : 1} minHeight={2} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
-            {session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
-          </scrollbox>
+          {dashboardTable ? (
+            <scrollbox
+              id="dashboard-result-table"
+              flexGrow={1}
+              minHeight={3}
+              scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}
+            >
+              <PreviewTable table={dashboardTable} maxRows={dashboardTable.rows.length} />
+            </scrollbox>
+          ) : (
+            <scrollbox flexGrow={1} minHeight={2} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+              {session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
+            </scrollbox>
+          )}
         </WorkbenchPanel>
       </box>
 
@@ -199,7 +210,6 @@ function OpenTuiTerminalScreen<Input, Result>({
               <ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />
               {session.error ? <text fg={theme.colors.error}>{session.error}</text> : null}
               {session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}
-              {session.resultSummary?.table ? <PreviewTable table={session.resultSummary.table} maxRows={3} /> : null}
               {session.resultSummary?.lines.slice(0, 3).map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
             </box>
           )}

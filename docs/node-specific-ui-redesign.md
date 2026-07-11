@@ -1,4 +1,4 @@
-Before editing any node UI, back up the current node files in that node directory first.
+Existing `src/nodes/<node>/__backup__/` directories are read-only archives of the old UI. Do not add, update, rename, or delete files in them during later rewrites; use Git history for new rollback points.
 
 # Node-specific UI redesign and PackU rewrite plan
 
@@ -9,7 +9,7 @@ It supersedes ad-hoc node UI notes when they conflict on scope. `trename` is the
 ## Non-negotiable requirements
 
 - Every node except `trename` must be rewritten or re-audited against this document. Existing partial rewrites are evidence to inspect, not completion proof.
-- Before changing a node UI, create same-directory backups under `src/nodes/<node>/__backup__/` from the current committed version, for example `Component.before-ui-redesign.tsx` and `controls.before-ui-redesign.tsx`. Keep these backups committed with the redesign work so the old UI can be restored or compared later.
+- Existing files under `src/nodes/<node>/__backup__/` preserve the old UI and must remain untouched. They are historical comparison artifacts, not a rolling snapshot area. Later rewrites must rely on Git history instead of creating another backup generation.
 - Every rewritten node must keep `collapsed`, `compact`, `portrait`, and `full` layouts. Use the existing `useNodeSurface()` pattern and container queries.
 - A larger card must not be a stretched version of the small card. It must expose a richer information architecture for that node's actual workflow.
 - Do not use the generic "toolbar + input panel + result tabs" template as the final full layout.

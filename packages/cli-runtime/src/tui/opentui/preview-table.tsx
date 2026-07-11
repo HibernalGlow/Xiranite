@@ -6,8 +6,8 @@ export function PreviewTable({ table, maxRows = 8 }: { table: TerminalViewTable;
   const theme = useTerminalTheme()
   const rows = table.rows.slice(0, maxRows)
   return (
-    <box flexDirection="column" minHeight={0} flexGrow={1}>
-      <box flexDirection="row" borderStyle="single" borderColor={theme.colors.border}>
+    <box flexDirection="column" width="100%" flexShrink={0}>
+      <box flexDirection="row" height={1} flexShrink={0}>
         {table.columns.map((column) => (
           <box key={column.id} width={column.width} flexGrow={column.width ? 0 : 1} minWidth={0} paddingLeft={1} paddingRight={1}>
             <text fg={theme.colors.primary}><b>{column.label}</b></text>
@@ -15,7 +15,7 @@ export function PreviewTable({ table, maxRows = 8 }: { table: TerminalViewTable;
         ))}
       </box>
       {rows.length ? rows.map((row, rowIndex) => (
-        <box key={rowIndex} flexDirection="row" borderColor={theme.colors.border}>
+        <box key={rowIndex} flexDirection="row" height={1} flexShrink={0}>
           {table.columns.map((column) => (
             <box key={column.id} width={column.width} flexGrow={column.width ? 0 : 1} minWidth={0} paddingLeft={1} paddingRight={1}>
               <text fg={rowIndex === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{row[column.id] ?? ""}</text>

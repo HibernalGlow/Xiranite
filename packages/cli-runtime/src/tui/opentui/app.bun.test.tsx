@@ -48,7 +48,22 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
       }),
       preview: (input) => [`Action: ${input.action}`, `Power: ${input.powerMode}`],
       isDangerous: (input) => !input.dryrun,
-      result: (result) => ({ ...result, lines: [] }),
+      result: (result) => ({
+        ...result,
+        lines: ["Videos: 15"],
+        table: {
+          columns: [
+            { id: "file", label: "文件", width: 28 },
+            { id: "bitrate", label: "码率", width: 12 },
+            { id: "resolution", label: "分辨率", width: 12 },
+          ],
+          rows: Array.from({ length: 15 }, (_, index) => ({
+            file: `video-${String(index + 1).padStart(2, "0")}.mp4`,
+            bitrate: `${index + 1} Mbps`,
+            resolution: "1920x1080",
+          })),
+        },
+      }),
     },
     run: async (input, onEvent) => {
       onRun?.(input)
@@ -121,6 +136,8 @@ describe("OpenTUI terminal adapter", () => {
       await click("confirm-execute")
       await setup.waitFor(() => capturedInput !== undefined)
       expect(capturedInput).toEqual({ action: "run", powerMode: "shutdown", dryrun: false })
+      expect(setup.renderer.root.findDescendantById("dashboard-result-table")).toBeDefined()
+      expect(setup.captureCharFrame()).toContain("video-01.mp4")
 
       await click("tab-logs")
       expect(setup.captureCharFrame()).toContain("event log")
