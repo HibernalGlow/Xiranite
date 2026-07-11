@@ -96,7 +96,10 @@ describe("OpenTUI terminal adapter", () => {
       const target = setup.renderer.root.findDescendantById(id)
       expect(target).toBeDefined()
       await act(async () => {
-        await setup.mockMouse.click(target!.x + Math.max(0, Math.floor(target!.width / 2)), target!.y + Math.max(0, Math.floor(target!.height / 2)))
+        await setup.mockMouse.click(
+          target!.x + Math.max(0, Math.floor(target!.width / 2)),
+          target!.y + Math.max(0, Math.floor((target!.height - 1) / 2)),
+        )
       })
       await act(async () => setup.flush())
     }
@@ -105,6 +108,7 @@ describe("OpenTUI terminal adapter", () => {
       await click("field-action-status")
       expect(setup.captureCharFrame()).toContain("● 状态")
       await click("field-action-run")
+      await click("section-tabs-execution")
       await click("field-powerMode-shutdown")
       await click("field-dryrun-false")
 

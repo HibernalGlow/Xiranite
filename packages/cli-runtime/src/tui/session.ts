@@ -6,6 +6,7 @@ import type {
   InteractionValues,
   TerminalInteractionDefinition,
   TerminalInteractionSchema,
+  TerminalViewTable,
 } from "../interaction.js"
 
 export type TerminalUiPhase = "ready" | "running" | "result"
@@ -35,6 +36,7 @@ export interface TerminalUiSession<Result> {
     success: boolean
     message: string
     lines: readonly string[]
+    table?: TerminalViewTable
   }
   setField: (fieldId: string, value: InteractionValue) => void
   focus: (controlId: string) => void

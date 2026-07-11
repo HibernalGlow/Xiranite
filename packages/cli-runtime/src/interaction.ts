@@ -5,6 +5,7 @@ export type CliInvocationMode = InteractionMode | "pipe"
 export type TerminalRenderer = "opentui"
 export type InteractionValue = string | number | boolean
 export type InteractionValues = Record<string, InteractionValue>
+export type InteractionFieldKind = "text" | "multiline" | "path-list" | "number" | "select" | "boolean"
 
 export interface InteractionOption<Value extends InteractionValue = InteractionValue> {
   value: Value
@@ -17,9 +18,13 @@ export interface InteractionField {
   id: string
   label: string
   description?: string
-  kind: "text" | "number" | "select" | "boolean"
+  kind: InteractionFieldKind
+  /** Renderer-neutral hint for a primary workflow/action selector. */
+  role?: "action"
   options?: readonly InteractionOption[]
   placeholder?: string
+  /** Preferred editor height for multiline and path-list fields. */
+  lines?: number
   min?: number
   max?: number
   step?: number
@@ -43,6 +48,19 @@ export interface TerminalViewDisplay {
   primary: string
   secondary?: string
   metrics?: readonly TerminalViewMetric[]
+  table?: TerminalViewTable
+}
+
+export interface TerminalViewTableColumn {
+  id: string
+  label: string
+  width?: number
+}
+
+export interface TerminalViewTable {
+  columns: readonly TerminalViewTableColumn[]
+  rows: readonly Readonly<Record<string, string>>[]
+  emptyMessage?: string
 }
 
 /**
@@ -78,6 +96,7 @@ export interface TerminalInteractionSchema<Input, Result> {
     success: boolean
     message: string
     lines?: readonly string[]
+    table?: TerminalViewTable
   }
 }
 

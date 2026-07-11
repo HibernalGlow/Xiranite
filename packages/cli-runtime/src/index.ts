@@ -373,6 +373,16 @@ async function promptGuidedField(
     return selectRich(host, field.label, fieldOptions, { initialValue: values[field.id] })
   }
 
+  if (field.kind === "path-list") {
+    while (true) {
+      const paths = await promptPathLines(host, field.label)
+      const value = paths.join("\n")
+      const validationError = field.validate?.(value, values) ?? null
+      if (!validationError) return value
+      writeError(host, validationError)
+    }
+  }
+
   while (true) {
     const raw = await promptRich(host, field.label, String(values[field.id] ?? ""))
     const value: InteractionValue = field.kind === "number" && raw.trim() !== "" ? Number(raw) : raw

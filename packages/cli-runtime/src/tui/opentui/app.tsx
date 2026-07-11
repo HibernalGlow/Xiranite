@@ -1,18 +1,15 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 
-import type { InteractionField, InteractionValue, TerminalInteractionDefinition } from "../../interaction.js"
+import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalViewSection } from "../../interaction.js"
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
-import {
-  fieldsForViewSection,
-  nextInteractionValue,
-  resolveInteractionView,
-  stepInteractionNumber,
-} from "../screen.js"
+import { nextInteractionValue, resolveInteractionView, stepInteractionNumber } from "../screen.js"
 import { useTerminalUiSession } from "../session.js"
 import { resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
 import { ProgressBar } from "./progress-bar.js"
+import { PreviewTable } from "./preview-table.js"
+import { ActionTabs } from "./action-tabs.js"
 import { ClickTarget, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "./workbench-controls.js"
 
 export function OpenTuiTerminalApp<Input, Result>({
@@ -46,19 +43,31 @@ function OpenTuiTerminalScreen<Input, Result>({
   const theme = useTerminalTheme()
   const session = useTerminalUiSession(definition)
   const view = resolveInteractionView(definition.schema, session.values, t)
-  const primarySection = view.sections[0]
-  const executionSection = view.sections[1]
-  const primaryFields = fieldsForViewSection(session.fields, primarySection?.fieldIds ?? [])
-  const executionFields = fieldsForViewSection(session.fields, executionSection?.fieldIds ?? [])
+  const sections = visibleSections(view.sections, session.fields, t)
+  const [activeSectionId, setActiveSectionId] = useState(() => sections[0]?.id ?? "")
+  const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
   const display = view.dashboard.display(session.values)
+  useEffect(() => {
+    if (!sections.some((section) => section.id === activeSectionId)) setActiveSectionId(sections[0]?.id ?? "")
+  }, [activeSectionId, sections])
   const controlIds = useMemo(
-    () => [...session.fields.map((field) => field.id), "execute", "reset", "tab-status", "tab-logs", "exit"],
-    [session.fields],
+    () => session.confirming
+      ? ["confirm-execute", "confirm-dismiss"]
+      : [
+          ...(sections.length > 1 ? ["section-tabs"] : []),
+          ...(activeSection?.fields.map((field) => field.id) ?? []),
+          "execute",
+          "reset",
+          "tab-status",
+          "tab-logs",
+          "exit",
+        ],
+    [activeSection, sections.length, session.confirming],
   )
 
   useKeyboard((key) => {
     const focusedField = session.fields.find((field) => field.id === session.focusedControlId)
-    const editingText = focusedField?.kind === "text"
+    const editingText = focusedField?.kind === "text" || focusedField?.kind === "multiline" || focusedField?.kind === "path-list"
     if (key.name === "escape") {
       if (session.confirming) session.dismissConfirmation()
       else if (session.phase === "running") session.cancel()
@@ -69,12 +78,20 @@ function OpenTuiTerminalScreen<Input, Result>({
       session.moveFocus(controlIds, key.shift ? -1 : 1)
       return
     }
+    if (session.focusedControlId === "section-tabs") {
+      const direction = key.name === "left" || key.name === "up" ? -1 : key.name === "right" || key.name === "down" ? 1 : 0
+      if (direction && sections.length > 1) {
+        const currentIndex = Math.max(0, sections.findIndex((section) => section.id === activeSection?.id))
+        setActiveSectionId(sections[(currentIndex + direction + sections.length) % sections.length]?.id ?? activeSectionId)
+      }
+      return
+    }
     if (key.name === "q" && !editingText && session.phase !== "running") {
       onExit()
       return
     }
     if (focusedField) {
-      if (focusedField.kind === "text") return
+      if (editingText) return
       handleFieldKeyboard(focusedField, session.values[focusedField.id], key, t, session.setField)
       return
     }
@@ -96,86 +113,121 @@ function OpenTuiTerminalScreen<Input, Result>({
         </box>
       </box>
       <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
-        <WorkbenchPanel title={primarySection?.title ?? t("parameters")} description={primarySection?.description} width="34%">
-          <FieldList fields={primaryFields} session={session} t={t} />
+        <WorkbenchPanel title={t("parameters")} width="42%">
+          {sections.length > 1 ? (
+            <ActionTabs
+              id="section-tabs"
+              options={sections.map((section) => ({ value: section.id, label: section.title, hint: section.description }))}
+              value={activeSection?.id}
+              focused={session.focusedControlId === "section-tabs"}
+              disabled={session.phase === "running"}
+              onFocus={() => session.focus("section-tabs")}
+              onChange={(value) => setActiveSectionId(String(value))}
+            />
+          ) : null}
+          <scrollbox focused={activeSection?.fields.some((field) => field.id === session.focusedControlId)} flexGrow={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+            {activeSection?.description ? <text fg={theme.colors.mutedForeground}>{activeSection.description}</text> : null}
+            {activeSection ? <FieldList fields={activeSection.fields} session={session} t={t} /> : null}
+          </scrollbox>
         </WorkbenchPanel>
 
-        <box flexDirection="column" flexGrow={1} minWidth={0} gap={1}>
-          <WorkbenchPanel title={view.dashboard.title} description={view.dashboard.description} flexGrow={1}>
-            <box flexDirection="row" flexGrow={1} minHeight={0}>
-              <box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1} minWidth={0}>
-                {/^[0-9]{2}:[0-9]{2}:[0-9]{2}$/.test(display.primary)
-                  ? <ascii-font text={display.primary} font="grid" color={[theme.colors.primary, theme.colors.focusRing]} />
-                  : <text fg={theme.colors.primary}><b>{display.primary}</b></text>}
-                {display.secondary ? <text fg={theme.colors.mutedForeground}>{`[ ${display.secondary} ]`}</text> : null}
-              </box>
+        <WorkbenchPanel title={view.dashboard.title} description={view.dashboard.description} flexGrow={1}>
+          <box flexDirection="row" flexShrink={0} minHeight={3}>
+            <box flexDirection="column" justifyContent="center" flexGrow={1} minWidth={0}>
+              {/^[0-9]{2}:[0-9]{2}:[0-9]{2}$/.test(display.primary)
+                ? <ascii-font text={display.primary} font="grid" color={[theme.colors.primary, theme.colors.focusRing]} />
+                : <text fg={theme.colors.primary}><b>{display.primary}</b></text>}
+              {display.secondary ? <text fg={theme.colors.mutedForeground}>{display.secondary}</text> : null}
+            </box>
+            {display.metrics?.length ? (
               <box flexDirection="column" width="42%" justifyContent="center">
-                {display.metrics?.map((metric) => (
+                {display.metrics.map((metric) => (
                   <box key={metric.label} flexDirection="row" justifyContent="space-between" borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
                     <text fg={theme.colors.mutedForeground}>{metric.label}</text>
                     <text fg={theme.colors.foreground}><b>{metric.value}</b></text>
                   </box>
                 ))}
               </box>
-            </box>
-            <box flexDirection="row" gap={1}>
-              {session.preview.slice(0, 3).map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
-            </box>
-          </WorkbenchPanel>
-
-          <box flexDirection="row" height={12} gap={1}>
-            <WorkbenchPanel title={session.confirming ? session.dangerPrompt?.title ?? t("confirmLiveTitle") : executionSection?.title ?? t("execution")} width="42%">
-              {session.confirming ? (
-                <Confirmation session={session} t={t} />
-              ) : (
-                <>
-                  <FieldList fields={executionFields} session={session} t={t} />
-                  <box flexDirection="column" marginTop={1}>
-                    <WorkbenchButton
-                      id="execute"
-                      focused={session.focusedControlId === "execute"}
-                      danger={session.dangerous}
-                      onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}
-                    >
-                      {executeLabel(session, t)}
-                    </WorkbenchButton>
-                    <box flexDirection="row" gap={1}>
-                      <ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>{t("resetParameters")}</ClickTarget>
-                      <ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>{t("exit")}</ClickTarget>
-                    </box>
-                  </box>
-                </>
-              )}
-            </WorkbenchPanel>
-
-            <WorkbenchPanel title="" flexGrow={1}>
-              <box flexDirection="row" justifyContent="space-between">
-                <box flexDirection="row" gap={1}>
-                  <ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget>
-                  <ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget>
-                </box>
-                <text fg={theme.colors.mutedForeground}>{session.phase === "running" ? "ESC = STOP" : "TAB / MOUSE"}</text>
-              </box>
-              {session.resultTab === "logs" ? (
-                <scrollbox focused={session.focusedControlId === "tab-logs"} flexGrow={1} marginTop={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
-                  {session.logs.length
-                    ? session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(2, "0")}  ${line}`}</text>)
-                    : <text fg={theme.colors.mutedForeground}>{t("emptyLogs")}</text>}
-                </scrollbox>
-              ) : (
-                <box flexDirection="column" marginTop={1}>
-                  <ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />
-                  {session.error ? <text fg={theme.colors.error}>{session.error}</text> : null}
-                  {session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}
-                  {session.resultSummary?.lines.slice(0, 2).map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
-                </box>
-              )}
-            </WorkbenchPanel>
+            ) : null}
           </box>
-        </box>
+          {display.table ? <PreviewTable table={display.table} /> : null}
+          <scrollbox flexGrow={display.table ? 0 : 1} minHeight={2} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+            {session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
+          </scrollbox>
+        </WorkbenchPanel>
+      </box>
+
+      <box flexDirection="row" height={8} gap={1} marginTop={1}>
+        <WorkbenchPanel title={session.confirming ? session.dangerPrompt?.title ?? t("confirmLiveTitle") : t("execution")} width="38%">
+          {session.confirming ? (
+            <Confirmation session={session} t={t} />
+          ) : (
+            <box flexDirection="column" justifyContent="flex-end" flexGrow={1}>
+              <text fg={session.dangerous ? theme.colors.error : theme.colors.mutedForeground}>{session.dangerous ? t("hazardNotice") : session.preview[0] ?? t("waitingForRun")}</text>
+              <WorkbenchButton
+                id="execute"
+                focused={session.focusedControlId === "execute"}
+                danger={session.dangerous}
+                onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}
+              >
+                {executeLabel(session, t)}
+              </WorkbenchButton>
+              <box flexDirection="row" gap={1}>
+                <ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>{t("resetParameters")}</ClickTarget>
+                <ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>{t("exit")}</ClickTarget>
+              </box>
+            </box>
+          )}
+        </WorkbenchPanel>
+
+        <WorkbenchPanel title="" flexGrow={1}>
+          <box flexDirection="row" justifyContent="space-between">
+            <box flexDirection="row" gap={1}>
+              <ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget>
+              <ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget>
+            </box>
+            <text fg={theme.colors.mutedForeground}>{session.phase === "running" ? "ESC = STOP" : "TAB / MOUSE"}</text>
+          </box>
+          {session.resultTab === "logs" ? (
+            <scrollbox focused={session.focusedControlId === "tab-logs"} flexGrow={1} marginTop={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+              {session.logs.length
+                ? session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(2, "0")}  ${line}`}</text>)
+                : <text fg={theme.colors.mutedForeground}>{t("emptyLogs")}</text>}
+            </scrollbox>
+          ) : (
+            <box flexDirection="column" marginTop={1} minHeight={0} flexGrow={1}>
+              <ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />
+              {session.error ? <text fg={theme.colors.error}>{session.error}</text> : null}
+              {session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}
+              {session.resultSummary?.table ? <PreviewTable table={session.resultSummary.table} maxRows={3} /> : null}
+              {session.resultSummary?.lines.slice(0, 3).map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}
+            </box>
+          )}
+        </WorkbenchPanel>
       </box>
     </box>
   )
+}
+
+function visibleSections(
+  sections: readonly TerminalViewSection[],
+  fields: readonly InteractionField[],
+  t: TerminalTranslator,
+): Array<TerminalViewSection & { fields: readonly InteractionField[] }> {
+  const byId = new Map(fields.map((field) => [field.id, field]))
+  const assigned = new Set<string>()
+  const visible = sections.flatMap((section) => {
+    const sectionFields = section.fieldIds.flatMap((id) => {
+      const field = byId.get(id)
+      if (!field) return []
+      assigned.add(id)
+      return [field]
+    })
+    return sectionFields.length ? [{ ...section, fields: sectionFields }] : []
+  })
+  const unassigned = fields.filter((field) => !assigned.has(field.id))
+  if (unassigned.length) visible.push({ id: "other", title: t("parameters"), fieldIds: unassigned.map((field) => field.id), fields: unassigned })
+  return visible
 }
 
 function FieldList({
@@ -217,11 +269,9 @@ function Confirmation({
   return (
     <box flexDirection="column">
       <text fg={theme.colors.error}>{session.dangerPrompt?.body ?? t("confirmLiveBody")}</text>
-      <box flexDirection="column" marginTop={1}>
+      <box flexDirection="row" gap={1} marginTop={1}>
         <WorkbenchButton id="confirm-execute" danger focused={session.focusedControlId === "confirm-execute"} onClick={() => void session.confirmExecute()}>{session.dangerPrompt?.confirmLabel ?? t("confirmLiveAction")}</WorkbenchButton>
-        <box>
-          <ClickTarget id="confirm-dismiss" onClick={session.dismissConfirmation}>{t("dismiss")}</ClickTarget>
-        </box>
+        <ClickTarget id="confirm-dismiss" focused={session.focusedControlId === "confirm-dismiss"} onClick={session.dismissConfirmation}>{t("dismiss")}</ClickTarget>
       </box>
     </box>
   )
@@ -265,6 +315,7 @@ function activateControl<Result>(
   if (controlId === "tab-logs") session.selectResultTab("logs")
   if (controlId === "exit") onExit()
   if (controlId === "confirm-execute") void session.confirmExecute()
+  if (controlId === "confirm-dismiss") session.dismissConfirmation()
 }
 
 function executeLabel(session: ReturnType<typeof useTerminalUiSession<unknown, unknown>>, t: TerminalTranslator): string {

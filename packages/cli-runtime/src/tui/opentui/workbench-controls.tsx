@@ -5,6 +5,8 @@ import type { InteractionField, InteractionValue } from "../../interaction.js"
 import type { TerminalTranslator } from "../i18n.js"
 import { optionsForField, stepInteractionNumber } from "../screen.js"
 import { useTerminalTheme } from "../theme.js"
+import { ActionTabs } from "./action-tabs.js"
+import { MultilineEditor, PathListInput } from "./multiline-editor.js"
 
 export function WorkbenchPanel({
   title,
@@ -29,6 +31,8 @@ export function WorkbenchPanel({
       paddingRight={1}
       width={width}
       flexGrow={flexGrow}
+      flexShrink={width ? 0 : undefined}
+      minWidth={0}
       overflow="hidden"
     >
       {title ? <box flexShrink={0}><text fg={theme.colors.primary}><b>{title}</b></text></box> : null}
@@ -60,6 +64,23 @@ export function WorkbenchField({
   onChange: (value: InteractionValue) => void
 }) {
   const theme = useTerminalTheme()
+  if (field.kind === "select" && field.role === "action") {
+    return (
+      <box flexDirection="column" minHeight={3}>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+        <ActionTabs
+          id={`field-${field.id}`}
+          options={field.options ?? []}
+          value={value}
+          focused={focused}
+          disabled={disabled}
+          onFocus={onFocus}
+          onChange={onChange}
+        />
+        {error ? <text fg={theme.colors.error}>{error}</text> : null}
+      </box>
+    )
+  }
   if (field.kind === "number") {
     return (
       <box
@@ -97,8 +118,27 @@ export function WorkbenchField({
       </box>
     )
   }
+  if (field.kind === "multiline" || field.kind === "path-list") {
+    const Editor = field.kind === "path-list" ? PathListInput : MultilineEditor
+    return (
+      <box flexDirection="column" minHeight={(field.lines ?? (field.kind === "path-list" ? 6 : 5)) + 1}>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+        <Editor
+          id={`field-${field.id}`}
+          value={String(value ?? "")}
+          placeholder={field.placeholder}
+          focused={focused}
+          disabled={disabled}
+          height={field.lines}
+          onFocus={onFocus}
+          onChange={onChange}
+        />
+        {error ? <text fg={theme.colors.error}>{error}</text> : null}
+      </box>
+    )
+  }
   return (
-    <box flexDirection="column" minHeight={3}>
+    <box flexDirection="column" minHeight={2}>
       <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
       <box flexDirection="row" flexWrap="wrap" minHeight={1}>
         {optionsForField(field, t).map((option) => (
