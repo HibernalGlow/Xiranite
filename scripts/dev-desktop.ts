@@ -92,7 +92,15 @@ process.on("exit", () => backend?.close())
 try {
   await waitForFrontend()
 
-  go = Bun.spawn(["go", "run", "-mod=mod", "."], {
+  // A Wails desktop window does not need its own Windows console. Keep the
+  // terminal available only when explicitly requested for Go-side debugging.
+  const goArgs = ["go", "run", "-mod=mod"]
+  if (process.platform === "win32" && Bun.env.XIRANITE_DESKTOP_TERMINAL !== "1") {
+    goArgs.push("-ldflags=-H=windowsgui")
+  }
+  goArgs.push(".")
+
+  go = Bun.spawn(goArgs, {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
