@@ -21,6 +21,11 @@ export interface TerminalUiSession<Result> {
   error?: string
   preview: readonly string[]
   dangerous: boolean
+  dangerPrompt?: {
+    title: string
+    body: string
+    confirmLabel: string
+  }
   progress: number
   status: string
   logs: readonly string[]
@@ -92,6 +97,7 @@ export function useTerminalUiSession<Input, Result>(
   const input = useMemo(() => schema.toInput(state.values), [schema, state.values])
   const preview = useMemo(() => schema.preview(input), [input, schema])
   const dangerous = schema.isDangerous(input)
+  const dangerPrompt = dangerous ? schema.dangerPrompt?.(input) : undefined
 
   useEffect(() => () => {
     mountedRef.current = false
@@ -249,6 +255,7 @@ export function useTerminalUiSession<Input, Result>(
     error: state.error,
     preview,
     dangerous,
+    dangerPrompt,
     progress: state.progress,
     status: state.status,
     logs: state.logs,

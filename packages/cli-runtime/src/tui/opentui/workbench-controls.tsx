@@ -31,8 +31,8 @@ export function WorkbenchPanel({
       flexGrow={flexGrow}
       overflow="hidden"
     >
-      {title ? <text fg={theme.colors.primary}><b>{title}</b></text> : null}
-      {description ? <text fg={theme.colors.mutedForeground}>{description}</text> : null}
+      {title ? <box flexShrink={0}><text fg={theme.colors.primary}><b>{title}</b></text></box> : null}
+      {description ? <box flexShrink={0}><text fg={theme.colors.mutedForeground}>{description}</text></box> : null}
       <box flexDirection="column" marginTop={description ? 1 : 0} flexGrow={1} overflow="hidden">
         {children}
       </box>
@@ -83,11 +83,16 @@ export function WorkbenchField({
   }
   if (field.kind === "text") {
     return (
-      <box flexDirection="column" minHeight={4}>
+      <box flexDirection="column" minHeight={4} onMouseDown={disabled ? undefined : onFocus}>
         <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
-        <ClickTarget id={`field-${field.id}`} disabled={disabled} focused={focused} onClick={onFocus} bordered>
-          {String(value || field.placeholder || "")}
-        </ClickTarget>
+        <box id={`field-${field.id}`} borderStyle="rounded" borderColor={focused ? theme.colors.focusRing : theme.colors.border} height={3} paddingLeft={1} paddingRight={1}>
+          <input
+            value={String(value ?? "")}
+            placeholder={field.placeholder ?? ""}
+            focused={focused && !disabled}
+            onInput={disabled ? undefined : onChange}
+          />
+        </box>
         {error ? <text fg={theme.colors.error}>{error}</text> : null}
       </box>
     )

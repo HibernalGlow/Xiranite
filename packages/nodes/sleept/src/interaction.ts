@@ -131,8 +131,9 @@ export function createSleeptInteractionSchema(
     description: t("description"),
     initialValues,
     fields,
-    workbench: {
-      left: {
+    view: {
+      sections: [{
+        id: "trigger",
         title: t("triggerSequence"),
         description: t("triggerSequenceHint"),
         fieldIds: [
@@ -149,8 +150,13 @@ export function createSleeptInteractionSchema(
           "cpuDuration",
           "maxWaitSeconds",
         ],
-      },
-      center: {
+      }, {
+        id: "execution",
+        title: t("executionAction"),
+        description: t("executionActionHint"),
+        fieldIds: ["powerMode", "dryrun"],
+      }],
+      dashboard: {
         title: t("systemStandby"),
         description: t("systemStandbyHint"),
         display(values) {
@@ -175,11 +181,6 @@ export function createSleeptInteractionSchema(
             ],
           }
         },
-      },
-      right: {
-        title: t("executionAction"),
-        description: t("executionActionHint"),
-        fieldIds: ["powerMode", "dryrun"],
       },
     },
     toInput: sleeptInputFromInteractionValues,

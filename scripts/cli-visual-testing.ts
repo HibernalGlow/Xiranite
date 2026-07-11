@@ -239,7 +239,12 @@ async function captureCliAnsi(options: {
   })
 
   try {
-    await waitForOutput(() => matchesOutput(ansi, options.waitForText), options.timeoutMs)
+    try {
+      await waitForOutput(() => matchesOutput(ansi, options.waitForText), options.timeoutMs)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`CLI visual wait for ${String(options.waitForText)} failed: ${message}\n${plainTerminalText(ansi)}`)
+    }
     await waitForOutputStability(() => ansi, 125, options.timeoutMs)
     // Capture the live alternate-screen frame before sending the close input.
     // Returning the post-exit stream would correctly restore the user's main

@@ -31,8 +31,8 @@ export function WorkbenchPanel({
       flexGrow={flexGrow}
       overflow="hidden"
     >
-      {title ? <Text bold color={theme.colors.primary}>{title}</Text> : null}
-      {description ? <Text color={theme.colors.mutedForeground} wrap="truncate-end">{description}</Text> : null}
+      {title ? <Box flexShrink={0}><Text bold color={theme.colors.primary}>{title}</Text></Box> : null}
+      {description ? <Box flexShrink={0}><Text color={theme.colors.mutedForeground} wrap="truncate-end">{description}</Text></Box> : null}
       <Box flexDirection="column" marginTop={description ? 1 : 0} flexGrow={1} overflow="hidden">
         {children}
       </Box>

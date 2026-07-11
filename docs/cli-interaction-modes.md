@@ -81,15 +81,18 @@ equivalent alternate-screen lifecycle.
 
 ## TUI component policy
 
-Use an established terminal component library before writing primitives:
+Use established renderer-native components before writing primitives:
 
-1. [Termcn](https://github.com/shadcn-labs/termcn) is the preferred source for
-   terminal UI components and layouts.
-2. [InkUI](https://github.com/karimfromjordan/ink-ui) is the fallback when
-   Termcn does not provide the required interaction.
-3. A custom component is allowed only when neither library offers an equivalent;
+1. OpenTUI uses its official native components first, including `ascii-font`,
+   `input`, `select`, `tab-select`, and `scrollbox` where they fit the workflow.
+2. Ink uses [Termcn](https://github.com/shadcn-labs/termcn) components first,
+   then mature Ink ecosystem components such as `ink-gradient` and
+   `ink-spinner`.
+3. [InkUI](https://github.com/karimfromjordan/ink-ui) is the fallback when
+   Termcn does not provide the required Ink interaction.
+4. A custom component is allowed only when neither library offers an equivalent;
    it must be small, accessible, and reusable through `cli-runtime`.
-4. Ink mouse hit testing uses `@ink-tools/ink-mouse`; OpenTUI uses its native
+5. Ink mouse hit testing uses `@ink-tools/ink-mouse`; OpenTUI uses its native
    mouse events. Node packages never import either mouse API directly.
 
 ## Shared themes and i18n
@@ -111,17 +114,33 @@ English remains the i18next fallback for an individual missing translation key.
 ## Renderer compatibility
 
 Do not couple a node's interaction schema or workflow to Ink. Node packages
-expose renderer-neutral screen state, field definitions, keyboard intents, and
-core execution callbacks. `cli-runtime` supplies a renderer adapter selected by
-the interaction host:
+expose renderer-neutral field semantics, validation, safety policy, sections,
+dashboard data, intents, and core execution callbacks. A schema section has an
+ID, title, description, and field IDs; it does not contain left/right positions,
+widths, JSX, native widget names, mouse APIs, animation, or scrolling policy.
+`cli-runtime` supplies a renderer-owned composition selected by the interaction
+host:
 
 ```text
 node interaction schema + core action runner
              ↓
-renderer-neutral screen model and intents
+renderer-neutral semantics, state, and intents
              ↓
-Ink/Termcn adapter  |  OpenTUI/Termcn adapter
+Ink composition  |  OpenTUI native composition
 ```
+
+This separation is deliberate: forcing both renderers through one shared
+component tree produces a lowest-common-denominator UI. Ink may use Gradient,
+Spinner, flex composition, and Ink mouse providers; OpenTUI may independently
+use native ASCII fonts, inputs, scrollboxes, buffered rendering, and native
+mouse events. They do not need to look identical.
+
+The schema still defines the common automatic field vocabulary (`text`,
+`number`, `select`, and `boolean`), so it can limit a truly exotic node-specific
+control. Do not solve that by placing React components in the schema. Add a
+semantic capability with a standard fallback, then implement that capability
+in each renderer's registry. A missing specialized renderer must fall back to a
+normal field without changing input/output or blocking pipe mode.
 
 The two adapters must preserve the same commands (`ui`, `gd`), field IDs,
 defaults, keyboard intents, confirmation policy, and result model. Renderer

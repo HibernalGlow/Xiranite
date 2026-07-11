@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --environment node"
+    "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

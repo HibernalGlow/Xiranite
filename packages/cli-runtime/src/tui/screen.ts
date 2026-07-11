@@ -3,8 +3,8 @@ import type {
   InteractionOption,
   InteractionValue,
   InteractionValues,
+  TerminalInteractionView,
   TerminalInteractionSchema,
-  TerminalWorkbenchLayout,
 } from "../interaction.js"
 import type { TerminalTranslator } from "./i18n.js"
 
@@ -54,7 +54,7 @@ export function stepInteractionNumber(
   return Math.max(field.min ?? Number.NEGATIVE_INFINITY, Math.min(field.max ?? Number.POSITIVE_INFINITY, next))
 }
 
-export function fieldsForWorkbenchPanel(
+export function fieldsForViewSection(
   fields: readonly InteractionField[],
   fieldIds: readonly string[],
 ): readonly InteractionField[] {
@@ -66,20 +66,22 @@ export function fieldsForWorkbenchPanel(
   })
 }
 
-export function resolveWorkbenchLayout<Input, Result>(
+export function resolveInteractionView<Input, Result>(
   schema: TerminalInteractionSchema<Input, Result>,
   values: Readonly<InteractionValues>,
   t: TerminalTranslator,
-): TerminalWorkbenchLayout {
-  if (schema.workbench) return schema.workbench
+): TerminalInteractionView {
+  if (schema.view) return schema.view
   const midpoint = Math.ceil(schema.fields.length / 2)
   return {
-    left: { title: t("parameters"), fieldIds: schema.fields.slice(0, midpoint).map((field) => field.id) },
-    center: {
+    sections: [
+      { id: "primary", title: t("parameters"), fieldIds: schema.fields.slice(0, midpoint).map((field) => field.id) },
+      { id: "secondary", title: t("execution"), fieldIds: schema.fields.slice(midpoint).map((field) => field.id) },
+    ],
+    dashboard: {
       title: t("liveStatus"),
       description: schema.description,
       display: () => ({ primary: schema.title, secondary: schema.preview(schema.toInput(values))[0] }),
     },
-    right: { title: t("execution"), fieldIds: schema.fields.slice(midpoint).map((field) => field.id) },
   }
 }

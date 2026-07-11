@@ -13,16 +13,19 @@ afterEach(() => {
 })
 
 describe("sleept Ink UI visual capture", () => {
-  test("captures the shared Chinese schema with a Termcn theme", async () => {
+  test("captures the Ink-native Chinese control deck", async () => {
     const capture = await captureCliVisual({
       nodeId: "sleept",
       cliPath: CLI_PATH,
       args: ["ui", "--renderer", "ink", "--lang", "zh", "--theme", "dracula"],
       artifactName: "ui-ink-zh-dracula",
       waitForText: "触发序列",
+      columns: 120,
+      rows: 32,
+      viewport: { width: 1400, height: 620 },
     })
 
-    expect(capture.plainText).toContain("Sleept")
+    expect(capture.plainText).toContain("SLEEPT")
     expect(capture.plainText).toContain("触发序列")
     expect(capture.plainText).toContain("系统待命")
     expect(capture.plainText).toContain("执行动作")
@@ -30,23 +33,26 @@ describe("sleept Ink UI visual capture", () => {
     expect(capture.plainText).toContain("倒计时")
     expect(capture.plainText).toContain("网络")
     expect(capture.plainText).toContain("CPU")
-    expect(capture.plainText).toContain("Ink")
+    expect(capture.plainText).toContain("INK")
     expect(capture.plainText).not.toContain("步骤")
     expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
     expect(capture.html).not.toMatch(/\u001b|\?25|DABx/)
     await expectCliVisualArtifacts(capture)
   }, 30_000)
 
-  test("captures the matching fullscreen OpenTUI workbench", async () => {
+  test("captures the OpenTUI-native fullscreen control plane", async () => {
     const capture = await captureCliVisual({
       nodeId: "sleept",
       cliPath: CLI_PATH,
       args: ["ui", "--renderer", "opentui", "--lang", "zh", "--theme", "dracula"],
       artifactName: "ui-opentui-zh-dracula",
       waitForText: "触发序列",
+      columns: 120,
+      rows: 32,
+      viewport: { width: 1400, height: 620 },
     })
 
-    expect(capture.plainText).toContain("Sleept")
+    expect(capture.plainText).toContain("SLEEPT // NATIVE CONTROL PLANE")
     expect(capture.plainText).toContain("OpenTUI")
     expect(capture.plainText).toContain("触发序列")
     expect(capture.plainText).toContain("系统待命")
@@ -79,21 +85,23 @@ describe("sleept Ink UI visual capture", () => {
       },
       initialWaitFor: "开始演练",
       timeoutMs: 8_000,
+      columns: 120,
+      rows: 32,
       steps: [
-        { clickText: "网络", region: { maxX: 35, maxY: 12 }, waitForText: "上传阈值" },
-        { clickText: "倒计时", region: { maxX: 35, maxY: 12 }, waitForText: "小时" },
+        { clickText: "网络", region: { maxX: 35, minY: 6, maxY: 14 }, waitForText: "上传阈值" },
+        { clickText: "倒计时", region: { maxX: 35, minY: 6, maxY: 14 }, waitForText: "小时" },
         { clickText: "否", region: { minX: 65, maxY: 14 }, waitForText: "开始执行" },
         { clickText: "开始执行", region: { minX: 65, maxY: 16 }, waitForText: "确认真实执行" },
         { clickText: "返回检查", region: { minX: 65, maxY: 18 }, waitForText: "开始执行", waitForAbsentText: "确认真实执行" },
         { clickText: "是", region: { minX: 65, maxY: 14 }, waitForText: "开始演练" },
         { clickText: "开始演练", region: { minX: 65, maxY: 16 }, waitForText: "停止" },
         { clickText: "停止", region: { minX: 65, maxY: 16 }, waitForAbsentText: "停止" },
-        { clickText: "日志", region: { minY: 15 }, waitForText: "remaining" },
+        { clickText: "日志", region: { minY: 20 }, waitForText: "日志 (1)" },
       ],
     })
 
     expect(scenario.clicks).toHaveLength(9)
-    expect(scenario.finalScreen).toContain("remaining")
+    expect(scenario.finalScreen).toContain("● 日志 (1)")
     expect(scenario.ansi).toContain("\u001b[?1049h")
     expect(scenario.ansi).toContain("\u001b[?1049l")
     expect(scenario.ansi).toContain("\u001b[?1006h")

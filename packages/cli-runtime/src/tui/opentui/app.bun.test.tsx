@@ -34,10 +34,12 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
         },
         { id: "dryrun", label: "演练模式", kind: "boolean" },
       ],
-      workbench: {
-        left: { title: "触发序列", fieldIds: ["action"] },
-        center: { title: "系统待命", display: (values) => ({ primary: String(values.action), secondary: "状态监控" }) },
-        right: { title: "执行动作", fieldIds: ["powerMode", "dryrun"] },
+      view: {
+        sections: [
+          { id: "trigger", title: "触发序列", fieldIds: ["action"] },
+          { id: "execution", title: "执行动作", fieldIds: ["powerMode", "dryrun"] },
+        ],
+        dashboard: { title: "系统待命", display: (values) => ({ primary: String(values.action), secondary: "状态监控" }) },
       },
       toInput: (values) => ({
         action: String(values.action),
@@ -70,8 +72,8 @@ describe("OpenTUI terminal adapter", () => {
       await act(async () => setup.renderOnce())
       const frame = setup.captureCharFrame()
       expect(frame.split("\n").slice(0, -1)).toHaveLength(24)
-      expect(frame).toContain("Demo")
-      expect(frame).toContain("OpenTUI · 优先使用鼠标")
+      expect(frame).toContain("DEMO // NATIVE CONTROL PLANE")
+      expect(frame).toContain("OpenTUI · native widgets · buffered")
       expect(frame).toContain("触发序列")
       expect(frame).toContain("系统待命")
       expect(frame).toContain("执行动作")

@@ -27,35 +27,35 @@ export interface InteractionField {
   validate?: (value: InteractionValue, values: Readonly<InteractionValues>) => string | null
 }
 
-export interface TerminalWorkbenchPanel {
+export interface TerminalViewSection {
+  id: string
   title: string
   description?: string
   fieldIds: readonly string[]
 }
 
-export interface TerminalWorkbenchMetric {
+export interface TerminalViewMetric {
   label: string
   value: string
 }
 
-export interface TerminalWorkbenchDisplay {
+export interface TerminalViewDisplay {
   primary: string
   secondary?: string
-  metrics?: readonly TerminalWorkbenchMetric[]
+  metrics?: readonly TerminalViewMetric[]
 }
 
 /**
- * Renderer-neutral layout hints owned by the independently distributed node.
- * Renderers decide how to project these regions at the current terminal size.
+ * Renderer-neutral content grouping owned by the independently distributed
+ * node. It intentionally contains no positions, widths, widgets, or input API.
  */
-export interface TerminalWorkbenchLayout {
-  left: TerminalWorkbenchPanel
-  center: {
+export interface TerminalInteractionView {
+  sections: readonly TerminalViewSection[]
+  dashboard: {
     title: string
     description?: string
-    display: (values: Readonly<InteractionValues>) => TerminalWorkbenchDisplay
+    display: (values: Readonly<InteractionValues>) => TerminalViewDisplay
   }
-  right: TerminalWorkbenchPanel
 }
 
 export interface TerminalInteractionSchema<Input, Result> {
@@ -64,11 +64,16 @@ export interface TerminalInteractionSchema<Input, Result> {
   description: string
   initialValues: InteractionValues
   fields: readonly InteractionField[]
-  workbench?: TerminalWorkbenchLayout
+  view?: TerminalInteractionView
   toInput: (values: Readonly<InteractionValues>) => Input
   validate?: (values: Readonly<InteractionValues>, input: Input) => string | null
   preview: (input: Input) => readonly string[]
   isDangerous: (input: Input) => boolean
+  dangerPrompt?: (input: Input) => {
+    title: string
+    body: string
+    confirmLabel: string
+  }
   result: (result: Result) => {
     success: boolean
     message: string

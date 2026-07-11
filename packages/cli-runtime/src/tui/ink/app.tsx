@@ -1,13 +1,15 @@
 import { MouseProvider } from "@ink-tools/ink-mouse"
 import { Box, Text, useInput, useStdout } from "ink"
+import Gradient from "ink-gradient"
+import Spinner from "ink-spinner"
 import { useEffect, useMemo, useState } from "react"
 
 import type { InteractionField, InteractionValue, TerminalInteractionDefinition } from "../../interaction.js"
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
 import {
-  fieldsForWorkbenchPanel,
+  fieldsForViewSection,
   nextInteractionValue,
-  resolveWorkbenchLayout,
+  resolveInteractionView,
   stepInteractionNumber,
 } from "../screen.js"
 import { useTerminalUiSession } from "../session.js"
@@ -48,10 +50,12 @@ function InkTerminalScreen<Input, Result>({
   const theme = useTerminalTheme()
   const session = useTerminalUiSession(definition)
   const { columns, rows } = useTerminalSize()
-  const layout = resolveWorkbenchLayout(definition.schema, session.values, t)
-  const leftFields = fieldsForWorkbenchPanel(session.fields, layout.left.fieldIds)
-  const rightFields = fieldsForWorkbenchPanel(session.fields, layout.right.fieldIds)
-  const display = layout.center.display(session.values)
+  const view = resolveInteractionView(definition.schema, session.values, t)
+  const primarySection = view.sections[0]
+  const executionSection = view.sections[1]
+  const primaryFields = fieldsForViewSection(session.fields, primarySection?.fieldIds ?? [])
+  const executionFields = fieldsForViewSection(session.fields, executionSection?.fieldIds ?? [])
+  const display = view.dashboard.display(session.values)
   const controlIds = useMemo(
     () => [...session.fields.map((field) => field.id), "execute", "reset", "tab-status", "tab-logs", "exit"],
     [session.fields],
@@ -83,47 +87,65 @@ function InkTerminalScreen<Input, Result>({
     }
   })
 
-  const bottomHeight = Math.max(6, Math.min(8, Math.floor(rows * 0.3)))
+  const bottomHeight = Math.max(6, Math.min(8, Math.floor(rows * 0.27)))
+  const bigTimer = columns >= 110 && /^\d{2}:\d{2}:\d{2}$/.test(display.primary)
+  const sideWidth = Math.max(20, Math.min(28, Math.floor(columns * 0.22)))
   return (
     <Box width={columns} height={Math.max(1, rows - 2)} flexDirection="column" paddingX={1} overflow="hidden">
-      <Box justifyContent="space-between" height={2}>
-        <Box gap={1}>
-          <Text bold color={theme.colors.primary}>{definition.schema.title}</Text>
-          <Text color={phaseColor(session.phase, theme)}>{phaseLabel(session.phase, t)}</Text>
+      <Box justifyContent="space-between" height={1} flexShrink={0}>
+        <Box gap={1} flexGrow={1} minWidth={0}>
+          <Box flexShrink={0}><Gradient colors={[theme.colors.primary, theme.colors.focusRing]}><Text bold>SLEEPT</Text></Gradient></Box>
+          <Text color={theme.colors.mutedForeground}>{definition.schema.description}</Text>
         </Box>
-        <Text color={theme.colors.mutedForeground}>{`Ink · ${t("mouseHelp")}`}</Text>
+        <Box gap={1} flexShrink={0}>
+          {session.phase === "running" ? <Text color={theme.colors.warning}><Spinner type="dots" /></Text> : null}
+          <Text bold color={phaseColor(session.phase, theme)}>{phaseLabel(session.phase, t).toUpperCase()}</Text>
+          <Text color={theme.colors.mutedForeground}>{`INK · mouse / tab / q`}</Text>
+        </Box>
       </Box>
-      <Box flexGrow={1} minHeight={0} gap={1}>
-        <WorkbenchPanel title={layout.left.title} width="34%">
-          <FieldList fields={leftFields} session={session} t={t} />
+      <Text color={theme.colors.border}>{"─".repeat(Math.max(1, columns - 4))}</Text>
+      <Box flexGrow={1} minHeight={0} gap={1} marginTop={1}>
+        <WorkbenchPanel title={primarySection?.title ?? t("parameters")} description={primarySection?.description} width={sideWidth}>
+          <FieldList fields={primaryFields} session={session} t={t} />
         </WorkbenchPanel>
 
-        <WorkbenchPanel title={layout.center.title} width="36%">
-          <Box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
-            <Text bold color={theme.colors.primary}>{display.primary}</Text>
-            {display.secondary ? <Text color={theme.colors.mutedForeground}>{display.secondary}</Text> : null}
-          </Box>
-          <Box justifyContent="space-between" flexWrap="wrap">
-            {display.metrics?.map((metric) => (
-              <Box key={metric.label} flexDirection="column" alignItems="center" paddingX={1}>
-                <Text color={theme.colors.mutedForeground}>{metric.label}</Text>
-                <Text bold>{metric.value}</Text>
+        <WorkbenchPanel title={view.dashboard.title} description={view.dashboard.description} flexGrow={1}>
+          <Box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1} minHeight={6}>
+            {bigTimer ? (
+              <Box borderStyle="double" borderColor={theme.colors.primary} paddingX={2}>
+                <Gradient colors={[theme.colors.primary, theme.colors.focusRing]}>
+                  <Text bold>{display.primary.replaceAll(":", "  :  ")}</Text>
+                </Gradient>
               </Box>
+            ) : (
+              <Gradient colors={[theme.colors.primary, theme.colors.focusRing]}>
+                <Text bold>{display.primary}</Text>
+              </Gradient>
+            )}
+            {display.secondary ? <Text color={theme.colors.mutedForeground}>{`— ${display.secondary} —`}</Text> : null}
+          </Box>
+          <Box justifyContent="space-between" gap={1}>
+            {display.metrics?.map((metric) => (
+              <MetricTile key={metric.label} label={metric.label} value={metric.value} />
             ))}
           </Box>
-          <Box flexDirection="column" marginTop={1}>
+          <Box flexDirection="column" marginTop={1} paddingX={1}>
             {session.preview.slice(0, 3).map((line, index) => (
-              <Text key={`${line}-${index}`} color={theme.colors.mutedForeground} wrap="truncate-end">{line}</Text>
+              <Text key={`${line}-${index}`} color={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground} wrap="truncate-end">{`${index === 0 ? "›" : "·"} ${line}`}</Text>
             ))}
           </Box>
         </WorkbenchPanel>
 
-        <WorkbenchPanel title={layout.right.title} width="28%">
+        <WorkbenchPanel
+          title={session.confirming ? session.dangerPrompt?.title ?? t("confirmLiveTitle") : executionSection?.title ?? t("execution")}
+          description={session.confirming ? undefined : executionSection?.description}
+          width={sideWidth}
+        >
           {session.confirming ? (
             <Confirmation session={session} t={t} />
           ) : (
             <>
-              <FieldList fields={rightFields} session={session} t={t} />
+              <FieldList fields={executionFields} session={session} t={t} />
               <Box flexDirection="column" marginTop={1}>
                 <WorkbenchButton
                   id="execute"
@@ -145,9 +167,12 @@ function InkTerminalScreen<Input, Result>({
 
       <Box height={bottomHeight} marginTop={1}>
         <WorkbenchPanel title="" flexGrow={1}>
-          <Box gap={1}>
+          <Box justifyContent="space-between">
+            <Box gap={1}>
             <ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget>
             <ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget>
+            </Box>
+            <Text color={theme.colors.mutedForeground}>{session.phase === "running" ? t("cancelHint") : t("mouseHelp")}</Text>
           </Box>
           {session.resultTab === "logs" ? (
             <Box flexDirection="column" marginTop={1}>
@@ -165,6 +190,16 @@ function InkTerminalScreen<Input, Result>({
           )}
         </WorkbenchPanel>
       </Box>
+    </Box>
+  )
+}
+
+function MetricTile({ label, value }: { label: string; value: string }) {
+  const theme = useTerminalTheme()
+  return (
+    <Box flexDirection="column" alignItems="center" flexGrow={1} borderStyle="single" borderColor={theme.colors.border} paddingX={1}>
+      <Text color={theme.colors.mutedForeground}>{label.toUpperCase()}</Text>
+      <Text bold color={theme.colors.foreground}>{value}</Text>
     </Box>
   )
 }
@@ -207,10 +242,9 @@ function Confirmation({
   const theme = useTerminalTheme()
   return (
     <Box flexDirection="column">
-      <Text bold color={theme.colors.error}>{t("confirmLiveTitle")}</Text>
-      <Text color={theme.colors.error} wrap="wrap">{t("confirmLiveBody")}</Text>
+      <Text color={theme.colors.error} wrap="wrap">{session.dangerPrompt?.body ?? t("confirmLiveBody")}</Text>
       <Box flexDirection="column" marginTop={1}>
-        <WorkbenchButton id="confirm-execute" danger focused={session.focusedControlId === "confirm-execute"} onClick={() => void session.confirmExecute()}>{t("confirmLiveAction")}</WorkbenchButton>
+        <WorkbenchButton id="confirm-execute" danger focused={session.focusedControlId === "confirm-execute"} onClick={() => void session.confirmExecute()}>{session.dangerPrompt?.confirmLabel ?? t("confirmLiveAction")}</WorkbenchButton>
         <Box marginTop={1}>
           <ClickTarget id="confirm-dismiss" onClick={session.dismissConfirmation}>{t("dismiss")}</ClickTarget>
         </Box>

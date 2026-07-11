@@ -335,8 +335,9 @@ export async function runGuidedInteraction<Input, Result>(
       color: schema.isDangerous(input) ? "red" : "cyan",
       minWidth: 48,
     })
-    if (schema.isDangerous(input)) writeLine(host, rich(host, t("hazardNotice"), "red", "bold"))
-    const confirmed = await confirmRich(host, schema.isDangerous(input) ? t("runReal") : t("confirm"), !schema.isDangerous(input))
+    const dangerPrompt = schema.isDangerous(input) ? schema.dangerPrompt?.(input) : undefined
+    if (schema.isDangerous(input)) writeLine(host, rich(host, dangerPrompt?.body ?? t("hazardNotice"), "red", "bold"))
+    const confirmed = await confirmRich(host, dangerPrompt?.confirmLabel ?? (schema.isDangerous(input) ? t("runReal") : t("confirm")), !schema.isDangerous(input))
     if (!confirmed) {
       writeLine(host, rich(host, t("cancel"), "yellow"))
       return
