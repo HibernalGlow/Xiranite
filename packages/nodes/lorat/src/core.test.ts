@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { LoratScannedModel } from "./core.js"
-import { applyTriggerDb, buildLoratRows, collectTriggerDb, filterLoratRows, inferTrigger, runLorat } from "./core.js"
+import { applyTriggerDb, buildLoratRows, collectLoratModels, collectTriggerDb, filterLoratRows, inferTrigger, runLorat, suggestCollectionRelativeDir } from "./core.js"
 
 const scanned: LoratScannedModel[] = [
   {
@@ -67,11 +67,52 @@ describe("lorat core", () => {
         writeTrigger: async (row, trigger) => {
           written.push(`${row.key}:${trigger}`)
         },
+        copyFile: async () => undefined,
+        fileExists: async () => false,
+        joinPath: (...parts) => parts.join("/"),
+        basename: (path) => path.split("/").at(-1) ?? path,
+        extname: (path) => path.slice(path.lastIndexOf(".")),
       },
     )
 
     expect(result.success).toBe(true)
     expect(written).toEqual(["@alice-style_step1200:@alice-style"])
     expect(result.data?.rows[0]?.status).toBe("trigger")
+  })
+
+  test("collects a LoRA, preview image, and trigger sidecar inside the selected library root", async () => {
+    const copied: string[] = []
+    const triggers: string[] = []
+    const result = await collectLoratModels({
+      collectionRoot: "D:/ComfyUI/models/loras",
+      collectionItems: [{
+        sourcePath: "D:/Downloads/neon_mecha_v2.safetensors",
+        previewSourcePath: "D:/Downloads/neon_mecha.png",
+        targetRelativeDir: "style/mecha",
+        triggerText: "neon_mecha, glowing_joints",
+      }],
+    }, {
+      scanModels: async () => [],
+      writeNoTrigger: async () => undefined,
+      writeTrigger: async (row, trigger) => { triggers.push(`${row.filePath}:${trigger}`) },
+      copyFile: async (source, target) => { copied.push(`${source}->${target}`) },
+      fileExists: async () => false,
+      joinPath: (...parts) => parts.join("/"),
+      basename: (path) => path.split("/").at(-1) ?? path,
+      extname: (path) => path.slice(path.lastIndexOf(".")),
+    })
+
+    expect(result.success).toBe(true)
+    expect(copied).toEqual([
+      "D:/Downloads/neon_mecha_v2.safetensors->D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.safetensors",
+      "D:/Downloads/neon_mecha.png->D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.preview.png",
+    ])
+    expect(triggers).toEqual(["D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.safetensors:neon_mecha, glowing_joints"])
+    expect(result.data?.collection[0]?.status).toBe("collected")
+  })
+
+  test("suggests a relative library path from the source path", () => {
+    expect(suggestCollectionRelativeDir("D:/Downloads/style/neon_mecha.safetensors")).toBe("style")
+    expect(suggestCollectionRelativeDir("D:/Downloads/neon_mecha.safetensors")).toBe("uncategorized/neon-mecha")
   })
 })

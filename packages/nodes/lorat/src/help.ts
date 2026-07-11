@@ -2,8 +2,8 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   "title": "Lorat",
-  "short": "Scan LoRA models, infer triggers, write sidecars, and export TriggerDB JSON.",
-  "description": "Scan LoRA models, infer triggers, write sidecars, and export TriggerDB JSON.",
+  "short": "Collect LoRA downloads, infer triggers, write sidecars, and export TriggerDB JSON.",
+  "description": "Collect dropped LoRA files into a library with an optional preview image and trigger sidecar, then manage existing models and TriggerDB JSON.",
   "whenToUse": [
     "Use Lorat when you need this node's image workflow from either the workspace UI or CLI."
   ],
@@ -15,6 +15,15 @@ export const help = {
         "Open the module registry and deploy Lorat to the current workspace.",
         "Fill the node fields or paste paths/configuration into the node surface.",
         "Run preview or the primary action, then review results and logs before applying live changes."
+      ]
+    },
+    {
+      "title": "LoRA collection",
+      "summary": "Collect a downloaded LoRA into the target library without losing its preview or trigger words.",
+      "ui": [
+        "Open the Collect tab and drop one or more .safetensors, .ckpt, or .pt files from the desktop app.",
+        "Choose the relative library directory, bind an optional image, and edit the trigger tags.",
+        "Confirm collection to copy the model, preview image, and .trigger.txt sidecar. Existing files are skipped unless overwrite is enabled."
       ]
     },
     {
@@ -60,8 +69,8 @@ export const help = {
   "translations": {
     "zh-CN": {
       "title": "Lorat",
-      "short": "扫描 LoRA 模型、推断触发词、写入 sidecar 文件，并导出 TriggerDB JSON。",
-      "description": "扫描 LoRA 模型、推断触发词、写入 sidecar 文件，并导出 TriggerDB JSON。",
+      "short": "收集下载的 LoRA、推断触发词、写入 sidecar 文件，并导出 TriggerDB JSON。",
+      "description": "将拖入的 LoRA 收集到模型库，可附带预览图和触发词 sidecar；同时保留已有模型和 TriggerDB 的整理流程。",
       "whenToUse": [
         "当需要从工作区 UI 或 CLI 使用该节点的图像工作流时，使用 Lorat。"
       ],
@@ -73,6 +82,15 @@ export const help = {
             "打开模块库，将 Lorat 部署到当前工作区。",
             "填写节点字段，或将路径/配置粘贴到节点面板。",
             "运行预览或主操作，查看结果与日志后再应用真实变更。"
+          ]
+        },
+        {
+          "title": "LoRA 收集",
+          "summary": "把下载完成的 LoRA 收入指定模型库，同时保留预览图和触发词。",
+          "ui": [
+            "打开“收集”页，在桌面端拖入一个或多个 .safetensors、.ckpt 或 .pt 文件。",
+            "选择相对目录，按需绑定图片并编辑触发词标签。",
+            "确认收集后复制模型、预览图和 .trigger.txt sidecar；未开启覆盖时会跳过同名文件。"
           ]
         },
         {

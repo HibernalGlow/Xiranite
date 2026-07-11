@@ -15,7 +15,7 @@ const REFERENCE_ALIASES = {
   gitalso: "diny_git",
   envuconfig: "envu",
   lata: "lata_taskfile",
-  lorat: "lorat_lora",
+  lorat: "lorat_lora_2",
   marku: "marku",
   scoolp: "scoolp_scoop_1",
   soundw: "songswitcher",

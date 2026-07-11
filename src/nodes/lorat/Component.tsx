@@ -6,27 +6,31 @@ import { CheckSquare, Copy, Play, RotateCcw, ScrollText, Square, Tags } from "lu
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   OptionsPopover,
   PathInput,
   SearchInput,
   StatusStrip,
   TriggerDbInput,
 } from "./controls"
+import { LoratCollectionPanel } from "./CollectionPanel"
 import { LoratResultTabs } from "./results"
 import type { LoratCardState, LoratStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("lorat")
   const data = host.getData<LoratCardState>(compId) ?? {}
   const dataRef = useRef<LoratCardState>(data)
   dataRef.current = data
@@ -56,13 +60,15 @@ export function Component({ compId, host }: NodeComponentProps) {
   const stats = summarizeLoratRows(rows)
   const selectedKeys = rows.filter((row) => row.selected).map((row) => row.key)
 
+  async function reloadDefaults() {
+    const response = await host.getNodeConfig?.<Partial<LoratCardState>>()
+    if (!response) return
+    setDefaults(response.config)
+    setConfigFilePath(response.path)
+  }
+
   useEffect(() => {
-    host.getNodeConfig?.<Partial<LoratCardState>>()
-      .then((response) => {
-        setDefaults(response.config)
-        setConfigFilePath(response.path)
-      })
-      .catch(() => undefined)
+    void reloadDefaults().catch(() => undefined)
   }, [host])
 
   useEffect(() => {
@@ -75,6 +81,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     data.search,
     data.statusFilter,
     data.scopeFilter,
+    data.collectionRoot,
+    data.collectionOverwrite,
     defaults,
   ])
 
@@ -166,7 +174,12 @@ export function Component({ compId, host }: NodeComponentProps) {
     const input = buildInput(nextAction, current, overrideKeys ?? selectedKeys)
     setRunning(true)
     try {
-      patch({ phase: "scanning", progress: 0, progressText: `${labelForAction(nextAction)}开始`, action: nextAction })
+      patch({
+        phase: "scanning",
+        progress: 0,
+        progressText: `${labelForAction(nextAction)}开始`,
+        ...(nextAction === "collect" ? {} : { action: nextAction }),
+      })
       const response = await run<LoratInput, LoratData>("lorat", input, (event) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
@@ -183,6 +196,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         progressText: response.message,
         rows: next?.rows ?? currentRows,
         triggerDbJson: next?.triggerDbJson || current.triggerDbJson,
+        collectionResults: next?.collection ?? current.collectionResults,
       })
       pushLog(response.message)
     } catch (error) {
@@ -244,6 +258,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({
       action: undefined,
       folderPath: undefined,
+      collectionRoot: undefined,
+      collectionOverwrite: undefined,
       triggerDbJson: undefined,
       search: undefined,
       statusFilter: undefined,
@@ -293,9 +309,11 @@ export function Component({ compId, host }: NodeComponentProps) {
     onReset: reset,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
+    onReloadDefaults: reloadDefaults,
     onSaveDefault: saveAsDefault,
     onSelectMissing: selectMissing,
     onToggleRow: toggleRow,
+    t,
   })
 
   return (
@@ -305,10 +323,25 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="relative flex min-h-0 w-full flex-col">
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
-          ) : compactSurface ? (
-            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
           ) : (
-            <FullView {...commonProps} />
+            <LoratWorkspaceTabs compact={compactSurface} data={data} onPatch={patch}>
+              <TabsContent value="manage" className="mt-0 min-h-0 flex-1">
+                {compactSurface
+                  ? (portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />)
+                  : <FullView {...commonProps} />}
+              </TabsContent>
+              <TabsContent value="collect" className="mt-0 min-h-0 flex-1">
+                <LoratCollectionPanel
+                  compact={compactSurface}
+                  data={data}
+                  disabled={running}
+                  onCollect={() => execute("collect")}
+                  onPatch={patch}
+                  running={running}
+                  t={t}
+                />
+              </TabsContent>
+            </LoratWorkspaceTabs>
           )}
         </div>
       </div>
@@ -325,6 +358,30 @@ export function Component({ compId, host }: NodeComponentProps) {
 }
 
 type ViewProps = ReturnType<typeof createViewProps>
+
+function LoratWorkspaceTabs(props: {
+  children: React.ReactNode
+  compact: boolean
+  data: LoratCardState
+  onPatch: (patch: Partial<LoratCardState>) => void
+}) {
+  return (
+    <Tabs
+      value={props.data.workspaceTab ?? "manage"}
+      className="flex min-h-0 flex-1 flex-col gap-2"
+      onValueChange={(workspaceTab) => props.onPatch({ workspaceTab: workspaceTab as LoratCardState["workspaceTab"] })}
+    >
+      <div className={cn("flex shrink-0 items-center justify-between gap-2 px-3 pt-3", props.compact && "px-2 pt-2")}>
+        <TabsList aria-label="Lorat 工作流" variant="line">
+          <TabsTrigger value="manage">整理</TabsTrigger>
+          <TabsTrigger value="collect">收集</TabsTrigger>
+        </TabsList>
+        <span className="text-xs text-muted-foreground">LoRA</span>
+      </div>
+      {props.children}
+    </Tabs>
+  )
+}
 
 function createViewProps(props: {
   action: LoratAction
@@ -356,9 +413,11 @@ function createViewProps(props: {
   onReset: () => void
   onResetOverride: () => void
   onRestoreDefault: () => void
+  onReloadDefaults: () => Promise<void>
   onSaveDefault: () => void
   onSelectMissing: () => void
   onToggleRow: (row: LoratRow) => void
+  t: ReturnType<typeof useNodeI18n>["t"]
 }) {
   return props
 }
@@ -489,15 +548,16 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.logs.length} icon={ScrollText} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
-          configDirty={props.configDirty}
-          configFilePath={props.configFilePath}
+        <NodeConfigPopover
+          configPath={props.configFilePath}
           defaults={props.defaults}
+          dirty={props.configDirty}
           disabled={props.running}
-          onOpenConfigFile={props.onOpenConfigFile}
-          onResetOverride={props.onResetOverride}
-          onRestoreDefault={props.onRestoreDefault}
-          onSaveDefault={props.onSaveDefault}
+          t={props.t}
+          onOpenFile={props.onOpenConfigFile}
+          onReload={props.onReloadDefaults}
+          onRestore={props.onRestoreDefault}
+          onSave={props.onSaveDefault}
         />
       )}
     </div>
@@ -634,6 +694,9 @@ function buildInput(action: LoratAction, data: LoratCardState, selectedKeys: str
   return {
     action,
     folderPath: data.folderPath,
+    collectionRoot: data.collectionRoot,
+    collectionItems: data.collectionItems,
+    collectionOverwrite: data.collectionOverwrite,
     triggerDbJson: data.triggerDbJson,
     rows: data.rows,
     selectedKeys,
@@ -683,6 +746,7 @@ function isDangerous(props: ViewProps): boolean {
 
 function labelForAction(action: LoratAction): string {
   if (action === "scan") return "扫描"
+  if (action === "collect") return "收集到库"
   if (action === "apply_db") return "应用 TriggerDB"
   if (action === "write_triggers") return "写入触发词"
   if (action === "mark_no_trigger") return "标记无触发词"

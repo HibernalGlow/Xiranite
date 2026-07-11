@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { execFile } from "node:child_process"
-import { access, mkdir, open, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { access, copyFile, mkdir, open, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { constants } from "node:fs"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import type { LoratRow, LoratRuntime, LoratScannedModel, ScanProgress } from "./core.js"
@@ -11,6 +11,14 @@ export function createNodeLoratRuntime(): LoratRuntime {
     scanModels,
     writeTrigger,
     writeNoTrigger,
+    copyFile: async (sourcePath, destinationPath) => {
+      await mkdir(dirname(destinationPath), { recursive: true })
+      await copyFile(sourcePath, destinationPath)
+    },
+    fileExists: async (path) => await access(path, constants.F_OK).then(() => true).catch(() => false),
+    joinPath: join,
+    basename,
+    extname,
   }
 }
 

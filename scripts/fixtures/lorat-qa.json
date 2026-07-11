@@ -1,11 +1,17 @@
 {
   "theme": "wuling",
   "data": {
+    "workspaceTab": "collect",
     "action": "scan",
-    "folderPath": "D:/ComfyUI/models/loras",
-    "phase": "completed",
-    "progress": 100,
-    "progressText": "发现 3 个 LoRA 模型，2 个已匹配 TriggerDB。",
+    "collectionRoot": "D:/ComfyUI/models/loras",
+    "collectionOverwrite": false,
+    "collectionItems": [
+      { "id": "neon-mecha", "sourcePath": "D:/Downloads/neon_mecha_v2.safetensors", "sourceName": "neon_mecha_v2.safetensors", "targetRelativeDir": "style/mecha", "triggerText": "neon_mecha, glowing_joints" },
+      { "id": "cyber-pagoda", "sourcePath": "D:/Downloads/cyber_pagoda_xl.safetensors", "sourceName": "cyber_pagoda_xl.safetensors", "targetRelativeDir": "character/cyber", "triggerText": "cyber_pagoda" }
+    ],
+    "phase": "idle",
+    "progress": 0,
+    "progressText": "",
     "logs": ["[scan] neon_cyberpunk.safetensors", "[match] 2 TriggerDB entries", "[ready] 1 model needs review"],
     "rows": [
       { "key": "neon_cyberpunk", "name": "neon_cyberpunk.safetensors", "stem": "neon_cyberpunk", "filePath": "D:/ComfyUI/models/loras/neon_cyberpunk.safetensors", "relativeDir": "", "relativePath": "neon_cyberpunk.safetensors", "pathParts": ["loras", "neon_cyberpunk.safetensors"], "status": "trigger", "originalStatus": "trigger", "trigger": "neon_cyberpunk, glowing_lines", "originalTrigger": "neon_cyberpunk, glowing_lines", "source": "triggerdb", "dbKey": "neon_cyberpunk", "changed": false },

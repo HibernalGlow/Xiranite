@@ -3,7 +3,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 export const DEFAULT_LORA_FOLDER = "D:\\1Repo\\Github\\ComfyUI\\Library\\models\\loras"
 export const LORAT_MODEL_EXTS = [".safetensors", ".ckpt", ".pt"] as const
 
-export type LoratAction = "scan" | "apply_db" | "write_triggers" | "mark_no_trigger" | "export_db"
+export type LoratAction = "scan" | "collect" | "apply_db" | "write_triggers" | "mark_no_trigger" | "export_db"
 export type LoratStatus = "missing" | "trigger" | "notrigger"
 export type LoratScopeFilter = "all" | "self" | "at"
 export type LoratStatusFilter = "all" | LoratStatus
@@ -11,12 +11,35 @@ export type LoratStatusFilter = "all" | LoratStatus
 export interface LoratInput {
   action?: LoratAction
   folderPath?: string
+  collectionRoot?: string
+  collectionItems?: LoratCollectionItem[]
+  collectionOverwrite?: boolean
   triggerDbJson?: string
   rows?: LoratRow[]
   selectedKeys?: string[]
   search?: string
   statusFilter?: LoratStatusFilter
   scopeFilter?: LoratScopeFilter
+}
+
+export interface LoratCollectionItem {
+  /** Absolute desktop path of the dropped LoRA file. */
+  sourcePath: string
+  /** Relative destination beneath collectionRoot. Traversal is rejected. */
+  targetRelativeDir: string
+  /** Optional absolute image path copied beside the collected LoRA. */
+  previewSourcePath?: string
+  /** Optional trigger words written as a .trigger.txt sidecar. */
+  triggerText?: string
+}
+
+export interface LoratCollectionResult {
+  item: LoratCollectionItem
+  status: "collected" | "skipped" | "error"
+  targetPath?: string
+  previewPath?: string
+  triggerPath?: string
+  message?: string
 }
 
 export interface LoratScannedModel {
@@ -68,6 +91,7 @@ export interface LoratData {
   writtenCount: number
   skippedCount: number
   errors: string[]
+  collection: LoratCollectionResult[]
 }
 
 export type ScanProgress = { current: number; total: number; name?: string }
@@ -76,6 +100,11 @@ export interface LoratRuntime {
   scanModels: (folderPath: string, onProgress?: (p: ScanProgress) => void) => Promise<LoratScannedModel[]>
   writeTrigger: (row: LoratRow, trigger: string) => Promise<void>
   writeNoTrigger: (row: LoratRow) => Promise<void>
+  copyFile: (sourcePath: string, destinationPath: string) => Promise<void>
+  fileExists: (path: string) => Promise<boolean>
+  joinPath: (...parts: string[]) => string
+  basename: (path: string) => string
+  extname: (path: string) => string
 }
 
 export type LoratResult = NodeRunResult<LoratData>
@@ -90,6 +119,10 @@ export async function runLorat(
   const folderPath = cleanPath(input.folderPath) || DEFAULT_LORA_FOLDER
 
   try {
+    if (action === "collect") {
+      return await collectLoratModels(input, runtime, onEvent)
+    }
+
     if (action === "scan") {
       onEvent({ type: "progress", progress: 5, message: `Scanning ${folderPath}` })
       const scanned = await runtime.scanModels(folderPath, ({ current, total, name }) => {
@@ -155,6 +188,83 @@ export async function runLorat(
     }
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error), folderPath, input.rows ?? [])
+  }
+}
+
+export async function collectLoratModels(
+  input: LoratInput,
+  runtime: LoratRuntime,
+  onEvent: (event: NodeRunEvent) => void = () => {},
+): Promise<LoratResult> {
+  const root = cleanPath(input.collectionRoot) || cleanPath(input.folderPath)
+  const items = input.collectionItems ?? []
+  if (!root) return failure("Collection root is required.")
+  if (!items.length) return failure("Drop at least one LoRA model before collecting.", root)
+
+  const collection: LoratCollectionResult[] = []
+  const errors: string[] = []
+  for (const [index, item] of items.entries()) {
+    const displayName = runtime.basename(item.sourcePath)
+    onEvent({
+      type: "progress",
+      progress: Math.round((index / Math.max(items.length, 1)) * 100),
+      message: `Collecting ${displayName}`,
+    })
+    try {
+      const sourceName = runtime.basename(item.sourcePath)
+      if (!isLoratModelName(sourceName)) throw new Error(`Unsupported LoRA model file: ${sourceName}`)
+      const targetParts = normalizeCollectionRelativeDir(item.targetRelativeDir)
+      const targetDir = runtime.joinPath(root, ...targetParts)
+      const targetPath = runtime.joinPath(targetDir, sourceName)
+      if (!input.collectionOverwrite && await runtime.fileExists(targetPath)) {
+        collection.push({ item, status: "skipped", targetPath, message: "Target already exists." })
+        continue
+      }
+
+      await runtime.copyFile(item.sourcePath, targetPath)
+      const stem = basenameNoExt(sourceName)
+      let previewPath: string | undefined
+      if (item.previewSourcePath) {
+        const previewExt = runtime.extname(item.previewSourcePath).toLowerCase()
+        if (!isPreviewImageExtension(previewExt)) throw new Error(`Unsupported preview image: ${runtime.basename(item.previewSourcePath)}`)
+        previewPath = runtime.joinPath(targetDir, `${stem}.preview${previewExt}`)
+        await runtime.copyFile(item.previewSourcePath, previewPath)
+      }
+      let triggerPath: string | undefined
+      if (item.triggerText?.trim()) {
+        triggerPath = runtime.joinPath(targetDir, `${stem}.trigger.txt`)
+        await runtime.writeTrigger({
+          key: rowKey(targetParts.join("/"), stem),
+          name: sourceName,
+          stem,
+          filePath: targetPath,
+          relativeDir: targetParts.join("/"),
+          relativePath: [...targetParts, sourceName].join("/"),
+          pathParts: targetParts,
+          status: "missing",
+          originalStatus: "missing",
+          trigger: item.triggerText,
+          originalTrigger: item.triggerText,
+          source: "collection",
+          dbKey: "",
+          changed: false,
+        }, item.triggerText)
+      }
+      collection.push({ item, status: "collected", targetPath, previewPath, triggerPath })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      errors.push(`${displayName}: ${message}`)
+      collection.push({ item, status: "error", message })
+    }
+  }
+
+  const collected = collection.filter((item) => item.status === "collected").length
+  const skipped = collection.filter((item) => item.status === "skipped").length
+  onEvent({ type: "progress", progress: 100, message: `Collected ${collected}/${items.length} model(s).` })
+  return {
+    success: errors.length === 0,
+    message: errors.length ? `Collected ${collected} model(s), ${errors.length} failed.` : `Collected ${collected} model(s).`,
+    data: data({ folderPath: root, collection, writtenCount: collected, skippedCount: skipped, errors }),
   }
 }
 
@@ -289,6 +399,31 @@ export function normalizePathKey(value: string): string {
   return value.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
 }
 
+export function normalizeCollectionRelativeDir(value: string): string[] {
+  const parts = normalizePathKey(value).split("/").map((part) => part.trim()).filter(Boolean)
+  if (parts.some((part) => part === "." || part === ".." || part.includes("\0"))) {
+    throw new Error("Collection directory must stay inside the LoRA library.")
+  }
+  return parts
+}
+
+export function suggestCollectionRelativeDir(sourcePath: string): string {
+  const parts = normalizePathKey(sourcePath).split("/").filter(Boolean)
+  const directoryParts = parts.slice(0, -1)
+  let known: string | undefined
+  for (let index = directoryParts.length - 1; index >= 0; index -= 1) {
+    const candidate = directoryParts[index]
+    if (candidate && /^(artist|character|style|concept|pose|object|self|anima|@.+)$/i.test(candidate)) {
+      known = candidate
+      break
+    }
+  }
+  if (known) return normalizePathKey(known)
+  const stem = basenameNoExt(parts.at(-1) ?? "")
+  const token = cleanToken(stem).replace(/[^a-z0-9]+/ig, "-").replace(/^-+|-+$/g, "").toLowerCase()
+  return token ? `uncategorized/${token}` : "uncategorized"
+}
+
 function findDbEntry(row: LoratRow, db: TriggerDb): { key: string; entry: unknown } | null {
   const direct = row.key
   if (Object.hasOwn(db, direct)) return { key: direct, entry: db[direct] }
@@ -330,6 +465,15 @@ function basenameNoExt(name: string): string {
   return ext ? name.slice(0, -ext.length) : name
 }
 
+function isLoratModelName(name: string): boolean {
+  const lower = name.toLowerCase()
+  return LORAT_MODEL_EXTS.some((extension) => lower.endsWith(extension))
+}
+
+function isPreviewImageExtension(extension: string): boolean {
+  return [".png", ".jpg", ".jpeg", ".webp", ".avif"].includes(extension)
+}
+
 function cleanToken(value: string): string {
   let text = stripTrainingSuffix(String(value).trim().replace(/\.(safetensors|ckpt|pt)$/i, ""))
   text = text.replace(/\b(anima|lora|loras|self|artist|style)\b/ig, (match) => (
@@ -364,6 +508,7 @@ function data(partial: Partial<LoratData>): LoratData {
     writtenCount: 0,
     skippedCount: 0,
     errors: [],
+    collection: [],
     ...partial,
   }
 }

@@ -166,20 +166,42 @@ describe("app-owned lorat Component", () => {
     render(<Component compId="comp-lorat" host={host} />)
     const user = userEvent.setup()
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "lorat 默认配置" }).className).toContain("bg-secondary"))
-    await user.click(screen.getByRole("button", { name: "lorat 默认配置" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "恢复默认" }))
     expect(host.state.folderPath).toBe("D:/default")
     expect(host.state.action).toBe("apply_db")
     expect(host.state.search).toBe("")
 
-    await user.click(screen.getByRole("button", { name: "清除覆盖" }))
-    expect(host.state.folderPath).toBeUndefined()
-    expect(host.state.action).toBeUndefined()
-    expect(host.state.search).toBeUndefined()
-
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toBeDefined()
+  })
+
+  test("queues a desktop-dropped LoRA in the collection tab and sends a collect request", async () => {
+    setSurface("regular")
+    const host = createHost({ collectionRoot: "D:/ComfyUI/models/loras" })
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+    const model = new File(["model"], "neon_mecha.safetensors") as File & { path?: string }
+    Object.defineProperty(model, "path", { value: "D:/Downloads/neon_mecha.safetensors" })
+    fireEvent.drop(screen.getByTestId("lorat-collection-model-drop"), { dataTransfer: { files: [model] } })
+
+    expect(screen.getByText("neon_mecha.safetensors")).toBeTruthy()
+    expect(host.state.collectionItems?.[0]).toMatchObject({
+      sourcePath: "D:/Downloads/neon_mecha.safetensors",
+      targetRelativeDir: "uncategorized/neon-mecha",
+    })
+
+    await user.click(screen.getByRole("button", { name: "收集到 LoRA 库" }))
+    await user.click(screen.getByRole("button", { name: "确认收集" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input).toMatchObject({
+      action: "collect",
+      collectionRoot: "D:/ComfyUI/models/loras",
+      collectionItems: [{ sourcePath: "D:/Downloads/neon_mecha.safetensors" }],
+    })
   })
 
   test("toggles row selection and edits trigger", async () => {
@@ -347,4 +369,5 @@ const loratData: LoratData = {
   writtenCount: 0,
   skippedCount: 0,
   errors: [],
+  collection: [],
 }

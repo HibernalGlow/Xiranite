@@ -1,10 +1,15 @@
-import type { LoratAction, LoratRow, LoratScopeFilter, LoratStatusFilter } from "@xiranite/node-lorat/core"
+import type { LoratAction, LoratCollectionItem, LoratCollectionResult, LoratRow, LoratScopeFilter, LoratStatusFilter } from "@xiranite/node-lorat/core"
 
 export type LoratPhase = "idle" | "scanning" | "completed" | "error"
 
 export interface LoratCardState {
   action?: LoratAction
+  workspaceTab?: "manage" | "collect"
   folderPath?: string
+  collectionRoot?: string
+  collectionItems?: LoratCollectionDraft[]
+  collectionOverwrite?: boolean
+  collectionResults?: LoratCollectionResult[]
   triggerDbJson?: string
   search?: string
   statusFilter?: LoratStatusFilter
@@ -15,6 +20,12 @@ export interface LoratCardState {
   progress?: number
   progressText?: string
   dbOpen?: boolean
+}
+
+export interface LoratCollectionDraft extends LoratCollectionItem {
+  id: string
+  sourceName: string
+  previewName?: string
 }
 
 export interface LoratStatusMeta {
@@ -28,6 +39,8 @@ export interface LoratStatusMeta {
 export const CONFIG_FIELDS: Array<keyof LoratCardState> = [
   "action",
   "folderPath",
+  "collectionRoot",
+  "collectionOverwrite",
   "triggerDbJson",
   "search",
   "statusFilter",

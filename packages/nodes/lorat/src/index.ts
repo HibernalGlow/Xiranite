@@ -4,11 +4,11 @@ import * as core from "./core.js"
 export const def = {
   id: "lorat",
   name: "Lorat",
-  version: "0.1.0",
+  version: "0.2.0",
   category: "image",
-  description: "Scan LoRA models, infer triggers, write sidecars, and export TriggerDB JSON.",
+  description: "Collect LoRA downloads, manage trigger sidecars, and export TriggerDB JSON.",
   icon: "Tags",
-  keywords: ["lora", "trigger", "comfyui", "sidecar", "triggerdb"],
+  keywords: ["lora", "collection", "trigger", "comfyui", "sidecar", "triggerdb"],
 } satisfies NodeDef
 
 const entry = {
