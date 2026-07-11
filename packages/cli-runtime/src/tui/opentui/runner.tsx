@@ -9,7 +9,7 @@ import { OpenTuiTerminalApp } from "./app.js"
 
 export async function runOpenTuiTerminalUi<Input, Result>(
   definition: TerminalInteractionDefinition<Input, Result>,
-  options: RunTerminalUiOptions & { language: "en" | "zh" },
+  options: RunTerminalUiOptions<Input, Result> & { language: "en" | "zh" },
 ): Promise<void> {
   let resolveDestroyed: (() => void) | undefined
   const destroyed = new Promise<void>((resolve) => {
@@ -30,6 +30,10 @@ export async function runOpenTuiTerminalUi<Input, Result>(
     root.unmount()
     renderer.destroy()
   }
-  root.render(<OpenTuiTerminalApp definition={definition} language={options.language} theme={options.theme} onExit={exit} />)
+  const screen = options.screen ?? await options.loadScreen?.()
+  const Screen = screen
+  root.render(Screen
+    ? <Screen definition={definition} language={options.language} theme={options.theme} preferences={options.preferences} onExit={exit} />
+    : <OpenTuiTerminalApp definition={definition} language={options.language} theme={options.theme} preferences={options.preferences} onExit={exit} />)
   await destroyed
 }

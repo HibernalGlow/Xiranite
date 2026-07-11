@@ -2,11 +2,13 @@
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useMemo, useState } from "react"
 
-import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalViewSection } from "../../interaction.js"
+import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalInteractionView, TerminalViewDisplay, TerminalViewSection, TerminalViewTable } from "../../interaction.js"
+import type { TerminalPreferenceController, TerminalPreferenceValues } from "../index.js"
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
 import { nextInteractionValue, resolveInteractionView, stepInteractionNumber } from "../screen.js"
 import { useTerminalUiSession } from "../session.js"
-import { resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
+import { listTerminalThemes, resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
+import { terminalIcon } from "../icons.js"
 import { ProgressBar } from "./progress-bar.js"
 import { PreviewTable } from "./preview-table.js"
 import { ActionTabs } from "./action-tabs.js"
@@ -16,27 +18,34 @@ export function OpenTuiTerminalApp<Input, Result>({
   definition,
   language,
   theme,
+  preferences,
   onExit,
 }: {
   definition: TerminalInteractionDefinition<Input, Result>
   language: TerminalLanguage
   theme?: string
+  preferences?: TerminalPreferenceController
   onExit: () => void
 }) {
   const t = createTerminalTranslator(language)
+  const [previewTheme, setPreviewTheme] = useState(theme ?? preferences?.current.theme ?? "inherit")
   return (
-    <TerminalThemeProvider theme={resolveTerminalTheme(theme)}>
-      <OpenTuiTerminalScreen definition={definition} onExit={onExit} t={t} />
+    <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "default" : previewTheme)}>
+      <OpenTuiTerminalScreen definition={definition} preferences={preferences} onThemePreview={setPreviewTheme} onExit={onExit} t={t} />
     </TerminalThemeProvider>
   )
 }
 
 function OpenTuiTerminalScreen<Input, Result>({
   definition,
+  preferences,
+  onThemePreview,
   onExit,
   t,
 }: {
   definition: TerminalInteractionDefinition<Input, Result>
+  preferences?: TerminalPreferenceController
+  onThemePreview: (theme: string) => void
   onExit: () => void
   t: TerminalTranslator
 }) {
@@ -45,6 +54,7 @@ function OpenTuiTerminalScreen<Input, Result>({
   const view = resolveInteractionView(definition.schema, session.values, t)
   const sections = visibleSections(view.sections, session.fields, t)
   const [activeSectionId, setActiveSectionId] = useState(() => sections[0]?.id ?? "")
+  const [showPreferences, setShowPreferences] = useState(false)
   const activeSection = sections.find((section) => section.id === activeSectionId) ?? sections[0]
   const display = view.dashboard.display(session.values)
   const dashboardTable = session.resultSummary?.table ?? display.table
@@ -52,7 +62,9 @@ function OpenTuiTerminalScreen<Input, Result>({
     if (!sections.some((section) => section.id === activeSectionId)) setActiveSectionId(sections[0]?.id ?? "")
   }, [activeSectionId, sections])
   const controlIds = useMemo(
-    () => session.confirming
+    () => showPreferences
+      ? ["pref-theme", "pref-mode", "pref-language", "pref-save", "pref-restore", "pref-back"]
+      : session.confirming
       ? ["confirm-execute", "confirm-dismiss"]
       : [
           ...(sections.length > 1 ? ["section-tabs"] : []),
@@ -61,16 +73,18 @@ function OpenTuiTerminalScreen<Input, Result>({
           "reset",
           "tab-status",
           "tab-logs",
+          ...(preferences ? ["settings"] : []),
           "exit",
         ],
-    [activeSection, sections.length, session.confirming],
+    [activeSection, preferences, sections.length, session.confirming, showPreferences],
   )
 
   useKeyboard((key) => {
     const focusedField = session.fields.find((field) => field.id === session.focusedControlId)
     const editingText = focusedField?.kind === "text" || focusedField?.kind === "multiline" || focusedField?.kind === "path-list"
     if (key.name === "escape") {
-      if (session.confirming) session.dismissConfirmation()
+      if (showPreferences) setShowPreferences(false)
+      else if (session.confirming) session.dismissConfirmation()
       else if (session.phase === "running") session.cancel()
       else onExit()
       return
@@ -97,20 +111,48 @@ function OpenTuiTerminalScreen<Input, Result>({
       return
     }
     if (key.name === "return" || key.name === "space" || key.sequence === " ") {
-      activateControl(session.focusedControlId, session, onExit)
+      if (session.focusedControlId === "settings" && preferences) {
+        session.focus("pref-theme")
+        setShowPreferences(true)
+      } else {
+        activateControl(session.focusedControlId, session, onExit)
+      }
     }
   })
+
+  if (showPreferences && preferences) {
+    return <TerminalPreferencesScreen controller={preferences} focusedId={session.focusedControlId} onFocus={session.focus} onPreviewTheme={onThemePreview} onBack={() => setShowPreferences(false)} />
+  }
+
+  if (view.compositionHint === "control-monitor-log") {
+    return (
+      <ControlMonitorLogScreen
+        definition={definition}
+        session={session}
+        view={view}
+        sections={sections}
+        activeSection={activeSection}
+        display={display}
+        dashboardTable={dashboardTable}
+        t={t}
+        preferences={preferences}
+        onSectionChange={setActiveSectionId}
+        onOpenPreferences={() => { session.focus("pref-theme"); setShowPreferences(true) }}
+        onExit={onExit}
+      />
+    )
+  }
 
   return (
     <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
       <box flexDirection="row" justifyContent="space-between" height={4} borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
         <box flexDirection="column">
-          <text fg={theme.colors.primary}><b>{`${definition.schema.title.toUpperCase()} // NATIVE CONTROL PLANE`}</b></text>
+          <text fg={theme.colors.primary}><b>{`${terminalIcon("status")} ${definition.schema.title.toUpperCase()} // NATIVE CONTROL PLANE`}</b></text>
           <text fg={theme.colors.mutedForeground}>{definition.schema.description}</text>
         </box>
         <box flexDirection="column" alignItems="flex-end">
           <text fg={phaseColor(session.phase, theme)}><b>{phaseLabel(session.phase, t).toUpperCase()}</b></text>
-          <text fg={theme.colors.mutedForeground}>OpenTUI · native widgets · buffered</text>
+          <box flexDirection="row">{preferences ? <ClickTarget id="settings" focused={session.focusedControlId === "settings"} onClick={() => { session.focus("pref-theme"); setShowPreferences(true) }}>{`${terminalIcon("settings")} 设置`}</ClickTarget> : null}<text fg={theme.colors.mutedForeground}>OpenTUI · native widgets · buffered</text></box>
         </box>
       </box>
       <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
@@ -215,6 +257,101 @@ function OpenTuiTerminalScreen<Input, Result>({
           )}
         </WorkbenchPanel>
       </box>
+    </box>
+  )
+}
+
+function ControlMonitorLogScreen<Input, Result>({ definition, session, view, sections, activeSection, display, dashboardTable, t, preferences, onSectionChange, onOpenPreferences, onExit }: {
+  definition: TerminalInteractionDefinition<Input, Result>
+  session: ReturnType<typeof useTerminalUiSession<Input, Result>>
+  view: TerminalInteractionView
+  sections: ReturnType<typeof visibleSections>
+  activeSection: ReturnType<typeof visibleSections>[number] | undefined
+  display: TerminalViewDisplay
+  dashboardTable?: TerminalViewTable
+  t: TerminalTranslator
+  preferences?: TerminalPreferenceController
+  onSectionChange: (id: string) => void
+  onOpenPreferences: () => void
+  onExit: () => void
+}) {
+  const theme = useTerminalTheme()
+  return (
+    <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
+      <box flexDirection="row" justifyContent="space-between" height={4} borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
+        <box flexDirection="column"><text fg={theme.colors.primary}><b>{`${terminalIcon("status")} ${definition.schema.title.toUpperCase()} // CONTROL MONITOR`}</b></text><text fg={theme.colors.mutedForeground}>{definition.schema.description}</text></box>
+        <box flexDirection="column" alignItems="flex-end"><text fg={phaseColor(session.phase, theme)}><b>{phaseLabel(session.phase, t)}</b></text>{preferences ? <ClickTarget id="settings" focused={session.focusedControlId === "settings"} onClick={onOpenPreferences}>{`${terminalIcon("settings")} 设置`}</ClickTarget> : null}</box>
+      </box>
+      <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
+        <WorkbenchPanel title={t("parameters")} width="31%">
+          {sections.length > 1 ? <ActionTabs id="section-tabs" options={sections.map((section) => ({ value: section.id, label: section.title, hint: section.description }))} value={activeSection?.id} focused={session.focusedControlId === "section-tabs"} disabled={session.phase === "running"} onFocus={() => session.focus("section-tabs")} onChange={(value) => onSectionChange(String(value))} /> : null}
+          <scrollbox focused={activeSection?.fields.some((field) => field.id === session.focusedControlId)} flexGrow={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+            {activeSection?.description ? <text fg={theme.colors.mutedForeground}>{activeSection.description}</text> : null}
+            {activeSection ? <FieldList fields={activeSection.fields} session={session} t={t} /> : null}
+          </scrollbox>
+        </WorkbenchPanel>
+
+        <WorkbenchPanel title={view.dashboard.title} description={view.dashboard.description} width="34%">
+          <box flexDirection="column" flexGrow={1} minHeight={0}>
+            <box flexDirection="column" flexShrink={0} alignItems="center" borderStyle="rounded" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
+              <text fg={theme.colors.primary}><b>{display.primary}</b></text>
+              {display.secondary ? <text fg={theme.colors.mutedForeground}>{display.secondary}</text> : null}
+              {display.metrics?.map((metric) => <box key={metric.label} flexDirection="row" justifyContent="space-between" width="100%"><text fg={theme.colors.mutedForeground}>{metric.label}</text><text fg={theme.colors.foreground}><b>{metric.value}</b></text></box>)}
+            </box>
+            <scrollbox flexGrow={1} minHeight={3} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
+              {dashboardTable ? <PreviewTable table={dashboardTable} maxRows={dashboardTable.rows.length} /> : session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
+            </scrollbox>
+            {session.confirming ? <Confirmation session={session} t={t} /> : <box flexDirection="column" flexShrink={0}><ProgressBar value={session.progress} label={session.status || t("waitingForRun")} /><WorkbenchButton id="execute" focused={session.focusedControlId === "execute"} danger={session.dangerous} onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}>{executeLabel(session, t)}</WorkbenchButton></box>}
+          </box>
+        </WorkbenchPanel>
+
+        <WorkbenchPanel title={`${terminalIcon("logs")} 运行日志`} flexGrow={1}>
+          <box flexDirection="row" justifyContent="space-between"><box flexDirection="row"><ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget><ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget></box><text fg={theme.colors.mutedForeground}>TAB / MOUSE</text></box>
+          {session.resultTab === "logs" ? <scrollbox focused={session.focusedControlId === "tab-logs"} flexGrow={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>{session.logs.length ? session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(3, "0")} ${line}`}</text>) : <text fg={theme.colors.mutedForeground}>{t("emptyLogs")}</text>}</scrollbox> : <box flexDirection="column" flexGrow={1}><ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />{session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}{session.resultSummary?.lines.map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}</box>}
+        </WorkbenchPanel>
+      </box>
+      <box height={2} flexDirection="row" justifyContent="space-between" marginTop={1}><box flexDirection="row"><ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>{t("resetParameters")}</ClickTarget><ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>{t("exit")}</ClickTarget></box><text fg={theme.colors.mutedForeground}>ESC 退出 · 鼠标优先 · 键盘可输入</text></box>
+    </box>
+  )
+}
+
+export function TerminalPreferencesScreen({ controller, focusedId, onFocus, onPreviewTheme, onBack }: {
+  controller: TerminalPreferenceController
+  focusedId?: string
+  onFocus: (id: string) => void
+  onPreviewTheme: (theme: string) => void
+  onBack: () => void
+}) {
+  const theme = useTerminalTheme()
+  const [values, setValues] = useState<TerminalPreferenceValues>(controller.current)
+  const [message, setMessage] = useState("配置仅写入 nodes.<id>.cli，不影响桌面 UI。")
+  const update = (patch: Partial<TerminalPreferenceValues>) => {
+    const next = { ...values, ...patch }
+    setValues(next)
+    if (patch.theme) onPreviewTheme(patch.theme)
+  }
+  return (
+    <box width="100%" height="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
+      <WorkbenchPanel title={`${terminalIcon("settings")} ${controller.nodeId} CLI 设置`} description="主题可即时预览；启动模式只影响无参数 CLI。" flexGrow={1}>
+        <box flexDirection="column" gap={1}>
+          <text fg={theme.colors.mutedForeground}>主题</text>
+          <ActionTabs id="pref-theme" options={["inherit", ...listTerminalThemes()].map((value) => ({ value, label: value }))} value={values.theme} focused={focusedId === "pref-theme"} onFocus={() => onFocus("pref-theme")} onChange={(value) => update({ theme: String(value) })} />
+          <text fg={theme.colors.mutedForeground}>默认启动模式</text>
+          <ActionTabs id="pref-mode" options={[{ value: "ui", label: "UI" }, { value: "gd", label: "引导" }, { value: "pipe", label: "纯命令行" }]} value={values.defaultMode} focused={focusedId === "pref-mode"} onFocus={() => onFocus("pref-mode")} onChange={(value) => update({ defaultMode: value as TerminalPreferenceValues["defaultMode"] })} />
+          <text fg={theme.colors.mutedForeground}>语言</text>
+          <ActionTabs id="pref-language" options={[{ value: "zh", label: "中文" }, { value: "en", label: "English" }]} value={values.language} focused={focusedId === "pref-language"} onFocus={() => onFocus("pref-language")} onChange={(value) => update({ language: value as TerminalPreferenceValues["language"] })} />
+          <box borderStyle="rounded" borderColor={theme.colors.focusRing} paddingLeft={1} paddingRight={1} flexDirection="column">
+            <text fg={theme.colors.primary}><b>{`${terminalIcon("result")} 主题预览 / ${values.theme}`}</b></text>
+            <box flexDirection="row" gap={2}><text fg={theme.colors.foreground}>主要文字</text><text fg={theme.colors.mutedForeground}>次要文字</text><text fg={theme.colors.success}>成功</text><text fg={theme.colors.warning}>警告</text><text fg={theme.colors.error}>危险</text></box>
+          </box>
+          <text fg={theme.colors.mutedForeground}>{message}</text>
+          <box flexDirection="row" gap={1}>
+            <WorkbenchButton id="pref-save" focused={focusedId === "pref-save"} onClick={() => void controller.save(values).then(() => setMessage("已保存到 xiranite.config.toml。"), (error) => setMessage(`保存失败：${String(error)}`))}>保存</WorkbenchButton>
+            <ClickTarget id="pref-restore" focused={focusedId === "pref-restore"} onClick={() => void controller.restore().then((restored) => { setValues(restored); onPreviewTheme(restored.theme); setMessage("已从配置文件恢复。") })}>恢复</ClickTarget>
+            <ClickTarget id="pref-back" focused={focusedId === "pref-back"} onClick={onBack}>返回工作台</ClickTarget>
+          </box>
+        </box>
+      </WorkbenchPanel>
     </box>
   )
 }

@@ -4,12 +4,14 @@ import { describe, expect, test } from "bun:test"
 import { act } from "react"
 
 import type { TerminalInteractionDefinition } from "../../interaction.js"
+import type { TerminalPreferenceValues } from "../index.js"
 import { OpenTuiTerminalApp } from "./app.js"
 
 interface DemoInput {
   action: string
   powerMode: string
   dryrun: boolean
+  interval: number
 }
 
 function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteractionDefinition<DemoInput, { success: boolean; message: string }> {
@@ -18,7 +20,7 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
       id: "demo",
       title: "Demo",
       description: "Renderer-neutral schema",
-      initialValues: { action: "run", powerMode: "sleep", dryrun: true },
+      initialValues: { action: "run", powerMode: "sleep", dryrun: true, interval: 10 },
       fields: [
         {
           id: "action",
@@ -33,11 +35,12 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
           options: [{ value: "sleep", label: "睡眠" }, { value: "shutdown", label: "关机" }],
         },
         { id: "dryrun", label: "演练模式", kind: "boolean" },
+        { id: "interval", label: "间隔", kind: "number", min: 5, max: 60 },
       ],
       view: {
         sections: [
           { id: "trigger", title: "触发序列", fieldIds: ["action"] },
-          { id: "execution", title: "执行动作", fieldIds: ["powerMode", "dryrun"] },
+          { id: "execution", title: "执行动作", fieldIds: ["powerMode", "dryrun", "interval"] },
         ],
         dashboard: { title: "系统待命", display: (values) => ({ primary: String(values.action), secondary: "状态监控" }) },
       },
@@ -45,6 +48,7 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
         action: String(values.action),
         powerMode: String(values.powerMode),
         dryrun: values.dryrun !== false,
+        interval: Number(values.interval),
       }),
       preview: (input) => [`Action: ${input.action}`, `Power: ${input.powerMode}`],
       isDangerous: (input) => !input.dryrun,
@@ -104,7 +108,7 @@ describe("OpenTUI terminal adapter", () => {
     await act(async () => {
       setup = await testRender(
         <OpenTuiTerminalApp definition={createDefinition((input) => { capturedInput = input })} language="zh" onExit={() => undefined} />,
-        { width: 110, height: 24, useMouse: true },
+        { width: 110, height: 30, useMouse: true },
       )
     })
     const click = async (id: string) => {
@@ -126,6 +130,12 @@ describe("OpenTUI terminal adapter", () => {
       await click("section-tabs-execution")
       await click("field-powerMode-shutdown")
       await click("field-dryrun-false")
+      await click("field-interval-plus")
+      await click("field-interval")
+      await act(async () => {
+        await setup.mockInput.typeText("30")
+      })
+      await act(async () => setup.flush())
 
       await click("execute")
       expect(setup.captureCharFrame()).toContain("确认真实执行")
@@ -135,12 +145,53 @@ describe("OpenTUI terminal adapter", () => {
       await click("execute")
       await click("confirm-execute")
       await setup.waitFor(() => capturedInput !== undefined)
-      expect(capturedInput).toEqual({ action: "run", powerMode: "shutdown", dryrun: false })
+      expect(capturedInput).toEqual({ action: "run", powerMode: "shutdown", dryrun: false, interval: 30 })
       expect(setup.renderer.root.findDescendantById("dashboard-result-table")).toBeDefined()
       expect(setup.captureCharFrame()).toContain("video-01.mp4")
 
       await click("tab-logs")
       expect(setup.captureCharFrame()).toContain("event log")
+    } finally {
+      await act(async () => setup.renderer.destroy())
+    }
+  })
+
+  test("previews and saves node CLI preferences from the shared mouse settings screen", async () => {
+    let saved: TerminalPreferenceValues | undefined
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => {
+      setup = await testRender(
+        <OpenTuiTerminalApp
+          definition={createDefinition()}
+          language="zh"
+          preferences={{
+            nodeId: "demo",
+            current: { theme: "inherit", defaultMode: "ui", language: "zh" },
+            save: async (values) => { saved = values },
+            restore: async () => ({ theme: "inherit", defaultMode: "ui", language: "zh" }),
+          }}
+          onExit={() => undefined}
+        />,
+        { width: 110, height: 30, useMouse: true },
+      )
+    })
+    const click = async (id: string) => {
+      const target = setup.renderer.root.findDescendantById(id)
+      expect(target).toBeDefined()
+      await act(async () => setup.mockMouse.click(target!.x + Math.max(1, Math.floor(target!.width / 2)), target!.y + Math.max(0, Math.floor((target!.height - 1) / 2))))
+      await act(async () => setup.flush())
+    }
+    try {
+      await act(async () => setup.renderOnce())
+      await click("settings")
+      expect(setup.captureCharFrame()).toContain("demo CLI 设置")
+      await click("pref-theme-dracula")
+      await click("pref-mode-pipe")
+      await click("pref-language-en")
+      await click("pref-save")
+      await setup.waitFor(() => saved !== undefined)
+      expect(saved).toEqual({ theme: "dracula", defaultMode: "pipe", language: "en" })
+      expect(setup.captureCharFrame()).toContain("主题预览 / dracula")
     } finally {
       await act(async () => setup.renderer.destroy())
     }

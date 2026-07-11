@@ -69,6 +69,8 @@ export interface TerminalViewTable {
  * node. It intentionally contains no positions, widths, widgets, or input API.
  */
 export interface TerminalInteractionView {
+  /** Advisory information architecture hint; renderers may ignore or responsively reinterpret it. */
+  compositionHint?: "control-monitor-log"
   sections: readonly TerminalViewSection[]
   dashboard: {
     title: string
@@ -227,6 +229,6 @@ export function resolveInteractionPreferences(source: CliInteractionPreferencesS
     mode: source?.cli?.default_mode ?? "ui",
     renderer: source?.cli?.renderer ?? "opentui",
     language: source?.cli?.language,
-    theme: source?.cli?.theme?.trim() || "default",
+    theme: source?.cli?.theme?.trim() || "inherit",
   }
 }

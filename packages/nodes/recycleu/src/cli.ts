@@ -1,33 +1,22 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url"
-import {
-  canRunInteractiveCli,
-  CliPromptExitError,
-  confirmRich,
-  defineCommand,
-  nodeCliName,
-  promptRich,
-  renderProgressBar,
-  rich,
-  runMain,
-  selectRich,
-  terminalColumns,
-  writeError,
-  writeJson,
-  writeLine,
-  writeRichPanel,
-} from "@xiranite/cli-runtime"
-import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
 
-import type { RecycleuAction, RecycleuInput, RecycleuResult } from "./core.js"
-import { normalizeDriveLetter, runRecycleu } from "./core.js"
-import { createNodeRecycleuRuntime, readClipboardText } from "./platform.js"
+import { nodeCliName, runGuidedInteraction, writeError, writeJson, writeLine, type CliCommand, type CliHost } from "@xiranite/cli-runtime"
+import { resolveInteractionPreferences, type CliInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
+import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+
+import type { RecycleuAction, RecycleuInput, RecycleuResult, RecycleuRuntime } from "./core.js"
+import { runRecycleu } from "./core.js"
+import { createRecycleuInteractionSchema, type RecycleuInteractionValues } from "./interaction.js"
+import { createNodeRecycleuRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("recycleu")
 export const RECYCLEU_CYCLES_HELP = "Maximum clean cycles; use 0 for unlimited."
 
-interface RecycleuNodeConfig {
+interface RecycleuNodeConfig extends CliInteractionPreferencesSource {
   interval?: number
   max_cycles?: number
   drive_letter?: string
@@ -39,323 +28,165 @@ interface RecycleuDefaults {
   driveLetter?: string
 }
 
-async function resolveRecycleuDefaults(host: CliHost, json = false): Promise<RecycleuDefaults> {
-  try {
-    const { config: nodeConfig } = await loadNodeConfigWithHints<RecycleuNodeConfig>("recycleu", {
-      env: host.env,
-      cwd: host.cwd,
-      hintSink: { stderr: host.stderr },
-      jsonMode: json,
-    })
-    return {
-      interval: nodeConfig?.interval,
-      maxCycles: nodeConfig?.max_cycles,
-      driveLetter: nodeConfig?.drive_letter?.trim() || undefined,
-    }
-  } catch {
-    return {}
-  }
+export interface RecycleuCliDependencies {
+  createRuntime: (host: CliHost) => RecycleuRuntime
+  runGuide: <Input, Result>(definition: TerminalInteractionDefinition<Input, Result>, options: { host: CliHost; language: TerminalLanguage }) => Promise<void>
+  runUi: typeof runTerminalUi
 }
 
-interface RecycleuCliOptions {
-  drive?: string
-  interval?: string | number
-  cycles?: string | number
-  json?: boolean
+const defaultDependencies: RecycleuCliDependencies = {
+  createRuntime: () => createNodeRecycleuRuntime(),
+  runGuide: runGuidedInteraction,
+  runUi: runTerminalUi,
 }
-
-interface GuidedTask {
-  name: string
-  description: string
-  input: Omit<RecycleuInput, "driveLetter">
-}
-
-type ResolvedGuidedChoice =
-  | { kind: "exit" }
-  | { kind: "task"; task: GuidedTask }
-
-type GuidedSelection = "exit" | `task:${string}`
-
-const GUIDED_TASKS: GuidedTask[] = [
-  {
-    name: "auto-clean",
-    description: "按间隔自动清理回收站，可配置间隔与循环次数",
-    input: { action: "start", interval: 10, maxCycles: 360 },
-  },
-  {
-    name: "clean-now",
-    description: "立即清空回收站一次",
-    input: { action: "clean_now" },
-  },
-]
 
 export const cli: CliCommand = {
   name: CLI_NAME,
-  description: "Empty the Windows recycle bin immediately or on a timer.",
-  async run(args: string[], host: CliHost) {
-    await runProgram(args, host)
-  },
+  description: "Empty the Windows recycle bin immediately or on a controlled schedule.",
+  run: (args, host) => runProgram(args, host),
 }
 
-export const program = createProgram()
-
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
-}
-
-function createDefaultHost(): CliHost {
-  return {
-    cwd: process.cwd(),
-    env: process.env,
-    stdin: process.stdin,
-    stdout: process.stdout,
-    stderr: process.stderr,
-  }
-}
-
-function createProgram(host: CliHost = createDefaultHost()) {
-  return defineCommand({
-    meta: {
-      name: CLI_NAME,
-      description: "Recycle bin cleaner with a Clack guided mode and Typer-style commands.",
-    },
-    subCommands: {
-      status: defineCommand({
-        meta: { name: "status", description: "Print current cleaner status." },
-        args: commonArgs(),
-        async run({ args }) {
-          await runAction({ action: "status" }, Boolean(args.json), host)
-        },
-      }),
-      clean: defineCommand({
-        meta: { name: "clean", description: "Empty the recycle bin once." },
-        args: commonArgs(),
-        async run({ args }) {
-          const json = Boolean(args.json)
-          const defaults = await resolveRecycleuDefaults(host, json)
-          await runAction(inputFromArgs(args as RecycleuCliOptions, "clean_now", defaults), json, host)
-        },
-      }),
-      start: defineCommand({
-        meta: { name: "start", description: "Run auto-clean until its cycle limit or cancellation." },
-        args: commonArgs(),
-        async run({ args }) {
-          const json = Boolean(args.json)
-          const defaults = await resolveRecycleuDefaults(host, json)
-          await runAction(inputFromArgs(args as RecycleuCliOptions, "start", defaults), json, host)
-        },
-      }),
-      guided: defineCommand({
-        meta: { name: "guided", description: "Open the rich guided terminal workflow." },
-        async run() {
-          await runGuided(host)
-        },
-      }),
-    },
+export async function runProgram(
+  args = process.argv.slice(2),
+  host: CliHost = createDefaultHost(),
+  dependencies: RecycleuCliDependencies = defaultDependencies,
+): Promise<void> {
+  await runInteractionCli({
+    args, host, cliName: CLI_NAME,
+    loadContext: () => resolveRecycleuContext(host, true),
+    createDefinition: (defaults, language) => createRecycleuInteractionDefinition(defaults, language, host, dependencies),
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runPipe(pipeArgs, pipeHost, dependencies) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: dependencies.runGuide,
+    runUi: dependencies.runUi,
+    loadScreen: async () => (await import("./Tui.js")).RecycleuTui,
+    createPreferences: (_defaults, values) => createPreferenceController(host, values),
+    reexecEntrypoint: process.argv[1],
   })
 }
 
-function commonArgs() {
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const configOptions = { env: host.env, cwd: host.cwd }
   return {
-    drive: { type: "string", description: "Limit cleanup to one drive letter, for example C." },
-    interval: { type: "string", description: "Clean interval in seconds, minimum 5." },
-    cycles: { type: "string", description: RECYCLEU_CYCLES_HELP },
-    json: { type: "boolean", description: "Print JSON result." },
-  } as const
-}
-
-function inputFromArgs(args: RecycleuCliOptions, action: RecycleuAction, defaults: RecycleuDefaults = {}): RecycleuInput {
-  return {
-    action,
-    interval: Number(args.interval ?? defaults.interval ?? 10),
-    maxCycles: Number(args.cycles ?? defaults.maxCycles ?? 360),
-    driveLetter: String(args.drive ?? defaults.driveLetter ?? ""),
+    nodeId: "recycleu",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(configOptions)
+      const updated = updateNodeConfig(config, "recycleu", {
+        cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language },
+      })
+      await saveXiraniteConfig(updated, { ...configOptions, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<RecycleuNodeConfig>("recycleu", { ...configOptions, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return {
+        theme: preferences.theme,
+        defaultMode: preferences.mode,
+        language: preferences.language ?? resolveTerminalLanguage(undefined, host.env),
+      }
+    },
   }
 }
 
-async function runGuided(host: CliHost): Promise<void> {
-  if (!canRunInteractiveCli(host)) {
-    writeError(host, `Guided mode requires an interactive terminal. Use \`${CLI_NAME} clean --json\` for scripted use.`)
+export function createRecycleuInteractionDefinition(
+  defaults: RecycleuDefaults,
+  language: TerminalLanguage,
+  host: CliHost,
+  dependencies: RecycleuCliDependencies = defaultDependencies,
+): TerminalInteractionDefinition<RecycleuInput, RecycleuResult> {
+  const initial: Partial<RecycleuInteractionValues> = {
+    interval: defaults.interval,
+    maxCycles: defaults.maxCycles,
+    driveLetter: defaults.driveLetter,
+  }
+  return {
+    schema: createRecycleuInteractionSchema(initial, language),
+    run: (input, onEvent) => runRecycleu(input, dependencies.createRuntime(host), onEvent),
+  }
+}
+
+async function runPipe(args: string[], host: CliHost, dependencies: RecycleuCliDependencies): Promise<void> {
+  if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
+    writeUsage(host)
+    return
+  }
+  const action = parseAction(args[0])
+  if (!action) {
+    writeError(host, `Unknown RecycleU command: ${args[0] ?? ""}. Use \`${CLI_NAME} --help\`.`)
     process.exitCode = 2
     return
   }
-
-  const defaults = await resolveRecycleuDefaults(host, false)
-  let firstRender = true
   try {
-    while (true) {
-      renderGuidedIntro(host, firstRender)
-      firstRender = false
-
-      const choice = await readGuidedChoice(host)
-      if (choice.kind === "exit") {
-        writeLine(host, rich(host, "已退出。", "yellow"))
-        return
-      }
-
-      const input = await resolveTaskInput(host, choice.task, defaults)
-
-      writeRichPanel(host, "Run", [
-        `task: ${choice.task.name}`,
-        input.driveLetter ? `drive: ${input.driveLetter}:` : "drive: all",
-        ...(choice.task.name === "auto-clean" ? [`interval: ${input.interval}s`, `cycles: ${input.maxCycles === 0 ? "unlimited" : input.maxCycles}`] : []),
-      ], { color: "cyan", minWidth: Math.min(72, terminalColumns(host) - 6) })
-
-      const confirmed = await confirmRich(host, `确认执行 ${choice.task.name}?`, true)
-      if (!confirmed) {
-        writeLine(host, rich(host, "操作已取消。", "yellow"))
-        if (!await confirmRich(host, "重新开始?", false)) return
-        continue
-      }
-
-      const ok = await runGuidedTask(input, host)
-      if (!ok) process.exitCode = 1
-      if (!await confirmRich(host, "继续选择其他任务?", false)) return
+    const options = parsePipeOptions(args.slice(1))
+    const { value: defaults } = await resolveRecycleuContext(host, options.json)
+    const input: RecycleuInput = {
+      action,
+      driveLetter: options.drive ?? defaults.driveLetter ?? "",
+      interval: options.interval ?? defaults.interval ?? 10,
+      maxCycles: options.cycles ?? defaults.maxCycles ?? 360,
     }
-  } catch (error) {
-    if (error instanceof CliPromptExitError) {
-      writeLine(host, rich(host, "已退出。", "yellow"))
-      return
-    }
-    throw error
-  }
-}
-
-function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
-  if (!includeHeader) writeLine(host)
-  const columns = terminalColumns(host)
-  writeRichPanel(host, "Xiranite Recycleu", [
-    `${rich(host, "入口", "cyan")}  回收站清理工具，提供立即清理与定时自动清理两种模式`,
-    `${rich(host, "执行", "cyan")}  直接调用 recycleu core/platform，不经过 lata 或 Taskfile`,
-    `${rich(host, "间隔", "cyan")}  默认 10 秒，最小 5 秒；循环次数设为 0 时无限运行`,
-  ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
-  writeLine(host)
-  writeLine(host, rich(host, `提示: 自动清理会持续运行直到完成；需要查看状态请用 \`${CLI_NAME} status --json\`。`, "grey"))
-}
-
-async function readGuidedChoice(host: CliHost): Promise<ResolvedGuidedChoice> {
-  const selection = await selectRich<GuidedSelection>(
-    host,
-    "选择 recycleu 任务",
-    [
-      ...GUIDED_TASKS.map((task) => ({ value: `task:${task.name}` as GuidedSelection, label: task.name, hint: task.description })),
-      { value: "exit", label: "exit", hint: "离开引导模式" },
-    ],
-    { initialValue: `task:${GUIDED_TASKS[0]!.name}`, maxItems: 6 },
-  )
-
-  if (selection === "exit") return { kind: "exit" }
-  const taskName = selection.slice("task:".length)
-  return { kind: "task", task: GUIDED_TASKS.find((task) => task.name === taskName) ?? GUIDED_TASKS[0]! }
-}
-
-async function resolveTaskInput(host: CliHost, task: GuidedTask, defaults: RecycleuDefaults = {}): Promise<RecycleuInput> {
-  const input: RecycleuInput = { ...task.input }
-  if (task.name === "auto-clean") {
-    input.interval = await resolveInterval(host, defaults.interval ?? task.input.interval ?? 10)
-    input.maxCycles = await resolveCycles(host, defaults.maxCycles ?? task.input.maxCycles ?? 360)
-  }
-  input.driveLetter = await resolveDriveLetter(host)
-  return input
-}
-
-async function resolveInterval(host: CliHost, defaultValue: number): Promise<number> {
-  const answer = await promptRich(host, "清理间隔秒数，最小 5", String(defaultValue))
-  const parsed = Number(answer)
-  return Number.isFinite(parsed) ? Math.max(5, Math.floor(parsed)) : defaultValue
-}
-
-async function resolveCycles(host: CliHost, defaultValue: number): Promise<number> {
-  const answer = await promptRich(host, "最大循环次数，0 表示无限", String(defaultValue))
-  const parsed = Number(answer)
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : defaultValue
-}
-
-async function resolveDriveLetter(host: CliHost): Promise<string> {
-  const wantsDrive = await confirmRich(host, "是否限定到某个驱动器?", false)
-  if (!wantsDrive) return ""
-  const clipboard = (await readClipboardText()).trim()
-  const clipboardDrive = normalizeDriveLetter(clipboard)
-  const answer = (await promptRich(host, "输入盘符，例如 C 或 D", clipboardDrive)).trim()
-  return normalizeDriveLetter(answer)
-}
-
-async function runGuidedTask(input: RecycleuInput, host: CliHost): Promise<boolean> {
-  let progressActive = false
-  const result = await runRecycleu(input, createNodeRecycleuRuntime(), (event) => {
-    if (event.type === "progress") {
-      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
-      progressActive = true
-      return
-    }
-    endProgress(host, progressActive)
-    progressActive = false
-    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
-  })
-  endProgress(host, progressActive)
-
-  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
-  writeRecycleuSummary(host, result)
-  if (!result.success) return false
-  return true
-}
-
-async function runAction(input: RecycleuInput, json: boolean, host: CliHost): Promise<void> {
-  let progressActive = false
-  const result = await runRecycleu(input, createNodeRecycleuRuntime(), (event) => {
-    if (json) return
-    if (event.type === "progress") {
-      writeProgress(host, renderProgressBar(host, event.progress ?? 0, event.message, { label: CLI_NAME }))
-      progressActive = true
-      return
-    }
-    endProgress(host, progressActive)
-    progressActive = false
-    if (event.message.trim()) writeLine(host, rich(host, event.message, "grey"))
-  })
-  endProgress(host, progressActive)
-
-  if (json) {
-    writeJson(host, result)
+    const result = await runRecycleu(input, dependencies.createRuntime(host), (event) => {
+      if (!options.json && event.message.trim()) writeLine(host, event.message)
+    })
+    if (options.json) writeJson(host, result)
+    else writeLine(host, result.message)
     if (!result.success) process.exitCode = 1
-    return
-  }
-
-  writeLine(host, result.success ? rich(host, result.message, "green", "bold") : rich(host, result.message, "red", "bold"))
-  writeRecycleuSummary(host, result)
-  if (!result.success) process.exitCode = 1
-}
-
-function writeRecycleuSummary(host: CliHost, result: RecycleuResult): void {
-  const data = result.data
-  if (!data) return
-  writeRichPanel(host, "Summary", [
-    `status: ${data.timerStatus}  cleaned: ${data.cleanCount}  remaining: ${data.remainingSeconds}s`,
-    data.lastCleanTime ? `last clean: ${data.lastCleanTime}` : "last clean: -",
-  ], { color: result.success ? "green" : "yellow", minWidth: 56 })
-}
-
-function writeProgress(host: CliHost, line: string): void {
-  if (host.stdout.isTTY) {
-    host.stdout.write(`\r\u001b[2K${line}`)
-    return
-  }
-  writeLine(host, line)
-}
-
-function endProgress(host: CliHost, active: boolean): void {
-  if (active && host.stdout.isTTY) host.stdout.write("\n")
-}
-
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
-  try {
-    await runProgram()
   } catch (error) {
+    writeError(host, error instanceof Error ? error.message : String(error))
+    process.exitCode = 2
+  }
+}
+
+function parsePipeOptions(args: string[]) {
+  const options: { drive?: string; interval?: number; cycles?: number; json: boolean } = { json: false }
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index] ?? ""
+    if (arg === "--json") { options.json = true; continue }
+    const [name, inline] = arg.split("=", 2)
+    if (name !== "--drive" && name !== "--interval" && name !== "--cycles") throw new Error(`Unknown RecycleU option: ${arg}.`)
+    const value = inline ?? args[++index]
+    if (!value) throw new Error(`${name} requires a value.`)
+    if (name === "--drive") options.drive = value
+    if (name === "--interval") options.interval = parseInteger(value, name, 5)
+    if (name === "--cycles") options.cycles = parseInteger(value, name, 0)
+  }
+  return options
+}
+
+async function resolveRecycleuContext(host: CliHost, json = false): Promise<{ preferences: CliInteractionPreferences; value: RecycleuDefaults }> {
+  try {
+    const { config } = await loadNodeConfigWithHints<RecycleuNodeConfig>("recycleu", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: json })
+    const interaction = resolveInteractionPreferences(config)
+    return { preferences: interaction, value: { interval: config?.interval, maxCycles: config?.max_cycles, driveLetter: config?.drive_letter?.trim() || undefined } }
+  } catch {
+    return { preferences: resolveInteractionPreferences(undefined), value: {} }
+  }
+}
+
+function parseAction(value: string | undefined): RecycleuAction | null {
+  if (value === "status") return "status"
+  if (value === "clean" || value === "clean_now") return "clean_now"
+  if (value === "start") return "start"
+  return null
+}
+
+function parseInteger(value: string, flag: string, min: number): number {
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < min) throw new Error(`${flag} must be an integer of at least ${min}.`)
+  return number
+}
+
+function writeUsage(host: CliHost) {
+  writeLine(host, `Usage:\n  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]\n  ${CLI_NAME} gd\n  ${CLI_NAME} status [--json]\n  ${CLI_NAME} clean [--drive C] [--json]\n  ${CLI_NAME} start [--drive C] [--interval 10] [--cycles 360] [--json]`)
+}
+
+function createDefaultHost(): CliHost {
+  return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr }
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  await runProgram().catch((error) => {
     writeError(createDefaultHost(), error instanceof Error ? error.message : String(error))
     process.exitCode = 1
-  }
+  })
 }
