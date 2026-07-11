@@ -77,15 +77,50 @@ export interface XiraniteDesktopBindings {
 declare global {
   interface Window {
     bindings?: Partial<XiraniteDesktopBindings>
+    __XIRANITE_DESKTOP__?: {
+      kind?: string
+      version?: number
+      bridgeUrl?: string
+    }
   }
 }
 
 export function getDenoDesktopBindings(): XiraniteDesktopBindings | undefined {
   if (typeof window === "undefined") return undefined
   const candidate = window.bindings
-  return typeof candidate?.xiraniteDesktopRuntimeInfo === "function"
-    ? candidate as XiraniteDesktopBindings
-    : undefined
+  if (typeof candidate?.xiraniteDesktopRuntimeInfo === "function") {
+    return candidate as XiraniteDesktopBindings
+  }
+
+  const bridgeUrl = window.__XIRANITE_DESKTOP__?.kind === "deno-desktop"
+    ? window.__XIRANITE_DESKTOP__.bridgeUrl
+    : new URLSearchParams(window.location.search).get("__xiranite_desktop_bridge") ?? undefined
+  return bridgeUrl ? createHttpBindings(bridgeUrl) : undefined
+}
+
+function createHttpBindings(bridgeUrl: string): XiraniteDesktopBindings {
+  const call = async <T>(name: string, args: unknown[] = []): Promise<T> => {
+    const response = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, args }),
+    })
+    const payload = await response.json() as { ok?: boolean; value?: T; error?: string }
+    if (!response.ok || !payload.ok) throw new Error(payload.error ?? `Deno Desktop bridge request failed (${response.status}).`)
+    return payload.value as T
+  }
+
+  return {
+    xiraniteDesktopRuntimeInfo: () => call(DENO_DESKTOP_BINDING_NAMES.runtimeInfo),
+    xiraniteDesktopWindowControl: (action) => call(DENO_DESKTOP_BINDING_NAMES.windowControl, [action]),
+    xiraniteDesktopWindowOpen: (inputJSON) => call(DENO_DESKTOP_BINDING_NAMES.windowOpen, [inputJSON]),
+    xiraniteDesktopWindowFocus: (id) => call(DENO_DESKTOP_BINDING_NAMES.windowFocus, [id]),
+    xiraniteDesktopWindowClose: (id) => call(DENO_DESKTOP_BINDING_NAMES.windowClose, [id]),
+    xiraniteDesktopWindowGetFrame: (id) => call(DENO_DESKTOP_BINDING_NAMES.windowGetFrame, [id]),
+    xiraniteDesktopWindowSetFrame: (id, frameJSON) => call(DENO_DESKTOP_BINDING_NAMES.windowSetFrame, [id, frameJSON]),
+    xiraniteDesktopBackendConfig: () => call(DENO_DESKTOP_BINDING_NAMES.backendConfig),
+    xiraniteDesktopBackendRestart: () => call(DENO_DESKTOP_BINDING_NAMES.backendRestart),
+  }
 }
 
 export function detectDenoDesktop(): boolean {

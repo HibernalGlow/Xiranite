@@ -11,17 +11,17 @@ try {
 
 async function bootstrap(): Promise<void> {
   const backend = await BackendSupervisor.start()
-  const assets = startDesktopAssetServer(backend.config)
 
   let stopping = false
   const stop = () => {
     if (stopping) return
     stopping = true
     backend.stop()
-    void assets.server.shutdown()
+    void assets?.server.shutdown()
   }
 
-  const host = new XiraniteDesktopHost(backend, assets.frontendBaseUrl, stop)
+  const host = new XiraniteDesktopHost(backend)
+  const assets = startDesktopAssetServer(backend.config, host)
   host.createMainWindow()
   addEventListener("unload", stop)
 }

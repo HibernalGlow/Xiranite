@@ -34,7 +34,22 @@ class DenoDesktopWindowRuntime implements WindowRuntime {
   }
 
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
-    return toWindowCommandResult(await requireBindings().xiraniteDesktopWindowOpen(JSON.stringify(input)))
+    const result = toWindowCommandResult(await requireBindings().xiraniteDesktopWindowOpen(JSON.stringify(input)))
+    if (result.success || result.supported === false || typeof window === "undefined") return result
+
+    const url = new URL(window.location.href)
+    url.searchParams.set("floatingComponent", input.componentId)
+    url.searchParams.set("moduleId", input.moduleId)
+    url.searchParams.set("windowId", input.componentId)
+    if (input.title) url.searchParams.set("title", input.title)
+    const popup = window.open(
+      url.toString(),
+      `xiranite-component-${input.componentId}`,
+      `popup,width=${input.width ?? 460},height=${input.height ?? 380}`,
+    )
+    return popup
+      ? { success: true, supported: true, id: input.componentId, message: "Opened component in a browser popup." }
+      : { success: false, supported: true, message: "Browser blocked the component popup." }
   }
 
   async focus(id: string): Promise<WindowCommandResult> {

@@ -5,6 +5,7 @@ import { createDenoDesktopRuntime, detectDenoDesktop } from "./denoDesktop"
 
 afterEach(() => {
   delete window.bindings
+  delete window.__XIRANITE_DESKTOP__
   vi.restoreAllMocks()
 })
 
@@ -32,6 +33,46 @@ describe("Deno Desktop runtime adapter", () => {
 
   test("does not detect a normal browser", () => {
     expect(detectDenoDesktop()).toBe(false)
+  })
+
+  test("uses the automatic-window HTTP bridge and falls back to a browser popup", async () => {
+    window.__XIRANITE_DESKTOP__ = {
+      kind: "deno-desktop",
+      version: 1,
+      bridgeUrl: "http://127.0.0.1:45000/__xiranite_desktop_bridge",
+    }
+    const fetchMock = vi.fn(async (_input: unknown, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body)) as { name: string }
+      if (request.name === "xiraniteDesktopRuntimeInfo") {
+        return new Response(JSON.stringify({
+          ok: true,
+          value: {
+            kind: "deno-desktop",
+            version: 1,
+            capabilities: {
+              supported: true,
+              nativeWindowControls: false,
+              frameless: false,
+              componentWindows: "browser-popup",
+            },
+          },
+        }))
+      }
+      return new Response(JSON.stringify({ ok: true, value: { success: false, supported: true, message: "fallback" } }))
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    vi.stubGlobal("open", vi.fn(() => window))
+
+    const runtime = createDenoDesktopRuntime()
+    await expect(runtime.windows.getCapabilities()).resolves.toMatchObject({ componentWindows: "browser-popup" })
+    await expect(runtime.windows.openComponent({ componentId: "component-1", moduleId: "marku" })).resolves.toMatchObject({
+      success: true,
+      id: "component-1",
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:45000/__xiranite_desktop_bridge",
+      expect.objectContaining({ method: "POST" }),
+    )
   })
 })
 

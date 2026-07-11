@@ -13,7 +13,6 @@ await run([
   "--config",
   "desktop/deno/deno.json",
   ...desktopRuntimePermissionArgs(),
-  "--exclude-unused-npm",
   "--icon",
   "build/windows/icon.ico",
   "--include",

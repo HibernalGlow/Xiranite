@@ -1,6 +1,11 @@
 import type { DesktopBackendConfig } from "../bridge.ts"
 
 const DIST_ROOT = new URL("../../dist/", import.meta.url)
+const BRIDGE_PATH = "/__xiranite_desktop_bridge"
+
+export interface DesktopBridge {
+  dispatch(name: string, args: unknown[]): Promise<unknown>
+}
 
 export interface DesktopAssetServer {
   server: Deno.HttpServer
@@ -9,11 +14,14 @@ export interface DesktopAssetServer {
 
 export function startDesktopAssetServer(
   backendConfig: DesktopBackendConfig | undefined,
+  bridge: DesktopBridge,
   frontendDevUrl = clean(Deno.env.get("FRONTEND_DEVSERVER_URL")),
 ): DesktopAssetServer {
-  const server = Deno.serve((request) => {
-    if (frontendDevUrl) return redirectToDevServer(request, frontendDevUrl)
-    return servePackagedAsset(request, backendConfig)
+  const server = Deno.serve(async (request) => {
+    const url = new URL(request.url)
+    if (url.pathname === BRIDGE_PATH) return await serveBridge(request, bridge)
+    if (frontendDevUrl) return redirectToDevServer(request, frontendDevUrl, desktopServerUrl())
+    return await servePackagedAsset(request, backendConfig)
   })
 
   return {
@@ -22,10 +30,32 @@ export function startDesktopAssetServer(
   }
 }
 
-function redirectToDevServer(request: Request, frontendDevUrl: string): Response {
+function redirectToDevServer(request: Request, frontendDevUrl: string, bridgeBaseUrl: string): Response {
   const incoming = new URL(request.url)
   const target = new URL(incoming.pathname + incoming.search, ensureTrailingSlash(frontendDevUrl))
+  target.searchParams.set("__xiranite_desktop_bridge", `${bridgeBaseUrl}${BRIDGE_PATH}`)
   return Response.redirect(target, 307)
+}
+
+async function serveBridge(request: Request, bridge: DesktopBridge): Promise<Response> {
+  const headers = new Headers({
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "content-type",
+    "cache-control": "no-store",
+    "content-type": "application/json; charset=utf-8",
+  })
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers })
+  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed." }, 405, headers)
+
+  try {
+    const payload = await request.json() as { name?: unknown; args?: unknown }
+    if (typeof payload.name !== "string" || !Array.isArray(payload.args)) {
+      return json({ ok: false, error: "Invalid Deno Desktop bridge request." }, 400, headers)
+    }
+    return json({ ok: true, value: await bridge.dispatch(payload.name, payload.args) }, 200, headers)
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500, headers)
+  }
 }
 
 async function servePackagedAsset(
@@ -83,7 +113,7 @@ function safeAssetPath(pathname: string): string | undefined {
 }
 
 function injectDesktopConfig(html: string, config: DesktopBackendConfig | undefined): string {
-  const runtime = `<script>window.__XIRANITE_DESKTOP__={kind:"deno-desktop",version:1};</script>`
+  const runtime = `<script>window.__XIRANITE_DESKTOP__={kind:"deno-desktop",version:1,bridgeUrl:${safeJSON(BRIDGE_PATH)}};</script>`
   const backend = config
     ? `<script>window.__XIRANITE_BACKEND__=${safeJSON(config)};</script>`
     : ""
@@ -91,6 +121,10 @@ function injectDesktopConfig(html: string, config: DesktopBackendConfig | undefi
   return html.includes("<head>")
     ? html.replace("<head>", `<head>\n    ${injection}`)
     : `${injection}\n${html}`
+}
+
+function json(value: unknown, status: number, headers: Headers): Response {
+  return new Response(JSON.stringify(value), { status, headers })
 }
 
 function safeJSON(value: unknown): string {

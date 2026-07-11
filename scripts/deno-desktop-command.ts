@@ -1,13 +1,15 @@
 import path from "node:path"
 
-export const DENO_DESKTOP_VERSION = "2.9.2"
+export const DENO_DESKTOP_VERSION = "2.9.0+796a222"
 
 export function resolveDenoCommand(): string {
   const candidates = [
     process.env.DENO_BIN,
     "deno",
     "deno.exe",
+    "D:\\scoop\\apps\\deno-canary\\current\\app\\deno.exe",
     "D:\\scoop\\apps\\deno\\current\\deno.exe",
+    path.join(process.env.USERPROFILE ?? "", "scoop", "apps", "deno-canary", "current", "app", "deno.exe"),
     path.join(process.env.USERPROFILE ?? "", "scoop", "apps", "deno", "current", "deno.exe"),
   ].filter((candidate): candidate is string => Boolean(candidate))
 
