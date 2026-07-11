@@ -5,6 +5,8 @@ import type { InteractionField, InteractionValue } from "../../interaction.js"
 import type { TerminalTranslator } from "../i18n.js"
 import { optionsForField, stepInteractionNumber } from "../screen.js"
 import { useTerminalTheme } from "../theme.js"
+import { fieldIcon, terminalIcon } from "../icons.js"
+import { NumberInput } from "../../components/ui/number-input.js"
 import { ActionTabs } from "./action-tabs.js"
 import { MultilineEditor, PathListInput } from "./multiline-editor.js"
 
@@ -35,7 +37,7 @@ export function WorkbenchPanel({
       minWidth={0}
       overflow="hidden"
     >
-      {title ? <box flexShrink={0}><text fg={theme.colors.primary}><b>{title}</b></text></box> : null}
+      {title ? <box flexShrink={0}><text fg={theme.colors.primary}><b>{`${terminalIcon("section")} ${title}`}</b></text></box> : null}
       {description ? <box flexShrink={0}><text fg={theme.colors.mutedForeground}>{description}</text></box> : null}
       <box flexDirection="column" marginTop={description ? 1 : 0} flexGrow={1} overflow="hidden">
         {children}
@@ -67,7 +69,7 @@ export function WorkbenchField({
   if (field.kind === "select" && field.role === "action") {
     return (
       <box flexDirection="column" minHeight={3}>
-        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{`${fieldIcon(field.kind, field.role)} ${field.label}`}</text>
         <ActionTabs
           id={`field-${field.id}`}
           options={field.options ?? []}
@@ -84,28 +86,22 @@ export function WorkbenchField({
   if (field.kind === "number") {
     return (
       <box
-        id={`field-${field.id}`}
         flexDirection="row"
         justifyContent="space-between"
-        onMouseDown={disabled ? undefined : onFocus}
         onMouseScroll={disabled ? undefined : (event) => {
           const direction = event.scroll?.direction === "up" ? 1 : event.scroll?.direction === "down" ? -1 : 0
           if (direction) onChange(stepInteractionNumber(field, value, direction))
         }}
       >
-        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
-        <box flexDirection="row">
-          <ClickTarget id={`field-${field.id}-minus`} disabled={disabled} focused={focused} onClick={() => { onFocus(); onChange(stepInteractionNumber(field, value, -1)) }}>−</ClickTarget>
-          <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}><b>{` ${String(value ?? 0)} `}</b></text>
-          <ClickTarget id={`field-${field.id}-plus`} disabled={disabled} focused={focused} onClick={() => { onFocus(); onChange(stepInteractionNumber(field, value, 1)) }}>+</ClickTarget>
-        </box>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{`${fieldIcon(field.kind)} ${field.label}`}</text>
+        <NumberInput id={`field-${field.id}`} value={Number(value ?? 0)} focused={focused} disabled={disabled} min={field.min} max={field.max} step={field.step} colors={theme.colors} onFocus={onFocus} onChange={onChange} />
       </box>
     )
   }
   if (field.kind === "text") {
     return (
       <box flexDirection="column" minHeight={4} onMouseDown={disabled ? undefined : onFocus}>
-        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{`${fieldIcon(field.kind)} ${field.label}`}</text>
         <box id={`field-${field.id}`} borderStyle="rounded" borderColor={focused ? theme.colors.focusRing : theme.colors.border} height={3} paddingLeft={1} paddingRight={1}>
           <input
             value={String(value ?? "")}
@@ -122,7 +118,7 @@ export function WorkbenchField({
     const Editor = field.kind === "path-list" ? PathListInput : MultilineEditor
     return (
       <box flexDirection="column" minHeight={(field.lines ?? (field.kind === "path-list" ? 6 : 5)) + 1}>
-        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+        <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{`${fieldIcon(field.kind)} ${field.label}`}</text>
         <Editor
           id={`field-${field.id}`}
           value={String(value ?? "")}
@@ -139,7 +135,7 @@ export function WorkbenchField({
   }
   return (
     <box flexDirection="column" minHeight={2}>
-      <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{field.label}</text>
+      <text fg={focused ? theme.colors.focusRing : theme.colors.foreground}>{`${fieldIcon(field.kind)} ${field.label}`}</text>
       <box flexDirection="row" flexWrap="wrap" minHeight={1}>
         {optionsForField(field, t).map((option) => (
           <ClickTarget

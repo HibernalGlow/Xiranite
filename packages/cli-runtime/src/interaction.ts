@@ -2,6 +2,7 @@ import type { CliHost } from "./index.js"
 
 export type InteractionMode = "ui" | "gd"
 export type CliInvocationMode = InteractionMode | "pipe"
+export type CliDefaultMode = CliInvocationMode
 export type TerminalRenderer = "opentui"
 export type InteractionValue = string | number | boolean
 export type InteractionValues = Record<string, InteractionValue>
@@ -130,18 +131,16 @@ export interface TerminalUiFlagResolution extends TerminalRendererResolution {
 }
 
 export interface CliInteractionPreferencesSource {
-  interaction_mode?: InteractionMode
-  interaction_renderer?: TerminalRenderer
-  interaction_language?: "en" | "zh"
-  interaction_theme?: string
-  interactionMode?: InteractionMode
-  interactionRenderer?: TerminalRenderer
-  interactionLanguage?: "en" | "zh"
-  interactionTheme?: string
+  cli?: {
+    default_mode?: CliDefaultMode
+    renderer?: TerminalRenderer
+    language?: "en" | "zh"
+    theme?: string
+  }
 }
 
 export interface CliInteractionPreferences {
-  mode: InteractionMode
+  mode: CliDefaultMode
   renderer: TerminalRenderer
   language?: "en" | "zh"
   theme: string
@@ -151,7 +150,7 @@ export interface CliInteractionPreferences {
  * Routes an invocation without ever accidentally rendering an interactive UI
  * into a pipeline. `guided` is retained as the legacy spelling of `gd`.
  */
-export function resolveCliInvocation(args: readonly string[], host: CliHost, defaultMode: InteractionMode = "ui"): CliInvocationMode {
+export function resolveCliInvocation(args: readonly string[], host: CliHost, defaultMode: CliDefaultMode = "ui"): CliInvocationMode {
   const first = args[0]?.toLowerCase()
   if (first === "ui") return "ui"
   if (first === "gd" || first === "guided") return "gd"
@@ -225,9 +224,9 @@ export function resolveTerminalUiFlags(
 
 export function resolveInteractionPreferences(source: CliInteractionPreferencesSource | undefined): CliInteractionPreferences {
   return {
-    mode: source?.interaction_mode ?? source?.interactionMode ?? "ui",
-    renderer: source?.interaction_renderer ?? source?.interactionRenderer ?? "opentui",
-    language: source?.interaction_language ?? source?.interactionLanguage,
-    theme: source?.interaction_theme?.trim() || source?.interactionTheme?.trim() || "default",
+    mode: source?.cli?.default_mode ?? "ui",
+    renderer: source?.cli?.renderer ?? "opentui",
+    language: source?.cli?.language,
+    theme: source?.cli?.theme?.trim() || "default",
   }
 }

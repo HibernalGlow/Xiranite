@@ -66,6 +66,7 @@ describe("cli-runtime", () => {
   test("routes ui, gd, and pipe without leaking interactive mode into pipelines", () => {
     const tty = createHost(); tty.stdin.isTTY = true; tty.stdout.isTTY = true
     expect(resolveCliInvocation([], tty, "ui")).toBe("ui")
+    expect(resolveCliInvocation([], tty, "pipe")).toBe("pipe")
     expect(resolveCliInvocation(["gd"], tty)).toBe("gd")
     expect(resolveCliInvocation(["guided"], tty)).toBe("gd")
     expect(resolveCliInvocation([], createHost(), "ui")).toBe("pipe")
@@ -79,13 +80,20 @@ describe("cli-runtime", () => {
     expect(resolveTerminalUiFlags(["--lang", "fr"]).error).toContain("Unknown terminal language")
   })
 
-  test("normalizes shared interaction preferences from CLI and GUI config spellings", () => {
+  test("reads shared interaction preferences only from the node CLI table", () => {
     expect(resolveInteractionPreferences({
-      interactionMode: "gd",
-      interaction_renderer: "opentui",
-      interactionLanguage: "zh",
-      interaction_theme: "dracula",
-    })).toEqual({ mode: "gd", renderer: "opentui", language: "zh", theme: "dracula" })
+      cli: {
+        default_mode: "pipe",
+        renderer: "opentui",
+        language: "zh",
+        theme: "dracula",
+      },
+    })).toEqual({ mode: "pipe", renderer: "opentui", language: "zh", theme: "dracula" })
+    expect(resolveInteractionPreferences({
+      interaction_mode: "gd",
+      interaction_language: "en",
+      interaction_theme: "legacy",
+    } as never)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "default" })
     expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "default" })
   })
 
