@@ -1,6 +1,6 @@
 import * as React from "react"
 
-// Adapted from the Termcn Ink/OpenTUI theme-provider registry components.
+// Adapted from terminal component-library theme-provider registry patterns.
 export interface TerminalTheme {
   name: string
   colors: {
@@ -29,7 +29,7 @@ export const defaultTerminalTheme: TerminalTheme = {
   },
 }
 
-// Theme palettes are sourced from the Termcn registry and shared by every renderer.
+// Theme palettes are renderer-neutral and consumed by the OpenTUI composition.
 export const draculaTerminalTheme: TerminalTheme = {
   name: "dracula",
   colors: {

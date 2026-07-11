@@ -26,7 +26,7 @@ describe("sleept CLI interaction contract", () => {
     expect(result.data?.timerStatus).toBe("idle")
   }, 20_000)
 
-  test("starts both UI renderers with the package schema used by the GUI mapping", async () => {
+  test("starts the OpenTUI renderer with the package schema used by the GUI mapping", async () => {
     const renderers: TerminalRenderer[] = []
     let captured: TerminalInteractionDefinition<SleeptInput, SleeptResult> | undefined
     const dependencies = createDependencies({
@@ -36,10 +36,9 @@ describe("sleept CLI interaction contract", () => {
       },
     })
 
-    await runProgram(["ui", "--renderer", "ink", "--lang", "en", "--theme", "dracula"], createHost({ tty: true }), dependencies)
     await runProgram(["ui", "--renderer=opentui", "--lang", "zh", "--theme", "high-contrast"], createHost({ tty: true }), dependencies)
 
-    expect(renderers).toEqual(["ink", "opentui"])
+    expect(renderers).toEqual(["opentui"])
     expect(captured).toBeDefined()
     const values = { ...captured!.schema.initialValues, action: "get_stats" }
     const uiInput = captured!.schema.toInput(values)

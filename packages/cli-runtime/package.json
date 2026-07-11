@@ -33,16 +33,12 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "@ink-tools/ink-mouse": "2.1.0",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
     "boxen": "^8.0.1",
     "chalk": "^5.6.2",
     "citty": "^0.1.6",
     "i18next": "^26.3.4",
-    "ink": "6.8.0",
-    "ink-gradient": "4.0.1",
-    "ink-spinner": "5.0.0",
     "react": "^19.2.4",
     "string-width": "^8.1.0"
   },

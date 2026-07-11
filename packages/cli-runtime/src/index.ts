@@ -3,7 +3,6 @@ import boxen from "boxen"
 import { Chalk } from "chalk"
 import stringWidth from "string-width"
 import type { Readable, Writable } from "node:stream"
-import type { ReactNode } from "react"
 import type {
   InteractionField,
   InteractionValue,
@@ -95,10 +94,6 @@ export function writeLine(host: CliHost, message = ""): void {
 
 export function writeError(host: CliHost, message: string): void {
   host.stderr.write(`${message}\n`)
-}
-
-export function canRunInkApp(host: CliHost = createCliHost()): boolean {
-  return canRunInteractiveCli(host)
 }
 
 export function canRunInteractiveCli(host: CliHost = createCliHost()): boolean {
@@ -433,12 +428,6 @@ export async function runCliCommand(command: CliCommand, args = process.argv.sli
     writeError(host, message)
     process.exitCode = 1
   }
-}
-
-export async function runInkApp(node: ReactNode): Promise<void> {
-  const { render } = await import("ink")
-  const app = render(node)
-  await app.waitUntilExit()
 }
 
 function shouldColor(host: CliHost): boolean {

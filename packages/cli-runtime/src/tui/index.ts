@@ -15,19 +15,13 @@ export async function runTerminalUi<Input, Result>(
   definition: TerminalInteractionDefinition<Input, Result>,
   options: RunTerminalUiOptions,
 ): Promise<void> {
-  const renderer = options.renderer ?? "ink"
   const language = resolveTerminalLanguage(options.language, options.host.env)
-  if (renderer === "opentui") {
-    if (!isBunRuntime()) {
-      await reexecTerminalUiWithBun(options.host, options.reexec)
-      return
-    }
-    const { runOpenTuiTerminalUi } = await import("./opentui/runner.js")
-    await runOpenTuiTerminalUi(definition, { ...options, language })
+  if (!isBunRuntime()) {
+    await reexecTerminalUiWithBun(options.host, options.reexec)
     return
   }
-  const { runInkTerminalUi } = await import("./ink/runner.js")
-  await runInkTerminalUi(definition, { ...options, language })
+  const { runOpenTuiTerminalUi } = await import("./opentui/runner.js")
+  await runOpenTuiTerminalUi(definition, { ...options, renderer: "opentui", language })
 }
 
 export {

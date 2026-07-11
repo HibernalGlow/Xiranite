@@ -2,7 +2,7 @@ import type { CliHost } from "./index.js"
 
 export type InteractionMode = "ui" | "gd"
 export type CliInvocationMode = InteractionMode | "pipe"
-export type TerminalRenderer = "ink" | "opentui"
+export type TerminalRenderer = "opentui"
 export type InteractionValue = string | number | boolean
 export type InteractionValues = Record<string, InteractionValue>
 
@@ -145,7 +145,7 @@ export function requireInteractiveMode(host: CliHost, mode: InteractionMode): st
 }
 
 /** Extracts the renderer flag without exposing it to node-specific schemas. */
-export function resolveTerminalRenderer(args: readonly string[], defaultRenderer: TerminalRenderer = "ink"): TerminalRendererResolution {
+export function resolveTerminalRenderer(args: readonly string[], defaultRenderer: TerminalRenderer = "opentui"): TerminalRendererResolution {
   let renderer: string = defaultRenderer
   const remaining: string[] = []
 
@@ -153,7 +153,7 @@ export function resolveTerminalRenderer(args: readonly string[], defaultRenderer
     const arg = args[index] ?? ""
     if (arg === "--renderer") {
       const value = args[index + 1]
-      if (!value) return { args: remaining, error: "--renderer requires either ink or opentui." }
+      if (!value) return { args: remaining, error: "--renderer requires opentui." }
       renderer = value.toLowerCase()
       index += 1
       continue
@@ -165,8 +165,8 @@ export function resolveTerminalRenderer(args: readonly string[], defaultRenderer
     remaining.push(arg)
   }
 
-  if (renderer !== "ink" && renderer !== "opentui") {
-    return { args: remaining, error: `Unknown terminal renderer: ${renderer}. Use ink or opentui.` }
+  if (renderer !== "opentui") {
+    return { args: remaining, error: `Unknown terminal renderer: ${renderer}. Use opentui.` }
   }
   return { renderer, args: remaining }
 }
@@ -175,7 +175,7 @@ export function resolveTerminalUiFlags(
   args: readonly string[],
   defaults: TerminalUiFlagDefaults = {},
 ): TerminalUiFlagResolution {
-  let renderer: string = defaults.renderer ?? "ink"
+  let renderer: string = defaults.renderer ?? "opentui"
   let language: string | undefined = defaults.language
   let theme = defaults.theme
   const remaining: string[] = []
@@ -195,8 +195,8 @@ export function resolveTerminalUiFlags(
     if (name === "--theme") theme = value.toLowerCase()
   }
 
-  if (renderer !== "ink" && renderer !== "opentui") {
-    return { args: remaining, error: `Unknown terminal renderer: ${renderer}. Use ink or opentui.` }
+  if (renderer !== "opentui") {
+    return { args: remaining, error: `Unknown terminal renderer: ${renderer}. Use opentui.` }
   }
   if (language !== undefined && language !== "en" && language !== "zh") {
     return { args: remaining, error: `Unknown terminal language: ${language}. Use en or zh.` }
@@ -207,7 +207,7 @@ export function resolveTerminalUiFlags(
 export function resolveInteractionPreferences(source: CliInteractionPreferencesSource | undefined): CliInteractionPreferences {
   return {
     mode: source?.interaction_mode ?? source?.interactionMode ?? "ui",
-    renderer: source?.interaction_renderer ?? source?.interactionRenderer ?? "ink",
+    renderer: source?.interaction_renderer ?? source?.interactionRenderer ?? "opentui",
     language: source?.interaction_language ?? source?.interactionLanguage,
     theme: source?.interaction_theme?.trim() || source?.interactionTheme?.trim() || "default",
   }

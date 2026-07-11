@@ -11,10 +11,10 @@ export async function reexecTerminalUiWithBun(
   reexec: { entrypoint: string; args: readonly string[] } | undefined,
 ): Promise<void> {
   if (!reexec?.entrypoint) {
-    throw new Error("OpenTUI requires the Bun runtime with the current upstream release. Run this command with `bun`, or use `--renderer ink`.")
+    throw new Error("OpenTUI requires the Bun runtime. Run this command with `bun` or provide a re-executable CLI entrypoint.")
   }
   if (host.stdin !== process.stdin || host.stdout !== process.stdout || host.stderr !== process.stderr) {
-    throw new Error("OpenTUI requires Bun and cannot re-exec a custom embedded CLI host. Use `--renderer ink` for embedded hosts.")
+    throw new Error("OpenTUI requires Bun and cannot re-exec a custom embedded CLI host.")
   }
 
   const executable = resolveBunExecutable(host.env)

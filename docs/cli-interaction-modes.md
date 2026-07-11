@@ -7,9 +7,9 @@ All node terminal-UI migrations must follow it.
 
 | Mode | Entry | Intended use |
 | --- | --- | --- |
-| `ui` | `xnode ui` | Fullscreen, mouse-first terminal workbench that mirrors the node GUI's fields, preview, confirmation, progress, and result views through the selected Ink or OpenTUI renderer. |
+| `ui` | `xnode ui` | Fullscreen, mouse-first OpenTUI workbench that mirrors the node GUI's fields, preview, confirmation, progress, and result views. |
 | `gd` | `xnode gd` | Compact guided flow for quick selection and confirmation. Existing `guided` remains a compatibility alias for `gd`. |
-| `pipe` | normal subcommands, arguments, `--json`, or stdin | Scriptable and composable command path. It never renders Ink or prompt UI. |
+| `pipe` | normal subcommands, arguments, `--json`, or stdin | Scriptable and composable command path. It never renders OpenTUI or prompt UI. |
 
 ## Default interactive mode
 
@@ -18,7 +18,7 @@ Node configuration may contain:
 ```json
 {
   "interaction_mode": "ui",
-  "interaction_renderer": "ink",
+  "interaction_renderer": "opentui",
   "interaction_language": "zh",
   "interaction_theme": "dracula"
 }
@@ -32,7 +32,6 @@ default mode. Users can always override it explicitly with `ui` or `gd`.
 Full UI preferences can be overridden per invocation:
 
 ```powershell
-xsleept ui --renderer ink --lang zh --theme dracula
 xsleept ui --renderer opentui --lang en --theme high-contrast
 ```
 
@@ -75,9 +74,8 @@ confirmation, progress events, and result model as the GUI component.
 The fullscreen UI is a workbench, not a guided wizard. All relevant controls
 remain visible and editable in place. Mouse interaction is primary where the
 renderer supports it; Tab, arrows, Enter, and Escape remain keyboard fallbacks.
-Ink enters the terminal alternate screen and restores the cursor, mouse mode,
-and original screen on normal exit, Ctrl+C, and exceptions. OpenTUI uses its
-equivalent alternate-screen lifecycle.
+OpenTUI owns the alternate-screen lifecycle and restores the cursor, mouse mode,
+and original screen on normal exit, Ctrl+C, and exceptions.
 
 ## TUI component policy
 
@@ -85,20 +83,20 @@ Use established renderer-native components before writing primitives:
 
 1. OpenTUI uses its official native components first, including `ascii-font`,
    `input`, `select`, `tab-select`, and `scrollbox` where they fit the workflow.
-2. Ink uses [Termcn](https://github.com/shadcn-labs/termcn) components first,
-   then mature Ink ecosystem components such as `ink-gradient` and
-   `ink-spinner`.
-3. [InkUI](https://github.com/karimfromjordan/ink-ui) is the fallback when
-   Termcn does not provide the required Ink interaction.
-4. A custom component is allowed only when neither library offers an equivalent;
+2. Before writing a screen-local control, check the official OpenTUI examples
+   under `ref/opentui/packages/examples` and the existing runtime components.
+3. Any custom control with reuse value must first be implemented as an
+   independent component under `cli-runtime/src/tui/opentui`; compositions
+   import it instead of embedding the implementation in `app.tsx`.
+4. A custom component is allowed only when OpenTUI has no equivalent;
    it must be small, accessible, and reusable through `cli-runtime`.
-5. Ink mouse hit testing uses `@ink-tools/ink-mouse`; OpenTUI uses its native
-   mouse events. Node packages never import either mouse API directly.
+5. OpenTUI uses native mouse events. Node packages never import mouse APIs
+   directly.
 
 ## Shared themes and i18n
 
-Ink and OpenTUI consume the same terminal theme registry. The initial registry
-contains Termcn's `default`, `dracula`, and `high-contrast` palettes and can be
+OpenTUI consumes the shared terminal theme registry. The initial registry
+contains `default`, `dracula`, and `high-contrast` palettes and can be
 extended through `registerTerminalTheme`; nodes never define renderer-specific
 colours.
 
@@ -113,7 +111,7 @@ English remains the i18next fallback for an individual missing translation key.
 
 ## Renderer compatibility
 
-Do not couple a node's interaction schema or workflow to Ink. Node packages
+Do not couple a node's interaction schema or workflow to OpenTUI. Node packages
 expose renderer-neutral field semantics, validation, safety policy, sections,
 dashboard data, intents, and core execution callbacks. A schema section has an
 ID, title, description, and field IDs; it does not contain left/right positions,
@@ -126,32 +124,28 @@ node interaction schema + core action runner
              ↓
 renderer-neutral semantics, state, and intents
              ↓
-Ink composition  |  OpenTUI native composition
+OpenTUI native composition
 ```
 
-This separation is deliberate: forcing both renderers through one shared
-component tree produces a lowest-common-denominator UI. Ink may use Gradient,
-Spinner, flex composition, and Ink mouse providers; OpenTUI may independently
-use native ASCII fonts, inputs, scrollboxes, buffered rendering, and native
-mouse events. They do not need to look identical.
+This separation keeps OpenTUI-native ASCII fonts, inputs, scrollboxes, buffered
+rendering, and mouse events out of node schemas and browser graphs.
 
 The schema still defines the common automatic field vocabulary (`text`,
 `number`, `select`, and `boolean`), so it can limit a truly exotic node-specific
 control. Do not solve that by placing React components in the schema. Add a
-semantic capability with a standard fallback, then implement that capability
-in each renderer's registry. A missing specialized renderer must fall back to a
-normal field without changing input/output or blocking pipe mode.
+semantic capability with a standard fallback, then implement that capability in
+the OpenTUI component registry. A missing specialized component must fall back
+to a normal field without changing input/output or blocking pipe mode.
 
-The two adapters must preserve the same commands (`ui`, `gd`), field IDs,
-defaults, keyboard intents, confirmation policy, and result model. Renderer
-selection is an internal runtime option, never a node-specific fork or a public
-pipeline format change. This allows a future OpenTUI switch without changing
-individually distributed node packages or their scriptable CLI interface.
+The OpenTUI adapter and compact guide preserve the same commands (`ui`, `gd`),
+field IDs, defaults, keyboard intents, confirmation policy, and result model.
+Renderer selection is retained only as the `opentui` compatibility value; it is
+never a node-specific fork or a public pipeline format change.
 
 OpenTUI's current React package resolves correctly under Bun but its latest
 release is not directly loadable by Node ESM. The shared runner therefore
-re-executes only an explicitly selected OpenTUI session with Bun. Ink, `gd`, and
-all pipe commands retain normal Node compatibility. This compatibility bridge
+re-executes an OpenTUI session with Bun. `gd` and all pipe commands retain
+normal Node compatibility. This compatibility bridge
 is centralized in `cli-runtime` and can be removed when upstream Node ESM
 support is fixed.
 
@@ -167,7 +161,7 @@ modules and Bun `with: { type: "file" }` imports are not valid browser input.
   browser-safe shared entrypoints for translations, schemas, and interaction
   types.
 - `@xiranite/cli-runtime/terminal` is the only public entrypoint allowed to
-  reach Ink, OpenTUI, Bun re-execution, terminal themes, or renderer runners.
+  reach OpenTUI, Bun re-execution, terminal themes, or renderer runners.
 - Desktop node components import a node's explicit `./interaction` or `./i18n`
   subpath. A node root `index.ts` exposes only `def` and `core`; it must not
   re-export CLI, TUI, interaction, or translation adapters.
@@ -183,7 +177,7 @@ exports change.
 
 1. **Pipe:** a scripted subcommand with `--json` produces parseable JSON on
    stdout and no ANSI control sequences.
-2. **UI:** `ui` with a fake TTY starts the Ink entry point and passes the same
+2. **UI:** `ui` with a fake TTY starts the OpenTUI entry point and passes the same
    input to core as the GUI workflow.
 3. **GD:** `gd` with a fake TTY starts the compact guide; `guided` invokes the
    same implementation as a compatibility alias.
@@ -200,7 +194,7 @@ exports change.
 8. **Language:** no flag, config, or locale defaults to Chinese; explicit or
    configured English still overrides it.
 9. **Browser boundary:** importing a desktop node's interaction/i18n subpaths
-   cannot reach `@xiranite/cli-runtime/terminal`, Ink, OpenTUI, or Bun-native
+   cannot reach `@xiranite/cli-runtime/terminal`, OpenTUI, or Bun-native
    modules; the desktop Vite production build must pass.
 
 ## Test safety for dangerous actions

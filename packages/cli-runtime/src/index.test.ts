@@ -16,7 +16,6 @@ import {
   resolveTerminalUiFlags,
 } from "./interaction.js"
 import { listTerminalThemes, runTerminalUi } from "./terminal.js"
-import { enterInkFullscreen, leaveInkFullscreen } from "./tui/ink/lifecycle.js"
 
 describe("cli-runtime", () => {
   test("derives short node command names and normalizes legacy names", () => {
@@ -87,7 +86,7 @@ describe("cli-runtime", () => {
       interactionLanguage: "zh",
       interaction_theme: "dracula",
     })).toEqual({ mode: "gd", renderer: "opentui", language: "zh", theme: "dracula" })
-    expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "ink", language: undefined, theme: "default" })
+    expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "default" })
   })
 
   test("shares terminal themes and GUI-compatible Chinese common labels", () => {
@@ -102,21 +101,6 @@ describe("cli-runtime", () => {
     expect(resolveTerminalLanguage(undefined, {})).toBe("zh")
     expect(resolveTerminalLanguage("en", {})).toBe("en")
     expect(resolveTerminalLanguage(undefined, { LANG: "en_US.UTF-8" })).toBe("en")
-  })
-
-  test("restores Ink alternate-screen, cursor, and every enabled mouse mode", () => {
-    let output = ""
-    const stream = { write: (chunk: string) => { output += chunk } }
-
-    enterInkFullscreen(stream)
-    leaveInkFullscreen(stream)
-
-    expect(output).toContain("\u001b[?1049h")
-    expect(output).toContain("\u001b[?1049l")
-    expect(output).toContain("\u001b[?25h")
-    for (const mode of [1000, 1002, 1003, 1006]) {
-      expect(output).toContain(`\u001b[?${mode}l`)
-    }
   })
 
   test("keeps Node hosts safe when OpenTUI needs a Bun re-exec", async () => {

@@ -210,7 +210,7 @@ export async function runProgram(
     : explicitInvocation
 
   const flags = resolveTerminalUiFlags(args.slice(1), {
-    renderer: defaults.interactionRenderer ?? "ink",
+    renderer: defaults.interactionRenderer ?? "opentui",
     language: defaults.interactionLanguage ?? resolveTerminalLanguage(undefined, host.env),
     theme: defaults.interactionTheme,
   })
@@ -289,9 +289,9 @@ function createProgram(host: CliHost = createDefaultHost()) {
     meta: { name: CLI_NAME, description: "System timer CLI with ui, gd, and pipe-safe subcommands." },
     subCommands: {
       ui: defineCommand({
-        meta: { name: "ui", description: "Open the full terminal UI using Ink or OpenTUI." },
+        meta: { name: "ui", description: "Open the full terminal UI using OpenTUI." },
         args: {
-          renderer: { type: "string", description: "ink or opentui." },
+          renderer: { type: "string", description: "opentui." },
           lang: { type: "string", description: "en or zh." },
           theme: { type: "string", description: "default, dracula, or high-contrast." },
         },
