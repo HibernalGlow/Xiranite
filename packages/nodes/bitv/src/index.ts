@@ -6,9 +6,9 @@ export const def = {
   name: "BitV",
   version: "0.1.0",
   category: "video",
-  description: "Analyze and classify video bitrate with PackU BitV.",
+  description: "Analyze video bitrate with ffprobe and classify files without overwriting existing data.",
   icon: "Gauge",
-  keywords: ["packu", "video", "bitrate", "classification"],
+  keywords: ["video", "bitrate", "ffprobe", "classification"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

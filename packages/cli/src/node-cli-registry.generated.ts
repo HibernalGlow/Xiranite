@@ -133,7 +133,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "lorat",
     packageName: "@xiranite/node-lorat",
     bin: nodeCliName("lorat"),
-    description: "Scan LoRA models, infer triggers, write sidecars, and export TriggerDB JSON.",
+    description: "Collect LoRA downloads, manage trigger sidecars, and export TriggerDB JSON.",
   },
   {
     id: "marku",

@@ -2,8 +2,8 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   "title": "Gifu",
-  "short": "Scan archive image sequences and run gifu animation conversion.",
-  "description": "Scan archive image sequences and run gifu animation conversion.",
+  "short": "Convert image archives to GIF, WebP, APNG, WebM, or MP4 with the native media runtime.",
+  "description": "Inspect and plan archives in TypeScript, then use 7-Zip and ffmpeg for native conversion.",
   "whenToUse": [
     "Use Gifu when you need this node's image workflow from either the workspace UI or CLI."
   ],
@@ -21,8 +21,8 @@ export const help = {
       "title": "CLI",
       "summary": "Run Gifu directly from a terminal.",
       "cli": [
-        "Run `xiranite gifu` for the guided mode when the command supports interactive prompts.",
-        "Run `xiranite gifu --help` for the node command's exact flags and subcommands."
+        "Run `xgifu ui` for the full OpenTUI workbench or `xgifu gd` for the compact guide.",
+        "Use `xgifu inspect`, `xgifu plan`, and `xgifu make` for pipeline-safe commands."
       ]
     }
   ],
@@ -34,12 +34,12 @@ export const help = {
       "examples": [
         {
           "label": "Guided mode",
-          "command": "xiranite gifu",
-          "description": "Start the node's interactive terminal workflow."
+          "command": "xgifu gd",
+          "description": "Start the compact guided terminal workflow."
         },
         {
           "label": "Command flags",
-          "command": "xiranite gifu --help",
+          "command": "xgifu --help",
           "description": "Show the node CLI's subcommands and options."
         },
         {
@@ -60,8 +60,8 @@ export const help = {
   translations: {
     "zh-CN": {
       "title": "Gifu",
-      "short": "扫描归档中的图像序列并运行 gifu 动画转换。",
-      "description": "扫描归档中的图像序列并运行 gifu 动画转换。",
+      "short": "使用原生媒体运行时，将图片归档转换为 GIF、WebP、APNG、WebM 或 MP4。",
+      "description": "使用 TypeScript 检查与规划归档，再由 7-Zip 和 ffmpeg 完成本地转换。",
       "whenToUse": [
         "需要在工作区 UI 或 CLI 中使用该节点的图像工作流时，使用 Gifu。"
       ],
@@ -79,8 +79,8 @@ export const help = {
           "title": "CLI",
           "summary": "直接从终端运行 Gifu。",
           "cli": [
-            "命令支持交互提示时，运行 `xiranite gifu` 进入引导模式。",
-            "运行 `xiranite gifu --help` 查看该节点命令的具体参数与子命令。"
+            "运行 `xgifu ui` 打开 OpenTUI 工作台，或运行 `xgifu gd` 进入精简引导。",
+            "脚本使用 `xgifu inspect`、`xgifu plan` 与 `xgifu make`。"
           ]
         }
       ],
@@ -92,12 +92,12 @@ export const help = {
           "examples": [
             {
               "label": "引导模式",
-              "command": "xiranite gifu",
+              "command": "xgifu gd",
               "description": "启动该节点的交互式终端流程。"
             },
             {
               "label": "命令参数",
-              "command": "xiranite gifu --help",
+              "command": "xgifu --help",
               "description": "显示该节点 CLI 的子命令与选项。"
             },
             {

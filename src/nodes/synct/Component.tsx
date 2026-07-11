@@ -258,7 +258,7 @@ function FullView(props: ViewProps) {
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
           <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={Map} label="Archive path plan" /><Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
           <Separator />
-          <PlanRows items={props.result?.items ?? []} paths={props.paths} />
+          <ChronologicalTimeline items={props.result?.items ?? []} paths={props.paths} />
         </section>
         <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/synct:col-span-2 @4xl/synct:col-span-1">
           <ExecutionGate {...props} />
@@ -391,6 +391,32 @@ function PlanRows(props: { items: SynctPlanItem[]; paths: string[] }) {
             </div>
           )
         })}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function ChronologicalTimeline(props: { items: SynctPlanItem[]; paths: string[] }) {
+  if (!props.items.length) return <PlanRows {...props} />
+  const groups = new Map<string, SynctPlanItem[]>()
+  for (const item of props.items) {
+    const key = item.targetRelative.split(/[\\/]/).slice(0, 2).join(" / ") || "Unscheduled"
+    groups.set(key, [...(groups.get(key) ?? []), item])
+  }
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="relative grid gap-4 p-4 before:absolute before:inset-y-5 before:left-8 before:w-px before:bg-border">
+        {[...groups.entries()].map(([period, items]) => (
+          <div key={period} className="relative grid grid-cols-[3rem_minmax(0,1fr)] gap-3">
+            <div className="relative z-10 grid size-8 place-items-center rounded-md border bg-primary/10 text-xs font-semibold text-primary">{items.length}</div>
+            <div className="min-w-0 rounded-md border bg-card px-3 py-2">
+              <div className="flex items-center justify-between gap-2"><div className="font-semibold">{period}</div><Badge variant="outline">{items.length} file{items.length === 1 ? "" : "s"}</Badge></div>
+              <div className="mt-1 grid gap-1">
+                {items.map((item) => <div key={item.sourcePath} className="truncate font-mono text-[11px] text-muted-foreground">{item.sourceName} <span className="text-foreground">{"->"}</span> {item.targetRelative}</div>)}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </ScrollArea>
   )

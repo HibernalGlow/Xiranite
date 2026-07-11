@@ -6,7 +6,7 @@ export const def = {
   name: "Gifu",
   version: "0.1.0",
   category: "image",
-  description: "Scan archive image sequences and run gifu animation conversion.",
+  description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.",
   icon: "Film",
   keywords: ["gif", "webp", "archive", "animation", "ffmpeg"],
 } satisfies NodeDef

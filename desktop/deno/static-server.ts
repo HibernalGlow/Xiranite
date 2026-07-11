@@ -68,7 +68,10 @@ async function servePackagedAsset(
 
   const url = new URL(request.url)
   const path = safeAssetPath(url.pathname)
-  if (!path) return new Response("Invalid asset path", { status: 400 })
+  if (!path) {
+    console.error(`[xiranite-desktop] rejected asset path: ${JSON.stringify(url.href)}`)
+    return new Response("Invalid asset path", { status: 400 })
+  }
 
   const requested = path === "" ? "index.html" : path
   const asset = await readAsset(requested)

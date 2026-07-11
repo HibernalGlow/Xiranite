@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SmartZipAction, SmartZipData, SmartZipInput } from "@xiranite/node-smartzip/core"
-import { FileArchive, Play, RotateCcw, Square } from "lucide-react"
+import { FileArchive, FolderInput, Play, RotateCcw, Square, Terminal } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -313,6 +313,7 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  const showLegacySurface = false
   return (
     <div data-testid="smartzip-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/smartzip:flex-row @4xl/smartzip:items-center @4xl/smartzip:justify-between">
@@ -320,7 +321,6 @@ function FullView(props: ViewProps) {
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
           <div data-testid="smartzip-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/smartzip:w-72" onActionChange={props.onActionChange} />
-            <RunActionButton props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
@@ -337,7 +337,24 @@ function FullView(props: ViewProps) {
         <SmartZipStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/smartzip:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-3 @4xl/smartzip:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(240px,300px)]">
+        <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
+          <div className="flex items-center gap-2"><FolderInput className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">路径</span></div>
+          <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <div className="mt-auto grid gap-1.5 text-xs text-muted-foreground">
+            {(props.result?.selectedPaths ?? props.data.pathsText?.split(/\r?\n/).filter(Boolean) ?? []).map((path) => <div key={path} className="truncate rounded-md border px-2 py-1.5">{path}</div>)}
+          </div>
+        </section>
+        <CommandChamber result={props.result} />
+        <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
+          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">可执行文件</span></div>
+          <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <div className="min-h-0 flex-1"><SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
+          <div className="mt-auto"><div className="mb-2 text-sm font-semibold">运行</div><RunActionButton props={props} /></div>
+        </section>
+      </div>
+      {showLegacySurface && <div>
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
@@ -359,8 +376,20 @@ function FullView(props: ViewProps) {
         <div className="min-h-0">
           <SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
-      </div>
+      </div>}
     </div>
+  )
+}
+
+function CommandChamber({ result }: { result: SmartZipData | null }) {
+  const command = result?.command
+  return (
+    <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4">
+      <div className="flex items-center justify-between gap-2 border-b pb-3"><div className="flex items-center gap-2"><Terminal className="size-4 text-primary" /><span className="text-sm font-semibold">Operation chamber</span></div><Badge variant="outline">{command ? "planned" : "idle"}</Badge></div>
+      <div className="min-h-0 flex-1 overflow-auto py-4 font-mono text-xs leading-6">
+        {command ? <><div className="text-muted-foreground">; SMARTZIP COMMAND PLAN</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">; QUEUED ARCHIVES</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">Run an action to produce the SmartZip command plan.</div>}
+      </div>
+    </section>
   )
 }
 

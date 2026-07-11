@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "PackU BitV video bitrate analysis and classification node.",
+  "description": "Native TypeScript video bitrate analysis and classification node.",
   "license": "UNLICENSED",
   "bin": {
     "xbitv": "./dist/cli.js"
@@ -21,6 +21,14 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
+    "./i18n": {
+      "types": "./dist/i18n.d.ts",
+      "default": "./dist/i18n.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
@@ -34,13 +42,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --passWithNoTests"
+    "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*",
-    "@xiranite/packu-node-runtime": "workspace:*"
+    "@xiranite/contract": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
