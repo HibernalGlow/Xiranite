@@ -62,11 +62,11 @@ async function dinyVersion(binary: string) {
 async function runDinyPrint(options: { dinyPath: string; repoPath: string; noVerify: boolean; timeout: number }) {
   try {
     const args = ["commit", "--print", ...(options.noVerify ? ["--no-verify"] : [])]
-    const { stdout, stderr } = await execFileAsync(options.dinyPath, args, { cwd: options.repoPath, timeout: options.timeout, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
+    const { stdout, stderr } = await execFileAsync(options.dinyPath, args, { cwd: options.repoPath, timeout: Math.min(options.timeout, 15_000), windowsHide: true, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, CI: "true", TERM: "dumb" } })
     return { stdout, stderr, code: 0 }
   } catch (error) {
-    const item = error as { stdout?: string; stderr?: string; code?: number; message: string }
-    return { stdout: item.stdout ?? "", stderr: item.stderr ?? item.message, code: item.code ?? 1 }
+    const item = error as { stdout?: string; stderr?: string; code?: number; message: string; killed?: boolean }
+    return { stdout: item.stdout ?? "", stderr: item.killed ? "diny 0.7.x opened its interactive TUI instead of returning a printable message. Update diny or enter the commit message manually." : item.stderr ?? item.message, code: item.code ?? 1 }
   }
 }
 async function gitButlerCommit(repoPath: string) {

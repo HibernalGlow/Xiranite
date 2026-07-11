@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { runGitalso, type GitalsoRepository, type GitalsoRuntime } from "./core.js"
+import { parseDinyOutput, runGitalso, type GitalsoRepository, type GitalsoRuntime } from "./core.js"
 
 const repository: GitalsoRepository = {
   root: "D:/repos/selected", branch: "main", files: [], branches: [{ name: "main", current: true }], commits: [], remotes: ["origin"], ahead: 0, behind: 0, stagedDiff: "",
@@ -36,5 +36,9 @@ describe("runGitalso", () => {
     expect(result.data.commitMessage).toBe("feat: land change")
     expect(host.gitButlerCommit).toHaveBeenCalledWith("D:/repos/selected")
     expect(host.resolveDiny).not.toHaveBeenCalled()
+  })
+
+  it("never treats diny TUI control output as a commit message", () => {
+    expect(parseDinyOutput("\u001b[?25l\u001b[?2004h\ndiny v0.7.8\n◎ waking up...")).toBeNull()
   })
 })

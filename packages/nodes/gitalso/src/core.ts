@@ -157,6 +157,7 @@ async function refreshed(runtime: GitalsoRuntime, repoPath: string, message: str
 
 function ensurePaths(paths: string[], message: string) { if (!paths.length) throw new Error(message) }
 export function parseDinyOutput(stdout: string): string | null {
+  if (/\x1b\[|\[\?25[lh]|waking up|vibing/i.test(stdout)) return null
   const lines = stdout.replace(/\x1b\[[0-9;]*m/g, "").split(/\r?\n/).filter((line) => line.trim())
   if (!lines.length) return null
   const prefix = lines.findIndex((line) => /^(generated )?commit message:|^suggested message:/i.test(line.trim()))
