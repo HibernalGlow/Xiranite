@@ -474,12 +474,12 @@ type DatabaseQueryOptions = {
 // 注意：与 Xiranite 的 ViewMode (cards/dockview/flow/lane) 区分，这里是 ocean 数据视图切换
 type DataViewMode = "table" | "list" | "gallery" | "board"
 
-export default function DatabaseDataView({ compId }: ModuleProps) {
+export default function DatabaseDataView({ compId, initialViewMode = "table" }: ModuleProps & { initialViewMode?: DataViewMode }) {
   void compId // 模块本身不维护本地状态——数据源同 store.components
   const { t } = useTranslation()
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
-  const [viewMode, setViewMode] = React.useState<DataViewMode>("table")
+  const [viewMode, setViewMode] = React.useState<DataViewMode>(initialViewMode)
 
   // ref 保存最新数据 — 因为 dataQuery 用 useCallback([]) 缓存，闭包捕获的是初始 visibleComponents。
   // 通过 ref 在 queryFn 内部读取最新值。

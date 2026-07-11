@@ -20,22 +20,6 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "Plus",
   },
   {
-    id: "acid-mixer",
-    name: "ACID MIXER",
-    version: "v2.1.0",
-    category: "PROCESS",
-    description: "Compound synthesizer logic board. Combine distinct data streams to generate new outputs.",
-    icon: "FlaskConical",
-  },
-  {
-    id: "terminal",
-    name: "TERMINAL",
-    version: "v4.0.0",
-    category: "SYSTEM",
-    description: "Command line interface node. Direct execution access to core system services.",
-    icon: "Terminal",
-  },
-  {
     id: "tasks",
     name: "TASKS",
     version: "v1.0.5",
@@ -64,7 +48,7 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     name: "KANBAN BOARD",
     version: "v3.0.2",
     category: "ORGANIZE",
-    description: "Agile workflow visualization. Drag-and-drop state management for complex operations.",
+    description: "Editable workspace board powered by the shared Data View engine.",
     icon: "LayoutDashboard",
   },
 

@@ -30,7 +30,6 @@ const MODULE_MASONRY_HEIGHTS: Record<string, number> = {
   database: 640,
   blocknote: 620,
   kanban: 540,
-  terminal: 500,
   "module-registry": 560,
   "node-history": 520,
   "node-operations": 500,
@@ -41,7 +40,6 @@ const MODULE_MASONRY_HEIGHTS: Record<string, number> = {
   calculator: 300,
   clock: 280,
   counter: 260,
-  "acid-mixer": 440,
 }
 
 const CATEGORY_MASONRY_HEIGHTS: Record<string, number> = {
