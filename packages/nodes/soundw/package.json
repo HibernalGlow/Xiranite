@@ -12,6 +12,6 @@
   },
   "files": ["dist"],
   "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run src" },
-  "dependencies": { "@xiranite/cli-runtime": "workspace:*", "@xiranite/contract": "workspace:*" },
+  "dependencies": { "@xiranite/cli-runtime": "workspace:*", "@xiranite/config": "workspace:*", "@xiranite/contract": "workspace:*" },
   "devDependencies": { "@types/node": "^24.12.0", "typescript": "^7.0.2", "vitest": "^4.1.10" }
 }

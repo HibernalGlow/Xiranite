@@ -860,6 +860,7 @@
       },
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {

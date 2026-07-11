@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { SoundwAction, SoundwData, SoundwInput } from "@xiranite/node-soundw/core"
 import { AudioLines, Cable, ChevronDown, ChevronUp, ListRestart, Mic, MicOff, RefreshCw, Settings, Volume2 } from "lucide-react"
@@ -13,6 +13,7 @@ type SoundwCardState = {
   result?: SoundwData | null
   logs?: string[]
 }
+type SoundwDefaults = Pick<SoundwCardState, "profileName" | "soundSwitchPath">
 
 const MAX_LOG_LINES = 60
 
@@ -21,6 +22,11 @@ export function Component({ compId, host }: NodeComponentProps) {
   const dataRef = useRef(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<SoundwDefaults | undefined>()
+
+  useEffect(() => {
+    host.getNodeConfig?.<SoundwDefaults>().then((response) => setDefaults(response.config)).catch(() => undefined)
+  }, [host])
 
   function patch(next: Partial<SoundwCardState>) {
     dataRef.current = { ...dataRef.current, ...next }
@@ -42,8 +48,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     try {
       const response = await run<SoundwInput, SoundwData>("soundw", {
         action,
-        soundSwitchPath: dataRef.current.soundSwitchPath,
-        profileName: dataRef.current.profileName,
+        soundSwitchPath: dataRef.current.soundSwitchPath ?? defaults?.soundSwitchPath,
+        profileName: dataRef.current.profileName ?? defaults?.profileName,
       }, (event) => appendLog(`[${event.progress ?? 0}%] ${event.message}`)) as NodeRunResult<SoundwData>
 
       patch({
@@ -62,6 +68,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     ? "Status not queried"
     : result.muteState
   const lastOutput = result?.output || "Ready — query status or switch the recording device."
+  const profileName = data.profileName ?? defaults?.profileName ?? ""
+  const soundSwitchPath = data.soundSwitchPath ?? defaults?.soundSwitchPath ?? ""
+  const configDirty = defaults !== undefined && (profileName !== (defaults.profileName ?? "") || soundSwitchPath !== (defaults.soundSwitchPath ?? ""))
+  async function saveDefaults() {
+    const next = { profileName: profileName || undefined, soundSwitchPath: soundSwitchPath || undefined }
+    await host.saveNodeConfig?.(next)
+    setDefaults(next)
+  }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3 p-3">
@@ -116,8 +130,8 @@ export function Component({ compId, host }: NodeComponentProps) {
             <Button aria-label="Load SoundSwitch profiles" disabled={running} onClick={() => execute("profiles")} size="icon-sm" variant="ghost"><RefreshCw className={running ? "animate-spin" : undefined} /></Button>
           </div>
           <div className="flex gap-2">
-            <Input aria-label="SoundSwitch profile name" disabled={running} onChange={(event) => patch({ profileName: event.target.value })} placeholder="Profile name" value={data.profileName ?? ""} />
-            <Button disabled={running || !data.profileName?.trim()} onClick={() => execute("profile")} size="sm">Activate</Button>
+            <Input aria-label="SoundSwitch profile name" disabled={running} onChange={(event) => patch({ profileName: event.target.value })} placeholder="Profile name" value={profileName} />
+            <Button disabled={running || !profileName.trim()} onClick={() => execute("profile")} size="sm">Activate</Button>
           </div>
           <ScrollArea className="mt-3 h-[calc(100%-5.5rem)] min-h-24 rounded-lg border bg-background/35">
             <div className="space-y-1.5 p-2">
@@ -137,7 +151,8 @@ export function Component({ compId, host }: NodeComponentProps) {
           </ScrollArea>
           <div className="mt-3 border-t pt-2">
             <Button className="h-6 w-full justify-between px-1.5 text-[10px]" onClick={() => patch({ showAdvanced: !data.showAdvanced })} size="sm" variant="ghost">CLI path override {data.showAdvanced ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}</Button>
-            {data.showAdvanced && <Input className="mt-2 h-8 font-mono text-xs" onChange={(event) => patch({ soundSwitchPath: event.target.value })} placeholder="SoundSwitch.CLI.exe path" value={data.soundSwitchPath ?? ""} />}
+            {data.showAdvanced && <Input className="mt-2 h-8 font-mono text-xs" onChange={(event) => patch({ soundSwitchPath: event.target.value })} placeholder="SoundSwitch.CLI.exe path" value={soundSwitchPath} />}
+            {configDirty && <Button className="mt-2 w-full" onClick={saveDefaults} size="sm" variant="outline">Save as defaults</Button>}
           </div>
         </section>
       </div>

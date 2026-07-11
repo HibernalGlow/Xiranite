@@ -86,10 +86,10 @@ export function Component({ compId, host }: NodeComponentProps) {
 
     const input: DinyInput = {
       action,
-      repoPath: dataRef.current.repoPath,
-      dinyPath: dataRef.current.dinyPath,
-      noVerify: dataRef.current.noVerify,
-      dryRun: dataRef.current.dryRun,
+      repoPath: dataRef.current.repoPath ?? defaults?.repoPath,
+      dinyPath: dataRef.current.dinyPath ?? defaults?.dinyPath,
+      noVerify: dataRef.current.noVerify ?? defaults?.noVerify,
+      dryRun: dataRef.current.dryRun ?? defaults?.dryRun,
       message: dataRef.current.manualMessage?.trim() || undefined,
     }
 
