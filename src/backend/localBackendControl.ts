@@ -1,9 +1,10 @@
 import { createXiraniteSystemClient, type LocalBackendRestartResult as ApiRestartResult } from "@xiranite/api/client"
+import { getDenoDesktopBindings } from "../../desktop/bridge"
 import { resolveLocalBackendConfig, setLocalBackendConfig } from "./localBackendConfig"
 
 const PKG = "main.XiraniteService"
 
-export type LocalBackendRestartSource = "http" | "wails" | "none"
+export type LocalBackendRestartSource = "http" | "deno-desktop" | "wails" | "none"
 
 export interface LocalBackendControlRestartResult extends ApiRestartResult {
   source: LocalBackendRestartSource
@@ -24,6 +25,17 @@ export async function restartLocalBackend(): Promise<LocalBackendControlRestartR
   }))
 
   if (httpResult.supported) return applyRestartResult(httpResult, "http")
+
+  const denoBindings = getDenoDesktopBindings()
+  if (denoBindings) {
+    const denoResult = await denoBindings.xiraniteDesktopBackendRestart().catch((error) => ({
+      restarted: false,
+      supported: false,
+      source: "deno-desktop" as const,
+      message: error instanceof Error ? error.message : String(error),
+    }))
+    return applyRestartResult({ ...denoResult, source: "deno-desktop" }, "deno-desktop")
+  }
 
   if (canUseWailsBridge()) {
     const wailsResult = await restartLocalBackendViaWails().catch((error) => ({

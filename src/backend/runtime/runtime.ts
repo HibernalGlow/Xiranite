@@ -116,7 +116,7 @@ export interface WindowRuntime {
 }
 
 export interface RuntimeInterface {
-  readonly kind: "web" | "wails" | "tauri" | "electron"
+  readonly kind: "web" | "wails" | "deno-desktop" | "tauri" | "electron"
   storage: StorageRuntime
   fs: FileSystemRuntime
   subprocess: SubprocessRuntime

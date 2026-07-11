@@ -1,10 +1,12 @@
-import { createWailsRuntime } from "./adapters/wails"
+import { createDenoDesktopRuntime, detectDenoDesktop } from "./adapters/denoDesktop"
+import { createWailsRuntime, detectWails } from "./adapters/wails"
 import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
 
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
-  { kind: "wails", detect: () => typeof window !== "undefined", factory: createWailsRuntime },
+  { kind: "deno-desktop", detect: detectDenoDesktop, factory: createDenoDesktopRuntime },
+  { kind: "wails", detect: detectWails, factory: createWailsRuntime },
   { kind: "web", detect: () => true, factory: createWebRuntime },
 ]
 
@@ -19,7 +21,7 @@ function selectRuntime(): Promise<RuntimeInterface> {
       try {
         if (registration.detect()) {
           const runtime = await registration.factory()
-          if (runtime.kind === "wails") {
+          if (runtime.kind !== "web") {
             await runtime.windows.getCapabilities()
           }
           console.info(`[backend] runtime = ${runtime.kind}`)

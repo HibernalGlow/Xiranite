@@ -1,6 +1,7 @@
 import type { LocalBackendConfig } from "./localBackendConfig"
+import { detectDenoDesktop } from "../../desktop/bridge"
 
-export type HostRuntimeKind = "wails" | "web"
+export type HostRuntimeKind = "deno-desktop" | "wails" | "web"
 export type FrontendSourceKind = "vite-dev" | "packaged"
 
 export interface RuntimeConnectionInfo {
@@ -33,7 +34,9 @@ export function getRuntimeConnectionInfo(): RuntimeConnectionInfo {
   const backendUrl = clean(injected?.baseUrl) ?? clean(import.meta.env.VITE_XIRANITE_BACKEND_URL)
   const backendToken = clean(injected?.token) ?? clean(import.meta.env.VITE_XIRANITE_BACKEND_TOKEN)
   const frontendOrigin = typeof window !== "undefined" ? window.location.origin : ""
-  const hostRuntime: HostRuntimeKind = typeof window !== "undefined" && window._wails ? "wails" : "web"
+  const hostRuntime: HostRuntimeKind = detectDenoDesktop()
+    ? "deno-desktop"
+    : typeof window !== "undefined" && window._wails ? "wails" : "web"
 
   return {
     hostRuntime,

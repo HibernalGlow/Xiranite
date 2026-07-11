@@ -1,3 +1,5 @@
+import { getDenoDesktopBindings } from "../../desktop/bridge"
+
 export interface LocalBackendConfig {
   baseUrl: string
   token?: string
@@ -51,7 +53,28 @@ export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | 
   const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
   if (existingConfig) return existingConfig
 
-  return hydrateLocalBackendConfigFromWails()
+  return await hydrateLocalBackendConfigFromDenoDesktop()
+    ?? await hydrateLocalBackendConfigFromWails()
+}
+
+export async function hydrateLocalBackendConfigFromDenoDesktop(): Promise<LocalBackendConfig | undefined> {
+  const bindings = getDenoDesktopBindings()
+  if (!bindings) return undefined
+
+  try {
+    const config = await withTimeout(
+      bindings.xiraniteDesktopBackendConfig(),
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading Deno Desktop local backend config after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
+    const normalizedConfig = normalizeLocalBackendConfig(config)
+    if (!normalizedConfig) return undefined
+    window.__XIRANITE_BACKEND__ = normalizedConfig
+    return normalizedConfig
+  } catch (error) {
+    warnHydrateFailure(error)
+    return undefined
+  }
 }
 
 export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackendConfig | undefined> {

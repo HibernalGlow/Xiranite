@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { checkLocalBackendStatus } from "./localBackendStatus"
-import { hydrateLocalBackendConfig, hydrateLocalBackendConfigFromWails } from "./localBackendConfig"
+import {
+  hydrateLocalBackendConfig,
+  hydrateLocalBackendConfigFromDenoDesktop,
+  hydrateLocalBackendConfigFromWails,
+} from "./localBackendConfig"
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 
 const healthMock = vi.hoisted(() => vi.fn())
@@ -17,6 +21,7 @@ afterEach(() => {
   vi.clearAllMocks()
   vi.unstubAllGlobals()
   delete window.__XIRANITE_BACKEND__
+  delete window.bindings
   delete window._wails
 })
 
@@ -86,6 +91,32 @@ describe("hydrateLocalBackendConfigFromWails", () => {
   test("skips Wails calls in a plain browser runtime", async () => {
     await expect(hydrateLocalBackendConfigFromWails()).resolves.toBeUndefined()
     expect(window.__XIRANITE_BACKEND__).toBeUndefined()
+  })
+})
+
+describe("hydrateLocalBackendConfigFromDenoDesktop", () => {
+  test("hydrates the generic backend config through Deno bindings", async () => {
+    window.bindings = {
+      xiraniteDesktopRuntimeInfo: vi.fn(async () => ({
+        kind: "deno-desktop",
+        version: 1,
+        capabilities: {
+          supported: true,
+          nativeWindowControls: false,
+          frameless: false,
+          componentWindows: "native",
+        },
+      })),
+      xiraniteDesktopBackendConfig: vi.fn(async () => ({
+        baseUrl: "http://127.0.0.1:42000",
+        token: "deno-token",
+      })),
+    }
+
+    const config = await hydrateLocalBackendConfigFromDenoDesktop()
+
+    expect(config).toEqual({ baseUrl: "http://127.0.0.1:42000", token: "deno-token" })
+    expect(window.__XIRANITE_BACKEND__).toEqual(config)
   })
 })
 
