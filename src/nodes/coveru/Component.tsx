@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CoveruAction, CoveruCandidate, CoveruData, CoveruInput, CoveruOutputMode } from "@xiranite/node-coveru/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, FolderInput, GalleryThumbnails, Image as ImageIcon, Images, PackageOpen, Play, RotateCcw, Settings2, ShieldAlert, Square, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, Copy, FolderInput, GalleryThumbnails, Image as ImageIcon, Images, PackageOpen, Play, RotateCcw, ShieldAlert, Square, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, DEFAULT_PREFERRED_NAMES_TEXT, NODE_ICON } from "./constants"
@@ -33,6 +34,7 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<CoveruCardState> | undefined>(undefined)
+  const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
   const action = data.action ?? "scan"
@@ -47,11 +49,21 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
 
-  useEffect(() => {
+  async function reloadDefaults() {
     const loadConfig = host.config?.get?.<Partial<CoveruCardState>>() ?? host.getNodeConfig?.<Partial<CoveruCardState>>()
-    loadConfig
-      ?.then((response) => setDefaults(response.config))
-      .catch(() => undefined)
+    try {
+      const response = await loadConfig
+      if (response) {
+        setDefaults(response.config)
+        setConfigFilePath(response.path)
+      }
+    } catch {
+      // Persistent defaults are optional in browser-only preview hosts.
+    }
+  }
+
+  useEffect(() => {
+    void reloadDefaults()
   }, [host])
 
   useEffect(() => {
@@ -154,6 +166,7 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
     actionMeta,
     candidates,
     configDirty,
+    configFilePath,
     data,
     defaults,
     logs,
@@ -166,9 +179,11 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
+    onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
     onPastePaths: pastePaths,
     onPatch: patch,
     onReset: reset,
+    onReloadDefaults: reloadDefaults,
     onRestoreDefault: restoreDefault,
     onSaveDefault: saveAsDefault,
   }
@@ -193,6 +208,7 @@ type ViewProps = {
   actionMeta: (typeof ACTIONS)[number]
   candidates: CoveruCandidate[]
   configDirty: boolean
+  configFilePath?: string
   data: CoveruCardState
   defaults?: Partial<CoveruCardState>
   logs: string[]
@@ -205,9 +221,11 @@ type ViewProps = {
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: CoveruAction) => void
+  onOpenConfigFile?: () => Promise<void> | void
   onPastePaths: () => void
   onPatch: (patch: Partial<CoveruCardState>) => void
   onReset: () => void
+  onReloadDefaults: () => Promise<void>
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }
@@ -288,12 +306,10 @@ function FullView(props: ViewProps) {
 
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
 
-      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 @2xl/coveru:grid-cols-[minmax(250px,320px)_minmax(0,1fr)] @4xl/coveru:grid-cols-[minmax(250px,320px)_minmax(0,1fr)_minmax(260px,320px)]">
-        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+      <div className="grid min-h-0 flex-1 gap-2 grid-cols-1 @3xl/coveru:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] @3xl/coveru:grid-rows-[auto_minmax(0,1fr)]">
+        <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2 @3xl/coveru:col-span-2">
           <ZoneTitle icon={FolderInput} label={tNode("coveru", "sections.queue", "归档队列")} />
-          <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          <Separator />
-          <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PathInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         </section>
 
         <section className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-lg border bg-card p-2">
@@ -304,7 +320,7 @@ function FullView(props: ViewProps) {
           <CandidateGrid candidates={props.candidates} />
         </section>
 
-        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @2xl/coveru:col-span-2 @4xl/coveru:col-span-1">
+        <div className="grid min-h-0 gap-2 grid-rows-[auto_minmax(0,1fr)] @3xl/coveru:col-start-2 @3xl/coveru:row-start-2">
           <ExecutionGate {...props} />
           <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
@@ -316,9 +332,17 @@ function FullView(props: ViewProps) {
 function ActionCluster(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
-       <IconButton disabled={props.running} icon={DatabaseZap} active={props.configDirty} label={tNode("coveru", "actions.saveDefault", "保存默认")} onClick={props.onSaveDefault} />
-       <IconButton disabled={props.running || !props.defaults} icon={Settings2} label={tNode("coveru", "actions.restoreDefault", "恢复默认")} onClick={props.onRestoreDefault} />
+      <NodeConfigPopover
+        configPath={props.configFilePath}
+        defaults={props.defaults}
+        dirty={props.configDirty}
+        disabled={props.running}
+        t={tNode.bind(null, "coveru")}
+        onOpenFile={props.onOpenConfigFile}
+        onReload={props.onReloadDefaults}
+        onRestore={props.onRestoreDefault}
+        onSave={props.onSaveDefault}
+      />
        <IconButton icon={RotateCcw} label={tNode("coveru", "actions.clearState", "清空状态")} onClick={props.onReset} />
     </div>
   )
@@ -401,6 +425,7 @@ function ExecutionGate(props: ViewProps) {
         <Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? tNode("coveru", "mode.preview", "预览") : tNode("coveru", "mode.write", "写入")}</Badge>
       </div>
       <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
+      <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <RunActionButton props={props} />
     </section>
