@@ -1,0 +1,15 @@
+{
+  "theme": "wuling",
+  "data": {
+    "profileName": "Gaming Mode",
+    "logs": ["[SYS] Initializing audio daemon... OK", "[SYS] Scanning devices... Found 4", "[SYS] Loading profile 'Gaming Mode'...", "[OK] Default Input set to 'Rode PodMic USB'", "[OK] Default Output set to 'Studio Monitors (L/R)'"],
+    "result": {
+      "installed": true,
+      "command": ["profile", "--list"],
+      "output": "Active input: Rode PodMic USB\nActive output: Studio Monitors (L/R)",
+      "profiles": ["Gaming Mode", "Meeting", "Streaming"],
+      "muteState": "false",
+      "errors": []
+    }
+  }
+}
