@@ -44,4 +44,12 @@ describe("runSoundw", () => {
     expect(result.success).toBe(false)
     expect(result.message).toContain("background app")
   })
+
+  it("extracts profile names from SoundSwitch's table instead of showing its progress output", async () => {
+    const host = runtime()
+    vi.mocked(host.run).mockResolvedValue({ code: 0, stdout: "╭─────╮\n│ Profile │ Playback │\n├─────┤\n│ womic │ Not set  │\n╰─────╯\nFetching profiles...", stderr: "" })
+    const result = await runSoundw({ action: "profiles" }, host)
+    expect(result.data.profiles).toEqual(["womic"])
+    expect(result.data.output).toBe("Profiles: womic")
+  })
 })

@@ -26,10 +26,18 @@ export async function runSoundw(input: SoundwInput, runtime: SoundwRuntime, onEv
       : output || "SoundSwitch command failed."
     return fail(message, { installed: true, command: args, output })
   }
+  const profiles = action === "profiles" ? parseProfiles(result.stdout) : []
+  const displayOutput = action === "profiles" ? (profiles.length ? `Profiles: ${profiles.join(", ")}` : "No SoundSwitch profiles found.") : output
   onEvent({ type: "progress", progress: 100, message: "SoundSwitch command completed." })
-  return ok(output || "SoundSwitch command completed.", { installed: true, command: args, output, profiles: action === "profiles" ? lines(result.stdout) : [], muteState: action === "status" ? result.stdout.trim() || null : null })
+  return ok(displayOutput || "SoundSwitch command completed.", { installed: true, command: args, output: displayOutput, profiles, muteState: action === "status" ? result.stdout.trim() || null : null })
 }
-function lines(value: string) { return value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean) }
+function parseProfiles(value: string) {
+  return value.split(/\r?\n/).map((line) => line.trim()).flatMap((line) => {
+    if (!line.startsWith("│")) return []
+    const name = line.split("│").map((cell) => cell.trim())[1]
+    return name && name !== "Profile" ? [name] : []
+  })
+}
 function data(partial: Partial<SoundwData>): SoundwData { return { installed: false, command: [], output: "", profiles: [], muteState: null, errors: [], ...partial } }
 function ok(message: string, partial: Partial<SoundwData>): NodeRunResult<SoundwData> { return { success: true, message, data: data(partial) } }
 function fail(message: string, partial: Partial<SoundwData>): NodeRunResult<SoundwData> { return { success: false, message, data: data({ ...partial, errors: [message] }) } }

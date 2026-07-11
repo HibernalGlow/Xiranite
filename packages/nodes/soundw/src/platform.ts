@@ -16,10 +16,15 @@ async function resolve(path?: string) {
 }
 async function run(path: string, args: string[]) {
   try {
-    const { stdout, stderr } = await exec(path, args, { timeout: 15_000, windowsHide: true })
-    return { code: 0, stdout, stderr }
+    const { stdout, stderr } = await exec(path, args, { timeout: 15_000, windowsHide: true, encoding: "buffer" }) as { stdout: Uint8Array; stderr: Uint8Array }
+    return { code: 0, stdout: decodeWindowsOutput(stdout), stderr: decodeWindowsOutput(stderr) }
   } catch (error) {
-    const item = error as { code?: number; stdout?: string; stderr?: string; message: string; killed?: boolean }
-    return { code: item.code ?? 1, stdout: item.stdout ?? "", stderr: item.killed ? "SoundSwitch CLI did not respond within 15 seconds." : item.stderr ?? item.message }
+    const item = error as { code?: number; stdout?: Uint8Array | string; stderr?: Uint8Array | string; message: string; killed?: boolean }
+    return { code: item.code ?? 1, stdout: decodeWindowsOutput(item.stdout), stderr: item.killed ? "SoundSwitch CLI did not respond within 15 seconds." : decodeWindowsOutput(item.stderr) || item.message }
   }
+}
+function decodeWindowsOutput(value: Uint8Array | string | undefined) {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  return new TextDecoder(process.platform === "win32" ? "gb18030" : "utf-8").decode(value)
 }
