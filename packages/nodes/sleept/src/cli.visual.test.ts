@@ -4,29 +4,24 @@ import { captureCliVisual, expectCliVisualArtifacts } from "../../../../scripts/
 
 const CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url))
 
-afterEach(() => {
-  process.exitCode = 0
-})
+afterEach(() => { process.exitCode = 0 })
 
-describe("sleept OpenTUI visual capture", () => {
-  test("captures the OpenTUI-native fullscreen control plane", async () => {
+describe("Sleept direct OpenTUI visual capture", () => {
+  test("captures the GUI-inspired trigger, console and status workbench", async () => {
     const capture = await captureCliVisual({
       nodeId: "sleept",
       cliPath: CLI_PATH,
       args: ["ui", "--renderer", "opentui", "--lang", "zh", "--theme", "dracula"],
       artifactName: "ui-opentui-zh-dracula",
-      waitForText: "触发序列",
+      waitForText: "SLEEPT // SYSTEM TIMER",
       columns: 120,
       rows: 32,
       viewport: { width: 1400, height: 620 },
     })
-
-    expect(capture.plainText).toContain("SLEEPT // NATIVE CONTROL PLANE")
-    expect(capture.plainText).toContain("OpenTUI")
-    expect(capture.plainText).toContain("触发序列")
-    expect(capture.plainText).toContain("系统待命")
-    expect(capture.plainText).toContain("执行动作")
-    expect(capture.plainText).not.toContain("步骤")
+    expect(capture.plainText).toContain("SLEEPT // SYSTEM TIMER")
+    expect(capture.plainText).toContain("COUNTDOWN CONSOLE")
+    expect(capture.plainText).toContain("CPU")
+    expect(capture.plainText).not.toContain("Step")
     expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
     await expectCliVisualArtifacts(capture)
   }, 30_000)

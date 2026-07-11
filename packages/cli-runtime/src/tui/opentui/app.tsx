@@ -2,7 +2,7 @@
 import { useKeyboard } from "@opentui/react"
 import { useEffect, useMemo, useState } from "react"
 
-import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalInteractionView, TerminalViewDisplay, TerminalViewSection, TerminalViewTable } from "../../interaction.js"
+import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalViewSection } from "../../interaction.js"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "../index.js"
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
 import { nextInteractionValue, resolveInteractionView, stepInteractionNumber } from "../screen.js"
@@ -124,24 +124,6 @@ function OpenTuiTerminalScreen<Input, Result>({
     return <TerminalPreferencesScreen controller={preferences} focusedId={session.focusedControlId} onFocus={session.focus} onPreviewTheme={onThemePreview} onBack={() => setShowPreferences(false)} />
   }
 
-  if (view.compositionHint === "control-monitor-log") {
-    return (
-      <ControlMonitorLogScreen
-        definition={definition}
-        session={session}
-        view={view}
-        sections={sections}
-        activeSection={activeSection}
-        display={display}
-        dashboardTable={dashboardTable}
-        t={t}
-        preferences={preferences}
-        onSectionChange={setActiveSectionId}
-        onOpenPreferences={() => { session.focus("pref-theme"); setShowPreferences(true) }}
-        onExit={onExit}
-      />
-    )
-  }
 
   return (
     <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
@@ -257,60 +239,6 @@ function OpenTuiTerminalScreen<Input, Result>({
           )}
         </WorkbenchPanel>
       </box>
-    </box>
-  )
-}
-
-function ControlMonitorLogScreen<Input, Result>({ definition, session, view, sections, activeSection, display, dashboardTable, t, preferences, onSectionChange, onOpenPreferences, onExit }: {
-  definition: TerminalInteractionDefinition<Input, Result>
-  session: ReturnType<typeof useTerminalUiSession<Input, Result>>
-  view: TerminalInteractionView
-  sections: ReturnType<typeof visibleSections>
-  activeSection: ReturnType<typeof visibleSections>[number] | undefined
-  display: TerminalViewDisplay
-  dashboardTable?: TerminalViewTable
-  t: TerminalTranslator
-  preferences?: TerminalPreferenceController
-  onSectionChange: (id: string) => void
-  onOpenPreferences: () => void
-  onExit: () => void
-}) {
-  const theme = useTerminalTheme()
-  return (
-    <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
-      <box flexDirection="row" justifyContent="space-between" height={4} borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
-        <box flexDirection="column"><text fg={theme.colors.primary}><b>{`${terminalIcon("status")} ${definition.schema.title.toUpperCase()} // CONTROL MONITOR`}</b></text><text fg={theme.colors.mutedForeground}>{definition.schema.description}</text></box>
-        <box flexDirection="column" alignItems="flex-end"><text fg={phaseColor(session.phase, theme)}><b>{phaseLabel(session.phase, t)}</b></text>{preferences ? <ClickTarget id="settings" focused={session.focusedControlId === "settings"} onClick={onOpenPreferences}>{`${terminalIcon("settings")} 设置`}</ClickTarget> : null}</box>
-      </box>
-      <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
-        <WorkbenchPanel title={t("parameters")} width="31%">
-          {sections.length > 1 ? <ActionTabs id="section-tabs" options={sections.map((section) => ({ value: section.id, label: section.title, hint: section.description }))} value={activeSection?.id} focused={session.focusedControlId === "section-tabs"} disabled={session.phase === "running"} onFocus={() => session.focus("section-tabs")} onChange={(value) => onSectionChange(String(value))} /> : null}
-          <scrollbox focused={activeSection?.fields.some((field) => field.id === session.focusedControlId)} flexGrow={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
-            {activeSection?.description ? <text fg={theme.colors.mutedForeground}>{activeSection.description}</text> : null}
-            {activeSection ? <FieldList fields={activeSection.fields} session={session} t={t} /> : null}
-          </scrollbox>
-        </WorkbenchPanel>
-
-        <WorkbenchPanel title={view.dashboard.title} description={view.dashboard.description} width="34%">
-          <box flexDirection="column" flexGrow={1} minHeight={0}>
-            <box flexDirection="column" flexShrink={0} alignItems="center" borderStyle="rounded" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}>
-              <text fg={theme.colors.primary}><b>{display.primary}</b></text>
-              {display.secondary ? <text fg={theme.colors.mutedForeground}>{display.secondary}</text> : null}
-              {display.metrics?.map((metric) => <box key={metric.label} flexDirection="row" justifyContent="space-between" width="100%"><text fg={theme.colors.mutedForeground}>{metric.label}</text><text fg={theme.colors.foreground}><b>{metric.value}</b></text></box>)}
-            </box>
-            <scrollbox flexGrow={1} minHeight={3} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>
-              {dashboardTable ? <PreviewTable table={dashboardTable} maxRows={dashboardTable.rows.length} /> : session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index === 0 ? "›" : "·"} ${line}`}</text>)}
-            </scrollbox>
-            {session.confirming ? <Confirmation session={session} t={t} /> : <box flexDirection="column" flexShrink={0}><ProgressBar value={session.progress} label={session.status || t("waitingForRun")} /><WorkbenchButton id="execute" focused={session.focusedControlId === "execute"} danger={session.dangerous} onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}>{executeLabel(session, t)}</WorkbenchButton></box>}
-          </box>
-        </WorkbenchPanel>
-
-        <WorkbenchPanel title={`${terminalIcon("logs")} 运行日志`} flexGrow={1}>
-          <box flexDirection="row" justifyContent="space-between"><box flexDirection="row"><ClickTarget id="tab-status" focused={session.focusedControlId === "tab-status"} selected={session.resultTab === "status"} onClick={() => session.selectResultTab("status")}>{t("statusTab")}</ClickTarget><ClickTarget id="tab-logs" focused={session.focusedControlId === "tab-logs"} selected={session.resultTab === "logs"} onClick={() => session.selectResultTab("logs")}>{`${t("logsTab")} (${session.logs.length})`}</ClickTarget></box><text fg={theme.colors.mutedForeground}>TAB / MOUSE</text></box>
-          {session.resultTab === "logs" ? <scrollbox focused={session.focusedControlId === "tab-logs"} flexGrow={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>{session.logs.length ? session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(3, "0")} ${line}`}</text>) : <text fg={theme.colors.mutedForeground}>{t("emptyLogs")}</text>}</scrollbox> : <box flexDirection="column" flexGrow={1}><ProgressBar value={session.progress} label={session.status || t("waitingForRun")} />{session.resultSummary ? <text fg={session.resultSummary.success ? theme.colors.success : theme.colors.error}>{session.resultSummary.message}</text> : null}{session.resultSummary?.lines.map((line, index) => <text key={`${line}-${index}`}>{line}</text>)}</box>}
-        </WorkbenchPanel>
-      </box>
-      <box height={2} flexDirection="row" justifyContent="space-between" marginTop={1}><box flexDirection="row"><ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>{t("resetParameters")}</ClickTarget><ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>{t("exit")}</ClickTarget></box><text fg={theme.colors.mutedForeground}>ESC 退出 · 鼠标优先 · 键盘可输入</text></box>
     </box>
   )
 }

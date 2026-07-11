@@ -69,8 +69,6 @@ export interface TerminalViewTable {
  * node. It intentionally contains no positions, widths, widgets, or input API.
  */
 export interface TerminalInteractionView {
-  /** Advisory information architecture hint; renderers may ignore or responsively reinterpret it. */
-  compositionHint?: "control-monitor-log"
   sections: readonly TerminalViewSection[]
   dashboard: {
     title: string

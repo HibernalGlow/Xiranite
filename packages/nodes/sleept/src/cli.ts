@@ -22,20 +22,16 @@ import type {
   CliCommand,
   CliHost,
 } from "@xiranite/cli-runtime"
-import {
-  requireInteractiveMode,
-  resolveCliInvocation,
-  resolveInteractionPreferences,
-  resolveTerminalUiFlags,
-} from "@xiranite/cli-runtime/interaction"
+import { resolveInteractionPreferences } from "@xiranite/cli-runtime/interaction"
 import type {
   CliInteractionPreferencesSource,
   TerminalInteractionDefinition,
   TerminalRenderer,
 } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { listTerminalThemes, runTerminalUi } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
+import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
 import { runSleept } from "./core.js"
@@ -154,16 +150,7 @@ export interface SleeptCliDependencies {
     definition: TerminalInteractionDefinition<Input, Result>,
     options: { host: CliHost; language: TerminalLanguage },
   ) => Promise<void>
-  runUi: <Input, Result>(
-    definition: TerminalInteractionDefinition<Input, Result>,
-    options: {
-      host: CliHost
-      renderer: TerminalRenderer
-      language: TerminalLanguage
-      theme?: string
-      reexec?: { entrypoint: string; args: readonly string[] }
-    },
-  ) => Promise<void>
+  runUi: typeof runTerminalUi
 }
 
 const defaultDependencies: SleeptCliDependencies = {
@@ -177,66 +164,50 @@ export async function runProgram(
   host: CliHost = createDefaultHost(),
   dependencies: SleeptCliDependencies = defaultDependencies,
 ): Promise<void> {
-  if (args.length === 0 && (!host.stdin.isTTY || !host.stdout.isTTY)) {
-    writeError(host, `No interactive terminal detected. Use \`${CLI_NAME} status --json\` or run \`${CLI_NAME} ui\` in a terminal.`)
-    process.exitCode = 2
-    return
-  }
-
-  const explicitInvocation = resolveCliInvocation(args, host, "ui")
-  if (args.length > 0 && explicitInvocation !== "pipe") {
-    const ttyError = requireInteractiveMode(host, explicitInvocation)
-    if (ttyError) {
-      writeError(host, ttyError)
-      process.exitCode = 2
-      return
-    }
-  }
-
-  if (explicitInvocation === "pipe") {
-    await runMain(createProgram(host), { rawArgs: args })
-    return
-  }
-
-  if (args.includes("--help") || args.includes("-h")) {
-    await runMain(createProgram(host), { rawArgs: args })
-    return
-  }
-
-  // Interactive renderers own the full screen; config hints would corrupt it.
-  const defaults = await resolveSleeptDefaults(host, true)
-  const invocation = args.length === 0
-    ? resolveCliInvocation(args, host, defaults.interactionMode ?? "ui")
-    : explicitInvocation
-
-  const flags = resolveTerminalUiFlags(args.slice(1), {
-    renderer: defaults.interactionRenderer ?? "opentui",
-    language: defaults.interactionLanguage ?? resolveTerminalLanguage(undefined, host.env),
-    theme: defaults.interactionTheme,
-  })
-  if (flags.error || flags.args.length > 0 || !flags.renderer || !flags.language) {
-    writeError(host, flags.error ?? `Unknown ui argument: ${flags.args[0]}.`)
-    process.exitCode = 2
-    return
-  }
-  if (flags.theme && !listTerminalThemes().includes(flags.theme)) {
-    writeError(host, `Unknown terminal theme: ${flags.theme}. Available themes: ${listTerminalThemes().join(", ")}.`)
-    process.exitCode = 2
-    return
-  }
-
-  const definition = createSleeptUiDefinition(defaults, flags.language, dependencies.createRuntime)
-  if (invocation === "gd") {
-    await dependencies.runGuide(definition, { host, language: flags.language })
-    return
-  }
-  await dependencies.runUi(definition, {
+  await runInteractionCli({
+    args,
     host,
-    renderer: flags.renderer,
-    language: flags.language,
-    theme: flags.theme,
-    reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined,
+    cliName: CLI_NAME,
+    loadContext: () => resolveSleeptContext(host, true),
+    createDefinition: (defaults, language) => createSleeptUiDefinition(defaults, language, dependencies.createRuntime),
+    runPipe: (pipeArgs, pipeHost) => runMain(createProgram(pipeHost), { rawArgs: pipeArgs }),
+    runGuide: dependencies.runGuide,
+    runUi: dependencies.runUi,
+    loadScreen: async () => (await import("./Tui.js")).SleeptTui,
+    createPreferences: (_defaults, values) => createPreferenceController(host, values),
+    reexecEntrypoint: process.argv[1],
   })
+}
+
+async function resolveSleeptContext(host: CliHost, json = false) {
+  const value = await resolveSleeptDefaults(host, json)
+  return {
+    preferences: {
+      mode: value.interactionMode ?? "ui",
+      renderer: value.interactionRenderer ?? "opentui",
+      language: value.interactionLanguage,
+      theme: value.interactionTheme ?? "inherit",
+    },
+    value,
+  }
+}
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const configOptions = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "sleept",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(configOptions)
+      await saveXiraniteConfig(updateNodeConfig(config, "sleept", {
+        cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language },
+      }), { ...configOptions, configPath: path })
+    },
+    async restore() {
+      const context = await resolveSleeptContext(host, true)
+      return { theme: context.preferences.theme, defaultMode: context.preferences.mode, language: context.preferences.language ?? resolveTerminalLanguage(undefined, host.env) }
+    },
+  }
 }
 
 function createSleeptUiDefinition(

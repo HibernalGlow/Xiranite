@@ -94,6 +94,7 @@ export function createRecycleuInteractionDefinition(
   host: CliHost,
   dependencies: RecycleuCliDependencies = defaultDependencies,
 ): TerminalInteractionDefinition<RecycleuInput, RecycleuResult> {
+  let cancellationRequested = false
   const initial: Partial<RecycleuInteractionValues> = {
     interval: defaults.interval,
     maxCycles: defaults.maxCycles,
@@ -101,7 +102,15 @@ export function createRecycleuInteractionDefinition(
   }
   return {
     schema: createRecycleuInteractionSchema(initial, language),
-    run: (input, onEvent) => runRecycleu(input, dependencies.createRuntime(host), onEvent),
+    async run(input, onEvent) {
+      cancellationRequested = false
+      const runtime = dependencies.createRuntime(host)
+      return await runRecycleu(input, {
+        ...runtime,
+        isCancelled: () => cancellationRequested || runtime.isCancelled?.() === true,
+      }, onEvent)
+    },
+    cancel: () => { cancellationRequested = true },
   }
 }
 
