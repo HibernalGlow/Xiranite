@@ -355,14 +355,18 @@ function FullView(props: ViewProps) {
         <StatsPanel progress={props.progress} result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/marku:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+      <section className="shrink-0 border-y py-2">
+        <div className="mb-2 text-xs font-medium text-muted-foreground">活动转换模块</div>
+        <ModulePicker disabled={props.running} module={props.moduleMeta.id} onModuleChange={props.onModuleChange} />
+      </section>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @3xl/marku:grid-cols-2">
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
               <div className="text-sm font-semibold">模块</div>
               <div className="text-xs text-muted-foreground">选择 Markdown 处理模块，部分模块支持配置 JSON。</div>
             </div>
-            <ModulePicker disabled={props.running} module={props.moduleMeta.id} onModuleChange={props.onModuleChange} />
             <ConfigField disabled={props.running} value={props.data.configText ?? ""} onChange={(configText) => props.onPatch({ configText })} />
           </div>
           <div className="grid gap-3 border-b pb-3">
@@ -380,7 +384,7 @@ function FullView(props: ViewProps) {
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         </section>
 
-        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @5xl/marku:h-full">
+        <div className="h-[clamp(12rem,32vh,20rem)] min-h-0 overflow-hidden @3xl/marku:h-full">
           <ResultTabs logs={props.logs} result={props.result} onCopyLogs={props.onCopyLogs} onCopyOutput={props.onCopyOutput} />
         </div>
       </div>
