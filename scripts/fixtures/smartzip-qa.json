@@ -1,0 +1,26 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "archive",
+    "pathsText": "D:/archive/syslog_2023.gz\nD:/reports/reports_q3.zip",
+    "smartZipExe": "D:/tools/SmartZip/SmartZip.exe",
+    "smartZipAhk": "D:/tools/SmartZip/smartzip.ahk",
+    "autohotkeyExe": "C:/Program Files/AutoHotkey/AutoHotkey.exe",
+    "iniPath": "D:/tools/SmartZip/smartzip.ini",
+    "databasePath": "D:/archive/.xiranite/smartzip-runs.jsonl",
+    "dryRun": true,
+    "recordRun": true,
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "SmartZip dry-run prepared archive command.",
+    "logs": ["Loading SmartZip config.", "smartzip a D:/archive/syslog_2023.gz D:/reports/reports_q3.zip", "Dry-run command prepared."],
+    "result": {
+      "config": { "sevenZipDir": "D:/tools/7-zip", "passwords": [], "archiveExtensions": ["zip", "7z", "rar", "tar", "gz"], "contextMenu": true, "sendTo": true },
+      "database": { "path": "D:/archive/.xiranite/smartzip-runs.jsonl", "enabled": true, "mode": "jsonl", "defaultPath": false },
+      "command": { "label": "smartzip a", "command": "D:/tools/SmartZip/SmartZip.exe", "args": ["a", "D:/archive/syslog_2023.gz", "D:/reports/reports_q3.zip"] },
+      "selectedPaths": ["D:/archive/syslog_2023.gz", "D:/reports/reports_q3.zip"],
+      "archiveCount": 2,
+      "errors": []
+    }
+  }
+}
