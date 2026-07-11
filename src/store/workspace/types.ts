@@ -59,6 +59,10 @@ export interface WSState {
   chromeIslandMotion: number
   chromeIslandDelay: number
   chromeIslandIdleOffset: number
+  alphabetIndexVisible: boolean
+  alphabetIndexOpacity: number
+  alphabetIndexStyle: "glass" | "solid" | "minimal"
+  alphabetIndexWaveIntensity: number
   cardClickAction: CardClickAction
   cardDoubleClickAction: CardClickAction
   tabDisplayStyle: TabDisplayStyle
@@ -113,6 +117,10 @@ export interface WorkspaceUiActions {
   setChromeIslandMotion(motion: number): void
   setChromeIslandDelay(delay: number): void
   setChromeIslandIdleOffset(offset: number): void
+  setAlphabetIndexVisible(visible: boolean): void
+  setAlphabetIndexOpacity(opacity: number): void
+  setAlphabetIndexStyle(style: WSState["alphabetIndexStyle"]): void
+  setAlphabetIndexWaveIntensity(intensity: number): void
   setCardClickAction(action: CardClickAction): void
   setCardDoubleClickAction(action: CardClickAction): void
   setTabDisplayStyle(style: TabDisplayStyle): void
@@ -221,6 +229,10 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeIslandMotion"
   | "chromeIslandDelay"
   | "chromeIslandIdleOffset"
+  | "alphabetIndexVisible"
+  | "alphabetIndexOpacity"
+  | "alphabetIndexStyle"
+  | "alphabetIndexWaveIntensity"
   | "cardClickAction"
   | "cardDoubleClickAction"
   | "tabDisplayStyle"

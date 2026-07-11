@@ -60,6 +60,7 @@ const CARD_LAYOUTS = new Set<CardLayout>(["grid", "stack", "split", "focus"])
 const BG_MODES = new Set<WorkspaceUiPreferences["bgMode"]>(["grid", "dot-grid", "image", "none"])
 const CHROME_POSITIONS = new Set<WorkspaceUiPreferences["chromePosition"]>(["left", "right", "island"])
 const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default", "traffic-light"])
+const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle"]>(["glass", "solid", "minimal"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
@@ -404,6 +405,10 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     chromeIslandMotion: state.chromeIslandMotion,
     chromeIslandDelay: state.chromeIslandDelay,
     chromeIslandIdleOffset: state.chromeIslandIdleOffset,
+    alphabetIndexVisible: state.alphabetIndexVisible,
+    alphabetIndexOpacity: state.alphabetIndexOpacity,
+    alphabetIndexStyle: state.alphabetIndexStyle,
+    alphabetIndexWaveIntensity: state.alphabetIndexWaveIntensity,
   }
 }
 
@@ -491,6 +496,10 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (typeof value.chromeIslandMotion === "number") next.chromeIslandMotion = value.chromeIslandMotion
   if (typeof value.chromeIslandDelay === "number") next.chromeIslandDelay = value.chromeIslandDelay
   if (typeof value.chromeIslandIdleOffset === "number") next.chromeIslandIdleOffset = value.chromeIslandIdleOffset
+  if (typeof value.alphabetIndexVisible === "boolean") next.alphabetIndexVisible = value.alphabetIndexVisible
+  if (typeof value.alphabetIndexOpacity === "number") next.alphabetIndexOpacity = value.alphabetIndexOpacity
+  if (isOneOf(value.alphabetIndexStyle, ALPHABET_INDEX_STYLES)) next.alphabetIndexStyle = value.alphabetIndexStyle
+  if (typeof value.alphabetIndexWaveIntensity === "number") next.alphabetIndexWaveIntensity = value.alphabetIndexWaveIntensity
   return Object.keys(next).length ? next : undefined
 }
 

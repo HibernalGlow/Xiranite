@@ -1,6 +1,9 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react"
-import { ArrowUp, ChevronsUp } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react"
+import { CircleHelp, type LucideIcon } from "lucide-react"
+import * as LucideIcons from "lucide-react"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -8,116 +11,194 @@ import type { ModuleDef } from "@/types/workspace"
 
 export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
 
+const DEFAULT_INITIAL_INDEX = ALPHABET.indexOf("A")
+
+const RAIL_STYLE_CLASSES = {
+  glass: "border-border/70 bg-card/90 shadow-md shadow-black/10 backdrop-blur-md",
+  solid: "border-border bg-card shadow-sm",
+  minimal: "border-transparent bg-background/65 shadow-none backdrop-blur-sm",
+} as const
+
+const moduleIconRegistry = LucideIcons as unknown as Record<string, LucideIcon | undefined>
+
+function ModuleIcon({ icon }: { icon: string }) {
+  const Icon = moduleIconRegistry[icon] ?? CircleHelp
+  return <Icon aria-hidden="true" />
+}
+
 export function getModulesForInitial(initial: string, modules: readonly ModuleDef[] = MODULE_REGISTRY): ModuleDef[] {
   const normalized = initial.trim().slice(0, 1).toLocaleUpperCase()
   if (!normalized) return []
   return modules.filter((module) => module.name.toLocaleUpperCase().startsWith(normalized))
 }
 
-function selectLetter(selection: string[], letter: string): string[] {
-  if (selection.includes(letter)) return selection.filter((item) => item !== letter)
-  return [...selection, letter].slice(-2)
+export function getNextAlphabetIndex(index: number, direction: number): number {
+  const step = direction < 0 ? -1 : 1
+  return (index + step + ALPHABET.length) % ALPHABET.length
 }
 
 export function AlphabetNodeRail() {
   const workspaceActions = useWorkspaceActions()
-  const viewMode = useWorkspaceShallowSelector((state) => state.viewMode)
-  const [selection, setSelection] = useState<string[]>([])
+  const appearance = useWorkspaceShallowSelector((state) => ({
+    viewMode: state.viewMode,
+    visible: state.alphabetIndexVisible,
+    opacity: state.alphabetIndexOpacity,
+    style: state.alphabetIndexStyle,
+    waveIntensity: state.alphabetIndexWaveIntensity,
+  }))
+  const [activeIndex, setActiveIndex] = useState(DEFAULT_INITIAL_INDEX)
+  const [open, setOpen] = useState(false)
   const [announce, setAnnounce] = useState("")
-  const railRef = useRef<HTMLDivElement>(null)
-  const startYRef = useRef<number | null>(null)
-  const primaryInitial = selection[0]
-  const matchingModules = useMemo(() => primaryInitial ? getModulesForInitial(primaryInitial) : [], [primaryInitial])
-  const primaryModule = matchingModules[0]
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeInitial = ALPHABET[activeIndex] ?? "A"
+  const matchingModules = useMemo(() => getModulesForInitial(activeInitial), [activeInitial])
+  const popoverAlign = activeIndex <= 8 ? "start" : activeIndex >= 17 ? "end" : "center"
 
-  const deploySelectedNode = useCallback(() => {
-    if (selection.length !== 2 || !primaryInitial) {
-      setAnnounce("Select two letters first.")
-      return
-    }
-    if (!primaryModule) {
-      setAnnounce(`No registered node starts with ${primaryInitial}.`)
-      return
-    }
-    workspaceActions.deployComponent(primaryModule.id, viewMode)
-    setAnnounce(`${primaryModule.name} was added to the current view.`)
-  }, [primaryInitial, primaryModule, selection.length, viewMode, workspaceActions])
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+  }, [])
 
-  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const rail = railRef.current
-    if (!rail || event.deltaY === 0) return
+  const keepOpen = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleClose = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => {
+      setOpen(false)
+      closeTimerRef.current = null
+    }, 140)
+  }, [])
+
+  const handleWheel = useCallback((event: WheelEvent<HTMLElement>) => {
+    if (event.deltaY === 0) return
     event.preventDefault()
-    rail.scrollBy({ left: event.deltaY, behavior: "smooth" })
+    event.stopPropagation()
+    setOpen(true)
+    setActiveIndex((current) => getNextAlphabetIndex(current, event.deltaY < 0 ? 1 : -1))
   }, [])
 
-  const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    startYRef.current = event.clientY
+  const selectInitial = useCallback((index: number) => {
+    setActiveIndex(index)
+    setOpen(true)
   }, [])
 
-  const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const startY = startYRef.current
-    startYRef.current = null
-    if (startY !== null && startY - event.clientY > 42) deploySelectedNode()
-  }, [deploySelectedNode])
+  const deployModule = useCallback((module: ModuleDef) => {
+    workspaceActions.deployComponent(module.id, appearance.viewMode)
+    setAnnounce(`${module.name} was added to the current view.`)
+    setOpen(false)
+  }, [appearance.viewMode, workspaceActions])
+
+  if (!appearance.visible) return null
 
   return (
     <section
-      className="xiranite-ui-copy pointer-events-auto absolute inset-x-3 bottom-3 z-20 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-md border border-border/70 bg-card/90 p-1.5 shadow-lg shadow-black/10 backdrop-blur-md"
+      className="xiranite-ui-copy pointer-events-auto absolute inset-x-2 bottom-1 z-20 mx-auto"
       aria-label="Alphabetical node launcher"
       data-testid="alphabet-node-rail"
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
+      onPointerEnter={() => {
+        keepOpen()
+        setOpen(true)
+      }}
+      onPointerLeave={scheduleClose}
+      onFocusCapture={keepOpen}
+      onBlurCapture={scheduleClose}
+      onWheel={handleWheel}
+      style={{
+        opacity: appearance.opacity / 100,
+        width: "min(760px, calc(100vw - 1rem))",
+      }}
     >
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="secondary"
-        className="shrink-0 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
-        aria-label={selection.length === 2 ? `Add a node beginning with ${primaryInitial}` : "Select two letters to add a node"}
-        title={selection.length === 2 ? "Swipe up or click to add the selected node" : "Select two letters, then swipe up"}
-        disabled={selection.length !== 2 || !primaryModule}
-        onClick={deploySelectedNode}
-        data-testid="alphabet-node-rail-deploy"
-      >
-        <ChevronsUp className="size-4" />
-      </Button>
-      <div className="min-w-0">
-        <div
-          ref={railRef}
-          className="flex max-w-[min(66vw,680px)] items-center gap-1 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          onWheel={handleWheel}
-          aria-label="Alphabet selector"
-        >
-          {ALPHABET.map((letter) => {
-            const selectedIndex = selection.indexOf(letter)
-            const count = getModulesForInitial(letter).length
-            return (
-              <button
-                key={letter}
-                type="button"
-                className={cn(
-                  "relative grid size-7 shrink-0 place-items-center rounded-sm border text-[11px] font-mono font-semibold transition-colors",
-                  selectedIndex >= 0
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground",
-                )}
-                aria-pressed={selectedIndex >= 0}
-                aria-label={`${letter}, ${count} matching nodes`}
-                title={`${letter}: ${count} matching nodes`}
-                onClick={() => setSelection((current) => selectLetter(current, letter))}
-                data-testid={`alphabet-node-letter-${letter}`}
-              >
-                {letter}
-                {selectedIndex >= 0 && <span className="absolute -right-1 -top-1 grid size-3 place-items-center rounded-full bg-card text-[8px] text-primary ring-1 ring-primary">{selectedIndex + 1}</span>}
-              </button>
-            )
-          })}
+      <Popover open={open} onOpenChange={setOpen}>
+        <div className={cn("flex h-7 w-full items-center rounded-full border px-1", RAIL_STYLE_CLASSES[appearance.style])}>
+          <div
+            className="grid w-full items-center"
+            style={{ gridTemplateColumns: "repeat(26, minmax(0, 1fr))" }}
+            aria-label="Alphabet selector"
+            role="listbox"
+            aria-activedescendant={`alphabet-node-letter-${activeInitial}`}
+          >
+            {ALPHABET.map((letter, index) => {
+              const active = index === activeIndex
+              const distance = Math.abs(index - activeIndex)
+              const nearScale = distance === 1
+                ? 1 + appearance.waveIntensity / 2500
+                : distance === 2
+                  ? 1 + appearance.waveIntensity / 5000
+                  : 1
+              const letterButton = (
+                <Button
+                  id={`alphabet-node-letter-${letter}`}
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={cn(
+                    "h-6 w-full min-w-0 rounded-full p-0 font-mono text-[10px] font-semibold transition-[color,background-color,box-shadow,transform] duration-200 ease-out",
+                    active
+                      ? "bg-primary/15 text-primary shadow-[inset_0_-1px_0_var(--primary)] hover:bg-primary/20"
+                      : distance <= 2
+                        ? "text-foreground/80 hover:bg-muted hover:text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                  style={{ transform: `scale(${active ? 1 + appearance.waveIntensity / 1000 : nearScale})` }}
+                  aria-selected={active}
+                  aria-label={`${letter}, ${getModulesForInitial(letter).length} matching nodes`}
+                  title={`${letter}: ${getModulesForInitial(letter).length} nodes`}
+                  onPointerEnter={() => selectInitial(index)}
+                  onFocus={() => selectInitial(index)}
+                  data-letter-index={index}
+                  data-testid={`alphabet-node-letter-${letter}`}
+                  role="option"
+                >
+                  {letter}
+                </Button>
+              )
+              return active ? <PopoverAnchor key={letter} asChild>{letterButton}</PopoverAnchor> : <span key={letter}>{letterButton}</span>
+            })}
+          </div>
         </div>
-        <p className="mt-1 flex items-center gap-1 px-1 text-[9px] font-mono text-muted-foreground" aria-live="polite">
-          <ArrowUp className="size-3" />
-          {announce || (selection.length === 2 ? `${selection.join(" + ")} · swipe up to add ${primaryModule?.name ?? "a matching node"}` : "pick two letters · swipe up to add")}
-        </p>
-      </div>
+        <PopoverContent
+          side="top"
+          align={popoverAlign}
+          sideOffset={6}
+          collisionPadding={8}
+          className={cn("w-[min(92vw,360px)] p-0", RAIL_STYLE_CLASSES[appearance.style])}
+          style={{ opacity: appearance.opacity / 100 }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onPointerEnter={keepOpen}
+          onPointerLeave={scheduleClose}
+          onWheel={(event) => event.preventDefault()}
+          data-testid="alphabet-node-results"
+        >
+          <Command key={activeInitial} loop>
+            <CommandList className="!max-h-none !overflow-visible">
+              <CommandEmpty>No nodes beginning with {activeInitial}</CommandEmpty>
+              <CommandGroup heading={`${activeInitial} · ${matchingModules.length} nodes`}>
+                {matchingModules.map((module) => (
+                  <CommandItem
+                    key={module.id}
+                    value={`${module.name} ${module.id}`}
+                    className="h-8 min-h-8 items-center py-1 text-xs"
+                    onSelect={() => deployModule(module)}
+                    data-testid={`alphabet-node-result-${module.id}`}
+                  >
+                    <ModuleIcon icon={module.icon} />
+                    <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                      <span className="shrink-0 text-xs font-medium">{module.name}</span>
+                      <span className="min-w-0 truncate text-[10px] font-normal text-muted-foreground">{module.description}</span>
+                    </span>
+                    <CommandShortcut className="max-w-16 truncate text-[9px]">{module.id}</CommandShortcut>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <span className="sr-only" aria-live="polite">{announce}</span>
     </section>
   )
 }
