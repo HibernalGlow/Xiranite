@@ -35,11 +35,11 @@ function ChoiceControlField({ children, className, contentClassName, label, labe
         className={cn(
           "w-fit text-[10px] text-muted-foreground",
           "[[data-field-title-style=stacked]_&]:mb-0 [[data-field-title-style=stacked]_&]:px-0",
-          "[[data-field-title-style=legend]_&]:mb-0 [[data-field-title-style=legend]_&]:ml-1 [[data-field-title-style=legend]_&]:px-1",
+          "[[data-field-title-style=legend]_&]:pointer-events-none [[data-field-title-style=legend]_&]:mb-0 [[data-field-title-style=legend]_&]:ml-1 [[data-field-title-style=legend]_&]:px-1",
           "[[data-field-title-style=inline]_&]:mb-0 [[data-field-title-style=inline]_&]:px-0",
           "[[data-field-title-style=hidden]_&]:sr-only",
           labelStyle === "stacked" && "mb-0 px-0",
-          labelStyle === "legend" && "mb-0 ml-1 px-1",
+          labelStyle === "legend" && "pointer-events-none mb-0 ml-1 px-1",
           labelStyle === "inline" && "mb-0 px-0",
           labelStyle === "hidden" && "sr-only",
         )}
