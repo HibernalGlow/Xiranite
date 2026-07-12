@@ -3,7 +3,7 @@ import { useKeyboard } from "@opentui/react";
 import { useState } from "react";
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
 import {
-  ActionTabs,
+  ActionLauncher,
   ExecutionActions,
   ProgressBar,
   TerminalThemeProvider,
@@ -92,15 +92,7 @@ function Desk({
         >{`${s.phase === "running" ? "TRANSFERRING" : "DIFF READY"} ${flow}`}</text>
       </box>
       <box height={3} marginTop={1}>
-        <ActionTabs
-          id="action"
-          options={field("action").options ?? []}
-          value={a}
-          focused={s.focusedControlId === "action"}
-          disabled={s.phase === "running"}
-          onFocus={() => s.focus("action")}
-          onChange={(v) => s.setField("action", v)}
-        />
+        <ActionLauncher field={field("action")} session={s} />
       </box>
       <box height={7} flexDirection="row" gap={1}>
         <F
