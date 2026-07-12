@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
 import { useMemo, useState } from "react"
-import { ActionTabs, ClickTarget, resolveTerminalTheme, TerminalPreferencesScreen, TerminalThemeProvider, terminalIcon, useAnimation, useTerminalChromeActions, useTerminalTheme, useTerminalUiSession, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "@xiranite/cli-runtime/terminal/opentui"
+import { ActionLauncher, ActionTabs, ClickTarget, resolveTerminalTheme, TerminalPreferencesScreen, TerminalThemeProvider, terminalIcon, useAnimation, useTerminalChromeActions, useTerminalTheme, useTerminalUiSession, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "@xiranite/cli-runtime/terminal/opentui"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { NodeRunResult } from "@xiranite/contract"
@@ -37,7 +37,7 @@ function SoundwWorkbench({ definition, language, preferences, onExit, onThemePre
       <WorkbenchPanel title={language === "zh" ? "设备矩阵" : "Device matrix"} description="RECORDING ROUTE" width="38%">
         <box flexDirection="column" flexGrow={1} gap={1}>
           <box height={3} flexShrink={0} borderStyle="rounded" borderColor={action === "switch-recording" ? theme.colors.focusRing : theme.colors.border} paddingLeft={1} paddingRight={1}><text fg={theme.colors.primary}><b>◉ RECORDING DEVICES</b></text></box>
-          <ActionTabs id="field-action" options={[{ value: "switch-recording", label: "↻ 切换设备" }, { value: "mute", label: "◉ 静音" }, { value: "unmute", label: "◌ 解除" }, { value: "toggle-mute", label: "◐ 切换静音" }, { value: "status", label: "▣ 状态" }]} value={action} focused={session.focusedControlId === "action"} disabled={session.phase === "running"} onFocus={() => session.focus("action")} onChange={(value) => session.setField("action", value)} />
+          <ActionLauncher field={definition.schema.fields.find((item) => item.id === "action")!} session={session} />
           <WorkbenchButton id="execute" onClick={() => void session.requestExecute()}>{session.phase === "running" ? "■ 执行中" : `▶ ${soundwActionLabel(action ?? "status", language)}`}</WorkbenchButton>
         </box>
       </WorkbenchPanel>

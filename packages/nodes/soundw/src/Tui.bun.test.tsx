@@ -17,7 +17,7 @@ describe("SoundW direct OpenTUI screen", () => {
     try {
       await act(async () => setup.renderOnce()); const first = setup.captureCharFrame(); expect(first).toContain("SOUNDW // RECORDING ROUTE"); expect(first).toContain("设备矩阵"); expect(first).toContain("预设卡片"); expect(first).toContain("CLI PATH OVERRIDE")
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 540)); await setup.flush() }); expect(setup.captureCharFrame()).not.toBe(first)
-      await click("field-action-mute"); await click("execute"); await setup.waitFor(() => received !== undefined); expect(received).toMatchObject({ action: "mute" }); expect(setup.captureCharFrame()).toContain("fake SoundSwitch completed")
+      await click("field-action-mute"); await setup.waitFor(() => received !== undefined); expect(received).toMatchObject({ action: "mute" }); expect(setup.captureCharFrame()).toContain("fake SoundSwitch completed")
       await click("tab-logs"); expect(setup.captureCharFrame()).toContain("Running SoundSwitch")
     } finally { await act(async () => setup.renderer.destroy()) }
   })

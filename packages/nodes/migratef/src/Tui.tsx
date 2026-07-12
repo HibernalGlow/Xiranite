@@ -92,7 +92,7 @@ function Desk({
         >{`${s.phase === "running" ? "TRANSFERRING" : "DIFF READY"} ${flow}`}</text>
       </box>
       <box height={3} marginTop={1}>
-        <ActionLauncher field={field("action")} session={s} />
+        <ActionLauncher id="action" field={field("action")} session={s} />
       </box>
       <box height={7} flexDirection="row" gap={1}>
         <F
