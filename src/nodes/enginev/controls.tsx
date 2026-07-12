@@ -56,7 +56,7 @@ export function EngineWorkflowTabs(props: {
             className={cn("min-w-0 gap-1.5 px-1.5 text-xs", floating && "h-8 shrink-0 px-2")}
           >
             <item.icon />
-            {floating ? item.shortLabel : item.label}
+            {floating ? <span className="hidden @4xl/enginev:inline">{item.shortLabel}</span> : item.label}
           </TabsTrigger>
         ))}
       </TabsList>

@@ -649,14 +649,14 @@ function FloatingActionBar(props: ViewProps & { workspace?: boolean }) {
     <div
       data-testid="enginev-floating-actions"
       className={cn(
-        "pointer-events-auto absolute z-10 flex w-fit max-w-[calc(100%-1rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-md",
+        "pointer-events-auto absolute z-10 flex w-fit max-w-[calc(100%-1rem)] flex-nowrap items-center justify-center gap-1.5 overflow-x-auto rounded-xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-md",
         position ? "bottom-auto translate-x-0" : props.workspace ? "left-8 top-[22rem]" : "bottom-3 left-1/2 -translate-x-1/2",
       )}
       style={position ?? undefined}
     >
       <button
         aria-label="Move action tray"
-        className="grid size-7 shrink-0 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+        className="absolute left-1 top-1/2 grid size-7 -translate-y-1/2 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
         type="button"
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
@@ -665,15 +665,15 @@ function FloatingActionBar(props: ViewProps & { workspace?: boolean }) {
       >
         <GripVertical className="size-4" />
       </button>
-      <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">
+      <div className="flex min-w-0 flex-nowrap items-center justify-center gap-1.5 pl-7">
         <div className="flex items-center gap-1.5 px-1">
           <strong className="text-sm tabular-nums">{props.selectedIds.length}</strong>
-          <span className="text-xs text-muted-foreground">{props.tNode("summary.selected", "已选中")}</span>
+          <span className="hidden text-xs text-muted-foreground @4xl/enginev:inline">{props.tNode("summary.selected", "已选中")}</span>
         </div>
         <EngineWorkflowTabs action={props.action} className="max-w-full" disabled={props.running} variant="floating" onActionChange={props.onActionChange} />
         <Button size="sm" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}>
           <ActionIcon data-icon="inline-start" />
-          {props.tNode("buttons.run", "Run")} {props.actionMeta.shortLabel}
+          <span className="hidden @4xl/enginev:inline">{props.tNode("buttons.run", "Run")} {props.actionMeta.shortLabel}</span>
         </Button>
         <ToolbarActions {...props} />
       </div>
