@@ -127,6 +127,28 @@ describe("xlchemy core contract", () => {
     expect(rejected.message).toContain("Enable PNG fallback")
   })
 
+  test("normalizes lossless JPEG input before transcoding in always mode", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/events/b.jpg"], format: "Lossless JPEG Transcoding", jxlNormalize: true, jxlNormalizeWhen: "always", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands[0]).toEqual({ command: "/bin/jpegtran", args: ["-copy", "all", "-optimize", "-outfile", "/photos/events/b.jxl.xlchemy-normalized.jpg", "/photos/events/b.jpg"] })
+    expect(runtime.commands[1]?.args.at(-2)).toBe("/photos/events/b.jxl.xlchemy-normalized.jpg")
+  })
+
+  test("normalizes and retries lossless JPEG only after an initial failure in on-fail mode", async () => {
+    const runtime = fakeRuntime()
+    const runCommand = runtime.runCommand
+    let cjxlAttempts = 0
+    runtime.runCommand = async (command, args) => {
+      if (command.endsWith("cjxl") && cjxlAttempts++ === 0) { runtime.commands.push({ command, args }); return { exitCode: 1, stdout: "", stderr: "unsupported JPEG structure" } }
+      return runCommand(command, args)
+    }
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/events/b.jpg"], format: "Lossless JPEG Transcoding", jxlNormalize: true, jxlNormalizeWhen: "on-fail", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.map((item) => item.command)).toEqual(["/bin/cjxl", "/bin/jpegtran", "/bin/cjxl"])
+    expect(runtime.commands[2]?.args.at(-2)).toBe("/photos/events/b.jxl.xlchemy-normalized.jpg")
+  })
+
   test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false, deleteOriginal: true, deleteOriginalMode: "trash" }), runtime)
@@ -150,7 +172,7 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
     listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
     ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async (path) => { files.delete(path) }, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async (source, target) => { const item = files.get(source); if (item) { files.set(target, item); files.delete(source) } }, setTimes: async () => undefined,
-    runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
+    runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
     convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },

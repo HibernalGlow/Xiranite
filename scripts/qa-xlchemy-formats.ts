@@ -17,6 +17,7 @@ const cases: MatrixCase[] = [
   { id: "jpeg-jpegli", format: "JPEG", source: "png", options: { jpegEncoder: "jpegli" } },
   { id: "jpeg-libjpeg", format: "JPEG", source: "png", options: { jpegEncoder: "libjpeg" } },
   { id: "lossless-jpeg", format: "Lossless JPEG Transcoding", source: "jpg" },
+  { id: "lossless-jpeg-normalized", format: "Lossless JPEG Transcoding", source: "jpg", options: { jxlNormalize: true, jxlNormalizeWhen: "always" } },
   { id: "jpeg-reconstruction", format: "JPEG Reconstruction", source: "lossless-jxl" },
   { id: "smallest-lossless", format: "Smallest Lossless", source: "png" },
 ]

@@ -319,6 +319,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime)
     let encoderSource = plan.sourcePath
     const temporarySource = `${plan.outputPath}.xlchemy-input.png`
+    const normalizedJpeg = `${plan.outputPath}.xlchemy-normalized.jpg`
     if (input.downscale?.enabled) {
       const magick = await runtime.resolveCommand(["magick"])
       if (!magick) throw new Error("ImageMagick is required for downscaling.")
@@ -326,10 +327,18 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       if (resized.exitCode !== 0) throw new Error(resized.stderr.trim() || "ImageMagick downscaling failed.")
       encoderSource = temporarySource
     }
-    const result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
+    const normalizeLosslessJpeg = shouldNormalizeLosslessJpeg(encoderSource, input, runtime)
+    if (normalizeLosslessJpeg && input.jxlNormalize && input.jxlNormalizeWhen === "always") encoderSource = await normalizeJpegSource(encoderSource, normalizedJpeg, runtime)
+    let result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
       ? await runIntelligentJxlComparison(encoderSource, plan.outputPath, input, runtime)
       : await runEncoderConversion(encoderSource, plan.outputPath, input, runtime)
+    if (result.exitCode !== 0 && normalizeLosslessJpeg && input.jxlNormalize && input.jxlNormalizeWhen === "on-fail") {
+      if ((await runtime.pathInfo(plan.outputPath)).exists) await runtime.removeFile(plan.outputPath)
+      encoderSource = await normalizeJpegSource(encoderSource, normalizedJpeg, runtime)
+      result = await runEncoderConversion(encoderSource, plan.outputPath, input, runtime)
+    }
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
+    if ((await runtime.pathInfo(normalizedJpeg)).exists) await runtime.removeFile(normalizedJpeg)
     if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Encoder exited with ${result.exitCode}`)
     if (input.format === "JPEG XL" && input.jxlVerify) {
       const decoder = await runtime.resolveCommand(["djxl"])
@@ -414,6 +423,20 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
 }
 
 async function requireCommand(runtime: XlchemyRuntime, candidates: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return command }
+
+function shouldNormalizeLosslessJpeg(source: string, input: XlchemyInput, runtime: XlchemyRuntime): boolean {
+  const jpeg = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(runtime.extname(source).toLowerCase())
+  return jpeg && (input.format === "Lossless JPEG Transcoding" || input.format === "JPEG XL" && input.autoLosslessJpeg !== false)
+}
+
+async function normalizeJpegSource(source: string, target: string, runtime: XlchemyRuntime): Promise<string> {
+  const jpegtran = await requireCommand(runtime, ["jpegtran"])
+  const result = await runRuntimeCommand(runtime, jpegtran, ["-copy", "all", "-optimize", "-outfile", target, source])
+  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "JPEG normalization failed.")
+  const output = await runtime.pathInfo(target)
+  if (!output.exists || !output.isFile) throw new Error("JPEG normalization did not create an output file.")
+  return target
+}
 
 function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {
   const filter = settings.resample !== "default" ? ["-filter", settings.resample] : []
