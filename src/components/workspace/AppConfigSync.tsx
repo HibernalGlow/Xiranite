@@ -65,7 +65,7 @@ const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
 const RESIZABLE_HANDLE_STYLES = new Set<WorkspaceUiPreferences["resizableHandleStyle"]>(["grip", "dots", "line", "minimal"])
 const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles"])
-const CHOICE_CONTROL_LABEL_STYLES = new Set<WorkspaceUiPreferences["choiceControlLabelStyle"]>(["stacked", "legend", "inline", "hidden"])
+const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
@@ -418,7 +418,7 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     modulePanelStyle: state.modulePanelStyle,
     resizableHandleStyle: state.resizableHandleStyle,
     choiceControlStyle: state.choiceControlStyle,
-    choiceControlLabelStyle: state.choiceControlLabelStyle,
+    fieldTitleStyle: state.fieldTitleStyle,
   }
 }
 
@@ -514,7 +514,8 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
   if (isOneOf(value.choiceControlStyle, CHOICE_CONTROL_STYLES)) next.choiceControlStyle = value.choiceControlStyle
-  if (isOneOf(value.choiceControlLabelStyle, CHOICE_CONTROL_LABEL_STYLES)) next.choiceControlLabelStyle = value.choiceControlLabelStyle
+  const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle
+  if (isOneOf(fieldTitleStyle, FIELD_TITLE_STYLES)) next.fieldTitleStyle = fieldTitleStyle
   return Object.keys(next).length ? next : undefined
 }
 

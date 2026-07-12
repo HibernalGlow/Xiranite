@@ -19,7 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
-import { CHOICE_CONTROL_LABEL_STYLES, CHOICE_CONTROL_STYLES, type ChoiceControlLabelStyle, type ChoiceControlStyle } from "@/components/ui/choice-control-variants"
+import { CHOICE_CONTROL_STYLES, FIELD_TITLE_STYLES, type ChoiceControlStyle, type FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import { ChoiceControlField } from "@/components/ui/choice-control"
 import { MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
@@ -226,7 +226,7 @@ export function ThemeSettings() {
     tabDisplayStyle: workspace.tabDisplayStyle,
     switchDisplayStyle: workspace.switchDisplayStyle,
     choiceControlStyle: workspace.choiceControlStyle,
-    choiceControlLabelStyle: workspace.choiceControlLabelStyle,
+    fieldTitleStyle: workspace.fieldTitleStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
     modulePanelStyle: workspace.modulePanelStyle,
     resizableHandleStyle: workspace.resizableHandleStyle,
@@ -1289,7 +1289,7 @@ export function ThemeSettings() {
                   <p className="mt-0.5 text-[11px] text-muted-foreground">标题样式同步到节点中的 Select、输入框、滑条等标准字段，以及压缩模式、输出位置等互斥组选项；不改变控件的键盘与表单语义。</p>
                 </div>
                 <PreferenceToggle label="控件样式" value={state.choiceControlStyle} values={CHOICE_CONTROL_STYLES} labels={{ segmented: "分段", pills: "胶囊", tabs: "标签", tiles: "卡片" }} onChange={(value) => workspaceActions.setChoiceControlStyle(value as ChoiceControlStyle)} />
-                <PreferenceToggle label="标题样式" value={state.choiceControlLabelStyle} values={CHOICE_CONTROL_LABEL_STYLES} labels={{ stacked: "上置", legend: "悬浮图例", inline: "左侧", hidden: "隐藏" }} onChange={(value) => workspaceActions.setChoiceControlLabelStyle(value as ChoiceControlLabelStyle)} />
+                <PreferenceToggle label="全局字段标题" value={state.fieldTitleStyle} values={FIELD_TITLE_STYLES} labels={{ stacked: "上置", legend: "悬浮图例", inline: "左侧", hidden: "隐藏" }} onChange={(value) => workspaceActions.setFieldTitleStyle(value as FieldTitleStyle)} />
                 <ChoiceControlField label="压缩模式">
                   <ToggleGroup aria-label="压缩模式预览" className="grid w-full grid-cols-2" type="single" value="lossless" onValueChange={() => undefined} size="sm">
                     <ToggleGroupItem value="lossless">无损</ToggleGroupItem>

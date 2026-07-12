@@ -2,6 +2,11 @@ export const CHOICE_CONTROL_STYLES = ["segmented", "pills", "tabs", "tiles"] as 
 
 export type ChoiceControlStyle = (typeof CHOICE_CONTROL_STYLES)[number]
 
-export const CHOICE_CONTROL_LABEL_STYLES = ["stacked", "legend", "inline", "hidden"] as const
+export const FIELD_TITLE_STYLES = ["stacked", "legend", "inline", "hidden"] as const
 
-export type ChoiceControlLabelStyle = (typeof CHOICE_CONTROL_LABEL_STYLES)[number]
+export type FieldTitleStyle = (typeof FIELD_TITLE_STYLES)[number]
+
+/** @deprecated Use FIELD_TITLE_STYLES. Kept for registry consumers during migration. */
+export const CHOICE_CONTROL_LABEL_STYLES = FIELD_TITLE_STYLES
+/** @deprecated Use FieldTitleStyle. */
+export type ChoiceControlLabelStyle = FieldTitleStyle

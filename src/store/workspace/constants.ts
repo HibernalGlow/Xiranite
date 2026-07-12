@@ -67,7 +67,7 @@ export const INITIAL_STATE: WSState = {
   tabDisplayStyle: "underline",
   switchDisplayStyle: "outlined",
   choiceControlStyle: "segmented",
-  choiceControlLabelStyle: "legend",
+  fieldTitleStyle: "legend",
   moduleTitleStyle: "legend",
   modulePanelStyle: "soft",
   resizableHandleStyle: "grip",

@@ -17,7 +17,7 @@ import type {
 import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
-import type { ChoiceControlLabelStyle, ChoiceControlStyle } from "@/components/ui/choice-control-variants"
+import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 
 export interface WSState {
@@ -70,7 +70,7 @@ export interface WSState {
   tabDisplayStyle: TabDisplayStyle
   switchDisplayStyle: SwitchDisplayStyle
   choiceControlStyle: ChoiceControlStyle
-  choiceControlLabelStyle: ChoiceControlLabelStyle
+  fieldTitleStyle: FieldTitleStyle
   moduleTitleStyle: ModuleTitleStyle
   modulePanelStyle: ModulePanelStyle
   resizableHandleStyle: ResizableHandleStyle
@@ -133,7 +133,7 @@ export interface WorkspaceUiActions {
   setTabDisplayStyle(style: TabDisplayStyle): void
   setSwitchDisplayStyle(style: SwitchDisplayStyle): void
   setChoiceControlStyle(style: ChoiceControlStyle): void
-  setChoiceControlLabelStyle(style: ChoiceControlLabelStyle): void
+  setFieldTitleStyle(style: FieldTitleStyle): void
   setModuleTitleStyle(style: ModuleTitleStyle): void
   setModulePanelStyle(style: ModulePanelStyle): void
   setResizableHandleStyle(style: ResizableHandleStyle): void
@@ -250,7 +250,7 @@ export type WorkspaceUiPreferences = Pick<
   | "tabDisplayStyle"
   | "switchDisplayStyle"
   | "choiceControlStyle"
-  | "choiceControlLabelStyle"
+  | "fieldTitleStyle"
   | "moduleTitleStyle"
   | "modulePanelStyle"
   | "resizableHandleStyle"

@@ -13,7 +13,7 @@ export function WorkspaceAppearance() {
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
     choiceControlStyle: state.choiceControlStyle,
-    choiceControlLabelStyle: state.choiceControlLabelStyle,
+    fieldTitleStyle: state.fieldTitleStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
     resizableHandleStyle: state.resizableHandleStyle,
@@ -37,8 +37,9 @@ export function WorkspaceAppearance() {
 
   useEffect(() => {
     document.documentElement.dataset.choiceControlStyle = appearance.choiceControlStyle
-    document.documentElement.dataset.choiceControlLabelStyle = appearance.choiceControlLabelStyle
-  }, [appearance.choiceControlLabelStyle, appearance.choiceControlStyle])
+    document.documentElement.dataset.fieldTitleStyle = appearance.fieldTitleStyle
+    delete document.documentElement.dataset.choiceControlLabelStyle
+  }, [appearance.fieldTitleStyle, appearance.choiceControlStyle])
 
   useEffect(() => {
     document.documentElement.dataset.moduleTitleStyle = appearance.moduleTitleStyle
