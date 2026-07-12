@@ -106,6 +106,7 @@ export interface XlchemyRuntime {
   trashFile?: (path: string) => Promise<void>
   renameFile: (source: string, target: string) => Promise<void>
   setTimes: (path: string, atimeMs: number, mtimeMs: number) => Promise<void>
+  hashFile?: (path: string) => Promise<string>
   runCommand: (command: string, args: string[], isCancelled?: () => boolean) => Promise<XlchemyCommandResult>
   isCancelled?: () => boolean
   waitWhilePaused?: () => Promise<void>
@@ -337,17 +338,10 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       encoderSource = await normalizeJpegSource(encoderSource, normalizedJpeg, runtime)
       result = await runEncoderConversion(encoderSource, plan.outputPath, input, runtime)
     }
+    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Encoder exited with ${result.exitCode}`)
+    if ((input.format === "JPEG XL" || input.format === "Lossless JPEG Transcoding") && input.jxlVerify) await verifyJxlOutput(plan.outputPath, encoderSource, input, runtime)
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
     if ((await runtime.pathInfo(normalizedJpeg)).exists) await runtime.removeFile(normalizedJpeg)
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Encoder exited with ${result.exitCode}`)
-    if (input.format === "JPEG XL" && input.jxlVerify) {
-      const decoder = await runtime.resolveCommand(["djxl"])
-      if (!decoder) throw new Error("djxl is required for JPEG XL integrity verification.")
-      const verificationPath = `${plan.outputPath}.verify.png`
-      const verification = await runRuntimeCommand(runtime, decoder, [plan.outputPath, verificationPath])
-      await runtime.removeFile(verificationPath)
-      if (verification.exitCode !== 0) throw new Error(verification.stderr.trim() || "JPEG XL integrity verification failed.")
-    }
     if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, plan.outputPath, input, runtime)
     else if (input.preserveMetadata) await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
@@ -436,6 +430,21 @@ async function normalizeJpegSource(source: string, target: string, runtime: Xlch
   const output = await runtime.pathInfo(target)
   if (!output.exists || !output.isFile) throw new Error("JPEG normalization did not create an output file.")
   return target
+}
+
+async function verifyJxlOutput(output: string, encodedSource: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<void> {
+  const decoder = await requireCommand(runtime, ["djxl"])
+  const reconstructsJpeg = shouldNormalizeLosslessJpeg(encodedSource, input, runtime)
+  const verificationPath = `${output}.verify.${reconstructsJpeg ? "jpg" : "png"}`
+  const verification = await runRuntimeCommand(runtime, decoder, ["--num_threads", String(input.threads), output, verificationPath])
+  if (verification.exitCode !== 0) { if ((await runtime.pathInfo(verificationPath)).exists) await runtime.removeFile(verificationPath); throw new Error(verification.stderr.trim() || "JPEG XL integrity verification failed.") }
+  try {
+    if (reconstructsJpeg) {
+      if (!runtime.hashFile) throw new Error("The current runtime does not support JPEG reconstruction checksum verification.")
+      const [sourceHash, reconstructedHash] = await Promise.all([runtime.hashFile(encodedSource), runtime.hashFile(verificationPath)])
+      if (sourceHash !== reconstructedHash) throw new Error(`JPEG XL reconstruction checksum mismatch (${sourceHash} != ${reconstructedHash}).`)
+    }
+  } finally { await runtime.removeFile(verificationPath) }
 }
 
 function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {

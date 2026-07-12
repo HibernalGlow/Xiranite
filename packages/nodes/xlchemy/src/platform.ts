@@ -1,4 +1,6 @@
 import { access, copyFile, mkdir, readdir, rm, stat, utimes } from "node:fs/promises"
+import { createReadStream } from "node:fs"
+import { createHash } from "node:crypto"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import { delimiter } from "node:path"
 import type { XlchemyRuntime } from "./core.js"
@@ -15,6 +17,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     trashFile: moveFileToRecycleBin,
     renameFile: async (source, target) => { const { rename } = await import("node:fs/promises"); await rename(source, target) },
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
+    hashFile: sha256File,
     runCommand: runXlchemyCommand,
     resolveCommand,
     probeSlimg,
@@ -25,6 +28,12 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     extname,
     relative,
   }
+}
+
+async function sha256File(path: string): Promise<string> {
+  const hash = createHash("sha256")
+  await new Promise<void>((resolvePromise, reject) => { const stream = createReadStream(path); stream.on("data", (chunk) => hash.update(chunk)); stream.once("error", reject); stream.once("end", resolvePromise) })
+  return hash.digest("hex")
 }
 
 async function pathInfo(path: string) {
