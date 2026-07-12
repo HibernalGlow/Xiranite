@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --exclude src/cli.visual.test.ts"
+    "test": "vitest run src --exclude src/cli.visual.test.ts --exclude src/Tui.bun.test.tsx"
   },
   "dependencies": { "@opentui/react": "0.4.3", "@xiranite/cli-runtime": "workspace:*", "@xiranite/config": "workspace:*", "@xiranite/contract": "workspace:*", "react": "^19.2.4" },
   "devDependencies": { "@types/node": "^24.12.0", "@types/react": "^19.2.14", "typescript": "^7.0.2" }

@@ -13,4 +13,18 @@ describe("xlchemy interaction schema", () => {
     const schema = createXlchemyInteractionSchema({ action: "convert", pathsText: "D:/a.png", existingPolicy: "replace" })
     expect(schema.isDangerous?.(schema.toInput(schema.initialValues))).toBe(true)
   })
+
+  test("exposes and maps the complete conversion capability set", () => {
+    const schema = createXlchemyInteractionSchema({
+      pathsText: "D:/a.png", action: "convert", format: "AVIF", avifEncoder: "slimg", avifBitDepth: "10",
+      deleteOriginal: true, deleteOriginalMode: "trash", metadataMode: "exiftool-custom", exiftoolCustomArgs: '-Artist="X" "$dst"',
+      downscaleEnabled: true, downscaleMode: "megapixels", downscaleMegapixels: 3.2, downscaleResample: "lanczos",
+      ramOptimizer: "dynamic", enableCustomArgs: true, avifencArgs: "--foo bar", processingOrder: "size-desc", excludedFormatsText: "gif,bmp",
+    })
+    const ids = new Set(schema.fields.map((field) => field.id))
+    for (const id of ["maxCompression", "jxlPngFallback", "jxlNormalizeWhen", "smallestPng", "avifEncoder", "deleteOriginalMode", "processingOrder", "exiftoolCustomArgs", "downscaleMegapixels", "ramOptimizerRules", "avifencArgs"]) expect(ids.has(id)).toBe(true)
+    const input = schema.toInput(schema.initialValues)
+    expect(input).toMatchObject({ avifEncoder: "slimg", avifBitDepth: "10", deleteOriginalMode: "trash", metadataMode: "exiftool-custom", exiftoolCustomArgs: '-Artist="X" "$dst"', processingOrder: "size-desc", excludedFormats: ["gif", "bmp"], ramOptimizer: "dynamic", enableCustomArgs: true, avifencArgs: "--foo bar", downscale: { enabled: true, mode: "megapixels", megapixels: 3.2, resample: "lanczos" } })
+    expect(schema.view?.sections.map((section) => section.id)).toEqual(["input", "files", "modify", "advanced"])
+  })
 })
