@@ -20,17 +20,22 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { RawfilterAction, RawfilterInput, RawfilterPlanItem, RawfilterResult, RawfilterRuntime } from "./core.js"
 import { runRawfilter } from "./core.js"
 import { createNodeRawfilterRuntime, readClipboardText } from "./platform.js"
+import { createRawfilterInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("rawfilter")
 
-interface RawfilterNodeConfig {
+interface RawfilterNodeConfig extends CliInteractionPreferencesSource {
   name_only_mode?: boolean
   create_shortcuts?: boolean
   trash_only?: boolean
@@ -128,7 +133,7 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
@@ -451,6 +456,17 @@ function writeProgress(host: CliHost, line: string): void {
 function endProgress(host: CliHost, active = true): void {
   if (active && host.stdout.isTTY) host.stdout.write("\n")
 }
+
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  await runInteractionCli({ args, host, cliName: CLI_NAME,
+    loadContext: async () => { const { config } = await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+    createDefinition: (defaults, language) => ({ schema: createRawfilterInteractionSchema({ nameOnlyMode: defaults.name_only_mode, createShortcuts: defaults.create_shortcuts, trashOnly: defaults.trash_only, minSimilarity: defaults.min_similarity, dryRun: defaults.dry_run }, language), run: (input, event) => runRawfilter(input, createNodeRawfilterRuntime(), event) }),
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | scan | plan | execute`)),
+    runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).RawfilterTui,
+    createPreferences: (_d, current) => rawfilterPreferences(host, current), reexecEntrypoint: process.argv[1], help,
+  })
+}
+function rawfilterPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"rawfilter",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"rawfilter",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {
