@@ -90,6 +90,14 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(runtime.commands.at(-1)).toEqual({ command: "trash", args: ["/photos/a.png"] })
   })
+
+  test("encodes the lossless comparison pool and keeps only the smallest real output", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "Smallest Lossless", outputMode: "source", overwrite: true, preserveMetadata: false, smallestFormatPool: { png: true, webp: true, jxl: true } }), runtime)
+    expect(result.success).toBe(true)
+    expect(result.data?.files[0]).toMatchObject({ outputPath: "/photos/a.jxl", outputBytes: 200, status: "converted" })
+    expect(runtime.commands.slice(0, 3).map((command) => command.command)).toEqual(["/bin/magick", "/bin/cwebp", "/bin/cjxl"])
+  })
 })
 
 function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
@@ -98,8 +106,8 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     commands: [],
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
     listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
-    ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async () => undefined, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async () => undefined, setTimes: async () => undefined,
-    runCommand: async (command, args) => { runtime.commands.push({ command, args }); files.set(args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!, { size: 400 }); return { exitCode: 0, stdout: "", stderr: "" } },
+    ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async (path) => { files.delete(path) }, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async (source, target) => { const item = files.get(source); if (item) { files.set(target, item); files.delete(source) } }, setTimes: async () => undefined,
+    runCommand: async (command, args) => { runtime.commands.push({ command, args }); const output = args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
     convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },

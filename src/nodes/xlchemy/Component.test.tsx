@@ -132,6 +132,19 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState).toMatchObject({ outputMode: "directory", outputDir: "D:/converted" })
   })
 
+  test("configures the real smallest-lossless format pool", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "Smallest Lossless" })
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    const pool = screen.getByRole("group", { name: "最小格式池" })
+
+    await user.click(within(pool).getByRole("button", { name: "WebP" }))
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+
+    expect(host.cardState).toMatchObject({ smallestPng: true, smallestWebp: false, smallestJxl: true })
+    expect(host.runCalls[0]?.input).toMatchObject({ format: "Smallest Lossless", smallestFormatPool: { png: true, webp: false, jxl: true } })
+  })
+
   test("keeps the matrix wave smooth and neutral until a real error state", () => {
     const host = createHost({ phase: "idle", progress: 0 })
     const view = render(<Component compId="xlchemy-card" host={host} />)

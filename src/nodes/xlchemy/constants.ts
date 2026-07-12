@@ -9,6 +9,7 @@ export const FORMATS: Array<{ value: XlchemyFormat; label: string; extension: st
   { value: "JPEG", label: "JPEG", extension: ".jpg" },
   { value: "Lossless JPEG Transcoding", label: "JPEG 无损转码", extension: ".jxl" },
   { value: "JPEG Reconstruction", label: "JPEG 重建", extension: ".jpg" },
+  { value: "Smallest Lossless", label: "最小无损", extension: "自动" },
 ]
 
 export const ENVIRONMENT_TARGETS = [

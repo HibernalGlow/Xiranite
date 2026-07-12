@@ -1,7 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export type XlchemyAction = "plan" | "convert" | "diagnose"
-export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction"
+export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless"
 export type XlchemyOutputMode = "source" | "directory"
 export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
 export type XlchemyDownscaleMode = "resolution" | "percent" | "file-size" | "shortest-side" | "longest-side" | "megapixels"
@@ -36,6 +36,7 @@ export interface XlchemyInput {
   metadataMode?: "encoder-wipe" | "encoder-preserve" | "exiftool-wipe" | "exiftool-preserve" | "exiftool-unsafe-wipe" | "exiftool-custom"
   keepIfLarger?: boolean
   copyIfLarger?: boolean
+  smallestFormatPool?: { png?: boolean; webp?: boolean; jxl?: boolean }
   jpegEncoder?: "jpegli" | "libjpeg"
   avifEncoder?: "aom" | "svt" | "slimg"
   avifBitDepth?: "auto" | "8" | "10" | "12"
@@ -118,7 +119,7 @@ export interface XlchemyRuntime {
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
 export const XL_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".jxl", ".tif", ".tiff", ".bmp"])
-const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg" }
+const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg", "Smallest Lossless": ".smallest" }
 
 export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInput {
   return {
@@ -150,6 +151,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     metadataMode: input.metadataMode ?? (input.preserveMetadata === false ? "encoder-wipe" : "encoder-preserve"),
     keepIfLarger: input.keepIfLarger ?? false,
     copyIfLarger: input.copyIfLarger ?? false,
+    smallestFormatPool: { png: input.smallestFormatPool?.png ?? true, webp: input.smallestFormatPool?.webp ?? true, jxl: input.smallestFormatPool?.jxl ?? true },
     jpegEncoder: input.jpegEncoder ?? "jpegli",
     avifEncoder: input.avifEncoder ?? "aom",
     avifBitDepth: input.avifBitDepth ?? "auto",
@@ -301,6 +303,7 @@ async function uniqueTarget(path: string, runtime: XlchemyRuntime): Promise<stri
 async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
   try {
     await runtime.ensureDir(runtime.dirname(plan.outputPath))
+    if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime)
     let encoderSource = plan.sourcePath
     const temporarySource = `${plan.outputPath}.xlchemy-input.png`
     if (input.downscale?.enabled) {
@@ -341,6 +344,62 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     return { ...plan, status: "converted", outputBytes: outputInfo.size, error: undefined }
   } catch (error) { return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) } }
 }
+
+async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+  const pool = input.smallestFormatPool ?? { png: true, webp: true, jxl: true }
+  const enabled = (["png", "webp", "jxl"] as const).filter((format) => pool[format] !== false)
+  if (!enabled.length) throw new Error("Smallest Lossless requires at least one format in the comparison pool.")
+  const threads = String(await optimizedThreads(plan.sourcePath, input, runtime))
+  const effort = String(input.maxCompression ? 9 : Math.min(9, input.effort))
+  const candidates: Array<{ format: "png" | "webp" | "jxl"; path: string; size: number }> = []
+  try {
+    for (const format of enabled) {
+      const path = `${plan.outputPath}.${format}`
+      let command: string, args: string[]
+      if (format === "png") {
+        command = await requireCommand(runtime, ["magick"])
+        args = [plan.sourcePath, "-define", `png:compression-level=${effort}`, path]
+      } else if (format === "webp") {
+        command = await requireCommand(runtime, ["cwebp"])
+        args = [plan.sourcePath, "-o", path, "-lossless", "-m", "6", "-mt"]
+      } else {
+        command = await requireCommand(runtime, ["cjxl"])
+        const jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(runtime.extname(plan.sourcePath).toLowerCase())
+        args = ["-q", "100", "-e", effort, "--num_threads", threads, `--lossless_jpeg=${jpegSource && input.autoLosslessJpeg ? 1 : 0}`, plan.sourcePath, path]
+      }
+      const result = await runRuntimeCommand(runtime, command, args)
+      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${format} comparison encoder failed.`)
+      const info = await runtime.pathInfo(path)
+      if (!info.exists || !info.isFile) throw new Error(`${format} comparison encoder did not create an output.`)
+      candidates.push({ format, path, size: info.size })
+    }
+    const winner = candidates.reduce((smallest, candidate) => candidate.size < smallest.size ? candidate : smallest)
+    let outputPath = plan.outputPath.slice(0, -".smallest".length) + `.${winner.format}`
+    const existing = await runtime.pathInfo(outputPath)
+    if (existing.exists && input.existingPolicy === "skip") return { ...plan, outputPath, status: "skipped", error: "target_exists" }
+    if (existing.exists && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime)
+    else if (existing.exists) await runtime.removeFile(outputPath)
+    for (const candidate of candidates) if (candidate.path !== winner.path) await runtime.removeFile(candidate.path)
+    await runtime.renameFile(winner.path, outputPath)
+    if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, outputPath, input, runtime)
+    else if (input.preserveMetadata) await copyMetadata(plan.sourcePath, outputPath, runtime)
+    const sourceInfo = await runtime.pathInfo(plan.sourcePath)
+    if (input.preserveTimestamps) await runtime.setTimes(outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
+    if (input.deleteOriginal && plan.sourcePath !== outputPath) {
+      if (input.deleteOriginalMode === "trash") {
+        if (!runtime.trashFile) throw new Error("The current runtime does not support moving files to the recycle bin.")
+        await runtime.trashFile(plan.sourcePath)
+      } else await runtime.removeFile(plan.sourcePath)
+    }
+    return { ...plan, outputPath, status: "converted", outputBytes: winner.size, error: undefined }
+  } finally {
+    for (const candidate of candidates) {
+      if ((await runtime.pathInfo(candidate.path)).exists) await runtime.removeFile(candidate.path)
+    }
+  }
+}
+
+async function requireCommand(runtime: XlchemyRuntime, candidates: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return command }
 
 function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {
   const filter = settings.resample !== "default" ? ["-filter", settings.resample] : []

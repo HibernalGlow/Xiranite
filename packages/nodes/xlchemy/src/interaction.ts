@@ -11,7 +11,7 @@ export function createXlchemyInteractionSchema(defaults: Partial<XlchemyInteract
     fields: [
       { id: "action", label: text("操作", "Action"), kind: "select", role: "action", options: [{ value: "plan", label: text("预览计划", "Plan") }, { value: "convert", label: text("执行转换", "Convert") }, { value: "diagnose", label: text("检测工具链", "Diagnose toolchain") }] },
       { id: "pathsText", label: text("输入文件或文件夹", "Input files or folders"), kind: "path-list", lines: 5, placeholder: text("每行一个路径", "One path per line") },
-      { id: "format", label: text("目标格式", "Target format"), kind: "select", options: ["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG", "Lossless JPEG Transcoding", "JPEG Reconstruction"].map((value) => ({ value, label: value })) },
+      { id: "format", label: text("目标格式", "Target format"), kind: "select", options: ["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG", "Lossless JPEG Transcoding", "JPEG Reconstruction", "Smallest Lossless"].map((value) => ({ value, label: value })) },
       { id: "lossless", label: text("无损", "Lossless"), kind: "boolean" },
       { id: "quality", label: text("质量", "Quality"), kind: "number", min: 1, max: 100, step: 1 },
       { id: "effort", label: text("压缩力度", "Effort"), kind: "number", min: 1, max: 10, step: 1 },
