@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyData, XlchemyInput } from "@xiranite/node-xlchemy/core"
@@ -23,8 +23,14 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={createHost({ pathsText: "D:/images/a.png" })} />)
     expect(screen.getByText("Xlchemy")).toBeTruthy()
     expect(screen.getByTestId(`xlchemy-${mode === "regular" || mode === "expanded" || mode === "workspace" ? "full" : mode}-view`)).toBeTruthy()
-    if (mode !== "collapsed") expect(screen.getByLabelText("xlchemy input paths")).toBeTruthy()
-    if (mode === "regular" || mode === "expanded" || mode === "workspace") {
+    if (mode !== "collapsed") {
+      expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
+      expect(screen.getAllByRole("button", { name: "添加文件" }).length).toBeGreaterThan(0)
+      expect(screen.getByRole("radio", { name: "文件树视图" })).toBeTruthy()
+      expect(screen.getByRole("radio", { name: "列表视图" })).toBeTruthy()
+      expect(screen.getByLabelText(/\.PNG/)).toBeTruthy()
+      expect(screen.getByTestId("xlchemy-progress-workbench")).toBeTruthy()
+      expect(screen.getByTestId("xlchemy-conversion-log")).toBeTruthy()
       expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "问题" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
@@ -40,6 +46,70 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], lossless: true } })
+  })
+
+  test("preserves the original list, sorting, selection and removal workflow", async () => {
+    const host = createHost({ pathsText: "D:/images/z.png\nD:/images/a.png", selectedPaths: [] })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("radio", { name: "列表视图" }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    const table = screen.getByRole("table")
+    expect(within(table).getByText("z.png")).toBeTruthy()
+    await user.click(within(table).getByRole("button", { name: "按名称排序" }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    const names = within(table).getAllByText(/^[az]\.png$/).map((node) => node.textContent)
+    expect(names).toEqual(["z.png", "a.png"])
+    await user.click(within(table).getByLabelText("选择 a.png"))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    await user.click(screen.getByRole("button", { name: "删除已选" }))
+    expect(host.cardState.pathsText).toBe("D:/images/z.png")
+  })
+
+  test("keeps input formats as toggle tags and sends selected files to the runner", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png\nD:/images/b.png", selectedPaths: ["D:/images/b.png"] })
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText("禁用 .PNG"))
+    expect(host.cardState.excludedFormatsText?.split(",")).toContain("png")
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.paths).toEqual(["D:/images/b.png"])
+  })
+
+  test("renders colorful searchable log levels with independent filtering", async () => {
+    render(<Component compId="xlchemy-card" host={createHost({ logs: ["12:00:00 converted ok", "12:00:01 warning skip", "12:00:02 error failed"] })} />)
+    const user = userEvent.setup()
+    expect(screen.getByText("converted ok")).toBeTruthy()
+    expect(screen.getByText("warning skip")).toBeTruthy()
+    expect(screen.getByText("error failed")).toBeTruthy()
+    await user.click(screen.getByLabelText("过滤 WRN"))
+    expect(screen.queryByText("warning skip")).toBeNull()
+    await user.type(screen.getByLabelText("搜索日志"), "converted")
+    expect(screen.getByText("converted ok")).toBeTruthy()
+    expect(screen.queryByText("error failed")).toBeNull()
+    expect(screen.getByText("1 / 3 条")).toBeTruthy()
+  })
+
+  test("exposes the original in-place cancel action while conversion is running", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png" })
+    let finish: ((value: NodeRunResult<XlchemyData>) => void) | undefined
+    const pending = new Promise<NodeRunResult<XlchemyData>>((resolve) => { finish = resolve })
+    const runner = host.runner!
+    runner.run = async function run<TInput, TData>(nodeId: string, input: TInput) {
+      host.runCalls.push({ nodeId, input: input as XlchemyInput })
+      return await pending as NodeRunResult<TData>
+    }
+    const cancel = vi.fn(async () => true)
+    runner.cancelCurrent = cancel
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "开始转换" }))
+    await user.click(await screen.findByRole("button", { name: "取消转换" }))
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(host.cardState.progressText).toBe("正在停止 Xlchemy 转换…")
+    finish?.({ success: false, message: "Cancelled.", data: result })
+    await waitFor(() => expect(host.cardState.phase).toBe("cancelled"))
   })
 })
 

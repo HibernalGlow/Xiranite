@@ -24,14 +24,16 @@ const dataSchema = z.object({
   preserveTimestamps: z.boolean().optional(),
   intelligentEffort: z.boolean().optional(), jxlModular: z.boolean().optional(), jxlVerify: z.boolean().optional(), jxlPngFallback: z.boolean().optional(), jxlNormalize: z.boolean().optional(), jxlNormalizeWhen: z.enum(["on-fail", "always"]).optional(),
   chromaSubsampling: z.string().optional(), metadataMode: z.enum(["encoder-wipe", "encoder-preserve", "exiftool-wipe", "exiftool-preserve", "exiftool-unsafe-wipe"]).optional(),
-  keepIfLarger: z.boolean().optional(), copyIfLarger: z.boolean().optional(), jpegEncoder: z.enum(["jpegli", "libjpeg"]).optional(), avifEncoder: z.enum(["aom", "svt"]).optional(), avifBitDepth: z.enum(["auto", "8", "10", "12"]).optional(), processingOrder: z.enum(["original", "name", "size"]).optional(), excludedFormatsText: z.string().optional(),
+  keepIfLarger: z.boolean().optional(), copyIfLarger: z.boolean().optional(), jpegEncoder: z.enum(["jpegli", "libjpeg"]).optional(), avifEncoder: z.enum(["aom", "svt"]).optional(), avifBitDepth: z.enum(["auto", "8", "10", "12"]).optional(), processingOrder: z.enum(["original", "path-asc", "path-desc", "size-asc", "size-desc", "random", "sequential"]).optional(), excludedFormatsText: z.string().optional(),
   downscaleEnabled: z.boolean().optional(), downscaleMode: z.enum(["resolution", "percent", "file-size", "shortest-side", "longest-side", "megapixels"]).optional(), downscaleWidth: z.number().optional(), downscaleHeight: z.number().optional(), downscalePercent: z.number().optional(), downscaleFileSizeKb: z.number().optional(), downscaleShortestSide: z.number().optional(), downscaleLongestSide: z.number().optional(), downscaleMegapixels: z.number().optional(), downscaleResample: z.string().optional(),
   selectedPreset: z.string().optional(),
-  phase: z.enum(["idle", "running", "completed", "error"]).optional(),
+  selectedPaths: z.array(z.string()).optional(), inputViewMode: z.enum(["list", "tree"]).optional(), inputSortField: z.enum(["name", "ext", "size", "dir"]).optional(), inputSortDesc: z.boolean().optional(), showOriginalPreview: z.boolean().optional(),
+  phase: z.enum(["idle", "running", "completed", "cancelled", "error"]).optional(),
   progress: z.number().optional(),
   progressText: z.string().optional(),
   currentFile: z.string().optional(),
   logs: z.array(z.string()).optional(),
+  showProgressCounter: z.boolean().optional(), showProgressSummary: z.boolean().optional(), showProgressEta: z.boolean().optional(), showProgressFormat: z.boolean().optional(), showProgressEncoder: z.boolean().optional(), showRawProgress: z.boolean().optional(),
 }).passthrough()
 
 export default {

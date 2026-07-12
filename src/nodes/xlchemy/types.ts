@@ -1,6 +1,6 @@
 import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFormat, XlchemyOutputMode } from "@xiranite/node-xlchemy/core"
 
-export type XlchemyPhase = "idle" | "running" | "completed" | "error"
+export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "error"
 
 export interface XlchemyCardState {
   action?: XlchemyAction
@@ -33,7 +33,7 @@ export interface XlchemyCardState {
   jpegEncoder?: "jpegli" | "libjpeg"
   avifEncoder?: "aom" | "svt"
   avifBitDepth?: "auto" | "8" | "10" | "12"
-  processingOrder?: "original" | "name" | "size"
+  processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormatsText?: string
   downscaleEnabled?: boolean
   downscaleMode?: XlchemyDownscaleMode
@@ -46,11 +46,22 @@ export interface XlchemyCardState {
   downscaleMegapixels?: number
   downscaleResample?: string
   selectedPreset?: string
+  selectedPaths?: string[]
+  inputViewMode?: "list" | "tree"
+  inputSortField?: "name" | "ext" | "size" | "dir"
+  inputSortDesc?: boolean
+  showOriginalPreview?: boolean
   phase?: XlchemyPhase
   progress?: number
   progressText?: string
   currentFile?: string
   logs?: string[]
+  showProgressCounter?: boolean
+  showProgressSummary?: boolean
+  showProgressEta?: boolean
+  showProgressFormat?: boolean
+  showProgressEncoder?: boolean
+  showRawProgress?: boolean
   result?: XlchemyData | null
 }
 

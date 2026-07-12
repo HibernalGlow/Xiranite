@@ -38,7 +38,7 @@ export interface XlchemyInput {
   jpegEncoder?: "jpegli" | "libjpeg"
   avifEncoder?: "aom" | "svt"
   avifBitDepth?: "auto" | "8" | "10" | "12"
-  processingOrder?: "original" | "name" | "size"
+  processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormats?: string[]
   downscale?: XlchemyDownscaleSettings
 }
@@ -136,8 +136,9 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
     let sources = await discoverImages(options.paths, options.recursive, runtime)
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
     sources = sources.filter((path) => !excluded.has(runtime.extname(path).slice(1).toLowerCase()))
-    if (options.processingOrder === "size") { const sizes = await Promise.all(sources.map(async (path) => ({ path, size: (await runtime.pathInfo(path)).size }))); sources = sizes.sort((a, b) => a.size - b.size).map((item) => item.path) }
-    else if (options.processingOrder === "name") sources.sort((a, b) => runtime.basename(a).localeCompare(runtime.basename(b), undefined, { numeric: true, sensitivity: "base" }))
+    if (options.processingOrder === "size-asc" || options.processingOrder === "size-desc") { const sizes = await Promise.all(sources.map(async (path) => ({ path, size: (await runtime.pathInfo(path)).size }))); sources = sizes.sort((a, b) => (a.size - b.size) * (options.processingOrder === "size-desc" ? -1 : 1)).map((item) => item.path) }
+    else if (options.processingOrder === "path-asc" || options.processingOrder === "path-desc") sources.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }) * (options.processingOrder === "path-desc" ? -1 : 1))
+    else if (options.processingOrder === "random") sources = shuffle(sources)
     if (!sources.length) return failure("No supported images were found.")
     const roots = await sourceRoots(options.paths, runtime)
     const planned = await Promise.all(sources.map((source) => planFile(source, roots, options, runtime)))
@@ -269,3 +270,4 @@ function success(message: string, data: XlchemyData): XlchemyResult { return { s
 function failure(message: string): XlchemyResult { return { success: false, message, data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 1, inputBytes: 0, outputBytes: 0, errors: [message] } } }
 export function compressionRatio(data: Pick<XlchemyData, "inputBytes" | "outputBytes">): number { if (data.inputBytes <= 0) return 0; return Math.max(0, Math.min(100, Math.round((1 - data.outputBytes / data.inputBytes) * 1000) / 10)) }
 function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, Math.round(value))) }
+function shuffle<T>(values: T[]): T[] { const output = [...values]; for (let index = output.length - 1; index > 0; index -= 1) { const target = Math.floor(Math.random() * (index + 1)); [output[index], output[target]] = [output[target]!, output[index]!] } return output }

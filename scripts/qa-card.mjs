@@ -19,7 +19,12 @@ const REFERENCE_ALIASES = {
   marku: "marku",
   scoolp: "scoolp_scoop_1",
   soundw: "songswitcher",
-  xlchemy: "xlchemcy/2",
+}
+const REFERENCE_SETS = {
+  xlchemy: [
+    "ref/node3/xlchemcy/原项目截图.png",
+    "ref/node3/xlchemcy/2/screen.png",
+  ],
 }
 const REFERENCE_ROOTS = [
   path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)"),
@@ -70,10 +75,10 @@ async function main() {
       const screenshotPath = options.output ?? defaultScreenshotPath(options)
       await mkdir(path.dirname(screenshotPath), { recursive: true })
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
-      const referencePath = await resolveReferencePath(options)
-      if (referencePath) {
-        await captureReferenceComparison(page, screenshotPath, referencePath, options)
-        console.log(`reference: ${referencePath}`)
+      const referencePaths = await resolveReferencePaths(options)
+      if (referencePaths.length) {
+        await captureReferenceComparison(page, screenshotPath, referencePaths, options)
+        console.log(`references: ${referencePaths.join(", ")}`)
       } else {
         await captureScreenshot(page, screenshotPath, options)
       }
@@ -264,7 +269,7 @@ async function runQaCommand(page, options) {
 
   if (options.command === "matrix") {
     return page.evaluate(
-      async ({ moduleId, surfaces, layouts }) => {
+      async ({ moduleId, surfaces, layouts, rawOptions }) => {
         const qa = window.__xiraniteQA
         if (!qa) throw new Error("window.__xiraniteQA is not available. Run the app in dev mode.")
         qa.hideView("bento")
@@ -282,6 +287,7 @@ async function runQaCommand(page, options) {
               focus: false,
               fullscreen: false,
               fresh: true,
+              ...rawOptions,
             }).selected
           } else {
             const beforeIds = new Set(qa.components().map((component) => component.id))
@@ -298,6 +304,7 @@ async function runQaCommand(page, options) {
             collapsed: false,
             focus: false,
             fullscreen: false,
+            ...rawOptions,
           })
           created.push({ ...selected, surface, bento })
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -317,6 +324,7 @@ async function runQaCommand(page, options) {
         moduleId: options.moduleId,
         surfaces: options.matrixSurfaces ?? DEFAULT_MATRIX_SURFACES,
         layouts: BENTO_MATRIX_LAYOUTS,
+        rawOptions: options.rawOptions,
       },
     )
   }
@@ -459,17 +467,25 @@ function defaultScreenshotPath(options) {
   return path.resolve(REPO_ROOT, "artifacts", "qa-card", `${name}.jpg`)
 }
 
-async function resolveReferencePath(options) {
-  if (!options.moduleId || options.reference === false) return undefined
+async function resolveReferencePaths(options) {
+  if (!options.moduleId || options.reference === false) return []
+  if (options.reference === "auto" && REFERENCE_SETS[options.moduleId]) {
+    const candidates = REFERENCE_SETS[options.moduleId].map((reference) => path.resolve(REPO_ROOT, reference))
+    const available = []
+    for (const candidate of candidates) {
+      try { await access(candidate); available.push(candidate) } catch { /* optional reference pack */ }
+    }
+    return available
+  }
   const candidate = options.reference === "auto"
     ? await findAutoReferencePath(options.moduleId)
     : path.resolve(options.reference)
   try {
     await access(candidate)
-    return candidate
+    return [candidate]
   } catch {
     if (options.reference !== "auto") throw new Error(`Reference image does not exist: ${candidate}`)
-    return undefined
+    return []
   }
 }
 
@@ -505,11 +521,11 @@ async function referenceAudit() {
     .map((entry) => entry.name)
     .sort()
   const records = await Promise.all(modules.map(async (moduleId) => {
-    const referencePath = await resolveReferencePath({ moduleId, reference: "auto" })
+    const referencePaths = await resolveReferencePaths({ moduleId, reference: "auto" })
     return {
       moduleId,
-      reference: referencePath ? path.relative(REPO_ROOT, referencePath) : null,
-      status: referencePath ? "ready" : "missing",
+      reference: referencePaths.length ? referencePaths.map((referencePath) => path.relative(REPO_ROOT, referencePath)) : null,
+      status: referencePaths.length ? "ready" : "missing",
     }
   }))
   return {
@@ -529,21 +545,21 @@ async function captureScreenshot(page, screenshotPath, options) {
   })
 }
 
-async function captureReferenceComparison(page, screenshotPath, referencePath, options) {
+async function captureReferenceComparison(page, screenshotPath, referencePaths, options) {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "xiranite-qa-"))
   const currentPath = path.join(temporaryDirectory, "current.png")
   try {
     await page.screenshot({ path: currentPath, fullPage: false, type: "png" })
-    const [referenceImage, currentImage] = await Promise.all([readFile(referencePath), readFile(currentPath)])
+    const [referenceImages, currentImage] = await Promise.all([Promise.all(referencePaths.map((referencePath) => readFile(referencePath))), readFile(currentPath)])
     const comparisonContext = await page.context().browser().newContext({ viewport: { width: 1600, height: 920 }, deviceScaleFactor: 1 })
     const comparison = await comparisonContext.newPage()
     try {
       await comparison.setContent(referenceComparisonDocument(
-        imageDataUrl(referencePath, referenceImage),
+        referencePaths.map((referencePath, index) => ({ url: imageDataUrl(referencePath, referenceImages[index]), label: index === 0 ? "Original application" : `Reference prototype ${index}` })),
         imageDataUrl(currentPath, currentImage),
         options.moduleId,
       ))
-      await comparison.locator("img").last().waitFor({ state: "visible" })
+      await comparison.waitForFunction(() => [...document.images].every((image) => image.complete && image.naturalWidth > 0))
       await comparison.waitForTimeout(100)
       await captureScreenshot(comparison, screenshotPath, options)
     } finally {
@@ -554,7 +570,8 @@ async function captureReferenceComparison(page, screenshotPath, referencePath, o
   }
 }
 
-function referenceComparisonDocument(referenceUrl, currentUrl, moduleId) {
+function referenceComparisonDocument(references, currentUrl, moduleId) {
+  const stackedComparison = references.length > 1
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; }
@@ -562,15 +579,16 @@ function referenceComparisonDocument(referenceUrl, currentUrl, moduleId) {
   header { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid #30403b; background: #16201d; }
   h1 { margin: 0; font-size: 16px; letter-spacing: .04em; }
   p { margin: 0; color: #9aaba5; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; height: calc(100vh - 56px); padding: 12px; }
+  main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: ${stackedComparison ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)"}; gap: 12px; height: calc(100vh - 56px); padding: 12px; }
   figure { min-width: 0; min-height: 0; margin: 0; display: grid; grid-template-rows: 30px minmax(0, 1fr); border: 1px solid #30403b; background: #0b0f0e; overflow: hidden; }
   figcaption { display: flex; align-items: center; padding: 0 12px; background: #17201d; color: #b8c9c2; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
   img { width: 100%; height: 100%; object-fit: contain; object-position: top center; background: #080a09; }
+  figure.current { ${stackedComparison ? "grid-column: 1 / -1;" : ""} }
 </style></head><body>
-  <header><h1>${escapeHtml(moduleId)} visual fidelity review</h1><p>reference ↔ current node UI</p></header>
+  <header><h1>${escapeHtml(moduleId)} visual fidelity review</h1><p>original + prototype + current node UI</p></header>
   <main>
-    <figure><figcaption>Reference design</figcaption><img src="${referenceUrl}" alt="Reference design" /></figure>
-    <figure><figcaption>Current implementation</figcaption><img src="${currentUrl}" alt="Current implementation" /></figure>
+    ${references.map((reference) => `<figure><figcaption>${escapeHtml(reference.label)}</figcaption><img src="${reference.url}" alt="${escapeHtml(reference.label)}" /></figure>`).join("\n    ")}
+    <figure class="current"><figcaption>Current implementation</figcaption><img src="${currentUrl}" alt="Current implementation" /></figure>
   </main>
 </body></html>`
 }
