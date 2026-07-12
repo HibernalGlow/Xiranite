@@ -24,3 +24,21 @@ At narrower terminal widths the path queue and ledger share the flexible main
 row while the safety strip remains below them. The evidence capture uses a
 viewport sized to the 128-column terminal so browser canvas whitespace does not
 misrepresent the layout.
+
+## SmartZip
+
+- GUI evidence: `output/playwright/smartzip/smartzip-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/smartzip/operation-chamber.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+The terminal composition keeps SmartZip's reference workflow intact: a path
+queue on the left, a dominant `Operation chamber` command plan beside it, and
+a clearly isolated execution configuration area. Action tabs stay immediately
+above the two primary surfaces, with the same status, extract, codepage,
+open, archive, and settings paths as the GUI.
+
+The GUI's tall right-hand configuration column is intentionally converted into
+a bottom drawer. This lets the command plan remain readable at terminal width
+while retaining editable INI, run-record, executable, AutoHotkey, dry-run,
+and execution controls in the same fullscreen view. The drawer is explicitly
+validated in the 32-row PNG so no editable field is clipped.
