@@ -19,6 +19,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import { CHOICE_CONTROL_LABEL_STYLES, CHOICE_CONTROL_STYLES, type ChoiceControlLabelStyle, type ChoiceControlStyle } from "@/components/ui/choice-control-variants"
+import { ChoiceControlField } from "@/components/ui/choice-control"
 import { MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
@@ -223,6 +225,8 @@ export function ThemeSettings() {
     cardDoubleClickAction: workspace.cardDoubleClickAction,
     tabDisplayStyle: workspace.tabDisplayStyle,
     switchDisplayStyle: workspace.switchDisplayStyle,
+    choiceControlStyle: workspace.choiceControlStyle,
+    choiceControlLabelStyle: workspace.choiceControlLabelStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
     modulePanelStyle: workspace.modulePanelStyle,
     resizableHandleStyle: workspace.resizableHandleStyle,
@@ -1277,6 +1281,21 @@ export function ThemeSettings() {
                     <Switch checked aria-label={t("settings:view.componentDisplay.switches.previewOn", "On")} onCheckedChange={() => undefined} />
                   </div>
                 </div>
+              </div>
+              <Separator />
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-xs font-medium">互斥选项组</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">统一压缩模式、输出位置等单选控件；只改变显示方式，不改变 ToggleGroup 的键盘与表单语义。</p>
+                </div>
+                <PreferenceToggle label="控件样式" value={state.choiceControlStyle} values={CHOICE_CONTROL_STYLES} labels={{ segmented: "分段", pills: "胶囊", tabs: "标签", tiles: "卡片" }} onChange={(value) => workspaceActions.setChoiceControlStyle(value as ChoiceControlStyle)} />
+                <PreferenceToggle label="标题样式" value={state.choiceControlLabelStyle} values={CHOICE_CONTROL_LABEL_STYLES} labels={{ stacked: "上置", legend: "悬浮图例", inline: "左侧", hidden: "隐藏" }} onChange={(value) => workspaceActions.setChoiceControlLabelStyle(value as ChoiceControlLabelStyle)} />
+                <ChoiceControlField label="压缩模式">
+                  <ToggleGroup aria-label="压缩模式预览" className="grid w-full grid-cols-2" type="single" value="lossless" onValueChange={() => undefined} size="sm">
+                    <ToggleGroupItem value="lossless">无损</ToggleGroupItem>
+                    <ToggleGroupItem value="lossy">有损</ToggleGroupItem>
+                  </ToggleGroup>
+                </ChoiceControlField>
               </div>
               <Separator />
               <div className="flex flex-col gap-3">

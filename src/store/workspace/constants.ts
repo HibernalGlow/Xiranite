@@ -66,6 +66,8 @@ export const INITIAL_STATE: WSState = {
   cardDoubleClickAction: "focus",
   tabDisplayStyle: "underline",
   switchDisplayStyle: "outlined",
+  choiceControlStyle: "segmented",
+  choiceControlLabelStyle: "legend",
   moduleTitleStyle: "legend",
   modulePanelStyle: "soft",
   resizableHandleStyle: "grip",

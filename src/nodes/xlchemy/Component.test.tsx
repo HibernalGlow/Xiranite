@@ -45,6 +45,8 @@ describe("app-owned xlchemy Component", () => {
     const user = userEvent.setup()
 
     expect(screen.getAllByRole("slider")[0]?.getAttribute("aria-valuenow")).toBe("60")
+    expect(screen.getByRole("group", { name: "压缩模式" })).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "无损" }).getAttribute("aria-checked")).toBe("true")
     expect(screen.queryByText("Alpha")).toBeNull()
     expect(screen.queryByText("Beta")).toBeNull()
     expect(screen.queryByText("Gamma")).toBeNull()

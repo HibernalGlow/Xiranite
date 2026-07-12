@@ -66,6 +66,8 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setCardDoubleClickAction: (cardDoubleClickAction) => set({ cardDoubleClickAction }, false, "SET_CARD_DOUBLE_CLICK_ACTION"),
     setTabDisplayStyle: (tabDisplayStyle) => set({ tabDisplayStyle }, false, "SET_TAB_DISPLAY_STYLE"),
     setSwitchDisplayStyle: (switchDisplayStyle) => set({ switchDisplayStyle }, false, "SET_SWITCH_DISPLAY_STYLE"),
+    setChoiceControlStyle: (choiceControlStyle) => set({ choiceControlStyle }, false, "SET_CHOICE_CONTROL_STYLE"),
+    setChoiceControlLabelStyle: (choiceControlLabelStyle) => set({ choiceControlLabelStyle }, false, "SET_CHOICE_CONTROL_LABEL_STYLE"),
     setModuleTitleStyle: (moduleTitleStyle) => set({ moduleTitleStyle }, false, "SET_MODULE_TITLE_STYLE"),
     setModulePanelStyle: (modulePanelStyle) => set({ modulePanelStyle }, false, "SET_MODULE_PANEL_STYLE"),
     setResizableHandleStyle: (resizableHandleStyle) => set({ resizableHandleStyle }, false, "SET_RESIZABLE_HANDLE_STYLE"),
