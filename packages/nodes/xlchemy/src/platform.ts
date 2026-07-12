@@ -1,8 +1,8 @@
 import { access, copyFile, mkdir, readdir, rm, stat, utimes } from "node:fs/promises"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import { delimiter } from "node:path"
-import { spawn } from "node:child_process"
 import type { XlchemyRuntime } from "./core.js"
+import { runXlchemyCommand } from "./command.js"
 import { convertWithSlimg, probeSlimg } from "./slimg.js"
 
 export function createNodeXlchemyRuntime(): XlchemyRuntime {
@@ -14,7 +14,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     removeFile: async (path) => { await rm(path, { force: true }) },
     renameFile: async (source, target) => { const { rename } = await import("node:fs/promises"); await rename(source, target) },
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
-    runCommand,
+    runCommand: runXlchemyCommand,
     resolveCommand,
     probeSlimg,
     convertWithSlimg,
@@ -32,17 +32,6 @@ async function pathInfo(path: string) {
 }
 
 async function listDir(path: string) { const entries = await readdir(path, { withFileTypes: true }); return entries.map((entry) => ({ path: join(path, entry.name), name: entry.name, isFile: entry.isFile(), isDirectory: entry.isDirectory() })) }
-
-async function runCommand(command: string, args: string[]) {
-  return await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolveResult, reject) => {
-    const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] })
-    const stdout: Buffer[] = [], stderr: Buffer[] = []
-    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk))
-    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk))
-    child.once("error", reject)
-    child.once("close", (exitCode) => resolveResult({ exitCode: exitCode ?? 1, stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8") }))
-  })
-}
 
 async function resolveCommand(candidates: string[]): Promise<string | undefined> {
   const extensions = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";") : [""]

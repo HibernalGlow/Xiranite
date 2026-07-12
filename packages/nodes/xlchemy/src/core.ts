@@ -102,7 +102,9 @@ export interface XlchemyRuntime {
   removeFile: (path: string) => Promise<void>
   renameFile: (source: string, target: string) => Promise<void>
   setTimes: (path: string, atimeMs: number, mtimeMs: number) => Promise<void>
-  runCommand: (command: string, args: string[]) => Promise<XlchemyCommandResult>
+  runCommand: (command: string, args: string[], isCancelled?: () => boolean) => Promise<XlchemyCommandResult>
+  isCancelled?: () => boolean
+  waitWhilePaused?: () => Promise<void>
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
   probeSlimg?: () => Promise<XlchemyToolStatus>
   convertWithSlimg?: (source: string, target: string, quality: number) => Promise<void>
@@ -175,6 +177,7 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   const started = Date.now()
   try {
     if (options.action === "diagnose") return await diagnoseXlchemyEnvironment(runtime, onEvent)
+    if (runtime.isCancelled?.()) return cancelled([], started)
     if (!options.paths.length) return failure("At least one image or folder path is required.")
     if (options.outputMode === "directory" && !options.outputDir) return failure("An output directory is required in directory mode.")
     onEvent({ type: "progress", progress: 5, message: "Discovering image inputs." })
@@ -196,10 +199,13 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
 
     const files: XlchemyFileResult[] = []
     for (let index = 0; index < planned.length; index += 1) {
+      await runtime.waitWhilePaused?.()
+      if (runtime.isCancelled?.()) return cancelled(files, started)
       const item = planned[index]!
       if (item.status === "skipped") { files.push(item); continue }
       onEvent({ type: "progress", progress: Math.round(10 + index / planned.length * 85), message: `Converting ${runtime.basename(item.sourcePath)}.` })
       files.push(await convertFile(item, options, runtime))
+      if (runtime.isCancelled?.()) return cancelled(files, started)
     }
     const data = summarize(files, Date.now() - started)
     onEvent({ type: "progress", progress: 100, message: `Converted ${data.convertedCount} image(s).` })
@@ -299,19 +305,19 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     if (input.downscale?.enabled) {
       const magick = await runtime.resolveCommand(["magick"])
       if (!magick) throw new Error("ImageMagick is required for downscaling.")
-      const resized = await runtime.runCommand(magick, [plan.sourcePath, ...downscaleArgs(input.downscale), temporarySource])
+      const resized = await runRuntimeCommand(runtime, magick, [plan.sourcePath, ...downscaleArgs(input.downscale), temporarySource])
       if (resized.exitCode !== 0) throw new Error(resized.stderr.trim() || "ImageMagick downscaling failed.")
       encoderSource = temporarySource
     }
     const invocation = input.format === "AVIF" && input.avifEncoder === "slimg" ? undefined : await encoderInvocation(encoderSource, plan.outputPath, input, runtime)
-    const result = invocation ? await runtime.runCommand(invocation.command, invocation.args) : await runSlimgConversion(encoderSource, plan.outputPath, input, runtime)
+    const result = invocation ? await runRuntimeCommand(runtime, invocation.command, invocation.args) : await runSlimgConversion(encoderSource, plan.outputPath, input, runtime)
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
     if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${invocation?.command ?? "slimg CFFI"} exited with ${result.exitCode}`)
     if (input.format === "JPEG XL" && input.jxlVerify) {
       const decoder = await runtime.resolveCommand(["djxl"])
       if (!decoder) throw new Error("djxl is required for JPEG XL integrity verification.")
       const verificationPath = `${plan.outputPath}.verify.png`
-      const verification = await runtime.runCommand(decoder, [plan.outputPath, verificationPath])
+      const verification = await runRuntimeCommand(runtime, decoder, [plan.outputPath, verificationPath])
       await runtime.removeFile(verificationPath)
       if (verification.exitCode !== 0) throw new Error(verification.stderr.trim() || "JPEG XL integrity verification failed.")
     }
@@ -363,14 +369,14 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
 async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg CFFI is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality); return { exitCode: 0, stdout: "slimg CFFI conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
-async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime) { const exiftool = await runtime.resolveCommand(["exiftool"]); if (!exiftool) return; const result = await runtime.runCommand(exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target]); if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata copy failed.") }
+async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime) { const exiftool = await runtime.resolveCommand(["exiftool"]); if (!exiftool) return; const result = await runRuntimeCommand(runtime, exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target]); if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata copy failed.") }
 
 async function applyExifToolMetadata(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime) {
   const exiftool = await runtime.resolveCommand(["exiftool"])
   if (!exiftool) throw new Error("ExifTool is required by the selected metadata policy.")
   const template = input.metadataMode === "exiftool-preserve" ? input.exiftoolPreserveArgs || '-overwrite_original -TagsFromFile "$src" -all:all "$dst"' : input.metadataMode === "exiftool-unsafe-wipe" ? input.exiftoolUnsafeWipeArgs || '-overwrite_original -all= "$dst"' : input.metadataMode === "exiftool-custom" ? input.exiftoolCustomArgs || '"$dst"' : input.exiftoolWipeArgs || '-overwrite_original -all= --ICC_Profile:all "$dst"'
   const args = splitCommandArgs(template).map((arg) => arg.replaceAll("$src", source).replaceAll("$dst", target))
-  const result = await runtime.runCommand(exiftool, args)
+  const result = await runRuntimeCommand(runtime, exiftool, args)
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata operation failed.")
 }
 
@@ -380,7 +386,7 @@ async function optimizedThreads(source: string, input: XlchemyInput, runtime: Xl
   if (!highMemory) return input.threads
   const magick = await runtime.resolveCommand(["magick"])
   if (!magick) return input.threads
-  const info = await runtime.runCommand(magick, ["identify", "-ping", "-format", "%w %h", `${source}[0]`])
+  const info = await runRuntimeCommand(runtime, magick, ["identify", "-ping", "-format", "%w %h", `${source}[0]`])
   const dimensions = /([0-9]+)\s+([0-9]+)/.exec(info.stdout)
   if (!dimensions) return input.threads
   const megapixels = Number(dimensions[1]) * Number(dimensions[2]) / 1_000_000
@@ -398,6 +404,8 @@ function parseRamRules(value: string) { const rules: Array<{ scope: string; thre
 function splitCommandArgs(value: string): string[] { const args: string[] = []; for (const match of value.matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)) args.push(match[1] ?? match[2] ?? match[3] ?? ""); return args.filter(Boolean) }
 
 function summarize(files: XlchemyFileResult[], elapsedMs: number): XlchemyData { const errors = files.filter((file) => file.status === "error").map((file) => `${file.sourcePath}: ${file.error ?? "error"}`); return { files, inputCount: files.length, convertedCount: files.filter((file) => file.status === "converted").length, skippedCount: files.filter((file) => file.status === "skipped").length, errorCount: errors.length, inputBytes: files.reduce((sum, file) => sum + (file.sourceBytes ?? 0), 0), outputBytes: files.reduce((sum, file) => sum + (file.outputBytes ?? 0), 0), elapsedMs, errors } }
+function cancelled(files: XlchemyFileResult[], started: number): XlchemyResult { return { success: false, message: "Xlchemy conversion cancelled.", data: summarize(files, Date.now() - started) } }
+function runRuntimeCommand(runtime: XlchemyRuntime, command: string, args: string[]) { return runtime.runCommand(command, args, runtime.isCancelled) }
 function success(message: string, data: XlchemyData): XlchemyResult { return { success: data.errorCount === 0, message, data } }
 function failure(message: string): XlchemyResult { return { success: false, message, data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 1, inputBytes: 0, outputBytes: 0, errors: [message] } } }
 export function compressionRatio(data: Pick<XlchemyData, "inputBytes" | "outputBytes">): number { if (data.inputBytes <= 0) return 0; return Math.max(0, Math.min(100, Math.round((1 - data.outputBytes / data.inputBytes) * 1000) / 10)) }
