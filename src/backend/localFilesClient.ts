@@ -76,6 +76,21 @@ export async function listLocalFiles(
   return Array.isArray(body.entries) ? body.entries : []
 }
 
+export async function pickLocalPaths(kind: "files" | "directory"): Promise<string[]> {
+  const config = resolveLocalBackendConfig()
+  const url = new URL("/local-files/pick", config.baseUrl)
+  if (config.token) url.searchParams.set("token", config.token)
+  const response = await fetch(url.href, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "content-type": "application/json", ...(config.token ? { "x-xiranite-token": config.token } : {}) },
+    body: JSON.stringify({ kind }),
+  })
+  if (!response.ok) throw new Error(await response.text().catch(() => `Native picker returned ${response.status}.`))
+  const body = await response.json() as { paths?: unknown }
+  return Array.isArray(body.paths) ? body.paths.filter((path): path is string => typeof path === "string" && Boolean(path.trim())) : []
+}
+
 export function isSupportedAudioPath(filePath: string): boolean {
   return AUDIO_EXTENSIONS.some((extension) => filePath.toLowerCase().endsWith(extension))
 }

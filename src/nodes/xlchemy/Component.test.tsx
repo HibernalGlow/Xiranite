@@ -97,6 +97,26 @@ describe("app-owned xlchemy Component", () => {
     expect(within(screen.getByTestId("xlchemy-run-footer")).getByRole("button", { name: "开始转换" }).className).toContain("w-full")
   })
 
+  test("uses native local pickers and keeps selected paths after the host rerenders", async () => {
+    const host = createHost({})
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async () => ["D:/images/alpha.png", "D:/images/beta.jpg"],
+      pickDirectory: async () => "D:/images/folder",
+    }
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(within(screen.getByTestId("xlchemy-input-empty")).getByRole("button", { name: "添加文件" }))
+    await waitFor(() => expect(host.cardState.pathsText).toBe("D:/images/alpha.png\nD:/images/beta.jpg"))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.getByText("alpha.png")).toBeTruthy()
+    expect(screen.getByText("beta.jpg")).toBeTruthy()
+    await user.click(screen.getAllByRole("button", { name: "添加文件夹" })[0]!)
+    await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder"))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder"])
+  })
+
   test("keeps the matrix wave smooth and neutral until a real error state", () => {
     const host = createHost({ phase: "idle", progress: 0 })
     const view = render(<Component compId="xlchemy-card" host={host} />)
@@ -246,6 +266,7 @@ function createHost(initial: XlchemyCardState): TestHost {
     state: { getData: () => host.cardState, patchData: (patch: Partial<XlchemyCardState>) => { host.cardState = { ...host.cardState, ...patch } } },
     runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.runCalls.push({ nodeId, input: input as XlchemyInput }); onEvent?.({ type: "progress", progress: 50, message: "Calibrating." }); return { success: true, message: "Planned.", data: result as TData } } },
     clipboard: { readText: async () => "D:/images/a.png", writeText: async () => undefined },
+    localFiles: { getUrl: (path: string) => `local://${path}`, pickFiles: async () => [], pickDirectory: async () => undefined },
     config: {
       get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
       save: async (config: Partial<XlchemyCardState>) => { host.savedConfig = config },

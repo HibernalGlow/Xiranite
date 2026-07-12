@@ -291,6 +291,15 @@ samp {
   --tl-shadow-4: 0 8px 24px oklch(0 0 0 / 0.18);
 }
 
+/* Flow module nodes are full React UIs. tldraw's selection background sits on
+   the overlays layer (above shapes) with pointer-events:all, which blocks
+   node buttons / dropdowns / config popovers after the shape is selected.
+   ModuleShapeUtil also hides the bg; this is belt-and-suspenders for mixed
+   selections that still render a selection rect over module HTML. */
+.xiranite-flow-canvas .tl-selection__bg {
+  pointer-events: none !important;
+}
+
 /* TLDraw shape 选中框/resize handles 默认是蓝色，
    --tl-color-selected 变量已被覆盖为 var(--primary)，
    但部分 SVG 元素直接用 stroke/fill 不读变量，这里强制覆盖。 */

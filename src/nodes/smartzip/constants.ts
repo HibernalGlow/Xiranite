@@ -67,3 +67,7 @@ export const DESTRUCTIVE_ACTIONS: SmartZipAction[] = ["extract", "extract_codepa
 export function isDestructiveAction(action: SmartZipAction): boolean {
   return DESTRUCTIVE_ACTIONS.includes(action)
 }
+
+export function actionI18nKey(action: SmartZipAction): string {
+  return action.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())
+}

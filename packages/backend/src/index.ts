@@ -17,6 +17,7 @@ import { Readable } from "node:stream"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
+import { pickLocalPaths } from "./localFilePicker.js"
 
 export interface CreateDefaultBackendOptions {
   now?: number
@@ -109,6 +110,16 @@ export async function startBackend(options: StartBackendOptions = {}) {
 
       if (url.pathname === "/local-files/list") {
         await writeNodeResponse(outgoing, await listLocalFiles(url))
+        return
+      }
+
+      if (url.pathname === "/local-files/pick" && request.method === "POST") {
+        const body = await request.json().catch(() => ({})) as { kind?: string }
+        if (body.kind !== "files" && body.kind !== "directory") {
+          await writeNodeResponse(outgoing, Response.json({ error: "kind must be files or directory" }, { status: 400 }))
+          return
+        }
+        await writeNodeResponse(outgoing, Response.json({ paths: await pickLocalPaths(body.kind) }))
         return
       }
 

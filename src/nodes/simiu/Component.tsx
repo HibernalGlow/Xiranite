@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { RunningTint } from "@/nodes/shared/controls"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS } from "./constants"
 import {
@@ -30,6 +31,7 @@ type SimiuProps = NodeComponentProps<SimiuCardState, Partial<SimiuCardState>>
 
 export function Component({ compId, host }: SimiuProps) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("simiu")
   const data = getHostData(host, compId)
   const dataRef = useRef<SimiuCardState>(data)
   dataRef.current = data
@@ -136,7 +138,7 @@ export function Component({ compId, host }: SimiuProps) {
     if (running) return
     const current = dataRef.current
     if (!parseLines(current.rootsText).length) {
-      const message = "请先输入至少一个图片根目录。"
+      const message = t("error.noRoots", "请先输入至少一个图片根目录。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
@@ -144,14 +146,14 @@ export function Component({ compId, host }: SimiuProps) {
 
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      const message = t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(nextAction) }), result: null })
     try {
       const response = await run<SimiuInput, SimiuData>("simiu", buildInput(nextAction, current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
@@ -264,7 +266,7 @@ function CollapsedView(props: ViewProps) {
       </div>
       <div className="relative min-w-0 flex-1">
         <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>Simiu</span>
+          <span>{tNode("simiu", "name", "Simiu")}</span>
           <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
         </div>
         <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
@@ -329,7 +331,7 @@ function FullView(props: ViewProps) {
   return (
     <div data-testid="simiu-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/simiu:flex-row @4xl/simiu:items-center @4xl/simiu:justify-between">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || `${props.result.groupCount} clusters / ${props.result.imageCount} images`} />
+        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || tNode("simiu", "summary.clusters", "{{groups}} 个分组 / {{images}} 张图片", { groups: props.result.groupCount, images: props.result.imageCount })} />
         <div data-testid="simiu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
           <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
           <ConfigDefaultsPopover
@@ -348,7 +350,7 @@ function FullView(props: ViewProps) {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/simiu:grid-cols-[minmax(190px,.7fr)_minmax(0,1.7fr)]">
         <Card className="min-h-0 gap-0 overflow-auto py-0">
-          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5"><CardTitle className="text-sm">Scanning parameters</CardTitle><CardDescription className="text-[11px]">Source path, clustering rule, and run mode.</CardDescription></CardHeader>
+          <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5"><CardTitle className="text-sm">{tNode("simiu", "labels.scanningParameters", "扫描参数")}</CardTitle><CardDescription className="text-[11px]">{tNode("simiu", "labels.scanningParametersDescription", "源路径、分组规则和运行模式。")}</CardDescription></CardHeader>
           <CardContent className="grid gap-3 p-3">
             <RootsInput compact data={props.data} disabled={props.running} onPaste={props.onPasteRoots} onPatch={props.onPatch} />
             <GroupFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
@@ -366,23 +368,23 @@ function ClusterHub({ result, runAction }: { result: SimiuData; runAction: React
   return (
     <Card className="min-h-0 gap-0 overflow-hidden py-0">
       <CardHeader className="shrink-0 border-b bg-muted/20 px-3 py-2.5 !pb-2.5">
-        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">Cluster hub</CardTitle><Badge>{result.groupCount} confirmed</Badge></div>
-        <CardDescription className="text-[11px]">Size and signature groups derived from the current image batches.</CardDescription>
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-sm">{tNode("simiu", "labels.clusterHub", "分组中心")}</CardTitle><Badge>{tNode("simiu", "labels.confirmed", "已确认 {{count}} 个", { count: result.groupCount })}</Badge></div>
+        <CardDescription className="text-[11px]">{tNode("simiu", "labels.clusterHubDescription", "从当前图片批次推导的大小与签名分组。")}</CardDescription>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col p-3">
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="grid gap-4">
             {result.groups.map((group, index) => (
               <section key={`${group.parentDir}:${group.name}`} className="grid gap-2 rounded-lg border bg-background/55 p-3">
-                <div className="flex min-w-0 items-center justify-between gap-2"><div className="min-w-0"><div className="truncate text-sm font-semibold">Cluster {String(index + 1).padStart(2, "0")}: {group.name}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{group.parentDir}</div></div><Badge variant="outline">{group.files.length} items</Badge></div>
+                <div className="flex min-w-0 items-center justify-between gap-2"><div className="min-w-0"><div className="truncate text-sm font-semibold">{tNode("simiu", "labels.cluster", "分组 {{index}}: {{name}}", { index: String(index + 1).padStart(2, "0"), name: group.name })}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{group.parentDir}</div></div><Badge variant="outline">{tNode("simiu", "labels.items", "{{count}} 项", { count: group.files.length })}</Badge></div>
                 <div className="grid grid-cols-2 gap-2 @4xl/simiu:grid-cols-3">
-                  {group.files.map((file) => <div key={file} className="min-w-0 rounded-md border border-dashed bg-muted/20 p-2"><div className="truncate font-mono text-xs" title={file}>{file.split(/[\\/]/).at(-1)}</div><div className="mt-1 truncate text-[10px] text-muted-foreground">planned → {group.name}</div></div>)}
+                  {group.files.map((file) => <div key={file} className="min-w-0 rounded-md border border-dashed bg-muted/20 p-2"><div className="truncate font-mono text-xs" title={file}>{file.split(/[\\/]/).at(-1)}</div><div className="mt-1 truncate text-[10px] text-muted-foreground">{tNode("simiu", "labels.planned", "计划 → {{name}}", { name: group.name })}</div></div>)}
                 </div>
               </section>
             ))}
           </div>
         </div>
-        <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t pt-3"><span className="text-xs text-muted-foreground">Selected items: {result.groups.reduce((sum, group) => sum + group.files.length, 0)}</span>{runAction}</div>
+        <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t pt-3"><span className="text-xs text-muted-foreground">{tNode("simiu", "labels.selectedItems", "已选项目：{{count}}", { count: result.groups.reduce((sum, group) => sum + group.files.length, 0) })}</span>{runAction}</div>
       </CardContent>
     </Card>
   )
@@ -397,7 +399,7 @@ function FullViewLegacy(props: ViewProps) {
           <div data-testid="simiu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/simiu:w-80" onActionChange={props.onActionChange} />
             <RunActionButton props={props} />
-            <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ActionIconButton disabled={props.running} icon={RotateCcw} label={tNode("simiu", "actions.clear", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
@@ -417,17 +419,17 @@ function FullViewLegacy(props: ViewProps) {
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">图片根目录固定在左侧，扫描、计划和应用共用同一批输入。</div>
+              <div className="text-sm font-semibold">{tNode("simiu", "labels.input", "输入")}</div>
+              <div className="text-xs text-muted-foreground">{tNode("simiu", "labels.inputDescription", "图片根目录固定在左侧，扫描、计划和应用共用同一批输入。")}</div>
             </div>
             <RootsInput data={props.data} disabled={props.running} onPaste={props.onPasteRoots} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">分组</div>
+            <div className="text-sm font-semibold">{tNode("simiu", "labels.grouping", "分组")}</div>
             <GroupFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">运行</div>
+            <div className="text-sm font-semibold">{tNode("simiu", "labels.runtime", "运行")}</div>
             <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -443,14 +445,14 @@ function FullViewLegacy(props: ViewProps) {
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
   if (props.running) {
     return (
-      <Button aria-label="simiu running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
+      <Button aria-label={tNode("simiu", "aria.running", "simiu 运行中")} disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{tNode("simiu", "status.running", "运行中")}</span>}
       </Button>
     )
   }
 
-  const label = props.action === "apply" ? "运行应用" : props.action === "scan" ? "运行扫描" : "运行计划"
+  const label = props.action === "apply" ? tNode("simiu", "actions.runApply", "运行应用") : props.action === "scan" ? tNode("simiu", "actions.runScan", "运行扫描") : tNode("simiu", "actions.runPlan", "运行计划")
   const destructive = props.action === "apply" && !(props.data.dryRun ?? true)
   if (destructive) {
     return (
@@ -463,14 +465,14 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认真实应用分组？</AlertDialogTitle>
+            <AlertDialogTitle>{tNode("simiu", "confirm.applyTitle", "确认真实应用分组？")}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，会按选择的应用方式移动、复制或链接图片文件。请确认根目录和分组规则无误。
+              {tNode("simiu", "confirm.applyDescription", "当前已关闭预演，会按选择的应用方式移动、复制或链接图片文件。请确认根目录和分组规则无误。")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认应用</AlertDialogAction>
+            <AlertDialogCancel>{tNode("simiu", "confirm.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>{tNode("simiu", "confirm.apply", "确认应用")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -498,7 +500,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">Simiu</h3>
+            <h3 className="truncate text-sm font-semibold leading-none">{tNode("simiu", "name", "Simiu")}</h3>
             <Badge variant={status.badgeVariant}>{status.label}</Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
@@ -530,8 +532,8 @@ function buildInput(action: SimiuAction, data: SimiuCardState): SimiuInput {
 function statusFromState(data: SimiuCardState, running: boolean): SimiuStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: "运行中",
-      description: data.progressText || "Simiu 正在扫描或规划相似图片分组。",
+      label: tNode("simiu", "status.running", "运行中"),
+      description: data.progressText || tNode("simiu", "status.runningDescription", "Simiu 正在扫描或规划相似图片分组。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -539,8 +541,8 @@ function statusFromState(data: SimiuCardState, running: boolean): SimiuStatusMet
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("simiu", "status.completed", "完成"),
+      description: data.progressText || tNode("simiu", "status.completedDescription", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -548,16 +550,16 @@ function statusFromState(data: SimiuCardState, running: boolean): SimiuStatusMet
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
+      label: tNode("simiu", "status.error", "失败"),
+      description: data.progressText || tNode("simiu", "status.errorDescription", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "输入图片根目录后即可扫描或生成计划。",
+    label: tNode("simiu", "status.idle", "就绪"),
+    description: tNode("simiu", "status.idleDescription", "输入图片根目录后即可扫描或生成计划。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -566,13 +568,15 @@ function statusFromState(data: SimiuCardState, running: boolean): SimiuStatusMet
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result?.groupCount) return `${props.result.imageCount} 图片 / ${props.result.groupCount} 分组 / ${props.result.operations.length} 操作`
-  if (props.rootCount) return `${props.rootCount} 个根目录等待${props.actionMeta.shortLabel}`
-  return props.actionMeta.description
+  if (props.result?.groupCount) return tNode("simiu", "summary.result", "{{images}} 图片 / {{groups}} 分组 / {{operations}} 操作", { images: props.result.imageCount, groups: props.result.groupCount, operations: props.result.operations.length })
+  if (props.rootCount) return tNode("simiu", "summary.waiting", "{{count}} 个根目录等待{{action}}", { count: props.rootCount, action: tNode("simiu", `actions.${props.action}.shortLabel`, props.actionMeta.shortLabel) })
+  return tNode("simiu", `actions.${props.action}.description`, props.actionMeta.description)
 }
 
 function actionLabel(action: SimiuAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
+  const meta = ACTIONS.find((item) => item.value === action)
+  if (!meta) return action
+  return tNode("simiu", `actions.${action}.label`, meta.label)
 }
 
 function parseLines(value: unknown): string[] {

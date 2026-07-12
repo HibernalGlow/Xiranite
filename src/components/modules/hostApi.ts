@@ -9,6 +9,7 @@ import type {
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import { pickLocalPaths } from "@/backend/localFilesClient"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -152,6 +153,21 @@ export function useNodeHostApi(
 
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
+      pickFiles: async () => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          return await Dialogs.OpenFile({ CanChooseFiles: true, CanChooseDirectories: false, AllowsMultipleSelection: true, Title: "选择待转换图片", Filters: [{ DisplayName: "图片文件", Pattern: "*.jxl;*.jpg;*.jpeg;*.jfif;*.jif;*.jpe;*.png;*.apng;*.gif;*.webp;*.jp2;*.bmp;*.ico;*.tiff;*.tif;*.avif" }] })
+        }
+        return await pickLocalPaths("files")
+      },
+      pickDirectory: async () => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Dialogs } = await import("@wailsio/runtime")
+          const selected = await Dialogs.OpenFile({ CanChooseFiles: false, CanChooseDirectories: true, AllowsMultipleSelection: false, Title: "选择包含待转换图片的文件夹" })
+          return selected || undefined
+        }
+        return (await pickLocalPaths("directory"))[0]
+      },
     }
 
     const configCapability = {

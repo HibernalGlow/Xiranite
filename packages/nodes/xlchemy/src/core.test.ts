@@ -44,6 +44,31 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands[0]).toEqual({ command: "/bin/cwebp", args: ["/photos/a.png", "-o", "/photos/a.webp", "-q", "80", "-m", "6"] })
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 400 })
   })
+
+  test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {
+    const runtime = fakeRuntime()
+    runtime.resolveCommand = async (candidates) => candidates[0] === "oxipng" ? undefined : `/bin/${candidates[0]}`
+    runtime.runCommand = async (command, args) => {
+      runtime.commands.push({ command, args })
+      return command.endsWith("cjpegli")
+        ? { exitCode: 1, stdout: "", stderr: "Unknown argument: --version" }
+        : { exitCode: 0, stdout: `${command} 1.0`, stderr: "" }
+    }
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "diagnose", paths: [] }), runtime)
+    expect(result.success).toBe(true)
+    expect(result.data?.environment?.find((tool) => tool.id === "oxipng")).toMatchObject({ available: false, runnable: false })
+    expect(result.data?.environment?.find((tool) => tool.id === "cjpegli")).toMatchObject({ available: true, runnable: true })
+    expect(result.data?.environment?.find((tool) => tool.id === "slimg-cffi")).toMatchObject({ available: true, runnable: true })
+    expect(result.data?.environment?.some((tool) => "versionArgs" in tool)).toBe(false)
+  })
+
+  test("uses the slimg DLL runtime instead of passing slimg to avifenc", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/photos/a.png", "/photos/a.avif", "90"] }])
+    expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
+  })
 })
 
 function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
@@ -55,6 +80,8 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async () => undefined, renameFile: async () => undefined, setTimes: async () => undefined,
     runCommand: async (command, args) => { runtime.commands.push({ command, args }); files.set(args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!, { size: 400 }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
+    probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
+    convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
     join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }
   return runtime

@@ -3533,6 +3533,1041 @@
       "progress": {
         "start": "{{action}}开始"
       }
+    },
+    "classf": {
+      "name": "ClassF",
+      "description": "编排 SameA、CrashU 和 MigrateF 分类管道。",
+      "sections": {
+        "scanSources": "扫描来源",
+        "classificationMatrix": "分类矩阵",
+        "executionGate": "执行门"
+      },
+      "modes": {
+        "dryRun": "预演",
+        "live": "实际执行"
+      },
+      "execution": {
+        "planReadiness": "计划就绪度",
+        "ready": "可执行",
+        "pending": "待确认"
+      },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "envuconfig": {
+      "name": "EnvU Config",
+      "description": "列出、记录并备份 EnvU 安装配置文件。",
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "jellypot": {
+      "name": "JellyPot",
+      "description": "启动 Jellyfin 和 PotPlayer，并检查 JellyPot 配置。",
+      "console": {
+        "subtitle": "媒体入口、环境检查与注册表配置"
+      },
+      "action": {
+        "reset": "清空状态"
+      },
+      "media": {
+        "title": "媒体入口",
+        "description": "输入本地媒体后使用 PotPlayer 打开",
+        "scan": "检查环境"
+      },
+      "activity": {
+        "title": "最近活动",
+        "description": "本节点最近的运行记录"
+      },
+      "service": {
+        "potplayerDesc": "本地播放器与媒体文件入口",
+        "launch": "播放媒体",
+        "jellyfinDesc": "浏览器打开 Jellyfin Web",
+        "open": "打开 Jellyfin"
+      },
+      "registry": {
+        "title": "注册表配置",
+        "noConfig": "当前尚未读取配置文件",
+        "riskTitle": "高风险操作",
+        "riskReady": "注册表文件已找到。关闭预演后会修改系统注册表。",
+        "riskMissing": "请先检查注册表文件和配置路径，再执行导入。",
+        "plan": "预演导入注册表"
+      },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "gitalso": {
+      "name": "GitAlso",
+      "description": "以 diny 优先的提交助手，可选 GitButler AI 落地工作流。",
+      "error": {
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "progress": {
+        "start": "开始执行..."
+      },
+      "stats": {
+        "staged": "暂存文件",
+        "branch": "分支",
+        "insertions": "新增行",
+        "deletions": "删除行"
+      },
+      "fields": {
+        "repoPath": "Git 仓库路径"
+      },
+      "placeholder": {
+        "repoPath": "留空使用当前仓库",
+        "manualMessage": "手动输入 commit 消息，或留空使用 diny AI 生成..."
+      },
+      "actions": {
+        "analyze": "分析变更",
+        "copy": "复制",
+        "generate": "生成消息",
+        "dryCommit": "预演提交",
+        "commit": "提交",
+        "push": "推送",
+        "stop": "停止",
+        "reset": "重置",
+        "saveDefaults": "保存为默认配置"
+      },
+      "labels": {
+        "stagedFiles": "暂存文件",
+        "commitMessage": "Commit 消息",
+        "diffPreview": "Diff 预览",
+        "logs": "日志"
+      },
+      "empty": {
+        "staged": "无暂存文件"
+      },
+      "switches": {
+        "dryRunOn": "预演",
+        "dryRunOff": "实模式",
+        "noVerifyOn": "跳过钩子",
+        "noVerifyOff": "钩子"
+      }
+    },
+    "nameu": {
+      "name": "NameU",
+      "description": "预览并应用艺术家文件夹的归档文件名清理。",
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "xlchemy": {
+      "name": "Xlchemy",
+      "description": "高性能图片批量转码工作台。",
+      "subtitle": "高性能图片批量转码工作台",
+      "sections": {
+        "input": "输入文件",
+        "formatHub": "校准矩阵"
+      },
+      "errors": {
+        "paths": "请先添加图片文件或文件夹。",
+        "backend": "GUI 已就绪，等待 Xlchemy 后端执行接口接入。",
+        "cancelUnavailable": "当前宿主不支持从节点取消任务。",
+        "noActiveRun": "没有可取消的 Xlchemy 任务。"
+      },
+      "status": {
+        "start": "正在准备 Xlchemy 转换任务…",
+        "stopping": "正在停止 Xlchemy 转换…"
+      },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "bitv": {
+      "name": "BitV",
+      "description": "分析视频码率并输出分类报告，作为视频整理前的检查节点。",
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "simiu": {
+      "name": "Simiu",
+      "description": "扫描相似图片，按大小和签名生成分组与文件操作计划。",
+      "actions": {
+        "clear": "清空状态",
+        "running": "运行中",
+        "runApply": "运行应用",
+        "runScan": "运行扫描",
+        "runPlan": "运行计划",
+        "paste": "粘贴目录",
+        "copy": "复制",
+        "saveDefault": "保存为默认",
+        "restoreDefault": "恢复默认",
+        "clearOverride": "清除覆盖",
+        "viewConfig": "查看配置",
+        "openFile": "打开文件",
+        "scan": {
+          "label": "扫描图片",
+          "shortLabel": "扫描",
+          "description": "扫描图片根目录和批次，不生成移动计划。"
+        },
+        "plan": {
+          "label": "生成分组",
+          "shortLabel": "计划",
+          "description": "按大小和签名生成分组及文件操作计划。"
+        },
+        "apply": {
+          "label": "应用分组",
+          "shortLabel": "应用",
+          "description": "执行移动、复制或链接操作，修改文件系统。"
+        }
+      },
+      "status": {
+        "running": "运行中",
+        "runningDescription": "Simiu 正在扫描或规划相似图片分组。",
+        "completed": "完成",
+        "completedDescription": "上次任务已完成。",
+        "error": "失败",
+        "errorDescription": "上次任务失败，请查看日志。",
+        "idle": "就绪",
+        "idleDescription": "输入图片根目录后即可扫描或生成计划。"
+      },
+      "error": {
+        "noRoots": "请先输入至少一个图片根目录。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      },
+      "confirm": {
+        "applyTitle": "确认真实应用分组？",
+        "applyDescription": "当前已关闭预演，会按选择的应用方式移动、复制或链接图片文件。请确认根目录和分组规则无误。",
+        "cancel": "取消",
+        "apply": "确认应用"
+      },
+      "labels": {
+        "input": "输入",
+        "inputDescription": "图片根目录固定在左侧，扫描、计划和应用共用同一批输入。",
+        "grouping": "分组",
+        "runtime": "运行",
+        "scanningParameters": "扫描参数",
+        "scanningParametersDescription": "源路径、分组规则和运行模式。",
+        "clusterHub": "分组中心",
+        "confirmed": "已确认 {{count}} 个",
+        "clusterHubDescription": "从当前图片批次推导的大小与签名分组。",
+        "cluster": "分组 {{index}}: {{name}}",
+        "items": "{{count}} 项",
+        "planned": "计划 → {{name}}",
+        "selectedItems": "已选项目：{{count}}",
+        "fileCount": "{{count}} 个文件",
+        "groupOptions": "分组选项",
+        "groupOptionsDescription": "应用方式、扫描顺序和预演开关集中在这里。",
+        "defaults": "默认配置",
+        "defaultsDescription": "保存 Simiu 的目录、分组和运行选项。",
+        "configTitle": "Simiu 配置",
+        "configDescription": "当前 nodes.simiu 默认值和配置文件位置。",
+        "noDefaults": "# nodes.simiu 暂无默认配置\n",
+        "configFile": "配置文件",
+        "noConfigService": "未连接本地配置服务"
+      },
+      "fields": {
+        "roots": "图片根目录",
+        "rootsHint": "jpg / png / webp",
+        "applyMode": "应用方式",
+        "scanOrder": "扫描顺序",
+        "dryRun": "预演",
+        "dryRunDescription": "只生成操作计划，不移动、复制或链接文件。",
+        "recordRun": "记录运行",
+        "recordRunDescription": "把扫描或应用结果写入 JSONL。"
+      },
+      "placeholder": {
+        "roots": "每行一个图片目录",
+        "namePrefix": "分组前缀，默认 simiu_set",
+        "minGroupSize": "最小组大小，默认 2",
+        "sizeTolerance": "尺寸容差 bytes",
+        "configPath": "simiu.toml，可选",
+        "databasePath": ".xiranite/simiu-runs.jsonl"
+      },
+      "aria": {
+        "action": "simiu 操作",
+        "running": "simiu 运行中",
+        "roots": "simiu 图片根目录",
+        "applyMode": "simiu 应用模式",
+        "applyModeItem": "应用方式 {{label}}",
+        "scanOrder": "simiu 扫描顺序",
+        "scanOrderItem": "扫描顺序 {{label}}",
+        "namePrefix": "simiu 分组前缀",
+        "minGroupSize": "simiu 最小组大小",
+        "sizeTolerance": "simiu 尺寸容差",
+        "configPath": "simiu 配置 TOML",
+        "databasePath": "simiu 运行记录 JSONL",
+        "groupOptions": "simiu 分组选项",
+        "defaults": "simiu 默认配置",
+        "hint": "{{label}}说明"
+      },
+      "tabs": {
+        "groups": "分组",
+        "operations": "操作",
+        "logs": "日志"
+      },
+      "stats": {
+        "images": "图片",
+        "groups": "分组",
+        "operations": "操作",
+        "errors": "错误"
+      },
+      "empty": {
+        "logsText": "运行日志会显示在这里。",
+        "groupsTitle": "等待分组",
+        "groupsDescription": "生成计划后会显示相似图片分组。",
+        "operationsTitle": "等待操作",
+        "operationsDescription": "生成计划或应用分组后会显示文件操作。",
+        "logsTitle": "等待日志"
+      },
+      "panel": {
+        "count": "{{count}} 项{{label}}",
+        "waiting": "等待{{label}}"
+      },
+      "summary": {
+        "result": "{{images}} 图片 / {{groups}} 分组 / {{operations}} 操作",
+        "waiting": "{{count}} 个根目录等待{{action}}",
+        "clusters": "{{groups}} 个分组 / {{images}} 张图片"
+      },
+      "applyMode": {
+        "move": "移动",
+        "copy": "复制",
+        "link": "链接"
+      },
+      "scanOrder": {
+        "path": "路径",
+        "smallest-first": "小批次优先",
+        "deepest-first": "深层优先"
+      },
+      "config": {
+        "trigger": "配置管理",
+        "title": "配置管理",
+        "description": "保存可复用默认值，或恢复本节点的已保存配置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "reload": "重新读取",
+        "view": "查看配置",
+        "previewTitle": "默认配置",
+        "noPath": "尚未连接配置文件",
+        "openFile": "打开配置文件",
+        "dirty": "当前参数与已保存默认值不同。",
+        "preset": "预设",
+        "presetPlaceholder": "选择预设",
+        "presetDescription": "切换后保存为默认，即写入 TOML 配置。"
+      }
+    },
+    "smartzip": {
+      "name": "SmartZip",
+      "description": "SmartZip 归档管理：查看状态、解压、打包或打开设置。",
+      "actions": {
+        "clear": "清空状态",
+        "cancel": "取消",
+        "confirm": "确认执行",
+        "pastePaths": "粘贴路径",
+        "copy": "复制",
+        "status": {
+          "label": "查看状态",
+          "shortLabel": "状态",
+          "description": "加载 SmartZip 配置，列出归档扩展名和密码。"
+        },
+        "extract": {
+          "label": "解压归档",
+          "shortLabel": "解压",
+          "description": "调用 SmartZip 解压选中的归档文件。"
+        },
+        "extractCodepage": {
+          "label": "代码页解压",
+          "shortLabel": "代码页",
+          "description": "用指定代码页解压归档，处理非 ASCII 文件名。"
+        },
+        "open": {
+          "label": "打开归档",
+          "shortLabel": "打开",
+          "description": "在 SmartZip GUI 中打开归档文件。"
+        },
+        "archive": {
+          "label": "创建归档",
+          "shortLabel": "打包",
+          "description": "把选中路径打包成归档文件。"
+        },
+        "settings": {
+          "label": "打开设置",
+          "shortLabel": "设置",
+          "description": "打开 SmartZip 设置窗口。"
+        }
+      },
+      "fields": {
+        "paths": "路径",
+        "executables": "可执行文件",
+        "run": "运行",
+        "archivesOrDirs": "归档或目录"
+      },
+      "placeholders": {
+        "smartZipExe": "SmartZip.exe，可留空使用 AHK",
+        "smartZipAhk": "SmartZip.ahk 脚本路径",
+        "autohotkeyExe": "AutoHotkey.exe，默认自动检测",
+        "iniPath": "SmartZip.ini 配置文件",
+        "databasePath": ".xiranite/smartzip-runs.jsonl"
+      },
+      "labels": {
+        "operationChamber": "Operation chamber",
+        "commandPlan": "; SMARTZIP COMMAND PLAN",
+        "queuedArchives": "; QUEUED ARCHIVES",
+        "runCommandHint": "Run an action to produce the SmartZip command plan.",
+        "hintSuffix": "{{label}}说明"
+      },
+      "badges": {
+        "planned": "planned",
+        "idle": "idle"
+      },
+      "status": {
+        "running": "运行中",
+        "runningDesc": "SmartZip 正在加载配置或执行命令。",
+        "completed": "完成",
+        "completedDesc": "上次任务已完成。",
+        "error": "失败",
+        "errorDesc": "上次任务失败，请查看日志。",
+        "idle": "就绪",
+        "idleDesc": "选择动作后查看状态、解压、打包或打开设置。"
+      },
+      "tabs": {
+        "command": "命令",
+        "config": "配置",
+        "logs": "日志"
+      },
+      "stats": {
+        "selected": "选中",
+        "archives": "归档",
+        "extensions": "扩展名",
+        "errors": "错误"
+      },
+      "options": {
+        "title": "运行选项",
+        "description": "SmartZip 路径、AHK、ini 和运行开关集中在这里。"
+      },
+      "defaults": {
+        "title": "默认配置",
+        "description": "保存 SmartZip 路径、AHK 和 ini 位置。",
+        "save": "保存为默认",
+        "restore": "恢复默认",
+        "clear": "清除覆盖",
+        "view": "查看配置",
+        "previewTitle": "SmartZip 配置",
+        "previewDescription": "当前 nodes.smartzip 默认值和配置文件位置。",
+        "openFile": "打开文件",
+        "noConfig": "# nodes.smartzip 暂无默认配置\n",
+        "configFile": "配置文件",
+        "notConnected": "未连接本地配置服务"
+      },
+      "switches": {
+        "dryRun": "预演",
+        "dryRunDesc": "只生成命令计划，不真正调用 SmartZip。",
+        "recordRun": "记录运行",
+        "recordRunDesc": "把每次运行的命令和结果写入 JSONL。"
+      },
+      "empty": {
+        "waitingCommand": "等待命令",
+        "waitingCommandDesc": "选择动作并运行后会显示 SmartZip 命令计划。",
+        "waitingConfig": "等待配置",
+        "waitingConfigDesc": "运行状态查看后会显示 SmartZip 配置。",
+        "waitingLogs": "等待日志",
+        "logsHint": "运行日志会显示在这里。"
+      },
+      "configRows": {
+        "sevenZipDir": "7-Zip 目录",
+        "passwords": "密码数",
+        "archiveExtensions": "归档扩展名",
+        "default": "(默认)",
+        "contextMenu": "右键菜单",
+        "sendTo": "发送到",
+        "enabled": "启用",
+        "disabled": "禁用"
+      },
+      "panelHeader": {
+        "items": "{{count}} 项{{label}}",
+        "waiting": "等待{{label}}"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      },
+      "error": {
+        "noPaths": "请先输入至少一个归档或目录路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "confirm": {
+        "title": "确认{{action}}？",
+        "description": "当前已关闭预演，会调用 SmartZip 实际执行{{action}}操作，可能会修改磁盘文件。请确认路径和配置无误。"
+      },
+      "summary": {
+        "stats": "{{paths}} 路径 / {{archives}} 归档 / {{errors}} 错误"
+      },
+      "hints": {
+        "pathsHelp": "归档或目录，每行一条。status 和 settings 不需要路径。",
+        "pathsDescription": "每行一条路径，支持 .zip .7z .rar .tar 等。"
+      }
+    },
+    "snf": {
+      "name": "SNF",
+      "description": "扫描并修复 ACG 归档库的序号命名。",
+      "sections": {
+        "pathAndPattern": "路径和模式",
+        "scheme": "序号计划",
+        "execution": "执行"
+      },
+      "actions": {
+        "scan": {
+          "label": "扫描序号",
+          "short": "扫描",
+          "description": "读取编号目录并检查是否连续。"
+        },
+        "plan": {
+          "label": "预览修复",
+          "short": "预览",
+          "description": "生成编号修复计划，不改动目录。"
+        },
+        "rename": {
+          "label": "执行修复",
+          "short": "修复",
+          "description": "按计划重命名编号目录，需要确认。"
+        },
+        "saveDefault": "保存默认",
+        "restoreDefault": "恢复默认",
+        "clearState": "清空状态",
+        "pastePaths": "粘贴路径",
+        "clearPaths": "清空路径",
+        "copy": "复制",
+        "cancel": "取消",
+        "confirmExecute": "确认执行"
+      },
+      "modes": {
+        "library": "库目录",
+        "artist": "作者目录"
+      },
+      "fields": {
+        "pathsLabel": "库目录或作者目录"
+      },
+      "placeholder": {
+        "paths": "每行一个目录\nD:/archives"
+      },
+      "switches": {
+        "preview": "预览",
+        "keepTimestamp": "保留时间"
+      },
+      "execution": {
+        "preview": "预览",
+        "write": "写入"
+      },
+      "labels": {
+        "running": "运行中",
+        "unnumbered": "未编号",
+        "waitRun": "等待运行",
+        "itemUnit": "项",
+        "lineUnit": "行"
+      },
+      "tabs": {
+        "plan": "计划",
+        "issues": "问题",
+        "logs": "日志"
+      },
+      "empty": {
+        "noIssues": "暂无问题",
+        "logsHint": "运行日志会显示在这里。",
+        "planAfterRun": "运行预览后显示序号修复计划。",
+        "planAfterInput": "输入目录后预览序号修复计划。"
+      },
+      "stats": {
+        "paths": "路径",
+        "artists": "作者",
+        "ready": "待改",
+        "renamed": "已改",
+        "conflict": "冲突",
+        "progress": "进度"
+      },
+      "status": {
+        "running": {
+          "label": "运行中",
+          "description": "SNF 正在扫描或修复序号。"
+        },
+        "error": {
+          "label": "失败",
+          "description": "上次任务失败，请查看问题列表。"
+        },
+        "completed": {
+          "label": "完成",
+          "description": "上次 SNF 任务已完成。"
+        },
+        "idle": {
+          "label": "就绪",
+          "description": "输入目录后预览序号修复计划。"
+        }
+      },
+      "itemStatus": {
+        "renamed": "已改",
+        "ready": "待改",
+        "conflict": "冲突",
+        "error": "错误",
+        "skipped": "跳过",
+        "unchanged": "不变"
+      },
+      "summary": {
+        "items": "项",
+        "ready": "待改",
+        "conflict": "冲突",
+        "paths": "条路径"
+      },
+      "confirm": {
+        "title": "确认执行修复？",
+        "description": "当前会重命名编号目录。请先确认路径、模式和冲突列表。"
+      },
+      "error": {
+        "noPaths": "请先输入至少一个库目录或作者目录。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      }
+    },
+    "soundw": {
+      "name": "SoundW",
+      "description": "快速切换 SoundSwitch 录音设备及麦克风静音状态。",
+      "status": {
+        "notQueried": "状态未查询",
+        "ready": "就绪 — 查询状态或切换录音设备。"
+      },
+      "sections": {
+        "deviceMatrix": "设备矩阵",
+        "profileHub": "配置中心",
+        "consoleLog": "控制台日志"
+      },
+      "labels": {
+        "soundswitchRecording": "SOUNDSWITCH / RECORDING",
+        "micPrefix": "MIC",
+        "recordingRoute": "录音路由",
+        "soundswitchProfiles": "SOUNDSWITCH 配置",
+        "commandOutput": "命令输出",
+        "recordingDevices": "录音设备",
+        "use": "使用"
+      },
+      "descriptions": {
+        "recordingDevices": "仅循环切换 SoundSwitch 中配置的输入设备。"
+      },
+      "actions": {
+        "switchRecordingDevice": "切换录音设备",
+        "muteMic": "静音麦克风",
+        "unmuteMic": "取消静音",
+        "toggleMute": "切换麦克风静音",
+        "activate": "激活",
+        "saveDefaults": "保存为默认"
+      },
+      "aria": {
+        "refreshStatus": "刷新麦克风状态",
+        "loadProfiles": "加载 SoundSwitch 配置",
+        "profileName": "SoundSwitch 配置名称",
+        "openSettings": "打开 SoundSwitch 设置"
+      },
+      "placeholders": {
+        "profileName": "配置名称",
+        "cliPath": "SoundSwitch.CLI.exe 路径"
+      },
+      "empty": {
+        "profiles": "加载配置以选择。配置定义仍由 SoundSwitch 管理。",
+        "logs": "尚未运行命令。"
+      },
+      "advanced": {
+        "cliOverride": "CLI 路径覆盖"
+      }
+    },
+    "synct": {
+      "name": "Synct",
+      "description": "按时间戳归档文件和文件夹",
+      "error": {
+        "noPaths": "运行 Synct 前请至少添加一个源路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面后端或 CLI。"
+      },
+      "progress": {
+        "started": "{{action}} 已开始。"
+      },
+      "sections": {
+        "sourcesAndFormat": "来源和格式",
+        "archivePlan": "归档路径规划",
+        "targetFormat": "目标格式",
+        "run": "执行"
+      },
+      "actions": {
+        "saveDefaults": "保存默认",
+        "restoreDefaults": "恢复默认",
+        "clearState": "清空状态",
+        "pastePaths": "粘贴路径",
+        "clearPaths": "清空路径",
+        "copy": "复制",
+        "scan": {
+          "label": "扫描日期",
+          "short": "扫描",
+          "description": "读取源名称并显示检测到的时间戳。"
+        },
+        "plan": {
+          "label": "构建规划",
+          "short": "规划",
+          "description": "预览目标归档路径和冲突。"
+        },
+        "archive": {
+          "label": "归档项目",
+          "short": "归档",
+          "description": "将就绪项目移动到按日期命名的文件夹。"
+        }
+      },
+      "sourceModes": {
+        "files": { "label": "文件" },
+        "folders": { "label": "文件夹" }
+      },
+      "formats": {
+        "year_month": { "label": "年月" },
+        "year_month_day": { "label": "日期" },
+        "nested_y_m": { "label": "年 / 月" },
+        "nested_y_m_d": { "label": "年 / 月 / 日" },
+        "nested_ym_d": { "label": "月文件夹 + 日" },
+        "nested_y_md": { "label": "年 + 月日" },
+        "year": { "label": "年" },
+        "month_day": { "label": "月日" },
+        "day": { "label": "日" }
+      },
+      "labels": {
+        "sourcePaths": "源路径",
+        "noTimestamp": "无时间戳",
+        "unscheduled": "未排定",
+        "fileCount": "{{count}} 个文件",
+        "itemsCount": "{{count}} 项",
+        "linesCount": "{{count}} 行"
+      },
+      "placeholder": {
+        "paths": "每行一个文件或文件夹\nD:/downloads"
+      },
+      "switches": {
+        "dryRun": "预演",
+        "recursive": "递归文件",
+        "archiveFolder": "使用归档文件夹",
+        "fallbackTime": "回退时间",
+        "syncFolderFiles": "同步文件夹文件"
+      },
+      "badges": {
+        "dryRun": "预演",
+        "live": "实模式"
+      },
+      "status": {
+        "running": "运行中",
+        "failed": "失败",
+        "done": "完成",
+        "ready": "就绪",
+        "waiting": "等待规划"
+      },
+      "desc": {
+        "running": "Synct 正在扫描或移动归档项目。",
+        "failed": "上次 Synct 运行失败，请查看问题。",
+        "done": "上次 Synct 运行已完成。",
+        "ready": "添加路径并预览时间戳归档目标。"
+      },
+      "itemStatus": {
+        "moved": "已移动",
+        "ready": "就绪",
+        "conflict": "冲突",
+        "error": "错误",
+        "skipped": "已跳过",
+        "same": "相同"
+      },
+      "tabs": {
+        "plan": "规划",
+        "issues": "问题",
+        "logs": "日志"
+      },
+      "empty": {
+        "issues": "暂无问题。",
+        "logs": "运行日志将显示在此。"
+      },
+      "plan": {
+        "runToPreview": "运行规划以显示归档目标。",
+        "addPaths": "添加源路径以预览归档路线。"
+      },
+      "confirm": {
+        "title": "确认执行真实归档？",
+        "description": "Synct 将移动就绪的文件或文件夹。已存在的目标将作为冲突跳过，继续前请检查源路径。",
+        "archive": "确认归档"
+      },
+      "stats": {
+        "sources": "源",
+        "scanned": "已扫描",
+        "ready": "就绪",
+        "moved": "已移动",
+        "conflicts": "冲突",
+        "progress": "进度"
+      },
+      "summary": {
+        "items": "{{count}} 项 / 就绪 {{ready}} / 冲突 {{conflicts}}",
+        "paths": "{{count}} 个源路径 / {{action}}"
+      }
+    },
+    "timeu": {
+      "name": "TimeU",
+      "description": "扫描、备份和恢复文件时间戳，支持 JSON 记录与预览模式。",
+      "sections": {
+        "pathQueue": "路径队列",
+        "timeRecords": "时间记录",
+        "execution": "执行"
+      },
+      "actions": {
+        "saveDefault": "保存默认",
+        "restoreDefault": "恢复默认",
+        "clearState": "清空状态",
+        "pastePath": "粘贴路径",
+        "clearPath": "清空路径",
+        "copy": "复制",
+        "cancel": "取消",
+        "confirmExecute": "确认执行"
+      },
+      "fields": {
+        "paths": "文件或目录",
+        "record": "记录文件"
+      },
+      "placeholder": {
+        "paths": "每行一个文件或目录\nD:/archive",
+        "record": "留空则在首个路径旁生成 timeu-timestamps.json"
+      },
+      "switches": {
+        "dryRun": "预览",
+        "recursive": "递归",
+        "includeDirectories": "含目录"
+      },
+      "badges": {
+        "preview": "预览",
+        "write": "写入"
+      },
+      "status": {
+        "running": "运行中",
+        "error": "失败",
+        "completed": "完成",
+        "ready": "就绪"
+      },
+      "desc": {
+        "running": "TimeU 正在扫描或写入时间戳。",
+        "error": "上次任务失败，请查看问题列表。",
+        "completed": "上次时间戳任务已完成。",
+        "idle": "输入文件或目录后扫描时间戳。"
+      },
+      "itemStatus": {
+        "success": "完成",
+        "error": "错误",
+        "skipped": "跳过",
+        "pending": "待执行"
+      },
+      "tabs": {
+        "records": "记录",
+        "errors": "问题",
+        "logs": "日志"
+      },
+      "empty": {
+        "timestampRows": "运行后显示当前时间、记录时间和恢复计划。",
+        "noIssues": "暂无问题",
+        "logsHere": "运行日志会显示在这里。",
+        "waitingRun": "等待运行"
+      },
+      "stats": {
+        "paths": "路径",
+        "scanned": "扫描",
+        "backup": "备份",
+        "restored": "恢复",
+        "skipped": "跳过",
+        "progress": "进度"
+      },
+      "timestamps": {
+        "atime": "访问时间",
+        "mtime": "修改时间",
+        "drifted": "有差异",
+        "missing": "缺失",
+        "notWritten": "未写入",
+        "current": "现",
+        "stored": "档"
+      },
+      "dialog": {
+        "confirmBackupTitle": "确认备份时间戳？",
+        "confirmRestoreTitle": "确认恢复时间戳？",
+        "confirmDescription": "当前会写入记录文件或修改文件 atime/mtime。请确认路径和记录文件无误。"
+      },
+      "error": {
+        "noPaths": "请先输入至少一个文件或目录路径。",
+        "noRunEnv": "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      },
+      "progress": {
+        "start": "{{action}}开始"
+      },
+      "summary": {
+        "result": "{{count}} 项 / 记录 {{records}}",
+        "paths": "{{count}} 条路径 / {{action}}"
+      },
+      "actionLabel": {
+        "scan": "扫描时间",
+        "backup": "备份时间",
+        "restore": "恢复时间"
+      },
+      "actionShortLabel": {
+        "scan": "扫描",
+        "backup": "备份",
+        "restore": "恢复"
+      },
+      "actionDescription": {
+        "scan": "读取当前时间戳并生成记录预览。",
+        "backup": "写入 JSON 时间戳记录，供后续恢复。",
+        "restore": "按记录恢复访问时间和修改时间。"
+      },
+      "units": {
+        "items": "{{count}} 项",
+        "lines": "{{count}} 行"
+      }
+    },
+    "samea": {
+      "name": "SameA",
+      "description": "归档提取器协议，按画师命名模式分析并分类整理压缩包。",
+      "errors": {
+        "noPaths": "扫描前请至少添加一个归档根目录。",
+        "noRunEnv": "当前环境没有本地运行能力。"
+      },
+      "progress": {
+        "init": "正在初始化 SameA 提取器。"
+      },
+      "header": {
+        "title": "SameA：提取器协议",
+        "sessionLabel": "工作区会话：",
+        "targetLabel": "目标：归档分诊"
+      },
+      "collapsed": {
+        "archiveCandidates": "{{count}} 个归档候选"
+      },
+      "sections": {
+        "sourceControl": "来源控制",
+        "operationGate": "操作门",
+        "analysisChamber": "分析舱",
+        "filterProtocols": "过滤协议"
+      },
+      "source": {
+        "ingestionLabel": "摄入路径（按行分隔）",
+        "placeholder": "D:/Archives/Unsorted\nE:/Staging/New",
+        "pastePaths": "粘贴路径",
+        "ignorePathBlacklist": "忽略路径黑名单"
+      },
+      "operation": {
+        "minOccurrences": "最小出现次数",
+        "centralizeLabel": "集中输出",
+        "centralizeDesc": "移动到 [00画师分类]",
+        "dryRunLabel": "预演模式",
+        "dryRunDesc": "模拟而不移动"
+      },
+      "analysis": {
+        "scanned": "已扫描",
+        "ready": "准备好扫描归档命名模式。",
+        "entityColumn": "检测到的实体",
+        "countColumn": "数量",
+        "actionColumn": "操作",
+        "empty": "运行预演扫描以填充画师矩阵。"
+      },
+      "filters": {
+        "artists": "画师",
+        "paths": "路径",
+        "regex": "正则",
+        "addExclusion": "添加排除项…"
+      },
+      "compact": {
+        "input": "输入",
+        "analysis": "分析",
+        "filters": "过滤"
+      },
+      "logs": {
+        "title": "系统日志 // 标准输出",
+        "clear": "清空",
+        "copy": "复制",
+        "idle": "[空闲] SameA 已就绪。默认启用预演模式。"
+      },
+      "actions": {
+        "running": "运行中",
+        "executeScan": "执行扫描",
+        "planScan": "规划扫描",
+        "classifyTitle": "实时分类归档？",
+        "classifyDesc": "SameA 将把就绪的归档移动到检测到的画师文件夹。",
+        "cancel": "取消",
+        "confirm": "确认"
+      }
     }
   }
 }

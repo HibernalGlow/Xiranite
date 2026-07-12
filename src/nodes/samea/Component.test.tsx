@@ -14,9 +14,9 @@ describe("SameA node", () => {
   test("renders the extractor workbench and sends native scan input", async () => {
     const host = createHost({ pathsText: "D:/archive", dryRun: true })
     render(<Component compId="samea" host={host} />)
-    expect(screen.getByText("SameA: Extractor Protocol")).toBeTruthy()
-    expect(screen.getByText("Analysis Chamber")).toBeTruthy()
-    await screen.getAllByRole("button", { name: "Plan scan" })[0]!.click()
+    expect(screen.getByText("SameA：提取器协议")).toBeTruthy()
+    expect(screen.getByText("分析舱")).toBeTruthy()
+    await screen.getAllByRole("button", { name: "规划扫描" })[0]!.click()
     await waitFor(() => expect(host.calls[0]).toEqual(expect.objectContaining({ nodeId: "samea", input: expect.objectContaining({ action: "plan", paths: ["D:/archive"], dryRun: true }) })))
   })
 })

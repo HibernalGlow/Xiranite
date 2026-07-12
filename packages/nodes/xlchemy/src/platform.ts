@@ -3,6 +3,7 @@ import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import { delimiter } from "node:path"
 import { spawn } from "node:child_process"
 import type { XlchemyRuntime } from "./core.js"
+import { convertWithSlimg, probeSlimg } from "./slimg.js"
 
 export function createNodeXlchemyRuntime(): XlchemyRuntime {
   return {
@@ -15,6 +16,8 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
     runCommand,
     resolveCommand,
+    probeSlimg,
+    convertWithSlimg,
     join,
     dirname,
     basename,

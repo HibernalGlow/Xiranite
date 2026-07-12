@@ -21,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { ModulePanel } from "@/components/ui/module-panel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ENVIRONMENT_TARGETS, FORMATS, PRESETS } from "./constants"
@@ -198,7 +199,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset,
@@ -238,7 +239,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 }
 
 interface ViewProps {
-  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string
+  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
   onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>
 }
 
@@ -335,7 +336,7 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench data={props.data} disabled={props.running} footer={<RunButton className="w-full" label={`转换 (${props.paths.length})`} props={props} />} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} />
+  return <InputFilesWorkbench data={props.data} disabled={props.running} footer={<RunButton className="w-full" label={`转换 (${props.paths.length})`} props={props} />} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
@@ -454,14 +455,7 @@ function ResultPanel({ props }: { props: ViewProps }) {
 }
 
 function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; fill?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
-  return <FieldSet className={cn("min-w-0 gap-0 rounded-xl border bg-card/80 px-2.5 pb-2.5 shadow-none", (fill || grow) && "min-h-0", fill && "h-full")}>
-    <FieldLegend className="mb-0 ml-1 w-fit px-0.5" variant="label">
-      <Badge className="gap-1 px-1.5 py-0 text-[10px] font-medium text-foreground shadow-none" variant="outline">
-        {Icon && <Icon />}{title}{badge && <span className="font-mono text-muted-foreground">· {badge}</span>}
-      </Badge>
-    </FieldLegend>
-    <div className={cn("flex min-h-0 flex-col gap-2.5 pt-1", fill && "flex-1 overflow-hidden")}>{children}</div>
-  </FieldSet>
+  return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} contentClassName="pt-1">{children}</ModulePanel>
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }

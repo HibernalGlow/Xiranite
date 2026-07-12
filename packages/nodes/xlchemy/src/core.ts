@@ -1,7 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-export type XlchemyAction = "plan" | "convert"
-export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG"
+export type XlchemyAction = "plan" | "convert" | "diagnose"
+export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction"
 export type XlchemyOutputMode = "source" | "directory"
 export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
 export type XlchemyDownscaleMode = "resolution" | "percent" | "file-size" | "shortest-side" | "longest-side" | "megapixels"
@@ -14,6 +14,7 @@ export interface XlchemyInput {
   lossless: boolean
   quality: number
   effort: number
+  maxCompression?: boolean
   threads: number
   outputMode: XlchemyOutputMode
   outputDir?: string
@@ -32,12 +33,26 @@ export interface XlchemyInput {
   jxlNormalize?: boolean
   jxlNormalizeWhen?: "on-fail" | "always"
   chromaSubsampling?: string
-  metadataMode?: "encoder-wipe" | "encoder-preserve" | "exiftool-wipe" | "exiftool-preserve" | "exiftool-unsafe-wipe"
+  metadataMode?: "encoder-wipe" | "encoder-preserve" | "exiftool-wipe" | "exiftool-preserve" | "exiftool-unsafe-wipe" | "exiftool-custom"
   keepIfLarger?: boolean
   copyIfLarger?: boolean
   jpegEncoder?: "jpegli" | "libjpeg"
-  avifEncoder?: "aom" | "svt"
+  avifEncoder?: "aom" | "svt" | "slimg"
   avifBitDepth?: "auto" | "8" | "10" | "12"
+  avifAomIqTune?: boolean
+  disableProgressiveJpegli?: boolean
+  autoLosslessJpeg?: boolean
+  enableCustomArgs?: boolean
+  cjxlArgs?: string
+  avifencArgs?: string
+  cjpegliArgs?: string
+  imageMagickArgs?: string
+  ramOptimizer?: "dynamic" | "static" | "disabled"
+  ramOptimizerRules?: string
+  exiftoolWipeArgs?: string
+  exiftoolPreserveArgs?: string
+  exiftoolUnsafeWipeArgs?: string
+  exiftoolCustomArgs?: string
   processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormats?: string[]
   downscale?: XlchemyDownscaleSettings
@@ -52,6 +67,17 @@ export interface XlchemyFileResult {
   error?: string
 }
 
+export interface XlchemyToolStatus {
+  id: string
+  label: string
+  purpose: string
+  path?: string
+  available: boolean
+  runnable: boolean
+  version?: string
+  detail?: string
+}
+
 export interface XlchemyData {
   files: XlchemyFileResult[]
   inputCount: number
@@ -62,6 +88,7 @@ export interface XlchemyData {
   outputBytes: number
   elapsedMs?: number
   errors: string[]
+  environment?: XlchemyToolStatus[]
 }
 
 export interface XlchemyPathInfo { path: string; exists: boolean; isFile: boolean; isDirectory: boolean; size: number; atimeMs: number; mtimeMs: number }
@@ -77,6 +104,8 @@ export interface XlchemyRuntime {
   setTimes: (path: string, atimeMs: number, mtimeMs: number) => Promise<void>
   runCommand: (command: string, args: string[]) => Promise<XlchemyCommandResult>
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
+  probeSlimg?: () => Promise<XlchemyToolStatus>
+  convertWithSlimg?: (source: string, target: string, quality: number) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
   basename: (path: string) => string
@@ -86,7 +115,7 @@ export interface XlchemyRuntime {
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
 export const XL_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".jxl", ".tif", ".tiff", ".bmp"])
-const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg" }
+const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg" }
 
 export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInput {
   return {
@@ -96,6 +125,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     lossless: input.lossless ?? false,
     quality: clamp(input.quality ?? 90, 1, 100),
     effort: clamp(input.effort ?? 7, 1, 10),
+    maxCompression: input.maxCompression ?? false,
     threads: clamp(input.threads ?? 4, 1, 64),
     outputMode: input.outputMode ?? "source",
     outputDir: input.outputDir?.trim() || undefined,
@@ -120,6 +150,20 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     jpegEncoder: input.jpegEncoder ?? "jpegli",
     avifEncoder: input.avifEncoder ?? "aom",
     avifBitDepth: input.avifBitDepth ?? "auto",
+    avifAomIqTune: input.avifAomIqTune ?? false,
+    disableProgressiveJpegli: input.disableProgressiveJpegli ?? false,
+    autoLosslessJpeg: input.autoLosslessJpeg ?? true,
+    enableCustomArgs: input.enableCustomArgs ?? false,
+    cjxlArgs: input.cjxlArgs?.trim() ?? "",
+    avifencArgs: input.avifencArgs?.trim() ?? "",
+    cjpegliArgs: input.cjpegliArgs?.trim() ?? "",
+    imageMagickArgs: input.imageMagickArgs?.trim() ?? "",
+    ramOptimizer: input.ramOptimizer ?? "disabled",
+    ramOptimizerRules: input.ramOptimizerRules?.trim() ?? "",
+    exiftoolWipeArgs: input.exiftoolWipeArgs?.trim() ?? "",
+    exiftoolPreserveArgs: input.exiftoolPreserveArgs?.trim() ?? "",
+    exiftoolUnsafeWipeArgs: input.exiftoolUnsafeWipeArgs?.trim() ?? "",
+    exiftoolCustomArgs: input.exiftoolCustomArgs?.trim() ?? "",
     processingOrder: input.processingOrder ?? "original",
     excludedFormats: input.excludedFormats ?? ["avif", "jxl", "webp", "gif"],
     downscale: { enabled: input.downscale?.enabled ?? false, mode: input.downscale?.mode ?? "resolution", width: input.downscale?.width ?? 1920, height: input.downscale?.height ?? 1080, percent: input.downscale?.percent ?? 50, fileSizeKb: input.downscale?.fileSizeKb ?? 500, shortestSide: input.downscale?.shortestSide ?? 1080, longestSide: input.downscale?.longestSide ?? 1920, megapixels: input.downscale?.megapixels ?? 2.1, resample: input.downscale?.resample ?? "default" },
@@ -130,6 +174,7 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   const options = normalizeXlchemyInput(input)
   const started = Date.now()
   try {
+    if (options.action === "diagnose") return await diagnoseXlchemyEnvironment(runtime, onEvent)
     if (!options.paths.length) return failure("At least one image or folder path is required.")
     if (options.outputMode === "directory" && !options.outputDir) return failure("An output directory is required in directory mode.")
     onEvent({ type: "progress", progress: 5, message: "Discovering image inputs." })
@@ -157,6 +202,43 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
   }
+}
+
+const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
+  { id: "cjxl", label: "cjxl", purpose: "JPEG XL 编码", versionArgs: ["--version"] },
+  { id: "djxl", label: "djxl", purpose: "JPEG XL 解码与校验", versionArgs: ["--version"] },
+  { id: "jxlinfo", label: "jxlinfo", purpose: "JPEG XL 信息检查", versionArgs: ["--help"] },
+  { id: "cjpegli", label: "cjpegli", purpose: "JPEGli 编码", versionArgs: ["--version"] },
+  { id: "magick", label: "ImageMagick", purpose: "PNG/TIFF、缩小与格式回退", versionArgs: ["-version"] },
+  { id: "avifenc", label: "avifenc", purpose: "AVIF 编码", versionArgs: ["--version"] },
+  { id: "avifdec", label: "avifdec", purpose: "AVIF 解码", versionArgs: ["--version"] },
+  { id: "cwebp", label: "cwebp", purpose: "WebP 编码", versionArgs: ["-version"] },
+  { id: "oxipng", label: "oxipng", purpose: "PNG 无损优化", versionArgs: ["--version"] },
+  { id: "exiftool", label: "ExifTool", purpose: "元数据复制与清理", versionArgs: ["-ver"] },
+  { id: "jpegtran", label: "jpegtran", purpose: "JPEG 无损变换与重建", versionArgs: ["-version"] },
+]
+
+export async function diagnoseXlchemyEnvironment(runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<XlchemyResult> {
+  const environment: XlchemyToolStatus[] = []
+  for (let index = 0; index < XLCHEMY_TOOLS.length; index += 1) {
+    const tool = XLCHEMY_TOOLS[index]!
+    onEvent({ type: "progress", progress: Math.round(index / XLCHEMY_TOOLS.length * 100), message: `Checking ${tool.label}.` })
+    const path = await runtime.resolveCommand([tool.id])
+    if (!path) { environment.push({ id: tool.id, label: tool.label, purpose: tool.purpose, available: false, runnable: false, detail: "PATH 中未找到" }); continue }
+    try {
+      const check = await runtime.runCommand(path, tool.versionArgs)
+      const output = `${check.stdout}\n${check.stderr}`.trim()
+      const version = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, 160)
+      environment.push({ id: tool.id, label: tool.label, purpose: tool.purpose, path, available: true, runnable: check.exitCode === 0 || Boolean(version), version, detail: check.exitCode === 0 ? "命令可执行" : version ? `命令已启动，版本检查退出码 ${check.exitCode}` : `版本检查失败，退出码 ${check.exitCode}` })
+    } catch (error) {
+      environment.push({ id: tool.id, label: tool.label, purpose: tool.purpose, path, available: true, runnable: false, detail: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  if (runtime.probeSlimg) environment.push(await runtime.probeSlimg())
+  else environment.push({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", available: false, runnable: false, detail: "当前运行时不支持 DLL 检测" })
+  onEvent({ type: "progress", progress: 100, message: "Toolchain check complete." })
+  const runnable = environment.filter((tool) => tool.runnable).length
+  return { success: true, message: `Xlchemy toolchain: ${runnable}/${environment.length} commands runnable.`, data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], environment } }
 }
 
 export async function discoverImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): Promise<string[]> {
@@ -215,10 +297,10 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       if (resized.exitCode !== 0) throw new Error(resized.stderr.trim() || "ImageMagick downscaling failed.")
       encoderSource = temporarySource
     }
-    const invocation = await encoderInvocation(encoderSource, plan.outputPath, input, runtime)
-    const result = await runtime.runCommand(invocation.command, invocation.args)
+    const invocation = input.format === "AVIF" && input.avifEncoder === "slimg" ? undefined : await encoderInvocation(encoderSource, plan.outputPath, input, runtime)
+    const result = invocation ? await runtime.runCommand(invocation.command, invocation.args) : await runSlimgConversion(encoderSource, plan.outputPath, input, runtime)
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${invocation.command} exited with ${result.exitCode}`)
+    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${invocation?.command ?? "slimg CFFI"} exited with ${result.exitCode}`)
     if (input.format === "JPEG XL" && input.jxlVerify) {
       const decoder = await runtime.resolveCommand(["djxl"])
       if (!decoder) throw new Error("djxl is required for JPEG XL integrity verification.")
@@ -227,7 +309,8 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       await runtime.removeFile(verificationPath)
       if (verification.exitCode !== 0) throw new Error(verification.stderr.trim() || "JPEG XL integrity verification failed.")
     }
-    if (input.preserveMetadata) await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
+    if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, plan.outputPath, input, runtime)
+    else if (input.preserveMetadata) await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(plan.outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     const outputInfo = await runtime.pathInfo(plan.outputPath)
@@ -252,18 +335,55 @@ function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {
 }
 
 async function encoderInvocation(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<{ command: string; args: string[] }> {
-  const quality = String(input.quality), effort = String(input.effort), threads = String(input.threads)
-  if (input.format === "JPEG XL") return resolved(runtime, ["cjxl"], ["-q", input.lossless ? "100" : quality, "--lossless_jpeg=0", "-e", effort, "--num_threads", threads, ...(!input.lossless && input.jxlModular ? ["--modular=1"] : []), source, target])
-  if (input.format === "AVIF") return resolved(runtime, ["avifenc"], ["-q", input.lossless ? "100" : quality, "-s", effort, "-j", threads, ...(input.avifBitDepth && input.avifBitDepth !== "auto" ? ["--bitdepth", input.avifBitDepth] : []), "-c", input.avifEncoder === "svt" ? "svt" : "aom", ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-y", input.chromaSubsampling] : []), source, target])
+  const quality = String(input.quality), effort = String(input.maxCompression ? 10 : input.effort), threads = String(await optimizedThreads(source, input, runtime))
+  const custom = (value?: string) => input.enableCustomArgs ? splitCommandArgs(value ?? "") : []
+  const sourceExt = runtime.extname(source).toLowerCase(), jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(sourceExt)
+  if (input.format === "Lossless JPEG Transcoding") return resolved(runtime, ["cjxl"], ["--lossless_jpeg=1", "-e", effort, "--num_threads", threads, ...custom(input.cjxlArgs), source, target])
+  if (input.format === "JPEG Reconstruction") return resolved(runtime, ["djxl"], ["--num_threads", threads, "--jpeg_reconstruction", source, target])
+  if (input.format === "JPEG XL") { const losslessJpeg = jpegSource && input.autoLosslessJpeg; return resolved(runtime, ["cjxl"], ["-q", input.lossless || losslessJpeg ? "100" : quality, `--lossless_jpeg=${losslessJpeg ? 1 : 0}`, "-e", effort, "--num_threads", threads, ...(!input.lossless && !losslessJpeg && input.jxlModular ? ["--modular=1"] : []), ...custom(input.cjxlArgs), source, target]) }
+  if (input.format === "AVIF") return resolved(runtime, ["avifenc"], ["-q", input.lossless ? "100" : quality, "-s", effort, "-j", threads, ...(input.avifBitDepth && input.avifBitDepth !== "auto" ? ["--bitdepth", input.avifBitDepth] : []), "-c", input.avifEncoder === "svt" ? "svt" : "aom", ...(input.avifEncoder === "aom" && input.avifAomIqTune ? ["-a", "tune=iq"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-y", input.chromaSubsampling] : []), ...custom(input.avifencArgs), source, target])
   if (input.format === "WebP") return resolved(runtime, ["cwebp"], [source, "-o", target, ...(input.lossless ? ["-lossless"] : ["-q", quality]), "-m", String(Math.min(6, input.effort))])
-  if (input.format === "PNG") return resolved(runtime, ["magick"], [source, "-define", `png:compression-level=${Math.min(9, input.effort)}`, target])
-  if (input.format === "TIFF") return resolved(runtime, ["magick"], [source, "-compress", input.lossless ? "zip" : "jpeg", "-quality", quality, target])
-  if (input.jpegEncoder === "libjpeg") return resolved(runtime, ["magick"], [source, "-quality", quality, ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-sampling-factor", input.chromaSubsampling] : []), target])
-  return resolved(runtime, ["cjpegli"], ["-q", quality, ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["--chroma_subsampling", input.chromaSubsampling] : []), source, target])
+  if (input.format === "PNG") return resolved(runtime, ["magick"], [source, "-define", `png:compression-level=${Math.min(9, input.effort)}`, ...custom(input.imageMagickArgs), target])
+  if (input.format === "TIFF") return resolved(runtime, ["magick"], [source, "-compress", input.lossless ? "zip" : "jpeg", "-quality", quality, ...custom(input.imageMagickArgs), target])
+  if (input.jpegEncoder === "libjpeg") return resolved(runtime, ["magick"], [source, "-quality", quality, ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-sampling-factor", input.chromaSubsampling] : []), ...custom(input.imageMagickArgs), target])
+  return resolved(runtime, ["cjpegli"], ["-q", quality, ...(input.disableProgressiveJpegli ? ["-p", "0"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["--chroma_subsampling", input.chromaSubsampling] : []), ...custom(input.cjpegliArgs), source, target])
 }
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
+async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg CFFI is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality); return { exitCode: 0, stdout: "slimg CFFI conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
 async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime) { const exiftool = await runtime.resolveCommand(["exiftool"]); if (!exiftool) return; const result = await runtime.runCommand(exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target]); if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata copy failed.") }
+
+async function applyExifToolMetadata(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime) {
+  const exiftool = await runtime.resolveCommand(["exiftool"])
+  if (!exiftool) throw new Error("ExifTool is required by the selected metadata policy.")
+  const template = input.metadataMode === "exiftool-preserve" ? input.exiftoolPreserveArgs || '-overwrite_original -TagsFromFile "$src" -all:all "$dst"' : input.metadataMode === "exiftool-unsafe-wipe" ? input.exiftoolUnsafeWipeArgs || '-overwrite_original -all= "$dst"' : input.metadataMode === "exiftool-custom" ? input.exiftoolCustomArgs || '"$dst"' : input.exiftoolWipeArgs || '-overwrite_original -all= --ICC_Profile:all "$dst"'
+  const args = splitCommandArgs(template).map((arg) => arg.replaceAll("$src", source).replaceAll("$dst", target))
+  const result = await runtime.runCommand(exiftool, args)
+  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata operation failed.")
+}
+
+async function optimizedThreads(source: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<number> {
+  if (!input.ramOptimizer || input.ramOptimizer === "disabled") return input.threads
+  const highMemory = input.format === "JPEG XL" && (input.jxlModular || input.effort > (input.lossless ? 9 : 7)) || input.format === "AVIF" && input.avifEncoder === "svt"
+  if (!highMemory) return input.threads
+  const magick = await runtime.resolveCommand(["magick"])
+  if (!magick) return input.threads
+  const info = await runtime.runCommand(magick, ["identify", "-ping", "-format", "%w %h", `${source}[0]`])
+  const dimensions = /([0-9]+)\s+([0-9]+)/.exec(info.stdout)
+  if (!dimensions) return input.threads
+  const megapixels = Number(dimensions[1]) * Number(dimensions[2]) / 1_000_000
+  const rules = parseRamRules(input.ramOptimizer === "dynamic" && !input.ramOptimizerRules ? '("all", 50, "1/2")\n("all", 100, "1")' : input.ramOptimizerRules ?? "")
+  const scope = input.format === "AVIF" ? "SVT-AV1-PSY" : "JPEG XL"
+  const rule = rules.filter((item) => item.scope === "all" || item.scope === scope).filter((item) => megapixels >= item.threshold).sort((a, b) => b.threshold - a.threshold)[0]
+  if (!rule) return input.threads
+  if (rule.target === "1") return input.threads
+  const [numerator, denominator] = rule.target.split("/").map(Number)
+  const maxWorkers = Math.max(1, Math.floor(input.threads * numerator! / denominator!))
+  return Math.max(1, Math.floor(input.threads / maxWorkers))
+}
+
+function parseRamRules(value: string) { const rules: Array<{ scope: string; threshold: number; target: string }> = []; for (const match of value.matchAll(/\("(all|JPEG XL|SVT-AV1-PSY)",\s*(\d+(?:\.\d+)?),\s*"([1-9]+\/[1-9]+|1)"\)/g)) rules.push({ scope: match[1]!, threshold: Number(match[2]), target: match[3]! }); return rules }
+function splitCommandArgs(value: string): string[] { const args: string[] = []; for (const match of value.matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)) args.push(match[1] ?? match[2] ?? match[3] ?? ""); return args.filter(Boolean) }
 
 function summarize(files: XlchemyFileResult[], elapsedMs: number): XlchemyData { const errors = files.filter((file) => file.status === "error").map((file) => `${file.sourcePath}: ${file.error ?? "error"}`); return { files, inputCount: files.length, convertedCount: files.filter((file) => file.status === "converted").length, skippedCount: files.filter((file) => file.status === "skipped").length, errorCount: errors.length, inputBytes: files.reduce((sum, file) => sum + (file.sourceBytes ?? 0), 0), outputBytes: files.reduce((sum, file) => sum + (file.outputBytes ?? 0), 0), elapsedMs, errors } }
 function success(message: string, data: XlchemyData): XlchemyResult { return { success: data.errorCount === 0, message, data } }

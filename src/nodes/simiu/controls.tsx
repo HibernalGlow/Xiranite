@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode } from "@/nodes/shared/useNodeI18n"
 import { ACTIONS, APPLY_MODE_OPTIONS, SCAN_ORDER_OPTIONS } from "./constants"
 import type { SimiuCardState, SimiuStatusMeta } from "./types"
 
@@ -53,7 +54,7 @@ export function ActionPicker(props: {
 }) {
   return (
     <ToggleGroup
-      aria-label="simiu action"
+      aria-label={tNode("simiu", "aria.action", "simiu 操作")}
       className={cn("grid w-full grid-cols-3", props.triggerClassName)}
       disabled={props.disabled}
       size="sm"
@@ -65,9 +66,9 @@ export function ActionPicker(props: {
       }}
     >
       {ACTIONS.map((item) => (
-        <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
+        <ToggleGroupItem key={item.value} aria-label={tNode("simiu", `actions.${item.value}.label`, item.label)} className="min-w-0" value={item.value}>
           <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
+          <span className="truncate">{tNode("simiu", `actions.${item.value}.shortLabel`, item.shortLabel)}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
@@ -85,21 +86,21 @@ export function RootsInput(props: {
     <div className="flex min-w-0 flex-col gap-1.5">
       {!props.compact && (
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="simiu-roots">图片根目录</Label>
-          <Badge variant="outline" className="shrink-0">jpg / png / webp</Badge>
+          <Label htmlFor="simiu-roots">{tNode("simiu", "fields.roots", "图片根目录")}</Label>
+          <Badge variant="outline" className="shrink-0">{tNode("simiu", "fields.rootsHint", "jpg / png / webp")}</Badge>
         </div>
       )}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea
           id="simiu-roots"
-          aria-label="simiu 图片根目录"
+          aria-label={tNode("simiu", "aria.roots", "simiu 图片根目录")}
           disabled={props.disabled}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-20" : "h-28")}
-          placeholder="每行一个图片目录"
+          placeholder={tNode("simiu", "placeholder.roots", "每行一个图片目录")}
           value={props.data.rootsText ?? ""}
           onChange={(event) => props.onPatch({ rootsText: event.currentTarget.value })}
         />
-        <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴目录" onClick={props.onPaste} />
+        <ActionIconButton disabled={props.disabled} icon={Clipboard} label={tNode("simiu", "actions.paste", "粘贴目录")} onClick={props.onPaste} />
       </div>
     </div>
   )
@@ -113,9 +114,9 @@ export function GroupFields(props: {
   return (
     <div className="grid gap-2 @3xl/simiu:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-1.5">
-        <Label className="text-xs">应用方式</Label>
+        <Label className="text-xs">{tNode("simiu", "fields.applyMode", "应用方式")}</Label>
         <ToggleGroup
-          aria-label="simiu 应用模式"
+          aria-label={tNode("simiu", "aria.applyMode", "simiu 应用模式")}
           className="grid w-full grid-cols-3"
           disabled={props.disabled}
           size="sm"
@@ -127,16 +128,16 @@ export function GroupFields(props: {
           }}
         >
           {APPLY_MODE_OPTIONS.map((item) => (
-            <ToggleGroupItem key={item.value} aria-label={`应用方式 ${item.label}`} className="min-w-0" value={item.value}>
-              <span className="truncate">{item.label}</span>
+            <ToggleGroupItem key={item.value} aria-label={tNode("simiu", "aria.applyModeItem", "应用方式 {{label}}", { label: tNode("simiu", `applyMode.${item.value}`, item.label) })} className="min-w-0" value={item.value}>
+              <span className="truncate">{tNode("simiu", `applyMode.${item.value}`, item.label)}</span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <Label className="text-xs">扫描顺序</Label>
+        <Label className="text-xs">{tNode("simiu", "fields.scanOrder", "扫描顺序")}</Label>
         <ToggleGroup
-          aria-label="simiu 扫描顺序"
+          aria-label={tNode("simiu", "aria.scanOrder", "simiu 扫描顺序")}
           className="grid w-full grid-cols-3"
           disabled={props.disabled}
           size="sm"
@@ -148,31 +149,31 @@ export function GroupFields(props: {
           }}
         >
           {SCAN_ORDER_OPTIONS.map((item) => (
-            <ToggleGroupItem key={item.value} aria-label={`扫描顺序 ${item.label}`} className="min-w-0" value={item.value}>
-              <span className="truncate">{item.label}</span>
+            <ToggleGroupItem key={item.value} aria-label={tNode("simiu", "aria.scanOrderItem", "扫描顺序 {{label}}", { label: tNode("simiu", `scanOrder.${item.value}`, item.label) })} className="min-w-0" value={item.value}>
+              <span className="truncate">{tNode("simiu", `scanOrder.${item.value}`, item.label)}</span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
       <Input
-        aria-label="simiu 分组前缀"
+        aria-label={tNode("simiu", "aria.namePrefix", "simiu 分组前缀")}
         disabled={props.disabled}
-        placeholder="分组前缀，默认 simiu_set"
+        placeholder={tNode("simiu", "placeholder.namePrefix", "分组前缀，默认 simiu_set")}
         value={props.data.namePrefix ?? ""}
         onChange={(event) => props.onPatch({ namePrefix: event.currentTarget.value })}
       />
       <Input
-        aria-label="simiu 最小组大小"
+        aria-label={tNode("simiu", "aria.minGroupSize", "simiu 最小组大小")}
         disabled={props.disabled}
-        placeholder="最小组大小，默认 2"
+        placeholder={tNode("simiu", "placeholder.minGroupSize", "最小组大小，默认 2")}
         type="number"
         value={props.data.minGroupSize ?? ""}
         onChange={(event) => props.onPatch({ minGroupSize: event.currentTarget.value })}
       />
       <Input
-        aria-label="simiu 尺寸容差"
+        aria-label={tNode("simiu", "aria.sizeTolerance", "simiu 尺寸容差")}
         disabled={props.disabled}
-        placeholder="尺寸容差 bytes"
+        placeholder={tNode("simiu", "placeholder.sizeTolerance", "尺寸容差 bytes")}
         type="number"
         value={props.data.sizeToleranceBytes ?? ""}
         onChange={(event) => props.onPatch({ sizeToleranceBytes: event.currentTarget.value })}
@@ -190,16 +191,16 @@ export function RuntimeOptions(props: {
     <div className="grid gap-2">
       <div className="grid gap-2 @3xl/simiu:grid-cols-2">
         <Input
-          aria-label="simiu 配置 TOML"
+          aria-label={tNode("simiu", "aria.configPath", "simiu 配置 TOML")}
           disabled={props.disabled}
-          placeholder="simiu.toml，可选"
+          placeholder={tNode("simiu", "placeholder.configPath", "simiu.toml，可选")}
           value={props.data.configPath ?? ""}
           onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
         />
         <Input
-          aria-label="simiu 运行记录 JSONL"
+          aria-label={tNode("simiu", "aria.databasePath", "simiu 运行记录 JSONL")}
           disabled={props.disabled}
-          placeholder=".xiranite/simiu-runs.jsonl"
+          placeholder={tNode("simiu", "placeholder.databasePath", ".xiranite/simiu-runs.jsonl")}
           value={props.data.databasePath ?? ""}
           onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
         />
@@ -209,16 +210,16 @@ export function RuntimeOptions(props: {
           checked={props.data.dryRun ?? true}
           disabled={props.disabled}
           icon={Eye}
-          label="预演"
-          description="只生成操作计划，不移动、复制或链接文件。"
+          label={tNode("simiu", "fields.dryRun", "预演")}
+          description={tNode("simiu", "fields.dryRunDescription", "只生成操作计划，不移动、复制或链接文件。")}
           onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
         />
         <SwitchRow
           checked={props.data.recordRun ?? false}
           disabled={props.disabled}
           icon={DatabaseZap}
-          label="记录运行"
-          description="把扫描或应用结果写入 JSONL。"
+          label={tNode("simiu", "fields.recordRun", "记录运行")}
+          description={tNode("simiu", "fields.recordRunDescription", "把扫描或应用结果写入 JSONL。")}
           onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
         />
       </div>
@@ -236,18 +237,18 @@ export function OptionsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="simiu 分组选项" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={tNode("simiu", "aria.groupOptions", "simiu 分组选项")} disabled={props.disabled} size="icon-sm" variant="outline">
               <Settings2 />
-              <span className="sr-only">分组选项</span>
+              <span className="sr-only">{tNode("simiu", "labels.groupOptions", "分组选项")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>分组选项</TooltipContent>
+        <TooltipContent>{tNode("simiu", "labels.groupOptions", "分组选项")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,460px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">分组选项</div>
-          <p className="text-xs text-muted-foreground">应用方式、扫描顺序和预演开关集中在这里。</p>
+          <div className="text-sm font-semibold">{tNode("simiu", "labels.groupOptions", "分组选项")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("simiu", "labels.groupOptionsDescription", "应用方式、扫描顺序和预演开关集中在这里。")}</p>
         </div>
         <div className="grid gap-3">
           <GroupFields {...props} />
@@ -273,37 +274,37 @@ export function ConfigDefaultsPopover(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="simiu 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={tNode("simiu", "aria.defaults", "simiu 默认配置")} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
-              <span className="sr-only">默认配置</span>
+              <span className="sr-only">{tNode("simiu", "labels.defaults", "默认配置")}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
+        <TooltipContent>{tNode("simiu", "labels.defaults", "默认配置")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 Simiu 的目录、分组和运行选项。</p>
+          <div className="text-sm font-semibold">{tNode("simiu", "labels.defaults", "默认配置")}</div>
+          <p className="text-xs text-muted-foreground">{tNode("simiu", "labels.defaultsDescription", "保存 Simiu 的目录、分组和运行选项。")}</p>
         </div>
         <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
+          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{tNode("simiu", "actions.saveDefault", "保存为默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{tNode("simiu", "actions.restoreDefault", "恢复默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{tNode("simiu", "actions.clearOverride", "清除覆盖")}</Button>
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
+              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{tNode("simiu", "actions.viewConfig", "查看配置")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>Simiu 配置</DialogTitle>
-                <DialogDescription>当前 nodes.simiu 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>{tNode("simiu", "labels.configTitle", "Simiu 配置")}</DialogTitle>
+                <DialogDescription>{tNode("simiu", "labels.configDescription", "当前 nodes.simiu 默认值和配置文件位置。")}</DialogDescription>
               </DialogHeader>
               <ConfigPreview config={props.defaults} path={props.configFilePath} />
             </DialogContent>
           </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
+          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{tNode("simiu", "actions.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -355,13 +356,13 @@ function ConfigPreview(props: {
   path?: string
 }) {
   const content = props.config === undefined
-    ? "# nodes.simiu 暂无默认配置\n"
+    ? tNode("simiu", "labels.noDefaults", "# nodes.simiu 暂无默认配置\n")
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+        <div className="text-xs font-medium text-muted-foreground">{tNode("simiu", "labels.configFile", "配置文件")}</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? tNode("simiu", "labels.noConfigService", "未连接本地配置服务")}</div>
       </div>
       <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
         {content}
@@ -375,7 +376,7 @@ function InfoHint({ description, label }: { description: string; label: string }
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          aria-label={`${label}说明`}
+          aria-label={tNode("simiu", "aria.hint", "{{label}}说明", { label })}
           className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           role="img"
           tabIndex={0}

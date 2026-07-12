@@ -7,7 +7,6 @@ import type { SynctData, SynctInput } from "@xiranite/node-synct/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import { Component } from "./Component"
-import { ACTIONS } from "./constants"
 import type { SynctCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -60,9 +59,9 @@ describe("app-owned synct Component", () => {
       } else {
         expect(screen.getByTestId("synct-full-view")).toBeTruthy()
         expect(screen.getByTestId("synct-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("Sources and format")).toBeTruthy()
-        expect(screen.getByText("Archive path plan")).toBeTruthy()
-        expect(screen.getByRole("button", { name: ACTIONS[1]!.label })).toBeTruthy()
+        expect(screen.getByText("来源和格式")).toBeTruthy()
+        expect(screen.getByText("归档路径规划")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "构建规划" })).toBeTruthy()
       }
     },
   )
@@ -80,7 +79,7 @@ describe("app-owned synct Component", () => {
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
+    await user.click(screen.getByRole("button", { name: "构建规划" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -107,11 +106,11 @@ describe("app-owned synct Component", () => {
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[2]!.label }))
+    await user.click(screen.getByRole("button", { name: "归档项目" }))
     expect(host.runCalls).toHaveLength(0)
 
     const dialog = screen.getByRole("alertdialog")
-    await user.click(within(dialog).getByRole("button", { name: "Confirm archive" }))
+    await user.click(within(dialog).getByRole("button", { name: "确认归档" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("archive")
@@ -124,11 +123,11 @@ describe("app-owned synct Component", () => {
     render(<Component compId="comp-synct" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
+    await user.click(screen.getByRole("button", { name: "构建规划" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("source path")
+    expect(host.cardState.progressText).toContain("源路径")
   })
 })
 

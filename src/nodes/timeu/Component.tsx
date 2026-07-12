@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS, NODE_ICON } from "./constants"
 import type { TimeuCardState, TimeuStatusMeta } from "./types"
@@ -24,6 +25,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<TimeuCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("timeu")
   const data = getHostData(host, compId)
   const dataRef = useRef<TimeuCardState>(data)
   dataRef.current = data
@@ -95,20 +97,20 @@ export function Component({ compId, host }: NodeComponentProps<TimeuCardState>) 
   async function execute(nextAction: TimeuAction = action) {
     if (running) return
     if (!splitLines(dataRef.current.pathsText).length) {
-      const message = "请先输入至少一个文件或目录路径。"
+      const message = t("error.noPaths", "请先输入至少一个文件或目录路径。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
     }
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      const message = t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
     }
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(nextAction) }), result: null })
     try {
       const response = await run<TimeuInput, TimeuData>("timeu", buildInput(nextAction, dataRef.current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
@@ -247,13 +249,13 @@ function FullView(props: ViewProps) {
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
       <div className="grid min-h-0 flex-1 gap-2 @2xl/timeu:grid-cols-[minmax(250px,320px)_minmax(0,1fr)] @4xl/timeu:grid-cols-[minmax(250px,320px)_minmax(0,1fr)_minmax(260px,320px)]">
         <section className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
-          <ZoneTitle icon={FolderInput} label="路径队列" />
+          <ZoneTitle icon={FolderInput} label={tNode("timeu", "sections.pathQueue", "路径队列")} />
           <PathInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           <Separator />
           <RecordField data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </section>
         <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={FileClock} label="时间记录" /><Badge variant="outline">{props.result?.plan.length ?? props.paths.length}</Badge></div>
+          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={FileClock} label={tNode("timeu", "sections.timeRecords", "时间记录")} /><Badge variant="outline">{props.result?.plan.length ?? props.paths.length}</Badge></div>
           <Separator />
           <TimestampRows plan={props.result?.plan ?? props.paths.map((path) => ({ path, operation: props.action === "restore" ? "restore" : "backup", status: "pending" as const }))} />
         </section>
@@ -270,9 +272,9 @@ function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
       {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label="保存默认" onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label="恢复默认" onClick={props.onRestoreDefault} />
-      <IconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label={tNode("timeu", "actions.saveDefault", "保存默认")} onClick={props.onSaveDefault} />
+      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label={tNode("timeu", "actions.restoreDefault", "恢复默认")} onClick={props.onRestoreDefault} />
+      <IconButton icon={RotateCcw} label={tNode("timeu", "actions.clearState", "清空状态")} onClick={props.onReset} />
     </div>
   )
 }
@@ -280,7 +282,7 @@ function ActionTools(props: ViewProps & { compact?: boolean }) {
 function ActionMode(props: { disabled?: boolean; value: TimeuAction; onChange: (value: TimeuAction) => void }) {
   return (
     <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as TimeuAction)} className="grid grid-cols-3" size="sm">
-      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{item.shortLabel}</span></ToggleGroupItem>)}
+      {ACTIONS.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon className="size-3.5" /><span className="truncate text-xs">{actionShortLabel(item.value)}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
 }
@@ -288,10 +290,10 @@ function ActionMode(props: { disabled?: boolean; value: TimeuAction; onChange: (
 function PathInput(props: { compact?: boolean; data: TimeuCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<TimeuCardState>) => void }) {
   return (
     <div className="grid gap-1.5">
-      {!props.compact && <Label htmlFor="timeu-paths" className="text-xs">文件或目录</Label>}
+      {!props.compact && <Label htmlFor="timeu-paths" className="text-xs">{tNode("timeu", "fields.paths", "文件或目录")}</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea id="timeu-paths" aria-label="timeu paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"每行一个文件或目录\nD:/archive"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
-        <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="清空路径" onClick={() => props.onPatch({ pathsText: "" })} /></div>
+        <Textarea id="timeu-paths" aria-label="timeu paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={tNode("timeu", "placeholder.paths", "每行一个文件或目录\nD:/archive")} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+        <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={tNode("timeu", "actions.pastePath", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={tNode("timeu", "actions.clearPath", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
     </div>
   )
@@ -300,8 +302,8 @@ function PathInput(props: { compact?: boolean; data: TimeuCardState; disabled?: 
 function RecordField(props: { data: TimeuCardState; disabled?: boolean; onPatch: (patch: Partial<TimeuCardState>) => void }) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor="timeu-record" className="text-xs">记录文件</Label>
-      <Input id="timeu-record" disabled={props.disabled} placeholder="留空则在首个路径旁生成 timeu-timestamps.json" value={props.data.recordPath ?? ""} onChange={(event) => props.onPatch({ recordPath: event.currentTarget.value })} />
+      <Label htmlFor="timeu-record" className="text-xs">{tNode("timeu", "fields.record", "记录文件")}</Label>
+      <Input id="timeu-record" disabled={props.disabled} placeholder={tNode("timeu", "placeholder.record", "留空则在首个路径旁生成 timeu-timestamps.json")} value={props.data.recordPath ?? ""} onChange={(event) => props.onPatch({ recordPath: event.currentTarget.value })} />
     </div>
   )
 }
@@ -309,9 +311,9 @@ function RecordField(props: { data: TimeuCardState; disabled?: boolean; onPatch:
 function SwitchPanel(props: { compact?: boolean; data: TimeuCardState; disabled?: boolean; onPatch: (patch: Partial<TimeuCardState>) => void }) {
   return (
     <div className={cn("grid gap-2", props.compact ? "grid-cols-1" : "grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]")}>
-      <SwitchRow checked={props.data.dryRun ?? true} disabled={props.disabled} icon={ShieldAlert} label="预览" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-      <SwitchRow checked={props.data.recursive ?? true} disabled={props.disabled} icon={FolderInput} label="递归" onCheckedChange={(recursive) => props.onPatch({ recursive })} />
-      <SwitchRow checked={props.data.includeDirectories ?? false} disabled={props.disabled} icon={FileClock} label="含目录" onCheckedChange={(includeDirectories) => props.onPatch({ includeDirectories })} />
+      <SwitchRow checked={props.data.dryRun ?? true} disabled={props.disabled} icon={ShieldAlert} label={tNode("timeu", "switches.dryRun", "预览")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+      <SwitchRow checked={props.data.recursive ?? true} disabled={props.disabled} icon={FolderInput} label={tNode("timeu", "switches.recursive", "递归")} onCheckedChange={(recursive) => props.onPatch({ recursive })} />
+      <SwitchRow checked={props.data.includeDirectories ?? false} disabled={props.disabled} icon={FileClock} label={tNode("timeu", "switches.includeDirectories", "含目录")} onCheckedChange={(includeDirectories) => props.onPatch({ includeDirectories })} />
     </div>
   )
 }
@@ -320,7 +322,7 @@ function ExecutionGate(props: ViewProps) {
   const live = props.action !== "scan" && !(props.data.dryRun ?? true)
   return (
     <section className={cn("flex shrink-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
-      <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label="执行" tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? "预览" : "写入"}</Badge></div>
+      <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label={tNode("timeu", "sections.execution", "执行")} tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? tNode("timeu", "badges.preview", "预览") : tNode("timeu", "badges.write", "写入")}</Badge></div>
       <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />
       <SwitchPanel data={props.data} disabled={props.running} onPatch={props.onPatch} />
       <RunButton props={props} />
@@ -329,7 +331,7 @@ function ExecutionGate(props: ViewProps) {
 }
 
 function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
-  if (props.running) return <Button aria-label="timeu running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && <span>运行中</span>}</Button>
+  if (props.running) return <Button aria-label="timeu running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && <span>{tNode("timeu", "status.running", "运行中")}</span>}</Button>
   const label = actionLabel(props.action)
   const live = props.action !== "scan" && !(props.data.dryRun ?? true)
   if (live) {
@@ -337,8 +339,8 @@ function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) 
       <AlertDialog>
         <AlertDialogTrigger asChild><Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive"><Play />{!compact && <span>{label}</span>}</Button></AlertDialogTrigger>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>确认{props.action === "restore" ? "恢复时间戳" : "备份时间戳"}？</AlertDialogTitle><AlertDialogDescription>当前会写入记录文件或修改文件 atime/mtime。请确认路径和记录文件无误。</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认执行</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>{props.action === "restore" ? tNode("timeu", "dialog.confirmRestoreTitle", "确认恢复时间戳？") : tNode("timeu", "dialog.confirmBackupTitle", "确认备份时间戳？")}</AlertDialogTitle><AlertDialogDescription>{tNode("timeu", "dialog.confirmDescription", "当前会写入记录文件或修改文件 atime/mtime。请确认路径和记录文件无误。")}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>{tNode("timeu", "actions.cancel", "取消")}</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>{tNode("timeu", "actions.confirmExecute", "确认执行")}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     )
@@ -347,7 +349,7 @@ function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) 
 }
 
 function TimestampRows(props: { plan: Array<TimeuPlanItem | { path: string; operation: "backup" | "restore"; status: "pending" }> }) {
-  if (!props.plan.length) return <div className="flex min-h-32 flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">运行后显示当前时间、记录时间和恢复计划。</div>
+  if (!props.plan.length) return <div className="flex min-h-32 flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">{tNode("timeu", "empty.timestampRows", "运行后显示当前时间、记录时间和恢复计划。")}</div>
   return (
     <ScrollArea className="min-h-0 flex-1">
       <div className="grid gap-1.5 p-3">
@@ -359,7 +361,7 @@ function TimestampRows(props: { plan: Array<TimeuPlanItem | { path: string; oper
           return (
             <div key={`${item.path}:${index}`} className={cn("grid gap-2 rounded-md border px-2 py-2", item.status === "error" && "border-destructive/40", item.status === "skipped" && "opacity-75")}>
               <div className="flex min-w-0 items-center gap-2"><Clock3 className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{baseName(item.path)}</div><div className="truncate font-mono text-[11px] text-muted-foreground">{item.path}</div></div><Badge variant={meta.variant} className="shrink-0 gap-1"><StatusIcon className="size-3" />{meta.label}</Badge></div>
-              {(current || stored) && <div className="grid gap-1.5 @md/timeu:grid-cols-2"><TimestampCell current={current?.atimeMs} label="访问时间" stored={stored?.atimeMs} /><TimestampCell current={current?.mtimeMs} label="修改时间" stored={stored?.mtimeMs} /></div>}
+              {(current || stored) && <div className="grid gap-1.5 @md/timeu:grid-cols-2"><TimestampCell current={current?.atimeMs} label={tNode("timeu", "timestamps.atime", "访问时间")} stored={stored?.atimeMs} /><TimestampCell current={current?.mtimeMs} label={tNode("timeu", "timestamps.mtime", "修改时间")} stored={stored?.mtimeMs} /></div>}
             </div>
           )
         })}
@@ -372,9 +374,9 @@ function TimestampCell(props: { current?: number; label: string; stored?: number
   const drifted = props.current !== undefined && props.stored !== undefined && props.current !== props.stored
   return (
     <div className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-[11px]">
-      <div className="mb-1 flex items-center justify-between gap-2"><span className="text-muted-foreground">{props.label}</span>{drifted && <span className="text-destructive">有差异</span>}</div>
-      <div className="truncate font-mono text-foreground">现 {props.current === undefined ? "缺失" : formatMs(props.current)}</div>
-      <div className={cn("truncate font-mono", drifted ? "text-destructive" : "text-muted-foreground")}>档 {props.stored === undefined ? "未写入" : formatMs(props.stored)}</div>
+      <div className="mb-1 flex items-center justify-between gap-2"><span className="text-muted-foreground">{props.label}</span>{drifted && <span className="text-destructive">{tNode("timeu", "timestamps.drifted", "有差异")}</span>}</div>
+      <div className="truncate font-mono text-foreground">{tNode("timeu", "timestamps.current", "现")} {props.current === undefined ? tNode("timeu", "timestamps.missing", "缺失") : formatMs(props.current)}</div>
+      <div className={cn("truncate font-mono", drifted ? "text-destructive" : "text-muted-foreground")}>{tNode("timeu", "timestamps.stored", "档")} {props.stored === undefined ? tNode("timeu", "timestamps.notWritten", "未写入") : formatMs(props.stored)}</div>
     </div>
   )
 }
@@ -382,10 +384,10 @@ function TimestampCell(props: { current?: number; label: string; stored?: number
 function ResultTabs(props: { compact?: boolean; logs: string[]; result: TimeuData | null; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
     <Tabs defaultValue="records" className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0"><TabsTrigger value="records">记录</TabsTrigger><TabsTrigger value="errors">问题</TabsTrigger><TabsTrigger value="logs">日志</TabsTrigger></TabsList>
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="records">{tNode("timeu", "tabs.records", "记录")}</TabsTrigger><TabsTrigger value="errors">{tNode("timeu", "tabs.errors", "问题")}</TabsTrigger><TabsTrigger value="logs">{tNode("timeu", "tabs.logs", "日志")}</TabsTrigger></TabsList>
       <TabsContent value="records" className="min-h-0 flex-1"><RecordPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} /></TabsContent>
-      <TabsContent value="errors" className="min-h-0 flex-1"><TextPanel empty="暂无问题" lines={[...(props.result?.errors ?? []), ...(props.result?.plan ?? []).filter((item) => item.reason && item.status !== "pending").map((item) => `${item.path}: ${item.reason}`)]} /></TabsContent>
-      <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel="复制" empty="运行日志会显示在这里。" icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
+      <TabsContent value="errors" className="min-h-0 flex-1"><TextPanel empty={tNode("timeu", "empty.noIssues", "暂无问题")} lines={[...(props.result?.errors ?? []), ...(props.result?.plan ?? []).filter((item) => item.reason && item.status !== "pending").map((item) => `${item.path}: ${item.reason}`)]} /></TabsContent>
+      <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel={tNode("timeu", "actions.copy", "复制")} empty={tNode("timeu", "empty.logsHere", "运行日志会显示在这里。")} icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
     </Tabs>
   )
 }
@@ -393,7 +395,7 @@ function ResultTabs(props: { compact?: boolean; logs: string[]; result: TimeuDat
 function RecordPanel(props: { compact?: boolean; result: TimeuData | null; onCopy: () => void }) {
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
-      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"><History className="size-3.5" /><span>{props.result?.plan.length ? `${props.result.plan.length} 项` : "等待运行"}</span></div><Button disabled={!props.result?.plan.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />复制</Button></div>
+      <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}><div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground"><History className="size-3.5" /><span>{props.result?.plan.length ? tNode("timeu", "units.items", "{{count}} 项", { count: props.result.plan.length }) : tNode("timeu", "empty.waitingRun", "等待运行")}</span></div><Button disabled={!props.result?.plan.length} size="xs" variant="ghost" onClick={props.onCopy}><Copy data-icon="inline-start" />{tNode("timeu", "actions.copy", "复制")}</Button></div>
       <Separator />
       <TimestampRows plan={props.result?.plan ?? []} />
     </section>
@@ -404,7 +406,7 @@ function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIc
   const Icon = props.icon
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-card">
-      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{Icon && <Icon className="size-3.5" />}{props.lines.length ? `${props.lines.length} 行` : props.empty}</span>{props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? "复制"}</Button>}</div>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">{Icon && <Icon className="size-3.5" />}{props.lines.length ? tNode("timeu", "units.lines", "{{count}} 行", { count: props.lines.length }) : props.empty}</span>{props.onAction && <Button disabled={!props.lines.length} size="xs" variant="ghost" onClick={props.onAction}>{props.actionLabel ?? tNode("timeu", "actions.copy", "复制")}</Button>}</div>
       <Separator />
       <ScrollArea className="min-h-0 flex-1">{props.lines.length ? <pre className="p-3 text-xs leading-5 text-muted-foreground">{props.lines.join("\n")}</pre> : <div className="flex min-h-24 items-center justify-center p-4 text-sm text-muted-foreground">{props.empty}</div>}</ScrollArea>
     </section>
@@ -418,12 +420,12 @@ function HeaderLine(props: { status: TimeuStatusMeta; subtitle: string }) {
 
 function StatsPanel(props: { paths: string[]; progress: number; result: TimeuData | null }) {
   const stats = [
-    { label: "路径", value: props.paths.length },
-    { label: "扫描", value: props.result?.scannedCount ?? 0 },
-    { label: "备份", value: props.result?.backupCount ?? 0 },
-    { label: "恢复", value: props.result?.restoredCount ?? 0 },
-    { label: "跳过", value: props.result?.skippedCount ?? 0 },
-    { label: "进度", value: props.progress, suffix: "%" },
+    { label: tNode("timeu", "stats.paths", "路径"), value: props.paths.length },
+    { label: tNode("timeu", "stats.scanned", "扫描"), value: props.result?.scannedCount ?? 0 },
+    { label: tNode("timeu", "stats.backup", "备份"), value: props.result?.backupCount ?? 0 },
+    { label: tNode("timeu", "stats.restored", "恢复"), value: props.result?.restoredCount ?? 0 },
+    { label: tNode("timeu", "stats.skipped", "跳过"), value: props.result?.skippedCount ?? 0 },
+    { label: tNode("timeu", "stats.progress", "进度"), value: props.progress, suffix: "%" },
   ]
   return <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/timeu:grid-cols-6">{stats.map((item) => <div key={item.label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center"><div className="truncate text-[11px] text-muted-foreground">{item.label}</div><div className="text-sm font-semibold tabular-nums">{item.value}{item.suffix ?? ""}</div></div>)}</div>
 }
@@ -448,28 +450,42 @@ function ZoneTitle(props: { icon: LucideIcon; label: string; tone?: "default" | 
 }
 
 function statusFromState(data: TimeuCardState, running: boolean, result: TimeuData | null): TimeuStatusMeta {
-  if (running || data.phase === "running") return { label: "运行中", description: data.progressText || "TimeU 正在扫描或写入时间戳。", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
-  if (data.phase === "error" || result?.errorCount) return { label: "失败", description: data.progressText || result?.errors[0] || "上次任务失败，请查看问题列表。", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
-  if (data.phase === "completed") return { label: "完成", description: data.progressText || "上次时间戳任务已完成。", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
-  return { label: "就绪", description: "输入文件或目录后扫描时间戳。", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
+  if (running || data.phase === "running") return { label: tNode("timeu", "status.running", "运行中"), description: data.progressText || tNode("timeu", "desc.running", "TimeU 正在扫描或写入时间戳。"), tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }
+  if (data.phase === "error" || result?.errorCount) return { label: tNode("timeu", "status.error", "失败"), description: data.progressText || result?.errors[0] || tNode("timeu", "desc.error", "上次任务失败，请查看问题列表。"), tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }
+  if (data.phase === "completed") return { label: tNode("timeu", "status.completed", "完成"), description: data.progressText || tNode("timeu", "desc.completed", "上次时间戳任务已完成。"), tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }
+  return { label: tNode("timeu", "status.ready", "就绪"), description: tNode("timeu", "desc.idle", "输入文件或目录后扫描时间戳。"), tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" }
 }
 
 function itemStatusMeta(status: TimeuPlanItem["status"] | "pending") {
-  if (status === "success") return { icon: CheckCircle2, label: "完成", variant: "default" as const }
-  if (status === "error") return { icon: XCircle, label: "错误", variant: "destructive" as const }
-  if (status === "skipped") return { icon: AlertTriangle, label: "跳过", variant: "outline" as const }
-  return { icon: Clock3, label: "待执行", variant: "secondary" as const }
+  if (status === "success") return { icon: CheckCircle2, label: tNode("timeu", "itemStatus.success", "完成"), variant: "default" as const }
+  if (status === "error") return { icon: XCircle, label: tNode("timeu", "itemStatus.error", "错误"), variant: "destructive" as const }
+  if (status === "skipped") return { icon: AlertTriangle, label: tNode("timeu", "itemStatus.skipped", "跳过"), variant: "outline" as const }
+  return { icon: Clock3, label: tNode("timeu", "itemStatus.pending", "待执行"), variant: "secondary" as const }
 }
 
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
-  if (props.result) return `${props.result.plan.length} 项 / 记录 ${props.result.records.length}`
-  if (props.paths.length) return `${props.paths.length} 条路径 / ${props.actionMeta.shortLabel}`
-  return props.actionMeta.description
+  if (props.result) return tNode("timeu", "summary.result", "{{count}} 项 / 记录 {{records}}", { count: props.result.plan.length, records: props.result.records.length })
+  if (props.paths.length) return tNode("timeu", "summary.paths", "{{count}} 条路径 / {{action}}", { count: props.paths.length, action: actionShortLabel(props.action) })
+  return actionDescription(props.action)
 }
 
 function actionLabel(action: TimeuAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
+  if (action === "scan") return tNode("timeu", "actionLabel.scan", "扫描时间")
+  if (action === "backup") return tNode("timeu", "actionLabel.backup", "备份时间")
+  return tNode("timeu", "actionLabel.restore", "恢复时间")
+}
+
+function actionShortLabel(action: TimeuAction): string {
+  if (action === "scan") return tNode("timeu", "actionShortLabel.scan", "扫描")
+  if (action === "backup") return tNode("timeu", "actionShortLabel.backup", "备份")
+  return tNode("timeu", "actionShortLabel.restore", "恢复")
+}
+
+function actionDescription(action: TimeuAction): string {
+  if (action === "scan") return tNode("timeu", "actionDescription.scan", "读取当前时间戳并生成记录预览。")
+  if (action === "backup") return tNode("timeu", "actionDescription.backup", "写入 JSON 时间戳记录，供后续恢复。")
+  return tNode("timeu", "actionDescription.restore", "按记录恢复访问时间和修改时间。")
 }
 
 function buildInput(action: TimeuAction, data: TimeuCardState): TimeuInput {

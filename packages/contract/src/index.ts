@@ -205,6 +205,8 @@ export interface NodeDownloadsCapability {
 
 export interface NodeLocalFilesCapability {
   getUrl: (path: string) => string
+  pickFiles?: () => Promise<string[]>
+  pickDirectory?: () => Promise<string | undefined>
 }
 
 export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {

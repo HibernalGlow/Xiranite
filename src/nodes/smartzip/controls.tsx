@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { ACTIONS } from "./constants"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { ACTIONS, actionI18nKey } from "./constants"
 import type { SmartZipCardState, SmartZipStatusMeta } from "./types"
 
 export function ActionIconButton(props: {
@@ -50,6 +51,7 @@ export function ActionPicker(props: {
   triggerClassName?: string
   onActionChange: (action: SmartZipAction) => void
 }) {
+  const { t } = useNodeI18n("smartzip")
   return (
     <ToggleGroup
       aria-label="smartzip action"
@@ -64,9 +66,9 @@ export function ActionPicker(props: {
       }}
     >
       {ACTIONS.map((item) => (
-        <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
+        <ToggleGroupItem key={item.value} aria-label={t(`actions.${actionI18nKey(item.value)}.label`, item.label)} className="min-w-0" value={item.value}>
           <item.icon data-icon="inline-start" />
-          <span className="truncate">{item.shortLabel}</span>
+          <span className="truncate">{t(`actions.${actionI18nKey(item.value)}.shortLabel`, item.shortLabel)}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
@@ -80,22 +82,24 @@ export function PathsInput(props: {
   onPaste: () => void
   onPatch: (patch: Partial<SmartZipCardState>) => void
 }) {
+  const { t } = useNodeI18n("smartzip")
+  const archivesOrDirs = t("fields.archivesOrDirs", "归档或目录")
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-h-0 flex-col gap-1.5">
       {!props.compact && (
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor="smartzip-paths" className="flex items-center gap-1.5">
             <Archive className="size-3.5 text-muted-foreground" />
-            归档或目录
+            {archivesOrDirs}
           </Label>
-          <InfoHint label="归档或目录" description="每行一条路径，支持 .zip .7z .rar .tar 等。" />
+          <InfoHint label={archivesOrDirs} description={t("hints.pathsDescription", "每行一条路径，支持 .zip .7z .rar .tar 等。")} />
         </div>
       )}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         {props.compact ? (
           <Input
             id="smartzip-paths"
-            aria-label="smartzip 归档或目录"
+            aria-label={`smartzip ${archivesOrDirs}`}
             disabled={props.disabled}
             className="font-mono text-xs"
             placeholder={"D:/archives/a.zip"}
@@ -105,7 +109,7 @@ export function PathsInput(props: {
         ) : (
           <Textarea
             id="smartzip-paths"
-            aria-label="smartzip 归档或目录"
+            aria-label={`smartzip ${archivesOrDirs}`}
             disabled={props.disabled}
             className="min-h-[80px] resize-y font-mono text-xs"
             placeholder={"D:/archives/a.zip\nD:/archives/b.cbz"}
@@ -113,7 +117,7 @@ export function PathsInput(props: {
             onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
           />
         )}
-        <ActionIconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} />
+        <ActionIconButton disabled={props.disabled} icon={Clipboard} label={t("actions.pastePaths", "粘贴路径")} onClick={props.onPaste} />
       </div>
     </div>
   )
@@ -124,41 +128,42 @@ export function PathFields(props: {
   disabled?: boolean
   onPatch: (patch: Partial<SmartZipCardState>) => void
 }) {
+  const { t } = useNodeI18n("smartzip")
   return (
     <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
       <Input
         aria-label="smartzip SmartZip exe"
         disabled={props.disabled}
-        placeholder="SmartZip.exe，可留空使用 AHK"
+        placeholder={t("placeholders.smartZipExe", "SmartZip.exe，可留空使用 AHK")}
         value={props.data.smartZipExe ?? ""}
         onChange={(event) => props.onPatch({ smartZipExe: event.currentTarget.value })}
       />
       <Input
         aria-label="smartzip SmartZip ahk"
         disabled={props.disabled}
-        placeholder="SmartZip.ahk 脚本路径"
+        placeholder={t("placeholders.smartZipAhk", "SmartZip.ahk 脚本路径")}
         value={props.data.smartZipAhk ?? ""}
         onChange={(event) => props.onPatch({ smartZipAhk: event.currentTarget.value })}
       />
       <Input
         aria-label="smartzip AutoHotkey exe"
         disabled={props.disabled}
-        placeholder="AutoHotkey.exe，默认自动检测"
+        placeholder={t("placeholders.autohotkeyExe", "AutoHotkey.exe，默认自动检测")}
         value={props.data.autohotkeyExe ?? ""}
         onChange={(event) => props.onPatch({ autohotkeyExe: event.currentTarget.value })}
       />
       <Input
-        aria-label="smartzip ini 路径"
+        aria-label="smartzip ini path"
         disabled={props.disabled}
-        placeholder="SmartZip.ini 配置文件"
+        placeholder={t("placeholders.iniPath", "SmartZip.ini 配置文件")}
         value={props.data.iniPath ?? ""}
         onChange={(event) => props.onPatch({ iniPath: event.currentTarget.value })}
       />
       <Input
-        aria-label="smartzip 运行记录 JSONL"
+        aria-label="smartzip run log JSONL"
         disabled={props.disabled}
         className="@3xl/smartzip:col-span-2"
-        placeholder=".xiranite/smartzip-runs.jsonl"
+        placeholder={t("placeholders.databasePath", ".xiranite/smartzip-runs.jsonl")}
         value={props.data.databasePath ?? ""}
         onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
       />
@@ -171,22 +176,23 @@ export function RuntimeOptions(props: {
   disabled?: boolean
   onPatch: (patch: Partial<SmartZipCardState>) => void
 }) {
+  const { t } = useNodeI18n("smartzip")
   return (
     <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
       <SwitchRow
         checked={props.data.dryRun ?? true}
         disabled={props.disabled}
         icon={Eye}
-        label="预演"
-        description="只生成命令计划，不真正调用 SmartZip。"
+        label={t("switches.dryRun", "预演")}
+        description={t("switches.dryRunDesc", "只生成命令计划，不真正调用 SmartZip。")}
         onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
       />
       <SwitchRow
         checked={props.data.recordRun ?? false}
         disabled={props.disabled}
         icon={DatabaseZap}
-        label="记录运行"
-        description="把每次运行的命令和结果写入 JSONL。"
+        label={t("switches.recordRun", "记录运行")}
+        description={t("switches.recordRunDesc", "把每次运行的命令和结果写入 JSONL。")}
         onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
       />
     </div>
@@ -198,23 +204,25 @@ export function OptionsPopover(props: {
   disabled?: boolean
   onPatch: (patch: Partial<SmartZipCardState>) => void
 }) {
+  const { t } = useNodeI18n("smartzip")
+  const optionsLabel = t("options.title", "运行选项")
   return (
     <Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="smartzip 运行选项" disabled={props.disabled} size="icon-sm" variant="outline">
+            <Button aria-label={`smartzip ${optionsLabel}`} disabled={props.disabled} size="icon-sm" variant="outline">
               <Settings2 />
-              <span className="sr-only">运行选项</span>
+              <span className="sr-only">{optionsLabel}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>运行选项</TooltipContent>
+        <TooltipContent>{optionsLabel}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,460px)]">
         <div className="mb-3">
-          <div className="text-sm font-semibold">运行选项</div>
-          <p className="text-xs text-muted-foreground">SmartZip 路径、AHK、ini 和运行开关集中在这里。</p>
+          <div className="text-sm font-semibold">{optionsLabel}</div>
+          <p className="text-xs text-muted-foreground">{t("options.description", "SmartZip 路径、AHK、ini 和运行开关集中在这里。")}</p>
         </div>
         <div className="grid gap-3">
           <PathFields {...props} />
@@ -235,42 +243,44 @@ export function ConfigDefaultsPopover(props: {
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }) {
+  const { t } = useNodeI18n("smartzip")
+  const defaultsLabel = t("defaults.title", "默认配置")
   return (
     <Popover>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button aria-label="smartzip 默认配置" disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
+            <Button aria-label={`smartzip ${defaultsLabel}`} disabled={props.disabled} size="icon-sm" variant={props.configDirty ? "secondary" : "outline"}>
               <DatabaseZap />
-              <span className="sr-only">默认配置</span>
+              <span className="sr-only">{defaultsLabel}</span>
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>默认配置</TooltipContent>
+        <TooltipContent>{defaultsLabel}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
-          <div className="text-sm font-semibold">默认配置</div>
-          <p className="text-xs text-muted-foreground">保存 SmartZip 路径、AHK 和 ini 位置。</p>
+          <div className="text-sm font-semibold">{defaultsLabel}</div>
+          <p className="text-xs text-muted-foreground">{t("defaults.description", "保存 SmartZip 路径、AHK 和 ini 位置。")}</p>
         </div>
         <div className="grid gap-2">
-          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>保存为默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>恢复默认</Button>
-          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>清除覆盖</Button>
+          <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{t("defaults.save", "保存为默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onRestoreDefault}>{t("defaults.restore", "恢复默认")}</Button>
+          <Button disabled={props.disabled} size="sm" variant="outline" onClick={props.onResetOverride}>{t("defaults.clear", "清除覆盖")}</Button>
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
-              <Button disabled={!props.configFilePath} size="sm" variant="ghost">查看配置</Button>
+              <Button disabled={!props.configFilePath} size="sm" variant="ghost">{t("defaults.view", "查看配置")}</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>SmartZip 配置</DialogTitle>
-                <DialogDescription>当前 nodes.smartzip 默认值和配置文件位置。</DialogDescription>
+                <DialogTitle>{t("defaults.previewTitle", "SmartZip 配置")}</DialogTitle>
+                <DialogDescription>{t("defaults.previewDescription", "当前 nodes.smartzip 默认值和配置文件位置。")}</DialogDescription>
               </DialogHeader>
               <ConfigPreview config={props.defaults} path={props.configFilePath} />
             </DialogContent>
           </Dialog>
-          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>打开文件</Button>
+          <Button disabled={!props.onOpenConfigFile} size="sm" variant="ghost" onClick={() => void props.onOpenConfigFile?.()}>{t("defaults.openFile", "打开文件")}</Button>
         </div>
       </PopoverContent>
     </Popover>
@@ -320,14 +330,15 @@ function ConfigPreview(props: {
   config?: Partial<SmartZipCardState>
   path?: string
 }) {
+  const { t } = useNodeI18n("smartzip")
   const content = props.config === undefined
-    ? "# nodes.smartzip 暂无默认配置\n"
+    ? t("defaults.noConfig", "# nodes.smartzip 暂无默认配置\n")
     : JSON.stringify(props.config, null, 2)
   return (
     <div className="grid gap-3">
       <div className="rounded-md border bg-muted/30 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">配置文件</div>
-        <div className="mt-1 break-all font-mono text-xs">{props.path ?? "未连接本地配置服务"}</div>
+        <div className="text-xs font-medium text-muted-foreground">{t("defaults.configFile", "配置文件")}</div>
+        <div className="mt-1 break-all font-mono text-xs">{props.path ?? t("defaults.notConnected", "未连接本地配置服务")}</div>
       </div>
       <pre className="max-h-[45vh] overflow-auto rounded-md border bg-muted/30 p-3 text-xs leading-5">
         {content}
@@ -337,11 +348,12 @@ function ConfigPreview(props: {
 }
 
 function InfoHint({ description, label }: { description: string; label: string }) {
+  const { t } = useNodeI18n("smartzip")
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          aria-label={`${label}说明`}
+          aria-label={t("labels.hintSuffix", "{{label}}说明", { label })}
           className="inline-grid size-5 shrink-0 cursor-help place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           role="img"
           tabIndex={0}

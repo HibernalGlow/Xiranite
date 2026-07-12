@@ -3533,6 +3533,1041 @@
       "progress": {
         "start": "{{action}} started"
       }
+    },
+    "classf": {
+      "name": "ClassF",
+      "description": "Orchestrate SameA artist extraction, CrashU folder matching, and MigrateF already/wait transfers.",
+      "sections": {
+        "scanSources": "Scan sources",
+        "classificationMatrix": "Classification matrix",
+        "executionGate": "Execution gate"
+      },
+      "modes": {
+        "dryRun": "Preview",
+        "live": "Live execution"
+      },
+      "execution": {
+        "planReadiness": "Plan readiness",
+        "ready": "Ready",
+        "pending": "Pending"
+      },
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "envuconfig": {
+      "name": "EnvU Config",
+      "description": "Inventory, record, and back up EnvU installation configuration files.",
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "jellypot": {
+      "name": "JellyPot",
+      "description": "Launch Jellyfin and PotPlayer with JellyPot configuration checks.",
+      "console": {
+        "subtitle": "Media entry, environment check, and registry configuration"
+      },
+      "action": {
+        "reset": "Clear state"
+      },
+      "media": {
+        "title": "Media entry",
+        "description": "Enter a local media path to open it with PotPlayer",
+        "scan": "Check environment"
+      },
+      "activity": {
+        "title": "Recent activity",
+        "description": "Recent run records for this node"
+      },
+      "service": {
+        "potplayerDesc": "Local player and media file entry",
+        "launch": "Play media",
+        "jellyfinDesc": "Open Jellyfin Web in browser",
+        "open": "Open Jellyfin"
+      },
+      "registry": {
+        "title": "Registry configuration",
+        "noConfig": "No configuration file loaded yet",
+        "riskTitle": "High-risk operation",
+        "riskReady": "Registry file found. Disabling preview will modify the system registry.",
+        "riskMissing": "Check the registry file and config path before importing.",
+        "plan": "Preview registry import"
+      },
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "gitalso": {
+      "name": "GitAlso",
+      "description": "Diny-first commit assistant with an optional GitButler AI landing workflow.",
+      "error": {
+        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
+      },
+      "progress": {
+        "start": "Starting..."
+      },
+      "stats": {
+        "staged": "Staged files",
+        "branch": "Branch",
+        "insertions": "Insertions",
+        "deletions": "Deletions"
+      },
+      "fields": {
+        "repoPath": "Git repository path"
+      },
+      "placeholder": {
+        "repoPath": "Leave empty to use current repository",
+        "manualMessage": "Enter a commit message manually, or leave empty for diny AI generation..."
+      },
+      "actions": {
+        "analyze": "Analyze changes",
+        "copy": "Copy",
+        "generate": "Generate message",
+        "dryCommit": "Preview commit",
+        "commit": "Commit",
+        "push": "Push",
+        "stop": "Stop",
+        "reset": "Reset",
+        "saveDefaults": "Save as default"
+      },
+      "labels": {
+        "stagedFiles": "Staged files",
+        "commitMessage": "Commit message",
+        "diffPreview": "Diff preview",
+        "logs": "Logs"
+      },
+      "empty": {
+        "staged": "No staged files"
+      },
+      "switches": {
+        "dryRunOn": "Preview",
+        "dryRunOff": "Live",
+        "noVerifyOn": "Skip hooks",
+        "noVerifyOff": "Hooks"
+      }
+    },
+    "nameu": {
+      "name": "NameU",
+      "description": "Preview and apply archive filename cleanup for artist folders.",
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "xlchemy": {
+      "name": "Xlchemy",
+      "description": "High-performance batch image transcoding workbench.",
+      "subtitle": "High-performance batch image transcoding workbench",
+      "sections": {
+        "input": "Input files",
+        "formatHub": "Calibration matrix"
+      },
+      "errors": {
+        "paths": "Add at least one image file or folder first.",
+        "backend": "GUI is ready, waiting for the Xlchemy backend execution interface.",
+        "cancelUnavailable": "This host does not support cancelling node tasks.",
+        "noActiveRun": "No active Xlchemy task to cancel."
+      },
+      "status": {
+        "start": "Preparing Xlchemy transcoding task...",
+        "stopping": "Stopping Xlchemy transcoding..."
+      },
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "bitv": {
+      "name": "BitV",
+      "description": "Analyze video bitrate with ffprobe and classify files without overwriting existing data.",
+      "config": {
+        "trigger": "Configuration",
+        "title": "Configuration",
+        "description": "Save reusable defaults, or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "reload": "Reload",
+        "view": "View configuration",
+        "previewTitle": "Default configuration",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "After switching, save as default to write to the TOML config."
+      }
+    },
+    "simiu": {
+      "name": "Simiu",
+      "description": "Scan similar images and generate grouping and file operation plans by size and signature.",
+      "actions": {
+        "clear": "Clear state",
+        "running": "Running",
+        "runApply": "Run apply",
+        "runScan": "Run scan",
+        "runPlan": "Run plan",
+        "paste": "Paste directories",
+        "copy": "Copy",
+        "saveDefault": "Save as default",
+        "restoreDefault": "Restore default",
+        "clearOverride": "Clear override",
+        "viewConfig": "View config",
+        "openFile": "Open file",
+        "scan": {
+          "label": "Scan images",
+          "shortLabel": "Scan",
+          "description": "Scan image root directories and batches without generating a move plan."
+        },
+        "plan": {
+          "label": "Generate groups",
+          "shortLabel": "Plan",
+          "description": "Generate groups and file operation plans by size and signature."
+        },
+        "apply": {
+          "label": "Apply groups",
+          "shortLabel": "Apply",
+          "description": "Execute move, copy, or link operations, modifying the file system."
+        }
+      },
+      "status": {
+        "running": "Running",
+        "runningDescription": "Simiu is scanning or planning similar image groups.",
+        "completed": "Done",
+        "completedDescription": "Last task completed.",
+        "error": "Failed",
+        "errorDescription": "Last task failed, please check the logs.",
+        "idle": "Ready",
+        "idleDescription": "Enter image root directories to scan or generate a plan."
+      },
+      "error": {
+        "noRoots": "Please enter at least one image root directory first.",
+        "noRunEnv": "The current environment has no local execution capability. Please use desktop mode or CLI."
+      },
+      "progress": {
+        "start": "{{action}} started"
+      },
+      "confirm": {
+        "applyTitle": "Confirm real group application?",
+        "applyDescription": "Dry run is currently off. Files will be moved, copied, or linked according to the selected apply mode. Please verify the root directories and grouping rules are correct.",
+        "cancel": "Cancel",
+        "apply": "Confirm apply"
+      },
+      "labels": {
+        "input": "Input",
+        "inputDescription": "Image root directories are fixed on the left. Scanning, planning, and applying share the same inputs.",
+        "grouping": "Grouping",
+        "runtime": "Runtime",
+        "scanningParameters": "Scanning parameters",
+        "scanningParametersDescription": "Source path, clustering rule, and run mode.",
+        "clusterHub": "Cluster hub",
+        "confirmed": "{{count}} confirmed",
+        "clusterHubDescription": "Size and signature groups derived from the current image batches.",
+        "cluster": "Cluster {{index}}: {{name}}",
+        "items": "{{count}} items",
+        "planned": "planned → {{name}}",
+        "selectedItems": "Selected items: {{count}}",
+        "fileCount": "{{count}} files",
+        "groupOptions": "Group options",
+        "groupOptionsDescription": "Apply mode, scan order, and dry run toggle are all here.",
+        "defaults": "Default config",
+        "defaultsDescription": "Save Simiu's directory, grouping, and runtime options.",
+        "configTitle": "Simiu config",
+        "configDescription": "Current nodes.simiu defaults and config file location.",
+        "noDefaults": "# No default config for nodes.simiu yet\n",
+        "configFile": "Config file",
+        "noConfigService": "Not connected to local config service"
+      },
+      "fields": {
+        "roots": "Image root directories",
+        "rootsHint": "jpg / png / webp",
+        "applyMode": "Apply mode",
+        "scanOrder": "Scan order",
+        "dryRun": "Dry run",
+        "dryRunDescription": "Only generate an operation plan without moving, copying, or linking files.",
+        "recordRun": "Record run",
+        "recordRunDescription": "Write scan or apply results to JSONL."
+      },
+      "placeholder": {
+        "roots": "One image directory per line",
+        "namePrefix": "Group prefix, default simiu_set",
+        "minGroupSize": "Min group size, default 2",
+        "sizeTolerance": "Size tolerance bytes",
+        "configPath": "simiu.toml, optional",
+        "databasePath": ".xiranite/simiu-runs.jsonl"
+      },
+      "aria": {
+        "action": "simiu action",
+        "running": "simiu running",
+        "roots": "simiu image root directories",
+        "applyMode": "simiu apply mode",
+        "applyModeItem": "Apply mode {{label}}",
+        "scanOrder": "simiu scan order",
+        "scanOrderItem": "Scan order {{label}}",
+        "namePrefix": "simiu group prefix",
+        "minGroupSize": "simiu min group size",
+        "sizeTolerance": "simiu size tolerance",
+        "configPath": "simiu config TOML",
+        "databasePath": "simiu run log JSONL",
+        "groupOptions": "simiu group options",
+        "defaults": "simiu default config",
+        "hint": "{{label}} info"
+      },
+      "tabs": {
+        "groups": "Groups",
+        "operations": "Operations",
+        "logs": "Logs"
+      },
+      "stats": {
+        "images": "Images",
+        "groups": "Groups",
+        "operations": "Operations",
+        "errors": "Errors"
+      },
+      "empty": {
+        "logsText": "Run logs will appear here.",
+        "groupsTitle": "Waiting for groups",
+        "groupsDescription": "Similar image groups will appear after generating a plan.",
+        "operationsTitle": "Waiting for operations",
+        "operationsDescription": "File operations will appear after generating a plan or applying groups.",
+        "logsTitle": "Waiting for logs"
+      },
+      "panel": {
+        "count": "{{count}} items {{label}}",
+        "waiting": "Waiting for {{label}}"
+      },
+      "summary": {
+        "result": "{{images}} images / {{groups}} groups / {{operations}} operations",
+        "waiting": "{{count}} root directories waiting for {{action}}",
+        "clusters": "{{groups}} clusters / {{images}} images"
+      },
+      "applyMode": {
+        "move": "Move",
+        "copy": "Copy",
+        "link": "Link"
+      },
+      "scanOrder": {
+        "path": "Path",
+        "smallest-first": "Smallest first",
+        "deepest-first": "Deepest first"
+      },
+      "config": {
+        "trigger": "Config",
+        "title": "Config",
+        "description": "Save reusable defaults or restore saved configuration for this node.",
+        "save": "Save as default",
+        "restore": "Restore default",
+        "reload": "Reload",
+        "view": "View config",
+        "previewTitle": "Default config",
+        "noPath": "No config file connected",
+        "openFile": "Open config file",
+        "dirty": "Current parameters differ from saved defaults.",
+        "preset": "Preset",
+        "presetPlaceholder": "Select preset",
+        "presetDescription": "Switching saves as default, writing to the TOML config."
+      }
+    },
+    "smartzip": {
+      "name": "SmartZip",
+      "description": "SmartZip archive management: view status, extract, pack, or open settings.",
+      "actions": {
+        "clear": "Clear state",
+        "cancel": "Cancel",
+        "confirm": "Confirm run",
+        "pastePaths": "Paste paths",
+        "copy": "Copy",
+        "status": {
+          "label": "View status",
+          "shortLabel": "Status",
+          "description": "Load SmartZip config, list archive extensions and passwords."
+        },
+        "extract": {
+          "label": "Extract archives",
+          "shortLabel": "Extract",
+          "description": "Use SmartZip to extract selected archive files."
+        },
+        "extractCodepage": {
+          "label": "Extract with codepage",
+          "shortLabel": "Codepage",
+          "description": "Extract archives with a specified codepage to handle non-ASCII filenames."
+        },
+        "open": {
+          "label": "Open archive",
+          "shortLabel": "Open",
+          "description": "Open archive files in SmartZip GUI."
+        },
+        "archive": {
+          "label": "Create archive",
+          "shortLabel": "Pack",
+          "description": "Pack selected paths into an archive file."
+        },
+        "settings": {
+          "label": "Open settings",
+          "shortLabel": "Settings",
+          "description": "Open the SmartZip settings window."
+        }
+      },
+      "fields": {
+        "paths": "Paths",
+        "executables": "Executables",
+        "run": "Run",
+        "archivesOrDirs": "Archives or directories"
+      },
+      "placeholders": {
+        "smartZipExe": "SmartZip.exe, leave empty to use AHK",
+        "smartZipAhk": "SmartZip.ahk script path",
+        "autohotkeyExe": "AutoHotkey.exe, auto-detected by default",
+        "iniPath": "SmartZip.ini config file",
+        "databasePath": ".xiranite/smartzip-runs.jsonl"
+      },
+      "labels": {
+        "operationChamber": "Operation chamber",
+        "commandPlan": "; SMARTZIP COMMAND PLAN",
+        "queuedArchives": "; QUEUED ARCHIVES",
+        "runCommandHint": "Run an action to produce the SmartZip command plan.",
+        "hintSuffix": "{{label}} hint"
+      },
+      "badges": {
+        "planned": "planned",
+        "idle": "idle"
+      },
+      "status": {
+        "running": "Running",
+        "runningDesc": "SmartZip is loading config or executing commands.",
+        "completed": "Completed",
+        "completedDesc": "Last task completed.",
+        "error": "Failed",
+        "errorDesc": "Last task failed, check logs.",
+        "idle": "Ready",
+        "idleDesc": "Select an action to view status, extract, pack, or open settings."
+      },
+      "tabs": {
+        "command": "Command",
+        "config": "Config",
+        "logs": "Logs"
+      },
+      "stats": {
+        "selected": "Selected",
+        "archives": "Archives",
+        "extensions": "Extensions",
+        "errors": "Errors"
+      },
+      "options": {
+        "title": "Run options",
+        "description": "SmartZip paths, AHK, ini, and run switches are all here."
+      },
+      "defaults": {
+        "title": "Defaults",
+        "description": "Save SmartZip paths, AHK, and ini locations.",
+        "save": "Save as default",
+        "restore": "Restore defaults",
+        "clear": "Clear overrides",
+        "view": "View config",
+        "previewTitle": "SmartZip config",
+        "previewDescription": "Current nodes.smartzip defaults and config file location.",
+        "openFile": "Open file",
+        "noConfig": "# No default config for nodes.smartzip\n",
+        "configFile": "Config file",
+        "notConnected": "Not connected to local config service"
+      },
+      "switches": {
+        "dryRun": "Dry run",
+        "dryRunDesc": "Only generate command plan, don't actually call SmartZip.",
+        "recordRun": "Record runs",
+        "recordRunDesc": "Write each run's command and result to JSONL."
+      },
+      "empty": {
+        "waitingCommand": "Waiting for command",
+        "waitingCommandDesc": "Select an action and run to see the SmartZip command plan.",
+        "waitingConfig": "Waiting for config",
+        "waitingConfigDesc": "Run status check to see SmartZip config.",
+        "waitingLogs": "Waiting for logs",
+        "logsHint": "Run logs will appear here."
+      },
+      "configRows": {
+        "sevenZipDir": "7-Zip directory",
+        "passwords": "Passwords",
+        "archiveExtensions": "Archive extensions",
+        "default": "(default)",
+        "contextMenu": "Context menu",
+        "sendTo": "Send to",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "panelHeader": {
+        "items": "{{count}} items {{label}}",
+        "waiting": "Waiting for {{label}}"
+      },
+      "progress": {
+        "start": "{{action}} starting"
+      },
+      "error": {
+        "noPaths": "Please enter at least one archive or directory path.",
+        "noRunEnv": "No local execution capability in this environment, use desktop mode or CLI."
+      },
+      "confirm": {
+        "title": "Confirm {{action}}?",
+        "description": "Dry run is off. SmartZip will actually execute {{action}}, which may modify files on disk. Please verify paths and config."
+      },
+      "summary": {
+        "stats": "{{paths}} paths / {{archives}} archives / {{errors}} errors"
+      },
+      "hints": {
+        "pathsHelp": "Archives or directories, one per line. status and settings don't need paths.",
+        "pathsDescription": "One path per line, supports .zip .7z .rar .tar etc."
+      }
+    },
+    "snf": {
+      "name": "SNF",
+      "description": "Scan and fix sequence numbering for ACG archive libraries.",
+      "sections": {
+        "pathAndPattern": "Path and pattern",
+        "scheme": "Sequence plan",
+        "execution": "Execution"
+      },
+      "actions": {
+        "scan": {
+          "label": "Scan sequence",
+          "short": "Scan",
+          "description": "Read numbered directories and check for continuity."
+        },
+        "plan": {
+          "label": "Preview fix",
+          "short": "Preview",
+          "description": "Generate a numbering fix plan without modifying directories."
+        },
+        "rename": {
+          "label": "Apply fix",
+          "short": "Fix",
+          "description": "Rename numbered directories according to the plan. Confirmation required."
+        },
+        "saveDefault": "Save default",
+        "restoreDefault": "Restore default",
+        "clearState": "Clear state",
+        "pastePaths": "Paste paths",
+        "clearPaths": "Clear paths",
+        "copy": "Copy",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execution"
+      },
+      "modes": {
+        "library": "Library dir",
+        "artist": "Artist dir"
+      },
+      "fields": {
+        "pathsLabel": "Library or artist directory"
+      },
+      "placeholder": {
+        "paths": "One directory per line\nD:/archives"
+      },
+      "switches": {
+        "preview": "Preview",
+        "keepTimestamp": "Keep timestamp"
+      },
+      "execution": {
+        "preview": "Preview",
+        "write": "Write"
+      },
+      "labels": {
+        "running": "Running",
+        "unnumbered": "Unnumbered",
+        "waitRun": "Waiting to run",
+        "itemUnit": "items",
+        "lineUnit": "lines"
+      },
+      "tabs": {
+        "plan": "Plan",
+        "issues": "Issues",
+        "logs": "Logs"
+      },
+      "empty": {
+        "noIssues": "No issues",
+        "logsHint": "Run logs will appear here.",
+        "planAfterRun": "Run a preview to see the sequence fix plan.",
+        "planAfterInput": "Enter directories to preview the sequence fix plan."
+      },
+      "stats": {
+        "paths": "Paths",
+        "artists": "Artists",
+        "ready": "Ready",
+        "renamed": "Renamed",
+        "conflict": "Conflict",
+        "progress": "Progress"
+      },
+      "status": {
+        "running": {
+          "label": "Running",
+          "description": "SNF is scanning or fixing sequence numbers."
+        },
+        "error": {
+          "label": "Failed",
+          "description": "The last task failed. Check the issues list."
+        },
+        "completed": {
+          "label": "Done",
+          "description": "The last SNF task has completed."
+        },
+        "idle": {
+          "label": "Ready",
+          "description": "Enter directories to preview the sequence fix plan."
+        }
+      },
+      "itemStatus": {
+        "renamed": "Renamed",
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "error": "Error",
+        "skipped": "Skipped",
+        "unchanged": "Unchanged"
+      },
+      "summary": {
+        "items": "items",
+        "ready": "ready",
+        "conflict": "conflict",
+        "paths": "paths"
+      },
+      "confirm": {
+        "title": "Confirm fix execution?",
+        "description": "This will rename numbered directories. Please verify paths, mode, and conflict list first."
+      },
+      "error": {
+        "noPaths": "Please enter at least one library or artist directory first.",
+        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
+      },
+      "progress": {
+        "start": "{{action}} starting"
+      }
+    },
+    "soundw": {
+      "name": "SoundW",
+      "description": "Quickly switch SoundSwitch recording devices and microphone mute state.",
+      "status": {
+        "notQueried": "Status not queried",
+        "ready": "Ready — query status or switch the recording device."
+      },
+      "sections": {
+        "deviceMatrix": "Device Matrix",
+        "profileHub": "Profile Hub",
+        "consoleLog": "Console Log"
+      },
+      "labels": {
+        "soundswitchRecording": "SOUNDSWITCH / RECORDING",
+        "micPrefix": "MIC",
+        "recordingRoute": "RECORDING ROUTE",
+        "soundswitchProfiles": "SOUNDSWITCH PROFILES",
+        "commandOutput": "COMMAND OUTPUT",
+        "recordingDevices": "Recording devices",
+        "use": "use"
+      },
+      "descriptions": {
+        "recordingDevices": "Cycles only the inputs configured in SoundSwitch."
+      },
+      "actions": {
+        "switchRecordingDevice": "Switch recording device",
+        "muteMic": "Mute mic",
+        "unmuteMic": "Unmute mic",
+        "toggleMute": "Toggle microphone mute",
+        "activate": "Activate",
+        "saveDefaults": "Save as defaults"
+      },
+      "aria": {
+        "refreshStatus": "Refresh microphone status",
+        "loadProfiles": "Load SoundSwitch profiles",
+        "profileName": "SoundSwitch profile name",
+        "openSettings": "Open SoundSwitch settings"
+      },
+      "placeholders": {
+        "profileName": "Profile name",
+        "cliPath": "SoundSwitch.CLI.exe path"
+      },
+      "empty": {
+        "profiles": "Load profiles to select one. Profile definitions remain managed by SoundSwitch.",
+        "logs": "No commands run."
+      },
+      "advanced": {
+        "cliOverride": "CLI path override"
+      }
+    },
+    "synct": {
+      "name": "Synct",
+      "description": "Archive files and folders by timestamp",
+      "error": {
+        "noPaths": "Add at least one source path before running Synct.",
+        "noRunEnv": "Native execution is unavailable in this host. Use the desktop backend or CLI."
+      },
+      "progress": {
+        "started": "{{action}} started."
+      },
+      "sections": {
+        "sourcesAndFormat": "Sources and format",
+        "archivePlan": "Archive path plan",
+        "targetFormat": "Target format",
+        "run": "Run"
+      },
+      "actions": {
+        "saveDefaults": "Save defaults",
+        "restoreDefaults": "Restore defaults",
+        "clearState": "Clear state",
+        "pastePaths": "Paste paths",
+        "clearPaths": "Clear paths",
+        "copy": "Copy",
+        "scan": {
+          "label": "Scan dates",
+          "short": "Scan",
+          "description": "Read source names and show detected timestamps."
+        },
+        "plan": {
+          "label": "Build plan",
+          "short": "Plan",
+          "description": "Preview target archive paths and conflicts."
+        },
+        "archive": {
+          "label": "Archive items",
+          "short": "Archive",
+          "description": "Move ready items into date-based folders."
+        }
+      },
+      "sourceModes": {
+        "files": { "label": "Files" },
+        "folders": { "label": "Folders" }
+      },
+      "formats": {
+        "year_month": { "label": "Year month" },
+        "year_month_day": { "label": "Date" },
+        "nested_y_m": { "label": "Year / month" },
+        "nested_y_m_d": { "label": "Year / month / day" },
+        "nested_ym_d": { "label": "Month folder + day" },
+        "nested_y_md": { "label": "Year + month day" },
+        "year": { "label": "Year" },
+        "month_day": { "label": "Month day" },
+        "day": { "label": "Day" }
+      },
+      "labels": {
+        "sourcePaths": "Source paths",
+        "noTimestamp": "No timestamp",
+        "unscheduled": "Unscheduled",
+        "fileCount": "{{count}} files",
+        "itemsCount": "{{count}} items",
+        "linesCount": "{{count}} lines"
+      },
+      "placeholder": {
+        "paths": "One file or folder per line\nD:/downloads"
+      },
+      "switches": {
+        "dryRun": "Dry run",
+        "recursive": "Recursive files",
+        "archiveFolder": "Use archive folder",
+        "fallbackTime": "Fallback time",
+        "syncFolderFiles": "Sync folder files"
+      },
+      "badges": {
+        "dryRun": "dry run",
+        "live": "live"
+      },
+      "status": {
+        "running": "Running",
+        "failed": "Failed",
+        "done": "Done",
+        "ready": "Ready",
+        "waiting": "Waiting for plan"
+      },
+      "desc": {
+        "running": "Synct is scanning or moving archive items.",
+        "failed": "Last Synct run failed. Check issues.",
+        "done": "Last Synct run completed.",
+        "ready": "Add paths and preview timestamp archive destinations."
+      },
+      "itemStatus": {
+        "moved": "Moved",
+        "ready": "Ready",
+        "conflict": "Conflict",
+        "error": "Error",
+        "skipped": "Skipped",
+        "same": "Same"
+      },
+      "tabs": {
+        "plan": "Plan",
+        "issues": "Issues",
+        "logs": "Log"
+      },
+      "empty": {
+        "issues": "No issues yet.",
+        "logs": "Run log will appear here."
+      },
+      "plan": {
+        "runToPreview": "Run a plan to show archive destinations.",
+        "addPaths": "Add source paths to preview the archive route."
+      },
+      "confirm": {
+        "title": "Confirm live archive?",
+        "description": "Synct will move ready files or folders. Existing targets are skipped as conflicts, but the source paths should be checked before continuing.",
+        "archive": "Confirm archive"
+      },
+      "stats": {
+        "sources": "Sources",
+        "scanned": "Scanned",
+        "ready": "Ready",
+        "moved": "Moved",
+        "conflicts": "Conflicts",
+        "progress": "Progress"
+      },
+      "summary": {
+        "items": "{{count}} items / ready {{ready}} / conflicts {{conflicts}}",
+        "paths": "{{count}} source path(s) / {{action}}"
+      }
+    },
+    "timeu": {
+      "name": "TimeU",
+      "description": "Scan, back up, and restore file timestamps with JSON records and preview mode.",
+      "sections": {
+        "pathQueue": "Path queue",
+        "timeRecords": "Time records",
+        "execution": "Execution"
+      },
+      "actions": {
+        "saveDefault": "Save default",
+        "restoreDefault": "Restore default",
+        "clearState": "Clear state",
+        "pastePath": "Paste paths",
+        "clearPath": "Clear paths",
+        "copy": "Copy",
+        "cancel": "Cancel",
+        "confirmExecute": "Confirm execution"
+      },
+      "fields": {
+        "paths": "Files or directories",
+        "record": "Record file"
+      },
+      "placeholder": {
+        "paths": "One file or directory per line\nD:/archive",
+        "record": "Leave empty to generate timeu-timestamps.json next to the first path"
+      },
+      "switches": {
+        "dryRun": "Preview",
+        "recursive": "Recursive",
+        "includeDirectories": "Include dirs"
+      },
+      "badges": {
+        "preview": "Preview",
+        "write": "Write"
+      },
+      "status": {
+        "running": "Running",
+        "error": "Failed",
+        "completed": "Done",
+        "ready": "Ready"
+      },
+      "desc": {
+        "running": "TimeU is scanning or writing timestamps.",
+        "error": "The last task failed. Check the issues list.",
+        "completed": "The last timestamp task completed.",
+        "idle": "Enter files or directories to scan timestamps."
+      },
+      "itemStatus": {
+        "success": "Done",
+        "error": "Error",
+        "skipped": "Skipped",
+        "pending": "Pending"
+      },
+      "tabs": {
+        "records": "Records",
+        "errors": "Issues",
+        "logs": "Logs"
+      },
+      "empty": {
+        "timestampRows": "Current time, recorded time, and restore plan will appear after running.",
+        "noIssues": "No issues",
+        "logsHere": "Run logs will appear here.",
+        "waitingRun": "Waiting to run"
+      },
+      "stats": {
+        "paths": "Paths",
+        "scanned": "Scanned",
+        "backup": "Backed up",
+        "restored": "Restored",
+        "skipped": "Skipped",
+        "progress": "Progress"
+      },
+      "timestamps": {
+        "atime": "Access time",
+        "mtime": "Modify time",
+        "drifted": "Drifted",
+        "missing": "Missing",
+        "notWritten": "Not written",
+        "current": "Now",
+        "stored": "Stored"
+      },
+      "dialog": {
+        "confirmBackupTitle": "Confirm backup timestamps?",
+        "confirmRestoreTitle": "Confirm restore timestamps?",
+        "confirmDescription": "This will write to the record file or modify file atime/mtime. Please verify the paths and record file are correct."
+      },
+      "error": {
+        "noPaths": "Please enter at least one file or directory path first.",
+        "noRunEnv": "This environment cannot run nodes locally. Use desktop mode or the CLI."
+      },
+      "progress": {
+        "start": "{{action}} started"
+      },
+      "summary": {
+        "result": "{{count}} items / {{records}} records",
+        "paths": "{{count}} paths / {{action}}"
+      },
+      "actionLabel": {
+        "scan": "Scan time",
+        "backup": "Backup time",
+        "restore": "Restore time"
+      },
+      "actionShortLabel": {
+        "scan": "Scan",
+        "backup": "Backup",
+        "restore": "Restore"
+      },
+      "actionDescription": {
+        "scan": "Read current timestamps and generate a record preview.",
+        "backup": "Write JSON timestamp records for later restoration.",
+        "restore": "Restore access and modification times from records."
+      },
+      "units": {
+        "items": "{{count}} items",
+        "lines": "{{count}} lines"
+      }
+    },
+    "samea": {
+      "name": "SameA",
+      "description": "Archive extractor protocol that analyzes and classifies archives by artist naming patterns.",
+      "errors": {
+        "noPaths": "Add at least one archive root before scanning.",
+        "noRunEnv": "Native execution is unavailable in this host."
+      },
+      "progress": {
+        "init": "Initializing SameA extractor."
+      },
+      "header": {
+        "title": "SameA: Extractor Protocol",
+        "sessionLabel": "WORKSPACE SESSION: ",
+        "targetLabel": "TARGET: ARCHIVE TRIAGE"
+      },
+      "collapsed": {
+        "archiveCandidates": "{{count}} archive candidates"
+      },
+      "sections": {
+        "sourceControl": "Source Control",
+        "operationGate": "Operation Gate",
+        "analysisChamber": "Analysis Chamber",
+        "filterProtocols": "Filter Protocols"
+      },
+      "source": {
+        "ingestionLabel": "Ingestion paths (line separated)",
+        "placeholder": "D:/Archives/Unsorted\nE:/Staging/New",
+        "pastePaths": "Paste paths",
+        "ignorePathBlacklist": "Ignore path blacklist"
+      },
+      "operation": {
+        "minOccurrences": "Min occurrences",
+        "centralizeLabel": "Centralize output",
+        "centralizeDesc": "Move to [00画师分类]",
+        "dryRunLabel": "Dry run mode",
+        "dryRunDesc": "Simulate without moving"
+      },
+      "analysis": {
+        "scanned": "scanned",
+        "ready": "Ready to scan archive nomenclature patterns.",
+        "entityColumn": "Detected entity",
+        "countColumn": "Count",
+        "actionColumn": "Action",
+        "empty": "Run a dry scan to populate the artist matrix."
+      },
+      "filters": {
+        "artists": "Artists",
+        "paths": "Paths",
+        "regex": "Regex",
+        "addExclusion": "Add exclusion…"
+      },
+      "compact": {
+        "input": "Input",
+        "analysis": "Analysis",
+        "filters": "Filters"
+      },
+      "logs": {
+        "title": "SYSTEM_LOGS // STDOUT",
+        "clear": "Clear",
+        "copy": "Copy",
+        "idle": "[idle] SameA is ready. Dry run is enabled by default."
+      },
+      "actions": {
+        "running": "Running",
+        "executeScan": "Execute scan",
+        "planScan": "Plan scan",
+        "classifyTitle": "Classify archives live?",
+        "classifyDesc": "SameA will move ready archives into detected artist folders.",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      }
     }
   }
 }

@@ -234,6 +234,13 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
     return true
   }
 
+  // Module shapes are full interactive UIs. Selection background sits above the
+  // HTML layer (z-index 500 > shapes 300) with pointer-events:all and would
+  // swallow button/dropdown clicks once the shape is selected.
+  override hideSelectionBoundsBg() {
+    return true
+  }
+
   override canBind() {
     return false
   }
@@ -254,6 +261,41 @@ class ModuleShapeUtil extends ShapeUtil<ModuleShape> {
       },
     }
   }
+}
+
+/** Controls that must keep their own pointer gesture (not become a tldraw drag). */
+const FLOW_NODE_INTERACTIVE_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "[role='button']",
+  "[role='tab']",
+  "[role='menuitem']",
+  "[role='combobox']",
+  "[role='listbox']",
+  "[role='option']",
+  "[role='switch']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='slider']",
+  "[contenteditable='true']",
+  "[data-radix-collection-item]",
+  "[data-slot='select-trigger']",
+  "[data-slot='popover-trigger']",
+  "[data-slot='dropdown-menu-trigger']",
+].join(", ")
+
+function isFlowNodeInteractiveTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest(FLOW_NODE_INTERACTIVE_SELECTOR))
+}
+
+/** Keep tldraw from turning control clicks into shape select/drag gestures. */
+function stopFlowNodeControlPointer(event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>) {
+  if (!isFlowNodeInteractiveTarget(event.target)) return
+  event.stopPropagation()
 }
 
 function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
@@ -348,7 +390,10 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
       data-component-id={compId}
       data-context-menu="flow-node"
       className="xiranite-component-surface group relative flex flex-col overflow-visible rounded-md bg-card/72 text-card-foreground outline outline-1 outline-transparent shadow-[0_18px_50px_-36px_oklch(0_0_0/0.42)] backdrop-blur-md transition-[background-color,box-shadow,outline-color] hover:bg-card/82 hover:outline-border/35 hover:shadow-[0_22px_58px_-34px_oklch(0_0_0/0.5)]"
+      // tldraw sets .tl-html-container { pointer-events: none }; opt into real UI hits.
       style={{ width: w, height: h, pointerEvents: "all" }}
+      onPointerDownCapture={stopFlowNodeControlPointer}
+      onMouseDownCapture={stopFlowNodeControlPointer}
     >
       <NodeSurfaceChrome actions={actions} moduleId={moduleId} moduleName={moduleName} version={mod?.version} />
       <div className="min-h-0 flex-1 overflow-hidden rounded-b-md pointer-events-auto">
@@ -698,20 +743,22 @@ export function FlowCanvasView() {
   const store = useFlowCanvasStore(activeWorkspaceId, flowCanvas, localPersistedSignatureRef)
 
   return (
-    <Tldraw
-      key={activeWorkspaceId}
-      store={store}
-      shapeUtils={customShapeUtils}
-      colorScheme={theme}
-      assetUrls={tldrawAssetUrls}
-      options={{ maxPages: 1 }}
-      components={{ PageMenu: () => null, MainMenu: () => null, StylePanel: CollapsibleStylePanel }}
-    >
-      <FlowCanvas
-        workspaceId={activeWorkspaceId}
-        flowCanvas={flowCanvas}
-        localPersistedSignatureRef={localPersistedSignatureRef}
-      />
-    </Tldraw>
+    <div className="xiranite-flow-canvas h-full min-h-0 w-full">
+      <Tldraw
+        key={activeWorkspaceId}
+        store={store}
+        shapeUtils={customShapeUtils}
+        colorScheme={theme}
+        assetUrls={tldrawAssetUrls}
+        options={{ maxPages: 1 }}
+        components={{ PageMenu: () => null, MainMenu: () => null, StylePanel: CollapsibleStylePanel }}
+      >
+        <FlowCanvas
+          workspaceId={activeWorkspaceId}
+          flowCanvas={flowCanvas}
+          localPersistedSignatureRef={localPersistedSignatureRef}
+        />
+      </Tldraw>
+    </div>
   )
 }

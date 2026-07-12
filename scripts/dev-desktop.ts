@@ -2,7 +2,6 @@ import { startBackend } from "../packages/backend/src/index"
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 
 const args = process.argv.slice(2)
-process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")

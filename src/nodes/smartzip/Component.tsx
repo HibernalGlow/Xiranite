@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
-import { ACTIONS, isDestructiveAction } from "./constants"
+import { ACTIONS, actionI18nKey, isDestructiveAction } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
@@ -26,6 +27,7 @@ import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<SmartZipCardState>) {
   const surface = useNodeSurface()
+  const { t } = useNodeI18n("smartzip")
   const data = getHostData(host, compId)
   const dataRef = useRef<SmartZipCardState>(data)
   dataRef.current = data
@@ -129,7 +131,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     if (running) return
     const current = dataRef.current
     if (nextAction !== "status" && nextAction !== "settings" && !clean(current.pathsText)) {
-      const message = "请先输入至少一个归档或目录路径。"
+      const message = t("error.noPaths", "请先输入至少一个归档或目录路径。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
       return
@@ -137,14 +139,14 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
 
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
+      const message = t("error.noRunEnv", "当前环境没有本地运行能力，请使用桌面模式或 CLI。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog("Native action is unavailable in this host.")
       return
     }
 
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(nextAction) }), result: null })
     try {
       const response = await run<SmartZipInput, SmartZipData>("smartzip", buildInput(nextAction, current), (event: NodeRunEvent) => {
         if (event.type === "progress") {
@@ -313,6 +315,7 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
+  const { t } = useNodeI18n("smartzip")
   const showLegacySurface = false
   return (
     <div data-testid="smartzip-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
@@ -321,7 +324,7 @@ function FullView(props: ViewProps) {
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
           <div data-testid="smartzip-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/smartzip:w-72" onActionChange={props.onActionChange} />
-            <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <ActionIconButton disabled={props.running} icon={RotateCcw} label={t("actions.clear", "清空状态")} onClick={props.onReset} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
@@ -339,7 +342,7 @@ function FullView(props: ViewProps) {
 
       <div className="grid min-h-0 flex-1 gap-3 @4xl/smartzip:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(240px,300px)]">
         <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2"><FolderInput className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">路径</span></div>
+          <div className="flex items-center gap-2"><FolderInput className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.paths", "路径")}</span></div>
           <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           <div className="mt-auto grid gap-1.5 text-xs text-muted-foreground">
             {(props.result?.selectedPaths ?? props.data.pathsText?.split(/\r?\n/).filter(Boolean) ?? []).map((path) => <div key={path} className="truncate rounded-md border px-2 py-1.5">{path}</div>)}
@@ -347,28 +350,28 @@ function FullView(props: ViewProps) {
         </section>
         <CommandChamber result={props.result} />
         <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">可执行文件</span></div>
+          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.executables", "可执行文件")}</span></div>
           <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <div className="min-h-0 flex-1"><SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
-          <div className="mt-auto"><div className="mb-2 text-sm font-semibold">运行</div><RunActionButton props={props} /></div>
+          <div className="mt-auto"><div className="mb-2 text-sm font-semibold">{t("fields.run", "运行")}</div><RunActionButton props={props} /></div>
         </section>
       </div>
       {showLegacySurface && <div>
         <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           <div className="grid gap-3 border-b pb-3">
             <div>
-              <div className="text-sm font-semibold">路径</div>
-              <div className="text-xs text-muted-foreground">归档或目录，每行一条。status 和 settings 不需要路径。</div>
+              <div className="text-sm font-semibold">{t("fields.paths", "路径")}</div>
+              <div className="text-xs text-muted-foreground">{t("hints.pathsHelp", "归档或目录，每行一条。status 和 settings 不需要路径。")}</div>
             </div>
             <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">可执行文件</div>
+            <div className="text-sm font-semibold">{t("fields.executables", "可执行文件")}</div>
             <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">运行</div>
+            <div className="text-sm font-semibold">{t("fields.run", "运行")}</div>
             <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
@@ -382,23 +385,25 @@ function FullView(props: ViewProps) {
 }
 
 function CommandChamber({ result }: { result: SmartZipData | null }) {
+  const { t } = useNodeI18n("smartzip")
   const command = result?.command
   return (
     <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between gap-2 border-b pb-3"><div className="flex items-center gap-2"><Terminal className="size-4 text-primary" /><span className="text-sm font-semibold">Operation chamber</span></div><Badge variant="outline">{command ? "planned" : "idle"}</Badge></div>
+      <div className="flex items-center justify-between gap-2 border-b pb-3"><div className="flex items-center gap-2"><Terminal className="size-4 text-primary" /><span className="text-sm font-semibold">{t("labels.operationChamber", "Operation chamber")}</span></div><Badge variant="outline">{command ? t("badges.planned", "planned") : t("badges.idle", "idle")}</Badge></div>
       <div className="min-h-0 flex-1 overflow-auto py-4 font-mono text-xs leading-6">
-        {command ? <><div className="text-muted-foreground">; SMARTZIP COMMAND PLAN</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">; QUEUED ARCHIVES</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">Run an action to produce the SmartZip command plan.</div>}
+        {command ? <><div className="text-muted-foreground">{t("labels.commandPlan", "; SMARTZIP COMMAND PLAN")}</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">{t("labels.queuedArchives", "; QUEUED ARCHIVES")}</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">{t("labels.runCommandHint", "Run an action to produce the SmartZip command plan.")}</div>}
       </div>
     </section>
   )
 }
 
 function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  const { t } = useNodeI18n("smartzip")
   if (props.running) {
     return (
       <Button aria-label="smartzip running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
         <Square />
-        {!compact && <span>运行中</span>}
+        {!compact && <span>{t("status.running", "运行中")}</span>}
       </Button>
     )
   }
@@ -416,14 +421,14 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认{label}？</AlertDialogTitle>
+            <AlertDialogTitle>{t("confirm.title", "确认{{action}}？", { action: label })}</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，会调用 SmartZip 实际执行{label}操作，可能会修改磁盘文件。请确认路径和配置无误。
+              {t("confirm.description", "当前已关闭预演，会调用 SmartZip 实际执行{{action}}操作，可能会修改磁盘文件。请确认路径和配置无误。", { action: label })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认执行</AlertDialogAction>
+            <AlertDialogCancel>{t("actions.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>{t("actions.confirm", "确认执行")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -480,8 +485,8 @@ function buildInput(action: SmartZipAction, data: SmartZipCardState): SmartZipIn
 function statusFromState(data: SmartZipCardState, running: boolean): SmartZipStatusMeta {
   if (running || data.phase === "running") {
     return {
-      label: "运行中",
-      description: data.progressText || "SmartZip 正在加载配置或执行命令。",
+      label: tNode("smartzip", "status.running", "运行中"),
+      description: data.progressText || tNode("smartzip", "status.runningDesc", "SmartZip 正在加载配置或执行命令。"),
       tone: "running",
       badgeVariant: "secondary",
       iconClass: "bg-primary text-primary-foreground",
@@ -489,8 +494,8 @@ function statusFromState(data: SmartZipCardState, running: boolean): SmartZipSta
   }
   if (data.phase === "completed") {
     return {
-      label: "完成",
-      description: data.progressText || "上次任务已完成。",
+      label: tNode("smartzip", "status.completed", "完成"),
+      description: data.progressText || tNode("smartzip", "status.completedDesc", "上次任务已完成。"),
       tone: "success",
       badgeVariant: "default",
       iconClass: "bg-primary text-primary-foreground",
@@ -498,16 +503,16 @@ function statusFromState(data: SmartZipCardState, running: boolean): SmartZipSta
   }
   if (data.phase === "error") {
     return {
-      label: "失败",
-      description: data.progressText || "上次任务失败，请查看日志。",
+      label: tNode("smartzip", "status.error", "失败"),
+      description: data.progressText || tNode("smartzip", "status.errorDesc", "上次任务失败，请查看日志。"),
       tone: "error",
       badgeVariant: "destructive",
       iconClass: "bg-destructive text-destructive-foreground",
     }
   }
   return {
-    label: "就绪",
-    description: "选择动作后查看状态、解压、打包或打开设置。",
+    label: tNode("smartzip", "status.idle", "就绪"),
+    description: tNode("smartzip", "status.idleDesc", "选择动作后查看状态、解压、打包或打开设置。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",
@@ -517,13 +522,19 @@ function statusFromState(data: SmartZipCardState, running: boolean): SmartZipSta
 function summaryText(props: ViewProps): string {
   if (props.data.progressText) return props.data.progressText
   if (props.result?.selectedPaths.length) {
-    return `${props.result.selectedPaths.length} 路径 / ${props.result.archiveCount} 归档 / ${props.result.errors.length} 错误`
+    return tNode("smartzip", "summary.stats", "{{paths}} 路径 / {{archives}} 归档 / {{errors}} 错误", {
+      paths: props.result.selectedPaths.length,
+      archives: props.result.archiveCount,
+      errors: props.result.errors.length,
+    })
   }
-  return props.actionMeta.description
+  return tNode("smartzip", `actions.${actionI18nKey(props.actionMeta.value)}.description`, props.actionMeta.description)
 }
 
 function actionLabel(action: SmartZipAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
+  const meta = ACTIONS.find((item) => item.value === action)
+  if (!meta) return action
+  return tNode("smartzip", `actions.${actionI18nKey(action)}.label`, meta.label)
 }
 
 function clean(value: unknown): string | undefined {
