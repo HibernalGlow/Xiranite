@@ -166,6 +166,13 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands.some((item) => item.args.some((arg) => arg.startsWith("jpeg:extent=")))).toBe(false)
   })
 
+  test("preserves spaces inside custom ExifTool argument values", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, metadataMode: "exiftool-custom", exiftoolCustomArgs: '-overwrite_original -Artist="Custom metadata" "$dst"' }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.at(-1)?.args).toEqual(["-overwrite_original", "-Artist=Custom metadata", "/photos/a.webp"])
+  })
+
   test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false, deleteOriginal: true, deleteOriginalMode: "trash" }), runtime)

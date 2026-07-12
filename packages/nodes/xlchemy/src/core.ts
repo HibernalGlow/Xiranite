@@ -348,7 +348,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
     if ((await runtime.pathInfo(normalizedJpeg)).exists) await runtime.removeFile(normalizedJpeg)
     if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, plan.outputPath, input, runtime)
-    else if (input.preserveMetadata) await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
+    else if (input.metadataMode === "encoder-preserve") await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(plan.outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     const outputInfo = await runtime.pathInfo(plan.outputPath)
@@ -404,7 +404,7 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
     for (const candidate of candidates) if (candidate.path !== winner.path) await runtime.removeFile(candidate.path)
     await runtime.renameFile(winner.path, outputPath)
     if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, outputPath, input, runtime)
-    else if (input.preserveMetadata) await copyMetadata(plan.sourcePath, outputPath, runtime)
+    else if (input.metadataMode === "encoder-preserve") await copyMetadata(plan.sourcePath, outputPath, runtime)
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     if (input.deleteOriginal && plan.sourcePath !== outputPath) {
@@ -558,7 +558,21 @@ async function optimizedThreads(source: string, input: XlchemyInput, runtime: Xl
   const megapixels = Number(dimensions[1]) * Number(dimensions[2]) / 1_000_000
   return optimizedEncoderThreads(mode, input.threads, megapixels, context, parseRamOptimizationRules(input.ramOptimizerRules ?? DEFAULT_RAM_OPTIMIZER_RULES))
 }
-function splitCommandArgs(value: string): string[] { const args: string[] = []; for (const match of value.matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)) args.push(match[1] ?? match[2] ?? match[3] ?? ""); return args.filter(Boolean) }
+function splitCommandArgs(value: string): string[] {
+  const args: string[] = []
+  let token = "", quote: "\"" | "'" | undefined, escaped = false
+  for (const char of value) {
+    if (escaped) { token += char; escaped = false; continue }
+    if (char === "\\" && quote === "\"") { escaped = true; continue }
+    if (quote) { if (char === quote) quote = undefined; else token += char; continue }
+    if (char === "\"" || char === "'") { quote = char; continue }
+    if (/\s/.test(char)) { if (token) { args.push(token); token = "" }; continue }
+    token += char
+  }
+  if (escaped) token += "\\"
+  if (token) args.push(token)
+  return args
+}
 
 function summarize(files: XlchemyFileResult[], elapsedMs: number): XlchemyData { const errors = files.filter((file) => file.status === "error").map((file) => `${file.sourcePath}: ${file.error ?? "error"}`); return { files, inputCount: files.length, convertedCount: files.filter((file) => file.status === "converted").length, skippedCount: files.filter((file) => file.status === "skipped").length, errorCount: errors.length, inputBytes: files.reduce((sum, file) => sum + (file.sourceBytes ?? 0), 0), outputBytes: files.reduce((sum, file) => sum + (file.outputBytes ?? 0), 0), elapsedMs, errors } }
 function cancelled(files: XlchemyFileResult[], started: number): XlchemyResult { return { success: false, message: "Xlchemy conversion cancelled.", data: summarize(files, Date.now() - started) } }
