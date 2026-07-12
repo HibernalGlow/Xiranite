@@ -58,7 +58,7 @@ describe("app-owned xlchemy Component", () => {
 
   test("creates, renames, overwrites and deletes custom presets through the database preset capability", async () => {
     const host = createHost({ pathsText: "D:/images/a.png", format: "WebP", lossless: false, quality: 77, effort: 5 })
-    render(<Component compId="xlchemy-card" host={host} />)
+    const view = render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "配置管理" }))
     await user.click(screen.getByRole("button", { name: "新建预设" }))
@@ -117,6 +117,19 @@ describe("app-owned xlchemy Component", () => {
     await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder"])
+  })
+
+  test("selects a real local output directory through the host picker", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", outputMode: "source" })
+    host.localFiles!.pickDirectory = async () => "D:/converted"
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("radio", { name: "指定目录" }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    await user.click(screen.getByRole("button", { name: "选择输出目录" }))
+
+    expect(host.cardState).toMatchObject({ outputMode: "directory", outputDir: "D:/converted" })
   })
 
   test("keeps the matrix wave smooth and neutral until a real error state", () => {
@@ -205,7 +218,7 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("slimg CFFI")).toBeTruthy()
     expect(screen.getByText("jpegtran")).toBeTruthy()
-    expect(host.cardState.environment).toHaveLength(12)
+    expect(host.cardState.environment).toHaveLength(13)
   })
 
   test("renders colorful searchable log levels with independent filtering", async () => {

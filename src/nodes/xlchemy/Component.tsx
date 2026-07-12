@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ChoiceControlField } from "@/components/ui/choice-control"
 import { Field, FieldContent, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
@@ -344,7 +345,7 @@ function FormatControls({ props }: { props: ViewProps }) {
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
     </div>
-    {outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}
+    {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
     {!fixedMode && <SliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
   </div>
 }
