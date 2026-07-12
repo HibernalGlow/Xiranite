@@ -1,7 +1,13 @@
 import { describe, expect, test } from "vitest"
-import { compressionRatio, normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "./core.js"
+import { compressionRatio, discoverImages, normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "./core.js"
 
 describe("xlchemy core contract", () => {
+  test("discovers every format exposed by the GUI filter tags", async () => {
+    const runtime = fakeRuntime()
+    runtime.listDir = async () => ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif"].map((extension) => ({ path: `/photos/input.${extension}`, name: `input.${extension}`, isFile: true, isDirectory: false }))
+    const discovered = await discoverImages(["/photos"], true, runtime)
+    expect(discovered).toHaveLength(16)
+  })
   test("normalizes paths and clamps encoder controls", () => {
     expect(normalizeXlchemyInput({
       paths: [" D:/images/a.png ", "D:/images/a.png", ""],

@@ -121,7 +121,7 @@ export interface XlchemyRuntime {
 }
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
-export const XL_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".jxl", ".tif", ".tiff", ".bmp"])
+export const XL_IMAGE_EXTENSIONS = new Set([".jxl", ".jpg", ".jpeg", ".jfif", ".jif", ".jpe", ".png", ".apng", ".gif", ".webp", ".jp2", ".bmp", ".ico", ".tiff", ".tif", ".avif"])
 const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg", "Smallest Lossless": ".smallest" }
 
 export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInput {

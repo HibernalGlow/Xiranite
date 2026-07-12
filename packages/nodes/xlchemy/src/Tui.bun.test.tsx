@@ -4,6 +4,11 @@ import { expect, test } from "bun:test"
 import { act } from "react"
 import { createXlchemyInteractionSchema } from "./interaction.js"
 import { XlchemyTui } from "./Tui.js"
+import { createXlchemyDefinition } from "./cli.js"
+
+test("Xlchemy offline TUI exposes active cancellation", () => {
+  expect(createXlchemyDefinition({}, "zh").cancel).toBeTypeOf("function")
+})
 
 test("Xlchemy renders the complete four-section workbench", async () => {
   const schema = createXlchemyInteractionSchema({ pathsText: "D:/images/a.png", format: "JPEG XL" }, "zh")
