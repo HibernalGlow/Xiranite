@@ -1,37 +1,13 @@
 #!/usr/bin/env node
-import { loadNodeConfigWithHints } from "@xiranite/config"
-import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
-
+import { defineCommand,nodeCliName,readStdinLines,runGuidedInteraction,runMain,writeJson,writeLine } from "@xiranite/cli-runtime"
+import type { CliHost } from "@xiranite/cli-runtime"
+import { resolveInteractionPreferences,type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli,runTerminalUi,type TerminalPreferenceController,type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints,loadXiraniteConfig,saveXiraniteConfig,updateNodeConfig } from "@xiranite/config"
 import { runAudiov } from "./core.js"
 import { createNodeAudiovRuntime } from "./platform.js"
-
-interface AudiovNodeConfig {
-  dry_run?: boolean
-}
-
-export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const json = args.includes("--json")
-  const action = args.includes("run") ? "run" : args.includes("plan") ? "plan" : "status"
-  let paths = args.filter((arg) => !arg.startsWith("--") && !["run", "plan", "status"].includes(arg))
-  if (paths.includes("-")) {
-    paths = paths.filter((path) => path !== "-").concat(await readStdinLines())
-  } else if (paths.length === 0 && hasPipedInput()) {
-    paths = await readStdinLines()
-  }
-
-  const { config } = await loadNodeConfigWithHints<AudiovNodeConfig>("audiov", {
-    hintSink: { stderr: process.stderr },
-    jsonMode: json,
-  })
-  const result = await runAudiov({
-    action,
-    paths,
-    dryRun: args.includes("--dry-run") || config?.dry_run === true,
-  }, createNodeAudiovRuntime())
-
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else console.log(result.message)
-  if (!result.success) process.exitCode = 1
-}
-
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
+import { createAudiovInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
+const NAME=nodeCliName("audiov");interface Config extends CliInteractionPreferencesSource{dry_run?:boolean}
+export async function runProgram(args=process.argv.slice(2),host:CliHost=defaultHost()){await runInteractionCli({args,host,cliName:NAME,loadContext:async()=>{const {config}=await loadNodeConfigWithHints<Config>("audiov",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return {preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createAudiovInteractionSchema({dryRun:d.dry_run},l),run:(i,e)=>runAudiov(i,createNodeAudiovRuntime(),e)}),runPipe:(a,h)=>a.length?runMain(program(h),{rawArgs:a}):Promise.resolve(usage(h)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=> (await import("./Tui.js")).AudiovTui,createPreferences:(_d,v)=>prefs(host,v),reexecEntrypoint:process.argv[1],help})}
+function program(host:CliHost){return defineCommand({meta:{name:NAME,description:"ffmpeg audio extraction."},subCommands:{status:cmd("status",host),plan:cmd("plan",host),run:cmd("run",host)}})}function cmd(action:"status"|"plan"|"run",host:CliHost){return defineCommand({meta:{name:action,description:action},args:{paths:{type:"positional",required:false},live:{type:"boolean"},dryRun:{type:"boolean"},json:{type:"boolean"}},async run({args}){const paths=typeof args.paths==="string"?(args.paths==="-"?await readStdinLines(host.stdin):args.paths.split(/[;,\r\n]+/).filter(Boolean)):[];const result=await runAudiov({action,paths,dryRun:action==="plan"||(!args.live&&(args.dryRun||true))},createNodeAudiovRuntime());if(args.json)writeJson(host,result);else writeLine(host,result.message);if(!result.success)process.exitCode=1}})}function prefs(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return {nodeId:"audiov",current,async save(v){const {config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"audiov",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const {config}=await loadNodeConfigWithHints<Config>("audiov",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return {theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}function usage(h:CliHost){writeLine(h,`${NAME} ui | gd | status | plan <video> | run <video> --live`)}function defaultHost():CliHost{return {cwd:process.cwd(),env:process.env,stdin:process.stdin,stdout:process.stdout,stderr:process.stderr}}if(process.argv[1]&&/\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g,"/")))await runProgram()
