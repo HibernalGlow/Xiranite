@@ -180,7 +180,12 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
     onEvent({ type: "progress", progress: 5, message: "Discovering image inputs." })
     let sources = await discoverImages(options.paths, options.recursive, runtime)
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
-    sources = sources.filter((path) => !excluded.has(runtime.extname(path).slice(1).toLowerCase()))
+    sources = sources.filter((path) => {
+      const extension = runtime.extname(path).slice(1).toLowerCase()
+      if (options.format === "JPEG Reconstruction") return extension === "jxl"
+      if (options.format === "Lossless JPEG Transcoding") return ["jpg", "jpeg", "jfif", "jif", "jpe"].includes(extension)
+      return !excluded.has(extension)
+    })
     if (options.processingOrder === "size-asc" || options.processingOrder === "size-desc") { const sizes = await Promise.all(sources.map(async (path) => ({ path, size: (await runtime.pathInfo(path)).size }))); sources = sizes.sort((a, b) => (a.size - b.size) * (options.processingOrder === "size-desc" ? -1 : 1)).map((item) => item.path) }
     else if (options.processingOrder === "path-asc" || options.processingOrder === "path-desc") sources.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }) * (options.processingOrder === "path-desc" ? -1 : 1))
     else if (options.processingOrder === "random") sources = shuffle(sources)
@@ -212,6 +217,7 @@ const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; version
   { id: "magick", label: "ImageMagick", purpose: "PNG/TIFF、缩小与格式回退", versionArgs: ["-version"] },
   { id: "avifenc", label: "avifenc", purpose: "AVIF 编码", versionArgs: ["--version"] },
   { id: "avifdec", label: "avifdec", purpose: "AVIF 解码", versionArgs: ["--version"] },
+  { id: "ffmpeg", label: "FFmpeg / SVT-AV1", purpose: "SVT-AV1 AVIF 编码", versionArgs: ["-version"] },
   { id: "cwebp", label: "cwebp", purpose: "WebP 编码", versionArgs: ["-version"] },
   { id: "oxipng", label: "oxipng", purpose: "PNG 无损优化", versionArgs: ["--version"] },
   { id: "exiftool", label: "ExifTool", purpose: "元数据复制与清理", versionArgs: ["-ver"] },
@@ -339,9 +345,15 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
   const custom = (value?: string) => input.enableCustomArgs ? splitCommandArgs(value ?? "") : []
   const sourceExt = runtime.extname(source).toLowerCase(), jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(sourceExt)
   if (input.format === "Lossless JPEG Transcoding") return resolved(runtime, ["cjxl"], ["--lossless_jpeg=1", "-e", effort, "--num_threads", threads, ...custom(input.cjxlArgs), source, target])
-  if (input.format === "JPEG Reconstruction") return resolved(runtime, ["djxl"], ["--num_threads", threads, "--jpeg_reconstruction", source, target])
+  if (input.format === "JPEG Reconstruction") return resolved(runtime, ["djxl"], ["--num_threads", threads, source, target])
   if (input.format === "JPEG XL") { const losslessJpeg = jpegSource && input.autoLosslessJpeg; return resolved(runtime, ["cjxl"], ["-q", input.lossless || losslessJpeg ? "100" : quality, `--lossless_jpeg=${losslessJpeg ? 1 : 0}`, "-e", effort, "--num_threads", threads, ...(!input.lossless && !losslessJpeg && input.jxlModular ? ["--modular=1"] : []), ...custom(input.cjxlArgs), source, target]) }
-  if (input.format === "AVIF") return resolved(runtime, ["avifenc"], ["-q", input.lossless ? "100" : quality, "-s", effort, "-j", threads, ...(input.avifBitDepth && input.avifBitDepth !== "auto" ? ["--bitdepth", input.avifBitDepth] : []), "-c", input.avifEncoder === "svt" ? "svt" : "aom", ...(input.avifEncoder === "aom" && input.avifAomIqTune ? ["-a", "tune=iq"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-y", input.chromaSubsampling] : []), ...custom(input.avifencArgs), source, target])
+  if (input.format === "AVIF" && input.avifEncoder === "svt") {
+    const crf = input.lossless ? 0 : Math.round((100 - input.quality) * 0.63)
+    const preset = input.maxCompression ? 0 : 13 - Math.round((input.effort - 1) * 13 / 9)
+    const pixelFormat = input.avifBitDepth === "10" || input.avifBitDepth === "12" ? "yuv420p10le" : "yuv420p"
+    return resolved(runtime, ["ffmpeg"], ["-hide_banner", "-loglevel", "error", "-y", "-i", source, "-frames:v", "1", "-c:v", "libsvtav1", "-preset", String(preset), "-crf", String(crf), "-threads", threads, "-pix_fmt", pixelFormat, "-f", "avif", target])
+  }
+  if (input.format === "AVIF") return resolved(runtime, ["avifenc"], ["-q", input.lossless ? "100" : quality, "-s", effort, "-j", threads, ...(input.avifBitDepth && input.avifBitDepth !== "auto" ? ["--bitdepth", input.avifBitDepth] : []), "-c", "aom", ...(input.avifAomIqTune ? ["-a", "tune=iq"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-y", input.chromaSubsampling] : []), ...custom(input.avifencArgs), source, target])
   if (input.format === "WebP") return resolved(runtime, ["cwebp"], [source, "-o", target, ...(input.lossless ? ["-lossless"] : ["-q", quality]), "-m", String(Math.min(6, input.effort))])
   if (input.format === "PNG") return resolved(runtime, ["magick"], [source, "-define", `png:compression-level=${Math.min(9, input.effort)}`, ...custom(input.imageMagickArgs), target])
   if (input.format === "TIFF") return resolved(runtime, ["magick"], [source, "-compress", input.lossless ? "zip" : "jpeg", "-quality", quality, ...custom(input.imageMagickArgs), target])

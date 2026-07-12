@@ -69,10 +69,24 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/photos/a.png", "/photos/a.avif", "60"] }])
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
+
+  test("uses FFmpeg SVT-AV1 for SVT AVIF encoding", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", quality: 60, effort: 7, threads: 4, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands[0]).toEqual({ command: "/bin/ffmpeg", args: ["-hide_banner", "-loglevel", "error", "-y", "-i", "/photos/a.png", "-frames:v", "1", "-c:v", "libsvtav1", "-preset", "4", "-crf", "25", "-threads", "4", "-pix_fmt", "yuv420p", "-f", "avif", "/photos/a.avif"] })
+  })
+
+  test("accepts JXL input for JPEG reconstruction even when JXL is globally excluded", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.jxl"], format: "JPEG Reconstruction", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands[0]).toEqual({ command: "/bin/djxl", args: ["--num_threads", "4", "/photos/a.jxl", "/photos/a.jpg"] })
+  })
 })
 
 function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
-  const files = new Map<string, { size: number; directory?: boolean }>([["/photos", { size: 0, directory: true }], ["/photos/events", { size: 0, directory: true }], ["/photos/a.png", { size: 1000 }], ["/photos/events/b.jpg", { size: 2000 }]])
+  const files = new Map<string, { size: number; directory?: boolean }>([["/photos", { size: 0, directory: true }], ["/photos/events", { size: 0, directory: true }], ["/photos/a.png", { size: 1000 }], ["/photos/a.jxl", { size: 700 }], ["/photos/events/b.jpg", { size: 2000 }]])
   const runtime: XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } = {
     commands: [],
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
