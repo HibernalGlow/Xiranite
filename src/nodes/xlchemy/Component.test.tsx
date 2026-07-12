@@ -356,6 +356,19 @@ describe("app-owned xlchemy Component", () => {
     finish?.({ success: false, message: "Cancelled.", data: result })
     await waitFor(() => expect(host.cardState.phase).toBe("cancelled"))
   })
+
+  test("reports the current filename and real before-after size after conversion", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png" })
+    host.runner!.run = async <TInput, TData>(_nodeId: string, _input: TInput, onEvent?: (event: NodeRunEvent) => void) => {
+      onEvent?.({ type: "progress", progress: 50, message: "Converting a.png." })
+      return { success: true, message: "Converted.", data: { ...result, files: [{ sourcePath: "D:/images/a.png", outputPath: "D:/images/a.webp", sourceBytes: 2048, outputBytes: 512, status: "converted" }], convertedCount: 1, inputBytes: 2048, outputBytes: 512 } as TData }
+    }
+    render(<Component compId="xlchemy-card" host={host} />)
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始转换" }))
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+    expect(host.cardState.currentFile).toBe("a.png")
+    expect(host.cardState.progressText).toContain("2.0 KB → 512 B")
+  })
 })
 
 type TestPreset = { id: string; name: string; values: Record<string, unknown> }
