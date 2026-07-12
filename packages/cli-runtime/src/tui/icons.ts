@@ -1,7 +1,7 @@
 import type { InteractionFieldKind } from "../interaction.js"
 
 export type TerminalIconStyle = "unicode" | "nerd"
-const unicode = { action: "▶", boolean: "◆", danger: "⚠", field: "•", logs: "≡", number: "∷", path: "▣", result: "✓", section: "▤", select: "◉", settings: "⚙", status: "●", text: "✎" } as const
+const unicode = { action: "▶", boolean: "◆", danger: "⚠", field: "•", logs: "≡", number: "∷", path: "▣", result: "✓", section: "▤", select: "◉", settings: "☷", status: "●", text: "✎" } as const
 const nerd: Partial<Record<keyof typeof unicode, string>> = { action: "󰐊", danger: "󰀪", logs: "󰆍", path: "󰉋", result: "󰄬", settings: "󰒓", status: "󰋼" }
 export type TerminalSemanticIcon = keyof typeof unicode
 

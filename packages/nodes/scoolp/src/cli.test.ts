@@ -21,7 +21,7 @@ afterEach(async () => {
 })
 
 describe("scoolp CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses interactive mode outside an interactive terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -29,9 +29,9 @@ describe("scoolp CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
     expect(host.stderrText()).toContain("xscoolp")
-    expect(host.stderrText()).toContain("--json")
+    expect(host.stderrText()).toContain("--help")
   })
 
   test("prints pure JSON package list and info from a real local bucket", async () => {

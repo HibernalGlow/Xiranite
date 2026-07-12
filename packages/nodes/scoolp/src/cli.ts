@@ -19,13 +19,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints, stringifyToml } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, stringifyToml, updateNodeConfig } from "@xiranite/config"
 
 import type { ScoolpAction, ScoolpInput, ScoolpResult } from "./core.js"
 import { formatSize, runScoolp } from "./core.js"
 import { createNodeScoolpRuntime, readClipboardText } from "./platform.js"
+import { createScoolpInteractionSchema, type ScoolpInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("scoolp")
 
@@ -99,11 +105,55 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => {
+      const { config } = await loadNodeConfigWithHints<ScoolpNodeConfig>("scoolp", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
+      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+    },
+    createDefinition: (defaults, language) => createScoolpDefinition(defaults, language),
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: runGuidedInteraction,
+    runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).ScoolpTui,
+    createPreferences: (_defaults, values) => createScoolpPreferences(host, values),
+    reexecEntrypoint: process.argv[1],
+    help,
+  })
+}
+
+interface ScoolpNodeConfig extends CliInteractionPreferencesSource {
+  bucket_path?: string
+  scoop_root?: string
+  cache_path?: string
+  config_path?: string
+  dry_run?: boolean
+}
+
+function createScoolpDefinition(defaults: ScoolpNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<ScoolpInput, ScoolpResult> {
+  return {
+    schema: createScoolpInteractionSchema({ bucketPath: defaults.bucket_path ?? "", scoopRoot: defaults.scoop_root ?? "", cachePath: defaults.cache_path ?? "", configPath: defaults.config_path ?? "", dryRun: defaults.dry_run ?? true } satisfies Partial<ScoolpInteractionValues>, language),
+    run: (input, onEvent) => runScoolp(input, createNodeScoolpRuntime(), onEvent),
   }
-  await runMain(createProgram(host), { rawArgs: args })
+}
+
+function createScoolpPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const options = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "scoolp",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(options)
+      await saveXiraniteConfig(updateNodeConfig(config, "scoolp", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<ScoolpNodeConfig>("scoolp", { ...options, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? "zh" }
+    },
+  }
 }
 
 function createDefaultHost(): CliHost {
@@ -114,6 +164,13 @@ function createDefaultHost(): CliHost {
     stdout: process.stdout,
     stderr: process.stderr,
   }
+}
+
+function writeUsage(host: CliHost): void {
+  writeLine(host, `${CLI_NAME} - Scoop management workbench`)
+  writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`)
+  writeLine(host, `  ${CLI_NAME} gd`)
+  writeLine(host, `  ${CLI_NAME} status|list|info|install|show-config|sync|cache-list|cache-backup|cache-delete [options] [--json]`)
 }
 
 function createProgram(host: CliHost = createDefaultHost()) {
@@ -240,8 +297,8 @@ function bucketPathArg(args: ScoolpCliOptions): string | undefined {
 }
 
 async function resolveScoolpArgs(args: ScoolpCliOptions, host: CliHost): Promise<ScoolpCliOptions> {
-  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
-  const rootFromStdin = args.root === "-" || (!args.root && hasPipedInput(host.stdin))
+  const pathFromStdin = args.path === "-" || (!args.path && !args.bucketPath && !args.config && hasPipedInput(host.stdin))
+  const rootFromStdin = args.root === "-" || (!args.root && !args.path && !args.bucketPath && !args.config && hasPipedInput(host.stdin))
   if (!pathFromStdin && !rootFromStdin) return args
   const stdinLines = await readStdinLines(host.stdin)
   const resolved: ScoolpCliOptions = { ...args }

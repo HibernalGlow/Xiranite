@@ -265,4 +265,20 @@ describe("OpenTUI terminal adapter", () => {
       await act(async () => setup.renderer.destroy())
     }
   })
+
+  test("provides every OpenTUI screen with the shared top-bar TOML preferences entry", async () => {
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => {
+      setup = await testRender(<TerminalRoot language="zh" preferences={{ nodeId: "shared-demo", current: { theme: "inherit", defaultMode: "ui", language: "zh" }, save: async () => undefined, restore: async () => ({ theme: "inherit", defaultMode: "ui", language: "zh" }) }} content={<box><text>node screen</text></box>} />, { width: 100, height: 28, useMouse: true })
+    })
+    try {
+      await act(async () => setup.renderOnce())
+      const target = setup.renderer.root.findDescendantById("node-preferences-entry")
+      expect(target).toBeDefined()
+      await act(async () => setup.mockMouse.click(target!.x + 1, target!.y))
+      await act(async () => setup.flush())
+      expect(setup.captureCharFrame()).toContain("shared-demo CLI 设置")
+    } finally { await act(async () => setup.renderer.destroy()) }
+  })
+
 })

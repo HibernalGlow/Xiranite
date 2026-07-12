@@ -32,8 +32,8 @@ import {
   type CliInteractionPreferencesSource,
   type TerminalInteractionDefinition,
 } from "@xiranite/cli-runtime/interaction"
-import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { runTrename } from "./core.js"
@@ -176,7 +176,8 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) { writeError(host, `Unknown terminal theme: ${flags.theme}.`); process.exitCode = 2; return }
     const definition = createTrenameInteractionDefinition(defaults, host, flags.language)
     if (invocation === "gd") { await runGuidedInteraction(definition, { host, language: flags.language, help }); return }
-    await runTerminalUi(definition, { host, renderer: "opentui", language: flags.language, theme: flags.theme, help, loadScreen: async () => (await import("./Tui.js")).TrenameTui, reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined })
+    const values: TerminalPreferenceValues = { theme: flags.theme ?? "inherit", defaultMode: defaults.interactionMode ?? "ui", language: flags.language }
+    await runTerminalUi(definition, { host, renderer: "opentui", language: flags.language, theme: flags.theme, preferences: createTrenamePreferences(host, values), help, loadScreen: async () => (await import("./Tui.js")).TrenameTui, reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined })
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
@@ -186,6 +187,23 @@ export function createTrenameInteractionDefinition(defaults: TrenameDefaults, ho
   return {
     schema: createTrenameInteractionSchema({ undoPath: defaults.undoPath }, language),
     run: (input, onEvent) => runTrename(input, createNodeTrenameRuntime(), onEvent),
+  }
+}
+
+function createTrenamePreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const options = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "trename",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(options)
+      await saveXiraniteConfig(updateNodeConfig(config, "trename", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<TrenameNodeConfig>("trename", { ...options, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? "zh" }
+    },
   }
 }
 
