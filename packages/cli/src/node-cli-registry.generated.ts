@@ -19,7 +19,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "bitv",
     packageName: "@xiranite/node-bitv",
     bin: nodeCliName("bitv"),
-    description: "Analyze and classify video bitrate with PackU BitV.",
+    description: "Analyze video bitrate with ffprobe and classify files without overwriting existing data.",
   },
   {
     id: "classf",
@@ -91,7 +91,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "gifu",
     packageName: "@xiranite/node-gifu",
     bin: nodeCliName("gifu"),
-    description: "Scan archive image sequences and run gifu animation conversion.",
+    description: "Convert archive image sequences with a native TypeScript, 7-Zip, and ffmpeg workflow.",
   },
   {
     id: "gitalso",

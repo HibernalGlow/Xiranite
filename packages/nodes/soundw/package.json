@@ -13,7 +13,7 @@
     "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }
   },
   "files": ["dist"],
-  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run src --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx" },
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "vitest run src --environment node --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx" },
   "dependencies": { "@xiranite/cli-runtime": "workspace:*", "@xiranite/config": "workspace:*", "@xiranite/contract": "workspace:*" },
   "devDependencies": { "@types/node": "^24.12.0", "typescript": "^7.0.2", "vitest": "^4.1.10" }
 }

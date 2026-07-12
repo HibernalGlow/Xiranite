@@ -54,3 +54,20 @@ anchored left, the animated sequence preview is the central work surface, and
 format/output controls plus the compile action form the lower deck. The GUI's
 format codec, output target, quality timing, and safe-generation intent remain
 visible without changing to a guided sequence.
+
+## BitV
+
+- GUI evidence: `output/playwright/bitv/bitv-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/bitv/analysis-lab.png`
+
+The analysis workbench keeps a source rail, dominant bitrate-analysis surface,
+and the lower classification control strip. Its evidence capture confirms the
+large results surface remains the visual priority.
+
+## SoundW
+
+- GUI evidence: `output/playwright/soundw/soundw-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/soundw/recording-route.png`
+
+The terminal layout retains the device matrix, profile-card region, CLI-path
+override, and action console as separate usable surfaces.
