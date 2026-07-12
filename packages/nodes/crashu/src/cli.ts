@@ -5,7 +5,7 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
-  hasPipedInput,
+  hasPipedInput as runtimeHasPipedInput,
   nodeCliName,
   promptRich,
   readStdinLines,
@@ -19,19 +19,28 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { CrashuAction, CrashuConflictPolicy, CrashuInput, CrashuMoveDirection } from "./core.js"
 import { runCrashu } from "./core.js"
 import { createNodeCrashuRuntime, readClipboardText } from "./platform.js"
+import { createCrashuInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("crashu")
 const DEFAULT_TARGET_PATH = "E:\\1Hub\\EH\\1EHV"
 const DEFAULT_DESTINATION_PATH = "E:\\1Hub\\EH\\2EHV\\crash"
 const DEFAULT_THRESHOLD = 0.8
 const DEFAULT_PAIRS_FILE = "folder_pairs.json"
+
+function hasPipedInput(stream: NodeJS.ReadableStream): boolean {
+  return runtimeHasPipedInput(stream) && Symbol.asyncIterator in Object(stream)
+}
 
 interface CrashuCliOptions {
   source?: string
@@ -49,7 +58,7 @@ interface CrashuCliOptions {
   json?: boolean
 }
 
-interface CrashuNodeConfig {
+interface CrashuNodeConfig extends CliInteractionPreferencesSource {
   enabled?: boolean
   output?: {
     pairs_file_name?: string
@@ -118,13 +127,16 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<CrashuNodeConfig>("crashu",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createCrashuInteractionSchema({pairsFileName:d.output?.pairs_file_name,destinationPath:d.output?.directory,conflictPolicy:d.output?.overwrite?"overwrite":undefined},language),run:(input,event)=>runCrashu(input,createNodeCrashuRuntime(),event)}),runPipe:legacyRunProgram,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).CrashuTui,createPreferences:(_d,current)=>crashuPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+function crashuPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"crashu",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"crashu",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<CrashuNodeConfig>("crashu",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {
