@@ -36,15 +36,27 @@ export function EngineWorkflowTabs(props: {
   action: EngineVAction
   disabled?: boolean
   className?: string
+  variant?: "floating"
   onActionChange: (value: EngineVAction) => void
 }) {
+  const floating = props.variant === "floating"
+
   return (
     <Tabs className={cn("min-w-0", props.className)} value={props.action} onValueChange={(value) => props.onActionChange(value as EngineVAction)}>
-      <TabsList aria-label="EngineV 工作流" variant="line" className="grid h-auto w-full grid-cols-3">
+      <TabsList
+        aria-label="EngineV 工作流"
+        variant="line"
+        className={cn("h-auto", floating ? "flex w-auto max-w-full overflow-x-auto" : "grid w-full grid-cols-3")}
+      >
         {ACTIONS.map((item) => (
-          <TabsTrigger key={item.value} disabled={props.disabled} value={item.value} className="min-w-0 gap-1.5 px-1.5 text-xs">
+          <TabsTrigger
+            key={item.value}
+            disabled={props.disabled}
+            value={item.value}
+            className={cn("min-w-0 gap-1.5 px-1.5 text-xs", floating && "h-8 shrink-0 px-2")}
+          >
             <item.icon />
-            {item.label}
+            {floating ? item.shortLabel : item.label}
           </TabsTrigger>
         ))}
       </TabsList>

@@ -57,12 +57,23 @@ describe("app-owned enginev Component", () => {
         return
       }
 
-      expect(screen.getByText("筛选")).toBeTruthy()
+      expect(screen.getAllByText("筛选").length).toBeGreaterThan(0)
       expect(screen.getByRole("tab", { name: "画廊" })).toBeTruthy()
       expect(screen.getByText("已选中")).toBeTruthy()
       expect(screen.getByTestId("enginev-header-toolbar")).toBeTruthy()
     },
   )
+
+  test("uses a left control rail and a floating action tray in workspace mode", () => {
+    surfaceState.mode = "workspace"
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+
+    expect(screen.getByTestId("enginev-workspace-view")).toBeTruthy()
+    expect(screen.getByTestId("enginev-workspace-controls")).toBeTruthy()
+    expect(screen.getByTestId("enginev-floating-actions").className).toContain("absolute")
+    expect(screen.getByTestId("enginev-floating-actions").className).toContain("pointer-events-auto")
+    expect(screen.getByRole("button", { name: "Move action tray" })).toBeTruthy()
+  })
 
   test("falls back to a collapsed summary when compact height is extremely short", () => {
     surfaceState.mode = "compact"
@@ -131,6 +142,13 @@ describe("app-owned enginev Component", () => {
     const image = screen.getByAltText("Ocean Loop") as HTMLImageElement
     expect(image.dataset.enginevPreview).toBe("true")
     expect(image.getAttribute("src")).toBe("http://local.test/local-files?path=D%3A%2Fworkshop%2F111%2Fpreview.png")
+  })
+
+  test("shows all scan results even when stale filter fields are present", () => {
+    surfaceState.mode = "workspace"
+    render(<Component compId="comp-enginev" host={createHost({ action: "scan", workshopPath: "D:/workshop", titleFilter: "not-a-match", wallpapers: [wallpaper] })} />)
+
+    expect(screen.getByAltText("Ocean Loop")).toBeTruthy()
   })
 
   test("switches the EngineV workflow tab before running the selected workflow", async () => {

@@ -40,7 +40,7 @@ export function WallpaperGallery(props: {
   }
 
   return (
-    <ScrollArea className="h-full min-h-0">
+    <ScrollArea className="h-full min-h-0 flex-1">
       <div
         className={cn("grid p-0.5", props.compact ? "gap-1.5" : "gap-2", !columns && "@2xl/enginev:grid-cols-2 @5xl/enginev:grid-cols-3")}
         style={columns ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}

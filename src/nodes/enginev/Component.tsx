@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { PointerEvent as ReactPointerEvent } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type {
   EngineVAction,
@@ -7,7 +8,7 @@ import type {
   EngineVResult,
 } from "@xiranite/node-enginev/core"
 import { filterWallpapers } from "@xiranite/node-enginev/core"
-import { Copy, Eye, Image, Images, ListChecks, RotateCcw, Trash2 } from "lucide-react"
+import { Copy, Eye, GripVertical, Image, Images, ListChecks, RotateCcw, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,9 +60,10 @@ export function Component({ host }: EngineVProps) {
   const wallpapers = data.wallpapers ?? result?.wallpapers ?? []
   const selectedIds = useMemo(() => parseIds(data.idsText), [data.idsText])
   const hasFilters = Boolean(data.titleFilter || data.ratingFilter || data.typeFilter)
+  const hasActiveFilters = action === "filter" && hasFilters
   const galleryWallpapers = useMemo(() => {
     if (!wallpapers.length) return []
-    if (hasFilters) {
+    if (hasActiveFilters) {
       return filterWallpapers(wallpapers, {
         title: data.titleFilter,
         contentRating: data.ratingFilter,
@@ -69,7 +71,7 @@ export function Component({ host }: EngineVProps) {
       })
     }
     return data.filteredWallpapers?.length ? data.filteredWallpapers : wallpapers
-  }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasFilters, wallpapers])
+  }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasActiveFilters, wallpapers])
   const status = statusFromState(data, running, tNode)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
@@ -340,6 +342,8 @@ export function Component({ host }: EngineVProps) {
             <CollapsedView {...commonProps} />
           ) : compactSurface ? (
             portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
+          ) : surface.mode === "workspace" ? (
+            <WorkspaceView {...commonProps} />
           ) : (
             <FullView {...commonProps} />
           )}
@@ -514,10 +518,173 @@ function PortraitCompactView(props: ViewProps) {
   )
 }
 
+function WorkspaceView(props: ViewProps) {
+  return (
+    <div data-testid="enginev-workspace-view" className="grid h-full min-h-0 grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] gap-4 p-5">
+      <aside data-testid="enginev-workspace-controls" className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-card/70 p-3 shadow-sm">
+        <div className="flex min-w-0 flex-col gap-2">
+          <HeaderLine status={props.status} subtitle={props.data.progressText || props.status.description} />
+          <div data-testid="enginev-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+            <ToolbarActions {...props} />
+            <ActionIconButton label={props.tNode("buttons.clearState", "Clear state")} icon={RotateCcw} disabled={props.running} onClick={props.onReset} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <HeaderStats selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} tNode={props.tNode} />
+          <ConfigDefaultsPopover
+            configDirty={props.configDirty}
+            configFilePath={props.configFilePath}
+            defaults={props.defaults}
+            disabled={props.running}
+            uiDefaults={props.uiDefaults}
+            onOpenConfigFile={props.onOpenConfigFile}
+            onResetOverride={props.onResetOverride}
+            onRestoreDefault={props.onRestoreDefault}
+            onSaveDefault={props.onSaveDefault}
+          />
+        </div>
+
+        <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
+
+        <div className="grid grid-cols-2 gap-2">
+          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "Preview")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+          <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "Copy")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
+        </div>
+
+        <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2">
+          <span className="text-xs font-medium text-muted-foreground">{props.tNode("workspace.filters", "Filters")}</span>
+          <div className="flex items-center gap-1">
+            <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          </div>
+        </div>
+
+        {(props.status.tone === "running" || props.status.tone === "error") && (
+          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+        )}
+      </aside>
+
+      <section className="relative min-h-0 min-w-0 rounded-xl border bg-card/55 p-3 shadow-sm">
+        <Tabs defaultValue="gallery" className="flex h-full min-h-0 flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-2">
+            <TabsList variant="line">
+              <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
+                <Images className="size-3.5 shrink-0" />
+                {props.tNode("tabs.gallery", "Gallery")}
+              </TabsTrigger>
+              <TabsTrigger value="results" className="gap-1.5 px-2.5">
+                <ListChecks className="size-3.5 shrink-0" />
+                {props.tNode("tabs.results", "Results")}
+              </TabsTrigger>
+            </TabsList>
+            <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          </div>
+          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+            <WallpaperGallery
+              columns={props.data.galleryColumns}
+              compact={props.data.galleryCompact}
+              host={props.host}
+              showMeta={props.data.galleryShowMeta}
+              showPath={props.data.galleryShowPath}
+              selectedIds={props.selectedIds}
+              wallpapers={props.galleryWallpapers}
+              onCopyPath={props.onCopyPath}
+              onToggle={props.onToggleWallpaper}
+            />
+          </TabsContent>
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+            <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+          </TabsContent>
+        </Tabs>
+      </section>
+      <FloatingActionBar workspace {...props} />
+    </div>
+  )
+}
+
+function FloatingActionBar(props: ViewProps & { workspace?: boolean }) {
+  const ActionIcon = props.actionMeta.icon
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const dragRef = useRef<{ left: number; top: number; pointerX: number; pointerY: number } | null>(null)
+
+  function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return
+    const tray = event.currentTarget.parentElement
+    const surface = tray?.parentElement
+    if (!tray || !surface) return
+
+    const surfaceRect = surface.getBoundingClientRect()
+    const trayRect = tray.getBoundingClientRect()
+    const nextPosition = {
+      left: trayRect.left - surfaceRect.left,
+      top: trayRect.top - surfaceRect.top,
+    }
+    dragRef.current = { ...nextPosition, pointerX: event.clientX, pointerY: event.clientY }
+    setPosition(nextPosition)
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    const tray = event.currentTarget.parentElement
+    const surface = tray?.parentElement
+    if (!drag || !tray || !surface) return
+
+    const surfaceRect = surface.getBoundingClientRect()
+    const maxLeft = Math.max(8, surfaceRect.width - tray.offsetWidth - 8)
+    const maxTop = Math.max(8, surfaceRect.height - tray.offsetHeight - 8)
+    setPosition({
+      left: Math.min(maxLeft, Math.max(8, drag.left + event.clientX - drag.pointerX)),
+      top: Math.min(maxTop, Math.max(8, drag.top + event.clientY - drag.pointerY)),
+    })
+  }
+
+  function stopDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+
+  return (
+    <div
+      data-testid="enginev-floating-actions"
+      className={cn(
+        "pointer-events-auto absolute z-10 flex w-fit max-w-[calc(100%-1rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-md",
+        position ? "bottom-auto translate-x-0" : props.workspace ? "left-8 top-[22rem]" : "bottom-3 left-1/2 -translate-x-1/2",
+      )}
+      style={position ?? undefined}
+    >
+      <button
+        aria-label="Move action tray"
+        className="grid size-7 shrink-0 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+        type="button"
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">
+        <div className="flex items-center gap-1.5 px-1">
+          <strong className="text-sm tabular-nums">{props.selectedIds.length}</strong>
+          <span className="text-xs text-muted-foreground">{props.tNode("summary.selected", "已选中")}</span>
+        </div>
+        <EngineWorkflowTabs action={props.action} className="max-w-full" disabled={props.running} variant="floating" onActionChange={props.onActionChange} />
+        <Button size="sm" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}>
+          <ActionIcon data-icon="inline-start" />
+          {props.tNode("buttons.run", "Run")} {props.actionMeta.shortLabel}
+        </Button>
+        <ToolbarActions {...props} />
+      </div>
+    </div>
+  )
+}
+
 function FullView(props: ViewProps) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 @5xl/enginev:p-5">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 @5xl/enginev:p-5 @6xl/enginev:grid @6xl/enginev:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] @6xl/enginev:grid-rows-[auto_minmax(0,1fr)] @6xl/enginev:gap-4">
+      <div className="flex shrink-0 flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between @6xl/enginev:flex-col @6xl/enginev:items-stretch">
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row @4xl/enginev:items-center">
           <HeaderLine
             status={props.status}
@@ -544,7 +711,7 @@ function FullView(props: ViewProps) {
         </div>
       </div>
 
-      <section className="flex shrink-0 flex-col gap-2">
+      <section data-testid="enginev-workspace-controls" className="flex min-h-0 shrink-0 flex-col gap-2 @6xl/enginev:overflow-y-auto @6xl/enginev:pr-1">
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row">
           <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
           <div className="flex shrink-0 items-center gap-1">
@@ -559,7 +726,7 @@ function FullView(props: ViewProps) {
         </div>
       </section>
 
-      <Tabs defaultValue="gallery" className="flex min-h-0 flex-1 flex-col">
+      <Tabs defaultValue="gallery" className="relative flex min-h-0 flex-1 flex-col @6xl/enginev:col-start-2 @6xl/enginev:row-span-2 @6xl/enginev:row-start-1">
           <div className="flex shrink-0 items-center justify-between gap-2">
             <TabsList variant="line">
               <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
@@ -573,7 +740,7 @@ function FullView(props: ViewProps) {
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <TabsContent value="gallery" className="min-h-0 flex-1 pt-2">
+          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
             <WallpaperGallery
               columns={props.data.galleryColumns}
               compact={props.data.galleryCompact}
@@ -586,15 +753,12 @@ function FullView(props: ViewProps) {
               onToggle={props.onToggleWallpaper}
             />
           </TabsContent>
-          <TabsContent value="results" className="min-h-0 flex-1 pt-2">
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
             <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
           </TabsContent>
       </Tabs>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/30 px-3 py-2 shadow-sm @4xl/enginev:mx-auto @4xl/enginev:min-w-[30rem]">
-        <div className="flex items-center gap-2"><strong className="text-lg tabular-nums">{props.selectedIds.length}</strong><span className="text-xs text-muted-foreground">{props.tNode("summary.selected", "已选中")}</span></div>
-        <div className="flex items-center gap-1"><EngineWorkflowTabs action={props.action} disabled={props.running} onActionChange={props.onActionChange} /><Button size="sm" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}><props.actionMeta.icon data-icon="inline-start" />{props.tNode("buttons.run", "运行")} {props.actionMeta.shortLabel}</Button><ToolbarActions {...props} /></div>
-      </div>
+      <FloatingActionBar {...props} />
     </div>
   )
 }
