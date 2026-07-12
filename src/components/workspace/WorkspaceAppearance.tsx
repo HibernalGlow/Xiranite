@@ -12,6 +12,9 @@ export function WorkspaceAppearance() {
     fontPreset: state.fontPreset,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    moduleTitleStyle: state.moduleTitleStyle,
+    modulePanelStyle: state.modulePanelStyle,
+    resizableHandleStyle: state.resizableHandleStyle,
   }))
 
   useEffect(() => {
@@ -29,6 +32,12 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     document.documentElement.dataset.switchStyle = appearance.switchDisplayStyle
   }, [appearance.switchDisplayStyle])
+
+  useEffect(() => {
+    document.documentElement.dataset.moduleTitleStyle = appearance.moduleTitleStyle
+    document.documentElement.dataset.modulePanelStyle = appearance.modulePanelStyle
+    document.documentElement.dataset.resizableHandleStyle = appearance.resizableHandleStyle
+  }, [appearance.moduleTitleStyle, appearance.modulePanelStyle, appearance.resizableHandleStyle])
 
   useEffect(() => {
     const root = document.documentElement

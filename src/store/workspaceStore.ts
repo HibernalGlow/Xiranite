@@ -48,6 +48,9 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     cardDoubleClickAction: state.cardDoubleClickAction,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    moduleTitleStyle: state.moduleTitleStyle,
+    modulePanelStyle: state.modulePanelStyle,
+    resizableHandleStyle: state.resizableHandleStyle,
     hazardMode: state.hazardMode,
   }
 }
@@ -148,6 +151,9 @@ function selectWorkspaceState(store: WSStore): WSState {
     cardDoubleClickAction: store.cardDoubleClickAction,
     tabDisplayStyle: store.tabDisplayStyle,
     switchDisplayStyle: store.switchDisplayStyle,
+    moduleTitleStyle: store.moduleTitleStyle,
+    modulePanelStyle: store.modulePanelStyle,
+    resizableHandleStyle: store.resizableHandleStyle,
     hazardMode: store.hazardMode,
   }
 }
@@ -227,6 +233,9 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setCardDoubleClickAction: store.setCardDoubleClickAction,
     setTabDisplayStyle: store.setTabDisplayStyle,
     setSwitchDisplayStyle: store.setSwitchDisplayStyle,
+    setModuleTitleStyle: store.setModuleTitleStyle,
+    setModulePanelStyle: store.setModulePanelStyle,
+    setResizableHandleStyle: store.setResizableHandleStyle,
     setHazardMode: store.setHazardMode,
     addLane: store.addLane,
     removeLane: store.removeLane,

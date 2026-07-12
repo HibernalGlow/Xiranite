@@ -17,6 +17,7 @@ import type {
 import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 
 export interface WSState {
   theme: AppTheme
@@ -67,6 +68,9 @@ export interface WSState {
   cardDoubleClickAction: CardClickAction
   tabDisplayStyle: TabDisplayStyle
   switchDisplayStyle: SwitchDisplayStyle
+  moduleTitleStyle: ModuleTitleStyle
+  modulePanelStyle: ModulePanelStyle
+  resizableHandleStyle: ResizableHandleStyle
   hazardMode: boolean
 }
 
@@ -125,6 +129,9 @@ export interface WorkspaceUiActions {
   setCardDoubleClickAction(action: CardClickAction): void
   setTabDisplayStyle(style: TabDisplayStyle): void
   setSwitchDisplayStyle(style: SwitchDisplayStyle): void
+  setModuleTitleStyle(style: ModuleTitleStyle): void
+  setModulePanelStyle(style: ModulePanelStyle): void
+  setResizableHandleStyle(style: ResizableHandleStyle): void
   setHazardMode(enabled: boolean): void
 }
 
@@ -237,6 +244,9 @@ export type WorkspaceUiPreferences = Pick<
   | "cardDoubleClickAction"
   | "tabDisplayStyle"
   | "switchDisplayStyle"
+  | "moduleTitleStyle"
+  | "modulePanelStyle"
+  | "resizableHandleStyle"
   | "hazardMode"
 >
 

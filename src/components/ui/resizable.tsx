@@ -35,13 +35,15 @@ function ResizableHandle({
       data-slot="resizable-handle"
       className={cn(
         "relative flex w-px items-center justify-center bg-border after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90",
+        "[[data-resizable-handle-style=line]_&]:bg-primary/35 [[data-resizable-handle-style=line]_&]:after:w-2 [[data-resizable-handle-style=minimal]_&]:bg-transparent [[data-resizable-handle-style=minimal]_&]:after:w-px [[data-resizable-handle-style=minimal]_&]:after:bg-border/60",
         className
       )}
       {...props}
     >
       {withHandle && (
-        <div className="z-10 flex h-4 w-3 items-center justify-center rounded-xs border bg-border">
-          <GripVerticalIcon className="size-2.5" />
+        <div className="z-10 flex h-4 w-3 items-center justify-center rounded-xs border bg-border [[data-resizable-handle-style=line]_&]:hidden [[data-resizable-handle-style=minimal]_&]:hidden [[data-resizable-handle-style=dots]_&]:size-4 [[data-resizable-handle-style=dots]_&]:rounded-full [[data-resizable-handle-style=dots]_&]:bg-background">
+          <GripVerticalIcon className="size-2.5 [[data-resizable-handle-style=dots]_&]:hidden" />
+          <span className="hidden size-1.5 rounded-full bg-primary shadow-[0_-3px_0_var(--border),0_3px_0_var(--border)] [[data-resizable-handle-style=dots]_&]:block" />
         </div>
       )}
     </ResizablePrimitive.Separator>

@@ -19,6 +19,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import { MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
+import { ModulePanel } from "@/components/ui/module-panel"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, PanelBottom, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -71,6 +73,10 @@ function RuntimeRow({ label, value }: { label: string; value: string }) {
       <span className="min-w-0 truncate text-xs font-mono text-foreground" title={value}>{value}</span>
     </div>
   )
+}
+
+function PreferenceToggle({ label, labels, onChange, value, values }: { label: string; labels: Record<string, string>; onChange: (value: string) => void; value: string; values: readonly string[] }) {
+  return <div className="flex flex-col gap-1.5"><span className="text-[11px] font-medium text-muted-foreground">{label}</span><ToggleGroup type="single" value={value} onValueChange={(next) => next && onChange(next)} variant="outline" size="sm" spacing={2} className="grid w-full grid-cols-4 gap-1.5">{values.map((item) => <ToggleGroupItem key={item} value={item} className="min-w-0 px-1.5 text-[11px]">{labels[item] ?? item}</ToggleGroupItem>)}</ToggleGroup></div>
 }
 
 function AlphabetIndexSlider({
@@ -217,6 +223,9 @@ export function ThemeSettings() {
     cardDoubleClickAction: workspace.cardDoubleClickAction,
     tabDisplayStyle: workspace.tabDisplayStyle,
     switchDisplayStyle: workspace.switchDisplayStyle,
+    moduleTitleStyle: workspace.moduleTitleStyle,
+    modulePanelStyle: workspace.modulePanelStyle,
+    resizableHandleStyle: workspace.resizableHandleStyle,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -1268,6 +1277,17 @@ export function ThemeSettings() {
                     <Switch checked aria-label={t("settings:view.componentDisplay.switches.previewOn", "On")} onCheckedChange={() => undefined} />
                   </div>
                 </div>
+              </div>
+              <Separator />
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-xs font-medium">模块面板</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">统一节点内分区的标题、面板表面与拖拽手柄；已接入公共组件的节点会立即同步。</p>
+                </div>
+                <PreferenceToggle label="标题样式" value={state.moduleTitleStyle} values={MODULE_TITLE_STYLES} labels={{ legend: "悬浮角标", inline: "内嵌", bar: "顶部栏", minimal: "极简" }} onChange={(value) => workspaceActions.setModuleTitleStyle(value as ModuleTitleStyle)} />
+                <PreferenceToggle label="面板样式" value={state.modulePanelStyle} values={MODULE_PANEL_STYLES} labels={{ soft: "柔和", solid: "实色", outline: "描边", flat: "无框" }} onChange={(value) => workspaceActions.setModulePanelStyle(value as ModulePanelStyle)} />
+                <PreferenceToggle label="拖拽手柄" value={state.resizableHandleStyle} values={RESIZABLE_HANDLE_STYLES} labels={{ grip: "握把", dots: "点阵", line: "强调线", minimal: "极简" }} onChange={(value) => workspaceActions.setResizableHandleStyle(value as ResizableHandleStyle)} />
+                <ModulePanel title="预览模块" badge="12 项" icon={Box}><p className="text-xs text-muted-foreground">标题和面板会使用全局样式；分隔线由公共 ResizableHandle 同步。</p></ModulePanel>
               </div>
             </div>
             <div>
