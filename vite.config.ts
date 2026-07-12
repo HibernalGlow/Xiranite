@@ -100,6 +100,8 @@ export default defineConfig({
       : undefined,
   },
   optimizeDeps: {
+    // Standalone reference HTML under icon/ is not an application entry.
+    entries: ["index.html"],
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),
     // 不预构建时浏览器 ESM `import { useSyncExternalStore }` 拿不到命名导出。
     // esbuild 预构建会把 CJS 转成 ESM 命名导出。zustand / @base-ui/react /
