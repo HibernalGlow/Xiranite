@@ -311,6 +311,22 @@ describe("backend", () => {
     }
   })
 
+  test("rejects invalid native local picker requests before opening a dialog", async () => {
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
+    try {
+      const response = await fetch(`${backend.url}/local-files/pick?token=test-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "upload" }),
+      })
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error: "kind must be files or directory" })
+    } finally {
+      backend.close()
+    }
+  })
+
   test("serves local audio files with range support and lists music entries", async () => {
     const dataDir = await createTempDataDir()
     const musicDir = join(dataDir, "music")
