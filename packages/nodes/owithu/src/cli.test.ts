@@ -18,7 +18,7 @@ afterEach(async () => {
 })
 
 describe("owithu CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses the configured UI outside an interactive terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -26,9 +26,8 @@ describe("owithu CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("xowithu")
-    expect(host.stderrText()).toContain("--json")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
+    expect(host.stderrText()).toContain("xowithu ui")
   })
 
   test("prints pure JSON preview from a real TOML config", async () => {
