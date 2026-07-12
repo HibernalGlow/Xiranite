@@ -227,6 +227,10 @@ export function ExecutionActions<Result>({
   return <WorkbenchButton id="execute" danger={session.dangerous} onClick={() => void session.requestExecute()}>{session.dangerous ? confirmLabel : executeLabel}</WorkbenchButton>
 }
 
+export function WorkbenchHeaderActions({ onReset, onExit, resetLabel = "↺ 重置", exitLabel = "× 退出" }: { onReset: () => void; onExit: () => void; resetLabel?: string; exitLabel?: string }) {
+  return <box height={3} flexShrink={0} flexDirection="row"><WorkbenchButton id="reset" onClick={onReset}>{resetLabel}</WorkbenchButton><WorkbenchButton id="exit" onClick={onExit}>{exitLabel}</WorkbenchButton></box>
+}
+
 export function ClickTarget({
   id,
   children,

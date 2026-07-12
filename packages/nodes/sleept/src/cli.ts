@@ -36,6 +36,7 @@ import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, update
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
 import { runSleept } from "./core.js"
 import { createSleeptInteractionSchema, type SleeptInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 import { createNodeSleeptRuntime, readClipboardText } from "./platform.js"
 
 const CLI_NAME = nodeCliName("sleept")
@@ -176,6 +177,7 @@ export async function runProgram(
     loadScreen: async () => (await import("./Tui.js")).SleeptTui,
     createPreferences: (_defaults, values) => createPreferenceController(host, values),
     reexecEntrypoint: process.argv[1],
+    help,
   })
 }
 

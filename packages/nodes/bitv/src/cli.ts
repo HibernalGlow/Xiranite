@@ -21,7 +21,7 @@ import {
   type TerminalRenderer,
 } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { listTerminalThemes, runTerminalUi } from "@xiranite/cli-runtime/terminal"
+import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import {
@@ -34,6 +34,8 @@ import {
   type BitvTransferMode,
 } from "./core.js"
 import { createBitvInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
+import type { NodeHelp } from "@xiranite/contract"
 import { createNodeBitvRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("bitv")
@@ -70,7 +72,7 @@ export interface BitvCliDependencies {
   createRuntime: (host: CliHost) => BitvRuntime
   runGuide: <Input, Result>(
     definition: TerminalInteractionDefinition<Input, Result>,
-    options: { host: CliHost; language: TerminalLanguage },
+    options: { host: CliHost; language: TerminalLanguage; help?: NodeHelp },
   ) => Promise<void>
   runUi: typeof runTerminalUi
 }
@@ -92,6 +94,10 @@ export async function runProgram(
   host: CliHost = createDefaultHost(),
   dependencies: BitvCliDependencies = defaultDependencies,
 ): Promise<void> {
+  if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
+    writeTerminalNodeHelp(host, help, resolveTerminalLanguage(undefined, host.env))
+    return
+  }
   if (args.length === 0 && (!host.stdin.isTTY || !host.stdout.isTTY)) {
     writeError(host, `No interactive terminal detected. Use \`${CLI_NAME} status --json\` or run \`${CLI_NAME} ui\` in a terminal.`)
     process.exitCode = 2
@@ -135,7 +141,7 @@ export async function runProgram(
 
   const definition = createBitvInteractionDefinition(defaults, flags.language, host, dependencies)
   if (invocation === "gd") {
-    await dependencies.runGuide(definition, { host, language: flags.language })
+    await dependencies.runGuide(definition, { host, language: flags.language, help })
     return
   }
   await dependencies.runUi(definition, {
@@ -143,6 +149,7 @@ export async function runProgram(
     renderer: flags.renderer,
     language: flags.language,
     theme: flags.theme,
+    help,
     loadScreen: async () => (await import("./Tui.js")).BitvTui,
     reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined,
   })

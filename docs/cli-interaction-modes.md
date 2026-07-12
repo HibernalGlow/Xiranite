@@ -134,6 +134,19 @@ fork terminal components. Use this order before writing a primitive:
 5. OpenTUI uses native mouse events. Node packages never import mouse APIs
    directly.
 
+### Shared header and help
+
+Direct node TUIs keep reset and exit actions in the existing top header; they
+must not add a persistent footer solely for navigation or usage hints. The
+buttons use the shared header action component so their visible bounds and
+mouse hit regions remain identical. Do not repeat static hints such as
+"mouse-first", "editable paths", or "F1 help" inside every node composition.
+
+Every node package exports its serializable `NodeHelp` from `./help`. That one
+source powers `help`/`--help`/`-h`, the summary shown before a `gd` flow, the
+OpenTUI F1 help surface, and the Web help view. Renderer-specific copies of the
+help text are not allowed.
+
 ### Terminal icons and editable controls
 
 - Every section, field kind, action, status, and result surface uses the shared

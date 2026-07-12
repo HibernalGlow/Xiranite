@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@xiranite/api": "workspace:*",
+    "@xiranite/contract": "workspace:*",
     "@clack/prompts": "^1.7.0",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",

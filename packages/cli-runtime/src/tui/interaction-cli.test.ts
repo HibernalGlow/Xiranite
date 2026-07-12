@@ -17,6 +17,17 @@ const definition: TerminalInteractionDefinition<{ action: string }, { success: b
 afterEach(() => { process.exitCode = 0 })
 
 describe("shared interaction CLI dispatcher", () => {
+  test("renders package-owned help for CLI and passes it into GD", async () => {
+    const adapters = createAdapters()
+    const helpHost = createMemoryCliHost()
+    await dispatch(["--help"], helpHost, adapters)
+    expect(helpHost.stdoutText()).toContain("Demo shared help")
+    expect(adapters.runPipe).not.toHaveBeenCalled()
+
+    await dispatch(["gd"], createMemoryCliHost({ tty: true }), adapters)
+    expect(adapters.runGuide).toHaveBeenCalledWith(definition, expect.objectContaining({ help: expect.objectContaining({ title: "Demo" }) }))
+  })
+
   test.each(explicitInteractionModes)("rejects %s without a TTY", async (mode) => {
     const host = createMemoryCliHost()
     const adapters = createAdapters()
@@ -51,5 +62,6 @@ async function dispatch(args: string[], host: ReturnType<typeof createMemoryCliH
     runPipe: adapters.runPipe,
     runUi: adapters.runUi,
     runGuide: adapters.runGuide,
+    help: { title: "Demo", short: "Demo shared help", workflows: [], commands: [] },
   })
 }

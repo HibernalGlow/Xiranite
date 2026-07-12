@@ -298,7 +298,7 @@ export async function selectRich<Value extends string | number | boolean>(
 
 export async function runGuidedInteraction<Input, Result>(
   definition: TerminalInteractionDefinition<Input, Result>,
-  options: { host: CliHost; language: TerminalLanguage },
+  options: { host: CliHost; language: TerminalLanguage; help?: import("@xiranite/contract").NodeHelp },
 ): Promise<void> {
   const { host, language } = options
   const { schema } = definition
@@ -306,6 +306,10 @@ export async function runGuidedInteraction<Input, Result>(
   const values: InteractionValues = { ...schema.initialValues }
 
   try {
+    if (options.help) {
+      const { formatTerminalNodeHelp } = await import("./help.js")
+      writeRichPanel(host, language === "zh" ? "帮助" : "Help", formatTerminalNodeHelp(options.help, language), { color: "cyan", minWidth: 48 })
+    }
     writeRichPanel(host, schema.title, schema.description, { color: "blue", minWidth: 48 })
     let fieldIndex = 0
     while (true) {

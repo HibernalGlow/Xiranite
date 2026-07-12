@@ -7,6 +7,8 @@ import type { TerminalInteractionDefinition } from "../../interaction.js"
 import type { TerminalPreferenceValues } from "../index.js"
 import { OpenTuiTerminalApp } from "./app.js"
 import { TerminalTaskQueueScreen } from "./task-queue-screen.js"
+import { TerminalHelpScreen } from "./help-screen.js"
+import { WorkbenchHeaderActions } from "./workbench-controls.js"
 import { TerminalThemeProvider, resolveTerminalTheme } from "../theme.js"
 
 interface DemoInput {
@@ -80,6 +82,22 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
 }
 
 describe("OpenTUI terminal adapter", () => {
+  test("keeps reset, exit, and shared help mouse targets clickable", async () => {
+    let reset = 0
+    let exited = 0
+    const help = { title: "Demo", short: "Demo help", workflows: [{ title: "UI", ui: ["Open it"] }], commands: [{ title: "CLI", command: "xdemo --help", examples: [] }] }
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => { setup = await testRender(<TerminalThemeProvider theme={resolveTerminalTheme("nord")}><box width="100%" height="100%" flexDirection="column"><WorkbenchHeaderActions onReset={() => { reset += 1 }} onExit={() => { exited += 1 }} /><TerminalHelpScreen help={help} language="zh" onBack={() => undefined} /></box></TerminalThemeProvider>, { width: 100, height: 30, useMouse: true }) })
+    const click = async (id: string) => { const target = setup.renderer.root.findDescendantById(id)!; await act(async () => setup.mockMouse.click(target.x + 1, target.y + 1)); await act(async () => setup.flush()) }
+    try {
+      await act(async () => setup.renderOnce())
+      expect(setup.captureCharFrame()).toContain("Demo help")
+      await click("reset")
+      await click("exit")
+      expect([reset, exited]).toEqual([1, 1])
+    } finally { await act(async () => setup.renderer.destroy()) }
+  })
+
   test("lists and controls backend operations from the shared task queue", async () => {
     let action = ""
     const controller = {

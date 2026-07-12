@@ -11,6 +11,7 @@ import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, update
 import type { RecycleuAction, RecycleuInput, RecycleuResult, RecycleuRuntime } from "./core.js"
 import { runRecycleu } from "./core.js"
 import { createRecycleuInteractionSchema, type RecycleuInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 import { createNodeRecycleuRuntime } from "./platform.js"
 
 const CLI_NAME = nodeCliName("recycleu")
@@ -61,6 +62,7 @@ export async function runProgram(
     loadScreen: async () => (await import("./Tui.js")).RecycleuTui,
     createPreferences: (_defaults, values) => createPreferenceController(host, values),
     reexecEntrypoint: process.argv[1],
+    help,
   })
 }
 

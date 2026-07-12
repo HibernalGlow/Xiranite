@@ -1,37 +1,400 @@
 /* @jsxImportSource @opentui/react */
-import { useKeyboard } from "@opentui/react"
-import { useMemo, useState, type ReactNode } from "react"
-import { ActionTabs, ClickTarget as ClickTargetBase, resolveTerminalTheme, TerminalPreferencesScreen, TerminalThemeProvider, terminalIcon, useAnimation, useTerminalTheme, useTerminalUiSession, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "@xiranite/cli-runtime/terminal/opentui"
-import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
-import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
-import type { NodeRunResult } from "@xiranite/contract"
-import type { SoundwData, SoundwInput } from "./core.js"
-import { soundwActionLabel } from "./interaction.js"
+import { useKeyboard } from "@opentui/react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  ActionTabs,
+  ClickTarget as ClickTargetBase,
+  resolveTerminalTheme,
+  TerminalPreferencesScreen,
+  TerminalThemeProvider,
+  terminalIcon,
+  useAnimation,
+  useTerminalTheme,
+  useTerminalUiSession,
+  WorkbenchButton,
+  WorkbenchField,
+  WorkbenchHeaderActions,
+  WorkbenchPanel,
+} from "@xiranite/cli-runtime/terminal/opentui";
+import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
+import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
+import type { NodeRunResult } from "@xiranite/contract";
+import type { SoundwData, SoundwInput } from "./core.js";
+import { soundwActionLabel } from "./interaction.js";
 
 // The shared target renders textual children. This node composes icon + label
 // fragments, so keep the public shared behaviour while widening its local JSX
 // surface rather than duplicating a mouse target implementation.
-const ClickTarget = ClickTargetBase as unknown as (props: { id?: string; children: ReactNode; focused?: boolean; selected?: boolean; disabled?: boolean; onClick: () => void }) => ReactNode
+const ClickTarget = ClickTargetBase as unknown as (props: {
+  id?: string;
+  children: ReactNode;
+  focused?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) => ReactNode;
 
-export function SoundwTui(props: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>>) {
-  const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
-  return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><SoundwWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider>
+export function SoundwTui(
+  props: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>>,
+) {
+  const [previewTheme, setPreviewTheme] = useState(
+    props.theme ?? props.preferences?.current.theme ?? "inherit",
+  );
+  return (
+    <TerminalThemeProvider
+      theme={resolveTerminalTheme(
+        previewTheme === "inherit" ? "nord" : previewTheme,
+      )}
+    >
+      <SoundwWorkbench {...props} onThemePreview={setPreviewTheme} />
+    </TerminalThemeProvider>
+  );
 }
 
-function SoundwWorkbench({ definition, language, preferences, onExit, onThemePreview }: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>> & { onThemePreview: (theme: string) => void }) {
-  const theme = useTerminalTheme(); const t = createTerminalTranslator(language); const session = useTerminalUiSession(definition); const [settings, setSettings] = useState(false); const frame = useAnimation({ intervalMs: session.phase === "running" ? 120 : 520 }); const action = String(session.values.action ?? "status") as SoundwInput["action"]
-  const profileField = definition.schema.fields.find((field) => field.id === "profileName")!; const pathField = definition.schema.fields.find((field) => field.id === "soundSwitchPath")!; const controls = ["action", "profileName", "soundSwitchPath", "execute", "settings", "tab-status", "tab-logs", "reset", "exit"]
-  const profiles = useMemo(() => session.resultSummary?.lines.flatMap((line) => line.startsWith("Profiles:") ? line.slice("Profiles:".length).split(",").map((item) => item.trim()).filter(Boolean) : []) ?? [], [session.resultSummary])
-  useKeyboard((key) => { if (key.name === "escape") { if (settings) setSettings(false); else if (session.phase === "running") session.cancel(); else onExit(); return }; if (key.name === "tab") session.moveFocus(controls, key.shift ? -1 : 1); if (key.name === "q" && session.phase !== "running") onExit() })
-  if (settings && preferences) return <TerminalPreferencesScreen controller={preferences} focusedId={session.focusedControlId} onFocus={session.focus} onPreviewTheme={onThemePreview} onBack={() => setSettings(false)} />
-  return <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
-    <box height={4} flexShrink={0} flexDirection="row" justifyContent="space-between" borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}><box flexDirection="column"><text fg={theme.colors.primary}><b>{`${terminalIcon("status")} SOUNDW // RECORDING ROUTE`}</b></text><text fg={theme.colors.mutedForeground}>{language === "zh" ? "麦克风、SoundSwitch 预设与命令输出" : "Microphone, SoundSwitch profiles and command output"}</text></box><box flexDirection="column" alignItems="flex-end"><text fg={session.phase === "running" ? theme.colors.warning : theme.colors.mutedForeground}>{`${session.phase === "running" ? "◌ RUNNING" : "● READY"} ${["⠁", "⠂", "⠄", "⡀", "⢀", "⠠"][frame % 6]}`}</text>{preferences ? <ClickTarget id="settings" focused={session.focusedControlId === "settings"} onClick={() => { session.focus("pref-theme"); setSettings(true) }}>{`${terminalIcon("settings")} ${language === "zh" ? "设置" : "settings"}`}</ClickTarget> : null}</box></box>
-    <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
-      <WorkbenchPanel title={language === "zh" ? "设备矩阵" : "Device matrix"} description={language === "zh" ? "录音设备与麦克风状态操作" : "Recording device and microphone controls"} width="31%"><box flexDirection="column" gap={1}><text fg={theme.colors.mutedForeground}>{`${terminalIcon("action")} ${language === "zh" ? "快捷操作" : "Quick actions"}`}</text><ActionTabs id="field-action" options={[{ value: "switch-recording", label: "↻ 切换录音" }, { value: "mute", label: "◉ 静音" }, { value: "unmute", label: "◌ 解除静音" }, { value: "toggle-mute", label: "◐ 切换静音" }, { value: "status", label: "▣ 状态" }]} value={action} focused={session.focusedControlId === "action"} disabled={session.phase === "running"} onFocus={() => session.focus("action")} onChange={(value) => session.setField("action", value)} /><box flexGrow={1} /><WorkbenchButton id="execute" focused={session.focusedControlId === "execute"} onClick={() => void session.requestExecute()}>{session.phase === "running" ? "■ 执行中" : `▶ ${soundwActionLabel(action ?? "status", language)}`}</WorkbenchButton><text fg={theme.colors.mutedForeground}>{language === "zh" ? "所有动作由 SoundSwitch 后台应用执行。" : "All actions are delegated to the SoundSwitch background app."}</text></box></WorkbenchPanel>
-      <WorkbenchPanel title={language === "zh" ? "预设中心" : "Profile hub"} description={language === "zh" ? "扫描、选择或手动输入 SoundSwitch 预设" : "Scan, select, or type a SoundSwitch profile"} flexGrow={1}><box flexDirection="column" flexGrow={1} minHeight={0}><box flexDirection="row" gap={1}><ClickTarget id="profiles-scan" focused={action === "profiles"} onClick={() => { session.setField("action", "profiles"); void session.requestExecute() }}>↻ {language === "zh" ? "扫描预设" : "Scan profiles"}</ClickTarget><ClickTarget id="settings-action" onClick={() => { session.setField("action", "settings"); void session.requestExecute() }}>⚙ {language === "zh" ? "设置" : "Settings"}</ClickTarget></box><WorkbenchField field={profileField} value={session.values.profileName} error={session.fieldErrors.profileName} focused={session.focusedControlId === "profileName"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("profileName")} onChange={(value) => session.setField("profileName", value)} /><scrollbox flexGrow={1} minHeight={4} marginTop={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>{profiles.length ? profiles.map((profile) => <ClickTarget key={profile} id={`profile-${profile}`} selected={session.values.profileName === profile} onClick={() => { session.setField("profileName", profile); session.setField("action", "profile") }}>◈ {profile}</ClickTarget>) : <text fg={theme.colors.mutedForeground}>{language === "zh" ? "尚未扫描预设。点击“扫描预设”后可直接选择。" : "No profiles scanned. Select Scan profiles to load them."}</text>}</scrollbox></box></WorkbenchPanel>
-      <WorkbenchPanel title={language === "zh" ? "命令控制台" : "Command console"} description={language === "zh" ? "CLI 输出与路径覆盖" : "CLI output and path override"} width="32%"><box flexDirection="column" flexGrow={1} minHeight={0}><WorkbenchField field={pathField} value={session.values.soundSwitchPath} error={session.fieldErrors.soundSwitchPath} focused={session.focusedControlId === "soundSwitchPath"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("soundSwitchPath")} onChange={(value) => session.setField("soundSwitchPath", value)} /><box flexDirection="row" marginTop={1}><ClickTarget id="tab-status" selected={session.resultTab === "status"} focused={session.focusedControlId === "tab-status"} onClick={() => session.selectResultTab("status")}>◉ {language === "zh" ? "状态" : "status"}</ClickTarget><ClickTarget id="tab-logs" selected={session.resultTab === "logs"} focused={session.focusedControlId === "tab-logs"} onClick={() => session.selectResultTab("logs")}>▤ {language === "zh" ? "日志" : "logs"} ({session.logs.length})</ClickTarget></box><scrollbox id="soundw-console" flexGrow={1} minHeight={5} marginTop={1} scrollbarOptions={{ trackOptions: { foregroundColor: theme.colors.primary, backgroundColor: theme.colors.border } }}>{session.resultTab === "logs" ? (session.logs.length ? session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(3, "0")} ${line}`}</text>) : <text fg={theme.colors.mutedForeground}>{language === "zh" ? "没有命令日志。" : "No command logs."}</text>) : <Status result={session.resultSummary} language={language} />}</scrollbox></box></WorkbenchPanel>
+function SoundwWorkbench({
+  definition,
+  language,
+  preferences,
+  onExit,
+  onThemePreview,
+}: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>> & {
+  onThemePreview: (theme: string) => void;
+}) {
+  const theme = useTerminalTheme();
+  const t = createTerminalTranslator(language);
+  const session = useTerminalUiSession(definition);
+  const [settings, setSettings] = useState(false);
+  const frame = useAnimation({
+    intervalMs: session.phase === "running" ? 120 : 520,
+  });
+  const action = String(
+    session.values.action ?? "status",
+  ) as SoundwInput["action"];
+  const profileField = definition.schema.fields.find(
+    (field) => field.id === "profileName",
+  )!;
+  const pathField = definition.schema.fields.find(
+    (field) => field.id === "soundSwitchPath",
+  )!;
+  const controls = [
+    "action",
+    "profileName",
+    "soundSwitchPath",
+    "execute",
+    "settings",
+    "tab-status",
+    "tab-logs",
+    "reset",
+    "exit",
+  ];
+  const profiles = useMemo(
+    () =>
+      session.resultSummary?.lines.flatMap((line) =>
+        line.startsWith("Profiles:")
+          ? line
+              .slice("Profiles:".length)
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : [],
+      ) ?? [],
+    [session.resultSummary],
+  );
+  useKeyboard((key) => {
+    if (key.name === "escape") {
+      if (settings) setSettings(false);
+      else if (session.phase === "running") session.cancel();
+      else onExit();
+      return;
+    }
+    if (key.name === "tab") session.moveFocus(controls, key.shift ? -1 : 1);
+    if (key.name === "q" && session.phase !== "running") onExit();
+  });
+  if (settings && preferences)
+    return (
+      <TerminalPreferencesScreen
+        controller={preferences}
+        focusedId={session.focusedControlId}
+        onFocus={session.focus}
+        onPreviewTheme={onThemePreview}
+        onBack={() => setSettings(false)}
+      />
+    );
+  return (
+    <box
+      width="100%"
+      height="100%"
+      flexDirection="column"
+      paddingLeft={1}
+      paddingRight={1}
+      overflow="hidden"
+    >
+      <box
+        height={4}
+        flexShrink={0}
+        flexDirection="row"
+        justifyContent="space-between"
+        borderStyle="single"
+        borderColor={theme.colors.border}
+        paddingLeft={1}
+        paddingRight={1}
+      >
+        <box flexDirection="column">
+          <text fg={theme.colors.primary}>
+            <b>{`${terminalIcon("status")} SOUNDW // RECORDING ROUTE`}</b>
+          </text>
+          <text fg={theme.colors.mutedForeground}>
+            {language === "zh"
+              ? "麦克风、SoundSwitch 预设与命令输出"
+              : "Microphone, SoundSwitch profiles and command output"}
+          </text>
+        </box>
+        <WorkbenchHeaderActions onReset={session.reset} onExit={onExit} resetLabel={`↺ ${t("reset")}`} exitLabel={`× ${language === "zh" ? "退出" : "Exit"}`} />
+        <box flexDirection="column" alignItems="flex-end">
+          <text
+            fg={
+              session.phase === "running"
+                ? theme.colors.warning
+                : theme.colors.mutedForeground
+            }
+          >{`${session.phase === "running" ? "◌ RUNNING" : "● READY"} ${["⠁", "⠂", "⠄", "⡀", "⢀", "⠠"][frame % 6]}`}</text>
+          {preferences ? (
+            <ClickTarget
+              id="settings"
+              focused={session.focusedControlId === "settings"}
+              onClick={() => {
+                session.focus("pref-theme");
+                setSettings(true);
+              }}
+            >{`${terminalIcon("settings")} ${language === "zh" ? "设置" : "settings"}`}</ClickTarget>
+          ) : null}
+        </box>
+      </box>
+      <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
+        <WorkbenchPanel
+          title={language === "zh" ? "设备矩阵" : "Device matrix"}
+          description={
+            language === "zh"
+              ? "录音设备与麦克风状态操作"
+              : "Recording device and microphone controls"
+          }
+          width="31%"
+        >
+          <box flexDirection="column" gap={1}>
+            <text
+              fg={theme.colors.mutedForeground}
+            >{`${terminalIcon("action")} ${language === "zh" ? "快捷操作" : "Quick actions"}`}</text>
+            <ActionTabs
+              id="field-action"
+              options={[
+                { value: "switch-recording", label: "↻ 切换录音" },
+                { value: "mute", label: "◉ 静音" },
+                { value: "unmute", label: "◌ 解除静音" },
+                { value: "toggle-mute", label: "◐ 切换静音" },
+                { value: "status", label: "▣ 状态" },
+              ]}
+              value={action}
+              focused={session.focusedControlId === "action"}
+              disabled={session.phase === "running"}
+              onFocus={() => session.focus("action")}
+              onChange={(value) => session.setField("action", value)}
+            />
+            <box flexGrow={1} />
+            <WorkbenchButton
+              id="execute"
+              focused={session.focusedControlId === "execute"}
+              onClick={() => void session.requestExecute()}
+            >
+              {session.phase === "running"
+                ? "■ 执行中"
+                : `▶ ${soundwActionLabel(action ?? "status", language)}`}
+            </WorkbenchButton>
+            <text fg={theme.colors.mutedForeground}>
+              {language === "zh"
+                ? "所有动作由 SoundSwitch 后台应用执行。"
+                : "All actions are delegated to the SoundSwitch background app."}
+            </text>
+          </box>
+        </WorkbenchPanel>
+        <WorkbenchPanel
+          title={language === "zh" ? "预设中心" : "Profile hub"}
+          description={
+            language === "zh"
+              ? "扫描、选择或手动输入 SoundSwitch 预设"
+              : "Scan, select, or type a SoundSwitch profile"
+          }
+          flexGrow={1}
+        >
+          <box flexDirection="column" flexGrow={1} minHeight={0}>
+            <box flexDirection="row" gap={1}>
+              <ClickTarget
+                id="profiles-scan"
+                focused={action === "profiles"}
+                onClick={() => {
+                  session.setField("action", "profiles");
+                  void session.requestExecute();
+                }}
+              >
+                ↻ {language === "zh" ? "扫描预设" : "Scan profiles"}
+              </ClickTarget>
+              <ClickTarget
+                id="settings-action"
+                onClick={() => {
+                  session.setField("action", "settings");
+                  void session.requestExecute();
+                }}
+              >
+                ⚙ {language === "zh" ? "设置" : "Settings"}
+              </ClickTarget>
+            </box>
+            <WorkbenchField
+              field={profileField}
+              value={session.values.profileName}
+              error={session.fieldErrors.profileName}
+              focused={session.focusedControlId === "profileName"}
+              disabled={session.phase === "running"}
+              t={t}
+              onFocus={() => session.focus("profileName")}
+              onChange={(value) => session.setField("profileName", value)}
+            />
+            <scrollbox
+              flexGrow={1}
+              minHeight={4}
+              marginTop={1}
+              scrollbarOptions={{
+                trackOptions: {
+                  foregroundColor: theme.colors.primary,
+                  backgroundColor: theme.colors.border,
+                },
+              }}
+            >
+              {profiles.length ? (
+                profiles.map((profile) => (
+                  <ClickTarget
+                    key={profile}
+                    id={`profile-${profile}`}
+                    selected={session.values.profileName === profile}
+                    onClick={() => {
+                      session.setField("profileName", profile);
+                      session.setField("action", "profile");
+                    }}
+                  >
+                    ◈ {profile}
+                  </ClickTarget>
+                ))
+              ) : (
+                <text fg={theme.colors.mutedForeground}>
+                  {language === "zh"
+                    ? "尚未扫描预设。点击“扫描预设”后可直接选择。"
+                    : "No profiles scanned. Select Scan profiles to load them."}
+                </text>
+              )}
+            </scrollbox>
+          </box>
+        </WorkbenchPanel>
+        <WorkbenchPanel
+          title={language === "zh" ? "命令控制台" : "Command console"}
+          description={
+            language === "zh"
+              ? "CLI 输出与路径覆盖"
+              : "CLI output and path override"
+          }
+          width="32%"
+        >
+          <box flexDirection="column" flexGrow={1} minHeight={0}>
+            <WorkbenchField
+              field={pathField}
+              value={session.values.soundSwitchPath}
+              error={session.fieldErrors.soundSwitchPath}
+              focused={session.focusedControlId === "soundSwitchPath"}
+              disabled={session.phase === "running"}
+              t={t}
+              onFocus={() => session.focus("soundSwitchPath")}
+              onChange={(value) => session.setField("soundSwitchPath", value)}
+            />
+            <box flexDirection="row" marginTop={1}>
+              <ClickTarget
+                id="tab-status"
+                selected={session.resultTab === "status"}
+                focused={session.focusedControlId === "tab-status"}
+                onClick={() => session.selectResultTab("status")}
+              >
+                ◉ {language === "zh" ? "状态" : "status"}
+              </ClickTarget>
+              <ClickTarget
+                id="tab-logs"
+                selected={session.resultTab === "logs"}
+                focused={session.focusedControlId === "tab-logs"}
+                onClick={() => session.selectResultTab("logs")}
+              >
+                ▤ {language === "zh" ? "日志" : "logs"} ({session.logs.length})
+              </ClickTarget>
+            </box>
+            <scrollbox
+              id="soundw-console"
+              flexGrow={1}
+              minHeight={5}
+              marginTop={1}
+              scrollbarOptions={{
+                trackOptions: {
+                  foregroundColor: theme.colors.primary,
+                  backgroundColor: theme.colors.border,
+                },
+              }}
+            >
+              {session.resultTab === "logs" ? (
+                session.logs.length ? (
+                  session.logs.map((line, index) => (
+                    <text
+                      key={`${line}-${index}`}
+                      fg={theme.colors.mutedForeground}
+                    >{`${String(index + 1).padStart(3, "0")} ${line}`}</text>
+                  ))
+                ) : (
+                  <text fg={theme.colors.mutedForeground}>
+                    {language === "zh" ? "没有命令日志。" : "No command logs."}
+                  </text>
+                )
+              ) : (
+                <Status result={session.resultSummary} language={language} />
+              )}
+            </scrollbox>
+          </box>
+        </WorkbenchPanel>
+      </box>
     </box>
-    <box height={2} flexShrink={0} marginTop={1} flexDirection="row" justifyContent="space-between"><box flexDirection="row"><ClickTarget id="reset" focused={session.focusedControlId === "reset"} onClick={session.reset}>↺ {t("reset")}</ClickTarget><ClickTarget id="exit" focused={session.focusedControlId === "exit"} onClick={onExit}>× {language === "zh" ? "退出" : "Exit"}</ClickTarget></box><text fg={theme.colors.mutedForeground}>{language === "zh" ? "Unicode 图标 · 鼠标优先 · 输入框可直接编辑" : "Unicode icons · mouse-first · direct text editing"}</text></box>
-  </box>
+  );
 }
-function Status({ result, language }: { result: ReturnType<typeof useTerminalUiSession<SoundwInput, NodeRunResult<SoundwData>>>["resultSummary"]; language: "zh" | "en" }) { const theme = useTerminalTheme(); return <box flexDirection="column">{result ? <><text fg={result.success ? theme.colors.success : theme.colors.error}><b>{result.message}</b></text>{result.lines.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{line}</text>)}</> : <text fg={theme.colors.mutedForeground}>{language === "zh" ? "准备就绪：查询状态、切换设备或扫描预设。" : "Ready: query status, switch devices, or scan profiles."}</text>}</box> }
+function Status({
+  result,
+  language,
+}: {
+  result: ReturnType<
+    typeof useTerminalUiSession<SoundwInput, NodeRunResult<SoundwData>>
+  >["resultSummary"];
+  language: "zh" | "en";
+}) {
+  const theme = useTerminalTheme();
+  return (
+    <box flexDirection="column">
+      {result ? (
+        <>
+          <text fg={result.success ? theme.colors.success : theme.colors.error}>
+            <b>{result.message}</b>
+          </text>
+          {result.lines.map((line, index) => (
+            <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>
+              {line}
+            </text>
+          ))}
+        </>
+      ) : (
+        <text fg={theme.colors.mutedForeground}>
+          {language === "zh"
+            ? "准备就绪：查询状态、切换设备或扫描预设。"
+            : "Ready: query status, switch devices, or scan profiles."}
+        </text>
+      )}
+    </box>
+  );
+}
