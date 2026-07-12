@@ -83,6 +83,13 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(runtime.commands[0]).toEqual({ command: "/bin/djxl", args: ["--num_threads", "4", "/photos/a.jxl", "/photos/a.jpg"] })
   })
+
+  test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false, deleteOriginal: true, deleteOriginalMode: "trash" }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.at(-1)).toEqual({ command: "trash", args: ["/photos/a.png"] })
+  })
 })
 
 function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
@@ -91,7 +98,7 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     commands: [],
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
     listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
-    ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async () => undefined, renameFile: async () => undefined, setTimes: async () => undefined,
+    ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async () => undefined, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async () => undefined, setTimes: async () => undefined,
     runCommand: async (command, args) => { runtime.commands.push({ command, args }); files.set(args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!, { size: 400 }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),

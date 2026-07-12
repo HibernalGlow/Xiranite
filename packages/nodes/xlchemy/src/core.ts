@@ -100,6 +100,7 @@ export interface XlchemyRuntime {
   ensureDir: (path: string) => Promise<void>
   copyFile: (source: string, target: string) => Promise<void>
   removeFile: (path: string) => Promise<void>
+  trashFile?: (path: string) => Promise<void>
   renameFile: (source: string, target: string) => Promise<void>
   setTimes: (path: string, atimeMs: number, mtimeMs: number) => Promise<void>
   runCommand: (command: string, args: string[], isCancelled?: () => boolean) => Promise<XlchemyCommandResult>
@@ -331,7 +332,12 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       if (input.copyIfLarger) await runtime.copyFile(plan.sourcePath, plan.outputPath)
       return { ...plan, status: "skipped", outputBytes: input.copyIfLarger ? sourceInfo.size : 0, error: "output_not_smaller" }
     }
-    if (input.deleteOriginal && plan.sourcePath !== plan.outputPath) await runtime.removeFile(plan.sourcePath)
+    if (input.deleteOriginal && plan.sourcePath !== plan.outputPath) {
+      if (input.deleteOriginalMode === "trash") {
+        if (!runtime.trashFile) throw new Error("The current runtime does not support moving files to the recycle bin.")
+        await runtime.trashFile(plan.sourcePath)
+      } else await runtime.removeFile(plan.sourcePath)
+    }
     return { ...plan, status: "converted", outputBytes: outputInfo.size, error: undefined }
   } catch (error) { return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) } }
 }

@@ -12,6 +12,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     ensureDir: async (path) => { await mkdir(path, { recursive: true }) },
     copyFile,
     removeFile: async (path) => { await rm(path, { force: true }) },
+    trashFile: moveFileToRecycleBin,
     renameFile: async (source, target) => { const { rename } = await import("node:fs/promises"); await rename(source, target) },
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
     runCommand: runXlchemyCommand,
@@ -44,3 +45,12 @@ async function resolveCommand(candidates: string[]): Promise<string | undefined>
 }
 
 async function exists(path: string) { try { await access(path); return true } catch { return false } }
+
+export async function moveFileToRecycleBin(path: string) {
+  if (process.platform !== "win32") throw new Error("Recycle-bin deletion is currently available on Windows only.")
+  const escapedPath = resolve(path).replaceAll("'", "''")
+  const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${escapedPath}', [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`
+  const encoded = Buffer.from(script, "utf16le").toString("base64")
+  const result = await runXlchemyCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-STA", "-EncodedCommand", encoded])
+  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Failed to move ${path} to the recycle bin.`)
+}
