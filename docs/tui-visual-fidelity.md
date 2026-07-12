@@ -110,3 +110,16 @@ FormatV uses a video-source rail and a dominant format-check/rename-plan
 surface. Scan, add, remove, and duplicate actions remain visible as tabs; the
 lower deck keeps prefix, report, recursion, and dry-run controls editable while
 the execution button stays in a stable wide hit region.
+
+## CleanF
+
+- GUI evidence: `output/playwright/cleanf/cleanf-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/cleanf/cleanup-deck.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+The terminal adaptation retains a source rail, dominant target-preview surface,
+and a separate rule/action deck. Presets accept one identifier per line or
+comma-separated, while the always-visible preview switch changes the action
+from safe inspection to the guarded permanent-cleanup confirmation. The subtle
+four-frame sweep indicator stays confined to the header state rather than
+competing with target results.

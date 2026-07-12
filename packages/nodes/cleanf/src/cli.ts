@@ -21,13 +21,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { CleanfInput, CleanfPresetId, CleanfResult } from "./core.js"
 import { CLEANING_PRESETS, getDefaultPresets, parseCleanfPaths, parseExcludeKeywords, PRESET_COMBINATIONS, runCleanf } from "./core.js"
 import { createNodeCleanfRuntime, readClipboardText } from "./platform.js"
+import { createCleanfInteractionSchema, type CleanfInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("cleanf")
 const PRESET_LIST = Object.values(CLEANING_PRESETS)
@@ -41,7 +47,7 @@ interface CleanfCliOptions {
   json?: boolean
 }
 
-interface CleanfNodeConfig {
+interface CleanfNodeConfig extends CliInteractionPreferencesSource {
   presets?: string[]
   exclude?: string
   preview?: boolean
@@ -88,12 +94,14 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
+  await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<CleanfNodeConfig>("cleanf", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => createCleanfDefinition(defaults, language), runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).CleanfTui, createPreferences: (_defaults, values) => createPreferenceController(host, values), reexecEntrypoint: process.argv[1], help })
 }
+
+function createCleanfDefinition(defaults: CleanfDefaults, language: TerminalLanguage): TerminalInteractionDefinition<CleanfInput, CleanfResult> { return { schema: createCleanfInteractionSchema({ presetsText: (defaults.presets?.length ? defaults.presets : getDefaultPresets()).join("\n"), exclude: defaults.exclude ?? "", preview: defaults.preview ?? true } satisfies Partial<CleanfInteractionValues>, language), run: (input, onEvent) => runCleanf(input, createNodeCleanfRuntime(), onEvent) } }
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "cleanf", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "cleanf", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<CleanfNodeConfig>("cleanf", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
+
+function writeUsage(host: CliHost): void { writeLine(host, `${CLI_NAME} - preview or execute cleanup presets`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} preview|run [--paths <folders>] [--presets <ids>] [--json]`) }
 
 function createDefaultHost(): CliHost {
   return {
