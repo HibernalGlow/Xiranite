@@ -321,7 +321,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     let encoderSource = plan.sourcePath
     const temporarySource = `${plan.outputPath}.xlchemy-input.png`
     const normalizedJpeg = `${plan.outputPath}.xlchemy-normalized.jpg`
-    if (input.downscale?.enabled) {
+    if (input.downscale?.enabled && input.downscale.mode !== "file-size") {
       const magick = await runtime.resolveCommand(["magick"])
       if (!magick) throw new Error("ImageMagick is required for downscaling.")
       const resized = await runRuntimeCommand(runtime, magick, [plan.sourcePath, ...downscaleArgs(input.downscale), temporarySource])
@@ -330,7 +330,12 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     }
     const normalizeLosslessJpeg = shouldNormalizeLosslessJpeg(encoderSource, input, runtime)
     if (normalizeLosslessJpeg && input.jxlNormalize && input.jxlNormalizeWhen === "always") encoderSource = await normalizeJpegSource(encoderSource, normalizedJpeg, runtime)
-    let result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
+    let result: XlchemyCommandResult
+    if (input.downscale?.enabled && input.downscale.mode === "file-size") {
+      const sized = await runTargetSizeConversion(plan.sourcePath, plan.outputPath, input, runtime)
+      result = sized.result
+      encoderSource = sized.encoderSource
+    } else result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
       ? await runIntelligentJxlComparison(encoderSource, plan.outputPath, input, runtime)
       : await runEncoderConversion(encoderSource, plan.outputPath, input, runtime)
     if (result.exitCode !== 0 && normalizeLosslessJpeg && input.jxlNormalize && input.jxlNormalizeWhen === "on-fail") {
@@ -454,7 +459,43 @@ function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {
   if (settings.mode === "shortest-side") return [...filter, "-resize", `${settings.shortestSide}x${settings.shortestSide}^>`]
   if (settings.mode === "longest-side") return [...filter, "-resize", `${settings.longestSide}x${settings.longestSide}>`]
   if (settings.mode === "megapixels") return [...filter, "-resize", `${Math.round(settings.megapixels * 1_000_000)}@>`]
-  return [...filter, "-define", `jpeg:extent=${settings.fileSizeKb}kb`]
+  throw new Error("Target file size downscaling requires encoder feedback.")
+}
+
+async function runTargetSizeConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<{ result: XlchemyCommandResult; encoderSource: string }> {
+  const settings = input.downscale!
+  const magick = await requireCommand(runtime, ["magick"])
+  const proxy = `${target}.xlchemy-input.png`
+  const targetBytes = settings.fileSizeKb * 1024
+  const toleranceBytes = targetBytes * 1.1
+  const samples: Array<[number, number]> = []
+  const resizeAndEncode = async (percent: number): Promise<XlchemyCommandResult> => {
+    const filter = settings.resample !== "default" ? ["-filter", settings.resample] : []
+    const resized = await runRuntimeCommand(runtime, magick, [source, ...filter, "-resize", `${Math.max(1, Math.min(100, Math.round(percent)))}%`, proxy])
+    if (resized.exitCode !== 0) return resized
+    return runEncoderConversion(proxy, target, input, runtime)
+  }
+  for (const percent of [66, 33]) {
+    const result = await resizeAndEncode(percent)
+    if (result.exitCode !== 0) return { result, encoderSource: proxy }
+    samples.push([(await runtime.pathInfo(target)).size, percent])
+  }
+  const [[sizeA, percentA], [sizeB, percentB]] = samples
+  const slope = sizeA === sizeB ? 0 : (percentA - percentB) / (sizeA - sizeB)
+  let percent = slope === 0 ? (sizeB <= targetBytes ? 100 : 33) : Math.floor(slope * targetBytes + (percentA - slope * sizeA))
+  if (percent >= 100) {
+    await runtime.removeFile(proxy)
+    return { result: await runEncoderConversion(source, target, input, runtime), encoderSource: source }
+  }
+  percent = Math.max(1, percent)
+  let result: XlchemyCommandResult = { exitCode: 1, stdout: "", stderr: "Target-size conversion did not run." }
+  while (percent >= 1) {
+    result = await resizeAndEncode(percent)
+    if (result.exitCode !== 0 || (await runtime.pathInfo(target)).size <= toleranceBytes) break
+    percent = Math.max(1, percent - 10)
+    if (percent === 1) { result = await resizeAndEncode(percent); break }
+  }
+  return { result, encoderSource: proxy }
 }
 
 async function encoderInvocation(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<{ command: string; args: string[] }> {

@@ -156,6 +156,16 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands.at(-1)).toEqual({ command: "/bin/djxl", args: ["--num_threads", "4", "/photos/events/b.jxl", "/photos/events/b.jxl.verify.jpg"] })
   })
 
+  test("uses encoder feedback for target file size downscaling", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false, downscale: { enabled: true, mode: "file-size", width: 1920, height: 1080, percent: 50, fileSizeKb: 0.1, shortestSide: 1080, longestSide: 1920, megapixels: 2.1, resample: "lanczos" } }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.filter((item) => item.command.endsWith("magick")).length).toBeGreaterThanOrEqual(3)
+    expect(runtime.commands.some((item) => item.args.includes("66%"))).toBe(true)
+    expect(runtime.commands.some((item) => item.args.includes("33%"))).toBe(true)
+    expect(runtime.commands.some((item) => item.args.some((arg) => arg.startsWith("jpeg:extent=")))).toBe(false)
+  })
+
   test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false, deleteOriginal: true, deleteOriginalMode: "trash" }), runtime)
