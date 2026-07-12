@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NodeSurfaceChrome } from "./NodeSurfaceChrome"
 
@@ -11,16 +11,18 @@ vi.mock("react-i18next", () => ({
   }),
 }))
 
+const chromeAppearance = vi.hoisted(() => ({
+  visible: true,
+  position: "right" as "right" | "island",
+  style: "pill",
+  islandScale: 100,
+  islandMotion: 100,
+  islandDelay: 0,
+  islandIdleOffset: 0,
+}))
+
 vi.mock("@/components/workspace/useChromeAppearance", () => ({
-  useChromeAppearance: () => ({
-    visible: true,
-    position: "right",
-    style: "pill",
-    islandScale: 100,
-    islandMotion: 100,
-    islandDelay: 0,
-    islandIdleOffset: 0,
-  }),
+  useChromeAppearance: () => chromeAppearance,
 }))
 
 vi.mock("@/components/help/nodeHelpRegistry", () => ({
@@ -32,7 +34,10 @@ vi.mock("@/components/help/NodeHelpSheet", () => ({
     open ? <div role="dialog">Help for {moduleId}</div> : null,
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  chromeAppearance.position = "right"
+})
 
 describe("NodeSurfaceChrome help action", () => {
   test("opens the shared help sheet from the node operation chrome", async () => {
@@ -56,5 +61,18 @@ describe("NodeSurfaceChrome help action", () => {
     )
 
     expect(screen.queryByRole("button", { name: "Open Unknown help" })).toBeNull()
+  })
+
+  test("removes the container border while the dynamic island is collapsed", () => {
+    chromeAppearance.position = "island"
+    render(<NodeSurfaceChrome actions={[]} moduleName="Unknown" />)
+
+    const toolbar = screen.getByRole("toolbar", { name: "Node operation island" })
+    expect(toolbar.classList.contains("border")).toBe(false)
+    expect(toolbar.classList.contains("border-0")).toBe(true)
+
+    fireEvent.pointerEnter(toolbar.parentElement!)
+
+    expect(toolbar.classList.contains("border")).toBe(true)
   })
 })

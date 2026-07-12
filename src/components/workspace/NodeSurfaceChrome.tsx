@@ -268,7 +268,7 @@ function DynamicIslandChrome({
           expanded ? "overflow-hidden" : "overflow-visible",
           expanded
             ? "xiranite-node-chrome-pill border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
-            : "border border-transparent bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
+            : "border-0 bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
         )}
       >
         <motion.div
