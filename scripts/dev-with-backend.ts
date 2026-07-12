@@ -1,6 +1,8 @@
 import { startBackend } from "../packages/backend/src/index"
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 
+process.env.XIRANITE_LAZY_NODE_BUILD = "1"
+
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
 let backend: DevBackend | null = null
