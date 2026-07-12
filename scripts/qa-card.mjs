@@ -401,6 +401,12 @@ async function waitForStagedRender(page, result, options) {
       for (const item of result.matrix) {
         await page.locator(`[data-component-id="${cssEscape(item.id)}"]`).first().waitFor({ state: "visible", timeout: renderWaitMs })
       }
+      await page.waitForFunction((componentIds) => componentIds.every((componentId) => {
+        const component = document.querySelector(`[data-component-id="${CSS.escape(componentId)}"]`)
+        if (!component || component.querySelector('[data-slot="skeleton"]')) return false
+        const text = component.textContent?.trim() ?? ""
+        return text.length > 10 && !text.includes("failed to load")
+      }), result.matrix.map((item) => item.id), { timeout: renderWaitMs })
       await page.waitForTimeout(250)
     } catch {
       console.warn(`staged matrix was not fully rendered after ${renderWaitMs}ms; screenshot may show a partial layout`)
