@@ -21,14 +21,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { MigratefAction, MigratefInput, MigratefMode, MigratefResult, MigratefRuntime } from "./core.js"
 import type { MigratePlanItem } from "./core.js"
 import { runMigratef } from "./core.js"
 import { createNodeMigratefRuntime, readClipboardText } from "./platform.js"
+import { createMigratefInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("migratef")
 const DEFAULT_TARGET_DIR = "E:\\1Hub\\EH\\2EHV"
@@ -44,7 +49,7 @@ interface MigratefCliOptions {
   json?: boolean
 }
 
-interface MigratefNodeConfig {
+interface MigratefNodeConfig extends CliInteractionPreferencesSource {
   enable_undo?: boolean
   history_path?: string
 }
@@ -137,13 +142,16 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<MigratefNodeConfig>("migratef",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createMigratefInteractionSchema({historyPath:d.history_path,dryRun:true},language),run:(input,event)=>runMigratef(input,createNodeMigratefRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | plan | move | copy | history | undo`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).MigratefTui,createPreferences:(_d,current)=>migratefPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+function migratefPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"migratef",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"migratef",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<MigratefNodeConfig>("migratef",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {
@@ -158,8 +166,9 @@ function createDefaultHost(): CliHost {
 async function runSubcommand(action: MigratefAction, args: MigratefCliOptions, host: CliHost): Promise<void> {
   const defaults = await resolveMigratefDefaults(host, Boolean(args.json))
   const resolvedArgs: MigratefCliOptions = { ...args }
-  const sourceFromStdin = args.source === "-" || (!args.source && hasPipedInput(host.stdin))
-  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const readablePipe = hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)
+  const sourceFromStdin = args.source === "-" || (!args.source && readablePipe)
+  const pathFromStdin = args.path === "-" || (!args.path && readablePipe)
   if (sourceFromStdin || pathFromStdin) {
     const stdinValue = (await readStdinLines(host.stdin)).join(";")
     if (sourceFromStdin) resolvedArgs.source = stdinValue
