@@ -277,6 +277,21 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.environment).toHaveLength(13)
   })
 
+  test("supports direct and wheel thread editing and reports CPU, task threads, and encoder", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg", threads: 4 })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const input = screen.getByLabelText("并行线程数值")
+    fireEvent.change(input, { target: { value: "12" } })
+    expect(host.cardState.threads).toBe(12)
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    fireEvent.wheel(screen.getByLabelText("并行线程数值"), { deltaY: -1 })
+    expect(host.cardState.threads).toBe(13)
+    await userEvent.setup().click(within(screen.getByTestId("xlchemy-operations-tabs")).getByRole("tab", { name: "环境" }))
+    expect(screen.getByText(/CPU .*线程/)).toBeTruthy()
+    expect(screen.getByText("任务 13 线程")).toBeTruthy()
+    expect(screen.getByText("slimg")).toBeTruthy()
+  })
+
   test("renders colorful searchable log levels with independent filtering", async () => {
     render(<Component compId="xlchemy-card" host={createHost({ logs: ["12:00:00 converted ok", "12:00:01 warning skip", "12:00:02 error failed"] })} />)
     const user = userEvent.setup()
