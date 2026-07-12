@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 describe("kavvka CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses default interactive mode outside an interactive terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -27,10 +27,19 @@ describe("kavvka CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("scan")
+    expect(host.stdoutText()).toBe("")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
     expect(host.stderrText()).toContain("xkavvka")
-    expect(host.stderrText()).toContain("--json")
+  })
+
+  test.each([["ui"], ["gd"], ["guided"]])("guards %s when no TTY is available", async (...args) => {
+    const host = createHost()
+    await runProgram(args, host)
+    const exitCode = process.exitCode
+    process.exitCode = 0
+    expect(exitCode).toBe(2)
+    expect(host.stdoutText()).toBe("")
+    expect(host.stderrText()).toContain("mode requires an interactive terminal")
   })
 
   test("prints pure JSON scan results for real keyword folders", async () => {

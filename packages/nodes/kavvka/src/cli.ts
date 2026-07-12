@@ -21,13 +21,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { KavvkaAction, KavvkaInput, KavvkaResult } from "./core.js"
 import { DEFAULT_KAVVKA_KEYWORDS, parseKavvkaKeywords, parseKavvkaPaths, runKavvka } from "./core.js"
 import { createNodeKavvkaRuntime, readClipboardText } from "./platform.js"
+import { createKavvkaInteractionSchema, type KavvkaInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("kavvka")
 const SUMMARY_PATH_LIMIT = 20
@@ -46,7 +52,7 @@ interface KavvkaCliOptions {
   json?: boolean
 }
 
-interface KavvkaNodeConfig {
+interface KavvkaNodeConfig extends CliInteractionPreferencesSource {
   keywords?: string[]
   scan_depth?: number
   strict_artist?: boolean
@@ -93,11 +99,58 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => {
+      const { config } = await loadNodeConfigWithHints<KavvkaNodeConfig>("kavvka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
+      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+    },
+    createDefinition: createKavvkaDefinition,
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: runGuidedInteraction,
+    runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).KavvkaTui,
+    createPreferences: (_defaults, values) => createKavvkaPreferences(host, values),
+    reexecEntrypoint: process.argv[1],
+    help,
+  })
+}
+
+function createKavvkaDefinition(defaults: KavvkaNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<KavvkaInput, KavvkaResult> {
+  return {
+    schema: createKavvkaInteractionSchema({
+      keywordText: defaults.keywords?.join(", "),
+      scanDepth: defaults.scan_depth,
+      strictArtist: defaults.strict_artist,
+    } satisfies Partial<KavvkaInteractionValues>, language),
+    run: (input, onEvent) => runKavvka(input, createNodeKavvkaRuntime(), onEvent),
   }
-  await runMain(createProgram(host), { rawArgs: args })
+}
+
+function createKavvkaPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const options = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "kavvka",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(options)
+      await saveXiraniteConfig(updateNodeConfig(config, "kavvka", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<KavvkaNodeConfig>("kavvka", { ...options, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? "zh" }
+    },
+  }
+}
+
+function writeUsage(host: CliHost): void {
+  writeLine(host, `${CLI_NAME} - Czkawka comparison path workbench`)
+  writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`)
+  writeLine(host, `  ${CLI_NAME} gd`)
+  writeLine(host, `  ${CLI_NAME} scan|plan|process [options] [--json]`)
 }
 
 function createDefaultHost(): CliHost {
@@ -119,7 +172,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "process", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "process", ...inputFromArgs(await pipedPathOptions(args as KavvkaCliOptions, host), defaults) }, Boolean(args.json), host)
         },
       }),
       plan: defineCommand({
@@ -127,7 +180,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "plan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults), dryRun: true }, Boolean(args.json), host)
+          await runAction({ action: "plan", ...inputFromArgs(await pipedPathOptions(args as KavvkaCliOptions, host), defaults), dryRun: true }, Boolean(args.json), host)
         },
       }),
       scan: defineCommand({
@@ -135,7 +188,7 @@ function createProgram(host: CliHost = createDefaultHost()) {
         args: commonArgs(),
         async run({ args }) {
           const defaults = await resolveKavvkaDefaults(host, Boolean(args.json))
-          await runAction({ action: "scan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path, roots: (args.roots === "-" || (!args.roots && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.roots, root: (args.root === "-" || (!args.root && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.root } as KavvkaCliOptions, defaults) }, Boolean(args.json), host)
+          await runAction({ action: "scan", ...inputFromArgs(await pipedPathOptions(args as KavvkaCliOptions, host), defaults) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -146,6 +199,22 @@ function createProgram(host: CliHost = createDefaultHost()) {
       }),
     },
   })
+}
+
+async function pipedPathOptions(args: KavvkaCliOptions, host: CliHost): Promise<KavvkaCliOptions> {
+  const hasExplicitPath = Boolean(args.path || args.paths || args.root || args.roots)
+  const requested = args.path === "-" || args.paths === "-" || args.root === "-" || args.roots === "-" || (!hasExplicitPath && hasPipedInput(host.stdin))
+  if (!requested) return args
+  const lines = await readStdinLines(host.stdin)
+  const joined = lines.join(";")
+  const first = lines[0]
+  return {
+    ...args,
+    paths: args.paths === "-" || (!args.paths && !args.path) ? joined : args.paths,
+    path: args.path === "-" || (!args.path && !args.paths) ? first : args.path,
+    roots: args.roots === "-" || (!args.roots && !args.root) ? joined : args.roots,
+    root: args.root === "-" || (!args.root && !args.roots) ? first : args.root,
+  }
 }
 
 function commonArgs() {

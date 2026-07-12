@@ -4,29 +4,15 @@ import { captureCliVisual, expectCliVisualArtifacts } from "../../../../scripts/
 
 const CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url))
 
-afterEach(() => {
-  process.exitCode = 0
-})
+afterEach(() => { process.exitCode = 0 })
 
-describe("kavvka guided CLI visual capture", () => {
-  test("captures the Clack guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
-    const capture = await captureCliVisual({
-      nodeId: "kavvka",
-      cliPath: CLI_PATH,
-      args: [],
-      artifactName: "guided-entry",
-      waitForText: "选择 kavvka 动作",
-    })
-
-    expect(capture.plainText).toContain("Xiranite Kavvka")
-    expect(capture.plainText).toContain("Czkawka 包含路径准备工具")
-    expect(capture.plainText).toContain("scan 扫描关键词目录")
-    expect(capture.plainText).toContain("plan")
-    expect(capture.plainText).toContain("process")
-    expect(capture.plainText).toContain("选择 kavvka 动作")
-    expect(capture.plainText).not.toContain("Action: scan, plan, process.")
-    expect(capture.plainText).not.toContain("kavvka guided")
-    expect(capture.plainText).not.toContain("Enter path(s)")
+describe("kavvka OpenTUI visual capture", () => {
+  test("captures the compare path workbench as ANSI, HTML, and PNG artifacts", async () => {
+    const capture = await captureCliVisual({ nodeId: "kavvka", cliPath: CLI_PATH, args: [], artifactName: "compare-path-workbench", waitForText: "KAVVKA // PATH LAB" })
+    expect(capture.plainText).toContain("KAVVKA // PATH LAB")
+    expect(capture.plainText).toContain("扫描范围")
+    expect(capture.plainText).toContain("候选目录")
+    expect(capture.plainText).toContain("执行记录")
     expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
     expect(capture.html).not.toMatch(/\u001b|\?25|DABx/)
     await expectCliVisualArtifacts(capture)
