@@ -60,7 +60,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     try {
       const [response, presetResponse] = await Promise.all([pending, pendingPresets])
       if (response) {
-        setDefaults(response.config); setConfigPath(response.path)
+        setDefaults(normalizeXlchemyDefaults(response.config)); setConfigPath(response.path)
         const startup: Partial<XlchemyCardState> = {}
         if (response.config?.disableDownscalingStartup) startup.downscaleEnabled = false
         if (response.config?.disableDeleteStartup) startup.deleteOriginal = false
@@ -236,6 +236,16 @@ function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
     const preset = normalizeCustomPreset(candidate)
     return preset ? [preset] : []
   })
+}
+
+function normalizeXlchemyDefaults(value: unknown): Partial<XlchemyCardState> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const defaults: Partial<XlchemyCardState> = {}
+  for (const field of XL_CONFIG_FIELDS) {
+    const fieldValue = (value as Record<string, unknown>)[field]
+    if (fieldValue !== undefined) (defaults as Record<string, unknown>)[field] = fieldValue
+  }
+  return Object.keys(defaults).length ? defaults : undefined
 }
 
 function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefined {

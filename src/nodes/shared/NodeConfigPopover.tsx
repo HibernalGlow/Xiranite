@@ -51,7 +51,9 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const [presetName, setPresetName] = useState("")
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
   const disabled = Boolean(props.disabled || props.loading || busy)
-  const effectiveDefaults = props.defaults ?? props.fallbackDefaults
+  const effectiveDefaults = props.defaults && Object.keys(props.defaults).length
+    ? props.defaults
+    : props.fallbackDefaults
   const hasDefaults = effectiveDefaults !== undefined
   const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
   const selectedPresetEditable = selectedPreset?.editable === true
