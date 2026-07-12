@@ -1,4 +1,6 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { DEFAULT_RAM_OPTIMIZER_RULES, isRamOptimizerNecessary, optimizedEncoderThreads, parseRamOptimizationRules } from "./ram-optimizer.js"
+export { DEFAULT_RAM_OPTIMIZER_RULES } from "./ram-optimizer.js"
 
 export type XlchemyAction = "plan" | "convert" | "diagnose"
 export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless"
@@ -163,8 +165,8 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     avifencArgs: input.avifencArgs?.trim() ?? "",
     cjpegliArgs: input.cjpegliArgs?.trim() ?? "",
     imageMagickArgs: input.imageMagickArgs?.trim() ?? "",
-    ramOptimizer: input.ramOptimizer ?? "disabled",
-    ramOptimizerRules: input.ramOptimizerRules?.trim() ?? "",
+    ramOptimizer: input.ramOptimizer ?? "dynamic",
+    ramOptimizerRules: input.ramOptimizerRules?.trim() || DEFAULT_RAM_OPTIMIZER_RULES,
     exiftoolWipeArgs: input.exiftoolWipeArgs?.trim() ?? "",
     exiftoolPreserveArgs: input.exiftoolPreserveArgs?.trim() ?? "",
     exiftoolUnsafeWipeArgs: input.exiftoolUnsafeWipeArgs?.trim() ?? "",
@@ -446,26 +448,19 @@ async function applyExifToolMetadata(source: string, target: string, input: Xlch
 }
 
 async function optimizedThreads(source: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<number> {
-  if (!input.ramOptimizer || input.ramOptimizer === "disabled") return input.threads
-  const highMemory = input.format === "JPEG XL" && (input.jxlModular || input.effort > (input.lossless ? 9 : 7)) || input.format === "AVIF" && input.avifEncoder === "svt"
-  if (!highMemory) return input.threads
+  const mode = input.ramOptimizer ?? "dynamic"
+  if (mode === "disabled") return input.threads
+  const context = { format: input.format, avifEncoder: input.avifEncoder, jpegXlEffort: input.maxCompression ? 10 : input.effort, jpegXlLossyModular: input.jxlModular ?? false, jpegXlLossless: input.lossless, jpegXlIntelligentEffort: input.intelligentEffort ?? false }
+  if (!isRamOptimizerNecessary(context)) return input.threads
+  if (mode === "static") return optimizedEncoderThreads(mode, input.threads, 0, context, [])
   const magick = await runtime.resolveCommand(["magick"])
   if (!magick) return input.threads
   const info = await runRuntimeCommand(runtime, magick, ["identify", "-ping", "-format", "%w %h", `${source}[0]`])
   const dimensions = /([0-9]+)\s+([0-9]+)/.exec(info.stdout)
   if (!dimensions) return input.threads
   const megapixels = Number(dimensions[1]) * Number(dimensions[2]) / 1_000_000
-  const rules = parseRamRules(input.ramOptimizer === "dynamic" && !input.ramOptimizerRules ? '("all", 50, "1/2")\n("all", 100, "1")' : input.ramOptimizerRules ?? "")
-  const scope = input.format === "AVIF" ? "SVT-AV1-PSY" : "JPEG XL"
-  const rule = rules.filter((item) => item.scope === "all" || item.scope === scope).filter((item) => megapixels >= item.threshold).sort((a, b) => b.threshold - a.threshold)[0]
-  if (!rule) return input.threads
-  if (rule.target === "1") return input.threads
-  const [numerator, denominator] = rule.target.split("/").map(Number)
-  const maxWorkers = Math.max(1, Math.floor(input.threads * numerator! / denominator!))
-  return Math.max(1, Math.floor(input.threads / maxWorkers))
+  return optimizedEncoderThreads(mode, input.threads, megapixels, context, parseRamOptimizationRules(input.ramOptimizerRules ?? DEFAULT_RAM_OPTIMIZER_RULES))
 }
-
-function parseRamRules(value: string) { const rules: Array<{ scope: string; threshold: number; target: string }> = []; for (const match of value.matchAll(/\("(all|JPEG XL|SVT-AV1-PSY)",\s*(\d+(?:\.\d+)?),\s*"([1-9]+\/[1-9]+|1)"\)/g)) rules.push({ scope: match[1]!, threshold: Number(match[2]), target: match[3]! }); return rules }
 function splitCommandArgs(value: string): string[] { const args: string[] = []; for (const match of value.matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)) args.push(match[1] ?? match[2] ?? match[3] ?? ""); return args.filter(Boolean) }
 
 function summarize(files: XlchemyFileResult[], elapsedMs: number): XlchemyData { const errors = files.filter((file) => file.status === "error").map((file) => `${file.sourcePath}: ${file.error ?? "error"}`); return { files, inputCount: files.length, convertedCount: files.filter((file) => file.status === "converted").length, skippedCount: files.filter((file) => file.status === "skipped").length, errorCount: errors.length, inputBytes: files.reduce((sum, file) => sum + (file.sourceBytes ?? 0), 0), outputBytes: files.reduce((sum, file) => sum + (file.outputBytes ?? 0), 0), elapsedMs, errors } }

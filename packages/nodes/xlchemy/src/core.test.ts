@@ -74,7 +74,20 @@ describe("xlchemy core contract", () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", quality: 60, effort: 7, threads: 4, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
-    expect(runtime.commands[0]).toEqual({ command: "/bin/ffmpeg", args: ["-hide_banner", "-loglevel", "error", "-y", "-i", "/photos/a.png", "-frames:v", "1", "-c:v", "libsvtav1", "-preset", "4", "-crf", "25", "-threads", "4", "-pix_fmt", "yuv420p", "-f", "avif", "/photos/a.avif"] })
+    expect(runtime.commands.at(-1)).toEqual({ command: "/bin/ffmpeg", args: ["-hide_banner", "-loglevel", "error", "-y", "-i", "/photos/a.png", "-frames:v", "1", "-c:v", "libsvtav1", "-preset", "4", "-crf", "25", "-threads", "4", "-pix_fmt", "yuv420p", "-f", "avif", "/photos/a.avif"] })
+  })
+
+  test("applies original dynamic RAM rules to high-memory SVT encoding", async () => {
+    const runtime = fakeRuntime()
+    const runCommand = runtime.runCommand
+    runtime.runCommand = async (command, args) => args[0] === "identify"
+      ? (runtime.commands.push({ command, args }), { exitCode: 0, stdout: "4000 2200", stderr: "" })
+      : runCommand(command, args)
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", threads: 16, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands[0]?.args[0]).toBe("identify")
+    expect(runtime.commands.at(-1)?.args).toContain("4")
+    expect(runtime.commands.at(-1)?.args.slice(-7, -5)).toEqual(["-threads", "4"])
   })
 
   test("accepts JXL input for JPEG reconstruction even when JXL is globally excluded", async () => {
