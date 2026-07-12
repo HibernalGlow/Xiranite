@@ -1,519 +1,117 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { PackuToolAction, PackuToolData, PackuToolInput, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-import { Play, RotateCcw, Square } from "lucide-react"
+import { BITV_DEFAULTS, type BitvAction, type BitvData, type BitvInput, type BitvVideoInfo } from "@xiranite/node-bitv/core"
+import { AlertTriangle, BarChart3, Clipboard, Copy, FileJson, FileVideo, Folder, FolderOutput, Gauge, Play, RotateCcw, Square, Terminal, Video, Waypoints } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
-import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { RunningTint } from "@/nodes/shared/controls"
-import { ACTIONS, NODE_META, type BitvAction } from "./constants"
-import {
-  ActionIconButton,
-  ActionPicker,
-  OptionsPopover,
-  PathFields,
-  PathsInput,
-  RuntimeOptions,
-  StatusStrip,
-} from "./controls"
-import { BitvCommandPreview, BitvReportLog, BitvStatsDashboard } from "./results"
+import { ACTIONS, NODE_META, type BitvActionMeta } from "./constants"
 import type { BitvCardState, BitvStatusMeta } from "./types"
-import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   const surface = useNodeSurface()
-  const { t } = useNodeI18n("bitv")
   const data = getHostData(host, compId)
-  const dataRef = useRef<BitvCardState>(data)
+  const dataRef = useRef(data)
   dataRef.current = data
-
   const [running, setRunning] = useState(false)
-  const [defaults, setDefaults] = useState<Partial<BitvCardState> | undefined>(undefined)
-  const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
-  const [configDirty, setConfigDirty] = useState(false)
-
-  const action = data.action ?? "status"
-  const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
+  const [resultTab, setResultTab] = useState("tree")
+  const action = data.action ?? "analyze"
   const result = data.result ?? null
   const logs = data.logs ?? []
   const progress = data.progress ?? 0
   const status = statusFromState(data, running)
-  const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
-  const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
-  const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
-
-  async function reloadDefaults() {
-    try {
-      const response = await (host.config?.get?.<Partial<BitvCardState>>() ?? host.getNodeConfig?.<Partial<BitvCardState>>())
-      setDefaults(response?.config)
-      setConfigFilePath(response?.path)
-    } catch {
-      // Browser QA does not expose the desktop configuration service.
-    }
-  }
-
-  useEffect(() => {
-    void reloadDefaults()
-  }, [host])
-
-  useEffect(() => {
-    if (!defaults) return
-    setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [
-    data.configPath,
-    data.databasePath,
-    data.argsText,
-    data.python,
-    data.sourceRoot,
-    data.moduleName,
-    data.dryRun,
-    data.recordRun,
-    defaults,
-  ])
+  const compact = surface.mode === "compact" || surface.mode === "portrait"
 
   function patch(patchData: Partial<BitvCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
+    if ("pathsText" in patchData) setResultTab("tree")
     if (host.state?.patchData) host.state.patchData(patchData)
     else host.patchData(compId, patchData)
   }
-
-  function pushLog(message: string) {
-    const nextLogs = [...(dataRef.current.logs ?? []), message].slice(-120)
-    patch({ logs: nextLogs })
-  }
-
-  async function pastePaths() {
-    const text = await host.clipboard?.readText?.()
-    if (text) patch({ pathsText: text.trim() })
-  }
-
-  async function copyLogs() {
-    await host.clipboard?.writeText?.(logs.join("\n"))
-  }
-
+  function pushLog(message: string) { patch({ logs: [...(dataRef.current.logs ?? []), message].slice(-120) }) }
+  async function pastePaths() { const text = await host.clipboard?.readText?.(); if (text?.trim()) patch({ pathsText: text.trim() }) }
   async function copyResults() {
     const current = dataRef.current.result
     if (!current) return
-    const lines: string[] = []
-    if (current.command.command) {
-      lines.push(`${current.command.label}\t${current.command.command} ${current.command.args.join(" ")}`)
-    }
-    lines.push(`sourceRoot\t${current.integration.sourceRoot}`)
-    lines.push(`moduleName\t${current.integration.moduleName}`)
-    for (const candidate of current.integration.configCandidates) {
-      lines.push(`configCandidate\t${candidate}`)
-    }
-    if (current.integration.databasePath) lines.push(`databasePath\t${current.integration.databasePath}`)
-    await host.clipboard?.writeText?.(lines.join("\n"))
+    await host.clipboard?.writeText?.([
+      ...current.videos.map((item) => `${item.filename}\t${item.bitrateMbps.toFixed(2)} Mbps\t${item.resolution}\t${item.bitrateLevel}`),
+      ...current.operations.map((item) => `${item.mode}\t${item.sourcePath}\t${item.targetPath}`),
+      ...current.errors,
+    ].join("\n"))
   }
-
-  function reset() {
-    patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null })
-  }
-
-  async function saveAsDefault() {
-    const config: Partial<BitvCardState> = {}
-    for (const field of CONFIG_FIELDS) {
-      const value = dataRef.current[field]
-      if (value !== undefined) (config as Record<string, unknown>)[field] = value
-    }
-    if (host.config?.save) await host.config.save(config)
-    else await host.saveNodeConfig?.(config)
-    setDefaults(config)
-    setConfigDirty(false)
-  }
-
-  function restoreDefault() {
-    if (defaults) patch(defaults)
-  }
-
-  async function execute(nextAction: PackuToolAction = action) {
+  async function execute(nextAction = action) {
     if (running) return
-    const current = dataRef.current
-
-    if (nextAction !== "status" && !clean(current.pathsText)) {
-      const message = "请先输入至少一个视频路径。"
-      patch({ phase: "error", progress: 0, progressText: message })
-      pushLog(message)
-      return
-    }
-
+    const input = buildInput(nextAction, dataRef.current)
+    const error = validateInput(input)
+    if (error) { patch({ phase: "error", progress: 0, progressText: error }); pushLog(error); return }
     const run = host.runner?.run ?? host.actions?.run
-    if (!run) {
-      const message = "当前环境没有本地运行能力，请使用桌面模式或 CLI。"
-      patch({ phase: "error", progress: 0, progressText: message })
-      pushLog("Native action is unavailable in this host.")
-      return
-    }
-
+    if (!run) { const message = "当前宿主不支持本地 BitV 运行。请在桌面模式或 CLI 中执行。"; patch({ phase: "error", progressText: message }); pushLog(message); return }
     setRunning(true)
-    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionLabel(nextAction)}开始`, result: null })
+    patch({ action: nextAction, phase: "running", progress: 0, progressText: `${actionMeta(nextAction).label}开始`, result: null })
     try {
-      const response = await run<PackuToolInput, PackuToolData>(NODE_META.id, buildInput(nextAction, current, NODE_META.spec), (event: NodeRunEvent) => {
-        if (event.type === "progress") {
-          patch({ progress: event.progress ?? 0, progressText: event.message })
-          pushLog(`[${event.progress ?? 0}%] ${event.message}`)
-          return
-        }
-        pushLog(event.message)
-      }) as NodeRunResult<PackuToolData>
-
-      patch({
-        phase: response.success ? "completed" : "error",
-        progress: response.success ? 100 : 0,
-        progressText: response.message,
-        result: response.data ?? null,
-      })
+      const response = await run<BitvInput, BitvData>(NODE_META.id, input, (event: NodeRunEvent) => {
+        if (event.type === "progress") { patch({ progress: event.progress ?? 0, progressText: event.message }); pushLog(`[${event.progress ?? 0}%] ${event.message}`) }
+        else pushLog(event.message)
+      }) as NodeRunResult<BitvData>
+      patch({ phase: response.success ? "completed" : "error", progress: response.success ? 100 : 0, progressText: response.message, result: response.data ?? null })
+      if (nextAction === "analyze") setResultTab("videos")
       pushLog(response.message)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      patch({ phase: "error", progress: 0, progressText: message })
-      pushLog(message)
-    } finally {
-      setRunning(false)
-    }
+    } catch (runError) { const message = runError instanceof Error ? runError.message : String(runError); patch({ phase: "error", progress: 0, progressText: message }); pushLog(message) }
+    finally { setRunning(false) }
   }
-
-  const commonProps = {
-    action,
-    actionMeta,
-    configDirty,
-    configFilePath,
-    data,
-    defaults,
-    logs,
-    progress,
-    result,
-    running,
-    status,
-    t,
-    onActionChange: (value: BitvAction) => patch({ action: value }),
-    onCopyLogs: copyLogs,
-    onCopyResults: copyResults,
-    onExecute: execute,
-    onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
-    onPastePaths: pastePaths,
-    onPatch: patch,
-    onReloadDefaults: reloadDefaults,
-    onReset: reset,
-    onRestoreDefault: restoreDefault,
-    onSaveDefault: saveAsDefault,
-  }
-
-  return (
-    <TooltipProvider>
-      <div ref={surface.ref} className="@container/bitv relative flex h-full min-h-0 w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_16%_0%,color-mix(in_oklch,var(--primary)_14%,transparent),transparent_36%),radial-gradient(circle_at_86%_8%,color-mix(in_oklch,var(--chart-4)_14%,transparent),transparent_34%)]" />
-        <div className="relative flex min-h-0 w-full flex-col">
-          {surface.mode === "collapsed" || forceCollapsedSurface ? (
-            <CollapsedView {...commonProps} />
-          ) : compactSurface ? (
-            portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />
-          ) : (
-            <FullView {...commonProps} />
-          )}
-        </div>
-      </div>
-    </TooltipProvider>
-  )
+  const props: ViewProps = { action, data, logs, progress, result, resultTab, running, status, onCopyLogs: () => host.clipboard?.writeText?.(logs.join("\n")), onCopyResults: copyResults, onExecute: execute, onPatch: patch, onReset: () => { patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null }); setResultTab("tree") }, onResultTabChange: setResultTab }
+  return <TooltipProvider><div ref={surface.ref} className="@container/bitv flex h-full min-h-0 w-full overflow-hidden">{surface.mode === "collapsed" || (compact && surface.height > 0 && surface.height < 150) ? <CollapsedView {...props} /> : surface.mode === "portrait" ? <PortraitView {...props} /> : surface.mode === "compact" ? <CompactView {...props} /> : <FullView {...props} />}</div></TooltipProvider>
 }
 
-type ViewProps = ReturnType<typeof createViewProps>
+type ViewProps = { action: BitvAction; data: BitvCardState; logs: string[]; progress: number; result: BitvData | null; resultTab: string; running: boolean; status: BitvStatusMeta; onCopyLogs: () => Promise<void> | void; onCopyResults: () => Promise<void> | void; onExecute: (action?: BitvAction) => void; onPastePaths: () => void; onPatch: (patch: Partial<BitvCardState>) => void; onReset: () => void; onResultTabChange: (value: string) => void }
 
-function createViewProps(props: {
-  action: PackuToolAction
-  actionMeta: typeof ACTIONS[number]
-  configDirty: boolean
-  configFilePath?: string
-  data: BitvCardState
-  defaults?: Partial<BitvCardState>
-  logs: string[]
-  progress: number
-  result: PackuToolData | null
-  running: boolean
-  status: BitvStatusMeta
-  t: ReturnType<typeof useNodeI18n>["t"]
-  onActionChange: (value: BitvAction) => void
-  onCopyLogs: () => void
-  onCopyResults: () => void
-  onExecute: (action?: PackuToolAction) => void
-  onOpenConfigFile?: () => Promise<void> | void
-  onPastePaths: () => void
-  onPatch: (patch: Partial<BitvCardState>) => void
-  onReloadDefaults: () => Promise<void>
-  onReset: () => void
-  onRestoreDefault: () => void
-  onSaveDefault: () => void
-}) {
-  return props
+function CollapsedView(props: ViewProps) { const Icon = NODE_META.icon; return <div data-testid="bitv-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 rounded-xl border bg-card px-3 py-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon className="size-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-xs font-semibold">BitV <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.data.progressText || actionMeta(props.action).description}</p></div><RunButton compact props={props} /></div> }
+function CompactView(props: ViewProps) { return <div data-testid="bitv-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3"><Header {...props} /><OperationDesk compact props={props} /><ResultDesk compact props={props} /></div> }
+function PortraitView(props: ViewProps) { return <div data-testid="bitv-portrait-view" className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header {...props} /><OperationDesk compact props={props} /><ResultDesk compact props={props} /></div> }
+function FullView(props: ViewProps) { return <div data-testid="bitv-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><div className="flex shrink-0 items-center justify-between gap-3"><Header {...props} /><div data-testid="bitv-header-toolbar"><IconButton disabled={props.running} icon={RotateCcw} label="清空结果" onClick={props.onReset} /></div></div><Metrics progress={props.progress} result={props.result} /><div className="grid min-h-0 flex-1 gap-3 @5xl/bitv:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]"><OperationDesk props={props} /><ResultDesk props={props} /></div></div> }
+function Header(props: ViewProps) { const meta = actionMeta(props.action); const Icon = meta.icon; return <div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon className="size-4" /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="text-sm font-semibold">BitV</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-0.5 truncate text-xs text-muted-foreground">{props.data.progressText || meta.description}</p></div></div> }
+
+function OperationDesk({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  return <section className={cn("rounded-lg border bg-card", !compact && "flex min-h-0 flex-col")}><Tabs value={props.action} onValueChange={(value) => props.onPatch({ action: value as BitvAction })} className="min-h-0"><TabsList variant="line" className="grid w-full grid-cols-4 px-2 pt-1">{ACTIONS.map((item) => <TabsTrigger key={item.value} disabled={props.running} value={item.value}><item.icon className="size-3.5" /><span className="hidden @4xl/bitv:inline">{item.shortLabel}</span></TabsTrigger>)}</TabsList>{ACTIONS.map((item) => <TabsContent key={item.value} value={item.value} className="min-h-0 px-3 pb-3"><OperationForm compact={compact} item={item} props={props} /></TabsContent>)}</Tabs></section>
 }
-
-function CollapsedView(props: ViewProps) {
-  const ActionIcon = props.actionMeta.icon
-  const NodeIcon = NODE_META.icon
-  return (
-    <div data-testid="bitv-collapsed-view" className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
-      <RunningTint tone={props.status.tone} />
-      <div className={cn("relative grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
-        <NodeIcon />
-      </div>
-      <div className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-1 text-xs font-semibold leading-none">
-          <span>{NODE_META.title}</span>
-          <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge>
-        </div>
-        <div className="mt-1 flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-          <ActionIcon className="size-3.5 shrink-0" />
-          <span className="truncate">{summaryText(props)}</span>
-        </div>
-      </div>
-      <RunActionButton compact props={props} />
-      {props.status.tone === "running" && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
-    </div>
-  )
+function OperationForm({ compact, item, props }: { compact?: boolean; item: BitvActionMeta; props: ViewProps }) {
+  const sourceAction = item.value === "analyze"
+  const targetAction = item.value === "classify" || item.value === "report"
+  return <div className="grid gap-3"><div className="flex items-start gap-2"><item.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" /><div><div className="text-xs font-medium">{item.label}</div>{!compact && <p className="mt-0.5 text-[11px] text-muted-foreground">{item.description}</p>}</div></div>{sourceAction && <PathWorkbench compact={compact} data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />}{item.value === "report" && <Input aria-label="bitv 分析报告" disabled={props.running} placeholder="BitV 分析报告 JSON 路径" value={props.data.reportPath ?? ""} onChange={(event) => props.onPatch({ reportPath: event.currentTarget.value })} />}{item.value === "analyze" && <Input aria-label="bitv 报告输出路径" disabled={props.running} placeholder="可选：保存分析报告到 .json" value={props.data.outputPath ?? ""} onChange={(event) => props.onPatch({ outputPath: event.currentTarget.value })} />}{targetAction && <Input aria-label="bitv 分类目标目录" disabled={props.running} placeholder="分类目标目录" value={props.data.targetPath ?? ""} onChange={(event) => props.onPatch({ targetPath: event.currentTarget.value })} />}{item.value !== "status" && <Settings action={item.value} data={props.data} disabled={props.running} onPatch={props.onPatch} />}<div className="flex items-center justify-between gap-2 border-t pt-2"><span className="text-[11px] text-muted-foreground">{targetAction ? (props.data.dryRun ?? true) ? "预演：不会改动视频" : "真实执行：会写入目标目录" : item.value === "status" ? "不读取视频文件" : "分析结果可写为 JSON 报告"}</span><RunButton compact={compact} props={{ ...props, action: item.value }} /></div></div>
 }
+function PathWorkbench(props: { compact?: boolean; data: BitvCardState; disabled: boolean; onPaste: () => void; onPatch: (patch: Partial<BitvCardState>) => void }) { return <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">{props.compact ? <Input aria-label="bitv 视频路径" disabled={props.disabled} className="font-mono text-xs" placeholder="视频文件或目录路径，每行一个" value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} /> : <Textarea aria-label="bitv 视频路径" disabled={props.disabled} className="min-h-20 font-mono text-xs" placeholder={"每行一个视频文件或目录\nD:/Videos/clip.mp4\nD:/Videos/Season 1"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />}<IconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} /></div> }
+function Settings(props: { action: BitvAction; data: BitvCardState; disabled: boolean; onPatch: (patch: Partial<BitvCardState>) => void }) { const targetAction = props.action === "classify" || props.action === "report"; return <div className="grid gap-2 @4xl/bitv:grid-cols-2">{(props.action === "analyze" || props.action === "classify") && <Field orientation="horizontal" className="rounded-md border p-2"><FieldContent><FieldTitle className="text-xs">递归扫描</FieldTitle><FieldDescription className="text-[11px]">目录包含子文件夹</FieldDescription></FieldContent><Switch aria-label="递归扫描" checked={props.data.recursive ?? BITV_DEFAULTS.recursive} disabled={props.disabled} size="sm" onCheckedChange={(recursive) => props.onPatch({ recursive })} /></Field>}<NumberInput label="码率步长 (Mbps)" value={props.data.bitrateStepMbps ?? BITV_DEFAULTS.bitrateStepMbps} disabled={props.disabled} onChange={(bitrateStepMbps) => props.onPatch({ bitrateStepMbps })} /><NumberInput label="分级数量" value={props.data.maxLevels ?? BITV_DEFAULTS.maxLevels} disabled={props.disabled} onChange={(maxLevels) => props.onPatch({ maxLevels })} />{targetAction && <><div className="grid grid-cols-2 gap-1 rounded-md border p-1"><Button disabled={props.disabled} size="xs" variant={(props.data.transferMode ?? "copy") === "copy" ? "secondary" : "ghost"} onClick={() => props.onPatch({ transferMode: "copy" })}>复制</Button><Button disabled={props.disabled} size="xs" variant={props.data.transferMode === "move" ? "secondary" : "ghost"} onClick={() => props.onPatch({ transferMode: "move" })}>移动</Button></div><Field orientation="horizontal" className={cn("rounded-md border p-2", props.data.dryRun === false && "border-destructive/50")}><FieldContent><FieldTitle className="text-xs">预演模式</FieldTitle><FieldDescription className="text-[11px]">关闭后执行文件操作</FieldDescription></FieldContent><Switch aria-label="预演模式" checked={props.data.dryRun ?? true} disabled={props.disabled} size="sm" onCheckedChange={(dryRun) => props.onPatch({ dryRun })} /></Field></>}</div> }
+function NumberInput(props: { disabled: boolean; label: string; value: number; onChange: (value: number) => void }) { return <Input aria-label={`bitv ${props.label}`} disabled={props.disabled} min={0.1} step={props.label.includes("数量") ? 1 : 0.5} type="number" value={props.value} onChange={(event) => props.onChange(Number(event.currentTarget.value))} /> }
 
-function CompactView(props: ViewProps) {
-  return (
-    <div data-testid="bitv-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3 pb-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
-        </div>
-      </div>
-      <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-      <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-      <BitvStatsDashboard compact result={props.result} progress={props.progress} />
-      {(props.status.tone === "running" || props.status.tone === "error") && (
-        <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
-      )}
-      <div className="min-h-0 flex-1">
-        <BitvReportLog compact logs={props.logs} result={props.result} running={props.running} onCopy={props.onCopyLogs} />
-      </div>
-    </div>
-  )
-}
+type TreeNode = { name: string; path: string; kind: "directory" | "video"; children: TreeNode[] }
+function PathTree({ pathsText }: { compact?: boolean; pathsText?: string }) { const roots = buildPathTree(pathsText); return <div data-testid="bitv-path-tree" className="rounded-md border bg-muted/20"><div className="flex items-center gap-1.5 border-b px-2 py-1.5 text-[11px] font-medium text-muted-foreground"><FolderOutput className="size-3.5" />视频分析输入 <Badge variant="outline" className="ml-auto text-[10px]">{roots.length} 项</Badge></div><ScrollArea className="max-h-28"><div className="p-1.5">{roots.length ? roots.map((node) => <TreeRow key={node.path} node={node} />) : <div className="px-1 py-3 text-center text-[11px] text-muted-foreground">添加文件或目录后会显示在这里。</div>}</div></ScrollArea></div> }
+function TreeRow({ depth = 0, node }: { depth?: number; node: TreeNode }) { const Icon = node.kind === "video" ? FileVideo : Folder; return <div><div className="flex min-w-0 items-center gap-1.5 rounded px-1 py-1 text-xs" style={{ paddingLeft: `${depth * 12 + 4}px` }} title={node.path}><Icon className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate font-mono">{node.name}</span>{node.kind === "directory" && <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">扫描</span>}</div>{node.children.map((child) => <TreeRow key={child.path} depth={depth + 1} node={child} />)}</div> }
+function buildPathTree(pathsText?: string): TreeNode[] { const roots: TreeNode[] = []; for (const raw of pathsText?.split(/\r?\n/) ?? []) { const path = raw.trim().replace(/^['"]|['"]$/g, ""); if (!path) continue; const parts = path.replaceAll("\\", "/").split("/").filter(Boolean); let nodes = roots; let joined = path.startsWith("/") ? "/" : ""; for (let index = 0; index < parts.length; index += 1) { const name = parts[index]!; joined = joined ? `${joined}/${name}` : name; const last = index === parts.length - 1; const kind = last && /\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v|mpg|mpeg|ogv|ts|mts|m2ts)$/i.test(name) ? "video" : "directory"; let node = nodes.find((item) => item.name === name && item.kind === kind); if (!node) { node = { name, path: joined, kind, children: [] }; nodes.push(node) } nodes = node.children } } return roots }
 
-function PortraitCompactView(props: ViewProps) {
-  return (
-    <div data-testid="bitv-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div className="flex shrink-0 items-center gap-1">
-          <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
-        </div>
-      </div>
-      <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-        <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-      </div>
-      <BitvStatsDashboard compact result={props.result} progress={props.progress} />
-      <div className="min-h-0 flex-1">
-        <BitvReportLog compact logs={props.logs} result={props.result} running={props.running} onCopy={props.onCopyLogs} />
-      </div>
-    </div>
-  )
-}
-
-function FullView(props: ViewProps) {
-  return (
-    <div data-testid="bitv-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-2 @3xl/bitv:flex-row @3xl/bitv:items-center @3xl/bitv:justify-between">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-        <div data-testid="bitv-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-          <ActionPicker action={props.action} disabled={props.running} triggerClassName="@3xl/bitv:w-72" onActionChange={props.onActionChange} />
-          <RunActionButton props={props} />
-          <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-          <NodeConfigPopover
-            configPath={props.configFilePath}
-            defaults={props.defaults}
-            dirty={props.configDirty}
-            disabled={props.running}
-            t={props.t}
-            onOpenFile={props.onOpenConfigFile}
-            onReload={props.onReloadDefaults}
-            onRestore={props.onRestoreDefault}
-            onSave={props.onSaveDefault}
-          />
-        </div>
-      </div>
-
-      <BitvStatsDashboard result={props.result} progress={props.progress} />
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @4xl/bitv:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-2 border-b pb-3">
-            <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-2 border-b pb-3">
-            <div className="text-sm font-semibold">运行选项</div>
-            <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-2 border-b pb-3">
-            <div className="text-sm font-semibold">可执行文件</div>
-            <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
-        <div className="min-h-0">
-          <BitvCommandPreview result={props.result} onCopy={props.onCopyResults} />
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1">
-        <BitvReportLog logs={props.logs} result={props.result} running={props.running} onCopy={props.onCopyLogs} />
-      </div>
-    </div>
-  )
-}
-
-function RunActionButton({ compact, props }: { compact?: boolean; props: ViewProps }) {
-  if (props.running) {
-    return (
-      <Button aria-label="bitv running" disabled size={compact ? "icon-sm" : "sm"} variant="secondary">
-        <Square />
-        {!compact && <span>运行中</span>}
-      </Button>
-    )
-  }
-
-  const label = actionLabel(props.action)
-  const destructive = props.action === "run" && !(props.data.dryRun ?? true)
-  if (destructive) {
-    return (
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button aria-label={label} size={compact ? "icon-sm" : "sm"} variant="destructive">
-            <Play />
-            {!compact && <span>{label}</span>}
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认分析码率？</AlertDialogTitle>
-            <AlertDialogDescription>
-              当前已关闭预演，会调用 BitV 模块执行真实码率分析，将读取视频文件并输出视频分类报告。请确认视频路径和配置无误。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认分析</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    )
-  }
-
-  return (
-    <Button aria-label={label} disabled={props.running} size={compact ? "icon-sm" : "sm"} onClick={() => props.onExecute(props.action)}>
-      <Play />
-      {!compact && <span>{label}</span>}
-    </Button>
-  )
-}
-
-function HeaderLine({ actionMeta, status, subtitle }: {
-  actionMeta: typeof ACTIONS[number]
-  status: BitvStatusMeta
-  subtitle: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
-          <actionMeta.icon />
-        </div>
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold leading-none">{NODE_META.title}</h3>
-            <Badge variant={status.badgeVariant}>{status.label}</Badge>
-          </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function buildInput(action: PackuToolAction, data: BitvCardState, spec: PackuToolSpec): PackuToolInput {
-  const pathsText = clean(data.pathsText)
-  const argsText = clean(data.argsText)
-  return {
-    action,
-    paths: pathsText ? pathsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : [],
-    args: argsText ? argsText.split(/\s+/).filter(Boolean) : [],
-    configPath: clean(data.configPath),
-    databasePath: clean(data.databasePath),
-    python: clean(data.python),
-    sourceRoot: clean(data.sourceRoot) || spec.sourceRoot,
-    moduleName: clean(data.moduleName) || spec.moduleName,
-    dryRun: data.dryRun ?? true,
-    recordRun: data.recordRun ?? false,
-  }
-}
-
-function statusFromState(data: BitvCardState, running: boolean): BitvStatusMeta {
-  if (running || data.phase === "running") {
-    return {
-      label: "运行中",
-      description: data.progressText || "BitV 正在分析视频码率。",
-      tone: "running",
-      badgeVariant: "secondary",
-      iconClass: "bg-primary text-primary-foreground",
-    }
-  }
-  if (data.phase === "completed") {
-    return {
-      label: "完成",
-      description: data.progressText || "上次码率分析已完成。",
-      tone: "success",
-      badgeVariant: "default",
-      iconClass: "bg-primary text-primary-foreground",
-    }
-  }
-  if (data.phase === "error") {
-    return {
-      label: "失败",
-      description: data.progressText || "上次码率分析失败，请查看报告。",
-      tone: "error",
-      badgeVariant: "destructive",
-      iconClass: "bg-destructive text-destructive-foreground",
-    }
-  }
-  return {
-    label: "就绪",
-    description: "选择动作后查看配置、预览分析或执行码率分析。",
-    tone: "idle",
-    badgeVariant: "outline",
-    iconClass: "bg-secondary text-secondary-foreground",
-  }
-}
-
-function summaryText(props: ViewProps): string {
-  if (props.data.progressText) return props.data.progressText
-  if (props.result?.selectedPaths.length) {
-    return `${props.result.selectedPaths.length} 视频 / ${props.result.errors.length} 错误`
-  }
-  return props.actionMeta.description
-}
-
-function actionLabel(action: PackuToolAction): string {
-  return ACTIONS.find((item) => item.value === action)?.label ?? action
-}
-
-function clean(value: unknown): string | undefined {
-  const text = String(value ?? "").trim()
-  return text || undefined
-}
-
-function getHostData(host: NodeComponentProps<BitvCardState>["host"], compId: string): BitvCardState {
-  return host.state?.getData?.() ?? host.getData<BitvCardState>(compId) ?? {}
-}
+function Metrics({ progress, result }: { progress: number; result: BitvData | null }) { const stats = result?.stats; return <div data-testid="bitv-stats-dashboard" className="grid shrink-0 grid-cols-2 gap-2 @4xl/bitv:grid-cols-4"><Metric icon={Video} label="视频" value={stats?.totalVideos ?? 0} /><Metric icon={Gauge} label="平均码率" value={stats ? `${stats.averageBitrateMbps.toFixed(1)} Mbps` : "—"} /><Metric icon={FolderOutput} label="分类操作" value={result?.operations.length ?? 0} /><Metric destructive icon={AlertTriangle} label="问题" value={result?.errors.length ?? 0} />{progress > 0 && <Progress className="col-span-full h-1.5" value={progress} />}</div> }
+function Metric({ destructive, icon: Icon, label, value }: { destructive?: boolean; icon: LucideIcon; label: string; value: number | string }) { return <div className="min-w-0 rounded-lg border bg-card px-2.5 py-2"><div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Icon className="size-3.5" />{label}</div><div className={cn("mt-1 truncate text-base font-semibold tabular-nums", destructive && Number(value) > 0 && "text-destructive")}>{value}</div></div> }
+function ResultDesk({ compact, props }: { compact?: boolean; props: ViewProps }) { const errors = props.result?.errors ?? []; return <section className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card"><Tabs value={props.resultTab} onValueChange={props.onResultTabChange} className="min-h-0 flex-1"><div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-1"><TabsList variant="line"><TabsTrigger value="tree"><FolderOutput />文件树</TabsTrigger><TabsTrigger value="videos"><Video />视频</TabsTrigger><TabsTrigger value="plan"><Waypoints />计划</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />问题</TabsTrigger><TabsTrigger value="logs"><Terminal />日志</TabsTrigger></TabsList><div className="flex gap-1"><IconButton disabled={!(props.result?.videos.length || props.result?.operations.length)} icon={Copy} label="复制结果" onClick={props.onCopyResults} /><IconButton disabled={!props.logs.length} icon={Clipboard} label="复制日志" onClick={props.onCopyLogs} /></div></div><Separator /><TabsContent value="tree" className="min-h-0"><PathTree compact={compact} pathsText={props.data.pathsText} /></TabsContent><TabsContent value="videos" className="min-h-0"><VideoTable compact={compact} videos={props.result?.videos ?? []} /></TabsContent><TabsContent value="plan" className="min-h-0"><PlanList compact={compact} operations={props.result?.operations ?? []} /></TabsContent><TabsContent value="issues" className="min-h-0"><TextPanel compact={compact} empty="未发现问题。" icon={AlertTriangle} lines={errors} /></TabsContent><TabsContent value="logs" className="min-h-0"><TextPanel compact={compact} empty="运行事件会显示在这里。" icon={Terminal} lines={props.logs} /></TabsContent></Tabs></section> }
+function VideoTable({ compact, videos }: { compact?: boolean; videos: BitvVideoInfo[] }) { return <ScrollArea className={cn("h-full", compact ? "min-h-28" : "min-h-0 flex-1")}><div className="min-w-[480px] p-2"><div className="grid grid-cols-[minmax(180px,1fr)_90px_80px_110px] gap-2 border-b px-2 pb-1 text-[11px] text-muted-foreground"><span>视频</span><span>码率</span><span>分辨率</span><span>级别</span></div>{videos.length ? videos.map((video) => <div key={video.path} className="grid grid-cols-[minmax(180px,1fr)_90px_80px_110px] gap-2 border-b px-2 py-2 text-xs"><span className="truncate font-mono" title={video.path}>{video.filename}</span><span>{video.bitrateMbps.toFixed(2)} Mbps</span><span>{video.resolution}</span><Badge variant="outline" className="w-fit">{video.bitrateLevel}</Badge></div>) : <Empty icon={BarChart3} title="等待分析结果" description="执行分析后，这里会列出视频码率和分级。" />}</div></ScrollArea> }
+function PlanList({ compact, operations }: { compact?: boolean; operations: BitvData["operations"] }) { return <ScrollArea className={cn("h-full", compact ? "min-h-28" : "min-h-0 flex-1")}><div className="grid gap-2 p-3">{operations.length ? operations.map((item) => <div key={`${item.sourcePath}-${item.targetPath}`} className={cn("grid gap-1 rounded-md border p-2 text-xs", !item.success && "border-destructive/50")}><div className="flex justify-between gap-2"><Badge variant={item.success ? "outline" : "destructive"}>{item.dryRun ? "预演" : item.mode === "move" ? "移动" : "复制"}</Badge><span className="truncate text-muted-foreground">{item.bitrateLevel}</span></div><div className="truncate font-mono" title={item.sourcePath}>{item.sourcePath}</div><div className="truncate font-mono text-muted-foreground" title={item.targetPath}>→ {item.targetPath}</div>{item.error && <div className="text-destructive">{item.error}</div>}</div>) : <Empty icon={Waypoints} title="暂无分类计划" description="选择分类工作流并运行预演，目标文件会显示在这里。" />}</div></ScrollArea> }
+function TextPanel({ compact, empty, icon: Icon, lines }: { compact?: boolean; empty: string; icon: LucideIcon; lines: string[] }) { return <ScrollArea className={cn("h-full", compact ? "min-h-28" : "min-h-0 flex-1")}><div className="p-3">{lines.length ? <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-muted-foreground">{lines.join("\n")}</pre> : <Empty icon={Icon} title={empty} description="" />}</div></ScrollArea> }
+function Empty({ description, icon: Icon, title }: { description: string; icon: LucideIcon; title: string }) { return <div className="flex min-h-28 flex-col items-center justify-center gap-1 p-4 text-center text-xs text-muted-foreground"><Icon className="size-4" /><span className="font-medium text-foreground/80">{title}</span>{description && <span>{description}</span>}</div> }
+function RunButton({ compact, props }: { compact?: boolean; props: ViewProps }) { if (props.running) return <Button aria-label="bitv running" disabled size={compact ? "xs" : "sm"} variant="secondary"><Square />运行中</Button>; const dangerous = (props.action === "classify" || props.action === "report") && props.data.dryRun === false; const label = props.action === "status" ? "检查环境" : props.action === "analyze" ? "开始分析" : (props.data.dryRun ?? true) ? "生成分类计划" : `${props.data.transferMode === "move" ? "移动" : "复制"}并分类`; if (!dangerous) return <Button aria-label={label} size={compact ? "xs" : "sm"} onClick={() => props.onExecute(props.action)}><Play />{label}</Button>; return <AlertDialog><AlertDialogTrigger asChild><Button aria-label={label} size={compact ? "xs" : "sm"} variant="destructive"><Play />{label}</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认执行视频分类？</AlertDialogTitle><AlertDialogDescription>预演已关闭。BitV 将按码率文件夹{props.data.transferMode === "move" ? "移动" : "复制"}视频；不会覆盖同名文件，但会写入目标目录。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute(props.action)}>确认分类</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog> }
+function IconButton({ disabled, icon: Icon, label, onClick }: { disabled?: boolean; icon: LucideIcon; label: string; onClick: () => Promise<void> | void }) { return <Tooltip><TooltipTrigger asChild><Button aria-label={label} disabled={disabled} size="icon-sm" variant="outline" onClick={() => void onClick()}><Icon /><span className="sr-only">{label}</span></Button></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip> }
+function buildInput(action: BitvAction, data: BitvCardState): BitvInput { return { action, paths: data.pathsText?.split(/\r?\n/).map((item) => item.trim()).filter(Boolean), reportPath: data.reportPath?.trim() || undefined, targetPath: data.targetPath?.trim() || undefined, outputPath: data.outputPath?.trim() || undefined, recursive: data.recursive ?? BITV_DEFAULTS.recursive, bitrateStepMbps: finite(data.bitrateStepMbps, BITV_DEFAULTS.bitrateStepMbps), maxLevels: finite(data.maxLevels, BITV_DEFAULTS.maxLevels), transferMode: data.transferMode ?? BITV_DEFAULTS.transferMode, dryRun: data.dryRun ?? BITV_DEFAULTS.dryRun } }
+function finite(value: number | undefined, fallback: number) { return Number.isFinite(value) ? value! : fallback }
+function validateInput(input: BitvInput) { if ((input.action === "analyze" || input.action === "classify") && !input.paths?.length) return "请至少输入一个视频文件或目录路径。"; if (input.action === "report" && !input.reportPath) return "请提供 BitV 分析报告 JSON 路径。"; if ((input.action === "classify" || input.action === "report") && !input.targetPath) return "请提供分类目标目录。"; return null }
+function actionMeta(action: BitvAction) { return ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]! }
+function statusFromState(data: BitvCardState, running: boolean): BitvStatusMeta { if (running || data.phase === "running") return { label: "运行中", description: data.progressText || "BitV 正在处理视频。", tone: "running", badgeVariant: "secondary", iconClass: "bg-primary text-primary-foreground" }; if (data.phase === "completed") return { label: "完成", description: data.progressText || "上一次工作流已完成。", tone: "success", badgeVariant: "default", iconClass: "bg-primary text-primary-foreground" }; if (data.phase === "error") return { label: "失败", description: data.progressText || "上一次工作流失败。", tone: "error", badgeVariant: "destructive", iconClass: "bg-destructive text-destructive-foreground" }; return { label: "就绪", description: "选择一个视频工作流后开始。", tone: "idle", badgeVariant: "outline", iconClass: "bg-secondary text-secondary-foreground" } }
+function getHostData(host: NodeComponentProps<BitvCardState>["host"], compId: string): BitvCardState { return host.state?.getData?.() ?? host.getData<BitvCardState>(compId) ?? {} }

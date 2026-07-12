@@ -1,9 +1,8 @@
-import { Gauge, Play, Route, ScanLine } from "lucide-react"
+import { BarChart3, FileBarChart, Gauge, ScanLine, Waypoints } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import type { PackuToolAction, PackuToolSpec } from "@xiranite/packu-node-runtime/core"
-import type { PackuNodeMeta } from "@/nodes/shared/packu/types"
+import type { BitvAction } from "@xiranite/node-bitv/core"
 
-export type BitvAction = PackuToolAction
+export type { BitvAction }
 
 export interface BitvActionMeta {
   value: BitvAction
@@ -14,43 +13,11 @@ export interface BitvActionMeta {
   destructive: boolean
 }
 
-export const ACTIONS: BitvActionMeta[] = [
-  {
-    value: "status",
-    label: "查看状态",
-    shortLabel: "状态",
-    description: "检查配置候选、报告记录位置和分析任务是否已就绪。",
-    icon: ScanLine,
-    destructive: false,
-  },
-  {
-    value: "plan",
-    label: "生成计划",
-    shortLabel: "计划",
-    description: "生成命令计划，不执行原工具。",
-    icon: Route,
-    destructive: false,
-  },
-  {
-    value: "run",
-    label: "分析码率",
-    shortLabel: "分析",
-    description: "调用 BitV 模块执行码率分析，输出视频分类报告。",
-    icon: Play,
-    destructive: true,
-  },
-]
+export const ACTIONS: readonly BitvActionMeta[] = [
+  { value: "analyze", label: "视频分析", shortLabel: "分析", description: "扫描视频或目录，计算码率、时长与分级。", icon: BarChart3, destructive: false },
+  { value: "classify", label: "分类视频", shortLabel: "分类", description: "按码率级别复制或移动视频到目标目录。", icon: Waypoints, destructive: true },
+  { value: "report", label: "从报告分类", shortLabel: "报告", description: "从既有 BitV JSON 报告恢复分类计划。", icon: FileBarChart, destructive: true },
+  { value: "status", label: "检查 ffprobe", shortLabel: "环境", description: "确认本机视频探测器是否可用。", icon: ScanLine, destructive: false },
+] as const
 
-export const NODE_META: PackuNodeMeta = {
-  id: "bitv",
-  title: "BitV",
-  description: "分析视频码率并输出分类报告，作为视频整理前的检查节点。",
-  icon: Gauge,
-  spec: {
-    id: "bitv",
-    moduleName: "bitv",
-    sourceRoot: "D:/1VSCODE/Projects/PackU/VideoBrake/src",
-    configFiles: ["bitv/taskfile.yaml"],
-    databaseLabel: "video_bitrate_reports",
-  } satisfies PackuToolSpec,
-}
+export const NODE_META = { id: "bitv", title: "BitV", description: "使用 ffprobe 分析视频码率，并按分级安全地整理视频文件。", icon: Gauge } as const
