@@ -48,6 +48,13 @@ export function createXiraniteApp(services: XiraniteServices) {
         maxAgeMs: parseOptionalInteger(query.maxAgeMs),
       })
     })
+    .get("/node-operations", ({ query }) => {
+      return services.nodes.listOperations({
+        nodeId: query.nodeId || undefined,
+        activeOnly: query.activeOnly === "true",
+        limit: parseOptionalInteger(query.limit),
+      })
+    })
     .get("/node-operations/:operationId/events", ({ params, query, set }) => {
       const events = services.nodes.getOperationEvents(params.operationId, {
         fromEventIndex: parseEventIndex(query.from),
@@ -65,6 +72,16 @@ export function createXiraniteApp(services: XiraniteServices) {
         set.status = 404
         return { error: "Node operation not found." }
       }
+      return { operation }
+    })
+    .post("/node-operations/:operationId/pause", ({ params, set }) => {
+      const operation = services.nodes.pauseOperation(params.operationId)
+      if (!operation) { set.status = 404; return { error: "Node operation not found." } }
+      return { operation }
+    })
+    .post("/node-operations/:operationId/resume", ({ params, set }) => {
+      const operation = services.nodes.resumeOperation(params.operationId)
+      if (!operation) { set.status = 404; return { error: "Node operation not found." } }
       return { operation }
     })
     .get("/node-operations/:operationId/stream", ({ params, query, set }) => {

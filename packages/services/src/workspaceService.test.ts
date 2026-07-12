@@ -99,6 +99,47 @@ describe("WorkspaceService", () => {
 })
 
 describe("NodeRunnerService", () => {
+  test("lists newest operations and filters active tasks by node", async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    let id = 0
+    const service = new NodeRunnerService({
+      now: fixedClock([100, 110, 120, 130, 140, 150]),
+      createOperationId: () => `op-list-${id += 1}`,
+      runner: { async runNode() { await gate; return { success: true, message: "done" } } },
+    })
+    const first = service.startOperation("sleept", {})
+    const second = service.startOperation("recycleu", {})
+    await sleep(1)
+
+    expect(service.listOperations().operations.map((item) => item.operationId)).toEqual([second.operationId, first.operationId])
+    expect(service.listOperations({ nodeId: "sleept", activeOnly: true })).toMatchObject({ total: 1, operations: [{ nodeId: "sleept", phase: "running" }] })
+    release()
+    await Promise.all([service.waitForOperation(first.operationId), service.waitForOperation(second.operationId)])
+  })
+
+  test("pauses, resumes, and cancels through the operation control passed to the runner", async () => {
+    let passedGate = false
+    const service = new NodeRunnerService({
+      createOperationId: () => "op-control",
+      runner: {
+        async runNode(_nodeId, _input, _onEvent, control) {
+          await sleep(2)
+          await control!.waitWhilePaused()
+          passedGate = true
+          return control!.isCancelled() ? { success: false, message: "cancelled by runner" } : { success: true, message: "done" }
+        },
+      },
+    })
+    const started = service.startOperation("sleept", {})
+    service.pauseOperation(started.operationId)
+    await sleep(5)
+    expect(passedGate).toBe(false)
+    expect(service.getOperation(started.operationId)?.phase).toBe("paused")
+    service.resumeOperation(started.operationId)
+    expect((await service.waitForOperation(started.operationId)).message).toBe("done")
+  })
+
   test("cancels an operation and ignores late runner completion", async () => {
     let releaseRunner!: () => void
     const runnerGate = new Promise<void>((resolve) => {

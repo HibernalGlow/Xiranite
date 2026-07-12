@@ -3,6 +3,7 @@ import type {
   NodeOperationCleanupResponseDTO,
   NodeOperationDTO,
   NodeOperationEventsResponseDTO,
+  NodeOperationListResponseDTO,
   NodeOperationStartResponseDTO,
   NodeOperationStreamMessageDTO,
   NodeRunEventDTO,
@@ -54,11 +55,14 @@ export interface XiraniteNodeClient {
     context?: { componentId?: string; workspaceId?: string },
   ): Promise<NodeOperationDTO>
   getNodeOperation<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>>
+  listNodeOperations<TData = unknown>(options?: { nodeId?: string; activeOnly?: boolean; limit?: number }): Promise<NodeOperationListResponseDTO<TData>>
   getNodeOperationEvents<TData = unknown>(
     operationId: string,
     options?: { fromEventIndex?: number; limit?: number },
   ): Promise<NodeOperationEventsResponseDTO<TData>>
   cancelNodeOperation<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>>
+  pauseNodeOperation<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>>
+  resumeNodeOperation<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>>
   cleanupNodeOperations(options?: { maxAgeMs?: number }): Promise<NodeOperationCleanupResponseDTO>
   streamNodeOperation<TData = unknown>(
     operationId: string,
@@ -265,6 +269,15 @@ export function createXiraniteNodeClient(baseUrl: string, options: XiraniteClien
       const data = await response.json() as { operation: NodeOperationDTO<TData> }
       return data.operation
     },
+    async listNodeOperations<TData = unknown>(listOptions?: { nodeId?: string; activeOnly?: boolean; limit?: number }) {
+      const url = apiUrl(baseUrl, "/node-operations")
+      if (listOptions?.nodeId) url.searchParams.set("nodeId", listOptions.nodeId)
+      if (listOptions?.activeOnly) url.searchParams.set("activeOnly", "true")
+      if (listOptions?.limit !== undefined) url.searchParams.set("limit", String(listOptions.limit))
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`Node operation list failed: ${response.status}`)
+      return await response.json() as NodeOperationListResponseDTO<TData>
+    },
     async getNodeOperationEvents<TData = unknown>(operationId: string, eventOptions?: { fromEventIndex?: number; limit?: number }) {
       const url = apiUrl(baseUrl, `/node-operations/${encodeURIComponent(operationId)}/events`)
       if (eventOptions?.fromEventIndex !== undefined) url.searchParams.set("from", String(eventOptions.fromEventIndex))
@@ -281,6 +294,12 @@ export function createXiraniteNodeClient(baseUrl: string, options: XiraniteClien
       if (!response.ok) throw new Error(`Node operation cancel failed: ${response.status}`)
       const data = await response.json() as { operation: NodeOperationDTO<TData> }
       return data.operation
+    },
+    async pauseNodeOperation<TData = unknown>(operationId: string) {
+      return await controlNodeOperation<TData>(baseUrl, headers, operationId, "pause")
+    },
+    async resumeNodeOperation<TData = unknown>(operationId: string) {
+      return await controlNodeOperation<TData>(baseUrl, headers, operationId, "resume")
     },
     async cleanupNodeOperations(cleanupOptions?: { maxAgeMs?: number }) {
       const url = apiUrl(baseUrl, "/node-operations")
@@ -375,6 +394,13 @@ function requestHeaders(options: XiraniteClientOptions): Record<string, string> 
 
 function apiUrl(baseUrl: string, path: string): URL {
   return new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`)
+}
+
+async function controlNodeOperation<TData>(baseUrl: string, headers: HeadersInit, operationId: string, action: "pause" | "resume"): Promise<NodeOperationDTO<TData>> {
+  const response = await fetch(apiUrl(baseUrl, `/node-operations/${encodeURIComponent(operationId)}/${action}`), { method: "POST", headers })
+  if (!response.ok) throw new Error(`Node operation ${action} failed: ${response.status}`)
+  const data = await response.json() as { operation: NodeOperationDTO<TData> }
+  return data.operation
 }
 
 export function createXiraniteNodeRunHistoryClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteNodeRunHistoryClient {

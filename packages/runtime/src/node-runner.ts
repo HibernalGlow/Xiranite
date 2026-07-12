@@ -29,6 +29,10 @@ type PlatformRunFunction = (
   onEvent: (event: NodeRunEvent) => void,
 ) => Promise<NodeRunResult>
 type RuntimeFactory = () => unknown
+export interface NodeRunControl {
+  isCancelled: () => boolean
+  waitWhilePaused: () => Promise<void>
+}
 type PureRunFunction = (input: unknown) => unknown
 
 const moduleCache = new WeakMap<ModuleLoader, Promise<NodeModule>>()
@@ -60,6 +64,7 @@ async function runSpec(
   spec: NodeSpec,
   input: unknown,
   onEvent: (event: NodeRunEvent) => void,
+  control?: NodeRunControl,
 ): Promise<NodeRunResult> {
   const core = await loadModule(spec.loadCore)
   if (!isPlatformNode(spec)) {
@@ -70,7 +75,11 @@ async function runSpec(
   const platform = await loadModule(spec.loadPlatform)
   const run = getFunction<PlatformRunFunction>(core, spec.run)
   const createRuntime = getFunction<RuntimeFactory>(platform, spec.createRuntime)
-  return run(input, createRuntime(), onEvent)
+  const runtime = createRuntime()
+  const controlledRuntime = control && runtime && typeof runtime === "object"
+    ? { ...runtime, isCancelled: control.isCancelled, waitWhilePaused: control.waitWhilePaused }
+    : runtime
+  return run(input, controlledRuntime, onEvent)
 }
 
 export async function runNodeFromMain(payload: unknown): Promise<NodeRunBridgeResponse> {
@@ -86,6 +95,7 @@ export async function runNodeWithEvents(
   nodeId: unknown,
   input: unknown,
   onEvent: (event: NodeRunEvent) => void = () => {},
+  control?: NodeRunControl,
 ): Promise<NodeRunResult> {
   if (typeof nodeId !== "string" || !nodeId) {
     return { success: false, message: "node.run requires a nodeId string." }
@@ -100,7 +110,7 @@ export async function runNodeWithEvents(
   }
 
   try {
-    return await runSpec(spec, input, onEvent)
+    return await runSpec(spec, input, onEvent, control)
   } catch (error) {
     const message = `Node "${nodeId}" failed: ${errorMessage(error)}`
     onEvent({ type: "log", message })

@@ -6,6 +6,7 @@ import {
   type NodeOperationCleanupResponseDTO,
   type NodeOperationDTO,
   type NodeOperationEventsResponseDTO,
+  type NodeOperationListResponseDTO,
   type NodeOperationPhaseDTO,
   type NodeOperationStreamMessageDTO,
   type NodeRunEventDTO,
@@ -30,7 +31,13 @@ export interface NodeRunner {
     nodeId: string,
     input: TInput,
     onEvent?: (event: NodeRunEventDTO) => void,
+    control?: NodeOperationControl,
   ): Promise<NodeRunResultDTO<TData>>
+}
+
+export interface NodeOperationControl {
+  isCancelled: () => boolean
+  waitWhilePaused: () => Promise<void>
 }
 
 export interface NodeRunnerServiceOptions {
@@ -203,6 +210,18 @@ export class NodeRunnerService {
     return state ? toOperationDTO<TData>(state) : undefined
   }
 
+  listOperations<TData = unknown>(options: { nodeId?: string; activeOnly?: boolean; limit?: number } = {}): NodeOperationListResponseDTO<TData> {
+    this.cleanupOperations()
+    const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 100)))
+    const operations = [...this.operations.values()]
+      .filter((state) => !options.nodeId || state.nodeId === options.nodeId)
+      .filter((state) => !options.activeOnly || !isTerminalPhase(state.phase))
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, limit)
+      .map((state) => toOperationDTO<TData>(state))
+    return { operations, total: operations.length }
+  }
+
   getOperationEvents<TData = unknown>(
     operationId: string,
     options: { fromEventIndex?: number; limit?: number } = {},
@@ -235,8 +254,34 @@ export class NodeRunnerService {
     if (isTerminalPhase(state.phase)) return toOperationDTO<TData>(state)
 
     state.cancelledAt = this.now()
+    state.cancelRequested = true
+    state.resumePaused?.()
     this.pushEvent(state, { type: "log", message: reason })
     this.finishOperation(state, { success: false, message: reason }, "cancelled")
+    return toOperationDTO<TData>(state)
+  }
+
+  pauseOperation<TData = unknown>(operationId: string): NodeOperationDTO<TData> | undefined {
+    const state = this.operations.get(operationId)
+    if (!state) return undefined
+    if (state.phase !== "running") return toOperationDTO<TData>(state)
+    state.phase = "paused"
+    state.updatedAt = this.now()
+    this.pushEvent(state, { type: "log", message: "Node operation paused." })
+    this.emitOperation(state)
+    return toOperationDTO<TData>(state)
+  }
+
+  resumeOperation<TData = unknown>(operationId: string): NodeOperationDTO<TData> | undefined {
+    const state = this.operations.get(operationId)
+    if (!state) return undefined
+    if (state.phase !== "paused") return toOperationDTO<TData>(state)
+    state.phase = "running"
+    state.updatedAt = this.now()
+    state.resumePaused?.()
+    state.resumePaused = undefined
+    this.pushEvent(state, { type: "log", message: "Node operation resumed." })
+    this.emitOperation(state)
     return toOperationDTO<TData>(state)
   }
 
@@ -333,6 +378,13 @@ export class NodeRunnerService {
       const result = await this.runner.runNode(state.nodeId, state.input, (event) => {
         if (isTerminalPhase(state.phase)) return
         this.pushEvent(state, event)
+      }, {
+        isCancelled: () => state.cancelRequested === true,
+        waitWhilePaused: async () => {
+          while (state.phase === "paused" && !state.cancelRequested) {
+            await new Promise<void>((resolve) => { state.resumePaused = resolve })
+          }
+        },
       })
       if (isTerminalPhase(state.phase)) return
       this.finishOperation(state, result, result.success ? "completed" : "error")
@@ -416,6 +468,8 @@ interface NodeOperationState {
   listeners: Set<OperationListener>
   completion: Promise<NodeRunResultDTO>
   resolveCompletion: (result: NodeRunResultDTO) => void
+  cancelRequested?: boolean
+  resumePaused?: () => void
 }
 
 type OperationListener = (message: NodeOperationStreamMessageDTO) => void

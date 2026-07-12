@@ -93,7 +93,7 @@ export const nodeRunResponseSchema = z.object({
   events: z.array(nodeRunEventSchema),
 })
 
-export const nodeOperationPhaseSchema = z.enum(["queued", "running", "completed", "error", "cancelled"])
+export const nodeOperationPhaseSchema = z.enum(["queued", "running", "paused", "completed", "error", "cancelled"])
 
 export const nodeOperationSchema = z.object({
   operationId: z.string().min(1),
@@ -308,6 +308,10 @@ export interface NodeOperationEventsResponseDTO<TData = unknown> {
   from: number
   limit: number
   next?: number
+  total: number
+}
+export interface NodeOperationListResponseDTO<TData = unknown> {
+  operations: NodeOperationDTO<TData>[]
   total: number
 }
 export interface NodeOperationCleanupResponseDTO {
