@@ -5,6 +5,7 @@ import { useState } from "react"
 import {
   ActionTabs,
   ClickTarget,
+  ExecutionActions,
   ProgressBar,
   resolveTerminalTheme,
   TerminalPreferencesScreen,
@@ -40,7 +41,7 @@ function SleeptWorkbench({ definition, language, preferences, onExit, onThemePre
   const action = session.values.action as SleeptInteractionAction
   const display = definition.schema.view?.dashboard.display(session.values)
   const activeFields = session.fields.filter((field) => !["action", "powerMode", "dryrun"].includes(field.id))
-  const controls = ["action", ...activeFields.map((field) => field.id), "powerMode", "dryrun", "execute", "settings", "reset", "exit", "tab-status", "tab-logs"]
+  const controls = ["action", ...activeFields.map((field) => field.id), "powerMode", "dryrun", "execute", "pause", "resume", "cancel", "settings", "reset", "exit", "tab-status", "tab-logs"]
   const monitoring = action === "netspeed" || action === "cpu"
   const duration = action === "countdown" ? countdownSeconds({ hours: Number(session.values.hours), minutes: Number(session.values.minutes), seconds: Number(session.values.seconds) }) : 0
   const countdown = session.status.match(/remaining\s+(\d\d:\d\d:\d\d)/i)?.[1] ?? formatDuration(duration)
@@ -51,12 +52,12 @@ function SleeptWorkbench({ definition, language, preferences, onExit, onThemePre
     if (key.name === "escape") {
       if (settings) setSettings(false)
       else if (session.confirming) session.dismissConfirmation()
-      else if (session.phase === "running") session.cancel()
+      else if (session.phase === "running" || session.phase === "paused") void session.cancel()
       else onExit()
       return
     }
     if (key.name === "tab") session.moveFocus(controls, key.shift ? -1 : 1)
-    if (key.name === "q" && session.phase !== "running") onExit()
+    if (key.name === "q" && session.phase !== "running" && session.phase !== "paused") onExit()
   })
 
   if (settings && preferences) return <TerminalPreferencesScreen controller={preferences} focusedId={session.focusedControlId} onFocus={session.focus} onPreviewTheme={onThemePreview} onBack={() => setSettings(false)} />
@@ -96,7 +97,7 @@ function SleeptWorkbench({ definition, language, preferences, onExit, onThemePre
             <box flexDirection="row" flexWrap="wrap" gap={1} marginTop={1}>{display?.metrics?.map((metric) => <box key={metric.label} borderStyle="rounded" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1}><text fg={theme.colors.mutedForeground}>{`${metric.label}: `}</text><text fg={theme.colors.foreground}><b>{metric.value}</b></text></box>)}</box>
             <scrollbox flexGrow={1} minHeight={3} marginTop={1}>{session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index ? theme.colors.mutedForeground : theme.colors.foreground}>{`${index ? "·" : "▸"} ${line}`}</text>)}</scrollbox>
             <ProgressBar value={session.progress} label={session.status || t("waiting")} />
-            <WorkbenchButton id="execute" focused={session.focusedControlId === "execute"} danger={session.dangerous} onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}>{session.phase === "running" ? `■ ${language === "zh" ? "停止" : "Stop"}` : session.dangerous ? `⚠ ${language === "zh" ? "确认后执行" : "Confirm and run"}` : `▶ ${t("start")}`}</WorkbenchButton>
+            <ExecutionActions session={session} executeLabel={`▶ ${t("start")}`} confirmLabel={`⚠ ${language === "zh" ? "确认后执行" : "Confirm and run"}`} />
           </box>
         </WorkbenchPanel>
 
@@ -128,5 +129,5 @@ function actionOptions(t: ReturnType<typeof createSleeptTranslator>) {
   return [{ value: "countdown", label: `◷ ${t("timerCountdown")}` }, { value: "specific_time", label: `◴ ${t("timerAt")}` }, { value: "netspeed", label: `⇅ ${t("timerNet")}` }, { value: "cpu", label: "▥ CPU" }, { value: "get_stats", label: `◉ ${t("statusAction")}` }]
 }
 
-function phaseLabel(phase: "ready" | "running" | "result", t: ReturnType<typeof createSleeptTranslator>) { return phase === "running" ? t("phaseRunning") : phase === "result" ? t("phaseCompleted") : t("phaseIdle") }
-function phaseColor(phase: "ready" | "running" | "result", theme: ReturnType<typeof useTerminalTheme>) { return phase === "running" ? theme.colors.warning : phase === "result" ? theme.colors.success : theme.colors.mutedForeground }
+function phaseLabel(phase: "ready" | "running" | "paused" | "result", t: ReturnType<typeof createSleeptTranslator>) { return phase === "running" ? t("phaseRunning") : phase === "paused" ? "已暂停" : phase === "result" ? t("phaseCompleted") : t("phaseIdle") }
+function phaseColor(phase: "ready" | "running" | "paused" | "result", theme: ReturnType<typeof useTerminalTheme>) { return phase === "running" ? theme.colors.warning : phase === "paused" ? theme.colors.primary : phase === "result" ? theme.colors.success : theme.colors.mutedForeground }

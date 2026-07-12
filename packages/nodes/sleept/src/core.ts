@@ -42,6 +42,7 @@ export interface SleeptRuntime {
   getNetCounters: () => Promise<NetCounters> | NetCounters
   executePowerAction: (mode: PowerMode, dryrun: boolean) => Promise<void> | void
   isCancelled?: () => boolean
+  waitWhilePaused?: () => Promise<void>
 }
 
 export type SleeptResult = NodeRunResult<SleeptData>
@@ -197,6 +198,7 @@ async function runNetSpeedMonitor(
   let lowStart: number | null = null
 
   for (let elapsedTotal = 0; input.maxWaitSeconds === 0 || elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+    await runtime.waitWhilePaused?.()
     if (runtime.isCancelled?.()) return monitorCancelled("Network")
     await runtime.sleep(1000)
     if (runtime.isCancelled?.()) return monitorCancelled("Network")
@@ -244,6 +246,7 @@ async function runCpuMonitor(
   let lowStart: number | null = null
 
   for (let elapsedTotal = 0; input.maxWaitSeconds === 0 || elapsedTotal < input.maxWaitSeconds; elapsedTotal += 1) {
+    await runtime.waitWhilePaused?.()
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
     await runtime.sleep(1000)
     if (runtime.isCancelled?.()) return monitorCancelled("CPU")
@@ -291,6 +294,7 @@ function countdownCancelled(kind: "Countdown" | "Scheduled timer"): SleeptResult
 
 async function tickCountdown(totalSeconds: number, runtime: SleeptRuntime, onEvent?: (event: NodeRunEvent) => void): Promise<boolean> {
   for (let remaining = totalSeconds; remaining > 0; remaining -= 1) {
+    await runtime.waitWhilePaused?.()
     if (runtime.isCancelled?.()) return false
     const progress = Math.floor((1 - remaining / totalSeconds) * 100)
     onEvent?.({ type: "progress", progress, message: `remaining ${formatDuration(remaining)}` })

@@ -216,6 +216,8 @@ function createSleeptUiDefinition(
   createRuntime: () => SleeptRuntime,
 ): TerminalInteractionDefinition<SleeptInput, SleeptResult> {
   let cancelled = false
+  let paused = false
+  let resumePaused: (() => void) | undefined
   const schema = createSleeptInteractionSchema({
     action: defaults.action,
     powerMode: defaults.powerMode,
@@ -236,11 +238,23 @@ function createSleeptUiDefinition(
     schema,
     async run(input, onEvent) {
       cancelled = false
+      paused = false
       const runtime = createRuntime()
-      return runSleept(input, { ...runtime, isCancelled: () => cancelled }, onEvent)
+      return runSleept(input, {
+        ...runtime,
+        isCancelled: () => cancelled,
+        waitWhilePaused: async () => {
+          while (paused && !cancelled) await new Promise<void>((resolve) => { resumePaused = resolve })
+          resumePaused = undefined
+        },
+      }, onEvent)
     },
+    pause() { paused = true },
+    resume() { paused = false; resumePaused?.() },
     cancel() {
       cancelled = true
+      paused = false
+      resumePaused?.()
     },
   }
 }
