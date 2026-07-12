@@ -42,3 +42,15 @@ a bottom drawer. This lets the command plan remain readable at terminal width
 while retaining editable INI, run-record, executable, AutoHotkey, dry-run,
 and execution controls in the same fullscreen view. The drawer is explicitly
 validated in the 32-row PNG so no editable field is clipped.
+
+## Gifu
+
+- GUI evidence: `output/playwright/gifu/gifu-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/gifu/sequence-lab.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+The terminal view preserves the source-to-sequence workflow: archive input is
+anchored left, the animated sequence preview is the central work surface, and
+format/output controls plus the compile action form the lower deck. The GUI's
+format codec, output target, quality timing, and safe-generation intent remain
+visible without changing to a guided sequence.

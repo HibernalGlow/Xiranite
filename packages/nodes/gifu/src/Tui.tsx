@@ -1,189 +1,28 @@
 /* @jsxImportSource @opentui/react */
-import { useState } from "react";
-import {
-  ActionTabs,
-  ProgressBar,
-  resolveTerminalTheme,
-  TerminalThemeProvider,
-  terminalIcon,
-  useAnimation,
-  useTerminalTheme,
-  useTerminalUiSession,
-  WorkbenchButton,
-  WorkbenchField,
-  useTerminalChromeActions,
-  WorkbenchPanel,
-} from "@xiranite/cli-runtime/terminal/opentui";
-import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
-import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
-import type { GifuInput, GifuResult } from "./core.js";
+import { useKeyboard } from "@opentui/react"
+import { useState } from "react"
+import { ActionTabs, ClickTarget, ExecutionActions, ProgressBar, resolveTerminalTheme, TerminalPreferencesScreen, TerminalThemeProvider, terminalIcon, useAnimation, useTerminalChromeActions, useTerminalTheme, useTerminalUiSession, WorkbenchButton, WorkbenchField, WorkbenchPanel } from "@xiranite/cli-runtime/terminal/opentui"
+import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
+import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
+import type { GifuInput, GifuResult } from "./core.js"
 
-export function GifuTui(props: TerminalUiScreenProps<GifuInput, GifuResult>) {
-  const [name, setName] = useState(props.theme ?? "inherit");
-  return (
-    <TerminalThemeProvider
-      theme={resolveTerminalTheme(name === "inherit" ? "nord" : name)}
-    >
-      <GifuWorkbench {...props} />
-    </TerminalThemeProvider>
-  );
-}
-function GifuWorkbench({
-  definition,
-  language,
-  onExit,
-}: TerminalUiScreenProps<GifuInput, GifuResult>) {
-  const theme = useTerminalTheme();
-  const t = createTerminalTranslator(language);
-  const session = useTerminalUiSession(definition);
-  useTerminalChromeActions({ onReset: session.reset, onExit });
-  const frame = useAnimation({
-    intervalMs: session.phase === "running" ? 110 : 460,
-  });
-  const fields = session.fields;
-  const input = fields.filter((field) =>
-    ["pathsText", "recursive", "configPath"].includes(field.id),
-  );
-  const output = fields.filter((field) =>
-    [
-      "format",
-      "outMode",
-      "outDir",
-      "namePrefix",
-      "durationMs",
-      "quality",
-    ].includes(field.id),
-  );
-  const execution = fields.filter(
-    (field) =>
-      !input.includes(field) &&
-      !output.includes(field) &&
-      field.id !== "action",
-  );
-  return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      paddingLeft={1}
-      paddingRight={1}
-    >
-      <box
-        height={4}
-        borderStyle="single"
-        borderColor={theme.colors.border}
-        flexDirection="row"
-        justifyContent="space-between"
-        paddingLeft={1}
-        paddingRight={1}
-      >
-        <box flexDirection="column">
-          <text fg={theme.colors.primary}>
-            <b>{`${terminalIcon("status")} GIFU // ARCHIVE ANIMATION LAB`}</b>
-          </text>
-          <text fg={theme.colors.mutedForeground}>
-            {language === "zh"
-              ? "归档扫描、动画编译与输出预览"
-              : "Archive scan, animation compile and output preview"}
-          </text>
-        </box>
-        <text fg={theme.colors.primary}>
-          {["⠁", "⠂", "⠄", "⡀", "⢀"][frame % 5]}
-        </text>
-      </box>
-      <box flexDirection="row" flexGrow={1} minHeight={0} gap={1} marginTop={1}>
-        <WorkbenchPanel
-          title={language === "zh" ? "归档输入" : "Archive input"}
-          width="31%"
-        >
-          <ActionTabs
-            id="field-action"
-            options={[
-              { value: "inspect", label: "⌕ 检查" },
-              { value: "plan", label: "▤ 计划" },
-              { value: "make", label: "▶ 编译" },
-            ]}
-            value={session.values.action}
-            focused={session.focusedControlId === "action"}
-            onFocus={() => session.focus("action")}
-            onChange={(value) => session.setField("action", value)}
-          />
-          <scrollbox flexGrow={1}>
-            {input.map((field) => (
-              <WorkbenchField
-                key={field.id}
-                field={field}
-                value={session.values[field.id]}
-                error={session.fieldErrors[field.id]}
-                focused={session.focusedControlId === field.id}
-                t={t}
-                onFocus={() => session.focus(field.id)}
-                onChange={(value) => session.setField(field.id, value)}
-              />
-            ))}
-          </scrollbox>
-        </WorkbenchPanel>
-        <WorkbenchPanel
-          title={language === "zh" ? "编译预览" : "Compile preview"}
-          flexGrow={1}
-        >
-          <scrollbox flexGrow={1}>
-            {output.map((field) => (
-              <WorkbenchField
-                key={field.id}
-                field={field}
-                value={session.values[field.id]}
-                error={session.fieldErrors[field.id]}
-                focused={session.focusedControlId === field.id}
-                t={t}
-                onFocus={() => session.focus(field.id)}
-                onChange={(value) => session.setField(field.id, value)}
-              />
-            ))}
-            {session.preview.map((line, index) => (
-              <text
-                key={`${line}-${index}`}
-                fg={
-                  index ? theme.colors.mutedForeground : theme.colors.foreground
-                }
-              >{`${index ? "·" : "▸"} ${line}`}</text>
-            ))}
-          </scrollbox>
-          <ProgressBar
-            value={session.progress}
-            label={session.status || "READY"}
-          />
-        </WorkbenchPanel>
-        <WorkbenchPanel
-          title={language === "zh" ? "执行闸门" : "Compile gate"}
-          width="27%"
-        >
-          <scrollbox flexGrow={1}>
-            {execution.map((field) => (
-              <WorkbenchField
-                key={field.id}
-                field={field}
-                value={session.values[field.id]}
-                error={session.fieldErrors[field.id]}
-                focused={session.focusedControlId === field.id}
-                t={t}
-                onFocus={() => session.focus(field.id)}
-                onChange={(value) => session.setField(field.id, value)}
-              />
-            ))}
-            {session.resultSummary?.lines.map((line, index) => (
-              <text key={`${line}-${index}`}>{line}</text>
-            ))}
-          </scrollbox>
-          <WorkbenchButton
-            id="execute"
-            danger={session.dangerous}
-            onClick={() => void session.requestExecute()}
-          >
-            {session.dangerous ? "⚠ 确认后编译" : "▶ 执行"}
-          </WorkbenchButton>
-        </WorkbenchPanel>
-      </box>
-    </box>
-  );
+export function GifuTui(props: TerminalUiScreenProps<GifuInput, GifuResult>) { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><GifuSequenceLab {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
+
+function GifuSequenceLab({ definition, language, preferences, onExit, onThemePreview }: TerminalUiScreenProps<GifuInput, GifuResult> & { onThemePreview: (theme: string) => void }) {
+  const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition)
+  const [settings, setSettings] = useState(false), frame = useAnimation({ intervalMs: session.phase === "running" ? 95 : 540 })
+  const fields = definition.schema.fields
+  const paths = fields.find((field) => field.id === "pathsText")!, recursive = fields.find((field) => field.id === "recursive")!, format = fields.find((field) => field.id === "format")!, outMode = fields.find((field) => field.id === "outMode")!, outDir = fields.find((field) => field.id === "outDir")!, duration = fields.find((field) => field.id === "durationMs")!, workers = fields.find((field) => field.id === "maxWorkers")!
+  const switches = fields.filter((field) => ["dryRun", "recordRun"].includes(field.id)), action = String(session.values.action ?? "plan")
+  const count = String(session.values.pathsText ?? "").split(/\r?\n/).filter(Boolean).length
+  useTerminalChromeActions({ onReset: session.reset, onExit, resetLabel: `↺ ${t("reset")}`, exitLabel: `× ${language === "zh" ? "退出" : "Exit"}` })
+  useKeyboard((key) => { if (key.name !== "escape") return; if (settings) setSettings(false); else if (session.confirming) session.dismissConfirmation(); else if (session.phase === "running" || session.phase === "paused") void session.cancel(); else onExit() })
+  if (settings && preferences) return <TerminalPreferencesScreen controller={preferences} focusedId={session.focusedControlId} onFocus={session.focus} onPreviewTheme={onThemePreview} onBack={() => setSettings(false)} />
+  if (session.confirming) return <box width="100%" height="100%" alignItems="center" justifyContent="center"><box width="68%" height={10} flexDirection="column" borderStyle="double" borderColor={theme.colors.error} paddingLeft={2} paddingRight={2}><text fg={theme.colors.error}><b>⚠ 确认生成动画</b></text><text>{session.dangerPrompt?.body}</text><text fg={theme.colors.mutedForeground}>{session.preview.join(" · ")}</text><box flexDirection="row" gap={2}><WorkbenchButton id="confirm-execute" danger onClick={() => void session.confirmExecute()}>⚠ 确认生成</WorkbenchButton><WorkbenchButton id="confirm-dismiss" onClick={session.dismissConfirmation}>× 取消</WorkbenchButton></box></box></box>
+  return <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
+    <box height={4} flexShrink={0} borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between"><box flexDirection="column"><text fg={theme.colors.primary}><b>{`${terminalIcon("status")} GIFU // SEQUENCE LAB`}</b></text><text fg={theme.colors.mutedForeground}>{session.status || (language === "zh" ? "归档帧扫描、序列预览与动画编译" : "Archive frames, sequence preview and animation compilation")}</text></box><box flexDirection="column" alignItems="flex-end"><text fg={session.phase === "running" ? theme.colors.warning : theme.colors.primary}>{`${session.phase === "running" ? "RENDERING" : "SEQ_VALID"} ${["◴", "◷", "◶", "◵"][frame % 4]}`}</text>{preferences ? <ClickTarget id="settings" onClick={() => setSettings(true)}>⚙ CONFIG</ClickTarget> : null}</box></box>
+    <box height={3} marginTop={1} flexShrink={0} flexDirection="row" justifyContent="space-between"><ActionTabs id="field-action" options={[{ value: "inspect", label: "⌕ 检查" }, { value: "plan", label: "▤ 计划" }, { value: "make", label: "▶ 编译" }]} value={action} focused={session.focusedControlId === "action"} disabled={session.phase === "running"} onFocus={() => session.focus("action")} onChange={(value) => session.setField("action", value)} /><text fg={theme.colors.mutedForeground}>{`SEQUENCES ${count} · ${String(session.values.format ?? "webp").toUpperCase()} · ${session.progress}%`}</text></box>
+    <box flexDirection="row" flexGrow={1} minHeight={0} gap={1}><WorkbenchPanel title={language === "zh" ? "输入源" : "Input source"} width="28%"><box flexDirection="column" flexGrow={1}><WorkbenchField field={paths} value={session.values.pathsText} error={session.fieldErrors.pathsText} focused={session.focusedControlId === "pathsText"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("pathsText")} onChange={(value) => session.setField("pathsText", value)} /><WorkbenchField field={recursive} value={session.values.recursive} error={session.fieldErrors.recursive} focused={session.focusedControlId === "recursive"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("recursive")} onChange={(value) => session.setField("recursive", value)} /></box></WorkbenchPanel><WorkbenchPanel title={language === "zh" ? "序列预览" : "Sequence preview"} flexGrow={1}><box flexDirection="column" flexGrow={1}><ascii-font text={session.phase === "running" ? "GIFU" : "READY"} font="tiny" color={[theme.colors.primary, theme.colors.focusRing]} /><scrollbox flexGrow={1}>{session.resultSummary?.table?.rows.map((row, index) => <text key={`${row.path}-${index}`} fg={row.state === "error" ? theme.colors.error : theme.colors.foreground}>{`${row.state === "success" ? "✓" : "▸"} ${row.path}  ${row.images ?? ""}`}</text>) ?? session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index ? theme.colors.mutedForeground : theme.colors.foreground}>{`${index ? "·" : "▸"} ${line}`}</text>)}</scrollbox><ProgressBar value={session.progress} label={session.status || "READY"} /></box></WorkbenchPanel></box>
+    <box height={11} minHeight={11} flexShrink={0} marginTop={1} borderStyle="rounded" borderColor={session.dangerous ? theme.colors.error : theme.colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" gap={2}><box width="68%" flexDirection="column"><box flexDirection="row" gap={1}><box width="50%"><WorkbenchField field={format} value={session.values.format} error={session.fieldErrors.format} focused={session.focusedControlId === "format"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("format")} onChange={(value) => session.setField("format", value)} /></box><box width="50%"><WorkbenchField field={outMode} value={session.values.outMode} error={session.fieldErrors.outMode} focused={session.focusedControlId === "outMode"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("outMode")} onChange={(value) => session.setField("outMode", value)} /></box></box><box flexDirection="row" gap={1}><box width="40%"><WorkbenchField field={outDir} value={session.values.outDir} error={session.fieldErrors.outDir} focused={session.focusedControlId === "outDir"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("outDir")} onChange={(value) => session.setField("outDir", value)} /></box><box width="30%"><WorkbenchField field={duration} value={session.values.durationMs} error={session.fieldErrors.durationMs} focused={session.focusedControlId === "durationMs"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("durationMs")} onChange={(value) => session.setField("durationMs", value)} /></box><box width="30%"><WorkbenchField field={workers} value={session.values.maxWorkers} error={session.fieldErrors.maxWorkers} focused={session.focusedControlId === "maxWorkers"} disabled={session.phase === "running"} t={t} onFocus={() => session.focus("maxWorkers")} onChange={(value) => session.setField("maxWorkers", value)} /></box></box></box><box flexGrow={1} flexDirection="column"><box flexDirection="row" gap={1}>{switches.map((field) => <box key={field.id} flexGrow={1}><WorkbenchField field={field} value={session.values[field.id]} error={session.fieldErrors[field.id]} focused={session.focusedControlId === field.id} disabled={session.phase === "running"} t={t} onFocus={() => session.focus(field.id)} onChange={(value) => session.setField(field.id, value)} /></box>)}</box><box flexGrow={1} /><ExecutionActions session={session} executeLabel="▶ 开始动画编译" confirmLabel="⚠ 确认生成" /></box></box>
+  </box>
 }
