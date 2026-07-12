@@ -1,55 +1,5 @@
 #!/usr/bin/env node
-import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
-import { runSnf } from "./core.js"
-import type { SnfAction, SnfInput, SnfMode } from "./core.js"
-import { createNodeSnfRuntime } from "./platform.js"
-
-interface SnfNodeConfig {
-  mode?: SnfMode
-  keep_timestamp?: boolean
-  dry_run?: boolean
-}
-
-export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const json = args.includes("--json")
-  const action: SnfAction = args.includes("rename") || args.includes("run") ? "rename" : args.includes("scan") ? "scan" : "plan"
-  const { config } = await loadNodeConfigWithHints<SnfNodeConfig>("snf", {
-    hintSink: { stderr: process.stderr },
-    jsonMode: json,
-  })
-  let paths = pathArgs(args)
-  if (paths.includes("-")) {
-    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
-  } else if (paths.length === 0 && hasPipedInput()) {
-    paths = await readStdinLines()
-  }
-  const input: SnfInput = {
-    action,
-    paths,
-    mode: valueFor(args, "--mode") as SnfMode | undefined ?? config?.mode,
-    keepTimestamp: args.includes("--no-keep-time") ? false : config?.keep_timestamp,
-    dryRun: action !== "rename" || args.includes("--dry-run") || config?.dry_run === true,
-  }
-
-  const result = await runSnf(input, createNodeSnfRuntime())
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else {
-    console.log(result.message)
-    for (const item of result.data?.items.slice(0, 80) ?? []) console.log(`${item.status}\t${item.sourceName}\t->\t${item.targetName}`)
-  }
-  if (!result.success) process.exitCode = 1
-}
-
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
-
-function pathArgs(args: string[]): string[] {
-  const commands = new Set(["scan", "plan", "rename", "run"])
-  const valueOptions = new Set(["--mode"])
-  return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
-}
-
-function valueFor(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag)
-  return index >= 0 ? args[index + 1] : undefined
-}
+import{hasPipedInput,nodeCliName,readStdinLines,runGuidedInteraction,writeJson,writeLine}from"@xiranite/cli-runtime";import type{CliCommand,CliHost}from"@xiranite/cli-runtime";import{resolveInteractionPreferences,type CliInteractionPreferencesSource}from"@xiranite/cli-runtime/interaction";import{runInteractionCli,runTerminalUi,type TerminalPreferenceController,type TerminalPreferenceValues}from"@xiranite/cli-runtime/terminal";import{loadNodeConfigWithHints,loadXiraniteConfig,saveXiraniteConfig,updateNodeConfig}from"@xiranite/config";import{runSnf}from"./core.js";import type{SnfAction,SnfInput,SnfMode}from"./core.js";import{createNodeSnfRuntime}from"./platform.js";import{createSnfInteractionSchema}from"./interaction.js";import{help}from"./help.js";const CLI_NAME=nodeCliName("snf");interface SnfNodeConfig extends CliInteractionPreferencesSource{mode?:SnfMode;keep_timestamp?:boolean;dry_run?:boolean}
+export const cli:CliCommand={name:CLI_NAME,description:"Folder sequence repair.",run:(a,h)=>runProgram(a,h)};export async function runProgram(args=process.argv.slice(2),host:CliHost=defaultHost()){await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<SnfNodeConfig>("snf",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createSnfInteractionSchema({mode:d.mode,keepTimestamp:d.keep_timestamp,dryRun:d.dry_run},l),run:(i,e)=>runSnf(i,createNodeSnfRuntime(),e)}),runPipe,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).SnfTui,createPreferences:(_d,c)=>prefs(host,c),reexecEntrypoint:process.argv[1],help})}
+async function runPipe(args:string[],host:CliHost){if(!args.length){writeLine(host,`${CLI_NAME} ui | gd | scan | plan | rename`);return}const json=args.includes("--json"),action:SnfAction=args.includes("rename")||args.includes("run")?"rename":args.includes("scan")?"scan":"plan",{config}=await loadNodeConfigWithHints<SnfNodeConfig>("snf",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:json});let paths=pathArgs(args);if(paths.includes("-"))paths=paths.filter(p=>p!=="-").concat(await readStdinLines(host.stdin));else if(!paths.length&&hasPipedInput(host.stdin)&&Symbol.asyncIterator in Object(host.stdin))paths=await readStdinLines(host.stdin);const i:SnfInput={action,paths,mode:valueFor(args,"--mode")as SnfMode|undefined??config?.mode,keepTimestamp:args.includes("--no-keep-time")?false:config?.keep_timestamp,dryRun:action!=="rename"||args.includes("--dry-run")||config?.dry_run===true},r=await runSnf(i,createNodeSnfRuntime());if(json)writeJson(host,r);else{writeLine(host,r.message);for(const x of r.data?.items.slice(0,80)??[])writeLine(host,`${x.status}\t${x.sourceName}\t->\t${x.targetName}`)}if(!r.success)process.exitCode=1}
+function prefs(h:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:h.env,cwd:h.cwd};return{nodeId:"snf",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"snf",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<SnfNodeConfig>("snf",{...o,jsonMode:true}),p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}const defaultHost=():CliHost=>({cwd:process.cwd(),env:process.env,stdin:process.stdin,stdout:process.stdout,stderr:process.stderr});function pathArgs(a:string[]){const c=new Set(["scan","plan","rename","run"]),v=new Set(["--mode"]);return a.filter((x,i)=>!x.startsWith("--")&&!c.has(x)&&!v.has(a[i-1]??""))}function valueFor(a:string[],f:string){const i=a.indexOf(f);return i>=0?a[i+1]:undefined}if(process.argv[1]&&/\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g,"/")))await runProgram()
