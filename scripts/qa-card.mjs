@@ -77,7 +77,7 @@ async function main() {
       process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY ??= "1"
       const referencePaths = await resolveReferencePaths(options)
       if (referencePaths.length) {
-        await captureReferenceComparison(page, screenshotPath, referencePaths, options)
+        await captureReferenceComparison(page, screenshotPath, referencePaths, options, result)
         console.log(`references: ${referencePaths.join(", ")}`)
       } else {
         await captureScreenshot(page, screenshotPath, options)
@@ -323,7 +323,7 @@ async function runQaCommand(page, options) {
       {
         moduleId: options.moduleId,
         surfaces: options.matrixSurfaces ?? DEFAULT_MATRIX_SURFACES,
-        layouts: BENTO_MATRIX_LAYOUTS,
+        layouts: resolveMatrixLayouts(options.matrixSurfaces ?? DEFAULT_MATRIX_SURFACES),
         rawOptions: options.rawOptions,
       },
     )
@@ -467,6 +467,17 @@ function defaultScreenshotPath(options) {
   return path.resolve(REPO_ROOT, "artifacts", "qa-card", `${name}.jpg`)
 }
 
+function resolveMatrixLayouts(surfaces) {
+  if (surfaces.length === 2 && surfaces.includes("portrait") && surfaces.includes("workspace")) {
+    return {
+      ...BENTO_MATRIX_LAYOUTS,
+      portrait: { x: 0, y: 0, w: 3, h: 10 },
+      workspace: { x: 3, y: 0, w: 9, h: 10 },
+    }
+  }
+  return BENTO_MATRIX_LAYOUTS
+}
+
 async function resolveReferencePaths(options) {
   if (!options.moduleId || options.reference === false) return []
   if (options.reference === "auto" && REFERENCE_SETS[options.moduleId]) {
@@ -545,11 +556,12 @@ async function captureScreenshot(page, screenshotPath, options) {
   })
 }
 
-async function captureReferenceComparison(page, screenshotPath, referencePaths, options) {
+async function captureReferenceComparison(page, screenshotPath, referencePaths, options, result) {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "xiranite-qa-"))
   const currentPath = path.join(temporaryDirectory, "current.png")
   try {
-    await page.screenshot({ path: currentPath, fullPage: false, type: "png" })
+    const clip = await matrixScreenshotClip(page, result)
+    await page.screenshot({ path: currentPath, fullPage: false, type: "png", clip })
     const [referenceImages, currentImage] = await Promise.all([Promise.all(referencePaths.map((referencePath) => readFile(referencePath))), readFile(currentPath)])
     const comparisonContext = await page.context().browser().newContext({ viewport: { width: 1600, height: 920 }, deviceScaleFactor: 1 })
     const comparison = await comparisonContext.newPage()
@@ -568,6 +580,19 @@ async function captureReferenceComparison(page, screenshotPath, referencePaths, 
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true })
   }
+}
+
+async function matrixScreenshotClip(page, result) {
+  if (!Array.isArray(result?.matrix) || !result.matrix.length) return undefined
+  const boxes = (await Promise.all(result.matrix.map(async (item) => page.locator(`[data-component-id="${cssEscape(item.id)}"]`).first().boundingBox()))).filter(Boolean)
+  if (!boxes.length) return undefined
+  const viewport = page.viewportSize()
+  const padding = 8
+  const left = Math.max(0, Math.min(...boxes.map((box) => box.x)) - padding)
+  const top = Math.max(0, Math.min(...boxes.map((box) => box.y)) - padding)
+  const right = Math.min(viewport?.width ?? 1600, Math.max(...boxes.map((box) => box.x + box.width)) + padding)
+  const bottom = Math.min(viewport?.height ?? 1700, Math.max(...boxes.map((box) => box.y + box.height)) + padding)
+  return { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) }
 }
 
 function referenceComparisonDocument(references, currentUrl, moduleId) {
