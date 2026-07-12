@@ -9,16 +9,21 @@ import {
   writeError,
   writeJson,
   writeLine,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import { runGitalso } from "./core.js"
 import { createNodeGitalsoRuntime } from "./platform.js"
+import { createGitalsoInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = "also"
 
-interface DinyNodeConfig {
+interface DinyNodeConfig extends CliInteractionPreferencesSource {
   diny_path?: string
   repo_path?: string
   no_verify?: boolean
@@ -200,13 +205,24 @@ function createProgram(host: CliHost = createDefaultHost()) {
   })
 }
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     // No args → guided mode
     await runMain(createProgram(host), { rawArgs: ["guided"] })
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
+}
+
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  await runInteractionCli({ args, host, cliName: CLI_NAME,
+    loadContext: async () => { const { config } = await loadNodeConfigWithHints<DinyNodeConfig>("gitalso", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+    createDefinition: (defaults, language) => ({ schema: createGitalsoInteractionSchema({ repoPath: defaults.repo_path, noVerify: defaults.no_verify, dryRun: true }, language), run: (input, event) => runGitalso(input, createNodeGitalsoRuntime(), event) }),
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | status | generate | commit | push`)),
+    runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).GitalsoTui,
+    createPreferences: (_defaults, current) => ({ nodeId: "gitalso", current, save: async (values) => { const { config, path } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd }); await saveXiraniteConfig(updateNodeConfig(config, "gitalso", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { env: host.env, cwd: host.cwd, configPath: path }) }, restore: async () => current } satisfies TerminalPreferenceController),
+    reexecEntrypoint: process.argv[1], help,
+  })
 }
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
