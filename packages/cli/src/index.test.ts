@@ -3,7 +3,7 @@ import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNo
 
 describe("@xiranite/cli registry", () => {
   test("registers generated node CLIs including migrated utility nodes", () => {
-    expect(NODE_CLI_REGISTRY).toHaveLength(40)
+    expect(NODE_CLI_REGISTRY).toHaveLength(42)
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("cleanf")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("envuconfig")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("gifu")
@@ -24,7 +24,8 @@ describe("@xiranite/cli registry", () => {
   })
 
   test("formats useful command discovery output", () => {
-    expect(formatHelp()).toContain("xiranite <node> [args]")
+    expect(formatHelp()).toContain("xiranite [ui | <node> [args]]")
+    expect(formatHelp()).toContain("fullscreen Xiranite terminal workspace")
     expect(formatNodeList()).toContain("xcleanf")
   })
 })

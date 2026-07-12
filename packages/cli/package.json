@@ -20,10 +20,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run src/index.test.ts src/workspace-tui-model.test.ts && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
+    "@opentui/core": "0.4.3",
+    "@opentui/react": "0.4.3",
+    "@xiranite/api": "workspace:*",
     "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/shared": "workspace:*",
     "@xiranite/node-bandia": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
@@ -47,7 +51,8 @@
     "@xiranite/node-scoolp": "workspace:*",
     "@xiranite/node-seriex": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
-    "@xiranite/node-trename": "workspace:*"
+    "@xiranite/node-trename": "workspace:*",
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

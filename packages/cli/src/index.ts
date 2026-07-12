@@ -2,6 +2,8 @@
 import { pathToFileURL } from "node:url"
 import { createCliHost, normalizeNodeCliName, renderRichPanel, rich, terminalColumns, writeError, writeLine } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { createTerminalTaskQueueController, isBunRuntime, reexecTerminalUiWithBun } from "@xiranite/cli-runtime/terminal"
+import { createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { localizeNodeHelp } from "@xiranite/contract"
 import type { NodeHelp } from "@xiranite/contract"
 import { GENERATED_NODE_CLI_REGISTRY } from "./node-cli-registry.generated.js"
@@ -47,9 +49,10 @@ export function findNodeCli(value: string): NodeCliRegistration | undefined {
 
 export function formatHelp(): string {
   return [
-    "xiranite <node> [args]",
+    "xiranite [ui | <node> [args]]",
     "",
     "Commands:",
+    "  ui                   Open the fullscreen Xiranite terminal workspace",
     "  list                 List node commands",
     "  help <node>          Show a node command help",
     "  <node> [args]        Run a node CLI, for example `xiranite cleanf preview --help`",
@@ -68,8 +71,23 @@ export function formatNodeList(): string {
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createCliHost()): Promise<void> {
   const [command, ...rest] = args
 
+  if (!command && host.stdin.isTTY && host.stdout.isTTY) {
+    await runWorkspaceUi(host)
+    return
+  }
+
   if (!command || command === "--help" || command === "-h") {
     writeLine(host, formatHelp())
+    return
+  }
+
+  if (command === "ui") {
+    if (!host.stdin.isTTY || !host.stdout.isTTY) {
+      writeError(host, "`xiranite ui` requires an interactive terminal.")
+      process.exitCode = 2
+      return
+    }
+    await runWorkspaceUi(host)
     return
   }
 
@@ -91,6 +109,29 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
   }
 
   await runNodeCli(command, rest, host)
+}
+
+async function runWorkspaceUi(host: CliHost): Promise<void> {
+  if (!isBunRuntime()) {
+    await reexecTerminalUiWithBun(host, { entrypoint: process.argv[1]!, args: ["ui"] })
+    return
+  }
+  const baseUrl = host.env.XIRANITE_BACKEND_URL?.trim()
+  const token = host.env.XIRANITE_BACKEND_TOKEN?.trim()
+  const workspace = baseUrl
+    ? (() => {
+        const client = createXiraniteWorkspaceClient(baseUrl, { token })
+        return { available: true, load: () => client.loadSnapshot(), save: async (snapshot: Parameters<typeof client.persistSnapshot>[0]) => { await client.persistSnapshot(snapshot) } }
+      })()
+    : {
+        available: false,
+        reason: "未配置 XIRANITE_BACKEND_URL，当前为只读离线工作台。",
+        load: async () => ({ workspaces: [{ id: "offline", label: "离线工作区", createdAt: Date.now(), updatedAt: Date.now() }], lanes: [], components: [] }),
+        save: async () => undefined,
+      }
+  const { renderXiraniteTui } = await import("./tui-runner.js")
+  const nodeId = await renderXiraniteTui({ host, nodes: NODE_CLI_REGISTRY, workspace, taskQueue: createTerminalTaskQueueController(host.env) })
+  if (nodeId) await runNodeCli(nodeId, ["ui"], host)
 }
 
 export async function runNodeCli(nodeId: string, args: string[], host: CliHost = createCliHost()): Promise<void> {

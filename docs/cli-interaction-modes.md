@@ -3,6 +3,27 @@
 This document defines the shared interaction contract for Xiranite node CLIs.
 All node terminal-UI migrations must follow it.
 
+## Xiranite terminal workspace
+
+The aggregate `xiranite` command owns a fullscreen OpenTUI workspace in
+addition to dispatching individual node CLIs. `xiranite ui`, or `xiranite`
+without arguments in a real TTY, opens the workspace. Non-TTY invocation stays
+plain and prints help instead of emitting ANSI.
+
+The terminal workspace reads and writes the same `WorkspaceSnapshotDTO` used
+by the Web desktop. Node deployment, removal, and Bento position/size changes
+therefore survive switching between Web and terminal surfaces. The 12-column
+`bentoLayout` remains the persisted source of truth; terminal dimensions are a
+responsive projection and never replace shared layout data with character-cell
+coordinates.
+
+The workspace provides node discovery/search, mouse deployment, workspace
+selection, component selection, move/resize/remove controls, entry into the
+selected package-owned node TUI, and the shared global operation queue. F9
+opens the queue from either the aggregate workspace or a node TUI. Backend
+sync and shared execution require `XIRANITE_BACKEND_URL`; authenticated local
+backends additionally use `XIRANITE_BACKEND_TOKEN`.
+
 Before implementing or reviewing a node TUI, look for the node's existing GUI
 captures under `output/playwright` first. Most package nodes already have one
 or more decisive workflow screenshots there. Use `bun run qa:node-baselines --

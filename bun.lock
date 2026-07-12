@@ -174,6 +174,9 @@
         "xiranite": "./dist/index.js",
       },
       "dependencies": {
+        "@opentui/core": "0.4.3",
+        "@opentui/react": "0.4.3",
+        "@xiranite/api": "workspace:*",
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/node-bandia": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
@@ -199,6 +202,8 @@
         "@xiranite/node-seriex": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
         "@xiranite/node-trename": "workspace:*",
+        "@xiranite/shared": "workspace:*",
+        "react": "^19.2.4",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",

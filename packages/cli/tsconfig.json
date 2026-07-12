@@ -3,6 +3,8 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
     "lib": [
       "ES2022"
     ],
@@ -15,13 +17,15 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "types": [
-      "node"
+      "node",
+      "react"
     ]
   },
   "include": [
     "src"
   ],
   "exclude": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
   ]
 }
