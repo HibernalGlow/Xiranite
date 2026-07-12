@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
 import { describe, expect, test } from "bun:test"
-import { act } from "react"
+import { act, useState } from "react"
 
 import type { TerminalInteractionDefinition } from "../../interaction.js"
 import type { TerminalPreferenceValues } from "../index.js"
@@ -10,6 +10,7 @@ import { TerminalTaskQueueScreen } from "./task-queue-screen.js"
 import { TerminalRoot } from "./runner.js"
 import { useTerminalChromeActions } from "./chrome-actions.js"
 import { TerminalThemeProvider, resolveTerminalTheme } from "../theme.js"
+import { NumberInput } from "../../components/ui/number-input.js"
 
 interface DemoInput {
   action: string
@@ -82,6 +83,26 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
 }
 
 describe("OpenTUI terminal adapter", () => {
+  test("keeps numeric input height and value stable across focus and blur", async () => {
+    function Harness() {
+      const [value, setValue] = useState(42)
+      const [focused, setFocused] = useState(false)
+      return <box width="40" height={6} flexDirection="column"><NumberInput id="number" value={value} focused={focused} colors={resolveTerminalTheme("nord").colors} onFocus={() => setFocused(true)} onChange={setValue} /><box id="outside" height={2} onMouseDown={() => setFocused(false)}><text>outside</text></box></box>
+    }
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => { setup = await testRender(<Harness />, { width: 40, height: 8, useMouse: true }) })
+    const click = async (id: string) => { const target = setup.renderer.root.findDescendantById(id)!; await act(async () => setup.mockMouse.click(target.x + 1, target.y + 1)); await act(async () => setup.flush()) }
+    try {
+      await act(async () => setup.renderOnce())
+      const height = setup.renderer.root.findDescendantById("number")!.height
+      await click("number")
+      expect(setup.renderer.root.findDescendantById("number")!.height).toBe(height)
+      expect(setup.captureCharFrame()).toContain("42")
+      await click("outside")
+      expect(setup.captureCharFrame()).toContain("42")
+    } finally { await act(async () => setup.renderer.destroy()) }
+  })
+
   test("keeps reset, exit, and shared help mouse targets clickable", async () => {
     let reset = 0
     let exited = 0
@@ -179,6 +200,8 @@ describe("OpenTUI terminal adapter", () => {
       await click("field-interval-plus")
       await click("field-interval")
       await act(async () => {
+        setup.mockInput.pressBackspace()
+        setup.mockInput.pressBackspace()
         await setup.mockInput.typeText("30")
       })
       await act(async () => setup.flush())
