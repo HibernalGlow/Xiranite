@@ -88,3 +88,14 @@ turning the workbench into a guided wizard.
 The PNG was reviewed against the reference after rebuilding the shared runtime;
 numeric controls use the portable `∷` semantic icon rather than `#`, and the
 shared reset/exit/help/task-queue chrome remains in the top row.
+
+## ClassF
+
+- GUI evidence: `output/playwright/classf/classf-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/classf/transfer-control.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+ClassF uses a source-list rail and a dominant classification-plan surface, with
+transfer mode, classify mode, existing-item policy, target directory, and dry
+run controls in a lower execution deck. This keeps the GUI's matrix/transfer
+relationship visible without copying its three-column browser layout.
