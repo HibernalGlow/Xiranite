@@ -83,7 +83,7 @@ export async function pickLocalPaths(kind: "files" | "directory"): Promise<strin
   const response = await fetch(url.href, {
     method: "POST",
     cache: "no-store",
-    headers: { "content-type": "application/json", ...(config.token ? { "x-xiranite-token": config.token } : {}) },
+    headers: { "content-type": "application/json", ...(config.token && { "x-xiranite-token": config.token }) },
     body: JSON.stringify({ kind }),
   })
   if (!response.ok) throw new Error(await response.text().catch(() => `Native picker returned ${response.status}.`))
