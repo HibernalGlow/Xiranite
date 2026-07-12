@@ -20,13 +20,18 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints, stringifyToml } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, stringifyToml, updateNodeConfig } from "@xiranite/config"
 
 import type { SeriexInput, SeriexResult } from "./core.js"
 import { runSeriex } from "./core.js"
 import { createNodeSeriexRuntime, readClipboardText } from "./platform.js"
+import { createSeriexInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("seriex")
 
@@ -119,13 +124,17 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+interface SeriexNodePreferences extends CliInteractionPreferencesSource { config_path?:string; directory_path?:string; threshold?:number; ratio_threshold?:number; partial_threshold?:number; token_threshold?:number; length_diff_max?:number; add_prefix?:boolean; prefix?:string; known_series_dirs?:string[]; known_series_names?:string[]; dry_run?:boolean }
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<SeriexNodePreferences>("seriex",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createSeriexInteractionSchema({directoryPath:d.directory_path,configPath:d.config_path,threshold:d.threshold,ratioThreshold:d.ratio_threshold,partialThreshold:d.partial_threshold,tokenThreshold:d.token_threshold,lengthDiffMax:d.length_diff_max,addPrefix:d.add_prefix,prefix:d.prefix,knownSeriesDirs:d.known_series_dirs?.join("\n"),knownSeriesNames:d.known_series_names?.join("\n"),dryRun:d.dry_run},language),run:(input,event)=>runSeriex(input,createNodeSeriexRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | plan | execute`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).SeriexTui,createPreferences:(_d,current)=>seriexPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+function seriexPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"seriex",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"seriex",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<SeriexNodePreferences>("seriex",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {

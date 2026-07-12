@@ -17,7 +17,8 @@
     "verbatimModuleSyntax": true,
     "types": [
       "node"
-    ]
+    ],
+    "jsx": "react-jsx"
   },
   "include": [
     "src"
