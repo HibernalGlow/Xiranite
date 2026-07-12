@@ -148,6 +148,22 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     if (dataRef.current.selectedPreset === id) patch({ selectedPreset: undefined })
   }
 
+  async function exportCustomPresets() {
+    await host.clipboard?.writeText?.(JSON.stringify({ version: 1, nodeId: "xlchemy", presets: customPresets.map(({ name, values }) => ({ name, values })) }, null, 2))
+  }
+
+  async function importCustomPresets(serialized: string) {
+    const parsed = JSON.parse(serialized) as { nodeId?: string; presets?: Array<{ name?: unknown; values?: unknown }> }
+    if (parsed.nodeId && parsed.nodeId !== "xlchemy") throw new Error(`预设属于 ${parsed.nodeId}，不能导入 Xlchemy。`)
+    if (!Array.isArray(parsed.presets)) throw new Error("预设 JSON 缺少 presets 数组。")
+    for (const item of parsed.presets) {
+      if (typeof item.name !== "string" || !item.name.trim() || !item.values || typeof item.values !== "object" || Array.isArray(item.values)) throw new Error("预设名称或 values 无效。")
+      const response = await host.config?.createPreset?.({ name: item.name.trim(), values: item.values as Record<string, unknown> })
+      const preset = normalizeCustomPreset(response?.preset)
+      if (preset) setCustomPresets((current) => [...current, preset])
+    }
+  }
+
   async function execute(nextAction: XlchemyAction) {
     if (running) return
     const selected = dataRef.current.selectedPaths
@@ -199,7 +215,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
-    onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset,
+    onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
   }
 
   return (
@@ -263,7 +279,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>
 }
 
 function CollapsedView(props: ViewProps) {
@@ -355,7 +371,7 @@ function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewPr
 }
 
 function Header({ props }: { props: ViewProps }) {
-  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
+  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset, onExport: props.onExportPresets, onImport: props.onImportPresets }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {

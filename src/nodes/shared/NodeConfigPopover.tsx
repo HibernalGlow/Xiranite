@@ -1,5 +1,5 @@
 import { useId, useState } from "react"
-import { DatabaseZap, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react"
+import { DatabaseZap, Download, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { useNodeI18n } from "./useNodeI18n"
@@ -35,6 +36,8 @@ export interface NodeConfigPopoverProps {
     onDelete?: (value: string) => Promise<void> | void
     onOverwrite?: (value: string) => Promise<void> | void
     onRename?: (value: string, name: string) => Promise<void> | void
+    onExport?: () => Promise<void> | void
+    onImport?: (serialized: string) => Promise<void> | void
   }
 }
 
@@ -50,6 +53,8 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const [presetEditor, setPresetEditor] = useState<"create" | "rename" | null>(null)
   const [presetName, setPresetName] = useState("")
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
+  const [presetImportOpen, setPresetImportOpen] = useState(false)
+  const [presetImportText, setPresetImportText] = useState("")
   const disabled = Boolean(props.disabled || props.loading || busy)
   const effectiveDefaults = props.defaults && Object.keys(props.defaults).length
     ? props.defaults
@@ -133,6 +138,17 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
                 {selectedPresetEditable && props.preset.onDelete && <Button disabled={disabled} size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setPresetConfirmation("delete")}><Trash2 data-icon="inline-start" />{props.t("config.presetDelete", "删除预设")}</Button>}
               </div>
             )}
+            {(props.preset.onImport || props.preset.onExport) && <div className="grid grid-cols-2 gap-2">
+              {props.preset.onImport && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetImportOpen(true)}><Upload data-icon="inline-start" />{props.t("config.presetImport", "导入预设")}</Button>}
+              {props.preset.onExport && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("preset", props.preset!.onExport!)}><Download data-icon="inline-start" />{props.t("config.presetExport", "导出预设")}</Button>}
+            </div>}
+            <Dialog open={presetImportOpen} onOpenChange={setPresetImportOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>{props.t("config.presetImport", "导入预设")}</DialogTitle><DialogDescription>{props.t("config.presetImportDescription", "粘贴由配置管理导出的 JSON 预设。")}</DialogDescription></DialogHeader>
+                <Textarea className="min-h-48 font-mono text-xs" value={presetImportText} onChange={(event) => setPresetImportText(event.currentTarget.value)} placeholder='{"presets": [...]}' />
+                <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setPresetImportOpen(false)}>{props.t("common:cancel", "取消")}</Button><Button disabled={!presetImportText.trim() || disabled} onClick={() => void perform("preset", async () => { await props.preset?.onImport?.(presetImportText); setPresetImportText(""); setPresetImportOpen(false) })}>{props.t("config.presetImport", "导入预设")}</Button></div>
+              </DialogContent>
+            </Dialog>
             {selectedPreset?.values && (
               <Dialog>
                 <DialogTrigger asChild><Button disabled={disabled} size="sm" variant="ghost"><Eye data-icon="inline-start" />{props.t("config.presetView", "查看预设配置")}</Button></DialogTrigger>

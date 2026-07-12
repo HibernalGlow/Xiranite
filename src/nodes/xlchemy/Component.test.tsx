@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyData, XlchemyInput } from "@xiranite/node-xlchemy/core"
@@ -89,6 +89,23 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "删除预设" }))
     await user.click(screen.getAllByRole("button", { name: "删除预设" }).at(-1)!)
     await waitFor(() => expect(host.presets).toEqual([]))
+  })
+
+  test("exports and imports complete custom presets through shared config management", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "WebP", quality: 77 })
+    host.presets = [{ id: "custom-1", name: "Archive", values: { format: "WebP", quality: 77, downscaleEnabled: true } }]
+    const writeText = vi.fn(async () => undefined)
+    host.clipboard!.writeText = writeText
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await user.click(screen.getByRole("button", { name: "导出预设" }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
+    expect(JSON.parse(String(writeText.mock.calls[0]?.[0]))).toMatchObject({ nodeId: "xlchemy", presets: [{ name: "Archive", values: { quality: 77, downscaleEnabled: true } }] })
+    await user.click(screen.getByRole("button", { name: "导入预设" }))
+    fireEvent.change(screen.getByPlaceholderText('{"presets": [...]}'), { target: { value: JSON.stringify({ nodeId: "xlchemy", presets: [{ name: "Imported", values: { format: "AVIF", quality: 60 } }] }) } })
+    await user.click(screen.getAllByRole("button", { name: "导入预设" }).at(-1)!)
+    await waitFor(() => expect(host.presets.some((preset) => preset.name === "Imported" && preset.values.format === "AVIF")).toBe(true))
   })
 
   test("keeps config inspection and factory restore available before saved defaults exist", async () => {
