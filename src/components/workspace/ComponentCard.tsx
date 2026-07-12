@@ -1,4 +1,4 @@
-import { memo, useRef } from "react"
+import { memo, useRef, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -36,6 +36,12 @@ const stateLabelKey: Record<ComputedLayout["state"], string> = {
   compact: "common:compact",
   focused: "common:focusState",
   fullscreen: "common:full",
+}
+
+function isCardInteractionTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest(
+    "button, a, input, select, textarea, label, [role=button], [role=menuitem], [contenteditable=true]",
+  ))
 }
 
 function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutResizing, positioning = "absolute" }: Props) {
@@ -85,7 +91,8 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
     }
   }
 
-  function handleCardClick() {
+  function handleCardClick(event: MouseEvent<HTMLDivElement>) {
+    if (isCardInteractionTarget(event.target)) return
     if (cardClickAction === "none" || cardClickAction === cardDoubleClickAction) return
     if (cardDoubleClickAction === "none") {
       executeCardAction(cardClickAction)
@@ -98,7 +105,8 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
     }, 250)
   }
 
-  function handleCardDoubleClick() {
+  function handleCardDoubleClick(event: MouseEvent<HTMLDivElement>) {
+    if (isCardInteractionTarget(event.target)) return
     if (cardDoubleClickAction === "none") return
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current)
