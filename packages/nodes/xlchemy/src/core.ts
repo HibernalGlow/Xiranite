@@ -286,7 +286,8 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   const root = roots.find((candidate) => source.path === candidate || source.path.startsWith(`${candidate}\\`) || source.path.startsWith(`${candidate}/`)) ?? runtime.dirname(source.path)
   const targetRoot = input.outputMode === "directory" ? input.outputDir! : runtime.dirname(source.path)
   const relativeDir = input.outputMode === "directory" && input.preserveStructure ? runtime.dirname(runtime.relative(root, source.path)) : ""
-  const extension = FORMAT_EXTENSIONS[input.format]
+  let extension = FORMAT_EXTENSIONS[input.format]
+  if (input.format === "JPEG Reconstruction") extension = await jpegReconstructionExtension(source.path, input, runtime)
   const sourceExtension = runtime.extname(source.path)
   const stem = runtime.basename(source.path).slice(0, -sourceExtension.length)
   let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${stem}${extension}`)
@@ -300,6 +301,16 @@ async function uniqueTarget(path: string, runtime: XlchemyRuntime): Promise<stri
   const ext = runtime.extname(path), stem = path.slice(0, -ext.length)
   for (let index = 1; index < 10_000; index += 1) { const candidate = `${stem}_${index}${ext}`; if (!(await runtime.pathInfo(candidate)).exists) return candidate }
   throw new Error(`Unable to allocate a unique output path for ${path}`)
+}
+
+async function jpegReconstructionExtension(source: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<".jpg" | ".png"> {
+  const jxlinfo = await runtime.resolveCommand(["jxlinfo"])
+  if (!jxlinfo) throw new Error("jxlinfo is required to inspect JPEG reconstruction data.")
+  const info = await runRuntimeCommand(runtime, jxlinfo, [source])
+  if (info.exitCode !== 0) throw new Error(info.stderr.trim() || "Unable to inspect JPEG XL reconstruction data.")
+  if (`${info.stdout}\n${info.stderr}`.includes("JPEG bitstream reconstruction data available")) return ".jpg"
+  if (input.jxlPngFallback) return ".png"
+  throw new Error("JPEG reconstruction data was not found. Enable PNG fallback to decode this JPEG XL image.")
 }
 
 async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {

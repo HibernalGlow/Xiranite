@@ -112,7 +112,19 @@ describe("xlchemy core contract", () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.jxl"], format: "JPEG Reconstruction", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
-    expect(runtime.commands[0]).toEqual({ command: "/bin/djxl", args: ["--num_threads", "4", "/photos/a.jxl", "/photos/a.jpg"] })
+    expect(runtime.commands.at(-1)).toEqual({ command: "/bin/djxl", args: ["--num_threads", "4", "/photos/a.jxl", "/photos/a.jpg"] })
+  })
+
+  test("decodes JPEG XL without reconstruction data to PNG only when fallback is enabled", async () => {
+    const runtime = fakeRuntime()
+    const runCommand = runtime.runCommand
+    runtime.runCommand = async (command, args) => command.endsWith("jxlinfo") ? (runtime.commands.push({ command, args }), { exitCode: 0, stdout: "JPEG XL image, no reconstruction payload", stderr: "" }) : runCommand(command, args)
+    const fallback = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.jxl"], format: "JPEG Reconstruction", jxlPngFallback: true, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(fallback.success).toBe(true)
+    expect(fallback.data?.files[0]).toMatchObject({ outputPath: "/photos/a.png", status: "converted" })
+    const rejected = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.jxl"], format: "JPEG Reconstruction", jxlPngFallback: false, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(rejected.success).toBe(false)
+    expect(rejected.message).toContain("Enable PNG fallback")
   })
 
   test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {
@@ -138,7 +150,7 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
     listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
     ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async (path) => { files.delete(path) }, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async (source, target) => { const item = files.get(source); if (item) { files.set(target, item); files.delete(source) } }, setTimes: async () => undefined,
-    runCommand: async (command, args) => { runtime.commands.push({ command, args }); const output = args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
+    runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
     convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
