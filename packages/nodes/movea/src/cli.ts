@@ -19,18 +19,23 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { MoveaInput, MoveaResult, MoveaScanItem } from "./core.js"
 import { matchMoveaArchiveToFolders, runMovea } from "./core.js"
 import { createNodeMoveaRuntime, readClipboardText } from "./platform.js"
+import { createMoveaInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("movea")
 const DEFAULT_ROOT_PATH = "E:\\1Hub\\EH\\1EHV"
 
-interface MoveaNodeConfig {
+interface MoveaNodeConfig extends CliInteractionPreferencesSource {
   root_path?: string
   regex_patterns?: string[]
   priority_keywords?: string[]
@@ -117,13 +122,16 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<MoveaNodeConfig>("movea",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createMoveaInteractionSchema({rootPath:d.root_path,regexPatterns:d.regex_patterns?.join("\n"),priorityKeywords:d.priority_keywords?.join("\n"),blacklist:d.blacklist?.join("\n"),allowMoveToUnnumbered:d.allow_move_to_unnumbered,enableFolderMoving:d.enable_folder_moving,dryRun:d.dry_run},language),run:(input,event)=>runMovea(input,createNodeMoveaRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | scan | match | move`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).MoveaTui,createPreferences:(_d,current)=>moveaPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+function moveaPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"movea",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"movea",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<MoveaNodeConfig>("movea",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {
@@ -194,8 +202,9 @@ function commonArgs() {
 }
 
 async function resolveMoveaArgs(args: MoveaCliOptions, host: CliHost): Promise<MoveaCliOptions> {
-  const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
-  const rootFromStdin = args.root === "-" || (!args.root && hasPipedInput(host.stdin))
+  const readablePipe = hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)
+  const pathFromStdin = args.path === "-" || (!args.path && readablePipe)
+  const rootFromStdin = args.root === "-" || (!args.root && readablePipe)
   if (!pathFromStdin && !rootFromStdin) return args
   const stdinLines = await readStdinLines(host.stdin)
   const resolved: MoveaCliOptions = { ...args }

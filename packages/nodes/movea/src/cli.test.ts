@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 describe("movea CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses the configured interactive default outside a terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -27,9 +27,9 @@ describe("movea CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
     expect(host.stderrText()).toContain("xmovea")
-    expect(host.stderrText()).toContain("--json")
+    expect(host.stderrText()).toContain("xmovea ui")
   })
 
   test("prints pure JSON scan results for real folders", async () => {
