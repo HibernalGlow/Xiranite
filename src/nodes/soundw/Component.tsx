@@ -1,163 +1,53 @@
 import { useEffect, useRef, useState } from "react"
-import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
+import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SoundwAction, SoundwData, SoundwInput } from "@xiranite/node-soundw/core"
-import { AudioLines, Cable, ChevronDown, ChevronUp, ListRestart, Mic, MicOff, RefreshCw, Settings, Volume2 } from "lucide-react"
+import { AudioLines, Cable, CheckCircle2, Clipboard, ListRestart, Mic, MicOff, Play, RefreshCw, Settings, Terminal, Volume2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 
-type SoundwCardState = {
-  profileName?: string
-  soundSwitchPath?: string
-  showAdvanced?: boolean
-  result?: SoundwData | null
-  logs?: string[]
-}
+type SoundwCardState = { profileName?: string; soundSwitchPath?: string; result?: SoundwData | null; logs?: string[]; phase?: "idle" | "running" | "completed" | "error"; progressText?: string }
 type SoundwDefaults = Pick<SoundwCardState, "profileName" | "soundSwitchPath">
-
 const MAX_LOG_LINES = 60
 
-export function Component({ compId, host }: NodeComponentProps) {
-  const { t } = useNodeI18n("soundw")
-  const data = host.getData<SoundwCardState>(compId) ?? {}
+export function Component({ compId, host }: NodeComponentProps<SoundwCardState>) {
+  const surface = useNodeSurface()
+  const data = host.state?.getData?.() ?? host.getData<SoundwCardState>(compId) ?? {}
   const dataRef = useRef(data)
   dataRef.current = data
   const [running, setRunning] = useState(false)
-  const [defaults, setDefaults] = useState<SoundwDefaults | undefined>()
-
-  useEffect(() => {
-    host.getNodeConfig?.<SoundwDefaults>().then((response) => setDefaults(response.config)).catch(() => undefined)
-  }, [host])
-
-  function patch(next: Partial<SoundwCardState>) {
-    dataRef.current = { ...dataRef.current, ...next }
-    host.patchData(compId, next)
-  }
-
-  function appendLog(message: string) {
-    patch({ logs: [...(dataRef.current.logs ?? []), message].slice(-MAX_LOG_LINES) })
-  }
-
+  const [defaults, setDefaults] = useState<SoundwDefaults>()
+  useEffect(() => { (host.config?.get?.<SoundwDefaults>() ?? host.getNodeConfig?.<SoundwDefaults>())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
+  function patch(next: Partial<SoundwCardState>) { dataRef.current = { ...dataRef.current, ...next }; if (host.state?.patchData) host.state.patchData(next); else host.patchData(compId, next) }
+  function append(message: string) { patch({ logs: [...(dataRef.current.logs ?? []), message].slice(-MAX_LOG_LINES) }) }
   async function execute(action: SoundwAction) {
-    const run = host.actions?.run
-    if (running || !run) {
-      if (!run) appendLog("Native action is unavailable in this host.")
-      return
-    }
-
-    setRunning(true)
+    const run = host.runner?.run ?? host.actions?.run
+    if (running || !run) { if (!run) append("当前宿主不支持本地 SoundSwitch 操作。"); return }
+    setRunning(true); patch({ phase: "running", progressText: actionLabel(action) })
     try {
-      const response = await run<SoundwInput, SoundwData>("soundw", {
-        action,
-        soundSwitchPath: dataRef.current.soundSwitchPath ?? defaults?.soundSwitchPath,
-        profileName: dataRef.current.profileName ?? defaults?.profileName,
-      }, (event) => appendLog(`[${event.progress ?? 0}%] ${event.message}`)) as NodeRunResult<SoundwData>
-
-      patch({
-        result: response.data ?? null,
-        logs: [...(dataRef.current.logs ?? []), response.message].slice(-MAX_LOG_LINES),
-      })
-    } catch (error) {
-      appendLog(error instanceof Error ? error.message : String(error))
-    } finally {
-      setRunning(false)
-    }
+      const response = await run<SoundwInput, SoundwData>("soundw", { action, soundSwitchPath: dataRef.current.soundSwitchPath ?? defaults?.soundSwitchPath, profileName: dataRef.current.profileName ?? defaults?.profileName }, (event: NodeRunEvent) => append(`[${event.progress ?? 0}%] ${event.message}`)) as NodeRunResult<SoundwData>
+      patch({ phase: response.success ? "completed" : "error", progressText: response.message, result: response.data ?? null }); append(response.message)
+    } catch (error) { const message = error instanceof Error ? error.message : String(error); patch({ phase: "error", progressText: message }); append(message) } finally { setRunning(false) }
   }
-
-  const result = data.result
-  const statusText = result?.muteState === null || result?.muteState === undefined
-    ? t("status.notQueried", "状态未查询")
-    : result.muteState
-  const lastOutput = result?.output || t("status.ready", "就绪 — 查询状态或切换录音设备。")
-  const profileName = data.profileName ?? defaults?.profileName ?? ""
-  const soundSwitchPath = data.soundSwitchPath ?? defaults?.soundSwitchPath ?? ""
-  const configDirty = defaults !== undefined && (profileName !== (defaults.profileName ?? "") || soundSwitchPath !== (defaults.soundSwitchPath ?? ""))
-  async function saveDefaults() {
-    const next = { profileName: profileName || undefined, soundSwitchPath: soundSwitchPath || undefined }
-    await host.saveNodeConfig?.(next)
-    setDefaults(next)
-  }
-
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-muted/20 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/35 bg-primary/5 text-primary">
-            <Mic className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground">{t("labels.soundswitchRecording", "SOUNDSWITCH / RECORDING")}</p>
-            <p className="truncate text-sm font-semibold" title={lastOutput}>{lastOutput}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border px-2 py-1 font-mono text-[10px] text-muted-foreground">{t("labels.micPrefix", "MIC")}: {statusText}</span>
-          <Button aria-label={t("aria.refreshStatus", "刷新麦克风状态")} disabled={running} onClick={() => execute("status")} size="icon-sm" variant="ghost">
-            <RefreshCw className={running ? "animate-spin" : undefined} />
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(13rem,.9fr)_minmax(16rem,1.15fr)_minmax(12rem,.8fr)]">
-        <section className="rounded-xl border bg-muted/15 p-3">
-          <div className="mb-3 flex items-center justify-between border-b pb-2">
-            <div>
-              <p className="font-semibold">{t("sections.deviceMatrix", "设备矩阵")}</p>
-              <p className="font-mono text-[10px] tracking-widest text-primary">{t("labels.recordingRoute", "录音路由")}</p>
-            </div>
-            <Cable className="size-4 text-muted-foreground" />
-          </div>
-          <div className="space-y-2">
-            <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
-              <div className="flex items-start gap-2.5">
-                <span className="mt-0.5 rounded-md bg-primary/10 p-1.5 text-primary"><Mic className="size-4" /></span>
-                <div className="min-w-0"><p className="text-sm font-medium">{t("labels.recordingDevices", "录音设备")}</p><p className="mt-0.5 text-xs text-muted-foreground">{t("descriptions.recordingDevices", "仅循环切换 SoundSwitch 中配置的输入设备。")}</p></div>
-              </div>
-              <Button className="mt-3 w-full gap-1.5" disabled={running} onClick={() => execute("switch-recording")} size="sm">
-                <ListRestart className="size-3.5" /> {t("actions.switchRecordingDevice", "切换录音设备")}
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button className="h-auto min-h-16 flex-col gap-1.5" disabled={running} onClick={() => execute("mute")} size="sm" variant="outline"><MicOff className="size-4" />{t("actions.muteMic", "静音麦克风")}</Button>
-              <Button className="h-auto min-h-16 flex-col gap-1.5" disabled={running} onClick={() => execute("unmute")} size="sm" variant="outline"><Volume2 className="size-4" />{t("actions.unmuteMic", "取消静音")}</Button>
-            </div>
-            <Button className="w-full gap-1.5" disabled={running} onClick={() => execute("toggle-mute")} size="sm" variant="ghost"><AudioLines className="size-3.5" />{t("actions.toggleMute", "切换麦克风静音")}</Button>
-          </div>
-        </section>
-
-        <section className="min-h-0 rounded-xl border bg-muted/15 p-3">
-          <div className="mb-3 flex items-center justify-between border-b pb-2">
-            <div><p className="font-semibold">{t("sections.profileHub", "配置中心")}</p><p className="font-mono text-[10px] tracking-widest text-primary">{t("labels.soundswitchProfiles", "SOUNDSWITCH 配置")}</p></div>
-            <Button aria-label={t("aria.loadProfiles", "加载 SoundSwitch 配置")} disabled={running} onClick={() => execute("profiles")} size="icon-sm" variant="ghost"><RefreshCw className={running ? "animate-spin" : undefined} /></Button>
-          </div>
-          <div className="flex gap-2">
-            <Input aria-label={t("aria.profileName", "SoundSwitch 配置名称")} disabled={running} onChange={(event) => patch({ profileName: event.target.value })} placeholder={t("placeholders.profileName", "配置名称")} value={profileName} />
-            <Button disabled={running || !profileName.trim()} onClick={() => execute("profile")} size="sm">{t("actions.activate", "激活")}</Button>
-          </div>
-          <ScrollArea className="mt-3 h-[calc(100%-5.5rem)] min-h-24 rounded-lg border bg-background/35">
-            <div className="space-y-1.5 p-2">
-              {result?.profiles.length ? result.profiles.map((profile) => (
-                <button className="flex w-full items-center justify-between rounded-md border bg-muted/20 px-2.5 py-2 text-left text-xs transition-colors hover:border-primary/40 hover:bg-primary/5" key={profile} onClick={() => patch({ profileName: profile })} type="button">
-                  <span className="truncate font-mono">{profile}</span><span className="text-[10px] text-muted-foreground">{t("labels.use", "使用")}</span>
-                </button>
-              )) : <p className="px-2 py-5 text-center text-xs text-muted-foreground">{t("empty.profiles", "加载配置以选择。配置定义仍由 SoundSwitch 管理。")}</p>}
-            </div>
-          </ScrollArea>
-        </section>
-
-        <section className="flex min-h-0 flex-col rounded-xl border bg-muted/15 p-3">
-          <div className="flex items-center justify-between border-b pb-2"><div><p className="font-semibold">{t("sections.consoleLog", "控制台日志")}</p><p className="font-mono text-[10px] tracking-widest text-primary">{t("labels.commandOutput", "命令输出")}</p></div><Button aria-label={t("aria.openSettings", "打开 SoundSwitch 设置")} disabled={running} onClick={() => execute("settings")} size="icon-sm" variant="ghost"><Settings /></Button></div>
-          <ScrollArea className="mt-3 min-h-20 flex-1 rounded-lg border bg-background/60">
-            <div className="space-y-1 p-2 font-mono text-[10px] leading-5 text-muted-foreground">{(data.logs ?? []).length ? (data.logs ?? []).map((line, index) => <p key={`${line}-${index}`} className="break-words">{line}</p>) : <p>{t("empty.logs", "尚未运行命令。")}</p>}</div>
-          </ScrollArea>
-          <div className="mt-3 border-t pt-2">
-            <Button className="h-6 w-full justify-between px-1.5 text-[10px]" onClick={() => patch({ showAdvanced: !data.showAdvanced })} size="sm" variant="ghost">{t("advanced.cliOverride", "CLI 路径覆盖")} {data.showAdvanced ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}</Button>
-            {data.showAdvanced && <Input className="mt-2 h-8 font-mono text-xs" onChange={(event) => patch({ soundSwitchPath: event.target.value })} placeholder={t("placeholders.cliPath", "SoundSwitch.CLI.exe 路径")} value={soundSwitchPath} />}
-            {configDirty && <Button className="mt-2 w-full" onClick={saveDefaults} size="sm" variant="outline">{t("actions.saveDefaults", "保存为默认")}</Button>}
-          </div>
-        </section>
-      </div>
-    </div>
-  )
+  const props: Props = { data, defaults, logs: data.logs ?? [], result: data.result ?? null, running, onExecute: execute, onPatch: patch, onCopyLogs: () => host.clipboard?.writeText?.((data.logs ?? []).join("\n")), onSaveDefaults: async () => { const next = { profileName: dataRef.current.profileName || undefined, soundSwitchPath: dataRef.current.soundSwitchPath || undefined }; if (host.config?.save) await host.config.save(next); else await host.saveNodeConfig?.(next); setDefaults(next) } }
+  return <TooltipProvider><div ref={surface.ref} className="@container/soundw flex h-full min-h-0 w-full overflow-hidden">{surface.mode === "collapsed" ? <Collapsed {...props} /> : surface.mode === "portrait" ? <Portrait {...props} /> : surface.mode === "compact" ? <Compact {...props} /> : <Full {...props} />}</div></TooltipProvider>
 }
+
+type Props = { data: SoundwCardState; defaults?: SoundwDefaults; logs: string[]; result: SoundwData | null; running: boolean; onExecute: (action: SoundwAction) => void; onPatch: (patch: Partial<SoundwCardState>) => void; onCopyLogs: () => Promise<void> | void; onSaveDefaults: () => Promise<void> }
+function Collapsed(props: Props) { const muted = props.result?.muteState; return <div data-testid="soundw-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 rounded-xl border bg-card px-3 py-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", muted ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground")}><Mic className="size-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-xs font-semibold">SoundSwitch <Badge variant={muted ? "destructive" : "outline"}>{muted || "未查询"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.data.progressText || "管理录音设备与麦克风静音"}</p></div><RunButton action="status" compact props={props} /></div> }
+function Compact(props: Props) { return <div data-testid="soundw-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3"><Header props={props} /><ActionDeck compact props={props} /><OutputPanel compact props={props} /></div> }
+function Portrait(props: Props) { return <div data-testid="soundw-portrait-view" className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ActionDeck compact props={props} /><ProfilePanel compact props={props} /><OutputPanel compact props={props} /></div> }
+function Full(props: Props) { return <div data-testid="soundw-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><div className="flex shrink-0 items-center justify-between gap-3"><Header props={props} /><div data-testid="soundw-header-toolbar" className="flex gap-1"><IconButton disabled={props.running} icon={RefreshCw} label="刷新状态" onClick={() => props.onExecute("status")} /><IconButton disabled={!props.logs.length} icon={Clipboard} label="复制日志" onClick={props.onCopyLogs} /></div></div><div className="grid min-h-0 flex-1 gap-3 @5xl/soundw:grid-cols-[minmax(220px,.85fr)_minmax(240px,1fr)_minmax(220px,.85fr)]"><ActionDeck props={props} /><ProfilePanel props={props} /><OutputPanel props={props} /></div></div> }
+function Header({ props }: { props: Props }) { const muted = props.result?.muteState; const state = props.running ? "执行中" : muted ?? "未查询"; return <div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", props.running ? "bg-primary text-primary-foreground" : muted ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground")}><Mic className="size-4" /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="text-sm font-semibold">SoundSwitch</h3><Badge variant={muted ? "destructive" : props.running ? "secondary" : "outline"}>{state}</Badge></div><p className="mt-0.5 truncate text-xs text-muted-foreground">{props.data.progressText || "录音设备、配置与静音控制"}</p></div></div> }
+function ActionDeck({ compact, props }: { compact?: boolean; props: Props }) { return <section className="rounded-lg border bg-card p-3"><div className="mb-3 flex items-center justify-between border-b pb-2"><div><div className="flex items-center gap-1.5 text-sm font-medium"><Cable className="size-4" />录音设备</div><p className="mt-0.5 text-[11px] text-muted-foreground">仅在点击时调用 SoundSwitch CLI。</p></div><RunButton action="status" compact props={props} /></div><div className="grid gap-2"><Button disabled={props.running} size="sm" onClick={() => props.onExecute("switch-recording")}><ListRestart />切换录音设备</Button><div className="grid grid-cols-2 gap-2"><Button disabled={props.running} size="sm" variant="outline" onClick={() => props.onExecute("mute")}><MicOff />静音</Button><Button disabled={props.running} size="sm" variant="outline" onClick={() => props.onExecute("unmute")}><Volume2 />取消静音</Button></div><Button disabled={props.running} size="sm" variant="ghost" onClick={() => props.onExecute("toggle-mute")}><AudioLines />切换静音</Button></div>{!compact && <div className="mt-3 rounded-md border bg-muted/20 p-2 text-[11px] text-muted-foreground">若 CLI 报超时，请先在系统托盘中启动 SoundSwitch。</div>}</section> }
+function ProfilePanel({ compact, props }: { compact?: boolean; props: Props }) { const profileName = props.data.profileName ?? props.defaults?.profileName ?? ""; const path = props.data.soundSwitchPath ?? props.defaults?.soundSwitchPath ?? ""; const dirty = props.defaults !== undefined && (profileName !== (props.defaults.profileName ?? "") || path !== (props.defaults.soundSwitchPath ?? "")); return <section className="flex min-h-0 flex-col rounded-lg border bg-card p-3"><div className="mb-3 flex items-center justify-between border-b pb-2"><div><div className="flex items-center gap-1.5 text-sm font-medium"><Settings className="size-4" />配置</div><p className="mt-0.5 text-[11px] text-muted-foreground">选择并激活 SoundSwitch 配置。</p></div><IconButton disabled={props.running} icon={RefreshCw} label="读取配置" onClick={() => props.onExecute("profiles")} /></div><div className="flex gap-2"><Input aria-label="SoundSwitch 配置名称" disabled={props.running} placeholder="配置名称" value={profileName} onChange={(event) => props.onPatch({ profileName: event.currentTarget.value })} /><Button disabled={props.running || !profileName.trim()} size="sm" onClick={() => props.onExecute("profile")}>激活</Button></div>{!compact && <Input aria-label="SoundSwitch CLI 路径" className="mt-2 font-mono text-xs" disabled={props.running} placeholder="可选：SoundSwitch.CLI.exe 路径" value={path} onChange={(event) => props.onPatch({ soundSwitchPath: event.currentTarget.value })} />}<ScrollArea className="mt-3 min-h-20 flex-1 rounded-md border bg-muted/20"><div className="space-y-1.5 p-2">{props.result?.profiles.length ? props.result.profiles.map((profile) => <button key={profile} type="button" className="flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={() => props.onPatch({ profileName: profile })}><span className="truncate font-mono">{profile}</span><Play className="size-3 text-muted-foreground" /></button>) : <p className="p-3 text-center text-xs text-muted-foreground">读取配置后在此选择。</p>}</div></ScrollArea>{dirty && <Button className="mt-2" size="sm" variant="outline" onClick={() => void props.onSaveDefaults()}>保存为默认值</Button>}</section> }
+function OutputPanel({ compact, props }: { compact?: boolean; props: Props }) { return <section className="flex min-h-0 flex-col rounded-lg border bg-card p-3"><div className="mb-3 flex items-center justify-between border-b pb-2"><div className="flex items-center gap-1.5 text-sm font-medium"><Terminal className="size-4" />运行记录</div><IconButton disabled={!props.logs.length} icon={Clipboard} label="复制日志" onClick={props.onCopyLogs} /></div><div className="rounded-md border bg-muted/20 p-2 text-xs"><div className="text-[11px] text-muted-foreground">最近输出</div><div className="mt-1 break-words">{props.result?.output || "尚未执行操作。"}</div></div><ScrollArea className={cn("mt-2 min-h-0 flex-1 rounded-md border bg-muted/20", compact && "min-h-16")}><pre className="whitespace-pre-wrap break-words p-2 font-mono text-[11px] leading-5 text-muted-foreground">{props.logs.join("\n") || "日志会显示在这里。"}</pre></ScrollArea></section> }
+function RunButton({ action, compact, props }: { action: SoundwAction; compact?: boolean; props: Props }) { return <Button aria-label={actionLabel(action)} disabled={props.running} size={compact ? "xs" : "sm"} variant="outline" onClick={() => props.onExecute(action)}>{props.running ? <RefreshCw className="animate-spin" /> : <CheckCircle2 />}{props.running ? "执行中" : actionLabel(action)}</Button> }
+function IconButton({ disabled, icon: Icon, label, onClick }: { disabled?: boolean; icon: typeof Settings; label: string; onClick: () => Promise<void> | void }) { return <Tooltip><TooltipTrigger asChild><Button aria-label={label} disabled={disabled} size="icon-sm" variant="outline" onClick={() => void onClick()}><Icon /><span className="sr-only">{label}</span></Button></TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip> }
+function actionLabel(action: SoundwAction) { return action === "status" ? "检查状态" : action === "switch-recording" ? "切换录音" : action === "profiles" ? "读取配置" : action === "profile" ? "激活配置" : action === "mute" ? "静音" : action === "unmute" ? "取消静音" : action === "toggle-mute" ? "切换静音" : "打开设置" }
