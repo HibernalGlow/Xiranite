@@ -130,8 +130,22 @@ async function runWorkspaceUi(host: CliHost): Promise<void> {
         save: async () => undefined,
       }
   const { renderXiraniteTui } = await import("./tui-runner.js")
-  const nodeId = await renderXiraniteTui({ host, nodes: NODE_CLI_REGISTRY, workspace, taskQueue: createTerminalTaskQueueController(host.env) })
-  if (nodeId) await runNodeCli(nodeId, ["ui"], host)
+  const taskQueue = createTerminalTaskQueueController(host.env)
+  await runWorkspaceNavigation(
+    () => renderXiraniteTui({ host, nodes: NODE_CLI_REGISTRY, workspace, taskQueue }),
+    (nodeId) => runNodeCli(nodeId, ["ui"], host),
+  )
+}
+
+export async function runWorkspaceNavigation(
+  renderWorkspace: () => Promise<string | undefined>,
+  openNode: (nodeId: string) => Promise<void>,
+): Promise<void> {
+  while (true) {
+    const nodeId = await renderWorkspace()
+    if (!nodeId) return
+    await openNode(nodeId)
+  }
 }
 
 export async function runNodeCli(nodeId: string, args: string[], host: CliHost = createCliHost()): Promise<void> {

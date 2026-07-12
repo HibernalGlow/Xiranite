@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNodeId } from "./index"
+import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNodeId, runWorkspaceNavigation } from "./index"
 
 describe("@xiranite/cli registry", () => {
   test("registers generated node CLIs including migrated utility nodes", () => {
@@ -27,5 +27,17 @@ describe("@xiranite/cli registry", () => {
     expect(formatHelp()).toContain("xiranite [ui | <node> [args]]")
     expect(formatHelp()).toContain("fullscreen Xiranite terminal workspace")
     expect(formatNodeList()).toContain("xcleanf")
+  })
+
+  test("returns from a node TUI to the aggregate workspace until the workspace exits", async () => {
+    const destinations = ["sleept", "recycleu", undefined]
+    const opened: string[] = []
+    let renders = 0
+    await runWorkspaceNavigation(
+      async () => { renders += 1; return destinations.shift() },
+      async (nodeId) => { opened.push(nodeId) },
+    )
+    expect(opened).toEqual(["sleept", "recycleu"])
+    expect(renders).toBe(3)
   })
 })
