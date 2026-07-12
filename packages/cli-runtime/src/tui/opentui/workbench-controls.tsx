@@ -9,6 +9,7 @@ import { fieldIcon, terminalIcon } from "../icons.js"
 import { NumberInput } from "../../components/ui/number-input.js"
 import { ActionTabs } from "./action-tabs.js"
 import { MultilineEditor, PathListInput } from "./multiline-editor.js"
+import type { TerminalUiSession } from "../session.js"
 
 export function WorkbenchPanel({
   title,
@@ -200,6 +201,30 @@ export function WorkbenchButton({
       <text fg={color}>{focused || hovered || selected ? <b>{children}</b> : children}</text>
     </box>
   )
+}
+
+export function ExecutionActions<Result>({
+  session,
+  executeLabel = "▶ 执行",
+  confirmLabel = "⚠ 确认后执行",
+}: {
+  session: TerminalUiSession<Result>
+  executeLabel?: string
+  confirmLabel?: string
+}) {
+  if (session.phase === "running" || session.phase === "paused") {
+    return (
+      <box flexDirection="row" gap={1} flexShrink={0}>
+        {session.canPause ? (
+          <WorkbenchButton id={session.phase === "paused" ? "resume" : "pause"} onClick={() => void (session.phase === "paused" ? session.resume() : session.pause())}>
+            {session.phase === "paused" ? "▶ 继续" : "Ⅱ 暂停"}
+          </WorkbenchButton>
+        ) : null}
+        {session.canCancel ? <WorkbenchButton id="cancel" danger onClick={() => void session.cancel()}>■ 取消</WorkbenchButton> : null}
+      </box>
+    )
+  }
+  return <WorkbenchButton id="execute" danger={session.dangerous} onClick={() => void session.requestExecute()}>{session.dangerous ? confirmLabel : executeLabel}</WorkbenchButton>
 }
 
 export function ClickTarget({

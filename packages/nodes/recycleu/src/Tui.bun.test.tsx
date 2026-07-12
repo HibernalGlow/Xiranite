@@ -53,9 +53,10 @@ describe("RecycleU direct OpenTUI screen", () => {
     }
   })
 
-  test("the mouse stop button cancels an active run", async () => {
+  test("the execute action becomes working pause, resume, and cancel controls", async () => {
     let resolveRun!: (result: RecycleuResult) => void
     let cancelled = false
+    let paused = false
     const definition = {
       schema: createRecycleuInteractionSchema({ action: "start", interval: 5, maxCycles: 0 }, "zh"),
       run: async () => await new Promise<RecycleuResult>((resolve) => { resolveRun = resolve }),
@@ -63,6 +64,8 @@ describe("RecycleU direct OpenTUI screen", () => {
         cancelled = true
         resolveRun({ success: true, message: "fake cancelled", data: { timerStatus: "cancelled", cleanCount: 0, lastCleanTime: null, remainingSeconds: 4 } })
       },
+      pause: () => { paused = true },
+      resume: () => { paused = false },
     }
     let setup!: Awaited<ReturnType<typeof testRender>>
     await act(async () => { setup = await testRender(<RecycleuTui definition={definition} language="zh" onExit={() => undefined} />, { width: 120, height: 34, useMouse: true }) })
@@ -76,8 +79,13 @@ describe("RecycleU direct OpenTUI screen", () => {
       await act(async () => setup.renderOnce())
       await click("execute")
       await click("confirm-execute")
-      await setup.waitFor(() => setup.captureCharFrame().includes("停止"))
-      await click("execute")
+      await setup.waitFor(() => setup.renderer.root.findDescendantById("pause") !== undefined)
+      expect(setup.renderer.root.findDescendantById("cancel")).toBeDefined()
+      await click("pause")
+      await setup.waitFor(() => paused && setup.renderer.root.findDescendantById("resume") !== undefined)
+      await click("resume")
+      await setup.waitFor(() => !paused && setup.renderer.root.findDescendantById("pause") !== undefined)
+      await click("cancel")
       await setup.waitFor(() => cancelled)
       expect(setup.captureCharFrame()).toContain("fake cancelled")
     } finally {

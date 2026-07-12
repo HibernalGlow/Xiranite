@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import {
   ClickTarget,
+  ExecutionActions,
   ActionTabs,
   NumberInput,
   ProgressBar,
@@ -43,18 +44,18 @@ function RecycleuWorkbench({ definition, language, preferences, onExit, onThemeP
   const motionIndex = motionEnabled ? animationFrame : 0
   const braille = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"][motionIndex % 10]
   const motionColors = motionIndex % 2 ? [theme.colors.focusRing, theme.colors.primary] : [theme.colors.primary, theme.colors.focusRing]
-  const controls = [...session.fields.map((field) => field.id), "execute", "settings", "reset", "exit"]
+  const controls = [...session.fields.map((field) => field.id), "execute", "pause", "resume", "cancel", "settings", "reset", "exit"]
 
   useKeyboard((key) => {
     if (key.name === "escape") {
       if (settings) setSettings(false)
       else if (session.confirming) session.dismissConfirmation()
-      else if (session.phase === "running") session.cancel()
+      else if (session.phase === "running" || session.phase === "paused") void session.cancel()
       else onExit()
       return
     }
     if (key.name === "tab") session.moveFocus(controls, key.shift ? -1 : 1)
-    if (key.name === "q" && session.phase !== "running") onExit()
+    if (key.name === "q" && session.phase !== "running" && session.phase !== "paused") onExit()
   })
 
   if (settings && preferences) {
@@ -121,7 +122,7 @@ function RecycleuWorkbench({ definition, language, preferences, onExit, onThemeP
             <box flexDirection="column">{display?.metrics?.map((metric) => <box key={metric.label} width="100%" flexDirection="row" justifyContent="space-between"><text fg={theme.colors.mutedForeground}>{metric.label}</text><text fg={theme.colors.foreground}><b>{metric.value}</b></text></box>)}</box>
             <scrollbox flexGrow={session.confirming ? 0 : 1} height={session.confirming ? 4 : undefined} minHeight={3}>{session.preview.map((line, index) => <text key={`${line}-${index}`} fg={index === 0 ? theme.colors.foreground : theme.colors.mutedForeground}>{`${index ? "·" : "›"} ${line}`}</text>)}</scrollbox>
             <ProgressBar value={session.progress} label={session.status || "等待运行"} />
-            <WorkbenchButton id="execute" focused={session.focusedControlId === "execute"} danger={session.dangerous} onClick={() => session.phase === "running" ? session.cancel() : void session.requestExecute()}>{session.phase === "running" ? "停止" : session.dangerous ? "确认后执行" : "检查状态"}</WorkbenchButton>
+            <ExecutionActions session={session} executeLabel="▶ 检查状态" confirmLabel="⚠ 确认后执行" />
           </box>
         </WorkbenchPanel>
 
@@ -138,14 +139,16 @@ function RecycleuWorkbench({ definition, language, preferences, onExit, onThemeP
   )
 }
 
-function phaseLabel(phase: "ready" | "running" | "result") {
+function phaseLabel(phase: "ready" | "running" | "paused" | "result") {
   if (phase === "running") return "运行中"
+  if (phase === "paused") return "已暂停"
   if (phase === "result") return "已完成"
   return "就绪"
 }
 
-function phaseColor(phase: "ready" | "running" | "result", theme: ReturnType<typeof useTerminalTheme>) {
+function phaseColor(phase: "ready" | "running" | "paused" | "result", theme: ReturnType<typeof useTerminalTheme>) {
   if (phase === "running") return theme.colors.warning
+  if (phase === "paused") return theme.colors.primary
   if (phase === "result") return theme.colors.success
   return theme.colors.mutedForeground
 }

@@ -21,6 +21,7 @@ export interface RecycleuRuntime {
   sleep: (milliseconds: number) => Promise<void>
   emptyRecycleBin: (driveLetter?: string) => Promise<EmptyRecycleBinResult>
   isCancelled?: () => boolean
+  waitWhilePaused?: () => Promise<void>
 }
 
 export interface RecycleuState {
@@ -100,6 +101,7 @@ export async function runRecycleu(
   })
 
   for (let cycle = 0; unlimited || cycle < normalized.maxCycles; cycle += 1) {
+    await runtime.waitWhilePaused?.()
     if (runtime.isCancelled?.()) return cancelledResult(state, onEvent, normalized.interval)
 
     const cleanResult = await cleanOnce(runtime, state, onEvent, normalized.driveLetter, false)
@@ -108,6 +110,7 @@ export async function runRecycleu(
     }
 
     for (let remaining = normalized.interval; remaining > 0; remaining -= 1) {
+      await runtime.waitWhilePaused?.()
       if (runtime.isCancelled?.()) return cancelledResult(state, onEvent, remaining)
       const cycleProgress = (normalized.interval - remaining) / normalized.interval
       const progress = unlimited

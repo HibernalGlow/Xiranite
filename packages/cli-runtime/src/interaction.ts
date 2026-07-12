@@ -110,7 +110,9 @@ export interface TerminalInteractionEvent {
 export interface TerminalInteractionDefinition<Input, Result> {
   schema: TerminalInteractionSchema<Input, Result>
   run: (input: Input, onEvent: (event: TerminalInteractionEvent) => void) => Promise<Result>
-  cancel?: () => void
+  cancel?: () => void | Promise<void>
+  pause?: () => void | Promise<void>
+  resume?: () => void | Promise<void>
 }
 
 export interface TerminalRendererResolution {

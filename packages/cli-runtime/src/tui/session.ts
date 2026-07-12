@@ -9,7 +9,7 @@ import type {
   TerminalViewTable,
 } from "../interaction.js"
 
-export type TerminalUiPhase = "ready" | "running" | "result"
+export type TerminalUiPhase = "ready" | "running" | "paused" | "result"
 export type TerminalResultTab = "status" | "logs"
 
 export interface TerminalUiSession<Result> {
@@ -44,7 +44,11 @@ export interface TerminalUiSession<Result> {
   requestExecute: () => Promise<void>
   confirmExecute: () => Promise<void>
   dismissConfirmation: () => void
-  cancel: () => void
+  canPause: boolean
+  canCancel: boolean
+  pause: () => Promise<void>
+  resume: () => Promise<void>
+  cancel: () => Promise<void>
   reset: () => void
   selectResultTab: (tab: TerminalResultTab) => void
 }
@@ -107,7 +111,7 @@ export function useTerminalUiSession<Input, Result>(
 
   const setField = useCallback((fieldId: string, value: InteractionValue) => {
     setState((current) => {
-      if (current.phase === "running") return current
+      if (current.phase === "running" || current.phase === "paused") return current
       const field = schema.fields.find((candidate) => candidate.id === fieldId)
       if (!field) return current
       const normalizedValue = normalizeFieldValue(field, value)
@@ -194,7 +198,7 @@ export function useTerminalUiSession<Input, Result>(
   }, [definition, schema])
 
   const requestExecute = useCallback(async (): Promise<void> => {
-    if (state.phase === "running") return
+    if (state.phase === "running" || state.phase === "paused") return
     const validation = validateInteractionValues(schema, state.values)
     if (Object.keys(validation.fieldErrors).length > 0 || validation.formError) {
       setState((current) => ({
@@ -222,12 +226,24 @@ export function useTerminalUiSession<Input, Result>(
     setState((current) => ({ ...current, confirming: false, focusedControlId: "execute" }))
   }, [])
 
-  const cancel = useCallback(() => {
+  const pause = useCallback(async () => {
+    if (state.phase !== "running" || !definition.pause || !definition.resume) return
+    await definition.pause()
+    setState((current) => current.phase === "running" ? { ...current, phase: "paused" } : current)
+  }, [definition, state.phase])
+
+  const resume = useCallback(async () => {
+    if (state.phase !== "paused" || !definition.resume) return
+    await definition.resume()
+    setState((current) => current.phase === "paused" ? { ...current, phase: "running" } : current)
+  }, [definition, state.phase])
+
+  const cancel = useCallback(async () => {
     if (state.confirming) {
       dismissConfirmation()
       return
     }
-    definition.cancel?.()
+    await definition.cancel?.()
   }, [definition, dismissConfirmation, state.confirming])
 
   const reset = useCallback(() => {
@@ -270,6 +286,10 @@ export function useTerminalUiSession<Input, Result>(
     requestExecute,
     confirmExecute,
     dismissConfirmation,
+    canPause: Boolean(definition.pause && definition.resume),
+    canCancel: Boolean(definition.cancel),
+    pause,
+    resume,
     cancel,
     reset,
     selectResultTab,
