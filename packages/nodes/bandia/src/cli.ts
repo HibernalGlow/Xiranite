@@ -22,13 +22,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { BandiaAction, BandiaArchiveFormat, BandiaExtractMode, BandiaInput, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
 import { mappingsToText, parseBandiaPaths, parsePathMappings, runBandia } from "./core.js"
 import { createNodeBandiaRuntime, readClipboardText } from "./platform.js"
+import { createBandiaInteractionSchema, type BandiaInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("bandia")
 
@@ -63,7 +69,7 @@ interface BandiaCliOptions {
   clipboard?: boolean
 }
 
-interface BandiaNodeConfig {
+interface BandiaNodeConfig extends CliInteractionPreferencesSource {
   enabled?: boolean
   mappings?: Array<Record<string, unknown>>
 }
@@ -86,12 +92,23 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
+  await runInteractionCli({ args, host, cliName: CLI_NAME,
+    loadContext: async () => { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+    createDefinition: createBandiaDefinition,
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: runGuidedInteraction,
+    runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).BandiaTui,
+    createPreferences: (_defaults, values) => createBandiaPreferences(host, values),
+    reexecEntrypoint: process.argv[1], help,
+  })
 }
+
+function createBandiaDefinition(defaults: BandiaNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<BandiaInput, import("./core.js").BandiaResult> {
+  return { schema: createBandiaInteractionSchema({ mappingText: defaults.mappings ? JSON.stringify({ mappings: defaults.mappings }, null, 2) : "" } satisfies Partial<BandiaInteractionValues>, language), run: (input, onEvent) => runBandia(input, createNodeBandiaRuntime(), onEvent) }
+}
+function createBandiaPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "bandia", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "bandia", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
+function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - Bandizip archive pipeline`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} extract|compress|repack|export-efu [options] [--json]`) }
 
 function createDefaultHost(): CliHost {
   return {
@@ -111,28 +128,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "extract", description: "Extract archive paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("extract", await inputFromArgs("extract", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("extract", await inputFromArgs("extract", await pipedPathOptions(args as BandiaCliOptions, host), host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       compress: defineCommand({
         meta: { name: "compress", description: "Compress source paths to archives." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("compress", await inputFromArgs("compress", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("compress", await inputFromArgs("compress", await pipedPathOptions(args as BandiaCliOptions, host), host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       repack: defineCommand({
         meta: { name: "repack", description: "Compress extracted folders back through archive mappings." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("repack", await inputFromArgs("repack", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("repack", await inputFromArgs("repack", await pipedPathOptions(args as BandiaCliOptions, host), host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       "export-efu": defineCommand({
         meta: { name: "export-efu", description: "Export archive or extracted paths to Everything EFU." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("export_efu", await inputFromArgs("export_efu", { ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as unknown as BandiaCliOptions, host, Boolean(args.json)), Boolean(args.json), host)
+          await runAction("export_efu", await inputFromArgs("export_efu", await pipedPathOptions(args as BandiaCliOptions, host), host, Boolean(args.json)), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -143,6 +160,12 @@ function createProgram(host: CliHost = createDefaultHost()) {
       }),
     },
   })
+}
+
+async function pipedPathOptions(args: BandiaCliOptions, host: CliHost): Promise<BandiaCliOptions> {
+  if (args.paths !== "-" && args.path !== "-" && (args.paths || args.path || !hasPipedInput(host.stdin))) return args
+  const paths = await readStdinLines(host.stdin)
+  return { ...args, paths: args.paths === "-" || (!args.paths && !args.path) ? paths.join(";") : args.paths, path: args.path === "-" || (!args.path && !args.paths) ? paths[0] : args.path }
 }
 
 function commonArgs() {

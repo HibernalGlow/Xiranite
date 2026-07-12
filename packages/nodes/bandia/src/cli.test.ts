@@ -18,7 +18,7 @@ afterEach(async () => {
 })
 
 describe("bandia CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses interactive mode outside an interactive terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -26,8 +26,8 @@ describe("bandia CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("xbandia extract --path <archive> --dryRun --json")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
+    expect(host.stderrText()).toContain("xbandia")
   })
 
   test("prints pure JSON dry-run compression for a real source folder", async () => {
