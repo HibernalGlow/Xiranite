@@ -198,7 +198,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const props: ViewProps = {
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
-    onReloadDefaults: reloadDefaults, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults,
+    onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset,
   }
 
@@ -213,6 +213,22 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
 type XlchemyNodeConfig = Partial<XlchemyCardState>
+
+const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
+  format: "JPEG XL", lossless: false, quality: 60, effort: 7, maxCompression: false, threads: 4,
+  outputMode: "source", outputDir: "", preserveMetadata: true, preserveStructure: true, preserveTimestamps: false,
+  overwrite: false, recursive: true, existingPolicy: "skip", deleteOriginal: false, deleteOriginalMode: "trash",
+  intelligentEffort: false, jxlModular: false, jxlVerify: false, jxlPngFallback: true, jxlNormalize: false, jxlNormalizeWhen: "on-fail",
+  chromaSubsampling: "default", metadataMode: "encoder-preserve", keepIfLarger: false, copyIfLarger: false,
+  smallestPng: true, smallestWebp: true, smallestJxl: true, jpegEncoder: "jpegli", avifEncoder: "aom", avifBitDepth: "auto",
+  avifAomIqTune: false, disableProgressiveJpegli: false, autoLosslessJpeg: true, qualityPrecisionSnapping: true,
+  disableSorting: false, disableDownscalingStartup: false, disableDeleteStartup: true, enableCustomArgs: false,
+  cjxlArgs: "", avifencArgs: "", cjpegliArgs: "", imageMagickArgs: "", ramOptimizer: "dynamic", ramOptimizerRules: DEFAULT_RAM_OPTIMIZER_RULES,
+  playSoundOnFinish: true, playSoundVolume: 0.5, autoClearCompleted: false, processingOrder: "original",
+  excludedFormatsText: "avif,jxl,webp,gif", downscaleEnabled: false, downscaleMode: "resolution", downscaleWidth: 1920,
+  downscaleHeight: 1080, downscalePercent: 50, downscaleFileSizeKb: 500, downscaleShortestSide: 1080,
+  downscaleLongestSide: 1920, downscaleMegapixels: 2.1, downscaleResample: "default",
+}
 
 function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
   if (!Array.isArray(value)) return []
@@ -329,7 +345,7 @@ function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewPr
 }
 
 function Header({ props }: { props: ViewProps }) {
-  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设") })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
+  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {

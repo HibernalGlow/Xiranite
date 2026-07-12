@@ -204,9 +204,23 @@ export class ConfigService {
    * available to every client connected to that database.
    */
   async getNodePresets(nodeId: string): Promise<NodePresetsResult> {
-    if (!this.kvRepository) return { presets: [] }
-    const serialized = await this.kvRepository.getKvValue(nodePresetKey(nodeId))
-    return { presets: parseNodePresets(serialized) }
+    const { config } = await loadXiraniteConfig(this.resolveOptions())
+    const nodeConfig = getNodeConfig(config, nodeId)
+    const tomlPresets = isRecord(nodeConfig)
+      ? parseNodePresetValue(nodeConfig.presets ?? nodeConfig.customPresets)
+      : undefined
+    const serialized = await this.kvRepository?.getKvValue(nodePresetKey(nodeId)) ?? null
+    const databasePresets = parseNodePresets(serialized)
+
+    if (tomlPresets !== undefined) {
+      if (this.kvRepository && JSON.stringify(tomlPresets) !== JSON.stringify(databasePresets)) {
+        await this.kvRepository.setKvValue(nodePresetKey(nodeId), JSON.stringify(tomlPresets))
+      }
+      return { presets: tomlPresets }
+    }
+
+    if (databasePresets.length) await this.saveNodePresetsToToml(nodeId, databasePresets)
+    return { presets: databasePresets }
   }
 
   async createNodePreset(nodeId: string, input: { name: string; values: unknown }): Promise<NodePresetResult> {
@@ -401,8 +415,14 @@ export class ConfigService {
   }
 
   private async saveNodePresets(nodeId: string, presets: NodePreset[]): Promise<void> {
-    if (!this.kvRepository) throw new Error("Database storage is not available for node presets.")
-    await this.kvRepository.setKvValue(nodePresetKey(nodeId), JSON.stringify(presets))
+    await this.saveNodePresetsToToml(nodeId, presets)
+    if (this.kvRepository) await this.kvRepository.setKvValue(nodePresetKey(nodeId), JSON.stringify(presets))
+  }
+
+  private async saveNodePresetsToToml(nodeId: string, presets: NodePreset[]): Promise<void> {
+    const { config } = await loadXiraniteConfig(this.resolveOptions())
+    const updated = updateNodeConfig(config, nodeId, { presets })
+    await saveXiraniteConfig(updated, this.resolveOptions())
   }
 
   private resolveThemesPath(): string {
@@ -532,6 +552,19 @@ function parseNodePresets(serialized: string | null): NodePreset[] {
   } catch {
     return []
   }
+}
+
+function parseNodePresetValue(value: unknown): NodePreset[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) return []
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate) || typeof candidate.id !== "string" || !candidate.id.startsWith("custom-") || typeof candidate.name !== "string" || !isRecord(candidate.values)) return []
+    try {
+      return [{ id: candidate.id, name: normalizePresetName(candidate.name), values: candidate.values }]
+    } catch {
+      return []
+    }
+  })
 }
 
 function normalizePresetName(value: unknown): string {

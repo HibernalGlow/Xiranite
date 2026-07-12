@@ -18,6 +18,7 @@ type NodeT = ReturnType<typeof useNodeI18n>["t"]
 export interface NodeConfigPopoverProps {
   configPath?: string
   defaults?: Record<string, unknown>
+  fallbackDefaults?: Record<string, unknown>
   dirty: boolean
   disabled?: boolean
   loading?: boolean
@@ -28,7 +29,7 @@ export interface NodeConfigPopoverProps {
   onSave: () => Promise<void> | void
   preset?: {
     value?: string
-    options: Array<{ value: string; label: string; description?: string; editable?: boolean }>
+    options: Array<{ value: string; label: string; description?: string; editable?: boolean; values?: Record<string, unknown> }>
     onValueChange: (value: string) => Promise<void> | void
     onCreate?: (name: string) => Promise<void> | void
     onDelete?: (value: string) => Promise<void> | void
@@ -50,7 +51,8 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const [presetName, setPresetName] = useState("")
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
   const disabled = Boolean(props.disabled || props.loading || busy)
-  const hasDefaults = Boolean(props.defaults && Object.keys(props.defaults).length)
+  const effectiveDefaults = props.defaults ?? props.fallbackDefaults
+  const hasDefaults = effectiveDefaults !== undefined
   const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
   const selectedPresetEditable = selectedPreset?.editable === true
 
@@ -123,10 +125,20 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
             {(props.preset.onCreate || selectedPresetEditable) && (
               <div className="grid grid-cols-2 gap-2">
                 {props.preset.onCreate && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("create")}><Plus data-icon="inline-start" />{props.t("config.presetNew", "新建预设")}</Button>}
+                {selectedPreset && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("preset", () => props.preset?.onValueChange(selectedPreset.value))}><RotateCcw data-icon="inline-start" />{props.t("config.presetApply", "应用预设")}</Button>}
                 {selectedPresetEditable && props.preset.onRename && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("rename")}><Pencil data-icon="inline-start" />{props.t("config.presetRename", "重命名")}</Button>}
-                {selectedPresetEditable && props.preset.onOverwrite && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetConfirmation("overwrite")}><Save data-icon="inline-start" />{props.t("config.presetOverwrite", "覆盖当前")}</Button>}
+                {selectedPresetEditable && props.preset.onOverwrite && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetConfirmation("overwrite")}><Save data-icon="inline-start" />{props.t("config.presetOverwrite", "保存当前到预设")}</Button>}
                 {selectedPresetEditable && props.preset.onDelete && <Button disabled={disabled} size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setPresetConfirmation("delete")}><Trash2 data-icon="inline-start" />{props.t("config.presetDelete", "删除预设")}</Button>}
               </div>
+            )}
+            {selectedPreset?.values && (
+              <Dialog>
+                <DialogTrigger asChild><Button disabled={disabled} size="sm" variant="ghost"><Eye data-icon="inline-start" />{props.t("config.presetView", "查看预设配置")}</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>{selectedPreset.label}</DialogTitle><DialogDescription>{selectedPreset.description ?? props.t("config.customPresetDescription", "此节点的自定义预设")}</DialogDescription></DialogHeader>
+                  <ScrollArea className="max-h-[50vh] rounded-md border bg-muted/30"><pre className="p-3 text-xs leading-5">{JSON.stringify(selectedPreset.values, null, 2)}</pre></ScrollArea>
+                </DialogContent>
+              </Dialog>
             )}
             {presetEditor && (
               <div className="grid gap-2 rounded-md border bg-muted/20 p-2">
@@ -140,12 +152,12 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
             <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "删除此预设？") : props.t("config.presetOverwriteTitle", "覆盖此预设？")}</AlertDialogTitle>
-                  <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "此操作无法撤销。") : props.t("config.presetOverwriteDescription", "将用当前节点参数替换此预设保存的参数。")}</AlertDialogDescription>
+                  <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "删除此预设？") : props.t("config.presetOverwriteTitle", "保存当前配置到此预设？")}</AlertDialogTitle>
+                  <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "此操作无法撤销。") : props.t("config.presetOverwriteDescription", "将用当前节点参数替换此预设保存的参数；如需恢复参数，请使用“应用预设”。")}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "取消")}</AlertDialogCancel>
-                  <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "删除预设") : props.t("config.presetOverwrite", "覆盖当前")}</AlertDialogAction>
+                  <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "删除预设") : props.t("config.presetOverwrite", "保存当前到预设")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -165,7 +177,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
                 <DialogDescription>{props.configPath ?? props.t("config.noPath", "尚未连接配置文件")}</DialogDescription>
               </DialogHeader>
               <ScrollArea className="max-h-[50vh] rounded-md border bg-muted/30">
-                <pre className="p-3 text-xs leading-5">{JSON.stringify(props.defaults, null, 2)}</pre>
+                <pre className="p-3 text-xs leading-5">{JSON.stringify(effectiveDefaults, null, 2)}</pre>
               </ScrollArea>
             </DialogContent>
           </Dialog>

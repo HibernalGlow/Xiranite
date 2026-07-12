@@ -69,6 +69,13 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("combobox", { name: "预设" }))
     await user.click(screen.getByRole("option", { name: "Archive" }))
     expect(host.cardState.selectedPreset).toBe(host.presets[0]?.id)
+    host.cardState = { ...host.cardState, quality: 25 }
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    await user.click(screen.getByRole("button", { name: "应用预设" }))
+    expect(host.cardState.quality).toBe(77)
+    await user.click(screen.getByRole("button", { name: "查看预设配置" }))
+    expect(screen.getByText(/"quality": 77/)).toBeTruthy()
+    await user.keyboard("{Escape}")
     await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
     const nameInput = screen.getByLabelText("预设名称")
     await user.clear(nameInput)
@@ -76,12 +83,27 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
     await waitFor(() => expect(host.presets[0]?.name).toBe("Archive v2"))
 
-    await user.click(screen.getByRole("button", { name: "覆盖当前" }))
-    await user.click(screen.getAllByRole("button", { name: "覆盖当前" }).at(-1)!)
+    await user.click(screen.getByRole("button", { name: "保存当前到预设" }))
+    await user.click(screen.getAllByRole("button", { name: "保存当前到预设" }).at(-1)!)
     await waitFor(() => expect(host.presets[0]?.values.quality).toBe(77))
     await user.click(screen.getByRole("button", { name: "删除预设" }))
     await user.click(screen.getAllByRole("button", { name: "删除预设" }).at(-1)!)
     await waitFor(() => expect(host.presets).toEqual([]))
+  })
+
+  test("keeps config inspection and factory restore available before saved defaults exist", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "WebP", quality: 22, recursive: false })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+
+    const viewConfig = screen.getByRole("button", { name: "查看配置" })
+    const restore = screen.getByRole("button", { name: "恢复默认" })
+    expect(viewConfig.hasAttribute("disabled")).toBe(false)
+    expect(restore.hasAttribute("disabled")).toBe(false)
+    await user.click(restore)
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(host.cardState).toMatchObject({ format: "JPEG XL", quality: 60, recursive: true })
   })
 
   test("restores the prototype ingestion port after clearing the table", async () => {
