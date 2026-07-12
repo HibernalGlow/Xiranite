@@ -88,8 +88,15 @@ export interface XlchemyCardState {
   showProgressSizeChange?: boolean
   environment?: XlchemyToolStatus[]
   environmentCheckedAt?: string
+  settingsTab?: "common" | "conversion" | "files" | "general"
   resultTab?: "results" | "issues" | "logs"
   result?: XlchemyData | null
+}
+
+export interface XlchemyCustomPreset {
+  id: string
+  name: string
+  values: Partial<XlchemyCardState>
 }
 
 export const XL_CONFIG_FIELDS = ["format", "lossless", "quality", "effort", "maxCompression", "threads", "outputMode", "outputDir", "preserveMetadata", "preserveStructure", "preserveTimestamps", "overwrite", "recursive", "existingPolicy", "deleteOriginal", "deleteOriginalMode", "intelligentEffort", "jxlModular", "jxlVerify", "jxlPngFallback", "jxlNormalize", "jxlNormalizeWhen", "chromaSubsampling", "metadataMode", "keepIfLarger", "copyIfLarger", "jpegEncoder", "avifEncoder", "avifBitDepth", "avifAomIqTune", "disableProgressiveJpegli", "autoLosslessJpeg", "qualityPrecisionSnapping", "disableSorting", "disableDownscalingStartup", "disableDeleteStartup", "enableCustomArgs", "cjxlArgs", "avifencArgs", "cjpegliArgs", "imageMagickArgs", "ramOptimizer", "ramOptimizerRules", "playSoundOnFinish", "playSoundVolume", "autoClearCompleted", "exiftoolWipeArgs", "exiftoolPreserveArgs", "exiftoolUnsafeWipeArgs", "exiftoolCustomArgs", "processingOrder", "excludedFormatsText", "downscaleEnabled", "downscaleMode", "downscaleWidth", "downscaleHeight", "downscalePercent", "downscaleFileSizeKb", "downscaleShortestSide", "downscaleLongestSide", "downscaleMegapixels", "downscaleResample", "showProgressCounter", "showProgressSummary", "showProgressEta", "showProgressFormat", "showProgressEncoder", "showRawProgress", "showProgressCurrentFile", "showProgressSizeChange", "selectedPreset"] as const satisfies Array<keyof XlchemyCardState>

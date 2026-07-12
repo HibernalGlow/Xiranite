@@ -24,7 +24,7 @@ import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ENVIRONMENT_TARGETS, FORMATS, PRESETS } from "./constants"
-import type { XlchemyCardState } from "./types"
+import type { XlchemyCardState, XlchemyCustomPreset } from "./types"
 import { XL_CONFIG_FIELDS } from "./types"
 import { InputFilesWorkbench } from "./InputFilesWorkbench"
 import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./ProgressAndLogs"
@@ -40,6 +40,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const [cancelling, setCancelling] = useState(false)
   const cancellationRequestedRef = useRef(false)
   const [defaults, setDefaults] = useState<Partial<XlchemyCardState>>()
+  const [customPresets, setCustomPresets] = useState<XlchemyCustomPreset[]>([])
   const [configPath, setConfigPath] = useState<string>()
   const [configDirty, setConfigDirty] = useState(false)
 
@@ -51,11 +52,11 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const forceCollapsed = compact && surface.height > 0 && surface.height < 160
 
   async function reloadDefaults() {
-    const pending = host.config?.get?.<Partial<XlchemyCardState>>() ?? host.getNodeConfig?.<Partial<XlchemyCardState>>()
+    const pending = host.config?.get?.<XlchemyNodeConfig>() ?? host.getNodeConfig?.<XlchemyNodeConfig>()
     try {
       const response = await pending
       if (response) {
-        setDefaults(response.config); setConfigPath(response.path)
+        setDefaults(response.config); setCustomPresets(normalizeCustomPresets(response.config?.customPresets)); setConfigPath(response.path)
         const startup: Partial<XlchemyCardState> = {}
         if (response.config?.disableDownscalingStartup) startup.downscaleEnabled = false
         if (response.config?.disableDeleteStartup) startup.deleteOriginal = false
@@ -80,7 +81,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   async function saveDefaults() {
-    const config: Partial<XlchemyCardState> = {}
+    const config: XlchemyNodeConfig = { customPresets }
     for (const field of XL_CONFIG_FIELDS) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
@@ -93,8 +94,52 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   function selectPreset(presetId: string) {
     const preset = PRESETS.find((item) => item.id === presetId)
-    if (!preset) return
-    patch({ selectedPreset: preset.id, format: preset.format, lossless: preset.lossless, quality: preset.quality, effort: preset.effort })
+    if (preset) {
+      patch({ selectedPreset: preset.id, format: preset.format, lossless: preset.lossless, quality: preset.quality, effort: preset.effort })
+      return
+    }
+    const customPreset = customPresets.find((item) => item.id === presetId)
+    if (customPreset) patch({ ...customPreset.values, selectedPreset: customPreset.id })
+  }
+
+  function snapshotPresetValues() {
+    const values: Partial<XlchemyCardState> = {}
+    for (const field of XL_CONFIG_FIELDS) {
+      if (field === "selectedPreset") continue
+      const value = dataRef.current[field]
+      if (value !== undefined) (values as Record<string, unknown>)[field] = value
+    }
+    return values
+  }
+
+  async function persistCustomPresets(next: XlchemyCustomPreset[]) {
+    const config = { customPresets: next }
+    if (host.config?.save) await host.config.save(config)
+    else await host.saveNodeConfig?.(config)
+    setCustomPresets(next)
+  }
+
+  async function createCustomPreset(name: string) {
+    const id = createPresetId(name, [...PRESETS.map((preset) => preset.id), ...customPresets.map((preset) => preset.id)])
+    const preset = { id, name: uniquePresetName(name, [...PRESETS.map((item) => item.label), ...customPresets.map((item) => item.name)]), values: snapshotPresetValues() }
+    await persistCustomPresets([...customPresets, preset])
+    patch({ selectedPreset: preset.id })
+  }
+
+  async function renameCustomPreset(id: string, name: string) {
+    const next = customPresets.map((preset) => preset.id === id ? { ...preset, name: uniquePresetName(name, [...PRESETS.map((item) => item.label), ...customPresets.filter((item) => item.id !== id).map((item) => item.name)]) } : preset)
+    await persistCustomPresets(next)
+  }
+
+  async function overwriteCustomPreset(id: string) {
+    const next = customPresets.map((preset) => preset.id === id ? { ...preset, values: snapshotPresetValues() } : preset)
+    await persistCustomPresets(next)
+  }
+
+  async function deleteCustomPreset(id: string) {
+    const next = customPresets.filter((preset) => preset.id !== id)
+    await persistCustomPresets(next)
+    if (dataRef.current.selectedPreset === id) patch({ selectedPreset: undefined })
   }
 
   async function execute(nextAction: XlchemyAction) {
@@ -145,10 +190,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults,
-    onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text),
+    onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset,
   }
 
   return (
@@ -161,9 +206,46 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 }
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
+type XlchemyNodeConfig = Partial<XlchemyCardState> & { customPresets?: unknown }
+
+function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return []
+    const { id, name, values } = candidate as Record<string, unknown>
+    if (typeof id !== "string" || !id.startsWith("custom-") || typeof name !== "string" || !name.trim() || !values || typeof values !== "object" || Array.isArray(values)) return []
+    const filtered: Partial<XlchemyCardState> = {}
+    for (const field of XL_CONFIG_FIELDS) {
+      if (field === "selectedPreset") continue
+      const fieldValue = (values as Record<string, unknown>)[field]
+      if (fieldValue !== undefined) (filtered as Record<string, unknown>)[field] = fieldValue
+    }
+    return [{ id, name: name.trim(), values: filtered }]
+  })
+}
+
+function createPresetId(name: string, existingIds: string[]) {
+  const stem = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "preset"
+  const existing = new Set(existingIds)
+  let index = 1
+  let id = `custom-${stem}`
+  while (existing.has(id)) id = `custom-${stem}-${index++}`
+  return id
+}
+
+function uniquePresetName(name: string, existingNames: string[]) {
+  const base = name.trim() || "New preset"
+  const existing = new Set(existingNames.map((item) => item.toLocaleLowerCase()))
+  if (!existing.has(base.toLocaleLowerCase())) return base
+  let index = 2
+  let next = `${base} (${index})`
+  while (existing.has(next.toLocaleLowerCase())) next = `${base} (${++index})`
+  return next
+}
+
 interface ViewProps {
-  cancelling: boolean; configDirty: boolean; configPath?: string; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined
+  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>
 }
 
 function CollapsedView(props: ViewProps) {
@@ -239,11 +321,11 @@ function ConfigurationCard({ props }: { props: ViewProps }) {
   return <WorkbenchCard icon={Gauge} title={props.t("sections.formatHub", "校准矩阵")} badge={formatExtension(props.format)}>
     <div className="@container/xlchemy-settings flex flex-col gap-2">
       <WorkbenchTelemetry format={props.format} phase={props.data.phase ?? "idle"} progress={props.progress} result={props.result} running={props.running} threads={props.data.threads ?? 4} />
-      <Tabs defaultValue="common" className="flex flex-col gap-2" data-testid="xlchemy-settings-tabs">
+      <Tabs defaultValue={props.data.settingsTab ?? "common"} className="flex flex-col gap-2" data-testid="xlchemy-settings-tabs" onValueChange={(settingsTab) => props.onPatch({ settingsTab: settingsTab as XlchemyCardState["settingsTab"] })}>
         <TabsList layout="fill"><TabsTrigger aria-label="参数" value="common"><SlidersHorizontal /><span className="hidden @sm/xlchemy-settings:inline">参数</span></TabsTrigger><TabsTrigger aria-label="转换" value="conversion"><Sparkles /><span className="hidden @sm/xlchemy-settings:inline">转换</span></TabsTrigger><TabsTrigger aria-label="文件" value="files"><Files /><span className="hidden @sm/xlchemy-settings:inline">文件</span></TabsTrigger><TabsTrigger aria-label="常规" value="general"><Settings2 /><span className="hidden @sm/xlchemy-settings:inline">常规</span></TabsTrigger></TabsList>
         <TabsContent value="common" className="flex flex-col gap-2"><FormatControls props={props} /><CoreExecutionOptions props={props} /></TabsContent>
-        <TabsContent value="conversion" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="编码器"><EncoderTuning props={props} /></SettingsGroup><SettingsGroup label="结果策略"><ConversionPolicies props={props} /></SettingsGroup></TabsContent>
-        <TabsContent value="files" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="保存"><SourcePolicies props={props} /></SettingsGroup><SettingsGroup label="输入"><InputFilterCard props={props} embedded /></SettingsGroup><SettingsGroup label="缩小"><DownscalingCard props={props} embedded /></SettingsGroup><SettingsGroup label="元数据"><MetadataCard props={props} embedded /></SettingsGroup></TabsContent>
+        <TabsContent value="conversion" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="输入格式"><InputFilterCard props={props} embedded /></SettingsGroup><SettingsGroup label="转换设置"><OriginalConversionSettings props={props} /></SettingsGroup><SettingsGroup label="当前格式优化"><EncoderTuning props={props} /></SettingsGroup></TabsContent>
+        <TabsContent value="files" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="保存"><SourcePolicies props={props} /></SettingsGroup><SettingsGroup label="缩小"><DownscalingCard props={props} embedded /></SettingsGroup><SettingsGroup label="元数据"><MetadataCard props={props} embedded /></SettingsGroup></TabsContent>
         <TabsContent value="general"><GeneralSettings props={props} /></TabsContent>
       </Tabs>
     </div>
@@ -251,11 +333,11 @@ function ConfigurationCard({ props }: { props: ViewProps }) {
 }
 
 function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewProps }) {
-  return <WorkbenchCard fill={fill} title="任务与维护"><div className="@container/xlchemy-operations flex min-h-0 flex-1 flex-col"><Tabs defaultValue="progress" className="flex min-h-0 flex-1 flex-col" data-testid="xlchemy-operations-tabs" onValueChange={(value) => { if (value === "environment" && !props.data.environment?.length && !props.running) props.onExecute("diagnose") }}><TabsList layout="fill"><TabsTrigger aria-label="进度" value="progress"><Activity /><span className="hidden @sm/xlchemy-operations:inline">进度</span></TabsTrigger><TabsTrigger aria-label="ExifTool" value="exiftool"><Tags /><span className="hidden @sm/xlchemy-operations:inline">ExifTool</span></TabsTrigger><TabsTrigger aria-label="高级" value="advanced"><SlidersHorizontal /><span className="hidden @sm/xlchemy-operations:inline">高级</span></TabsTrigger><TabsTrigger aria-label="环境" value="environment"><Wrench /><span className="hidden @sm/xlchemy-operations:inline">环境</span></TabsTrigger></TabsList><TabsContent value="progress" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ProgressWorkbench data={props.data} format={props.format} paths={props.paths} progress={props.progress} result={props.result} running={props.running} onPatch={props.onPatch} /></div></ScrollArea></TabsContent><TabsContent value="exiftool" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ExifToolSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="advanced" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><AdvancedSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="environment" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><EnvironmentSettings props={props} /></div></ScrollArea></TabsContent></Tabs></div></WorkbenchCard>
+  return <WorkbenchCard fill={fill} title="任务与维护"><div className="@container/xlchemy-operations flex min-h-0 flex-1 flex-col"><Tabs defaultValue="progress" className="flex min-h-0 flex-1 flex-col" data-testid="xlchemy-operations-tabs"><TabsList layout="fill"><TabsTrigger aria-label="进度" value="progress"><Activity /><span className="hidden @sm/xlchemy-operations:inline">进度</span></TabsTrigger><TabsTrigger aria-label="ExifTool" value="exiftool"><Tags /><span className="hidden @sm/xlchemy-operations:inline">ExifTool</span></TabsTrigger><TabsTrigger aria-label="高级" value="advanced"><SlidersHorizontal /><span className="hidden @sm/xlchemy-operations:inline">高级</span></TabsTrigger><TabsTrigger aria-label="环境" value="environment"><Wrench /><span className="hidden @sm/xlchemy-operations:inline">环境</span></TabsTrigger></TabsList><TabsContent value="progress" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ProgressWorkbench data={props.data} format={props.format} paths={props.paths} progress={props.progress} result={props.result} running={props.running} onPatch={props.onPatch} /></div></ScrollArea></TabsContent><TabsContent value="exiftool" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ExifToolSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="advanced" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><AdvancedSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="environment" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><EnvironmentSettings props={props} /></div></ScrollArea></TabsContent></Tabs></div></WorkbenchCard>
 }
 
 function Header({ props }: { props: ViewProps }) {
-  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: PRESETS.map((preset) => ({ value: preset.id, label: preset.label, description: `${preset.format} · ${preset.lossless ? "无损" : `质量 ${preset.quality}`} · 力度 ${preset.effort}` })), onValueChange: props.onSelectPreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
+  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: [...PRESETS.map((preset) => ({ value: preset.id, label: preset.label, editable: false, description: `${preset.format} · ${preset.lossless ? "无损" : `质量 ${preset.quality}`} · 力度 ${preset.effort}` })), ...props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设") }))], onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
@@ -283,19 +365,32 @@ function InputFilterCard({ props, embedded = false }: { props: ViewProps; embedd
   return embedded ? content : <WorkbenchCard title="输入过滤">{content}</WorkbenchCard>
 }
 
+function OriginalConversionSettings({ props }: { props: ViewProps }) {
+  return <div className="flex flex-col gap-2">
+    <div className="grid grid-cols-2 gap-2">
+      <SelectField label="JPEG 编码器" value={props.data.jpegEncoder ?? "jpegli"} options={[["jpegli", "JPEGLI"], ["libjpeg", "libjpeg"]]} onChange={(jpegEncoder) => props.onPatch({ jpegEncoder: jpegEncoder as "jpegli" | "libjpeg" })} />
+      <SelectField label="AVIF 编码器" value={props.data.avifEncoder ?? "aom"} options={[["aom", "AOM AV1"], ["svt", "SVT-AV1-PSY"], ["slimg", "slimg"]]} onChange={(avifEncoder) => props.onPatch({ avifEncoder: avifEncoder as "aom" | "svt" | "slimg" })} />
+      <SelectField label="AVIF 位深" value={props.data.avifBitDepth ?? "auto"} options={[["auto", "自动"], ["12", "12-bit"], ["10", "10-bit"], ["8", "8-bit"]]} onChange={(avifBitDepth) => props.onPatch({ avifBitDepth: avifBitDepth as XlchemyCardState["avifBitDepth"] })} />
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+      <SwitchField label="禁用渐进式 JPEGli" checked={props.data.disableProgressiveJpegli ?? false} onChange={(disableProgressiveJpegli) => props.onPatch({ disableProgressiveJpegli })} />
+      <SwitchField label="AOM IQ 调优" checked={props.data.avifAomIqTune ?? false} onChange={(avifAomIqTune) => props.onPatch({ avifAomIqTune })} />
+      <SwitchField label="保留较大的原图" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch({ keepIfLarger })} />
+      <SwitchField label="较大时复制原图" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch({ copyIfLarger })} />
+      <SwitchField label="JXL 有损 Modular" checked={props.data.jxlModular ?? false} onChange={(jxlModular) => props.onPatch({ jxlModular })} />
+      <SwitchField label="自动无损 JPEG" checked={props.data.autoLosslessJpeg ?? true} onChange={(autoLosslessJpeg) => props.onPatch({ autoLosslessJpeg })} />
+    </div>
+  </div>
+}
+
 function EncoderTuning({ props }: { props: ViewProps }) {
-  if (props.format === "JPEG XL" || props.format === "Lossless JPEG Transcoding") return <div className="grid grid-cols-2 gap-2"><SwitchField label="最大压缩" checked={props.data.maxCompression ?? false} onChange={(maxCompression) => props.onPatch({ maxCompression })} /><SwitchField label="自动无损 JPEG" checked={props.data.autoLosslessJpeg ?? true} onChange={(autoLosslessJpeg) => props.onPatch({ autoLosslessJpeg })} /><SwitchField label="智能压缩力度" checked={props.data.intelligentEffort ?? false} onChange={(intelligentEffort) => props.onPatch({ intelligentEffort })} /><SwitchField label="有损 Modular" checked={props.data.jxlModular ?? false} onChange={(jxlModular) => props.onPatch({ jxlModular })} /><SwitchField label="校验完整性" checked={props.data.jxlVerify ?? false} onChange={(jxlVerify) => props.onPatch({ jxlVerify })} /><SwitchField label="PNG 回退" checked={props.data.jxlPngFallback ?? true} onChange={(jxlPngFallback) => props.onPatch({ jxlPngFallback })} /><SwitchField label="编码前标准化" checked={props.data.jxlNormalize ?? false} onChange={(jxlNormalize) => props.onPatch({ jxlNormalize })} />{props.data.jxlNormalize && <SelectField label="标准化时机" value={props.data.jxlNormalizeWhen ?? "on-fail"} options={[["on-fail", "失败时"], ["always", "始终"]]} onChange={(jxlNormalizeWhen) => props.onPatch({ jxlNormalizeWhen: jxlNormalizeWhen as "on-fail" | "always" })} />}</div>
-  if (props.format === "AVIF") return <div className="grid grid-cols-2 gap-2"><SelectField label="AVIF 编码器" value={props.data.avifEncoder ?? "aom"} options={[["aom", "AOM AV1"], ["svt", "SVT-AV1-PSY"], ["slimg", "slimg"]]} onChange={(avifEncoder) => props.onPatch({ avifEncoder: avifEncoder as "aom" | "svt" | "slimg" })} /><SelectField label="位深" value={props.data.avifBitDepth ?? "auto"} options={[["auto", "自动"], ["8", "8-bit"], ["10", "10-bit"], ["12", "12-bit"]]} onChange={(avifBitDepth) => props.onPatch({ avifBitDepth: avifBitDepth as XlchemyCardState["avifBitDepth"] })} /><SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} />{props.data.avifEncoder === "aom" && <SwitchField label="AOM IQ 调优" checked={props.data.avifAomIqTune ?? false} onChange={(avifAomIqTune) => props.onPatch({ avifAomIqTune })} />}</div>
-  if (props.format === "JPEG") return <div className="grid grid-cols-2 gap-2"><SelectField label="JPEG 编码器" value={props.data.jpegEncoder ?? "jpegli"} options={[["jpegli", "JPEGLI"], ["libjpeg", "libjpeg"]]} onChange={(jpegEncoder) => props.onPatch({ jpegEncoder: jpegEncoder as "jpegli" | "libjpeg" })} /><SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} />{props.data.jpegEncoder !== "libjpeg" && <SwitchField label="禁用渐进式 JPEGli" checked={props.data.disableProgressiveJpegli ?? false} onChange={(disableProgressiveJpegli) => props.onPatch({ disableProgressiveJpegli })} />}</div>
+  if (props.format === "JPEG XL" || props.format === "Lossless JPEG Transcoding") return <div className="grid grid-cols-2 gap-2"><SwitchField label="最大压缩" checked={props.data.maxCompression ?? false} onChange={(maxCompression) => props.onPatch({ maxCompression })} /><SwitchField label="智能压缩力度" checked={props.data.intelligentEffort ?? false} onChange={(intelligentEffort) => props.onPatch({ intelligentEffort })} /><SwitchField label="校验完整性" checked={props.data.jxlVerify ?? false} onChange={(jxlVerify) => props.onPatch({ jxlVerify })} /><SwitchField label="PNG 回退" checked={props.data.jxlPngFallback ?? true} onChange={(jxlPngFallback) => props.onPatch({ jxlPngFallback })} /><SwitchField label="编码前标准化" checked={props.data.jxlNormalize ?? false} onChange={(jxlNormalize) => props.onPatch({ jxlNormalize })} />{props.data.jxlNormalize && <SelectField label="标准化时机" value={props.data.jxlNormalizeWhen ?? "on-fail"} options={[["on-fail", "失败时"], ["always", "始终"]]} onChange={(jxlNormalizeWhen) => props.onPatch({ jxlNormalizeWhen: jxlNormalizeWhen as "on-fail" | "always" })} />}</div>
+  if (props.format === "AVIF" || props.format === "JPEG") return <SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} />
   return null
 }
 
 function CoreExecutionOptions({ props }: { props: ViewProps }) {
   return <div className="grid grid-cols-2 gap-2"><SliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} /><SliderField label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /></div>
-}
-
-function ConversionPolicies({ props }: { props: ViewProps }) {
-  return <div className="grid grid-cols-2 gap-2"><SwitchField label="保留较大结果" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch({ keepIfLarger })} /><SwitchField label="较大时复制原图" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch({ copyIfLarger })} /></div>
 }
 
 function GeneralSettings({ props }: { props: ViewProps }) {

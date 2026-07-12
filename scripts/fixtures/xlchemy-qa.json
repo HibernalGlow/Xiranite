@@ -12,6 +12,7 @@
     "inputSortField": "name",
     "inputSortDesc": false,
     "showOriginalPreview": true,
+    "settingsTab": "conversion",
     "format": "JPEG XL",
     "lossless": false,
     "quality": 88,

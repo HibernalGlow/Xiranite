@@ -36,6 +36,7 @@ const dataSchema = z.object({
   logs: z.array(z.string()).optional(),
   showProgressCounter: z.boolean().optional(), showProgressSummary: z.boolean().optional(), showProgressEta: z.boolean().optional(), showProgressFormat: z.boolean().optional(), showProgressEncoder: z.boolean().optional(), showRawProgress: z.boolean().optional(), showProgressCurrentFile: z.boolean().optional(), showProgressSizeChange: z.boolean().optional(),
   environment: z.array(z.object({ id: z.string(), label: z.string(), purpose: z.string(), path: z.string().optional(), available: z.boolean(), runnable: z.boolean(), version: z.string().optional(), detail: z.string().optional() })).optional(), environmentCheckedAt: z.string().optional(),
+  settingsTab: z.enum(["common", "conversion", "files", "general"]).optional(),
   resultTab: z.enum(["results", "issues", "logs"]).optional(),
 }).passthrough()
 
