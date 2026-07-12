@@ -24,7 +24,7 @@ type FileEntry = { path: string; name: string; ext: string; dir: string; size: n
 type TreeNode = { id: string; name: string; path: string; kind: "folder" | "file"; size: number; count: number; entry?: FileEntry; children: TreeNode[] }
 type TreeModel = { rootLabel: string; nodes: TreeNode[] }
 
-export function InputFilesWorkbench(props: { data: XlchemyCardState; disabled?: boolean; footer: ReactNode; getFileUrl?: (path: string) => string; result: XlchemyData | null; onCopyPath: (path: string) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPickFiles: () => Promise<string[]>; onPickDirectory: () => Promise<string | undefined> }) {
+export function InputFilesWorkbench(props: { data: XlchemyCardState; disabled?: boolean; footer: ReactNode; getFileUrl?: (path: string) => string; result: XlchemyData | null; onCopyPath: (path: string) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPickFiles: () => Promise<string[]>; onPickDirectory: () => Promise<string | undefined>; onListFiles?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ path: string; isDirectory: boolean }>> }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const entries = useMemo(() => deriveEntries(props.data.pathsText, props.result), [props.data.pathsText, props.result])
   const selected = useMemo(() => new Set(props.data.selectedPaths ?? entries.map((entry) => entry.path)), [props.data.selectedPaths, entries])
@@ -37,7 +37,7 @@ export function InputFilesWorkbench(props: { data: XlchemyCardState; disabled?: 
   function removeSelected() { props.onPatch({ pathsText: entries.filter((entry) => !selected.has(entry.path)).map((entry) => entry.path).join("\n"), selectedPaths: [] }) }
   function addPaths(paths: string[]) { if (!paths.length) return; const next = [...new Set([...splitLines(props.data.pathsText), ...paths.filter(Boolean)])]; props.onPatch({ pathsText: next.join("\n"), selectedPaths: next }) }
   async function pickFiles() { addPaths(await props.onPickFiles()) }
-  async function pickDirectory() { const path = await props.onPickDirectory(); if (path) addPaths([path]) }
+  async function pickDirectory() { const path = await props.onPickDirectory(); if (!path) return; const files = await props.onListFiles?.(path, { recursive: props.data.recursive !== false, extensions: [".jxl", ".jpg", ".jpeg", ".png", ".webp", ".avif", ".tif", ".tiff", ".bmp"], limit: 50_000 }); addPaths(files?.filter((entry) => !entry.isDirectory).map((entry) => entry.path) ?? [path]) }
   function addDroppedFiles(files: FileList | null) { if (!files?.length) return; addPaths([...files].flatMap((file) => { const path = (file as File & { path?: string }).path; return path ? [path] : [] })) }
   function selectAll(checked: boolean) { props.onPatch({ selectedPaths: checked ? entries.map((entry) => entry.path) : [] }) }
 

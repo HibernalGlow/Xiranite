@@ -207,6 +207,7 @@ export interface NodeLocalFilesCapability {
   getUrl: (path: string) => string
   pickFiles?: () => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
+  list?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ name: string; path: string; isDirectory: boolean; sizeBytes: number; lastModified: number; type: string }>>
 }
 
 export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {

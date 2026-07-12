@@ -9,7 +9,7 @@ import type {
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { pickLocalPaths } from "@/backend/localFilesClient"
+import { listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -153,6 +153,7 @@ export function useNodeHostApi(
 
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
+      list: listLocalFiles,
       pickFiles: async () => {
         if (typeof window !== "undefined" && window._wails) {
           const { Dialogs } = await import("@wailsio/runtime")

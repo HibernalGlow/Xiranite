@@ -212,7 +212,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
@@ -279,7 +279,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -375,7 +375,7 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench data={props.data} disabled={props.running} footer={<RunButton className="w-full" label={`转换 (${props.paths.length})`} props={props} />} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} />
+  return <InputFilesWorkbench data={props.data} disabled={props.running} footer={<RunButton className="w-full" label={`转换 (${props.paths.length})`} props={props} />} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
