@@ -22,6 +22,13 @@ export interface CliVisualCaptureOptions {
     height: number
   }
   closeInput?: string
+  env?: Record<string, string>
+}
+
+export interface CliMouseVisualCaptureOptions extends CliMouseScenarioOptions {
+  nodeId: string
+  artifactName: string
+  viewport?: { width: number; height: number }
 }
 
 export interface CliVisualCapture {
@@ -88,6 +95,7 @@ export async function captureCliVisual(options: CliVisualCaptureOptions): Promis
     timeoutMs: options.timeoutMs ?? 5_000,
     waitForText: options.waitForText,
     closeInput: options.closeInput ?? "\u0003",
+    env: options.env,
   })
   const html = await renderTerminalHtml(ansi, { columns, rows })
   const artifactRoot = resolve(REPO_ROOT, "artifacts", "cli", options.nodeId)
@@ -109,6 +117,21 @@ export async function captureCliVisual(options: CliVisualCaptureOptions): Promis
   }
 }
 
+export async function captureCliMouseVisual(options: CliMouseVisualCaptureOptions): Promise<CliVisualCapture> {
+  const columns = options.columns ?? DEFAULT_COLUMNS
+  const rows = options.rows ?? DEFAULT_ROWS
+  const result = await runCliMouseScenario(options)
+  const html = await renderTerminalHtml(result.ansi, { columns, rows })
+  const artifactRoot = resolve(REPO_ROOT, "artifacts", "cli", options.nodeId)
+  const ansiPath = resolve(artifactRoot, `${options.artifactName}.ansi`)
+  const htmlPath = resolve(artifactRoot, `${options.artifactName}.html`)
+  const pngPath = resolve(artifactRoot, `${options.artifactName}.png`)
+  await writeArtifact(ansiPath, result.ansi)
+  await writeArtifact(htmlPath, html)
+  await screenshotHtml(html, pngPath, options.viewport ?? DEFAULT_VIEWPORT)
+  return { ansi: result.ansi, html, plainText: plainTerminalText(result.ansi), ansiPath, htmlPath, pngPath }
+}
+
 /**
  * Drives a real PTY through SGR mouse events. Text is located from xterm's
  * active screen buffer, so tests remain independent of pixel coordinates and
@@ -124,6 +147,7 @@ export async function runCliMouseScenario(options: CliMouseScenarioOptions): Pro
   let ansi = ""
   let exited = false
   let finalScreen = ""
+  let visualAnsi = ""
   const clicks: { text: string; x: number; y: number }[] = []
   const env = {
     ...process.env,
@@ -174,6 +198,7 @@ export async function runCliMouseScenario(options: CliMouseScenarioOptions): Pro
     }
 
     finalScreen = terminalScreenText(screen)
+    visualAnsi = ansi
   } finally {
     if (!exited) safeTerminalWrite(pty, "\u0003")
     try {
@@ -185,7 +210,7 @@ export async function runCliMouseScenario(options: CliMouseScenarioOptions): Pro
     await waitForOutputStability(() => ansi, 100, 500)
     screen.dispose()
   }
-  return { ansi, finalScreen, clicks }
+  return { ansi: visualAnsi || ansi, finalScreen, clicks }
 }
 
 export function plainTerminalText(ansi: string): string {
@@ -213,11 +238,13 @@ async function captureCliAnsi(options: {
   timeoutMs: number
   waitForText: CliVisualCaptureOptions["waitForText"]
   closeInput: string
+  env?: Record<string, string>
 }): Promise<string> {
   let ansi = ""
   let exited = false
   const env = {
     ...process.env,
+    ...options.env,
     FORCE_COLOR: "1",
     XIRANITE_FORCE_COLOR: "1",
     XIRANITE_CLI_COLUMNS: String(options.columns),

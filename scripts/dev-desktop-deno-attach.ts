@@ -26,7 +26,7 @@ const desktop = Bun.spawn([
   ...desktopRuntimePermissionArgs(),
   "desktop/deno/main.ts",
 ], {
-  stdin: "inherit",
+  stdin: "ignore",
   stdout: "inherit",
   stderr: "inherit",
   env: {

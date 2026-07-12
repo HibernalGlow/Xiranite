@@ -84,7 +84,8 @@ async function discoverNodePackages(): Promise<NodePackage[]> {
 
 function generateRuntimeRegistry(nodes: NodePackage[]): string {
   const lines = nodes.map((node) => `  ${objectKey(node.id)}: ${runtimeSpec(node)},`)
-  return `${header}import type { NodeSpec } from "./node-runner.js"
+  return `${header}import { createNodeModuleLoader } from "./node-module-loader.js"
+import type { NodeSpec } from "./node-runner.js"
 
 export const generatedNodeSpecs: Record<string, NodeSpec> = {
 ${lines.join("\n")}
@@ -98,7 +99,8 @@ function runtimeSpec(node: NodePackage): string {
   const override = runtimeOverrides[node.id]
   if (override?.kind === "pure") {
     return `{
-    loadCore: () => import(${stringLiteral(`${node.packageName}/core`)}),
+    packageName: ${stringLiteral(node.packageName)},
+    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}),
     run: ${stringLiteral(override.run)},
     message: ${stringLiteral(override.message)},
   }`
@@ -112,9 +114,10 @@ function runtimeSpec(node: NodePackage): string {
   const run = override?.run ?? `run${pascalName}`
   const runtime = override?.runtime ?? `createNode${pascalName}Runtime`
   return `{
-    loadCore: () => import(${stringLiteral(`${node.packageName}/core`)}),
+    packageName: ${stringLiteral(node.packageName)},
+    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}),
     run: ${stringLiteral(run)},
-    loadPlatform: () => import(${stringLiteral(`${node.packageName}/platform`)}),
+    loadPlatform: createNodeModuleLoader(${stringLiteral(`${node.packageName}/platform`)}),
     createRuntime: ${stringLiteral(runtime)},
   }`
 }

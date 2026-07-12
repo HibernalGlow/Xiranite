@@ -57,7 +57,7 @@ const vite = Bun.spawn([
   "--strictPort",
   ...args,
 ], {
-  stdin: "inherit",
+  stdin: "ignore",
   stdout: "inherit",
   stderr: "inherit",
   env: {
@@ -127,7 +127,7 @@ try {
     ...desktopRuntimePermissionArgs(),
     "desktop/deno/main.ts",
   ], {
-    stdin: "inherit",
+    stdin: "ignore",
     stdout: "inherit",
     stderr: "inherit",
     env: {

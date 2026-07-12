@@ -17,7 +17,7 @@ await waitForFrontend()
 console.log(`[xiranite-frontend:attach] ${frontendUrl}`)
 
 const go = Bun.spawn(["go", "run", "-mod=mod", "."], {
-  stdin: "inherit",
+  stdin: "ignore",
   stdout: "inherit",
   stderr: "inherit",
   env: {

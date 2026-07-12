@@ -49,7 +49,7 @@ const vite = Bun.spawn([
   "--strictPort",
   ...args,
 ], {
-  stdin: "inherit",
+  stdin: "ignore",
   stdout: "inherit",
   stderr: "inherit",
   env: {
