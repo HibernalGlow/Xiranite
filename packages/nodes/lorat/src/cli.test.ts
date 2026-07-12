@@ -20,7 +20,7 @@ afterEach(async () => {
 })
 
 describe("lorat CLI", () => {
-  test("refuses guided mode outside an interactive terminal", async () => {
+  test("refuses the configured interactive default outside a terminal", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -28,8 +28,8 @@ describe("lorat CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("xlorat scan --folder <path> --json")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
+    expect(host.stderrText()).toContain("xlorat ui")
   })
 
   test("scans a real LoRA folder into pure JSON", async () => {

@@ -304,6 +304,18 @@ export function ExecutionActions<Result>({
       </box>
     );
   }
+  if (session.confirming) {
+    return (
+      <box flexDirection="row" gap={1} flexShrink={0}>
+        <WorkbenchButton id="dismiss-confirmation" onClick={session.dismissConfirmation}>
+          ← 返回
+        </WorkbenchButton>
+        <WorkbenchButton id="confirm-execute" danger onClick={() => void session.confirmExecute()}>
+          {confirmLabel}
+        </WorkbenchButton>
+      </box>
+    );
+  }
   return (
     <WorkbenchButton
       id="execute"

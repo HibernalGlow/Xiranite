@@ -19,12 +19,17 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import type { LoratAction, LoratInput, LoratResult, LoratRow, LoratStatusFilter } from "./core.js"
 import { DEFAULT_LORA_FOLDER, collectTriggerDb, filterLoratRows, parseTriggerDb, runLorat, summarizeLoratRows } from "./core.js"
 import { createNodeLoratRuntime, readClipboardText, readTextFile, writeTextFile } from "./platform.js"
+import { createLoratInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("lorat")
 
@@ -41,7 +46,7 @@ interface LoratCliOptions {
   json?: boolean
 }
 
-interface LoratNodeConfig {
+interface LoratNodeConfig extends CliInteractionPreferencesSource {
   lora_folder?: string
   status_filter?: string
   search?: string
@@ -86,12 +91,56 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
+}
+
+export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => {
+      const { config } = await loadNodeConfigWithHints<LoratNodeConfig>("lorat", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
+      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+    },
+    createDefinition: (defaults, language) => ({
+      schema: createLoratInteractionSchema({
+        folderPath: defaults.lora_folder,
+        search: defaults.search,
+        statusFilter: normalizeStatus(defaults.status_filter),
+      }, language),
+      run: (input, event) => runLorat(input, createNodeLoratRuntime(), event),
+    }),
+    runPipe: legacyRunProgram,
+    runGuide: runGuidedInteraction,
+    runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).LoratTui,
+    createPreferences: (_defaults, current) => loratPreferences(host, current),
+    reexecEntrypoint: process.argv[1],
+    help,
+  })
+}
+
+function loratPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const options = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "lorat",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(options)
+      await saveXiraniteConfig(updateNodeConfig(config, "lorat", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<LoratNodeConfig>("lorat", { ...options, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? "zh" }
+    },
+  }
 }
 
 function createDefaultHost(): CliHost {
@@ -175,7 +224,7 @@ function commonArgs() {
 }
 
 async function resolveLoratArgs(args: LoratCliOptions, host: CliHost): Promise<LoratCliOptions> {
-  if (!(args.folder === "-" || (!args.folder && hasPipedInput(host.stdin)))) return args
+  if (!(args.folder === "-" || (!args.folder && hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) return args
   const stdinLine = (await readStdinLines(host.stdin))[0] ?? ""
   return { ...args, folder: stdinLine }
 }

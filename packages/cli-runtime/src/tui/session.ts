@@ -42,7 +42,7 @@ export interface TerminalUiSession<Result> {
   focus: (controlId: string) => void
   moveFocus: (controlIds: readonly string[], direction: -1 | 1) => void
   requestExecute: () => Promise<void>
-  requestAction: (fieldId: string, value: InteractionValue) => Promise<void>
+  requestAction: (fieldId: string, value: InteractionValue, overrides?: Readonly<InteractionValues>) => Promise<void>
   confirmExecute: () => Promise<void>
   dismissConfirmation: () => void
   canPause: boolean
@@ -218,11 +218,11 @@ export function useTerminalUiSession<Input, Result>(
     await executeValues(state.values)
   }, [executeValues, schema, state.phase, state.values])
 
-  const requestAction = useCallback(async (fieldId: string, value: InteractionValue): Promise<void> => {
+  const requestAction = useCallback(async (fieldId: string, value: InteractionValue, overrides: Readonly<InteractionValues> = {}): Promise<void> => {
     if (state.phase === "running" || state.phase === "paused") return
     const field = schema.fields.find((candidate) => candidate.id === fieldId)
     if (!field) return
-    const nextValues = { ...state.values, [fieldId]: normalizeFieldValue(field, value) }
+    const nextValues = { ...state.values, ...overrides, [fieldId]: normalizeFieldValue(field, value) }
     const validation = validateInteractionValues(schema, nextValues)
     if (Object.keys(validation.fieldErrors).length > 0 || validation.formError) {
       setState((current) => ({ ...current, values: nextValues, fieldErrors: validation.fieldErrors, focusedControlId: Object.keys(validation.fieldErrors)[0] ?? fieldId, error: validation.formError, confirming: false }))
