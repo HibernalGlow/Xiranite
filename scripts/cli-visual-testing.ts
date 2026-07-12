@@ -1,4 +1,5 @@
 import { mkdir, rm, stat, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "@playwright/test"
@@ -72,7 +73,7 @@ export interface CliMouseScenarioResult {
   clicks: readonly { text: string; x: number; y: number }[]
 }
 
-const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url))
+const REPO_ROOT = resolveRepoRoot()
 const VISUAL_LOCK_DIR = resolve(REPO_ROOT, "artifacts", ".locks", "cli-visual")
 const VISUAL_LOCK_STALE_MS = 120_000
 const DEFAULT_COLUMNS = 100
@@ -81,6 +82,21 @@ const DEFAULT_VIEWPORT = { width: 1180, height: 420 }
 const { SerializeAddon } = serializeAddonModule as typeof import("@xterm/addon-serialize")
 const { Unicode11Addon } = unicode11AddonModule as typeof import("@xterm/addon-unicode11")
 const { Terminal } = xtermHeadlessModule as typeof import("@xterm/headless")
+
+function findRepoRoot(start: string): string {
+  let current = resolve(start)
+  while (true) {
+    if (existsSync(resolve(current, "scripts", "cli-visual-testing.ts")) && existsSync(resolve(current, "package.json"))) return current
+    const parent = dirname(current)
+    if (parent === current) throw new Error(`Unable to locate the Xiranite repository from ${start}.`)
+    current = parent
+  }
+}
+
+function resolveRepoRoot(): string {
+  try { return fileURLToPath(new URL("../", import.meta.url)) }
+  catch { return findRepoRoot(process.cwd()) }
+}
 
 export async function captureCliVisual(options: CliVisualCaptureOptions): Promise<CliVisualCapture> {
   const columns = options.columns ?? DEFAULT_COLUMNS
