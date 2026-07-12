@@ -72,16 +72,7 @@ export interface BitvCliDependencies {
     definition: TerminalInteractionDefinition<Input, Result>,
     options: { host: CliHost; language: TerminalLanguage },
   ) => Promise<void>
-  runUi: <Input, Result>(
-    definition: TerminalInteractionDefinition<Input, Result>,
-    options: {
-      host: CliHost
-      renderer: TerminalRenderer
-      language: TerminalLanguage
-      theme?: string
-      reexec?: { entrypoint: string; args: readonly string[] }
-    },
-  ) => Promise<void>
+  runUi: typeof runTerminalUi
 }
 
 const defaultDependencies: BitvCliDependencies = {
@@ -136,7 +127,7 @@ export async function runProgram(
     process.exitCode = 2
     return
   }
-  if (flags.theme && !listTerminalThemes().includes(flags.theme)) {
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
     writeError(host, `Unknown terminal theme: ${flags.theme}. Available themes: ${listTerminalThemes().join(", ")}.`)
     process.exitCode = 2
     return
@@ -152,6 +143,7 @@ export async function runProgram(
     renderer: flags.renderer,
     language: flags.language,
     theme: flags.theme,
+    loadScreen: async () => (await import("./Tui.js")).BitvTui,
     reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined,
   })
 }
