@@ -21,20 +21,25 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 
 import type { DissolvefAction, DissolvefConflictMode, DissolvefInput, DissolvefMediaType, DissolvefPlanItem, DissolvefResult } from "./core.js"
 import { runDissolvef } from "./core.js"
 import { createNodeDissolvefRuntime, readClipboardText } from "./platform.js"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { createDissolvefInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("dissolvef")
 const PREVIEW_LIMIT = 40
 const ARCHIVE_PATH_LIMIT = 80
 const HISTORY_LIMIT = 20
 
-interface DissolvefNodeConfig {
+interface DissolvefNodeConfig extends CliInteractionPreferencesSource {
   enable_undo?: boolean
   history_path?: string
 }
@@ -113,13 +118,16 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<DissolvefNodeConfig>("dissolvef",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createDissolvefInteractionSchema({historyPath:d.history_path},language),run:(input,event)=>runDissolvef(input,createNodeDissolvefRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | plan | dissolve | nested | media | archive | direct | collect-archives | history | undo`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).DissolvefTui,createPreferences:(_d,current)=>dissolvefPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
+function dissolvefPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"dissolvef",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"dissolvef",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<DissolvefNodeConfig>("dissolvef",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {
@@ -139,63 +147,63 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "plan", description: "Preview the operations without changing files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "plan", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "plan", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       dissolve: defineCommand({
         meta: { name: "dissolve", description: "Run the selected dissolve modes." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "dissolve", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "dissolve", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       nested: defineCommand({
         meta: { name: "nested", description: "Flatten single-subfolder chains." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "nested", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "nested", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       media: defineCommand({
         meta: { name: "media", description: "Release folders containing exactly one media file." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "media", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "media", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       archive: defineCommand({
         meta: { name: "archive", description: "Release folders containing exactly one archive." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "archive", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "archive", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       direct: defineCommand({
         meta: { name: "direct", description: "Move a folder's contents to its parent." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "direct", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "direct", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       "collect-archives": defineCommand({
         meta: { name: "collect-archives", description: "Print matching single-archive paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "collect_archives", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "collect_archives", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       history: defineCommand({
         meta: { name: "history", description: "Show undo history." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "history", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "history", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       undo: defineCommand({
         meta: { name: "undo", description: "Undo the latest or selected dissolve record." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "undo", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "undo", ...inputFromArgs({ ...args, path: (args.path === "-" || (!args.path && (hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)))) ? (await readStdinLines(host.stdin))[0] : args.path } as DissolvefCliOptions) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
