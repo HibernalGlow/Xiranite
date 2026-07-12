@@ -25,8 +25,8 @@ describe("repacku CLI", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("xrepacku compress --path <folder>")
+    expect(host.stderrText()).toContain("No interactive terminal detected")
+    expect(host.stderrText()).toContain("xrepacku ui")
   })
 
   test("runs scriptable compress dry-run as JSON against an ignored workspace fixture", async () => {

@@ -3,27 +3,24 @@ import { fileURLToPath } from "node:url"
 import { captureCliVisual, expectCliVisualArtifacts } from "../../../../scripts/cli-visual-testing.ts"
 
 const CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url))
+afterEach(() => { process.exitCode = 0 })
 
-afterEach(() => {
-  process.exitCode = 0
-})
-
-describe("repacku guided CLI visual capture", () => {
-  test("captures the rich guided entry screen as ANSI, HTML, and PNG artifacts", async () => {
+describe("RepackU OpenTUI visual capture", () => {
+  test("captures the packing workbench for GUI comparison", async () => {
     const capture = await captureCliVisual({
       nodeId: "repacku",
       cliPath: CLI_PATH,
-      args: [],
-      artifactName: "guided-entry",
-      waitForText: "xrepacku compress --dry-run",
+      args: ["ui", "--lang", "zh"],
+      artifactName: "packing-workbench",
+      waitForText: "REPACKU // PACKING WORKBENCH",
+      columns: 128,
+      rows: 32,
+      viewport: { width: 1024, height: 720 },
+      timeoutMs: 15_000,
     })
-
-    expect(capture.plainText).toContain("Xiranite Repacku")
-    expect(capture.plainText).toContain("内置 TypeScript guided flow")
-    expect(capture.plainText).toContain("直接调用 repacku core/platform")
-    expect(capture.plainText).toContain("xrepacku compress --dry-run")
-    expect(capture.ansi).toMatch(/\u001b\[[0-9;?]*[A-Za-z]/)
-    expect(capture.html).not.toMatch(/\u001b|\?25|DABx/)
+    expect(capture.plainText).toContain("路径矩阵")
+    expect(capture.plainText).toContain("重打包计划")
+    expect(capture.plainText).toContain("开始重打包")
     await expectCliVisualArtifacts(capture)
   }, 30_000)
 })

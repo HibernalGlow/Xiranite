@@ -11,6 +11,7 @@ import {
   readStdinLines,
   renderProgressBar,
   rich,
+  runGuidedInteraction,
   runMain,
   selectRich,
   terminalColumns,
@@ -22,10 +23,15 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { runRepacku } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
+import { createRepackuInteractionSchema, type RepackuInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("repacku")
 
@@ -59,6 +65,18 @@ interface RepackuDefaults {
   delete_after?: boolean
   min_count?: number
   gallery_marker?: string
+}
+
+interface RepackuNodeConfig extends CliInteractionPreferencesSource, RepackuDefaults {}
+
+interface RepackuCliDependencies {
+  runGuide: <Input, Result>(definition: TerminalInteractionDefinition<Input, Result>, options: { host: CliHost; language: TerminalLanguage }) => Promise<void>
+  runUi: typeof runTerminalUi
+}
+
+const defaultDependencies: RepackuCliDependencies = {
+  runGuide: runGuidedInteraction,
+  runUi: runTerminalUi,
 }
 
 /**
@@ -130,11 +148,54 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
+  await runInteractionCli({
+    args,
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => {
+      const { config } = await loadNodeConfigWithHints<RepackuNodeConfig>("repacku", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true })
+      return { preferences: resolveInteractionPreferences(config), value: config ?? {} }
+    },
+    createDefinition: (defaults, language) => createRepackuInteractionDefinition(defaults, language, host),
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: defaultDependencies.runGuide,
+    runUi: defaultDependencies.runUi,
+    loadScreen: async () => (await import("./Tui.js")).RepackuTui,
+    createPreferences: (_defaults, values) => createPreferenceController(host, values),
+    reexecEntrypoint: process.argv[1],
+    help,
+  })
+}
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
+  const configOptions = { env: host.env, cwd: host.cwd }
+  return {
+    nodeId: "repacku",
+    current,
+    async save(values) {
+      const { config, path } = await loadXiraniteConfig(configOptions)
+      await saveXiraniteConfig(updateNodeConfig(config, "repacku", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...configOptions, configPath: path })
+    },
+    async restore() {
+      const { config } = await loadNodeConfigWithHints<RepackuNodeConfig>("repacku", { ...configOptions, jsonMode: true })
+      const preferences = resolveInteractionPreferences(config)
+      return { theme: preferences.theme, defaultMode: preferences.mode, language: preferences.language ?? resolveTerminalLanguage(undefined, host.env) }
+    },
   }
-  await runMain(createProgram(host), { rawArgs: args })
+}
+
+function createRepackuInteractionDefinition(defaults: RepackuDefaults, language: TerminalLanguage, host: CliHost): TerminalInteractionDefinition<RepackuInput, RepackuResult> {
+  return {
+    schema: createRepackuInteractionSchema({
+      pathsText: defaults.default_root ?? "",
+      types: defaults.types ?? "image",
+      minCount: defaults.min_count,
+      outputPath: defaults.default_output_dir ?? "",
+      galleryMarker: defaults.gallery_marker ?? ". 画集",
+      deleteAfter: defaults.delete_after ?? false,
+    } satisfies Partial<RepackuInteractionValues>, language),
+    run: async (input, onEvent) => runRepacku(input, createNodeRepackuRuntime(), onEvent),
+  }
 }
 
 function createDefaultHost(): CliHost {
@@ -145,6 +206,19 @@ function createDefaultHost(): CliHost {
     stdout: process.stdout,
     stderr: process.stderr,
   }
+}
+
+function writeUsage(host: CliHost): void {
+  writeLine(host, `${CLI_NAME} - folder analysis and safe repacking`)
+  writeLine(host)
+  writeLine(host, "Interactive modes:")
+  writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`)
+  writeLine(host, `  ${CLI_NAME} gd`)
+  writeLine(host, `  ${CLI_NAME} guided    Compatibility alias for gd`)
+  writeLine(host)
+  writeLine(host, "Pipe-safe commands:")
+  writeLine(host, `  ${CLI_NAME} analyze|compress|full|single-pack|gallery-pack [options] [--json]`)
+  writeLine(host, "Use --dry-run for a preview; --delete-after removes sources after successful compression.")
 }
 
 function createProgram(host: CliHost = createDefaultHost()) {
@@ -379,6 +453,7 @@ async function resolveRepackuArgs(args: RepackuCliOptions, host: CliHost): Promi
   const pathFromStdin = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
   const pathsFromStdin = args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))
   if (!pathFromStdin && !pathsFromStdin) return args
+  if (!(Symbol.asyncIterator in (host.stdin as object))) return args
   const stdinLines = await readStdinLines(host.stdin)
   const resolved: RepackuCliOptions = { ...args }
   if (pathFromStdin) resolved.path = stdinLines[0] ?? ""

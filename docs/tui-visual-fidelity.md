@@ -71,3 +71,20 @@ large results surface remains the visual priority.
 
 The terminal layout retains the device matrix, profile-card region, CLI-path
 override, and action console as separate usable surfaces.
+
+## RepackU
+
+- GUI evidence: `output/playwright/repacku/repacku-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/repacku/packing-workbench.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+The terminal composition follows the GUI's folder-matrix workflow: a left path
+matrix, a flexible central repack plan, and a lower configuration/safety deck.
+The GUI's right-side pack configuration is intentionally flattened into the
+lower deck so the plan remains readable in a character-cell viewport. Action
+tabs expose analyze, full flow, compress, single-pack, and gallery-pack without
+turning the workbench into a guided wizard.
+
+The PNG was reviewed against the reference after rebuilding the shared runtime;
+numeric controls use the portable `∷` semantic icon rather than `#`, and the
+shared reset/exit/help/task-queue chrome remains in the top row.
