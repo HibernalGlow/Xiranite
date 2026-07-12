@@ -36,10 +36,12 @@ export function EngineWorkflowTabs(props: {
   action: EngineVAction
   disabled?: boolean
   className?: string
+  iconOnly?: boolean
   variant?: "floating"
   onActionChange: (value: EngineVAction) => void
 }) {
   const floating = props.variant === "floating"
+  const workflowActions = ACTIONS.filter((item) => item.value !== "filter")
 
   return (
     <Tabs className={cn("min-w-0", props.className)} value={props.action} onValueChange={(value) => props.onActionChange(value as EngineVAction)}>
@@ -48,7 +50,7 @@ export function EngineWorkflowTabs(props: {
         variant="line"
         className={cn("h-auto", floating ? "flex w-auto max-w-full overflow-x-auto" : "grid w-full grid-cols-3")}
       >
-        {ACTIONS.map((item) => (
+        {workflowActions.map((item) => (
           <TabsTrigger
             key={item.value}
             disabled={props.disabled}
@@ -56,7 +58,7 @@ export function EngineWorkflowTabs(props: {
             className={cn("min-w-0 gap-1.5 px-1.5 text-xs", floating && "h-8 shrink-0 px-2")}
           >
             <item.icon />
-            {floating ? <span className="hidden @4xl/enginev:inline">{item.shortLabel}</span> : item.label}
+            {floating ? <span className={props.iconOnly ? "sr-only" : undefined}>{item.shortLabel}</span> : item.label}
           </TabsTrigger>
         ))}
       </TabsList>
@@ -70,6 +72,7 @@ export function ActionIconButton(props: {
   disabled?: boolean
   destructive?: boolean
   active?: boolean
+  ghost?: boolean
   onClick: () => void
 }) {
   const Icon = props.icon
@@ -80,7 +83,7 @@ export function ActionIconButton(props: {
           aria-label={props.label}
           disabled={props.disabled}
           size="icon-sm"
-          variant={props.destructive ? "destructive" : props.active ? "secondary" : "outline"}
+          variant={props.destructive ? "destructive" : props.active ? "secondary" : props.ghost ? "ghost" : "outline"}
           onClick={props.onClick}
         >
           <Icon />
@@ -145,9 +148,9 @@ export function PathInput(props: PatchProps & {
   )
 }
 
-export function FilterFields({ data, disabled, onPatch }: PatchProps) {
+export function FilterFields({ compact, data, disabled, onPatch }: PatchProps & { compact?: boolean }) {
   return (
-    <div className="grid gap-2 @2xl/enginev:grid-cols-3">
+    <div className={cn("grid gap-2", !compact && "@2xl/enginev:grid-cols-3")}>
       <InputField
         label="标题"
         value={data.titleFilter ?? ""}
@@ -182,9 +185,9 @@ export function FilterFields({ data, disabled, onPatch }: PatchProps) {
   )
 }
 
-export function OptionsFields({ data, disabled, onPatch }: PatchProps) {
+export function OptionsFields({ compact, data, disabled, onPatch }: PatchProps & { compact?: boolean }) {
   return (
-    <div className="grid gap-2 @3xl/enginev:grid-cols-2">
+    <div className={cn("grid gap-2", !compact && "@3xl/enginev:grid-cols-2")}>
       <InputField
         label="重命名模板"
         value={data.template ?? DEFAULT_TEMPLATE}
@@ -198,7 +201,7 @@ export function OptionsFields({ data, disabled, onPatch }: PatchProps) {
         placeholder="复制目标目录或导出文件路径"
         onChange={(value) => onPatch({ targetPath: value, outputPath: value })}
       />
-      <div className="grid gap-2 @3xl/enginev:col-span-2 @6xl/enginev:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <div className={cn("grid gap-2", !compact && "@3xl/enginev:col-span-2 @6xl/enginev:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]")}>
         <SwitchRow
           checked={data.dryRun ?? true}
           disabled={disabled}

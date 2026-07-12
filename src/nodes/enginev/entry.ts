@@ -13,6 +13,7 @@ import type { EngineVCardState, EngineVNodeConfig } from "./types"
  */
 export const enginevDataSchema = z
   .object({
+    actionTrayPinned: z.boolean().optional(),
     workshopPath: z.string().optional(),
     titleFilter: z.string().optional(),
     ratingFilter: z.string().optional(),

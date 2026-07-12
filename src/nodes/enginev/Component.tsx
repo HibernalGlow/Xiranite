@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type {
@@ -8,7 +8,7 @@ import type {
   EngineVResult,
 } from "@xiranite/node-enginev/core"
 import { filterWallpapers } from "@xiranite/node-enginev/core"
-import { Copy, Eye, GripVertical, Image, Images, ListChecks, RotateCcw, Trash2 } from "lucide-react"
+import { Copy, Eye, GripVertical, Image, Images, ListChecks, Pin, PinOff, RotateCcw, Settings2, SlidersHorizontal, Trash2 } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ import {
   FilterFields,
   FilterPopover,
   GallerySettingsPopover,
+  OptionsFields,
   OptionsPopover,
   PathInput,
   StatusStrip,
@@ -45,6 +46,7 @@ export function Component({ host }: EngineVProps) {
   dataRef.current = data
 
   const [running, setRunning] = useState(false)
+  const [actionTrayPinned, setActionTrayPinned] = useState(data.actionTrayPinned ?? false)
   const [defaults, setDefaults] = useState<Partial<EngineVCardState> | undefined>(undefined)
   const [uiDefaults, setUiDefaults] = useState<EngineVUiConfig | undefined>(undefined)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
@@ -55,15 +57,14 @@ export function Component({ host }: EngineVProps) {
 
   const result = data.result ?? null
   const logs = data.logs ?? []
-  const action = data.action ?? "scan"
+  const action = data.action === "filter" ? "scan" : data.action ?? "scan"
   const progress = data.progress ?? 0
   const wallpapers = data.wallpapers ?? result?.wallpapers ?? []
   const selectedIds = useMemo(() => parseIds(data.idsText), [data.idsText])
   const hasFilters = Boolean(data.titleFilter || data.ratingFilter || data.typeFilter)
-  const hasActiveFilters = action === "filter" && hasFilters
   const galleryWallpapers = useMemo(() => {
     if (!wallpapers.length) return []
-    if (hasActiveFilters) {
+    if (hasFilters) {
       return filterWallpapers(wallpapers, {
         title: data.titleFilter,
         contentRating: data.ratingFilter,
@@ -71,7 +72,7 @@ export function Component({ host }: EngineVProps) {
       })
     }
     return data.filteredWallpapers?.length ? data.filteredWallpapers : wallpapers
-  }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasActiveFilters, wallpapers])
+  }, [data.filteredWallpapers, data.ratingFilter, data.titleFilter, data.typeFilter, hasFilters, wallpapers])
   const status = statusFromState(data, running, tNode)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
@@ -164,6 +165,11 @@ export function Component({ host }: EngineVProps) {
   function patch(patchData: Partial<EngineVCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
     host.state.patchData(patchData)
+  }
+
+  function changeActionTrayPinned(pinned: boolean) {
+    setActionTrayPinned(pinned)
+    patch({ actionTrayPinned: pinned })
   }
 
   function pushLog(message: string) {
@@ -304,6 +310,7 @@ export function Component({ host }: EngineVProps) {
   const commonProps = {
     action,
     actionMeta,
+    actionTrayPinned,
     configDirty,
     configFilePath,
     data,
@@ -320,6 +327,7 @@ export function Component({ host }: EngineVProps) {
     tNode,
     wallpapers,
     onActionChange: (value: EngineVAction) => patch({ action: value }),
+    onActionTrayPinnedChange: changeActionTrayPinned,
     onCopyLogs: copyLogs,
     onCopyPath: copyPath,
     onCopyResults: copyResults,
@@ -358,6 +366,7 @@ type ViewProps = ReturnType<typeof createViewProps>
 function createViewProps(props: {
   action: EngineVAction
   actionMeta: typeof ACTIONS[number]
+  actionTrayPinned: boolean
   configDirty: boolean
   configFilePath?: string
   data: EngineVCardState
@@ -374,6 +383,7 @@ function createViewProps(props: {
   tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   wallpapers: EngineVData["wallpapers"]
   onActionChange: (value: EngineVAction) => void
+  onActionTrayPinnedChange: (pinned: boolean) => void
   onCopyLogs: () => void
   onCopyPath: (path: string) => void
   onCopyResults: () => void
@@ -519,6 +529,9 @@ function PortraitCompactView(props: ViewProps) {
 }
 
 function WorkspaceView(props: ViewProps) {
+  const [actionTrayAnchor, setActionTrayAnchor] = useState<HTMLDivElement | null>(null)
+  const actionTrayPinned = props.actionTrayPinned
+
   return (
     <div data-testid="enginev-workspace-view" className="grid h-full min-h-0 grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] gap-4 p-5">
       <aside data-testid="enginev-workspace-controls" className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-card/70 p-3 shadow-sm">
@@ -547,17 +560,35 @@ function WorkspaceView(props: ViewProps) {
 
         <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
 
-        <div className="grid grid-cols-2 gap-2">
+        <div ref={setActionTrayAnchor} className="grid grid-cols-2 gap-2">
           <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={Eye} label={props.tNode("buttons.dryRun", "Preview")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
           <SwitchRow checked={props.data.copyMode ?? false} disabled={props.running} icon={Copy} label={props.tNode("buttons.copy", "Copy")} onCheckedChange={(copyMode) => props.onPatch({ copyMode })} />
         </div>
 
-        <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2">
-          <span className="text-xs font-medium text-muted-foreground">{props.tNode("workspace.filters", "Filters")}</span>
-          <div className="flex items-center gap-1">
-            <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
+        {actionTrayPinned && (
+          <FloatingActionBar docked pinned workspace {...props} onPinnedChange={props.onActionTrayPinnedChange} />
+        )}
+
+        <div className="grid gap-2">
+          <Tabs defaultValue="filters" className="min-w-0 rounded-lg border bg-muted/20 p-2">
+            <TabsList variant="line" className="grid w-full grid-cols-2">
+              <TabsTrigger value="filters" className="gap-1.5 text-xs">
+                <SlidersHorizontal className="size-3.5" />
+                {props.tNode("workspace.filters", "筛选")}
+              </TabsTrigger>
+              <TabsTrigger value="options" className="gap-1.5 text-xs">
+                <Settings2 className="size-3.5" />
+                {props.tNode("workspace.options", "选项")}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="filters" className="pt-2">
+              <FilterFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            </TabsContent>
+            <TabsContent value="options" className="pt-2">
+              <OptionsFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            </TabsContent>
+          </Tabs>
+
         </div>
 
         {(props.status.tone === "running" || props.status.tone === "error") && (
@@ -580,7 +611,7 @@ function WorkspaceView(props: ViewProps) {
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2">
             <WallpaperGallery
               columns={props.data.galleryColumns}
               compact={props.data.galleryCompact}
@@ -593,23 +624,57 @@ function WorkspaceView(props: ViewProps) {
               onToggle={props.onToggleWallpaper}
             />
           </TabsContent>
-          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2">
             <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
           </TabsContent>
         </Tabs>
       </section>
-      <FloatingActionBar workspace {...props} />
+      {!actionTrayPinned && (
+        <FloatingActionBar anchorElement={actionTrayAnchor} workspace {...props} pinned={false} onPinnedChange={props.onActionTrayPinnedChange} />
+      )}
     </div>
   )
 }
 
-function FloatingActionBar(props: ViewProps & { workspace?: boolean }) {
+function FloatingActionBar(props: ViewProps & {
+  anchorElement?: HTMLElement | null
+  docked?: boolean
+  pinned: boolean
+  workspace?: boolean
+  onPinnedChange: (pinned: boolean) => void
+}) {
   const ActionIcon = props.actionMeta.icon
+  const iconOnly = props.docked || !props.workspace
+  const trayRef = useRef<HTMLDivElement | null>(null)
+  const [anchorPosition, setAnchorPosition] = useState<{ left: number; top: number } | null>(null)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
   const dragRef = useRef<{ left: number; top: number; pointerX: number; pointerY: number } | null>(null)
 
+  useLayoutEffect(() => {
+    if (props.docked || !props.workspace || position || !props.anchorElement) return
+    const tray = trayRef.current
+    const surface = tray?.parentElement
+    if (!tray || !surface) return
+
+    const updateAnchor = () => {
+      const surfaceRect = surface.getBoundingClientRect()
+      const anchorRect = props.anchorElement!.getBoundingClientRect()
+      const maxTop = Math.max(8, surfaceRect.height - tray.offsetHeight - 8)
+      setAnchorPosition({
+        left: Math.max(8, anchorRect.left - surfaceRect.left),
+        top: Math.min(maxTop, Math.max(8, anchorRect.bottom - surfaceRect.top + 8)),
+      })
+    }
+
+    updateAnchor()
+    const observer = new ResizeObserver(updateAnchor)
+    observer.observe(surface)
+    observer.observe(props.anchorElement)
+    return () => observer.disconnect()
+  }, [position, props.anchorElement, props.docked, props.workspace])
+
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (event.button !== 0) return
+    if (event.button !== 0 || props.docked) return
     const tray = event.currentTarget.parentElement
     const surface = tray?.parentElement
     if (!tray || !surface) return
@@ -645,43 +710,65 @@ function FloatingActionBar(props: ViewProps & { workspace?: boolean }) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 
+  function togglePinned() {
+    setPosition(null)
+    props.onPinnedChange(!props.pinned)
+  }
+
   return (
     <div
       data-testid="enginev-floating-actions"
+      data-pinned={props.pinned}
       className={cn(
-        "pointer-events-auto absolute z-10 flex w-fit max-w-[calc(100%-1rem)] flex-nowrap items-center justify-center gap-1.5 overflow-x-auto rounded-xl border bg-card/90 p-1.5 shadow-lg backdrop-blur-md",
-        position ? "bottom-auto translate-x-0" : props.workspace ? "left-8 top-[22rem]" : "bottom-3 left-1/2 -translate-x-1/2",
+        "pointer-events-auto z-10 flex flex-nowrap items-center gap-1.5 overflow-x-auto border p-1.5",
+        props.docked
+          ? "relative w-full max-w-full justify-start rounded-lg bg-muted/30 shadow-none"
+          : "absolute w-fit max-w-[calc(100%-1rem)] justify-center rounded-xl bg-card/90 shadow-lg backdrop-blur-md",
+        !props.docked && (position || anchorPosition ? "bottom-auto translate-x-0" : props.workspace ? "left-8 top-[22rem]" : "bottom-3 left-1/2 -translate-x-1/2"),
       )}
-      style={position ?? undefined}
+      ref={trayRef}
+      style={props.docked ? undefined : position ?? anchorPosition ?? undefined}
     >
-      <button
-        aria-label="Move action tray"
-        className="absolute left-1 top-1/2 grid size-7 -translate-y-1/2 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
-        type="button"
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={stopDrag}
-        onPointerCancel={stopDrag}
-      >
-        <GripVertical className="size-4" />
-      </button>
-      <div className="flex min-w-0 flex-nowrap items-center justify-center gap-1.5 pl-7">
+      {!props.docked && (
+        <button
+          aria-label="Move action tray"
+          className="absolute left-1 top-1/2 grid size-7 -translate-y-1/2 cursor-grab place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+          type="button"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
+        >
+          <GripVertical className="size-4" />
+        </button>
+      )}
+      <div className={cn("flex min-w-0 flex-nowrap items-center justify-center gap-1.5", !props.docked && "pl-7")}>
         <div className="flex items-center gap-1.5 px-1">
           <strong className="text-sm tabular-nums">{props.selectedIds.length}</strong>
-          <span className="hidden text-xs text-muted-foreground @4xl/enginev:inline">{props.tNode("summary.selected", "已选中")}</span>
+          <span className={cn("text-xs text-muted-foreground", iconOnly && "sr-only")}>{props.tNode("summary.selected", "已选中")}</span>
         </div>
-        <EngineWorkflowTabs action={props.action} className="max-w-full" disabled={props.running} variant="floating" onActionChange={props.onActionChange} />
-        <Button size="sm" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}>
+        <EngineWorkflowTabs action={props.action} className="max-w-full" disabled={props.running} iconOnly={iconOnly} variant="floating" onActionChange={props.onActionChange} />
+        <Button aria-label={`${props.tNode("buttons.run", "Run")} ${props.actionMeta.shortLabel}`} size={iconOnly ? "icon-sm" : "sm"} variant="ghost" disabled={props.running || isActionDisabled(props.action, props)} onClick={() => props.onExecute(props.action)}>
           <ActionIcon data-icon="inline-start" />
-          <span className="hidden @4xl/enginev:inline">{props.tNode("buttons.run", "Run")} {props.actionMeta.shortLabel}</span>
+          {!iconOnly && <span>{props.tNode("buttons.run", "Run")} {props.actionMeta.shortLabel}</span>}
         </Button>
-        <ToolbarActions {...props} />
+        <ToolbarActions floating {...props} />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button aria-label={props.pinned ? "Undock action tray" : "Dock action tray"} aria-pressed={props.pinned} size="icon-sm" variant="ghost" onClick={togglePinned}>
+              {props.pinned ? <PinOff /> : <Pin />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{props.pinned ? "取消拼接" : "拼接到执行栏下方"}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )
 }
 
 function FullView(props: ViewProps) {
+  const actionTrayPinned = props.actionTrayPinned
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 @5xl/enginev:p-5 @6xl/enginev:grid @6xl/enginev:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] @6xl/enginev:grid-rows-[auto_minmax(0,1fr)] @6xl/enginev:gap-4">
       <div className="flex shrink-0 flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between @6xl/enginev:flex-col @6xl/enginev:items-stretch">
@@ -726,6 +813,10 @@ function FullView(props: ViewProps) {
         </div>
       </section>
 
+      {actionTrayPinned && (
+        <FloatingActionBar docked pinned {...props} onPinnedChange={props.onActionTrayPinnedChange} />
+      )}
+
       <Tabs defaultValue="gallery" className="relative flex min-h-0 flex-1 flex-col @6xl/enginev:col-start-2 @6xl/enginev:row-span-2 @6xl/enginev:row-start-1">
           <div className="flex shrink-0 items-center justify-between gap-2">
             <TabsList variant="line">
@@ -740,7 +831,7 @@ function FullView(props: ViewProps) {
             </TabsList>
             <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
-          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2">
             <WallpaperGallery
               columns={props.data.galleryColumns}
               compact={props.data.galleryCompact}
@@ -753,12 +844,14 @@ function FullView(props: ViewProps) {
               onToggle={props.onToggleWallpaper}
             />
           </TabsContent>
-          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2 pb-20">
+          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2">
             <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
           </TabsContent>
       </Tabs>
 
-      <FloatingActionBar {...props} />
+      {!actionTrayPinned && (
+        <FloatingActionBar {...props} pinned={false} onPinnedChange={props.onActionTrayPinnedChange} />
+      )}
     </div>
   )
 }
@@ -776,17 +869,18 @@ function EngineExecutionBar(props: ViewProps) {
   )
 }
 
-function ToolbarActions(props: ViewProps & { compact?: boolean }) {
+function ToolbarActions(props: ViewProps & { compact?: boolean; floating?: boolean }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-1", props.compact && "justify-between")}>
-      <DeleteConfirmButton disabled={props.running || !props.selectedIds.length} onConfirm={() => props.onExecute("delete")} selectedCount={props.selectedIds.length} tNode={props.tNode} />
-      <ActionIconButton label={props.tNode("buttons.copyResults", "复制结果")} icon={Copy} disabled={!props.galleryWallpapers.length && !props.result} onClick={props.onCopyResults} />
+      <DeleteConfirmButton disabled={props.running || !props.selectedIds.length} floating={props.floating} onConfirm={() => props.onExecute("delete")} selectedCount={props.selectedIds.length} tNode={props.tNode} />
+      <ActionIconButton label={props.tNode("buttons.copyResults", "复制结果")} icon={Copy} disabled={!props.galleryWallpapers.length && !props.result} ghost={props.floating} onClick={props.onCopyResults} />
     </div>
   )
 }
 
 function DeleteConfirmButton(props: {
   disabled?: boolean
+  floating?: boolean
   selectedCount: number
   tNode: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   onConfirm: () => void
@@ -796,7 +890,7 @@ function DeleteConfirmButton(props: {
       <Tooltip>
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
-            <Button aria-label={props.tNode("aria.deleteSelected", "删除所选")} disabled={props.disabled} size="icon-sm" variant="destructive">
+            <Button aria-label={props.tNode("aria.deleteSelected", "删除所选")} className={props.floating ? "text-destructive" : undefined} disabled={props.disabled} size="icon-sm" variant={props.floating ? "ghost" : "destructive"}>
               <Trash2 />
               <span className="sr-only">{props.tNode("aria.deleteSelected", "删除所选")}</span>
             </Button>

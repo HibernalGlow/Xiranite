@@ -64,15 +64,47 @@ describe("app-owned enginev Component", () => {
     },
   )
 
-  test("uses a left control rail and a floating action tray in workspace mode", () => {
+  test("docks the action tray between execution switches and filter tabs", async () => {
     surfaceState.mode = "workspace"
-    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })
+    const view = render(<Component compId="comp-enginev" host={host} />)
+    const user = userEvent.setup()
 
     expect(screen.getByTestId("enginev-workspace-view")).toBeTruthy()
     expect(screen.getByTestId("enginev-workspace-controls")).toBeTruthy()
     expect(screen.getByTestId("enginev-floating-actions").className).toContain("absolute")
     expect(screen.getByTestId("enginev-floating-actions").className).toContain("pointer-events-auto")
     expect(screen.getByRole("button", { name: "Move action tray" })).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Dock action tray" }))
+    expect(host.cardState.actionTrayPinned).toBe(true)
+    const dockedTray = screen.getByTestId("enginev-floating-actions")
+    expect(dockedTray.getAttribute("data-pinned")).toBe("true")
+    expect(dockedTray.className).toContain("relative")
+    expect(dockedTray.className).toContain("w-full")
+    expect(screen.getByTestId("enginev-workspace-controls").contains(dockedTray)).toBe(true)
+    expect(dockedTray.previousElementSibling?.querySelectorAll('[role="switch"]').length).toBe(2)
+    expect(dockedTray.nextElementSibling?.querySelector('[role="tablist"]')).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Move action tray" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Undock action tray" })).toBeTruthy()
+
+    surfaceState.mode = "regular"
+    view.rerender(<Component compId="comp-enginev" host={host} />)
+    expect(screen.getByTestId("enginev-floating-actions").getAttribute("data-pinned")).toBe("true")
+
+    view.unmount()
+    surfaceState.mode = "workspace"
+    render(<Component compId="comp-enginev" host={host} />)
+    expect(screen.getByTestId("enginev-floating-actions").getAttribute("data-pinned")).toBe("true")
+  })
+
+  test("renders the regular floating tray as icon-only controls without reserved bottom padding", () => {
+    surfaceState.mode = "regular"
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+
+    const tray = screen.getByTestId("enginev-floating-actions")
+    expect(tray.querySelectorAll(".sr-only").length).toBeGreaterThan(1)
+    expect(screen.getByRole("tabpanel").className).not.toContain("pb-20")
   })
 
   test("falls back to a collapsed summary when compact height is extremely short", () => {
@@ -144,11 +176,17 @@ describe("app-owned enginev Component", () => {
     expect(image.getAttribute("src")).toBe("http://local.test/local-files?path=D%3A%2Fworkshop%2F111%2Fpreview.png")
   })
 
-  test("shows all scan results even when stale filter fields are present", () => {
+  test("applies gallery filters live without running a filter workflow", () => {
     surfaceState.mode = "workspace"
-    render(<Component compId="comp-enginev" host={createHost({ action: "scan", workshopPath: "D:/workshop", titleFilter: "not-a-match", wallpapers: [wallpaper] })} />)
+    const host = createHost({ action: "scan", workshopPath: "D:/workshop", titleFilter: "Ocean", wallpapers: [wallpaper] })
+    const view = render(<Component compId="comp-enginev" host={host} />)
 
     expect(screen.getByAltText("Ocean Loop")).toBeTruthy()
+    host.cardState.titleFilter = "not-a-match"
+    view.rerender(<Component compId="comp-enginev" host={host} />)
+    expect(screen.queryByAltText("Ocean Loop")).toBeNull()
+    expect(host.runCalls).toHaveLength(0)
+    expect(screen.queryByRole("tab", { name: "筛选结果" })).toBeNull()
   })
 
   test("switches the EngineV workflow tab before running the selected workflow", async () => {
@@ -157,13 +195,13 @@ describe("app-owned enginev Component", () => {
     const view = render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("tab", { name: "筛选结果" }))
-    expect(host.cardState.action).toBe("filter")
+    await user.click(screen.getByRole("tab", { name: "重命名计划" }))
+    expect(host.cardState.action).toBe("rename")
     view.rerender(<Component compId="comp-enginev" host={host} />)
-    expect(screen.getByRole("tab", { name: "筛选结果" }).getAttribute("aria-selected")).toBe("true")
+    expect(screen.getByRole("tab", { name: "重命名计划" }).getAttribute("aria-selected")).toBe("true")
 
-    await user.click(screen.getByRole("button", { name: "运行 筛选" }))
-    await waitFor(() => expect(host.runCalls[0]?.input.action).toBe("filter"))
+    await user.click(screen.getByRole("button", { name: "运行 重命名" }))
+    await waitFor(() => expect(host.runCalls[0]?.input.action).toBe("rename"))
   })
 
   test("selects gallery items and copies their paths without text-only rows", async () => {

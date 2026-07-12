@@ -7,6 +7,7 @@ import type {
 
 export interface EngineVCardState {
   action?: EngineVAction
+  actionTrayPinned?: boolean
   workshopPath?: string
   titleFilter?: string
   ratingFilter?: string
