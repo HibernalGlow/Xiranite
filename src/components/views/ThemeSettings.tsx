@@ -1285,8 +1285,8 @@ export function ThemeSettings() {
               <Separator />
               <div className="flex flex-col gap-3">
                 <div>
-                  <p className="text-xs font-medium">互斥选项组</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">统一压缩模式、输出位置等单选控件；只改变显示方式，不改变 ToggleGroup 的键盘与表单语义。</p>
+                  <p className="text-xs font-medium">字段与互斥选项组</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">标题样式同步到节点中的 Select、输入框、滑条等标准字段，以及压缩模式、输出位置等互斥组选项；不改变控件的键盘与表单语义。</p>
                 </div>
                 <PreferenceToggle label="控件样式" value={state.choiceControlStyle} values={CHOICE_CONTROL_STYLES} labels={{ segmented: "分段", pills: "胶囊", tabs: "标签", tiles: "卡片" }} onChange={(value) => workspaceActions.setChoiceControlStyle(value as ChoiceControlStyle)} />
                 <PreferenceToggle label="标题样式" value={state.choiceControlLabelStyle} values={CHOICE_CONTROL_LABEL_STYLES} labels={{ stacked: "上置", legend: "悬浮图例", inline: "左侧", hidden: "隐藏" }} onChange={(value) => workspaceActions.setChoiceControlLabelStyle(value as ChoiceControlLabelStyle)} />

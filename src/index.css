@@ -863,6 +863,65 @@ samp {
   font-weight: 650;
 }
 
+/* Shared field titles. This intentionally targets the official shadcn Field
+   composition used by node forms, while ChoiceControlField keeps the matching
+   FieldSet/FieldLegend treatment. One workspace preference therefore applies
+   to Select, Input, Slider and other labelled controls across every node. */
+:root[data-choice-control-label-style] [data-slot="field"][data-orientation="vertical"]:has(> [data-slot="field-label"]) {
+  min-width: 0;
+}
+
+:root[data-choice-control-label-style] [data-slot="field"][data-orientation="vertical"] > [data-slot="field-label"] {
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  line-height: 1rem;
+}
+
+:root[data-choice-control-label-style="stacked"] [data-slot="field"][data-orientation="vertical"]:has(> [data-slot="field-label"]) {
+  gap: 0.25rem;
+}
+
+:root[data-choice-control-label-style="legend"] [data-slot="field"][data-orientation="vertical"]:has(> [data-slot="field-label"]) {
+  position: relative;
+  gap: 0.25rem;
+  padding-top: 0.375rem;
+}
+
+:root[data-choice-control-label-style="legend"] [data-slot="field"][data-orientation="vertical"] > [data-slot="field-label"] {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.375rem;
+  z-index: 1;
+  max-width: calc(100% - 0.75rem);
+  padding-inline: 0.125rem;
+  transform: translateY(-50%);
+  background: color-mix(in oklch, var(--background) 88%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+:root[data-choice-control-label-style="inline"] [data-slot="field"][data-orientation="vertical"]:has(> [data-slot="field-label"]) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+:root[data-choice-control-label-style="inline"] [data-slot="field"][data-orientation="vertical"] > [data-slot="field-label"] {
+  white-space: nowrap;
+}
+
+:root[data-choice-control-label-style="hidden"] [data-slot="field"][data-orientation="vertical"] > [data-slot="field-label"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Xlchemy keeps the reference prototype's instrument language while deriving
    every accent from the active shadcn theme. */
 .xlchemy-grid {
