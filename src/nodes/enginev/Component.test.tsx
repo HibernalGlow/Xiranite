@@ -58,7 +58,10 @@ describe("app-owned enginev Component", () => {
       }
 
       expect(screen.getAllByText("筛选").length).toBeGreaterThan(0)
-      expect(screen.getByRole("tab", { name: "画廊" })).toBeTruthy()
+      expect(screen.getByTestId("enginev-gallery-only")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "结果" })).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
+      expect(screen.queryByRole("tab", { name: "画廊" })).toBeNull()
       expect(screen.getByText("已选中")).toBeTruthy()
       expect(screen.getByTestId("enginev-header-toolbar")).toBeTruthy()
     },
@@ -72,6 +75,12 @@ describe("app-owned enginev Component", () => {
 
     expect(screen.getByTestId("enginev-workspace-view")).toBeTruthy()
     expect(screen.getByTestId("enginev-workspace-controls")).toBeTruthy()
+    const controls = screen.getByTestId("enginev-workspace-controls")
+    const gallery = screen.getByTestId("enginev-gallery-only")
+    expect(controls.contains(screen.getByTestId("enginev-workspace-output"))).toBe(true)
+    expect(controls.contains(screen.getByRole("button", { name: "enginev gallery display settings" }))).toBe(true)
+    expect(gallery.querySelector('[role="tablist"]')).toBeNull()
+    expect(gallery.querySelector("button[aria-label='enginev gallery display settings']")).toBeNull()
     expect(screen.getByTestId("enginev-floating-actions").className).toContain("absolute")
     expect(screen.getByTestId("enginev-floating-actions").className).toContain("pointer-events-auto")
     expect(screen.getByRole("button", { name: "Move action tray" })).toBeTruthy()

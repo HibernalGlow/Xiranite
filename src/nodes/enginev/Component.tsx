@@ -571,16 +571,19 @@ function WorkspaceView(props: ViewProps) {
 
         <div className="grid gap-2">
           <Tabs defaultValue="filters" className="min-w-0 rounded-lg border bg-muted/20 p-2">
-            <TabsList variant="line" className="grid w-full grid-cols-2">
-              <TabsTrigger value="filters" className="gap-1.5 text-xs">
-                <SlidersHorizontal className="size-3.5" />
-                {props.tNode("workspace.filters", "筛选")}
-              </TabsTrigger>
-              <TabsTrigger value="options" className="gap-1.5 text-xs">
-                <Settings2 className="size-3.5" />
-                {props.tNode("workspace.options", "选项")}
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center gap-2">
+              <TabsList variant="line" className="grid min-w-0 flex-1 grid-cols-2">
+                <TabsTrigger value="filters" className="gap-1.5 text-xs">
+                  <SlidersHorizontal className="size-3.5" />
+                  {props.tNode("workspace.filters", "筛选")}
+                </TabsTrigger>
+                <TabsTrigger value="options" className="gap-1.5 text-xs">
+                  <Settings2 className="size-3.5" />
+                  {props.tNode("workspace.options", "选项")}
+                </TabsTrigger>
+              </TabsList>
+              <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+            </div>
             <TabsContent value="filters" className="pt-2">
               <FilterFields compact data={props.data} disabled={props.running} onPatch={props.onPatch} />
             </TabsContent>
@@ -591,43 +594,27 @@ function WorkspaceView(props: ViewProps) {
 
         </div>
 
+        <div data-testid="enginev-workspace-output" className="min-h-40 flex-1">
+          <ResultTabs compact result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
+
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
       </aside>
 
-      <section className="relative min-h-0 min-w-0 rounded-xl border bg-card/55 p-3 shadow-sm">
-        <Tabs defaultValue="gallery" className="flex h-full min-h-0 flex-col">
-          <div className="flex shrink-0 items-center justify-between gap-2">
-            <TabsList variant="line">
-              <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
-                <Images className="size-3.5 shrink-0" />
-                {props.tNode("tabs.gallery", "Gallery")}
-              </TabsTrigger>
-              <TabsTrigger value="results" className="gap-1.5 px-2.5">
-                <ListChecks className="size-3.5 shrink-0" />
-                {props.tNode("tabs.results", "Results")}
-              </TabsTrigger>
-            </TabsList>
-            <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2">
-            <WallpaperGallery
-              columns={props.data.galleryColumns}
-              compact={props.data.galleryCompact}
-              host={props.host}
-              showMeta={props.data.galleryShowMeta}
-              showPath={props.data.galleryShowPath}
-              selectedIds={props.selectedIds}
-              wallpapers={props.galleryWallpapers}
-              onCopyPath={props.onCopyPath}
-              onToggle={props.onToggleWallpaper}
-            />
-          </TabsContent>
-          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2">
-            <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-          </TabsContent>
-        </Tabs>
+      <section data-testid="enginev-gallery-only" className="relative min-h-0 min-w-0 overflow-hidden rounded-xl border bg-card/55 shadow-sm">
+        <WallpaperGallery
+          columns={props.data.galleryColumns}
+          compact={props.data.galleryCompact}
+          host={props.host}
+          showMeta={props.data.galleryShowMeta}
+          showPath={props.data.galleryShowPath}
+          selectedIds={props.selectedIds}
+          wallpapers={props.galleryWallpapers}
+          onCopyPath={props.onCopyPath}
+          onToggle={props.onToggleWallpaper}
+        />
       </section>
       {!actionTrayPinned && (
         <FloatingActionBar anchorElement={actionTrayAnchor} workspace {...props} pinned={false} onPinnedChange={props.onActionTrayPinnedChange} />
@@ -798,7 +785,7 @@ function FullView(props: ViewProps) {
         </div>
       </div>
 
-      <section data-testid="enginev-workspace-controls" className="flex min-h-0 shrink-0 flex-col gap-2 @6xl/enginev:overflow-y-auto @6xl/enginev:pr-1">
+      <section data-testid="enginev-workspace-controls" className="flex min-h-0 shrink-0 flex-col gap-2 @6xl/enginev:flex-1 @6xl/enginev:overflow-y-auto @6xl/enginev:pr-1">
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row">
           <PathInput data={props.data} disabled={props.running} onPaste={props.onPaste} onPatch={props.onPatch} />
           <div className="flex shrink-0 items-center gap-1">
@@ -811,43 +798,32 @@ function FullView(props: ViewProps) {
           <span className="shrink-0 text-xs font-medium text-muted-foreground">{props.tNode("sections.filter", "筛选")}</span>
           <FilterFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </div>
+        <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 p-2">
+          <span className="text-xs font-medium text-muted-foreground">{props.tNode("tabs.gallery", "Gallery")}</span>
+          <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
+        </div>
+        <div data-testid="enginev-workspace-output" className="min-h-40 flex-1">
+          <ResultTabs compact result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
       </section>
 
       {actionTrayPinned && (
         <FloatingActionBar docked pinned {...props} onPinnedChange={props.onActionTrayPinnedChange} />
       )}
 
-      <Tabs defaultValue="gallery" className="relative flex min-h-0 flex-1 flex-col @6xl/enginev:col-start-2 @6xl/enginev:row-span-2 @6xl/enginev:row-start-1">
-          <div className="flex shrink-0 items-center justify-between gap-2">
-            <TabsList variant="line">
-              <TabsTrigger value="gallery" className="gap-1.5 px-2.5">
-                <Images className="size-3.5 shrink-0" />
-                {props.tNode("tabs.gallery", "画廊")}
-              </TabsTrigger>
-              <TabsTrigger value="results" className="gap-1.5 px-2.5">
-                <ListChecks className="size-3.5 shrink-0" />
-                {props.tNode("tabs.results", "结果")}
-              </TabsTrigger>
-            </TabsList>
-            <GallerySettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <TabsContent value="gallery" className="flex min-h-0 flex-1 flex-col pt-2">
-            <WallpaperGallery
-              columns={props.data.galleryColumns}
-              compact={props.data.galleryCompact}
-              host={props.host}
-              showMeta={props.data.galleryShowMeta}
-              showPath={props.data.galleryShowPath}
-              selectedIds={props.selectedIds}
-              wallpapers={props.galleryWallpapers}
-              onCopyPath={props.onCopyPath}
-              onToggle={props.onToggleWallpaper}
-            />
-          </TabsContent>
-          <TabsContent value="results" className="flex min-h-0 flex-1 flex-col pt-2">
-            <ResultTabs result={props.result} logs={props.logs} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-          </TabsContent>
-      </Tabs>
+      <section data-testid="enginev-gallery-only" className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border bg-card/55 shadow-sm @6xl/enginev:col-start-2 @6xl/enginev:row-span-2 @6xl/enginev:row-start-1">
+        <WallpaperGallery
+          columns={props.data.galleryColumns}
+          compact={props.data.galleryCompact}
+          host={props.host}
+          showMeta={props.data.galleryShowMeta}
+          showPath={props.data.galleryShowPath}
+          selectedIds={props.selectedIds}
+          wallpapers={props.galleryWallpapers}
+          onCopyPath={props.onCopyPath}
+          onToggle={props.onToggleWallpaper}
+        />
+      </section>
 
       {!actionTrayPinned && (
         <FloatingActionBar {...props} pinned={false} onPinnedChange={props.onActionTrayPinnedChange} />
