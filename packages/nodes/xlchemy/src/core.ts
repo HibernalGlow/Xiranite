@@ -123,7 +123,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     paths: [...new Set((input.paths ?? []).map((path) => path.trim()).filter(Boolean))],
     format: input.format ?? "JPEG XL",
     lossless: input.lossless ?? false,
-    quality: clamp(input.quality ?? 90, 1, 100),
+    quality: clamp(input.quality ?? 60, 1, 100),
     effort: clamp(input.effort ?? 7, 1, 10),
     maxCompression: input.maxCompression ?? false,
     threads: clamp(input.threads ?? 4, 1, 64),

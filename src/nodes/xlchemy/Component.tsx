@@ -24,7 +24,7 @@ import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { ENVIRONMENT_TARGETS, FORMATS, PRESETS } from "./constants"
+import { ENVIRONMENT_TARGETS, FORMATS } from "./constants"
 import type { XlchemyCardState, XlchemyCustomPreset } from "./types"
 import { XL_CONFIG_FIELDS } from "./types"
 import { InputFilesWorkbench } from "./InputFilesWorkbench"
@@ -96,11 +96,6 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   function selectPreset(presetId: string) {
-    const preset = PRESETS.find((item) => item.id === presetId)
-    if (preset) {
-      patch({ selectedPreset: preset.id, format: preset.format, lossless: preset.lossless, quality: preset.quality, effort: preset.effort })
-      return
-    }
     const customPreset = customPresets.find((item) => item.id === presetId)
     if (customPreset) patch({ ...customPreset.values, selectedPreset: customPreset.id })
   }
@@ -244,7 +239,7 @@ interface ViewProps {
 }
 
 function CollapsedView(props: ViewProps) {
-  return <div data-testid="xlchemy-collapsed-view" className="flex h-full w-full items-center gap-2 rounded-xl border bg-card px-3 py-2"><Images className="size-5 text-primary" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-xs font-semibold">Xlchemy <Badge variant="outline">{props.format}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.paths.length} 项 · {props.data.lossless ? "无损" : `质量 ${props.data.quality ?? 90}`}</div></div><RunButton compact props={props} /></div>
+  return <div data-testid="xlchemy-collapsed-view" className="flex h-full w-full items-center gap-2 rounded-xl border bg-card px-3 py-2"><Images className="size-5 text-primary" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-xs font-semibold">Xlchemy <Badge variant="outline">{props.format}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.paths.length} 项 · {props.data.lossless ? "无损" : `质量 ${props.data.quality ?? 60}`}</div></div><RunButton compact props={props} /></div>
 }
 
 function CompactView(props: ViewProps & { portrait: boolean }) {
@@ -332,7 +327,7 @@ function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewPr
 }
 
 function Header({ props }: { props: ViewProps }) {
-  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: [...PRESETS.map((preset) => ({ value: preset.id, label: preset.label, editable: false, description: `${preset.format} · ${preset.lossless ? "无损" : `质量 ${preset.quality}`} · 力度 ${preset.effort}` })), ...props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设") }))], onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
+  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设") })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
@@ -349,7 +344,7 @@ function FormatControls({ props }: { props: ViewProps }) {
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
     </div>
     {outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}
-    {lossy && !fixedMode && <SliderField label="质量" value={props.data.quality ?? 90} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
+    {!fixedMode && <SliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
   </div>
 }
 
@@ -416,7 +411,7 @@ function SettingsGroup({ children, label }: { children: ReactNode; label: string
 }
 
 function SliderField({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
-  return <Field className="gap-1.5"><div className="flex items-center justify-between"><FieldLabel className="text-[10px]">{label}</FieldLabel><Badge variant="outline">{value}</Badge></div><Slider min={min} max={max} step={step} value={[value]} onValueChange={(values) => onChange(values[0] ?? value)} /></Field>
+  return <Field className="gap-1.5"><div className="flex items-center justify-between"><FieldLabel className="text-[10px]">{label}</FieldLabel><Badge variant="outline">{value}</Badge></div><Slider aria-label={label} min={min} max={max} step={step} value={[value]} onValueChange={(values) => onChange(values[0] ?? value)} /></Field>
 }
 
 function SourcePolicies({ props }: { props: ViewProps }) {

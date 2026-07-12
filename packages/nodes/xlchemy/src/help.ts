@@ -24,7 +24,7 @@ export const help = {
     { name: "paths", type: "path[]", required: true, description: "Input image files or folders." },
     { name: "format", type: "enum", required: true, description: "Target image format." },
     { name: "lossless", type: "boolean", description: "Use lossless encoding where supported.", defaultValue: "false" },
-    { name: "quality", type: "number", description: "Lossy quality from 1 to 100.", defaultValue: "90" },
+    { name: "quality", type: "number", description: "Lossy quality from 1 to 100.", defaultValue: "60" },
     { name: "effort", type: "number", description: "Compression effort from 1 to 10.", defaultValue: "7" }
   ],
   safety: { defaultMode: "preview", notes: ["Plan mode does not write files.", "Overwrite remains disabled unless explicitly enabled."] },

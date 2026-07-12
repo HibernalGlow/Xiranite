@@ -11,12 +11,6 @@ export const FORMATS: Array<{ value: XlchemyFormat; label: string; extension: st
   { value: "JPEG Reconstruction", label: "JPEG 重建", extension: ".jpg" },
 ]
 
-export const PRESETS = [
-  { id: "alpha", label: "Alpha", format: "JPEG XL" as const, lossless: true, quality: 100, effort: 7 },
-  { id: "beta", label: "Beta", format: "JPEG XL" as const, lossless: false, quality: 90, effort: 7 },
-  { id: "gamma", label: "Gamma", format: "WebP" as const, lossless: false, quality: 82, effort: 6 },
-]
-
 export const ENVIRONMENT_TARGETS = [
   ["cjxl", "cjxl", "JPEG XL 编码"],
   ["djxl", "djxl", "JPEG XL 解码与校验"],

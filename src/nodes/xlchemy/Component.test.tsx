@@ -39,19 +39,19 @@ describe("app-owned xlchemy Component", () => {
     }
   })
 
-  test("switches the shared config preset, persists it to TOML config, and sends a plan", async () => {
-    const host = createHost({ pathsText: "D:/images/a.png" })
+  test("uses quality 60 by default and exposes only global presets", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", lossless: true })
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
-    await user.click(screen.getByRole("button", { name: "配置管理" }))
-    await user.click(screen.getByRole("combobox", { name: "预设" }))
-    await user.click(screen.getByRole("option", { name: "Gamma" }))
-    expect(host.cardState).toMatchObject({ selectedPreset: "gamma", format: "WebP", lossless: false, quality: 82, effort: 6 })
-    await user.click(screen.getByRole("button", { name: "保存为默认" }))
-    await waitFor(() => expect(host.savedConfig).toMatchObject({ selectedPreset: "gamma", format: "WebP", lossless: false, quality: 82, effort: 6 }))
+
+    expect(screen.getAllByRole("slider")[0]?.getAttribute("aria-valuenow")).toBe("60")
+    expect(screen.queryByText("Alpha")).toBeNull()
+    expect(screen.queryByText("Beta")).toBeNull()
+    expect(screen.queryByText("Gamma")).toBeNull()
+
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], format: "WebP", lossless: false } })
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], quality: 60 } })
   })
 
   test("creates, renames, overwrites and deletes custom presets through the database preset capability", async () => {
