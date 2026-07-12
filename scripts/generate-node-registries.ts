@@ -100,7 +100,7 @@ function runtimeSpec(node: NodePackage): string {
   if (override?.kind === "pure") {
     return `{
     packageName: ${stringLiteral(node.packageName)},
-    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}, { nodeId: ${stringLiteral(node.id)}, entry: "core" }),
+    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}),
     run: ${stringLiteral(override.run)},
     message: ${stringLiteral(override.message)},
   }`
@@ -115,9 +115,9 @@ function runtimeSpec(node: NodePackage): string {
   const runtime = override?.runtime ?? `createNode${pascalName}Runtime`
   return `{
     packageName: ${stringLiteral(node.packageName)},
-    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}, { nodeId: ${stringLiteral(node.id)}, entry: "core" }),
+    loadCore: createNodeModuleLoader(${stringLiteral(`${node.packageName}/core`)}),
     run: ${stringLiteral(run)},
-    loadPlatform: createNodeModuleLoader(${stringLiteral(`${node.packageName}/platform`)}, { nodeId: ${stringLiteral(node.id)}, entry: "platform" }),
+    loadPlatform: createNodeModuleLoader(${stringLiteral(`${node.packageName}/platform`)}),
     createRuntime: ${stringLiteral(runtime)},
   }`
 }

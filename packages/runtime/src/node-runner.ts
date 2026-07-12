@@ -2,6 +2,7 @@
 
 import { generatedNodeSpecs } from "./node-runner.generated.js"
 import type { ModuleLoader, NodeModule } from "./node-module-loader.js"
+import { prepareNodePackage } from "./node-preparer.js"
 
 export interface NodeRunBridgeResponse<TData = unknown> {
   result: NodeRunResult<TData>
@@ -67,6 +68,10 @@ async function runSpec(
   onEvent: (event: NodeRunEvent) => void,
   control?: NodeRunControl,
 ): Promise<NodeRunResult> {
+  if (process.env.XIRANITE_LAZY_NODE_BUILD === "1") {
+    onEvent({ type: "log", message: `Preparing ${spec.packageName}…` })
+    await prepareNodePackage(spec.packageName)
+  }
   const core = await loadModule(spec.loadCore)
   if (!isPlatformNode(spec)) {
     const run = getFunction<PureRunFunction>(core, spec.run)
