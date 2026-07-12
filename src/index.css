@@ -771,7 +771,6 @@ samp {
    the interaction primitive; these rules only provide globally selectable,
    theme-token-based treatments with an unmistakable selected state. */
 :root[data-choice-control-style] [data-slot="toggle-group"] {
-  width: 100%;
   box-shadow: none !important;
 }
 
