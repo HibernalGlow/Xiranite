@@ -310,6 +310,28 @@ describe("ConfigService", () => {
     }
   })
 
+  test("stores node presets through the database KV repository", async () => {
+    const repository = createMemoryWorkspaceRepository()
+    const service = new ConfigService({ kvRepository: repository })
+
+    const created = await service.createNodePreset("xlchemy", {
+      name: "Archive WebP",
+      values: { format: "WebP", quality: 77 },
+    })
+    const renamed = await service.updateNodePreset("xlchemy", created.preset.id, { name: "Archive WebP v2" })
+    const overwritten = await service.updateNodePreset("xlchemy", created.preset.id, { values: { format: "JPEG XL", quality: 91 } })
+    const loaded = await service.getNodePresets("xlchemy")
+
+    expect(created.preset.id).toMatch(/^custom-/)
+    expect(renamed.preset.name).toBe("Archive WebP v2")
+    expect(overwritten.preset.values).toEqual({ format: "JPEG XL", quality: 91 })
+    expect(loaded.presets).toEqual([overwritten.preset])
+    await expect(repository.getKvValue("config.node-presets.v1:xlchemy")).resolves.toContain("Archive WebP v2")
+
+    await expect(service.deleteNodePreset("xlchemy", created.preset.id)).resolves.toEqual({ deleted: true })
+    await expect(service.getNodePresets("xlchemy")).resolves.toEqual({ presets: [] })
+  })
+
   test("imports legacy JSON files into node config", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "xiranite-services-json-"))
     const configPath = join(tempDir, "xiranite.config.toml")

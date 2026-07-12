@@ -81,6 +81,10 @@ export interface XiraniteConfigClient {
   getConfigPath(): Promise<string>
   getNodeConfig<T = unknown>(nodeId: string): Promise<{ config: T | undefined; path: string }>
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
+  getNodePresets<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string): Promise<{ presets: Array<NodePreset<TValues>> }>
+  createNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, input: { name: string; values: TValues }): Promise<{ preset: NodePreset<TValues> }>
+  updateNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, presetId: string, input: { name?: string; values?: TValues }): Promise<{ preset: NodePreset<TValues> }>
+  deleteNodePreset(nodeId: string, presetId: string): Promise<{ deleted: boolean }>
   getAppConfig<T = unknown>(section: string): Promise<{ config: T | undefined; path: string }>
   updateAppConfig<T = unknown>(section: string, config: T): Promise<{ config: T; path: string }>
   getCustomThemes(): Promise<{ themes: unknown[]; path: string }>
@@ -133,6 +137,37 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`Node config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
+    },
+    async getNodePresets<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/presets`), { headers })
+      if (!response.ok) throw new Error(`Node preset load failed: ${response.status}`)
+      return await response.json() as { presets: Array<NodePreset<TValues>> }
+    },
+    async createNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, input: { name: string; values: TValues }) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/presets`), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify(input),
+      })
+      if (!response.ok) throw new Error(`Node preset create failed: ${response.status}`)
+      return await response.json() as { preset: NodePreset<TValues> }
+    },
+    async updateNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, presetId: string, input: { name?: string; values?: TValues }) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/presets/${encodeURIComponent(presetId)}`), {
+        method: "PATCH",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify(input),
+      })
+      if (!response.ok) throw new Error(`Node preset update failed: ${response.status}`)
+      return await response.json() as { preset: NodePreset<TValues> }
+    },
+    async deleteNodePreset(nodeId: string, presetId: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/presets/${encodeURIComponent(presetId)}`), {
+        method: "DELETE",
+        headers,
+      })
+      if (!response.ok) throw new Error(`Node preset delete failed: ${response.status}`)
+      return await response.json() as { deleted: boolean }
     },
     async getAppConfig<T = unknown>(section: string) {
       const response = await fetch(apiUrl(baseUrl, `/config/app/${encodeURIComponent(section)}`), { headers })
@@ -394,6 +429,12 @@ function requestHeaders(options: XiraniteClientOptions): Record<string, string> 
 
 function apiUrl(baseUrl: string, path: string): URL {
   return new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`)
+}
+
+export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {
+  id: string
+  name: string
+  values: TValues
 }
 
 async function controlNodeOperation<TData>(baseUrl: string, headers: HeadersInit, operationId: string, action: "pause" | "resume"): Promise<NodeOperationDTO<TData>> {

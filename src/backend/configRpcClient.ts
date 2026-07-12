@@ -32,6 +32,22 @@ export async function saveNodeConfigToBackend<T = unknown>(
   await getConfigClient().updateNodeConfig(nodeId, nextConfig)
 }
 
+export async function getNodePresetsFromBackend<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string) {
+  return getConfigClient().getNodePresets<TValues>(nodeId)
+}
+
+export async function createNodePresetOnBackend<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, input: { name: string; values: TValues }) {
+  return getConfigClient().createNodePreset(nodeId, input)
+}
+
+export async function updateNodePresetOnBackend<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, presetId: string, input: { name?: string; values?: TValues }) {
+  return getConfigClient().updateNodePreset(nodeId, presetId, input)
+}
+
+export async function deleteNodePresetOnBackend(nodeId: string, presetId: string) {
+  return getConfigClient().deleteNodePreset(nodeId, presetId)
+}
+
 export async function getNodeUiConfigFromBackend<T = unknown>(
   nodeId: string,
 ): Promise<{ config: T | undefined; path: string }> {

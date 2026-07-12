@@ -215,6 +215,28 @@ export function createXiraniteApp(services: XiraniteServices) {
     .post("/config/open", async () => {
       return await services.config.openConfigFile()
     })
+    .get("/config/nodes/:nodeId/presets", async ({ params }) => {
+      return await services.config.getNodePresets(params.nodeId)
+    })
+    .post("/config/nodes/:nodeId/presets", async ({ body, params }) => {
+      return await services.config.createNodePreset(params.nodeId, body)
+    }, {
+      body: t.Object({
+        name: t.String(),
+        values: t.Object({}, { additionalProperties: true }),
+      }),
+    })
+    .patch("/config/nodes/:nodeId/presets/:presetId", async ({ body, params }) => {
+      return await services.config.updateNodePreset(params.nodeId, params.presetId, body)
+    }, {
+      body: t.Object({
+        name: t.Optional(t.String()),
+        values: t.Optional(t.Object({}, { additionalProperties: true })),
+      }),
+    })
+    .delete("/config/nodes/:nodeId/presets/:presetId", async ({ params }) => {
+      return await services.config.deleteNodePreset(params.nodeId, params.presetId)
+    })
     .get("/config/nodes/:nodeId", async ({ params }) => {
       return await services.config.getNodeConfig(params.nodeId)
     })

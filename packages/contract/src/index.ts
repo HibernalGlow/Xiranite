@@ -207,9 +207,19 @@ export interface NodeLocalFilesCapability {
   getUrl: (path: string) => string
 }
 
+export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {
+  id: string
+  name: string
+  values: TValues
+}
+
 export interface NodeConfigCapability<TConfig = unknown> {
   get: () => Promise<{ config: TConfig | undefined; path: string }>
   save: (config: TConfig) => Promise<void>
+  getPresets?: <TValues extends Record<string, unknown> = Record<string, unknown>>() => Promise<{ presets: Array<NodePreset<TValues>> }>
+  createPreset?: <TValues extends Record<string, unknown> = Record<string, unknown>>(input: { name: string; values: TValues }) => Promise<{ preset: NodePreset<TValues> }>
+  updatePreset?: <TValues extends Record<string, unknown> = Record<string, unknown>>(presetId: string, input: { name?: string; values?: TValues }) => Promise<{ preset: NodePreset<TValues> }>
+  deletePreset?: (presetId: string) => Promise<{ deleted: boolean }>
   getUi?: <TUiConfig = unknown>() => Promise<{ config: TUiConfig | undefined; path: string }>
   saveUi?: <TUiConfig = unknown>(config: TUiConfig) => Promise<void>
   openFile?: () => Promise<void> | void

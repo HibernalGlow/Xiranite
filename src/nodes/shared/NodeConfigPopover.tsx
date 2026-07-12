@@ -1,8 +1,10 @@
 import { useId, useState } from "react"
-import { DatabaseZap, ExternalLink, Eye, RefreshCw, RotateCcw, Save } from "lucide-react"
+import { DatabaseZap, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -26,8 +28,12 @@ export interface NodeConfigPopoverProps {
   onSave: () => Promise<void> | void
   preset?: {
     value?: string
-    options: Array<{ value: string; label: string; description?: string }>
+    options: Array<{ value: string; label: string; description?: string; editable?: boolean }>
     onValueChange: (value: string) => Promise<void> | void
+    onCreate?: (name: string) => Promise<void> | void
+    onDelete?: (value: string) => Promise<void> | void
+    onOverwrite?: (value: string) => Promise<void> | void
+    onRename?: (value: string, name: string) => Promise<void> | void
   }
 }
 
@@ -40,8 +46,13 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const presetId = useId()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<"preset" | "reload" | "save" | "restore" | "open" | null>(null)
+  const [presetEditor, setPresetEditor] = useState<"create" | "rename" | null>(null)
+  const [presetName, setPresetName] = useState("")
+  const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
   const disabled = Boolean(props.disabled || props.loading || busy)
   const hasDefaults = Boolean(props.defaults && Object.keys(props.defaults).length)
+  const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
+  const selectedPresetEditable = selectedPreset?.editable === true
 
   async function perform(kind: NonNullable<typeof busy>, action: () => Promise<void> | void) {
     setBusy(kind)
@@ -50,6 +61,31 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
     } finally {
       setBusy(null)
     }
+  }
+
+  function beginPresetEditor(mode: "create" | "rename") {
+    setPresetName(mode === "rename" ? selectedPreset?.label ?? "" : "")
+    setPresetEditor(mode)
+  }
+
+  async function commitPresetEditor() {
+    const name = presetName.trim()
+    if (!name || !props.preset || !presetEditor) return
+    const action = presetEditor === "create"
+      ? () => props.preset?.onCreate?.(name)
+      : () => props.preset?.onRename?.(props.preset?.value ?? "", name)
+    await perform("preset", async () => { await action() })
+    setPresetEditor(null)
+    setPresetName("")
+  }
+
+  async function confirmPresetMutation(kind: "delete" | "overwrite") {
+    if (!props.preset) return
+    const action = kind === "overwrite"
+      ? () => props.preset?.onOverwrite?.(props.preset?.value ?? "")
+      : () => props.preset?.onDelete?.(props.preset?.value ?? "")
+    await perform("preset", async () => { await action() })
+    setPresetConfirmation(null)
   }
 
   return (
@@ -78,12 +114,41 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
           {props.preset && <>
             <Field className="gap-1.5">
               <FieldLabel htmlFor={presetId}>{props.t("config.preset", "预设")}</FieldLabel>
-              <Select disabled={disabled} value={props.preset.value} onValueChange={(value) => void perform("preset", () => props.preset?.onValueChange(value))}>
+              <Select disabled={disabled} value={props.preset.value ?? ""} onValueChange={(value) => void perform("preset", () => props.preset?.onValueChange(value))}>
                 <SelectTrigger id={presetId} className="w-full" size="sm"><SelectValue placeholder={props.t("config.presetPlaceholder", "选择预设")} /></SelectTrigger>
                 <SelectContent><SelectGroup>{props.preset.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
               </Select>
               <FieldDescription className="text-xs">{props.preset.options.find((option) => option.value === props.preset?.value)?.description ?? props.t("config.presetDescription", "切换后保存为默认，即写入 TOML 配置。")}</FieldDescription>
             </Field>
+            {(props.preset.onCreate || selectedPresetEditable) && (
+              <div className="grid grid-cols-2 gap-2">
+                {props.preset.onCreate && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("create")}><Plus data-icon="inline-start" />{props.t("config.presetNew", "新建预设")}</Button>}
+                {selectedPresetEditable && props.preset.onRename && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("rename")}><Pencil data-icon="inline-start" />{props.t("config.presetRename", "重命名")}</Button>}
+                {selectedPresetEditable && props.preset.onOverwrite && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetConfirmation("overwrite")}><Save data-icon="inline-start" />{props.t("config.presetOverwrite", "覆盖当前")}</Button>}
+                {selectedPresetEditable && props.preset.onDelete && <Button disabled={disabled} size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setPresetConfirmation("delete")}><Trash2 data-icon="inline-start" />{props.t("config.presetDelete", "删除预设")}</Button>}
+              </div>
+            )}
+            {presetEditor && (
+              <div className="grid gap-2 rounded-md border bg-muted/20 p-2">
+                <Field className="gap-1.5">
+                  <FieldLabel htmlFor={`${presetId}-name`}>{props.t("config.presetName", "预设名称")}</FieldLabel>
+                  <Input id={`${presetId}-name`} autoFocus disabled={disabled} value={presetName} onChange={(event) => setPresetName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void commitPresetEditor() }} />
+                </Field>
+                <div className="flex justify-end gap-2"><Button disabled={disabled} size="sm" variant="ghost" onClick={() => setPresetEditor(null)}>{props.t("common:cancel", "取消")}</Button><Button disabled={disabled || !presetName.trim()} size="sm" onClick={() => void commitPresetEditor()}>{presetEditor === "create" ? props.t("config.presetCreate", "创建") : props.t("config.presetRename", "重命名")}</Button></div>
+              </div>
+            )}
+            <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "删除此预设？") : props.t("config.presetOverwriteTitle", "覆盖此预设？")}</AlertDialogTitle>
+                  <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "此操作无法撤销。") : props.t("config.presetOverwriteDescription", "将用当前节点参数替换此预设保存的参数。")}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "取消")}</AlertDialogCancel>
+                  <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "删除预设") : props.t("config.presetOverwrite", "覆盖当前")}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Separator />
           </>}
           <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "保存为默认")}</Button>

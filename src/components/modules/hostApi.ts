@@ -11,11 +11,15 @@ import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
+  createNodePresetOnBackend,
+  deleteNodePresetOnBackend,
   getNodeConfigFromBackend,
+  getNodePresetsFromBackend,
   getNodeUiConfigFromBackend,
   openConfigFileWithBackend,
   saveNodeConfigToBackend,
   saveNodeUiConfigToBackend,
+  updateNodePresetOnBackend,
 } from "@/backend/configRpcClient"
 import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { useTheme } from "@/components/use-theme"
@@ -158,6 +162,22 @@ export function useNodeHostApi(
       save: async <T,>(config: T) => {
         if (!nodeId) throw new Error("Node ID is required for config.save")
         await saveNodeConfigToBackend<T>(nodeId, config)
+      },
+      getPresets: async <TValues extends Record<string, unknown> = Record<string, unknown>>() => {
+        if (!nodeId) throw new Error("Node ID is required for config.getPresets")
+        return getNodePresetsFromBackend<TValues>(nodeId)
+      },
+      createPreset: async <TValues extends Record<string, unknown> = Record<string, unknown>>(input: { name: string; values: TValues }) => {
+        if (!nodeId) throw new Error("Node ID is required for config.createPreset")
+        return createNodePresetOnBackend(nodeId, input)
+      },
+      updatePreset: async <TValues extends Record<string, unknown> = Record<string, unknown>>(presetId: string, input: { name?: string; values?: TValues }) => {
+        if (!nodeId) throw new Error("Node ID is required for config.updatePreset")
+        return updateNodePresetOnBackend(nodeId, presetId, input)
+      },
+      deletePreset: async (presetId: string) => {
+        if (!nodeId) throw new Error("Node ID is required for config.deletePreset")
+        return deleteNodePresetOnBackend(nodeId, presetId)
       },
       getUi: async <T,>() => {
         if (!nodeId) throw new Error("Node ID is required for config.getUi")

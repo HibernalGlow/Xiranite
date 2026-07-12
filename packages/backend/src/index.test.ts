@@ -25,6 +25,30 @@ describe("backend", () => {
     expect(body.workspaces).toEqual([{ id: "ws-default", label: "Default", createdAt: 100, updatedAt: 100 }])
   })
 
+  test("manages node presets through database-backed config routes", async () => {
+    const app = await createDefaultBackendApp({ now: 100, repository: createMemoryWorkspaceRepository() })
+    const createdResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Archive", values: { format: "WebP", quality: 77 } }),
+    }))
+    const created = await createdResponse.json() as { preset: { id: string; name: string; values: Record<string, unknown> } }
+    const updatedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }),
+    }))
+    const listedResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets"))
+    const listed = await listedResponse.json() as { presets: Array<{ id: string; name: string; values: Record<string, unknown> }> }
+    const deletedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, { method: "DELETE" }))
+
+    expect(createdResponse.status).toBe(200)
+    expect(updatedResponse.status).toBe(200)
+    expect(listedResponse.status).toBe(200)
+    expect(listed.presets).toEqual([{ id: created.preset.id, name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }])
+    expect(await deletedResponse.json()).toEqual({ deleted: true })
+  })
+
   test("serves and persists workspace snapshots", async () => {
     const app = await createDefaultBackendApp({ now: 100, repository: createMemoryWorkspaceRepository() })
     const load = await app.handle(new Request("http://localhost/workspace/snapshot"))

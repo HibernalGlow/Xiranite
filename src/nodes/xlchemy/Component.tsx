@@ -53,15 +53,17 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   async function reloadDefaults() {
     const pending = host.config?.get?.<XlchemyNodeConfig>() ?? host.getNodeConfig?.<XlchemyNodeConfig>()
+    const pendingPresets = host.config?.getPresets?.<Record<string, unknown>>()
     try {
-      const response = await pending
+      const [response, presetResponse] = await Promise.all([pending, pendingPresets])
       if (response) {
-        setDefaults(response.config); setCustomPresets(normalizeCustomPresets(response.config?.customPresets)); setConfigPath(response.path)
+        setDefaults(response.config); setConfigPath(response.path)
         const startup: Partial<XlchemyCardState> = {}
         if (response.config?.disableDownscalingStartup) startup.downscaleEnabled = false
         if (response.config?.disableDeleteStartup) startup.deleteOriginal = false
         if (Object.keys(startup).length) patch(startup)
       }
+      if (presetResponse) setCustomPresets(normalizeCustomPresets(presetResponse.presets))
     } catch { /* browser preview */ }
   }
 
@@ -81,7 +83,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   async function saveDefaults() {
-    const config: XlchemyNodeConfig = { customPresets }
+    const config: XlchemyNodeConfig = {}
     for (const field of XL_CONFIG_FIELDS) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
@@ -112,33 +114,39 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     return values
   }
 
-  async function persistCustomPresets(next: XlchemyCustomPreset[]) {
-    const config = { customPresets: next }
-    if (host.config?.save) await host.config.save(config)
-    else await host.saveNodeConfig?.(config)
-    setCustomPresets(next)
-  }
-
   async function createCustomPreset(name: string) {
-    const id = createPresetId(name, [...PRESETS.map((preset) => preset.id), ...customPresets.map((preset) => preset.id)])
-    const preset = { id, name: uniquePresetName(name, [...PRESETS.map((item) => item.label), ...customPresets.map((item) => item.name)]), values: snapshotPresetValues() }
-    await persistCustomPresets([...customPresets, preset])
+    const createPreset = host.config?.createPreset
+    if (!createPreset) throw new Error("当前宿主不支持数据库预设管理。")
+    const response = await createPreset({ name, values: snapshotPresetValues() as Record<string, unknown> })
+    const preset = normalizeCustomPreset(response.preset)
+    if (!preset) throw new Error("后端返回了无效的预设。")
+    setCustomPresets((current) => [...current, preset])
     patch({ selectedPreset: preset.id })
   }
 
   async function renameCustomPreset(id: string, name: string) {
-    const next = customPresets.map((preset) => preset.id === id ? { ...preset, name: uniquePresetName(name, [...PRESETS.map((item) => item.label), ...customPresets.filter((item) => item.id !== id).map((item) => item.name)]) } : preset)
-    await persistCustomPresets(next)
+    const updatePreset = host.config?.updatePreset
+    if (!updatePreset) throw new Error("当前宿主不支持数据库预设管理。")
+    const response = await updatePreset(id, { name })
+    const preset = normalizeCustomPreset(response.preset)
+    if (!preset) throw new Error("后端返回了无效的预设。")
+    setCustomPresets((current) => current.map((item) => item.id === id ? preset : item))
   }
 
   async function overwriteCustomPreset(id: string) {
-    const next = customPresets.map((preset) => preset.id === id ? { ...preset, values: snapshotPresetValues() } : preset)
-    await persistCustomPresets(next)
+    const updatePreset = host.config?.updatePreset
+    if (!updatePreset) throw new Error("当前宿主不支持数据库预设管理。")
+    const response = await updatePreset(id, { values: snapshotPresetValues() as Record<string, unknown> })
+    const preset = normalizeCustomPreset(response.preset)
+    if (!preset) throw new Error("后端返回了无效的预设。")
+    setCustomPresets((current) => current.map((item) => item.id === id ? preset : item))
   }
 
   async function deleteCustomPreset(id: string) {
-    const next = customPresets.filter((preset) => preset.id !== id)
-    await persistCustomPresets(next)
+    const deletePreset = host.config?.deletePreset
+    if (!deletePreset) throw new Error("当前宿主不支持数据库预设管理。")
+    await deletePreset(id)
+    setCustomPresets((current) => current.filter((preset) => preset.id !== id))
     if (dataRef.current.selectedPreset === id) patch({ selectedPreset: undefined })
   }
 
@@ -206,41 +214,27 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 }
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
-type XlchemyNodeConfig = Partial<XlchemyCardState> & { customPresets?: unknown }
+type XlchemyNodeConfig = Partial<XlchemyCardState>
 
 function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((candidate) => {
-    if (!candidate || typeof candidate !== "object") return []
-    const { id, name, values } = candidate as Record<string, unknown>
-    if (typeof id !== "string" || !id.startsWith("custom-") || typeof name !== "string" || !name.trim() || !values || typeof values !== "object" || Array.isArray(values)) return []
-    const filtered: Partial<XlchemyCardState> = {}
-    for (const field of XL_CONFIG_FIELDS) {
-      if (field === "selectedPreset") continue
-      const fieldValue = (values as Record<string, unknown>)[field]
-      if (fieldValue !== undefined) (filtered as Record<string, unknown>)[field] = fieldValue
-    }
-    return [{ id, name: name.trim(), values: filtered }]
+    const preset = normalizeCustomPreset(candidate)
+    return preset ? [preset] : []
   })
 }
 
-function createPresetId(name: string, existingIds: string[]) {
-  const stem = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "preset"
-  const existing = new Set(existingIds)
-  let index = 1
-  let id = `custom-${stem}`
-  while (existing.has(id)) id = `custom-${stem}-${index++}`
-  return id
-}
-
-function uniquePresetName(name: string, existingNames: string[]) {
-  const base = name.trim() || "New preset"
-  const existing = new Set(existingNames.map((item) => item.toLocaleLowerCase()))
-  if (!existing.has(base.toLocaleLowerCase())) return base
-  let index = 2
-  let next = `${base} (${index})`
-  while (existing.has(next.toLocaleLowerCase())) next = `${base} (${++index})`
-  return next
+function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefined {
+  if (!candidate || typeof candidate !== "object") return undefined
+  const { id, name, values } = candidate as Record<string, unknown>
+  if (typeof id !== "string" || !id.startsWith("custom-") || typeof name !== "string" || !name.trim() || !values || typeof values !== "object" || Array.isArray(values)) return undefined
+  const filtered: Partial<XlchemyCardState> = {}
+  for (const field of XL_CONFIG_FIELDS) {
+    if (field === "selectedPreset") continue
+    const fieldValue = (values as Record<string, unknown>)[field]
+    if (fieldValue !== undefined) (filtered as Record<string, unknown>)[field] = fieldValue
+  }
+  return { id, name: name.trim(), values: filtered }
 }
 
 interface ViewProps {

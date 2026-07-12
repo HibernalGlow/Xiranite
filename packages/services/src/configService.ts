@@ -69,6 +69,20 @@ export interface BackgroundImageResult {
   path: string
 }
 
+export interface NodePreset {
+  id: string
+  name: string
+  values: Record<string, unknown>
+}
+
+export interface NodePresetsResult {
+  presets: NodePreset[]
+}
+
+export interface NodePresetResult {
+  preset: NodePreset
+}
+
 export interface SerializableTheme {
   name: string
   cssVars?: Record<string, unknown>
@@ -182,6 +196,53 @@ export class ConfigService {
       finishedAt: Date.now(),
     })
     return { config: nextNodeConfig, path }
+  }
+
+  /**
+   * Node presets are application data, rather than a node's file-based default
+   * config. Store them in libSQL so CRUD is atomic with the active backend and
+   * available to every client connected to that database.
+   */
+  async getNodePresets(nodeId: string): Promise<NodePresetsResult> {
+    if (!this.kvRepository) return { presets: [] }
+    const serialized = await this.kvRepository.getKvValue(nodePresetKey(nodeId))
+    return { presets: parseNodePresets(serialized) }
+  }
+
+  async createNodePreset(nodeId: string, input: { name: string; values: unknown }): Promise<NodePresetResult> {
+    const presets = await this.getNodePresets(nodeId)
+    const preset: NodePreset = {
+      id: `custom-${crypto.randomUUID()}`,
+      name: normalizePresetName(input.name),
+      values: normalizePresetValues(input.values),
+    }
+    await this.saveNodePresets(nodeId, [...presets.presets, preset])
+    return { preset }
+  }
+
+  async updateNodePreset(nodeId: string, presetId: string, input: { name?: string; values?: unknown }): Promise<NodePresetResult> {
+    const { presets } = await this.getNodePresets(nodeId)
+    const index = presets.findIndex((preset) => preset.id === presetId)
+    if (index < 0) throw new Error(`Node preset not found: ${presetId}`)
+
+    const current = presets[index]!
+    const preset: NodePreset = {
+      ...current,
+      ...(input.name === undefined ? {} : { name: normalizePresetName(input.name) }),
+      ...(input.values === undefined ? {} : { values: normalizePresetValues(input.values) }),
+    }
+    const next = presets.slice()
+    next[index] = preset
+    await this.saveNodePresets(nodeId, next)
+    return { preset }
+  }
+
+  async deleteNodePreset(nodeId: string, presetId: string): Promise<{ deleted: boolean }> {
+    const { presets } = await this.getNodePresets(nodeId)
+    const next = presets.filter((preset) => preset.id !== presetId)
+    if (next.length === presets.length) return { deleted: false }
+    await this.saveNodePresets(nodeId, next)
+    return { deleted: true }
   }
 
   async getAppConfig(section: string): Promise<GetAppConfigResult> {
@@ -339,6 +400,11 @@ export class ConfigService {
     return { url, path }
   }
 
+  private async saveNodePresets(nodeId: string, presets: NodePreset[]): Promise<void> {
+    if (!this.kvRepository) throw new Error("Database storage is not available for node presets.")
+    await this.kvRepository.setKvValue(nodePresetKey(nodeId), JSON.stringify(presets))
+  }
+
   private resolveThemesPath(): string {
     const configPath = resolveXiraniteConfigPath(this.resolveOptions())
     return join(dirname(configPath), "themes.json")
@@ -444,6 +510,41 @@ export class ConfigService {
       homeDir: this.homeDir,
     }
   }
+}
+
+function nodePresetKey(nodeId: string): string {
+  return `config.node-presets.v1:${nodeId}`
+}
+
+function parseNodePresets(serialized: string | null): NodePreset[] {
+  if (!serialized) return []
+  try {
+    const parsed = JSON.parse(serialized) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((candidate) => {
+      if (!isRecord(candidate) || typeof candidate.id !== "string" || !candidate.id.startsWith("custom-") || typeof candidate.name !== "string" || !isRecord(candidate.values)) return []
+      try {
+        return [{ id: candidate.id, name: normalizePresetName(candidate.name), values: candidate.values }]
+      } catch {
+        return []
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
+function normalizePresetName(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Preset name must be a string.")
+  const name = value.trim()
+  if (!name) throw new Error("Preset name is required.")
+  if (name.length > 120) throw new Error("Preset name must be 120 characters or fewer.")
+  return name
+}
+
+function normalizePresetValues(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error("Preset values must be an object.")
+  return value
 }
 
 function parseLegacyConfig(content: string, legacyPath: string): Record<string, unknown> {

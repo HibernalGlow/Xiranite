@@ -54,6 +54,34 @@ describe("app-owned xlchemy Component", () => {
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], format: "WebP", lossless: false } })
   })
 
+  test("creates, renames, overwrites and deletes custom presets through the database preset capability", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "WebP", lossless: false, quality: 77, effort: 5 })
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await user.click(screen.getByRole("button", { name: "新建预设" }))
+    await user.type(screen.getByLabelText("预设名称"), "Archive")
+    await user.click(screen.getByRole("button", { name: "创建" }))
+    await waitFor(() => expect(host.presets).toMatchObject([{ name: "Archive", values: { format: "WebP", quality: 77, effort: 5 } }]))
+
+    await user.click(screen.getByRole("combobox", { name: "预设" }))
+    await user.click(screen.getByRole("option", { name: "Archive" }))
+    expect(host.cardState.selectedPreset).toBe(host.presets[0]?.id)
+    await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
+    const nameInput = screen.getByLabelText("预设名称")
+    await user.clear(nameInput)
+    await user.type(nameInput, "Archive v2")
+    await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
+    await waitFor(() => expect(host.presets[0]?.name).toBe("Archive v2"))
+
+    await user.click(screen.getByRole("button", { name: "覆盖当前" }))
+    await user.click(screen.getAllByRole("button", { name: "覆盖当前" }).at(-1)!)
+    await waitFor(() => expect(host.presets[0]?.values.quality).toBe(77))
+    await user.click(screen.getByRole("button", { name: "删除预设" }))
+    await user.click(screen.getAllByRole("button", { name: "删除预设" }).at(-1)!)
+    await waitFor(() => expect(host.presets).toEqual([]))
+  })
+
   test("restores the prototype ingestion port after clearing the table", async () => {
     const host = createHost({ pathsText: "D:/images/a.png" })
     const view = render(<Component compId="xlchemy-card" host={host} />)
@@ -208,16 +236,38 @@ describe("app-owned xlchemy Component", () => {
   })
 })
 
-type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState; runCalls: Array<{ nodeId: string; input: XlchemyInput }>; savedConfig?: Partial<XlchemyCardState> }
+type TestPreset = { id: string; name: string; values: Record<string, unknown> }
+type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState; presets: TestPreset[]; runCalls: Array<{ nodeId: string; input: XlchemyInput }>; savedConfig?: Partial<XlchemyCardState> }
 function createHost(initial: XlchemyCardState): TestHost {
   const host = {
-    cardState: { ...initial }, runCalls: [],
+    cardState: { ...initial }, presets: [] as TestPreset[], runCalls: [],
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["state", "runner", "clipboard", "config"], hasCapability: () => true },
     env: { theme: "light", platform: "web" },
     state: { getData: () => host.cardState, patchData: (patch: Partial<XlchemyCardState>) => { host.cardState = { ...host.cardState, ...patch } } },
     runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.runCalls.push({ nodeId, input: input as XlchemyInput }); onEvent?.({ type: "progress", progress: 50, message: "Calibrating." }); return { success: true, message: "Planned.", data: result as TData } } },
     clipboard: { readText: async () => "D:/images/a.png", writeText: async () => undefined },
-    config: { get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }), save: async (config: Partial<XlchemyCardState>) => { host.savedConfig = config }, openFile: () => undefined },
+    config: {
+      get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
+      save: async (config: Partial<XlchemyCardState>) => { host.savedConfig = config },
+      getPresets: async () => ({ presets: host.presets }),
+      createPreset: async (input: { name: string; values: Record<string, unknown> }) => {
+        const preset = { id: `custom-${host.presets.length + 1}`, ...input }
+        host.presets = [...host.presets, preset]
+        return { preset }
+      },
+      updatePreset: async (id: string, input: { name?: string; values?: Record<string, unknown> }) => {
+        const preset = host.presets.find((item) => item.id === id)
+        if (!preset) throw new Error("Preset not found")
+        const next = { ...preset, ...input }
+        host.presets = host.presets.map((item) => item.id === id ? next : item)
+        return { preset: next }
+      },
+      deletePreset: async (id: string) => {
+        host.presets = host.presets.filter((item) => item.id !== id)
+        return { deleted: true }
+      },
+      openFile: () => undefined,
+    },
     getData: <T,>() => host.cardState as T, patchData: (_id: string, patch: Partial<XlchemyCardState>) => host.state.patchData(patch), listComponents: () => [], updateComponent: () => undefined,
   } as unknown as TestHost
   return host

@@ -563,7 +563,7 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
 }
 
 export { ConfigService } from "./configService.js"
-export type { BackgroundImageResult, CustomThemesResult, SerializableTheme } from "./configService.js"
+export type { BackgroundImageResult, CustomThemesResult, NodePreset, NodePresetResult, NodePresetsResult, SerializableTheme } from "./configService.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export type {
   EnsureConfigFileResult,
