@@ -11,7 +11,7 @@ import {
   TerminalPreferencesScreen,
   TerminalThemeProvider,
   WorkbenchButton,
-  WorkbenchHeaderActions,
+  useTerminalChromeActions,
   WorkbenchPanel,
   resolveTerminalTheme,
   terminalIcon,
@@ -51,6 +51,7 @@ function RecycleuWorkbench({
   const theme = useTerminalTheme();
   const t = createTerminalTranslator(language);
   const session = useTerminalUiSession(definition);
+  useTerminalChromeActions({ onReset: session.reset, onExit });
   const animationFrame = useAnimation({
     intervalMs: session.phase === "running" ? 120 : 420,
   });
@@ -189,7 +190,6 @@ function RecycleuWorkbench({
             立即清理、周期监控与运行记录
           </text>
         </box>
-        <WorkbenchHeaderActions onReset={session.reset} onExit={onExit} />
         <box flexDirection="column" alignItems="flex-end">
           <text fg={phaseColor(session.phase, theme)}>
             <b>{phaseLabel(session.phase)}</b>

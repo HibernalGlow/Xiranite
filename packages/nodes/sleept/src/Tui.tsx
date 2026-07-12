@@ -16,7 +16,7 @@ import {
   useTerminalUiSession,
   WorkbenchButton,
   WorkbenchField,
-  WorkbenchHeaderActions,
+  useTerminalChromeActions,
   WorkbenchPanel,
 } from "@xiranite/cli-runtime/terminal/opentui";
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
@@ -62,6 +62,7 @@ function SleeptWorkbench({
   const t = createSleeptTranslator(language);
   const terminalT = createTerminalTranslator(language);
   const session = useTerminalUiSession(definition);
+  useTerminalChromeActions({ onReset: session.reset, onExit, resetLabel: `↺ ${t("reset")}`, exitLabel: `× ${language === "zh" ? "退出" : "Exit"}` });
   const [settings, setSettings] = useState(false);
   const frame = useAnimation({
     intervalMs: session.phase === "running" ? 150 : 480,
@@ -160,7 +161,6 @@ function SleeptWorkbench({
           </text>
           <text fg={theme.colors.mutedForeground}>{t("description")}</text>
         </box>
-        <WorkbenchHeaderActions onReset={session.reset} onExit={onExit} resetLabel={`↺ ${t("reset")}`} exitLabel={`× ${language === "zh" ? "退出" : "Exit"}`} />
         <box flexDirection="column" alignItems="flex-end">
           <text fg={phaseColor(session.phase, theme)}>
             <b>{`${phaseLabel(session.phase, t)} ${motion}`}</b>

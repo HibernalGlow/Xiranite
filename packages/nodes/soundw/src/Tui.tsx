@@ -13,7 +13,7 @@ import {
   useTerminalUiSession,
   WorkbenchButton,
   WorkbenchField,
-  WorkbenchHeaderActions,
+  useTerminalChromeActions,
   WorkbenchPanel,
 } from "@xiranite/cli-runtime/terminal/opentui";
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
@@ -63,6 +63,7 @@ function SoundwWorkbench({
   const theme = useTerminalTheme();
   const t = createTerminalTranslator(language);
   const session = useTerminalUiSession(definition);
+  useTerminalChromeActions({ onReset: session.reset, onExit, resetLabel: `↺ ${t("reset")}`, exitLabel: `× ${language === "zh" ? "退出" : "Exit"}` });
   const [settings, setSettings] = useState(false);
   const frame = useAnimation({
     intervalMs: session.phase === "running" ? 120 : 520,
@@ -149,7 +150,6 @@ function SoundwWorkbench({
               : "Microphone, SoundSwitch profiles and command output"}
           </text>
         </box>
-        <WorkbenchHeaderActions onReset={session.reset} onExit={onExit} resetLabel={`↺ ${t("reset")}`} exitLabel={`× ${language === "zh" ? "退出" : "Exit"}`} />
         <box flexDirection="column" alignItems="flex-end">
           <text
             fg={

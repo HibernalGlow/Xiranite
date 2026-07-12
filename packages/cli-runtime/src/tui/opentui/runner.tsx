@@ -11,6 +11,7 @@ import { TerminalTaskQueueScreen } from "./task-queue-screen.js"
 import { TerminalHelpScreen } from "./help-screen.js"
 import { ClickTarget } from "./workbench-controls.js"
 import type { TerminalTaskQueueController } from "../task-queue.js"
+import { TerminalChromeActionsProvider, type TerminalChromeActions } from "./chrome-actions.js"
 
 export async function runOpenTuiTerminalUi<Input, Result>(
   definition: TerminalInteractionDefinition<Input, Result>,
@@ -44,9 +45,10 @@ export async function runOpenTuiTerminalUi<Input, Result>(
   await destroyed
 }
 
-function TerminalRoot({ taskQueue, help, language, content }: { taskQueue?: TerminalTaskQueueController; help?: import("@xiranite/contract").NodeHelp; language: "zh" | "en"; content: ReactNode }) {
+export function TerminalRoot({ taskQueue, help, language, content }: { taskQueue?: TerminalTaskQueueController; help?: import("@xiranite/contract").NodeHelp; language: "zh" | "en"; content: ReactNode }) {
   const [showQueue, setShowQueue] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [chromeActions, setChromeActions] = useState<TerminalChromeActions>()
   useKeyboard((key) => {
     if (key.name === "f9") setShowQueue((value) => !value)
     if (key.name === "f1" && help) setShowHelp((value) => !value)
@@ -55,5 +57,5 @@ function TerminalRoot({ taskQueue, help, language, content }: { taskQueue?: Term
   })
   if (showQueue && taskQueue) return <TerminalTaskQueueScreen controller={taskQueue} onBack={() => setShowQueue(false)} />
   if (showHelp && help) return <TerminalHelpScreen help={help} language={language} onBack={() => setShowHelp(false)} />
-  return <box width="100%" height="100%" position="relative">{content}<box position="absolute" top={0} right={2} flexDirection="row">{help ? <ClickTarget id="help-entry" bordered onClick={() => setShowHelp(true)}>? 帮助 F1</ClickTarget> : null}{taskQueue ? <ClickTarget id="task-queue-entry" bordered onClick={() => setShowQueue(true)}>▤ 任务队列 F9</ClickTarget> : null}</box></box>
+  return <TerminalChromeActionsProvider register={setChromeActions}><box width="100%" height="100%" position="relative">{content}<box position="absolute" top={0} right={2} height={3} flexDirection="row">{chromeActions ? <><ClickTarget id="reset" bordered onClick={chromeActions.onReset}>{chromeActions.resetLabel ?? "↺ 重置"}</ClickTarget><ClickTarget id="exit" bordered onClick={chromeActions.onExit}>{chromeActions.exitLabel ?? "× 退出"}</ClickTarget></> : null}{help ? <ClickTarget id="help-entry" bordered onClick={() => setShowHelp(true)}>? 帮助 F1</ClickTarget> : null}{taskQueue ? <ClickTarget id="task-queue-entry" bordered onClick={() => setShowQueue(true)}>▤ 任务队列 F9</ClickTarget> : null}</box></box></TerminalChromeActionsProvider>
 }

@@ -7,6 +7,7 @@ import type { TerminalPreferenceController, TerminalPreferenceValues } from "../
 import { createTerminalTranslator, type TerminalLanguage, type TerminalTranslator } from "../i18n.js"
 import { nextInteractionValue, resolveInteractionView, stepInteractionNumber } from "../screen.js"
 import { useTerminalUiSession } from "../session.js"
+import { useTerminalChromeActions } from "./chrome-actions.js"
 import { listTerminalThemes, resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
 import { terminalIcon } from "../icons.js"
 import { ProgressBar } from "./progress-bar.js"
@@ -52,6 +53,7 @@ function OpenTuiTerminalScreen<Input, Result>({
 }) {
   const theme = useTerminalTheme()
   const session = useTerminalUiSession(definition)
+  useTerminalChromeActions({ onReset: session.reset, onExit })
   const view = resolveInteractionView(definition.schema, session.values, t)
   const sections = visibleSections(view.sections, session.fields, t)
   const [activeSectionId, setActiveSectionId] = useState(() => sections[0]?.id ?? "")

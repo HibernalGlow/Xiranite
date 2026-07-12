@@ -11,7 +11,7 @@ import {
   useTerminalUiSession,
   WorkbenchButton,
   WorkbenchField,
-  WorkbenchHeaderActions,
+  useTerminalChromeActions,
   WorkbenchPanel,
 } from "@xiranite/cli-runtime/terminal/opentui";
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal";
@@ -36,6 +36,7 @@ function GifuWorkbench({
   const theme = useTerminalTheme();
   const t = createTerminalTranslator(language);
   const session = useTerminalUiSession(definition);
+  useTerminalChromeActions({ onReset: session.reset, onExit });
   const frame = useAnimation({
     intervalMs: session.phase === "running" ? 110 : 460,
   });
@@ -86,7 +87,6 @@ function GifuWorkbench({
               : "Archive scan, animation compile and output preview"}
           </text>
         </box>
-        <WorkbenchHeaderActions onReset={session.reset} onExit={onExit} />
         <text fg={theme.colors.primary}>
           {["⠁", "⠂", "⠄", "⡀", "⢀"][frame % 5]}
         </text>
