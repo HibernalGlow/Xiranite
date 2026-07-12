@@ -126,6 +126,22 @@ renderer supports it; Tab, arrows, Enter, and Escape remain keyboard fallbacks.
 OpenTUI owns the alternate-screen lifecycle and restores the cursor, mouse mode,
 and original screen on normal exit, Ctrl+C, and exceptions.
 
+### Action efficiency
+
+- Tabs switch views or persistent configuration contexts. They are not command
+  buttons and must not be used as a mandatory step before execution.
+- A safe action that needs no further input is a one-click command button and
+  starts immediately. A dangerous one-click action opens confirmation on the
+  first click; it must not require a preceding action-selection click.
+- An action may keep a separate execute button only when the user must configure
+  fields, review a generated plan, or select result rows after choosing it.
+- A workbench may combine both forms: configurable workflows use a selector and
+  execute/confirm controls, while queries, refreshes, restores, and other atomic
+  commands use the shared `ActionLauncher` button strip.
+- Automated mouse tests must assert the click count: atomic actions execute from
+  one command click, while dangerous atomic actions reach confirmation in one
+  click.
+
 ## TUI component policy
 
 The shared runtime is a termcn/OpenTUI component host. Nodes never copy or

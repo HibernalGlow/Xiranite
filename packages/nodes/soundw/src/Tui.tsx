@@ -6,7 +6,6 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { NodeRunResult } from "@xiranite/contract"
 import type { SoundwData, SoundwInput } from "./core.js"
-import { soundwActionLabel } from "./interaction.js"
 
 export function SoundwTui(props: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>>) {
   const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
@@ -38,7 +37,6 @@ function SoundwWorkbench({ definition, language, preferences, onExit, onThemePre
         <box flexDirection="column" flexGrow={1} gap={1}>
           <box height={3} flexShrink={0} borderStyle="rounded" borderColor={action === "switch-recording" ? theme.colors.focusRing : theme.colors.border} paddingLeft={1} paddingRight={1}><text fg={theme.colors.primary}><b>◉ RECORDING DEVICES</b></text></box>
           <ActionLauncher field={definition.schema.fields.find((item) => item.id === "action")!} session={session} />
-          <WorkbenchButton id="execute" onClick={() => void session.requestExecute()}>{session.phase === "running" ? "■ 执行中" : `▶ ${soundwActionLabel(action ?? "status", language)}`}</WorkbenchButton>
         </box>
       </WorkbenchPanel>
 
