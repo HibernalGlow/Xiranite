@@ -115,7 +115,7 @@ export async function runInteractionCli<Context, Input, Result>(options: RunInte
   }
   const flags = resolveTerminalUiFlags(args.slice(1), {
     renderer: loaded.preferences.renderer,
-    language: loaded.preferences.language ?? resolveTerminalLanguage(undefined, host.env),
+    language: loaded.preferences.language ?? "zh",
     theme: loaded.preferences.theme,
   })
   if (flags.error || flags.args.length || !flags.renderer || !flags.language) {

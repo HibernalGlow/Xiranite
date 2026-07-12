@@ -15,4 +15,5 @@ const entry = { def, core } satisfies HeadlessNodePackage<typeof core>
 
 export { core }
 export * from "./core.js"
+export * from "./interaction.js"
 export default entry
