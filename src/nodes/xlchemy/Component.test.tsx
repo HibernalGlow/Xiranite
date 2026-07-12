@@ -147,7 +147,7 @@ describe("app-owned xlchemy Component", () => {
       getUrl: (path) => `local://${path}`,
       pickFiles: async () => ["D:/images/alpha.png", "D:/images/beta.jpg"],
       pickDirectory: async () => "D:/images/folder",
-      list: async () => [{ name: "nested.png", path: "D:/images/folder/nested.png", isDirectory: false, sizeBytes: 123, lastModified: 0, type: "image/png" }],
+      list: async (path) => path === "D:/images/folder" ? [{ name: "nested.jp2", path: "D:/images/folder/nested.jp2", isDirectory: false, sizeBytes: 123, lastModified: 0, type: "image/jp2" }] : [{ name: path.split("/").at(-1)!, path, isDirectory: false, sizeBytes: 123, lastModified: 0, type: "image/test" }],
     }
     const view = render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
@@ -156,10 +156,11 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("alpha.png")).toBeTruthy()
     expect(screen.getByText("beta.jpg")).toBeTruthy()
+    expect(screen.getByText("246 B")).toBeTruthy()
     await user.click(screen.getAllByRole("button", { name: "添加文件夹" })[0]!)
-    await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.png"))
+    await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.jp2"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.png"])
+    expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
   })
 
   test("selects a real local output directory through the host picker", async () => {
