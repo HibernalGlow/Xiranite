@@ -3,15 +3,16 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
 import { compressionRatio, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, CheckCircle2, ChevronRight, Clipboard, FileImage, FolderInput, Gauge, Images, Play, RotateCcw, Square, Terminal } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Clipboard, FileImage, FolderInput, Gauge, Images, Play, RotateCcw, Square, Terminal } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -139,17 +140,34 @@ function FullView(props: ViewProps) {
           <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`} grow>
             <PathEditor props={props} />
             <InputQueue paths={props.paths} />
+            <Separator />
+            <SectionLabel>输入过滤</SectionLabel>
+            <InputFilterCard props={props} embedded />
+            <Separator />
+            <SectionLabel>数据分析</SectionLabel>
+            <DataAnalysisCard props={props} embedded />
           </WorkbenchCard>
-          <DataAnalysisCard props={props} />
           <PresetMatrix props={props} />
         </div></ScrollArea>
         <ScrollArea className="min-h-0"><div className="grid gap-3 pr-2 @5xl/xlchemy:grid-cols-[minmax(260px,1fr)_minmax(240px,0.9fr)]">
           <div className="flex min-h-0 flex-col gap-3">
-            <WorkbenchCard icon={Gauge} title={props.t("sections.formatHub", "格式")} badge={formatExtension(props.format)}>
+            <WorkbenchCard icon={Gauge} title={props.t("sections.formatHub", "校准矩阵")} badge={formatExtension(props.format)}>
+              <SectionLabel>目标格式</SectionLabel>
               <FormatControls props={props} />
+              <EncoderTuning props={props} />
+              <Separator />
+              <SectionLabel>转换设置</SectionLabel>
+              <ConversionOptions props={props} />
+              <Separator />
+              <SectionLabel>保存到</SectionLabel>
+              <OutputOptions props={props} />
+              <Separator />
+              <SectionLabel>缩小</SectionLabel>
+              <DownscalingCard props={props} embedded />
+              <Separator />
+              <SectionLabel>元数据与时间</SectionLabel>
+              <MetadataCard props={props} embedded />
             </WorkbenchCard>
-            <WorkbenchCard title="转换设置"><ConversionOptions props={props} /></WorkbenchCard>
-            <WorkbenchCard title="保存到"><OutputOptions props={props} /></WorkbenchCard>
           </div>
           <div className="flex min-h-0 flex-col gap-3">
             <WorkbenchCard title="转换进度"><BatchGate props={props} embedded /></WorkbenchCard>
@@ -183,8 +201,20 @@ function FormatControls({ props, compact }: { props: ViewProps; compact?: boolea
   return <div className="flex flex-col gap-3"><ToggleGroup type="single" value={props.format} className="grid grid-cols-3" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ format: value as XlchemyFormat })}>{FORMATS.map((item) => <ToggleGroupItem key={item.value} value={item.value}>{item.label}</ToggleGroupItem>)}</ToggleGroup><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损 Modular</ToggleGroupItem></ToggleGroup>{lossy && <SliderField label="质量" value={props.data.quality ?? 90} min={1} max={100} onChange={(quality) => props.onPatch({ quality })} />}<SliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} />{compact && <SliderField label="线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} />}</div>
 }
 
+function InputFilterCard({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
+  const content = <><Field><FieldLabel>忽略这些输入格式</FieldLabel><Input aria-label="xlchemy excluded formats" placeholder="avif, jxl, webp, gif" value={props.data.excludedFormatsText ?? "avif, jxl, webp, gif"} onChange={(event) => props.onPatch({ excludedFormatsText: event.currentTarget.value })} /></Field><div className="grid grid-cols-2 gap-2"><SelectField label="处理顺序" value={props.data.processingOrder ?? "original"} options={[["original", "原始顺序"], ["name", "按名称"], ["size", "按大小"]]} onChange={(processingOrder) => props.onPatch({ processingOrder: processingOrder as XlchemyCardState["processingOrder"] })} /><SwitchField label="递归子目录" checked={props.data.recursive ?? true} onChange={(recursive) => props.onPatch({ recursive })} /></div></>
+  return embedded ? content : <WorkbenchCard title="输入过滤">{content}</WorkbenchCard>
+}
+
+function EncoderTuning({ props }: { props: ViewProps }) {
+  if (props.format === "JPEG XL") return <div className="grid grid-cols-2 gap-2"><SwitchField label="智能压缩力度" checked={props.data.intelligentEffort ?? false} onChange={(intelligentEffort) => props.onPatch({ intelligentEffort })} /><SwitchField label="有损 Modular" checked={props.data.jxlModular ?? false} onChange={(jxlModular) => props.onPatch({ jxlModular })} /><SwitchField label="校验完整性" checked={props.data.jxlVerify ?? false} onChange={(jxlVerify) => props.onPatch({ jxlVerify })} /><SwitchField label="PNG 回退" checked={props.data.jxlPngFallback ?? true} onChange={(jxlPngFallback) => props.onPatch({ jxlPngFallback })} /><SwitchField label="编码前标准化" checked={props.data.jxlNormalize ?? false} onChange={(jxlNormalize) => props.onPatch({ jxlNormalize })} />{props.data.jxlNormalize && <SelectField label="标准化时机" value={props.data.jxlNormalizeWhen ?? "on-fail"} options={[["on-fail", "失败时"], ["always", "始终"]]} onChange={(jxlNormalizeWhen) => props.onPatch({ jxlNormalizeWhen: jxlNormalizeWhen as "on-fail" | "always" })} />}</div>
+  if (props.format === "AVIF") return <div className="grid grid-cols-2 gap-2"><SelectField label="AVIF 编码器" value={props.data.avifEncoder ?? "aom"} options={[["aom", "AOM AV1"], ["svt", "SVT-AV1"]]} onChange={(avifEncoder) => props.onPatch({ avifEncoder: avifEncoder as "aom" | "svt" })} /><SelectField label="位深" value={props.data.avifBitDepth ?? "auto"} options={[["auto", "自动"], ["8", "8-bit"], ["10", "10-bit"], ["12", "12-bit"]]} onChange={(avifBitDepth) => props.onPatch({ avifBitDepth: avifBitDepth as XlchemyCardState["avifBitDepth"] })} /><SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} /></div>
+  if (props.format === "JPEG") return <div className="grid grid-cols-2 gap-2"><SelectField label="JPEG 编码器" value={props.data.jpegEncoder ?? "jpegli"} options={[["jpegli", "JPEGLI"], ["libjpeg", "libjpeg"]]} onChange={(jpegEncoder) => props.onPatch({ jpegEncoder: jpegEncoder as "jpegli" | "libjpeg" })} /><SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} /></div>
+  return null
+}
+
 function ConversionOptions({ props }: { props: ViewProps }) {
-  return <div className="flex flex-col gap-3"><SliderField label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /><SwitchField label="递归扫描文件夹" checked={props.data.recursive ?? true} onChange={(recursive) => props.onPatch({ recursive })} /><SwitchField label="覆盖同名输出" checked={props.data.overwrite ?? false} onChange={(overwrite) => props.onPatch({ overwrite })} /></div>
+  return <div className="flex flex-col gap-3"><SliderField label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /><SelectField label="同名输出" value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} options={[["replace", "覆盖"], ["skip", "跳过"], ["rename", "自动改名"]]} onChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })} /><div className="grid grid-cols-2 gap-2"><SwitchField label="保留较大结果" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch({ keepIfLarger })} /><SwitchField label="较大时复制原图" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch({ copyIfLarger })} /></div></div>
 }
 
 function SliderField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
@@ -192,13 +222,27 @@ function SliderField({ label, value, min, max, onChange }: { label: string; valu
 }
 
 function OutputOptions({ props }: { props: ViewProps }) {
-  return <div className="grid gap-2"><ToggleGroup type="single" value={props.data.outputMode ?? "source"} className="grid grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup>{props.data.outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}<div className="grid grid-cols-2 gap-2"><SwitchField label="保留元数据" checked={props.data.preserveMetadata ?? true} onChange={(preserveMetadata) => props.onPatch({ preserveMetadata })} /><SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} /></div></div>
+  return <div className="grid gap-2"><ToggleGroup type="single" value={props.data.outputMode ?? "source"} className="grid grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup>{props.data.outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}<div className="grid grid-cols-2 gap-2"><SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} /><SwitchField label="转换后删除原图" checked={props.data.deleteOriginal ?? false} onChange={(deleteOriginal) => props.onPatch({ deleteOriginal })} /></div>{props.data.deleteOriginal && <SelectField label="删除方式" value={props.data.deleteOriginalMode ?? "trash"} options={[["trash", "移到回收站"], ["permanent", "永久删除"]]} onChange={(deleteOriginalMode) => props.onPatch({ deleteOriginalMode: deleteOriginalMode as "trash" | "permanent" })} />}</div>
+}
+
+function DownscalingCard({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
+  const mode = props.data.downscaleMode ?? "resolution"
+  const content = <><SwitchField label="启用缩小" checked={props.data.downscaleEnabled ?? false} onChange={(downscaleEnabled) => props.onPatch({ downscaleEnabled })} />{props.data.downscaleEnabled && <><SelectField label="缩小模式" value={mode} options={[["resolution", "分辨率"], ["percent", "百分比"], ["file-size", "目标文件大小"], ["shortest-side", "最短边"], ["longest-side", "最长边"], ["megapixels", "百万像素"]]} onChange={(downscaleMode) => props.onPatch({ downscaleMode: downscaleMode as XlchemyCardState["downscaleMode"] })} /><div className="grid grid-cols-2 gap-2">{mode === "resolution" && <><NumberField label="宽度" value={props.data.downscaleWidth ?? 1920} onChange={(downscaleWidth) => props.onPatch({ downscaleWidth })} /><NumberField label="高度" value={props.data.downscaleHeight ?? 1080} onChange={(downscaleHeight) => props.onPatch({ downscaleHeight })} /></>}{mode === "percent" && <NumberField label="百分比" value={props.data.downscalePercent ?? 50} onChange={(downscalePercent) => props.onPatch({ downscalePercent })} />}{mode === "file-size" && <NumberField label="目标 KB" value={props.data.downscaleFileSizeKb ?? 500} onChange={(downscaleFileSizeKb) => props.onPatch({ downscaleFileSizeKb })} />}{mode === "shortest-side" && <NumberField label="最短边" value={props.data.downscaleShortestSide ?? 1080} onChange={(downscaleShortestSide) => props.onPatch({ downscaleShortestSide })} />}{mode === "longest-side" && <NumberField label="最长边" value={props.data.downscaleLongestSide ?? 1920} onChange={(downscaleLongestSide) => props.onPatch({ downscaleLongestSide })} />}{mode === "megapixels" && <NumberField label="百万像素" value={props.data.downscaleMegapixels ?? 2.1} step={0.1} onChange={(downscaleMegapixels) => props.onPatch({ downscaleMegapixels })} />}</div><SelectField label="重采样" value={props.data.downscaleResample ?? "default"} options={[["default", "默认"], ["lanczos", "Lanczos"], ["mitchell", "Mitchell"], ["catrom", "Catmull-Rom"], ["box", "Box"]]} onChange={(downscaleResample) => props.onPatch({ downscaleResample })} /></>}</>
+  return embedded ? content : <WorkbenchCard title="缩小">{content}</WorkbenchCard>
+}
+
+function MetadataCard({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
+  const content = <><SelectField label="元数据策略" value={props.data.metadataMode ?? "encoder-preserve"} options={[["encoder-wipe", "编码器 · 清除"], ["encoder-preserve", "编码器 · 保留"], ["exiftool-wipe", "ExifTool · 清除"], ["exiftool-preserve", "ExifTool · 保留"], ["exiftool-unsafe-wipe", "ExifTool · 完全清除"]]} onChange={(metadataMode) => props.onPatch({ metadataMode: metadataMode as XlchemyCardState["metadataMode"], preserveMetadata: metadataMode.includes("preserve") })} /><SwitchField label="保留文件时间戳" checked={props.data.preserveTimestamps ?? false} onChange={(preserveTimestamps) => props.onPatch({ preserveTimestamps })} /></>
+  return embedded ? content : <WorkbenchCard title="元数据与时间">{content}</WorkbenchCard>
 }
 
 function SwitchField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   const id = `xlchemy-${label}`
   return <Field orientation="horizontal" className="rounded-md border px-2 py-1.5"><FieldContent><FieldLabel htmlFor={id} className="text-xs">{label}</FieldLabel></FieldContent><Switch id={id} size="sm" checked={checked} onCheckedChange={onChange} /></Field>
 }
+
+function SelectField({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<[string, string]>; value: string }) { return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(([optionValue, optionLabel]) => <SelectItem key={optionValue} value={optionValue}>{optionLabel}</SelectItem>)}</SelectGroup></SelectContent></Select></Field> }
+function NumberField({ label, onChange, step = 1, value }: { label: string; onChange: (value: number) => void; step?: number; value: number }) { return <Field><FieldLabel>{label}</FieldLabel><Input type="number" step={step} value={value} onChange={(event) => onChange(Number(event.currentTarget.value))} /></Field> }
 
 function BatchGate({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
   const ratio = props.result ? compressionRatio(props.result) : 0
@@ -207,7 +251,7 @@ function BatchGate({ props, embedded = false }: { props: ViewProps; embedded?: b
 
 function RunButton({ props, compact }: { props: ViewProps; compact?: boolean }) {
   if (props.running) return <Button disabled size={compact ? "icon-sm" : "sm"} variant="secondary"><Square />{!compact && "转换中"}</Button>
-  const live = props.action === "convert" && (props.data.overwrite ?? false)
+  const live = props.action === "convert" && ((props.data.overwrite ?? false) || (props.data.deleteOriginal ?? false))
   const button = <Button aria-label="开始转换" disabled={!props.paths.length} size={compact ? "icon-sm" : "sm"} variant={live ? "destructive" : "default"} onClick={live ? undefined : () => props.onExecute("convert")}><Play />{!compact && "开始转换"}</Button>
   if (!live) return button
   return <AlertDialog><AlertDialogTrigger asChild>{button}</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认覆盖并转换？</AlertDialogTitle><AlertDialogDescription>Xlchemy 将写入目标文件，并允许覆盖已存在的输出。请先检查目标格式和输出位置。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute("convert")}>确认转换</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -217,19 +261,20 @@ function ResultPanel({ props }: { props: ViewProps }) {
   return <Tabs defaultValue="results" className="flex h-full min-h-0 flex-col"><TabsList variant="line"><TabsTrigger value="results"><CheckCircle2 />结果</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />问题</TabsTrigger><TabsTrigger value="logs"><Terminal />日志</TabsTrigger></TabsList><TabsContent value="results" className="min-h-0 flex-1"><ScrollArea className="h-full"><div className="grid gap-1.5 p-2">{props.result?.files.length ? props.result.files.map((file) => <div key={file.sourcePath} className="flex items-center gap-2 rounded-md border px-2 py-1.5"><FileImage className="size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs">{baseName(file.sourcePath)}</div><div className="truncate text-[10px] text-muted-foreground">{file.outputPath}</div></div><Badge variant={file.status === "error" ? "destructive" : "outline"}>{file.status}</Badge></div>) : <div className="p-4 text-center text-xs text-muted-foreground">预览后显示输出路径和编码结果</div>}</div></ScrollArea></TabsContent><TabsContent value="issues" className="p-3 text-xs text-muted-foreground">{props.result?.errors.join("\n") || "暂无问题"}</TabsContent><TabsContent value="logs"><pre className="p-3 text-xs text-muted-foreground">{props.data.logs?.join("\n") || "运行日志将在这里显示"}</pre></TabsContent></Tabs>
 }
 
-function WorkbenchCard({ badge, children, defaultOpen = true, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; defaultOpen?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
-  const [open, setOpen] = useState(defaultOpen)
-  return <Collapsible open={open} onOpenChange={setOpen}><Card className={cn("gap-0 py-0 shadow-none", grow && "min-h-0")}><CardHeader className="min-h-9 grid-cols-[1fr_auto] items-center gap-2 px-3 py-2"><CollapsibleTrigger asChild><Button className="h-auto justify-start px-0 py-0 hover:bg-transparent" variant="ghost"><ChevronRight className={cn("transition-transform", open && "rotate-90")} /><span className="flex items-center gap-2 text-xs font-semibold">{Icon && <Icon />}{title}</span></Button></CollapsibleTrigger><CardAction>{badge && <Badge variant="outline">{badge}</Badge>}</CardAction></CardHeader><CollapsibleContent><CardContent className="flex flex-col gap-3 px-3 pb-3">{children}</CardContent></CollapsibleContent></Card></Collapsible>
+function WorkbenchCard({ badge, children, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; defaultOpen?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
+  return <Card className={cn("gap-0 py-0 shadow-none", grow && "min-h-0")}><CardHeader className="min-h-9 grid-cols-[1fr_auto] items-center gap-2 border-b px-3 py-2"><span className="flex items-center gap-2 text-xs font-semibold">{Icon && <Icon />}{title}</span><CardAction>{badge && <Badge variant="outline">{badge}</Badge>}</CardAction></CardHeader><CardContent className="flex flex-col gap-3 px-3 py-3">{children}</CardContent></Card>
 }
 
-function DataAnalysisCard({ props }: { props: ViewProps }) {
+function DataAnalysisCard({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
   const ratio = props.result ? compressionRatio(props.result) : 0
   const input = props.result?.inputBytes ?? 0
   const output = props.result?.outputBytes ?? 0
-  return <WorkbenchCard title="数据分析" defaultOpen={Boolean(props.result)}><div className="grid grid-cols-3 gap-2"><Metric label="节省空间" value={`${ratio}%`} /><Metric label="处理成功" value={`${props.result?.convertedCount ?? 0}/${props.result?.inputCount ?? props.paths.length}`} /><Metric label="耗时" value={formatDuration(props.result?.elapsedMs)} /></div><div className="flex flex-col gap-2"><SizeBar label="转换前" bytes={input} ratio={100} /><SizeBar label="转换后" bytes={output} ratio={input > 0 ? Math.max(3, output / input * 100) : 0} /></div></WorkbenchCard>
+  const content = <><div className="grid grid-cols-3 gap-2"><Metric label="节省空间" value={`${ratio}%`} /><Metric label="处理成功" value={`${props.result?.convertedCount ?? 0}/${props.result?.inputCount ?? props.paths.length}`} /><Metric label="耗时" value={formatDuration(props.result?.elapsedMs)} /></div><div className="flex flex-col gap-2"><SizeBar label="转换前" bytes={input} ratio={100} /><SizeBar label="转换后" bytes={output} ratio={input > 0 ? Math.max(3, output / input * 100) : 0} /></div></>
+  return embedded ? content : <WorkbenchCard title="数据分析">{content}</WorkbenchCard>
 }
 
 function SizeBar({ bytes, label, ratio }: { bytes: number; label: string; ratio: number }) { return <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 text-[10px]"><span className="text-muted-foreground">{label}</span><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary/70" style={{ width: `${ratio}%` }} /></div><span className="text-right tabular-nums">{formatBytes(bytes)}</span></div> }
+function SectionLabel({ children }: { children: ReactNode }) { return <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</div> }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-md border bg-card px-2 py-1.5"><div className="text-[10px] text-muted-foreground">{label}</div><div className="text-sm font-semibold tabular-nums">{value}</div></div> }
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
 function baseName(path: string) { return path.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? path }
@@ -237,5 +282,5 @@ function formatExtension(format: XlchemyFormat) { return FORMATS.find((item) => 
 function formatBytes(bytes: number) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB"]; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}` }
 function formatDuration(milliseconds?: number) { if (!milliseconds) return "--"; const seconds = Math.round(milliseconds / 1000); return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s` }
 function statusLabel(props: ViewProps) { if (props.running || props.data.phase === "running") return "运行中"; if (props.data.phase === "completed") return "完成"; if (props.data.phase === "error") return "错误"; return "在线" }
-function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { return normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, overwrite: data.overwrite, recursive: data.recursive }) }
+function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { return normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, avifBitDepth: data.avifBitDepth, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }

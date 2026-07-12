@@ -4,19 +4,22 @@
   "type": "module",
   "private": false,
   "description": "Xlchemy image transcoding node GUI contract.",
+  "bin": { "xxlchemy": "./dist/cli.js" },
   "license": "UNLICENSED",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
     "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
-    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" }
+    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
+    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }
   },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --exclude src/cli.visual.test.ts"
   },
-  "dependencies": { "@xiranite/contract": "workspace:*" },
-  "devDependencies": { "@types/node": "^24.12.0", "typescript": "^7.0.2" }
+  "dependencies": { "@opentui/react": "0.4.3", "@xiranite/cli-runtime": "workspace:*", "@xiranite/config": "workspace:*", "@xiranite/contract": "workspace:*", "react": "^19.2.4" },
+  "devDependencies": { "@types/node": "^24.12.0", "@types/react": "^19.2.14", "typescript": "^7.0.2" }
 }

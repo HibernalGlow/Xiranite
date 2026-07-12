@@ -255,4 +255,10 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     bin: nodeCliName("trename"),
     description: "Scan folders into rename JSON, validate translated targets, rename, and undo.",
   },
+  {
+    id: "xlchemy",
+    packageName: "@xiranite/node-xlchemy",
+    bin: nodeCliName("xlchemy"),
+    description: "High-performance batch image transcoding workbench.",
+  },
 ]

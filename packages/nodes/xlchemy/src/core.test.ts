@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { compressionRatio, normalizeXlchemyInput } from "./core.js"
+import { compressionRatio, normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "./core.js"
 
 describe("xlchemy core contract", () => {
   test("normalizes paths and clamps encoder controls", () => {
@@ -23,4 +23,39 @@ describe("xlchemy core contract", () => {
     expect(compressionRatio({ inputBytes: 0, outputBytes: 0 })).toBe(0)
     expect(compressionRatio({ inputBytes: 100, outputBytes: 200 })).toBe(0)
   })
+
+  test("discovers folders and preserves their relative structure in plans", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy({
+      action: "plan", paths: ["/photos"], format: "AVIF", lossless: false, quality: 82, effort: 7, threads: 4,
+      outputMode: "directory", outputDir: "/output", preserveMetadata: true, preserveStructure: true, overwrite: false, recursive: true,
+    }, runtime)
+    expect(result.success).toBe(true)
+    expect(result.data?.files.map((file) => file.outputPath)).toEqual(["/output/a.avif", "/output/events/b.avif"])
+  })
+
+  test("runs a native encoder and records the output size", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy({
+      action: "convert", paths: ["/photos/a.png"], format: "WebP", lossless: false, quality: 80, effort: 6, threads: 2,
+      outputMode: "source", preserveMetadata: false, preserveStructure: true, overwrite: true, recursive: true,
+    }, runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands[0]).toEqual({ command: "/bin/cwebp", args: ["/photos/a.png", "-o", "/photos/a.webp", "-q", "80", "-m", "6"] })
+    expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 400 })
+  })
 })
+
+function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
+  const files = new Map<string, { size: number; directory?: boolean }>([["/photos", { size: 0, directory: true }], ["/photos/events", { size: 0, directory: true }], ["/photos/a.png", { size: 1000 }], ["/photos/events/b.jpg", { size: 2000 }]])
+  const runtime: XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } = {
+    commands: [],
+    pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
+    listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
+    ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async () => undefined, renameFile: async () => undefined, setTimes: async () => undefined,
+    runCommand: async (command, args) => { runtime.commands.push({ command, args }); files.set(args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!, { size: 400 }); return { exitCode: 0, stdout: "", stderr: "" } },
+    resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
+    join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
+  }
+  return runtime
+}

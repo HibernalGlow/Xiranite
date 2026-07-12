@@ -1,0 +1,45 @@
+import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
+import type { XlchemyAction, XlchemyExistingPolicy, XlchemyFormat, XlchemyInput, XlchemyResult } from "./core.js"
+
+export type XlchemyInteractionValues = InteractionValues & { action: XlchemyAction; pathsText: string; format: XlchemyFormat; lossless: boolean; quality: number; effort: number; threads: number; outputMode: string; outputDir: string; existingPolicy: XlchemyExistingPolicy; preserveMetadata: boolean; preserveStructure: boolean; preserveTimestamps: boolean; recursive: boolean; deleteOriginal: boolean; intelligentEffort: boolean; jxlModular: boolean; jxlVerify: boolean; keepIfLarger: boolean; copyIfLarger: boolean; metadataMode: string; downscaleEnabled: boolean; downscaleMode: string; downscaleWidth: number; downscaleHeight: number }
+
+export function createXlchemyInteractionSchema(defaults: Partial<XlchemyInteractionValues> = {}, language: "zh" | "en" = "zh"): TerminalInteractionSchema<XlchemyInput, XlchemyResult> {
+  const zh = language === "zh", text = (a: string, b: string) => zh ? a : b
+  const initialValues: XlchemyInteractionValues = { action: "plan", pathsText: "", format: "JPEG XL", lossless: false, quality: 90, effort: 7, threads: 4, outputMode: "source", outputDir: "", existingPolicy: "skip", preserveMetadata: true, preserveStructure: true, preserveTimestamps: false, recursive: true, deleteOriginal: false, intelligentEffort: false, jxlModular: false, jxlVerify: false, keepIfLarger: false, copyIfLarger: false, metadataMode: "encoder-preserve", downscaleEnabled: false, downscaleMode: "resolution", downscaleWidth: 1920, downscaleHeight: 1080, ...defaults }
+  return {
+    id: "xlchemy", title: "Xlchemy", description: text("批量发现、规划并转换图片。", "Discover, plan, and transcode images in batches."), initialValues,
+    fields: [
+      { id: "action", label: text("操作", "Action"), kind: "select", role: "action", options: [{ value: "plan", label: text("预览计划", "Plan") }, { value: "convert", label: text("执行转换", "Convert") }] },
+      { id: "pathsText", label: text("输入文件或文件夹", "Input files or folders"), kind: "path-list", lines: 5, placeholder: text("每行一个路径", "One path per line") },
+      { id: "format", label: text("目标格式", "Target format"), kind: "select", options: ["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG"].map((value) => ({ value, label: value })) },
+      { id: "lossless", label: text("无损", "Lossless"), kind: "boolean" },
+      { id: "quality", label: text("质量", "Quality"), kind: "number", min: 1, max: 100, step: 1 },
+      { id: "effort", label: text("压缩力度", "Effort"), kind: "number", min: 1, max: 10, step: 1 },
+      { id: "threads", label: text("线程", "Threads"), kind: "number", min: 1, max: 64, step: 1 },
+      { id: "outputMode", label: text("输出位置", "Output location"), kind: "select", options: [{ value: "source", label: text("源文件旁", "Beside source") }, { value: "directory", label: text("指定目录", "Directory") }] },
+      { id: "outputDir", label: text("输出目录", "Output directory"), kind: "text" },
+      { id: "existingPolicy", label: text("同名文件", "Existing file"), kind: "select", options: [{ value: "skip", label: text("跳过", "Skip") }, { value: "rename", label: text("自动改名", "Rename") }, { value: "replace", label: text("覆盖", "Replace") }] },
+      { id: "preserveMetadata", label: text("保留元数据", "Preserve metadata"), kind: "boolean" },
+      { id: "preserveStructure", label: text("保留目录结构", "Preserve directory structure"), kind: "boolean" },
+      { id: "preserveTimestamps", label: text("保留时间戳", "Preserve timestamps"), kind: "boolean" },
+      { id: "recursive", label: text("递归扫描", "Recursive scan"), kind: "boolean" },
+      { id: "deleteOriginal", label: text("转换后删除原图", "Delete original after conversion"), kind: "boolean" },
+      { id: "intelligentEffort", label: text("智能压缩力度", "Intelligent effort"), kind: "boolean" },
+      { id: "jxlModular", label: text("JXL 有损 Modular", "JXL lossy Modular"), kind: "boolean" },
+      { id: "jxlVerify", label: text("JXL 完整性校验", "JXL integrity verification"), kind: "boolean" },
+      { id: "keepIfLarger", label: text("保留较大结果", "Keep output if larger"), kind: "boolean" },
+      { id: "copyIfLarger", label: text("较大时复制原图", "Copy original if larger"), kind: "boolean" },
+      { id: "metadataMode", label: text("元数据策略", "Metadata policy"), kind: "select", options: [{ value: "encoder-wipe", label: text("编码器清除", "Encoder wipe") }, { value: "encoder-preserve", label: text("编码器保留", "Encoder preserve") }, { value: "exiftool-wipe", label: "ExifTool wipe" }, { value: "exiftool-preserve", label: "ExifTool preserve" }] },
+      { id: "downscaleEnabled", label: text("启用缩小", "Enable downscaling"), kind: "boolean" },
+      { id: "downscaleMode", label: text("缩小模式", "Downscale mode"), kind: "select", options: [{ value: "resolution", label: text("分辨率", "Resolution") }, { value: "percent", label: text("百分比", "Percent") }, { value: "shortest-side", label: text("最短边", "Shortest side") }, { value: "longest-side", label: text("最长边", "Longest side") }, { value: "megapixels", label: text("百万像素", "Megapixels") }] },
+      { id: "downscaleWidth", label: text("缩小宽度", "Downscale width"), kind: "number", min: 1, max: 32768, step: 1 },
+      { id: "downscaleHeight", label: text("缩小高度", "Downscale height"), kind: "number", min: 1, max: 32768, step: 1 },
+    ],
+    toInput: (values) => ({ action: String(values.action ?? "plan") as XlchemyAction, paths: String(values.pathsText ?? "").split(/\r?\n/).map((value) => value.trim()).filter(Boolean), format: String(values.format ?? "JPEG XL") as XlchemyFormat, lossless: values.lossless === true, quality: Number(values.quality ?? 90), effort: Number(values.effort ?? 7), threads: Number(values.threads ?? 4), outputMode: String(values.outputMode ?? "source") as XlchemyInput["outputMode"], outputDir: String(values.outputDir ?? "").trim() || undefined, existingPolicy: String(values.existingPolicy ?? "skip") as XlchemyExistingPolicy, overwrite: values.existingPolicy === "replace", preserveMetadata: values.preserveMetadata !== false, preserveStructure: values.preserveStructure !== false, preserveTimestamps: values.preserveTimestamps === true, recursive: values.recursive !== false, deleteOriginal: values.deleteOriginal === true, intelligentEffort: values.intelligentEffort === true, jxlModular: values.jxlModular === true, jxlVerify: values.jxlVerify === true, keepIfLarger: values.keepIfLarger === true, copyIfLarger: values.copyIfLarger === true, metadataMode: String(values.metadataMode ?? "encoder-preserve") as XlchemyInput["metadataMode"], downscale: { enabled: values.downscaleEnabled === true, mode: String(values.downscaleMode ?? "resolution") as NonNullable<XlchemyInput["downscale"]>["mode"], width: Number(values.downscaleWidth ?? 1920), height: Number(values.downscaleHeight ?? 1080), percent: 50, fileSizeKb: 500, shortestSide: 1080, longestSide: 1920, megapixels: 2.1, resample: "default" } }),
+    validate: (_values, input) => !input.paths.length ? text("至少输入一个图片或文件夹。", "Enter at least one image or folder.") : input.outputMode === "directory" && !input.outputDir ? text("指定目录模式需要输出目录。", "Directory mode requires an output directory.") : null,
+    preview: (input) => [`${text("输入", "Inputs")}: ${input.paths.length}`, `${text("格式", "Format")}: ${input.format} / ${input.lossless ? text("无损", "lossless") : `Q${input.quality}`}`, `${text("输出", "Output")}: ${input.outputMode === "source" ? text("源文件旁", "beside source") : input.outputDir}`, input.action === "plan" ? text("安全预览：不会写入文件。", "Safe plan: no files will be written.") : text("真实转换：将写入输出文件。", "Live conversion: output files will be written.")],
+    isDangerous: (input) => input.action === "convert" && (input.deleteOriginal === true || input.existingPolicy === "replace"),
+    dangerPrompt: (input) => ({ title: text("确认转换", "Confirm conversion"), body: input.deleteOriginal ? text("转换成功后将删除原图。", "Original images will be deleted after successful conversion.") : text("同名输出会被覆盖。", "Existing outputs will be replaced."), confirmLabel: text("确认转换", "Convert") }),
+    result: (result) => ({ success: result.success, message: result.message, lines: result.data?.errors ?? [], table: { columns: [{ id: "source", label: text("输入", "Input"), width: 28 }, { id: "output", label: text("输出", "Output"), width: 32 }, { id: "status", label: text("状态", "Status"), width: 12 }], rows: (result.data?.files ?? []).map((file) => ({ source: file.sourcePath, output: file.outputPath, status: file.status })), emptyMessage: result.message } }),
+  }
+}
