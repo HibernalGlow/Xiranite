@@ -30,6 +30,32 @@ describe("classf core", () => {
     ])
   })
 
+  test("does not classify a directory input's parent in auto mode", async () => {
+    const transfers: Array<[string, string, ClassfTransferMode]> = []
+    const runtime = fakeRuntime({
+      dirs: {
+        "/workspace": [
+          { name: "src", path: "/workspace/src", isFile: false, isDirectory: true },
+          { name: "unrelated", path: "/workspace/unrelated", isFile: false, isDirectory: true },
+        ],
+        "/workspace/src": [{ name: "inside.ts", path: "/workspace/src/inside.ts", isFile: true, isDirectory: false }],
+      },
+      transfers,
+    })
+
+    const result = await runClassf({ action: "plan", paths: ["/workspace/src"], classifyMode: "auto" }, runtime)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("would classify its parent")
+    expect(result.data?.baseDir).toBeUndefined()
+    expect(result.data?.items).toEqual([expect.objectContaining({ sourcePath: "/workspace/src", kind: "folder", reason: "Auto mode needs selected items inside this directory; a single directory path would classify its parent." })])
+
+    const liveResult = await runClassf({ action: "classify", paths: ["/workspace/src"], classifyMode: "auto", dryRun: false }, runtime)
+
+    expect(liveResult.success).toBe(false)
+    expect(transfers).toEqual([])
+  })
+
   test("requires a target when classification is off", async () => {
     const runtime = fakeRuntime({ dirs: { "/set": [{ name: "a.zip", path: "/set/a.zip", isFile: true, isDirectory: false }] } })
 

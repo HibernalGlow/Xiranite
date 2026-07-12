@@ -94,6 +94,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     if (!normalized.paths.length) return failure("At least one source path is required.", normalized)
     onEvent({ type: "progress", progress: 20, message: "Building classification plan." })
     const plan = await buildClassfPlan(normalized, runtime)
+    if (plan.errorCount) return { success: false, message: plan.errors[0] ?? "ClassF could not build a classification plan.", data: plan }
     if (normalized.action !== "classify" || normalized.dryRun) return success(`ClassF planned ${plan.items.length} item(s).`, plan)
 
     onEvent({ type: "progress", progress: 70, message: "Applying classification transfers." })
@@ -120,6 +121,17 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
 export async function buildClassfPlan(input: ReturnType<typeof normalizeClassfInput>, runtime: ClassfRuntime): Promise<ClassfData> {
   const existingSources = await existingSourcePaths(input.paths, runtime)
   if (!existingSources.length) return data(input, input.paths.map((path) => skipped(path, runtime.basename(path), "path_missing")), undefined)
+
+  // Auto mode splits siblings of every selected path's parent. A lone directory
+  // is commonly pasted as the intended classification root, not as a selected
+  // item, so treating it as a source would unexpectedly reorganize its parent.
+  if (input.classifyMode === "auto" && !input.targetDir && existingSources.length === 1) {
+    const source = existingSources[0]!
+    const info = await runtime.pathInfo(source)
+    if (info.isDirectory) {
+      return data(input, [errorItem(source, "Auto mode needs selected items inside this directory; a single directory path would classify its parent.", runtime, "folder")], undefined)
+    }
+  }
 
   const baseDir = input.classifyMode === "off"
     ? undefined
@@ -229,8 +241,8 @@ function skipped(sourcePath: string, sourceName: string, reason: string, stage: 
   return { sourcePath, targetPath: sourcePath, sourceName, targetRelative: sourceName, kind, stage, status: "skipped", reason }
 }
 
-function errorItem(path: string, reason: string, runtime: Pick<ClassfRuntime, "basename">): ClassfPlanItem {
-  return { sourcePath: path, targetPath: path, sourceName: runtime.basename(path), targetRelative: runtime.basename(path), kind: "file", stage: "target", status: "error", reason }
+function errorItem(path: string, reason: string, runtime: Pick<ClassfRuntime, "basename">, kind: "file" | "folder" = "file"): ClassfPlanItem {
+  return { sourcePath: path, targetPath: path, sourceName: runtime.basename(path), targetRelative: runtime.basename(path), kind, stage: "target", status: "error", reason }
 }
 
 function parseList(value: unknown): string[] {
