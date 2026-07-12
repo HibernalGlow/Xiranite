@@ -21,6 +21,10 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
@@ -36,7 +40,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --passWithNoTests"
+    "test": "vitest run src --passWithNoTests --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

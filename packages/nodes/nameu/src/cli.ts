@@ -1,63 +1,8 @@
 #!/usr/bin/env node
-import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
-import { runNameu } from "./core.js"
-import type { NameuAction, NameuInput, NameuMode } from "./core.js"
-import { createNodeNameuRuntime } from "./platform.js"
-
-interface NameuNodeConfig {
-  mode?: NameuMode
-  recursive?: boolean
-  add_artist_name?: boolean
-  normalize_folders?: boolean
-  keep_timestamp?: boolean
-  dry_run?: boolean
-}
-
-export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const json = args.includes("--json")
-  const action: NameuAction = args.includes("rename") || args.includes("run") ? "rename" : args.includes("scan") ? "scan" : "plan"
-  const { config } = await loadNodeConfigWithHints<NameuNodeConfig>("nameu", {
-    hintSink: { stderr: process.stderr },
-    jsonMode: json,
-  })
-  let paths = pathArgs(args)
-  if (paths.includes("-")) {
-    paths = paths.filter(p => p !== "-").concat(await readStdinLines())
-  } else if (paths.length === 0 && hasPipedInput()) {
-    paths = await readStdinLines()
-  }
-  const input: NameuInput = {
-    action,
-    paths,
-    mode: valueFor(args, "--mode") as NameuMode | undefined ?? config?.mode,
-    recursive: args.includes("--no-recursive") ? false : config?.recursive,
-    addArtistName: args.includes("--no-artist") ? false : config?.add_artist_name,
-    normalizeFolders: args.includes("--no-folder-normalize") ? false : config?.normalize_folders,
-    keepTimestamp: args.includes("--no-keep-time") ? false : config?.keep_timestamp,
-    dryRun: action !== "rename" || args.includes("--dry-run") || config?.dry_run === true,
-  }
-
-  const result = await runNameu(input, createNodeNameuRuntime())
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else {
-    console.log(result.message)
-    for (const item of result.data?.items.slice(0, 80) ?? []) {
-      console.log(`${item.status}\t${item.sourcePath}\t->\t${item.targetName}`)
-    }
-  }
-  if (!result.success) process.exitCode = 1
-}
-
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
-
-function pathArgs(args: string[]): string[] {
-  const commands = new Set(["scan", "plan", "rename", "run"])
-  const valueOptions = new Set(["--mode"])
-  return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
-}
-
-function valueFor(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag)
-  return index >= 0 ? args[index + 1] : undefined
-}
+import{hasPipedInput,nodeCliName,readStdinLines,runGuidedInteraction,writeJson,writeLine}from"@xiranite/cli-runtime";import type{CliCommand,CliHost}from"@xiranite/cli-runtime";import{resolveInteractionPreferences,type CliInteractionPreferencesSource}from"@xiranite/cli-runtime/interaction";import{runInteractionCli,runTerminalUi,type TerminalPreferenceController,type TerminalPreferenceValues}from"@xiranite/cli-runtime/terminal";import{loadNodeConfigWithHints,loadXiraniteConfig,saveXiraniteConfig,updateNodeConfig}from"@xiranite/config";import{runNameu}from"./core.js";import type{NameuAction,NameuInput,NameuMode}from"./core.js";import{createNodeNameuRuntime}from"./platform.js";import{createNameuInteractionSchema}from"./interaction.js";import{help}from"./help.js"
+const CLI_NAME=nodeCliName("nameu");interface NameuNodeConfig extends CliInteractionPreferencesSource{mode?:NameuMode;recursive?:boolean;add_artist_name?:boolean;normalize_folders?:boolean;keep_timestamp?:boolean;dry_run?:boolean}
+export const cli:CliCommand={name:CLI_NAME,description:"Native archive rename planner.",run:(a,h)=>runProgram(a,h)}
+export async function runProgram(args=process.argv.slice(2),host:CliHost=defaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<NameuNodeConfig>("nameu",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createNameuInteractionSchema({mode:d.mode,recursive:d.recursive,addArtistName:d.add_artist_name,normalizeFolders:d.normalize_folders,keepTimestamp:d.keep_timestamp,dryRun:d.dry_run},l),run:(i,e)=>runNameu(i,createNodeNameuRuntime(),e)}),runPipe,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).NameuTui,createPreferences:(_d,c)=>prefs(host,c),reexecEntrypoint:process.argv[1],help})}
+async function runPipe(args:string[],host:CliHost){if(!args.length){writeLine(host,`${CLI_NAME} ui | gd | scan | plan | rename`);return}const json=args.includes("--json"),action:NameuAction=args.includes("rename")||args.includes("run")?"rename":args.includes("scan")?"scan":"plan",{config}=await loadNodeConfigWithHints<NameuNodeConfig>("nameu",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:json});let paths=pathArgs(args);if(paths.includes("-"))paths=paths.filter(p=>p!=="-").concat(await readStdinLines(host.stdin));else if(!paths.length&&hasPipedInput(host.stdin)&&Symbol.asyncIterator in Object(host.stdin))paths=await readStdinLines(host.stdin);const input:NameuInput={action,paths,mode:valueFor(args,"--mode")as NameuMode|undefined??config?.mode,recursive:args.includes("--no-recursive")?false:config?.recursive,addArtistName:args.includes("--no-artist")?false:config?.add_artist_name,normalizeFolders:args.includes("--no-folder-normalize")?false:config?.normalize_folders,keepTimestamp:args.includes("--no-keep-time")?false:config?.keep_timestamp,dryRun:action!=="rename"||args.includes("--dry-run")||config?.dry_run===true};const result=await runNameu(input,createNodeNameuRuntime());if(json)writeJson(host,result);else{writeLine(host,result.message);for(const x of result.data?.items.slice(0,80)??[])writeLine(host,`${x.status}\t${x.sourcePath}\t->\t${x.targetName}`)}if(!result.success)process.exitCode=1}
+function prefs(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"nameu",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"nameu",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<NameuNodeConfig>("nameu",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
+const defaultHost=():CliHost=>({cwd:process.cwd(),env:process.env,stdin:process.stdin,stdout:process.stdout,stderr:process.stderr});function pathArgs(a:string[]){const c=new Set(["scan","plan","rename","run"]),v=new Set(["--mode"]);return a.filter((x,i)=>!x.startsWith("--")&&!c.has(x)&&!v.has(a[i-1]??""))}function valueFor(a:string[],f:string){const i=a.indexOf(f);return i>=0?a[i+1]:undefined}if(process.argv[1]&&/\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g,"/")))await runProgram()
