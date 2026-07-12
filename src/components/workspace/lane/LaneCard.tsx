@@ -12,13 +12,13 @@
  */
 import { useRef, type PointerEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { X } from "lucide-react"
 import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { KanbanItem, KanbanItemHandle } from "@/components/ui/kanban"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
-import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
+import { createSurfaceCommonActions } from "@/components/workspace/createSurfaceCommonActions"
 import { cn } from "@/lib/utils"
 
 interface Props {
@@ -29,25 +29,24 @@ interface Props {
 export function LaneCard({ compId, moduleId }: Props) {
   const { t, i18n } = useTranslation()
   const workspaceActions = useWorkspaceActions()
+  const { openComponent } = useWindowControls()
   const component = useWorkspaceComponent(compId)
   const isSelected = useWorkspaceShallowSelector((s) => s.selectedComponentIds.includes(compId))
   const resizeStartRef = useRef<{ y: number; height: number } | null>(null)
   const mod = getModule(moduleId)
   const laneHeight = component?.laneSize?.height ?? 420
   const moduleName = mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
-  const actions: NodeSurfaceChromeAction[] = [
-    createMoveToViewAction({ componentId: compId, currentMode: "lane", workspaceActions, t }),
-    {
-      key: "hide",
-      label: t("common:hideIn", { view: t("topbar:viewMode.lane") }),
-      icon: <X className="h-3 w-3" />,
-      danger: true,
-      onClick: (e) => {
-        e.stopPropagation()
-        workspaceActions.toggleComponentVisibility(compId, "lane")
-      },
-    },
-  ]
+  const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
+    componentId: compId,
+    currentMode: "lane",
+    height: Math.round(laneHeight),
+    moduleId,
+    moduleName,
+    openComponent,
+    t,
+    width: 640,
+    workspaceActions,
+  })
   const dragHandle = (
     <KanbanItemHandle
       data-lane-card-drag-handle="true"

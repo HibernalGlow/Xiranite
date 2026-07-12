@@ -7,6 +7,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { cn } from "@/lib/utils"
 import { Plus, X, LayoutPanelTop, Share2, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,51 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { COMPONENT_VIEW_MODES } from "@/store/workspace/constants"
 import type { ComponentInstance } from "@/types/workspace"
+import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
+import { createSurfaceCommonActions } from "./createSurfaceCommonActions"
+
+type DockviewModulePanelProps = {
+  params?: { moduleId?: string; compId?: string }
+}
+
+function DockviewModulePanel({ params }: DockviewModulePanelProps) {
+  const moduleId = params?.moduleId
+  const compId = params?.compId
+  const workspaceActions = useWorkspaceActions()
+  const { openComponent } = useWindowControls()
+  const { t, i18n } = useTranslation()
+
+  if (!moduleId || !compId) return null
+
+  const module = getModule(moduleId)
+  const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (module?.name ?? moduleId)
+  const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
+    componentId: compId,
+    currentMode: "dockview",
+    height: 480,
+    moduleId,
+    moduleName,
+    openComponent,
+    t,
+    width: 640,
+    workspaceActions,
+  })
+
+  return (
+    <div
+      className="xiranite-component-surface group relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-card/72 text-card-foreground"
+      data-context-menu="dockview-panel"
+      data-component-id={compId}
+    >
+      <NodeSurfaceChrome actions={actions} moduleId={moduleId} moduleName={moduleName} version={module?.version} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ModuleRenderer moduleId={moduleId} compId={compId} />
+      </div>
+    </div>
+  )
+}
+
+const dockviewComponents = { module: DockviewModulePanel }
 
 /**
  * DockviewView — 真实接入 dockview-react。
@@ -136,23 +182,6 @@ export function DockviewView() {
   }, [dockComponents])
 
   // dockview 的 panel 组件映射
-  const components = useMemo(() => ({
-    module: (props: { params?: { moduleId?: string; compId?: string } }) => {
-      const moduleId = props.params?.moduleId
-      const compId = props.params?.compId
-      if (!moduleId || !compId) return null
-      return (
-        <div
-          className="h-full w-full"
-          data-context-menu="dockview-panel"
-          data-component-id={compId}
-        >
-          <ModuleRenderer moduleId={moduleId} compId={compId} />
-        </div>
-      )
-    },
-  }), [])
-
   // 自定义 tab header（带关闭按钮）— 关闭仅 toggle hiddenIn.dockview
   const tabComponents = useMemo(() => ({
     moduleTab: (props: IDockviewPanelHeaderProps) => {
@@ -256,7 +285,7 @@ export function DockviewView() {
         </div>
       ) : (
         <DockviewReact
-          components={components}
+          components={dockviewComponents}
           tabComponents={tabComponents}
           onReady={onReady}
           className="min-h-0 flex-1"

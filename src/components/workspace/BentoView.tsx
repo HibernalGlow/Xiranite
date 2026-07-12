@@ -2,13 +2,14 @@ import { useCallback, useLayoutEffect, useMemo, useRef, type DragEvent as ReactD
 import { useTranslation } from "react-i18next"
 import { GridStack, type GridStackNode } from "gridstack"
 import "gridstack/dist/gridstack.min.css"
-import { LayoutTemplate, Maximize2, Minus, Plus, X } from "lucide-react"
+import { LayoutTemplate, Maximize2, Minus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { useMarqueeSelection } from "@/hooks/useMarqueeSelection"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 import { cn } from "@/lib/utils"
@@ -16,7 +17,7 @@ import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleCo
 import type { ComponentInstance } from "@/types/workspace"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import { DefaultNodeDragGrip, NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
-import { createMoveToViewAction } from "./createMoveToViewAction"
+import { createSurfaceCommonActions } from "./createSurfaceCommonActions"
 
 const GRID_COLUMNS = 12
 const GRID_CELL_HEIGHT = 76
@@ -223,6 +224,7 @@ function pruneStaleGridItems(container: HTMLElement, activeIds: Set<string>) {
 
 function BentoWidget({ component, isSelected }: { component: ComponentInstance; isSelected?: boolean }) {
   const workspaceActions = useWorkspaceActions()
+  const { openComponent } = useWindowControls()
   const { t, i18n } = useTranslation()
   const mod = getModule(component.moduleId)
   const moduleName = i18n.exists(`module:${component.moduleId}.name`)
@@ -235,11 +237,6 @@ function BentoWidget({ component, isSelected }: { component: ComponentInstance; 
     workspaceActions.toggleCollapse(component.id)
   }
 
-  function hideInBento(event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation()
-    workspaceActions.setComponentVisibility(component.id, "bento", false)
-  }
-
   const actions: NodeSurfaceChromeAction[] = [
     {
       key: "collapse",
@@ -247,14 +244,17 @@ function BentoWidget({ component, isSelected }: { component: ComponentInstance; 
       icon: component.collapsed ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3 w-3" />,
       onClick: toggleCollapse,
     },
-    createMoveToViewAction({ componentId: component.id, currentMode: "bento", workspaceActions, t }),
-    {
-      key: "hide",
-      label: t("common:hideIn", { view: t("topbar:viewMode.bento") }),
-      icon: <X className="h-3 w-3" />,
-      danger: true,
-      onClick: hideInBento,
-    },
+    ...createSurfaceCommonActions({
+      componentId: component.id,
+      currentMode: "bento",
+      height: 480,
+      moduleId: component.moduleId,
+      moduleName,
+      openComponent,
+      t,
+      width: 640,
+      workspaceActions,
+    }),
   ]
   const dragHandle = (
     <span className="xiranite-bento-drag-handle cursor-grab text-muted-foreground/55 active:cursor-grabbing">

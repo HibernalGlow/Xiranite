@@ -9,14 +9,12 @@ import { useWindowControls } from "@/hooks/useWindowControls"
 import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
-import { createMoveToViewAction } from "./createMoveToViewAction"
+import { createSurfaceCommonActions } from "./createSurfaceCommonActions"
 import {
   Maximize2,
   Minimize2,
-  X,
   Minus,
   Expand,
-  ExternalLink,
 } from "lucide-react"
 
 interface Props {
@@ -115,21 +113,6 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
     executeCardAction(cardDoubleClickAction)
   }
 
-  async function openFloatingWindow() {
-    const result = await openComponent({
-      componentId: comp.id,
-      moduleId: comp.moduleId,
-      title: moduleName,
-      width: Math.round(layout.w),
-      height: Math.round(layout.h),
-    })
-    if (result.success) {
-      workspaceActions.setComponentState(comp.id, "floating")
-    } else {
-      console.info(`[window] ${result.message}`)
-    }
-  }
-
   // 构造操作栏动作列表，tone 决定红绿灯样式下的圆点颜色。
   const chromeActions: NodeSurfaceChromeAction[] = [
     {
@@ -160,22 +143,17 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
       tone: "maximize",
       onClick: () => toggleFullscreen(),
     },
-    {
-      key: "float",
-      label: t("common:openFloatingWindow"),
-      icon: <ExternalLink className="h-3 w-3" />,
-      tone: "neutral",
-      onClick: () => openFloatingWindow(),
-    },
-    createMoveToViewAction({ componentId: comp.id, currentMode: "cards", workspaceActions, t }),
-    {
-      key: "hide",
-      label: t("common:hideIn", { view: t("topbar:viewMode.cards") }),
-      icon: <X className="h-3 w-3" />,
-      danger: true,
-      tone: "close",
-      onClick: () => workspaceActions.toggleComponentVisibility(comp.id, "cards"),
-    },
+    ...createSurfaceCommonActions({
+      componentId: comp.id,
+      currentMode: "cards",
+      height: Math.round(layout.h),
+      moduleId: comp.moduleId,
+      moduleName,
+      openComponent,
+      t,
+      width: Math.round(layout.w),
+      workspaceActions,
+    }),
   ]
 
   return (

@@ -19,13 +19,14 @@ import {
   type TLUiStylePanelProps,
 } from "tldraw"
 import "tldraw/tldraw.css"
-import { Palette, X } from "lucide-react"
+import { Palette } from "lucide-react"
 import { AppleResizeHandle } from "@/components/ui/apple-resize-handle"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
-import { createMoveToViewAction } from "@/components/workspace/createMoveToViewAction"
+import { createSurfaceCommonActions } from "@/components/workspace/createSurfaceCommonActions"
 import { useTheme } from "@/components/use-theme"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import type { ComponentInstance, FlowCanvasSnapshot } from "@/types/workspace"
@@ -259,26 +260,23 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const editor = useEditor()
   const resizingRef = useRef(false)
   const workspaceActions = useWorkspaceActions()
+  const { openComponent } = useWindowControls()
   const { t, i18n } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
   const mod = getModule(moduleId)
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
 
-  const handleClose = (event: MouseEvent) => {
-    event.stopPropagation()
-    event.preventDefault()
-    workspaceActions.setComponentVisibility(compId, "flow", false)
-  }
-  const actions: NodeSurfaceChromeAction[] = [
-    createMoveToViewAction({ componentId: compId, currentMode: "flow", workspaceActions, t }),
-    {
-      key: "hide",
-      label: t("common:hideIn", { view: t("topbar:viewMode.flow") }),
-      icon: <X className="h-3 w-3" />,
-      danger: true,
-      onClick: handleClose,
-    },
-  ]
+  const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
+    componentId: compId,
+    currentMode: "flow",
+    height: Math.round(h),
+    moduleId,
+    moduleName,
+    openComponent,
+    t,
+    width: Math.round(w),
+    workspaceActions,
+  })
   const startResize = (target: HTMLDivElement, originX: number, originY: number, pointerId?: number) => {
     if (resizingRef.current) return
     resizingRef.current = true
