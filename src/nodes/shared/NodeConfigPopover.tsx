@@ -1,9 +1,11 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { DatabaseZap, ExternalLink, Eye, RefreshCw, RotateCcw, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -22,6 +24,11 @@ export interface NodeConfigPopoverProps {
   onReload: () => Promise<void> | void
   onRestore: () => void
   onSave: () => Promise<void> | void
+  preset?: {
+    value?: string
+    options: Array<{ value: string; label: string; description?: string }>
+    onValueChange: (value: string) => Promise<void> | void
+  }
 }
 
 /**
@@ -30,8 +37,9 @@ export interface NodeConfigPopoverProps {
  * save / restore / inspect / open-file workflow.
  */
 export function NodeConfigPopover(props: NodeConfigPopoverProps) {
+  const presetId = useId()
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState<"reload" | "save" | "restore" | "open" | null>(null)
+  const [busy, setBusy] = useState<"preset" | "reload" | "save" | "restore" | "open" | null>(null)
   const disabled = Boolean(props.disabled || props.loading || busy)
   const hasDefaults = Boolean(props.defaults && Object.keys(props.defaults).length)
 
@@ -67,6 +75,17 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
           <p className="text-xs text-muted-foreground">{props.t("config.description", "保存可复用默认值，或恢复本节点的已保存配置。")}</p>
         </div>
         <div className="flex flex-col gap-2">
+          {props.preset && <>
+            <Field className="gap-1.5">
+              <FieldLabel htmlFor={presetId}>{props.t("config.preset", "预设")}</FieldLabel>
+              <Select disabled={disabled} value={props.preset.value} onValueChange={(value) => void perform("preset", () => props.preset?.onValueChange(value))}>
+                <SelectTrigger id={presetId} className="w-full" size="sm"><SelectValue placeholder={props.t("config.presetPlaceholder", "选择预设")} /></SelectTrigger>
+                <SelectContent><SelectGroup>{props.preset.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+              </Select>
+              <FieldDescription className="text-xs">{props.preset.options.find((option) => option.value === props.preset?.value)?.description ?? props.t("config.presetDescription", "切换后保存为默认，即写入 TOML 配置。")}</FieldDescription>
+            </Field>
+            <Separator />
+          </>}
           <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "保存为默认")}</Button>
           <Button disabled={disabled || !hasDefaults} size="sm" variant="outline" onClick={() => void perform("restore", props.onRestore)}><RotateCcw data-icon="inline-start" />{props.t("config.restore", "恢复默认")}</Button>
           <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("reload", props.onReload)}><RefreshCw data-icon="inline-start" />{props.t("config.reload", "重新读取")}</Button>

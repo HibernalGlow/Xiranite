@@ -1,4 +1,4 @@
-import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFormat, XlchemyOutputMode } from "@xiranite/node-xlchemy/core"
+import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFormat, XlchemyOutputMode, XlchemyToolStatus } from "@xiranite/node-xlchemy/core"
 
 export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "error"
 
@@ -9,6 +9,7 @@ export interface XlchemyCardState {
   lossless?: boolean
   quality?: number
   effort?: number
+  maxCompression?: boolean
   threads?: number
   outputMode?: XlchemyOutputMode
   outputDir?: string
@@ -27,12 +28,33 @@ export interface XlchemyCardState {
   jxlNormalize?: boolean
   jxlNormalizeWhen?: "on-fail" | "always"
   chromaSubsampling?: string
-  metadataMode?: "encoder-wipe" | "encoder-preserve" | "exiftool-wipe" | "exiftool-preserve" | "exiftool-unsafe-wipe"
+  metadataMode?: "encoder-wipe" | "encoder-preserve" | "exiftool-wipe" | "exiftool-preserve" | "exiftool-unsafe-wipe" | "exiftool-custom"
   keepIfLarger?: boolean
   copyIfLarger?: boolean
   jpegEncoder?: "jpegli" | "libjpeg"
-  avifEncoder?: "aom" | "svt"
+  avifEncoder?: "aom" | "svt" | "slimg"
   avifBitDepth?: "auto" | "8" | "10" | "12"
+  avifAomIqTune?: boolean
+  disableProgressiveJpegli?: boolean
+  autoLosslessJpeg?: boolean
+  qualityPrecisionSnapping?: boolean
+  disableSorting?: boolean
+  disableDownscalingStartup?: boolean
+  disableDeleteStartup?: boolean
+  enableCustomArgs?: boolean
+  cjxlArgs?: string
+  avifencArgs?: string
+  cjpegliArgs?: string
+  imageMagickArgs?: string
+  ramOptimizer?: "dynamic" | "static" | "disabled"
+  ramOptimizerRules?: string
+  playSoundOnFinish?: boolean
+  playSoundVolume?: number
+  autoClearCompleted?: boolean
+  exiftoolWipeArgs?: string
+  exiftoolPreserveArgs?: string
+  exiftoolUnsafeWipeArgs?: string
+  exiftoolCustomArgs?: string
   processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormatsText?: string
   downscaleEnabled?: boolean
@@ -62,7 +84,12 @@ export interface XlchemyCardState {
   showProgressFormat?: boolean
   showProgressEncoder?: boolean
   showRawProgress?: boolean
+  showProgressCurrentFile?: boolean
+  showProgressSizeChange?: boolean
+  environment?: XlchemyToolStatus[]
+  environmentCheckedAt?: string
+  resultTab?: "results" | "issues" | "logs"
   result?: XlchemyData | null
 }
 
-export const XL_CONFIG_FIELDS = ["format", "lossless", "quality", "effort", "threads", "outputMode", "outputDir", "preserveMetadata", "preserveStructure", "preserveTimestamps", "overwrite", "recursive", "existingPolicy", "deleteOriginal", "deleteOriginalMode", "intelligentEffort", "jxlModular", "jxlVerify", "jxlPngFallback", "jxlNormalize", "jxlNormalizeWhen", "chromaSubsampling", "metadataMode", "keepIfLarger", "copyIfLarger", "jpegEncoder", "avifEncoder", "avifBitDepth", "processingOrder", "excludedFormatsText", "downscaleEnabled", "downscaleMode", "downscaleWidth", "downscaleHeight", "downscalePercent", "downscaleFileSizeKb", "downscaleShortestSide", "downscaleLongestSide", "downscaleMegapixels", "downscaleResample", "selectedPreset"] as const satisfies Array<keyof XlchemyCardState>
+export const XL_CONFIG_FIELDS = ["format", "lossless", "quality", "effort", "maxCompression", "threads", "outputMode", "outputDir", "preserveMetadata", "preserveStructure", "preserveTimestamps", "overwrite", "recursive", "existingPolicy", "deleteOriginal", "deleteOriginalMode", "intelligentEffort", "jxlModular", "jxlVerify", "jxlPngFallback", "jxlNormalize", "jxlNormalizeWhen", "chromaSubsampling", "metadataMode", "keepIfLarger", "copyIfLarger", "jpegEncoder", "avifEncoder", "avifBitDepth", "avifAomIqTune", "disableProgressiveJpegli", "autoLosslessJpeg", "qualityPrecisionSnapping", "disableSorting", "disableDownscalingStartup", "disableDeleteStartup", "enableCustomArgs", "cjxlArgs", "avifencArgs", "cjpegliArgs", "imageMagickArgs", "ramOptimizer", "ramOptimizerRules", "playSoundOnFinish", "playSoundVolume", "autoClearCompleted", "exiftoolWipeArgs", "exiftoolPreserveArgs", "exiftoolUnsafeWipeArgs", "exiftoolCustomArgs", "processingOrder", "excludedFormatsText", "downscaleEnabled", "downscaleMode", "downscaleWidth", "downscaleHeight", "downscalePercent", "downscaleFileSizeKb", "downscaleShortestSide", "downscaleLongestSide", "downscaleMegapixels", "downscaleResample", "showProgressCounter", "showProgressSummary", "showProgressEta", "showProgressFormat", "showProgressEncoder", "showRawProgress", "showProgressCurrentFile", "showProgressSizeChange", "selectedPreset"] as const satisfies Array<keyof XlchemyCardState>
