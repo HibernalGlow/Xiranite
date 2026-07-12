@@ -40,13 +40,13 @@ describe("app-owned xlchemy Component", () => {
   })
 
   test("uses quality 60 by default and exposes only global presets", async () => {
-    const host = createHost({ pathsText: "D:/images/a.png", lossless: true })
+    const host = createHost({ pathsText: "D:/images/a.png", lossless: false })
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
 
     expect(screen.getAllByRole("slider")[0]?.getAttribute("aria-valuenow")).toBe("60")
     expect(screen.getByRole("group", { name: "压缩模式" })).toBeTruthy()
-    expect(screen.getByRole("radio", { name: "无损" }).getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByRole("radio", { name: "有损" }).getAttribute("aria-checked")).toBe("true")
     expect(screen.queryByText("Alpha")).toBeNull()
     expect(screen.queryByText("Beta")).toBeNull()
     expect(screen.queryByText("Gamma")).toBeNull()
@@ -239,7 +239,8 @@ describe("app-owned xlchemy Component", () => {
   })
 
   test("combines file settings and uses the width-adaptive shared tabs layout", async () => {
-    render(<Component compId="xlchemy-card" host={createHost({ pathsText: "D:/images/a.png" })} />)
+    const host = createHost({ pathsText: "D:/images/a.png", format: "JPEG XL" })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
     const settingsTabs = screen.getByTestId("xlchemy-settings-tabs")
     const tabList = within(settingsTabs).getByRole("tablist")
     expect(tabList.getAttribute("data-layout")).toBe("fill")
@@ -247,21 +248,35 @@ describe("app-owned xlchemy Component", () => {
     await userEvent.setup().click(within(settingsTabs).getByRole("tab", { name: "转换" }))
     expect(within(settingsTabs).getAllByText("输入格式")).toHaveLength(2)
     expect(within(settingsTabs).getByText("转换设置")).toBeTruthy()
-    expect(within(settingsTabs).getByText("JPEG 编码器")).toBeTruthy()
-    expect(within(settingsTabs).getByText("AVIF 编码器")).toBeTruthy()
-    expect(within(settingsTabs).getByText("AVIF 位深")).toBeTruthy()
-    expect(within(settingsTabs).getByText("禁用渐进式 JPEGli")).toBeTruthy()
-    expect(within(settingsTabs).getByText("AOM IQ 调优")).toBeTruthy()
+    expect(within(settingsTabs).queryByText("JPEG 编码器")).toBeNull()
+    expect(within(settingsTabs).queryByText("AVIF 编码器")).toBeNull()
     expect(within(settingsTabs).getByText("保留较大的原图")).toBeTruthy()
     expect(within(settingsTabs).getByText("较大时复制原图")).toBeTruthy()
     expect(within(settingsTabs).getByText("JXL 有损 Modular")).toBeTruthy()
     expect(within(settingsTabs).getByText("自动无损 JPEG")).toBeTruthy()
+    host.cardState = { ...host.cardState, format: "AVIF", avifEncoder: "aom" }
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(within(settingsTabs).getByText("AVIF 编码器")).toBeTruthy()
+    expect(within(settingsTabs).getByText("AVIF 位深")).toBeTruthy()
+    expect(within(settingsTabs).getByText("AOM IQ 调优")).toBeTruthy()
+    expect(within(settingsTabs).queryByText("JXL 有损 Modular")).toBeNull()
     await userEvent.setup().click(within(settingsTabs).getByRole("tab", { name: "文件" }))
     expect(within(settingsTabs).getByText("保存")).toBeTruthy()
     expect(within(settingsTabs).getByText("缩小")).toBeTruthy()
     expect(within(settingsTabs).getByText("元数据")).toBeTruthy()
     const operationsTabs = screen.getByTestId("xlchemy-operations-tabs")
     expect(within(operationsTabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["进度", "ExifTool", "高级", "环境"])
+  })
+
+  test("hides invalid compression and quality controls for fixed-mode formats", () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "PNG", lossless: true })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.queryByRole("group", { name: "压缩模式" })).toBeNull()
+    expect(screen.queryByRole("slider", { name: "质量" })).toBeNull()
+    host.cardState = { ...host.cardState, format: "JPEG", lossless: false }
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.queryByRole("group", { name: "压缩模式" })).toBeNull()
+    expect(screen.getByRole("slider", { name: "质量" })).toBeTruthy()
   })
 
   test("keeps the last environment result until diagnosis is requested explicitly", async () => {
