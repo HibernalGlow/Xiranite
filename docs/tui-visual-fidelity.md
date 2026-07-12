@@ -99,3 +99,14 @@ ClassF uses a source-list rail and a dominant classification-plan surface, with
 transfer mode, classify mode, existing-item policy, target directory, and dry
 run controls in a lower execution deck. This keeps the GUI's matrix/transfer
 relationship visible without copying its three-column browser layout.
+
+## FormatV
+
+- GUI evidence: `output/playwright/formatv/formatv-reference-review.jpg`
+- OpenTUI evidence: `artifacts/cli/formatv/media-format-lab.png`
+- Capture: 128 columns by 32 rows, Chinese, Nord fallback theme.
+
+FormatV uses a video-source rail and a dominant format-check/rename-plan
+surface. Scan, add, remove, and duplicate actions remain visible as tabs; the
+lower deck keeps prefix, report, recursion, and dry-run controls editable while
+the execution button stays in a stable wide hit region.

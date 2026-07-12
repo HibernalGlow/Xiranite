@@ -23,11 +23,17 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { runGuidedInteraction } from "@xiranite/cli-runtime"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { FormatvAction, FormatvInput, FormatvResult, FormatvRuntime } from "./core.js"
 import { DEFAULT_PREFIXES, normalizeFormatvInput, runFormatv } from "./core.js"
 import { createNodeFormatvRuntime, readClipboardText } from "./platform.js"
+import { createFormatvInteractionSchema, type FormatvInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("formatv")
 
@@ -67,6 +73,8 @@ interface FormatvDefaults {
   directory?: string
   overwrite: boolean
 }
+
+interface FormatvCliConfig extends CliInteractionPreferencesSource { output?: FormatvOutputConfig; recursive?: boolean; prefix_name?: string; dry_run?: boolean }
 
 const DEFAULT_FORMATV_DEFAULTS: FormatvDefaults = {
   reportNameTemplate: "formatv-{prefix}-duplicates.json",
@@ -153,12 +161,14 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
+  await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<FormatvCliConfig>("formatv", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => createFormatvDefinition(defaults, language, host), runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).FormatvTui, createPreferences: (_defaults, values) => createPreferenceController(host, values), reexecEntrypoint: process.argv[1], help })
 }
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "formatv", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "formatv", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<FormatvCliConfig>("formatv", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
+
+function createFormatvDefinition(defaults: FormatvCliConfig, language: TerminalLanguage, host: CliHost): TerminalInteractionDefinition<FormatvInput, FormatvResult> { return { schema: createFormatvInteractionSchema({ recursive: defaults.recursive ?? false, prefixName: defaults.prefix_name ?? "hb", dryRun: defaults.dry_run ?? true, reportPath: "" } satisfies Partial<FormatvInteractionValues>, language), run: (input, onEvent) => runFormatv(input, createNodeFormatvRuntime(), onEvent) } }
+
+function writeUsage(host: CliHost): void { writeLine(host, `${CLI_NAME} - video suffix and duplicate checker`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} scan|add-nov|remove-nov|duplicates [options] [--json]`) }
 
 function createDefaultHost(): CliHost {
   return {
@@ -178,28 +188,28 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "scan", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "scan", ...inputFromArgs(await resolveFormatvArgs(args as FormatvCliOptions, host)) }, Boolean(args.json), host)
         },
       }),
       "add-nov": defineCommand({
         meta: { name: "add-nov", description: "Add .nov suffix to normal video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "add_nov", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "add_nov", ...inputFromArgs(await resolveFormatvArgs(args as FormatvCliOptions, host)) }, Boolean(args.json), host)
         },
       }),
       "remove-nov": defineCommand({
         meta: { name: "remove-nov", description: "Remove .nov suffix from .nov video files." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "remove_nov", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "remove_nov", ...inputFromArgs(await resolveFormatvArgs(args as FormatvCliOptions, host)) }, Boolean(args.json), host)
         },
       }),
       duplicates: defineCommand({
         meta: { name: "duplicates", description: "Check prefixed files against original duplicates." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction({ action: "check_duplicates", ...inputFromArgs({ ...args, paths: (args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin)).join(";") : args.paths, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as FormatvCliOptions) }, Boolean(args.json), host)
+          await runAction({ action: "check_duplicates", ...inputFromArgs(await resolveFormatvArgs(args as FormatvCliOptions, host)) }, Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -233,6 +243,14 @@ function inputFromArgs(args: FormatvCliOptions): FormatvInput {
     dryRun: args.dryRun,
     reportPath: args.reportPath,
   }
+}
+
+async function resolveFormatvArgs(args: FormatvCliOptions, host: CliHost): Promise<FormatvCliOptions> {
+  const needsPath = args.path === "-" || (!args.path && hasPipedInput(host.stdin))
+  const needsPaths = args.paths === "-" || (!args.paths && hasPipedInput(host.stdin))
+  if ((!needsPath && !needsPaths) || !(Symbol.asyncIterator in (host.stdin as object))) return args
+  const lines = await readStdinLines(host.stdin)
+  return { ...args, path: needsPath ? lines[0] : args.path, paths: needsPaths ? lines.join(";") : args.paths }
 }
 
 async function runAction(input: FormatvInput & { action: FormatvAction }, json: boolean, host: CliHost): Promise<FormatvResult> {
