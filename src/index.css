@@ -568,6 +568,22 @@ samp {
   isolation: isolate;
 }
 
+/* A long official tab set stays in one row and scrolls instead of collapsing
+   into the vertical pill seen in narrow configuration panels. */
+[data-slot="tabs-list"][data-layout="scroll"] {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+[data-slot="tabs-list"][data-layout="scroll"] > [data-slot="tabs-trigger"] {
+  flex: 0 0 auto !important;
+}
+
 /* The upstream Radix line variant uses a trigger pseudo-element. A global
    display preference must suppress that local decoration for every non-line
    treatment, otherwise an underline leaks below surface, pill, boxed, and
@@ -740,4 +756,40 @@ samp {
 :root[data-switch-style="minimal"] [data-slot="switch"][data-state="unchecked"] [data-slot="switch-thumb"] {
   background: var(--muted-foreground) !important;
   opacity: 0.7;
+}
+
+/* Xlchemy keeps the reference prototype's instrument language while deriving
+   every accent from the active shadcn theme. */
+.xlchemy-grid {
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--primary) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--primary) 5%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.xlchemy-hazard {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    color-mix(in oklch, var(--primary) 10%, transparent) 10px,
+    color-mix(in oklch, var(--primary) 10%, transparent) 20px
+  );
+}
+
+.xlchemy-matrix-wave {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: xlchemy-matrix-drift 7s linear infinite;
+  will-change: transform;
+}
+
+@keyframes xlchemy-matrix-drift {
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xlchemy-matrix-wave {
+    animation: none;
+  }
 }

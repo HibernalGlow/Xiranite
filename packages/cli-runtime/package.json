@@ -38,20 +38,22 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "sync:termcn": "node scripts/sync-termcn-opentui-registry.mjs",
-    "test": "vitest run src/index.test.ts src/browser-boundary.test.ts src/tui/interaction-cli.test.ts && bun test src/tui/opentui/app.bun.test.tsx"
+    "test": "vitest run src/index.test.ts src/browser-boundary.test.ts src/tui/interaction-cli.test.ts && bun test src/tui/opentui/app.bun.test.tsx src/tui/opentui/image-preview.bun.test.ts"
   },
   "dependencies": {
-    "@xiranite/api": "workspace:*",
-    "@xiranite/contract": "workspace:*",
     "@clack/prompts": "^1.7.0",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
+    "@xiranite/api": "workspace:*",
+    "@xiranite/contract": "workspace:*",
     "boxen": "^8.0.1",
     "chalk": "^5.6.2",
     "citty": "^0.1.6",
     "cli-spinners": "^3.4.0",
     "i18next": "^26.3.4",
     "react": "^19.2.4",
+    "sharp": "0.34.5",
+    "sixel": "0.16.0",
     "string-width": "^8.1.0"
   },
   "devDependencies": {

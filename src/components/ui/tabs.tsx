@@ -28,6 +28,7 @@ function Tabs({
 
 function TabsList({
   className,
+  layout = "fit",
   variant = "default",
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
@@ -35,8 +36,9 @@ function TabsList({
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
+      data-layout={layout}
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn(tabsListVariants({ layout, variant }), className)}
       {...props}
     />
   )

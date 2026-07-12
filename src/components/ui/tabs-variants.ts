@@ -19,9 +19,15 @@ export const tabsListVariants = cva(
         default: "bg-muted",
         line: "gap-1 bg-transparent",
       },
+      layout: {
+        fit: "",
+        fill: "w-full [&>[data-slot=tabs-trigger]]:flex-1",
+        scroll: "w-full max-w-full flex-row flex-nowrap justify-start overflow-x-auto [&>[data-slot=tabs-trigger]]:flex-none",
+      },
     },
     defaultVariants: {
       variant: "default",
+      layout: "fit",
     },
   }
 )

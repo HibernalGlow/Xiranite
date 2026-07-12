@@ -1,13 +1,35 @@
-export type { TerminalUiScreenProps } from "../index.js"
-export { resolveTerminalTheme, TerminalThemeProvider, useTerminalTheme } from "../theme.js"
-export { useTerminalUiSession } from "../session.js"
-export { fieldIcon, terminalIcon } from "../icons.js"
-export { ActionTabs } from "./action-tabs.js"
-export { ProgressBar } from "./progress-bar.js"
-export { ClickTarget, ExecutionActions, WorkbenchButton, WorkbenchField, WorkbenchHeaderActions, WorkbenchPanel } from "./workbench-controls.js"
-export { NumberInput } from "../../components/ui/number-input.js"
-export { useAnimation } from "../../hooks/use-animation.js"
-export { TerminalPreferencesScreen } from "./app.js"
-export { TerminalTaskQueueScreen } from "./task-queue-screen.js"
-export { TerminalHelpScreen } from "./help-screen.js"
-export { useTerminalChromeActions } from "./chrome-actions.js"
+export type { TerminalUiScreenProps } from "../index.js";
+export {
+  resolveTerminalTheme,
+  TerminalThemeProvider,
+  useTerminalTheme,
+} from "../theme.js";
+export { useTerminalUiSession } from "../session.js";
+export { fieldIcon, terminalIcon } from "../icons.js";
+export { ActionTabs } from "./action-tabs.js";
+export { ProgressBar } from "./progress-bar.js";
+export {
+  ClickTarget,
+  ExecutionActions,
+  WorkbenchButton,
+  WorkbenchField,
+  WorkbenchHeaderActions,
+  WorkbenchPanel,
+} from "./workbench-controls.js";
+export { NumberInput } from "../../components/ui/number-input.js";
+export { useAnimation } from "../../hooks/use-animation.js";
+export {
+  TerminalImagePreview,
+  decodeTerminalImageFrames,
+  encodeRgbaToSixel,
+  eraseTerminalGraphicsRect,
+  projectRgbaToHalfBlocks,
+  resolveTerminalImageBackend,
+  type TerminalImageBackend,
+  type TerminalImageFrame,
+  type TerminalImagePreviewProps,
+} from "./image-preview.js";
+export { TerminalPreferencesScreen } from "./app.js";
+export { TerminalTaskQueueScreen } from "./task-queue-screen.js";
+export { TerminalHelpScreen } from "./help-screen.js";
+export { useTerminalChromeActions } from "./chrome-actions.js";

@@ -20,9 +20,13 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type {
   EngineVAction,
@@ -38,6 +42,8 @@ import type {
 } from "./core.js"
 import { DEFAULT_TEMPLATE, DEFAULT_WORKSHOP_PATH, runEngineV } from "./core.js"
 import { createNodeEngineVRuntime, readClipboardText } from "./platform.js"
+import { createEngineVInteractionSchema, type EngineVInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("enginev")
 const WALLPAPER_PREVIEW_LIMIT = 30
@@ -86,12 +92,14 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-  await runMain(createProgram(host), { rawArgs: args })
+  await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => createEngineVDefinition(defaults, language), runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).EngineVTui, createPreferences: (_defaults, values) => createPreferenceController(host, values), reexecEntrypoint: process.argv[1], help })
 }
+
+function createEngineVDefinition(defaults: EnginevNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EngineVInput, EngineVResult> { let cached: EngineVWallpaper[] = []; return { schema: createEngineVInteractionSchema({ workshopPath: defaults.workshop_root?.trim() || DEFAULT_WORKSHOP_PATH, exportPath: defaults.export_path ?? "", exportFormat: defaults.export_format ?? "json", maxWorkers: defaults.max_workers ?? 4, template: defaults.template ?? DEFAULT_TEMPLATE, imageBackend: defaults.image_backend ?? "auto", galleryColumns: defaults.gallery_columns ?? 0 } satisfies Partial<EngineVInteractionValues>, language), async run(input, onEvent) { const enriched = input.action !== "scan" && !input.wallpapers?.length ? { ...input, wallpapers: cached } : input; const result = await runEngineV(enriched, createNodeEngineVRuntime(), onEvent); if (result.data?.wallpapers?.length) cached = result.data.wallpapers; return result } } }
+
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "enginev", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "enginev", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
+
+function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - Wallpaper Engine workshop gallery manager`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} scan|filter|rename|delete|export [options] [--json]`) }
 
 function createDefaultHost(): CliHost {
   return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr }
@@ -105,35 +113,35 @@ function createProgram(host: CliHost = createDefaultHost()) {
         meta: { name: "scan", description: "Scan a Wallpaper Engine workshop folder." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("scan", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("scan", await resolveEngineVArgs(args as EngineVCliOptions, host), Boolean(args.json), host)
         },
       }),
       filter: defineCommand({
         meta: { name: "filter", description: "Filter scanned or freshly scanned wallpapers." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("filter", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("filter", await resolveEngineVArgs(args as EngineVCliOptions, host), Boolean(args.json), host)
         },
       }),
       rename: defineCommand({
         meta: { name: "rename", description: "Plan or execute batch folder rename/copy." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("rename", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("rename", await resolveEngineVArgs(args as EngineVCliOptions, host), Boolean(args.json), host)
         },
       }),
       delete: defineCommand({
         meta: { name: "delete", description: "Plan or execute wallpaper folder deletion." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("delete", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("delete", await resolveEngineVArgs(args as EngineVCliOptions, host), Boolean(args.json), host)
         },
       }),
       export: defineCommand({
         meta: { name: "export", description: "Export filtered wallpapers as JSON or paths." },
         args: commonArgs(),
         async run({ args }) {
-          await runAction("export", { ...args, path: (args.path === "-" || (!args.path && hasPipedInput(host.stdin))) ? (await readStdinLines(host.stdin))[0] : args.path } as EngineVCliOptions, Boolean(args.json), host)
+          await runAction("export", await resolveEngineVArgs(args as EngineVCliOptions, host), Boolean(args.json), host)
         },
       }),
       guided: defineCommand({
@@ -172,6 +180,13 @@ function commonArgs() {
     sortOrder: { type: "string", description: "asc or desc." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
+}
+
+async function resolveEngineVArgs(args: EngineVCliOptions, host: CliHost): Promise<EngineVCliOptions> {
+  if (args.path !== "-" && (args.path || !hasPipedInput(host.stdin))) return args
+  if (!(Symbol.asyncIterator in (host.stdin as object))) return args
+  const lines = await readStdinLines(host.stdin)
+  return { ...args, path: lines[0] }
 }
 
 async function runAction(action: EngineVAction, args: EngineVCliOptions, json: boolean, host: CliHost): Promise<void> {
@@ -240,10 +255,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 // --- Guided flow ---
 
-interface EnginevNodeConfig {
+interface EnginevNodeConfig extends CliInteractionPreferencesSource {
   workshop_root?: string
   export_path?: string
   export_format?: EngineVExportFormat
+  max_workers?: number
+  template?: string
+  image_backend?: "auto" | "sixel" | "kitty" | "half-block"
+  gallery_columns?: number
 }
 
 interface EnginevDefaults {

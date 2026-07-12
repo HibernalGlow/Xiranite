@@ -35,6 +35,16 @@ interaction/layout reference, and the same command is the post-implementation
 visual regression check. `src/nodes/__backup__` remains a read-only archive and
 is never used as the capture source.
 
+### Terminal image layers
+
+完整的协议、性能、失败案例和测试说明见
+[`opentui-sixel-gallery-lessons.md`](./opentui-sixel-gallery-lessons.md)。
+
+- Native SIXEL and Kitty graphics are terminal-level overlays. They do not automatically participate in OpenTUI layout, clipping, z-order, or `scrollbox` scrolling, so an image-heavy node may own an independent compositor instead of using the shared schema renderer.
+- A scrolling SIXEL gallery must reset DECSDM (`CSI ? 80 l`) so drawing cannot scroll the whole terminal, erase its previous viewport with DECERA before OpenTUI redraws, and emit only images fully inside the current viewport after the frame.
+- Use opaque SIXEL background mode for retained-mode redraws. Background mode `1` preserves old pixels and causes cumulative colour stripes when a card is redrawn at the same location.
+- Resize or crop sources to their final card dimensions before encoding, cache encoded SIXEL payloads, and debounce continuous wheel input so only the final visible set is redrawn.
+
 ## Modes
 
 | Mode | Entry | Intended use |
