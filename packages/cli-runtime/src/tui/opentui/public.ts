@@ -33,3 +33,4 @@ export { TerminalPreferencesScreen } from "./app.js";
 export { TerminalTaskQueueScreen } from "./task-queue-screen.js";
 export { TerminalHelpScreen } from "./help-screen.js";
 export { useTerminalChromeActions } from "./chrome-actions.js";
+export { PathDiff, splitPathDiff, type PathDiffProps } from "./path-diff.js";

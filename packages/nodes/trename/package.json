@@ -28,6 +28,10 @@
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
     }
   },
   "files": [
@@ -36,7 +40,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

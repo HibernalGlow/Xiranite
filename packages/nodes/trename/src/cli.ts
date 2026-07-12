@@ -23,15 +23,27 @@ import {
   writeRichPanel,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
+import { runGuidedInteraction } from "@xiranite/cli-runtime"
+import {
+  requireInteractiveMode,
+  resolveCliInvocation,
+  resolveInteractionPreferences,
+  resolveTerminalUiFlags,
+  type CliInteractionPreferencesSource,
+  type TerminalInteractionDefinition,
+} from "@xiranite/cli-runtime/interaction"
+import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config"
 
 import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { runTrename } from "./core.js"
 import { createNodeTrenameRuntime, readClipboardText } from "./platform.js"
+import { createTrenameInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("trename")
 
-interface TrenameNodeConfig {
+interface TrenameNodeConfig extends CliInteractionPreferencesSource {
   enable_undo?: boolean
   undo_path?: string
 }
@@ -39,6 +51,9 @@ interface TrenameNodeConfig {
 interface TrenameDefaults {
   enableUndo: boolean
   undoPath?: string
+  interactionMode?: "ui" | "gd" | "pipe"
+  interactionLanguage?: "zh" | "en"
+  interactionTheme?: string
 }
 
 /**
@@ -58,6 +73,9 @@ async function resolveTrenameDefaults(host: CliHost, json: boolean): Promise<Tre
     return {
       enableUndo: nodeConfig?.enable_undo !== false,
       undoPath: nodeConfig?.undo_path?.trim() || undefined,
+      interactionMode: resolveInteractionPreferences(nodeConfig).mode,
+      interactionLanguage: resolveInteractionPreferences(nodeConfig).language,
+      interactionTheme: resolveInteractionPreferences(nodeConfig).theme,
     }
   } catch {
     return { enableUndo: true }
@@ -139,11 +157,36 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
+  if (args[0] === "help" || args.includes("--help") || args.includes("-h")) {
+    writeTerminalNodeHelp(host, help, "zh")
+    return
+  }
+  const defaults = await resolveTrenameDefaults(host, false)
+  const explicit = resolveCliInvocation(args, host, "ui")
+  const invocation = args.length === 0 ? resolveCliInvocation(args, host, defaults.interactionMode ?? "ui") : explicit
+  if (args.length === 0 || explicit === "ui" || explicit === "gd") {
+    const ttyError = requireInteractiveMode(host, invocation === "gd" ? "gd" : "ui")
+    if (ttyError) { writeError(host, ttyError); process.exitCode = 2; return }
+    const flags = resolveTerminalUiFlags(args.slice(args.length ? 1 : 0), {
+      language: defaults.interactionLanguage ?? "zh",
+      renderer: "opentui",
+      theme: defaults.interactionTheme,
+    })
+    if (flags.error || flags.args.length || !flags.language || !flags.renderer) { writeError(host, flags.error ?? `Unknown ${invocation} argument: ${flags.args[0]}.`); process.exitCode = 2; return }
+    if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) { writeError(host, `Unknown terminal theme: ${flags.theme}.`); process.exitCode = 2; return }
+    const definition = createTrenameInteractionDefinition(defaults, host, flags.language)
+    if (invocation === "gd") { await runGuidedInteraction(definition, { host, language: flags.language, help }); return }
+    await runTerminalUi(definition, { host, renderer: "opentui", language: flags.language, theme: flags.theme, help, loadScreen: async () => (await import("./Tui.js")).TrenameTui, reexec: process.argv[1] ? { entrypoint: process.argv[1], args } : undefined })
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
+}
+
+export function createTrenameInteractionDefinition(defaults: TrenameDefaults, host: CliHost, language: "zh" | "en" = "zh"): TerminalInteractionDefinition<TrenameInput, TrenameResult> {
+  return {
+    schema: createTrenameInteractionSchema({ undoPath: defaults.undoPath }, language),
+    run: (input, onEvent) => runTrename(input, createNodeTrenameRuntime(), onEvent),
+  }
 }
 
 function createDefaultHost(): CliHost {
@@ -282,7 +325,7 @@ async function inputFromArgs(action: TrenameAction, args: TrenameCliOptions, def
   const inputFile = args.inputFile || args.input
   let jsonContent = args.jsonContent
   if (jsonContent === undefined) {
-    if (inputFile === "-" || (!inputFile && hasPipedInput(host.stdin))) {
+    if (inputFile === "-" || (!inputFile && (action === "import" || action === "validate" || action === "rename") && hasPipedInput(host.stdin))) {
       jsonContent = await readStdinText(host.stdin)
     } else if (inputFile) {
       jsonContent = await readFile(inputFile, "utf8")

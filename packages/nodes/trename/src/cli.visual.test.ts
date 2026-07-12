@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 describe("trename CLI guided visual", () => {
-  test("guided refusal mentions xtrename and --json in scripted hint", async () => {
+  test("interactive refusal mentions scripted JSON fallback", async () => {
     const host = createHost()
 
     await runProgram([], host)
@@ -27,8 +27,8 @@ describe("trename CLI guided visual", () => {
     const exitCode = process.exitCode
     process.exitCode = 0
     expect(exitCode).toBe(2)
-    expect(host.stderrText()).toContain("Guided mode requires an interactive terminal")
-    expect(host.stderrText()).toContain("xtrename scan")
+    expect(host.stderrText()).toContain("requires an interactive terminal")
+    expect(host.stderrText()).toContain("subcommand")
     expect(host.stderrText()).toContain("--json")
   })
 
