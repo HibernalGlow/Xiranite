@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
 import { compressionRatio, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
-import { AlertTriangle, CheckCircle2, Clipboard, FileImage, FolderInput, Gauge, Images, Play, RotateCcw, Square, Terminal } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronRight, Clipboard, FileImage, FolderInput, Gauge, Images, Play, RotateCcw, Square, Terminal } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardHeader } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -131,24 +134,28 @@ function FullView(props: ViewProps) {
   return (
     <div data-testid="xlchemy-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <Header props={props} />
-      <div className="grid min-h-0 flex-1 gap-3 @2xl/xlchemy:grid-cols-[minmax(280px,0.82fr)_minmax(0,1.45fr)]">
-        <div className="grid min-h-0 gap-3 grid-rows-[minmax(0,1fr)_auto]">
-          <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-            <PanelTitle icon={FolderInput} title={props.t("sections.input", "输入端口")} badge={`${props.paths.length} 项`} />
+      <div className="grid min-h-0 flex-1 gap-3 @2xl/xlchemy:grid-cols-[minmax(300px,0.88fr)_minmax(0,1.5fr)]">
+        <ScrollArea className="min-h-0"><div className="flex flex-col gap-3 pr-2">
+          <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`} grow>
             <PathEditor props={props} />
             <InputQueue paths={props.paths} />
-          </section>
+          </WorkbenchCard>
+          <DataAnalysisCard props={props} />
           <PresetMatrix props={props} />
-        </div>
-        <section className="grid min-h-0 gap-3 rounded-lg border bg-card p-3 @5xl/xlchemy:grid-cols-[minmax(260px,1fr)_minmax(230px,0.9fr)]">
+        </div></ScrollArea>
+        <ScrollArea className="min-h-0"><div className="grid gap-3 pr-2 @5xl/xlchemy:grid-cols-[minmax(260px,1fr)_minmax(240px,0.9fr)]">
           <div className="flex min-h-0 flex-col gap-3">
-            <PanelTitle icon={Gauge} title={props.t("sections.formatHub", "格式工作台")} badge={formatExtension(props.format)} />
-            <FormatControls props={props} />
-            <OutputOptions props={props} />
-            <div className="min-h-0 flex-1"><ResultPanel props={props} /></div>
+            <WorkbenchCard icon={Gauge} title={props.t("sections.formatHub", "格式")} badge={formatExtension(props.format)}>
+              <FormatControls props={props} />
+            </WorkbenchCard>
+            <WorkbenchCard title="转换设置"><ConversionOptions props={props} /></WorkbenchCard>
+            <WorkbenchCard title="保存到"><OutputOptions props={props} /></WorkbenchCard>
           </div>
-          <BatchGate props={props} />
-        </section>
+          <div className="flex min-h-0 flex-col gap-3">
+            <WorkbenchCard title="转换进度"><BatchGate props={props} embedded /></WorkbenchCard>
+            <WorkbenchCard title="转换结果" defaultOpen><ResultPanel props={props} /></WorkbenchCard>
+          </div>
+        </div></ScrollArea>
       </div>
     </div>
   )
@@ -168,12 +175,16 @@ function InputQueue({ paths }: { paths: string[] }) {
 }
 
 function PresetMatrix({ props }: { props: ViewProps }) {
-  return <section className="rounded-lg border bg-card p-3"><PanelTitle icon={Gauge} title={props.t("sections.presets", "预设矩阵")} /><div className="mt-3 grid grid-cols-2 gap-2">{PRESETS.map((preset) => <Button key={preset.id} className="h-auto justify-start px-3 py-2" variant={props.data.selectedPreset === preset.id ? "secondary" : "outline"} onClick={() => props.onPatch({ selectedPreset: preset.id, format: preset.format, lossless: preset.lossless, quality: preset.quality, effort: preset.effort })}><preset.icon data-icon="inline-start" /><span className="min-w-0 text-left"><span className="block truncate text-xs font-semibold">{preset.label}</span><span className="block truncate text-[10px] text-muted-foreground">{preset.format} · {preset.lossless ? "无损" : `质量 ${preset.quality}`}</span></span></Button>)}</div></section>
+  return <WorkbenchCard icon={Gauge} title={props.t("sections.presets", "预设")}><div className="grid grid-cols-2 gap-2">{PRESETS.map((preset) => <Button key={preset.id} className="h-auto justify-start px-3 py-2" variant={props.data.selectedPreset === preset.id ? "secondary" : "outline"} onClick={() => props.onPatch({ selectedPreset: preset.id, format: preset.format, lossless: preset.lossless, quality: preset.quality, effort: preset.effort })}><preset.icon data-icon="inline-start" /><span className="min-w-0 text-left"><span className="block truncate text-xs font-semibold">{preset.label}</span><span className="block truncate text-[10px] text-muted-foreground">{preset.format} · {preset.lossless ? "无损" : `质量 ${preset.quality}`}</span></span></Button>)}</div></WorkbenchCard>
 }
 
 function FormatControls({ props, compact }: { props: ViewProps; compact?: boolean }) {
   const lossy = !(props.data.lossless ?? false)
-  return <div className="flex flex-col gap-3"><div className="grid grid-cols-3 gap-1">{FORMATS.map((item) => <Button key={item.value} size="sm" variant={props.format === item.value ? "secondary" : "outline"} onClick={() => props.onPatch({ format: item.value })}>{item.label}</Button>)}</div><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损 Modular</ToggleGroupItem></ToggleGroup>{lossy && <SliderField label="质量" value={props.data.quality ?? 90} min={1} max={100} onChange={(quality) => props.onPatch({ quality })} />}<SliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} />{!compact && <SliderField label="线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} />}</div>
+  return <div className="flex flex-col gap-3"><ToggleGroup type="single" value={props.format} className="grid grid-cols-3" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ format: value as XlchemyFormat })}>{FORMATS.map((item) => <ToggleGroupItem key={item.value} value={item.value}>{item.label}</ToggleGroupItem>)}</ToggleGroup><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损 Modular</ToggleGroupItem></ToggleGroup>{lossy && <SliderField label="质量" value={props.data.quality ?? 90} min={1} max={100} onChange={(quality) => props.onPatch({ quality })} />}<SliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} />{compact && <SliderField label="线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} />}</div>
+}
+
+function ConversionOptions({ props }: { props: ViewProps }) {
+  return <div className="flex flex-col gap-3"><SliderField label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /><SwitchField label="递归扫描文件夹" checked={props.data.recursive ?? true} onChange={(recursive) => props.onPatch({ recursive })} /><SwitchField label="覆盖同名输出" checked={props.data.overwrite ?? false} onChange={(overwrite) => props.onPatch({ overwrite })} /></div>
 }
 
 function SliderField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
@@ -181,7 +192,7 @@ function SliderField({ label, value, min, max, onChange }: { label: string; valu
 }
 
 function OutputOptions({ props }: { props: ViewProps }) {
-  return <div className="grid gap-2"><div className="grid grid-cols-2 gap-2"><Button size="sm" variant={(props.data.outputMode ?? "source") === "source" ? "secondary" : "outline"} onClick={() => props.onPatch({ outputMode: "source" })}>源文件旁</Button><Button size="sm" variant={props.data.outputMode === "directory" ? "secondary" : "outline"} onClick={() => props.onPatch({ outputMode: "directory" })}>指定目录</Button></div>{props.data.outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}<div className="grid grid-cols-2 gap-2"><SwitchField label="保留元数据" checked={props.data.preserveMetadata ?? true} onChange={(preserveMetadata) => props.onPatch({ preserveMetadata })} /><SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} /><SwitchField label="递归目录" checked={props.data.recursive ?? true} onChange={(recursive) => props.onPatch({ recursive })} /><SwitchField label="覆盖已有文件" checked={props.data.overwrite ?? false} onChange={(overwrite) => props.onPatch({ overwrite })} /></div></div>
+  return <div className="grid gap-2"><ToggleGroup type="single" value={props.data.outputMode ?? "source"} className="grid grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup>{props.data.outputMode === "directory" && <Input aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} />}<div className="grid grid-cols-2 gap-2"><SwitchField label="保留元数据" checked={props.data.preserveMetadata ?? true} onChange={(preserveMetadata) => props.onPatch({ preserveMetadata })} /><SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} /></div></div>
 }
 
 function SwitchField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
@@ -189,9 +200,9 @@ function SwitchField({ label, checked, onChange }: { label: string; checked: boo
   return <Field orientation="horizontal" className="rounded-md border px-2 py-1.5"><FieldContent><FieldLabel htmlFor={id} className="text-xs">{label}</FieldLabel></FieldContent><Switch id={id} size="sm" checked={checked} onCheckedChange={onChange} /></Field>
 }
 
-function BatchGate({ props }: { props: ViewProps }) {
+function BatchGate({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
   const ratio = props.result ? compressionRatio(props.result) : 0
-  return <div className="flex min-h-0 flex-col gap-3 border-l pl-3"><div className="rounded-md border bg-muted/20 p-3"><div className="text-xs text-muted-foreground">批次遥测</div><div className="mt-2 grid grid-cols-2 gap-2"><Metric label="输入" value={String(props.result?.inputCount ?? props.paths.length)} /><Metric label="线程" value={String(props.data.threads ?? 4)} /><Metric label="节省" value={`${ratio}%`} /><Metric label="错误" value={String(props.result?.errorCount ?? 0)} /></div></div><div className="flex min-h-32 flex-1 flex-col items-center justify-center rounded-md border bg-muted/10 p-4"><div className="grid size-28 place-items-center rounded-full border-8 border-muted text-center"><span><strong className="block text-2xl text-primary">{props.progress}%</strong><span className="text-[10px] text-muted-foreground">BATCH</span></span></div>{props.data.currentFile && <div className="mt-3 max-w-full truncate text-xs text-muted-foreground">{baseName(props.data.currentFile)}</div>}</div><div className="grid gap-2"><Button variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><RunButton props={props} /></div></div>
+  return <div className={cn("flex min-h-0 flex-col gap-3", !embedded && "border-l pl-3")}><div className="grid grid-cols-2 gap-2"><Metric label="进度" value={`${props.progress}%`} /><Metric label="节省" value={`${ratio}%`} /><Metric label="已处理" value={String(props.result?.convertedCount ?? 0)} /><Metric label="错误" value={String(props.result?.errorCount ?? 0)} /></div><div className="flex min-h-20 flex-1 flex-col justify-center"><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-[width]" style={{ width: `${props.progress}%` }} /></div>{props.data.currentFile && <div className="mt-2 max-w-full truncate text-xs text-muted-foreground">{baseName(props.data.currentFile)}</div>}</div><div className="grid gap-2"><Button variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><RunButton props={props} /></div></div>
 }
 
 function RunButton({ props, compact }: { props: ViewProps; compact?: boolean }) {
@@ -206,11 +217,25 @@ function ResultPanel({ props }: { props: ViewProps }) {
   return <Tabs defaultValue="results" className="flex h-full min-h-0 flex-col"><TabsList variant="line"><TabsTrigger value="results"><CheckCircle2 />结果</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />问题</TabsTrigger><TabsTrigger value="logs"><Terminal />日志</TabsTrigger></TabsList><TabsContent value="results" className="min-h-0 flex-1"><ScrollArea className="h-full"><div className="grid gap-1.5 p-2">{props.result?.files.length ? props.result.files.map((file) => <div key={file.sourcePath} className="flex items-center gap-2 rounded-md border px-2 py-1.5"><FileImage className="size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs">{baseName(file.sourcePath)}</div><div className="truncate text-[10px] text-muted-foreground">{file.outputPath}</div></div><Badge variant={file.status === "error" ? "destructive" : "outline"}>{file.status}</Badge></div>) : <div className="p-4 text-center text-xs text-muted-foreground">预览后显示输出路径和编码结果</div>}</div></ScrollArea></TabsContent><TabsContent value="issues" className="p-3 text-xs text-muted-foreground">{props.result?.errors.join("\n") || "暂无问题"}</TabsContent><TabsContent value="logs"><pre className="p-3 text-xs text-muted-foreground">{props.data.logs?.join("\n") || "运行日志将在这里显示"}</pre></TabsContent></Tabs>
 }
 
-function PanelTitle({ icon: Icon, title, badge }: { icon: typeof FolderInput; title: string; badge?: string }) { return <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Icon className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{title}</span></div>{badge && <Badge variant="outline">{badge}</Badge>}</div> }
+function WorkbenchCard({ badge, children, defaultOpen = true, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; defaultOpen?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return <Collapsible open={open} onOpenChange={setOpen}><Card className={cn("gap-0 py-0 shadow-none", grow && "min-h-0")}><CardHeader className="min-h-9 grid-cols-[1fr_auto] items-center gap-2 px-3 py-2"><CollapsibleTrigger asChild><Button className="h-auto justify-start px-0 py-0 hover:bg-transparent" variant="ghost"><ChevronRight className={cn("transition-transform", open && "rotate-90")} /><span className="flex items-center gap-2 text-xs font-semibold">{Icon && <Icon />}{title}</span></Button></CollapsibleTrigger><CardAction>{badge && <Badge variant="outline">{badge}</Badge>}</CardAction></CardHeader><CollapsibleContent><CardContent className="flex flex-col gap-3 px-3 pb-3">{children}</CardContent></CollapsibleContent></Card></Collapsible>
+}
+
+function DataAnalysisCard({ props }: { props: ViewProps }) {
+  const ratio = props.result ? compressionRatio(props.result) : 0
+  const input = props.result?.inputBytes ?? 0
+  const output = props.result?.outputBytes ?? 0
+  return <WorkbenchCard title="数据分析" defaultOpen={Boolean(props.result)}><div className="grid grid-cols-3 gap-2"><Metric label="节省空间" value={`${ratio}%`} /><Metric label="处理成功" value={`${props.result?.convertedCount ?? 0}/${props.result?.inputCount ?? props.paths.length}`} /><Metric label="耗时" value={formatDuration(props.result?.elapsedMs)} /></div><div className="flex flex-col gap-2"><SizeBar label="转换前" bytes={input} ratio={100} /><SizeBar label="转换后" bytes={output} ratio={input > 0 ? Math.max(3, output / input * 100) : 0} /></div></WorkbenchCard>
+}
+
+function SizeBar({ bytes, label, ratio }: { bytes: number; label: string; ratio: number }) { return <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 text-[10px]"><span className="text-muted-foreground">{label}</span><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary/70" style={{ width: `${ratio}%` }} /></div><span className="text-right tabular-nums">{formatBytes(bytes)}</span></div> }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-md border bg-card px-2 py-1.5"><div className="text-[10px] text-muted-foreground">{label}</div><div className="text-sm font-semibold tabular-nums">{value}</div></div> }
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
 function baseName(path: string) { return path.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? path }
 function formatExtension(format: XlchemyFormat) { return FORMATS.find((item) => item.value === format)?.extension ?? "" }
+function formatBytes(bytes: number) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB"]; const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}` }
+function formatDuration(milliseconds?: number) { if (!milliseconds) return "--"; const seconds = Math.round(milliseconds / 1000); return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s` }
 function statusLabel(props: ViewProps) { if (props.running || props.data.phase === "running") return "运行中"; if (props.data.phase === "completed") return "完成"; if (props.data.phase === "error") return "错误"; return "在线" }
 function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { return normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, overwrite: data.overwrite, recursive: data.recursive }) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
