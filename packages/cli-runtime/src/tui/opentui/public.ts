@@ -8,3 +8,4 @@ export { ClickTarget, ExecutionActions, WorkbenchButton, WorkbenchField, Workben
 export { NumberInput } from "../../components/ui/number-input.js"
 export { useAnimation } from "../../hooks/use-animation.js"
 export { TerminalPreferencesScreen } from "./app.js"
+export { TerminalTaskQueueScreen } from "./task-queue-screen.js"

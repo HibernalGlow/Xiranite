@@ -53,6 +53,18 @@ export async function cancelNodeOperationOnLocalBackend<TData = unknown>(operati
   return operation
 }
 
+export async function pauseNodeOperationOnLocalBackend<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>> {
+  const operation = await getNodeClient().pauseNodeOperation<TData>(operationId)
+  useNodeOperations.getState().upsertOperation(operation)
+  return operation
+}
+
+export async function resumeNodeOperationOnLocalBackend<TData = unknown>(operationId: string): Promise<NodeOperationDTO<TData>> {
+  const operation = await getNodeClient().resumeNodeOperation<TData>(operationId)
+  useNodeOperations.getState().upsertOperation(operation)
+  return operation
+}
+
 export async function cleanupNodeOperationsOnLocalBackend(options?: { maxAgeMs?: number }): Promise<NodeOperationCleanupResponseDTO> {
   return getNodeClient().cleanupNodeOperations(options)
 }

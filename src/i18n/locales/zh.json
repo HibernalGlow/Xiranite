@@ -656,6 +656,7 @@
       "phase": {
         "queued": "排队",
         "running": "运行中",
+        "paused": "已暂停",
         "completed": "已完成",
         "error": "错误",
         "cancelled": "已取消"

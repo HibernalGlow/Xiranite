@@ -1,8 +1,8 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Activity, CheckCircle2, CircleAlert, CircleSlash, Clock3, RotateCcw, Square, Trash2 } from "lucide-react"
+import { Activity, CheckCircle2, CircleAlert, CircleSlash, Clock3, Pause, Play, RotateCcw, Square, Trash2 } from "lucide-react"
 import type { NodeOperationPhaseDTO } from "@xiranite/shared"
-import { cancelNodeOperationOnLocalBackend, cleanupNodeOperationsOnLocalBackend } from "@/backend/nodeRpcClient"
+import { cancelNodeOperationOnLocalBackend, cleanupNodeOperationsOnLocalBackend, pauseNodeOperationOnLocalBackend, resumeNodeOperationOnLocalBackend } from "@/backend/nodeRpcClient"
 import { cn } from "@/lib/utils"
 import { activeNodeOperationCount, isTerminalPhase, type TrackedNodeOperation, useNodeOperations } from "@/store/nodeOperations"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
 const PHASE_ICON: Record<NodeOperationPhaseDTO, typeof Clock3> = {
   queued: Clock3,
   running: Activity,
+  paused: Pause,
   completed: CheckCircle2,
   error: CircleAlert,
   cancelled: CircleSlash,
@@ -19,6 +20,7 @@ const PHASE_ICON: Record<NodeOperationPhaseDTO, typeof Clock3> = {
 const PHASE_CLASS: Record<NodeOperationPhaseDTO, string> = {
   queued: "border-muted-foreground/30 text-muted-foreground",
   running: "border-primary/40 bg-primary/10 text-primary",
+  paused: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
   completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   error: "border-destructive/40 bg-destructive/10 text-destructive",
   cancelled: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
@@ -50,6 +52,18 @@ export function NodeOperationMonitor() {
     } finally {
       setBusyOperationId(null)
     }
+  }
+
+  async function pauseOperation(operationId: string) {
+    setBusyOperationId(operationId)
+    try { upsertOperation(await pauseNodeOperationOnLocalBackend(operationId)) }
+    finally { setBusyOperationId(null) }
+  }
+
+  async function resumeOperation(operationId: string) {
+    setBusyOperationId(operationId)
+    try { upsertOperation(await resumeNodeOperationOnLocalBackend(operationId)) }
+    finally { setBusyOperationId(null) }
   }
 
   async function cleanupFinished() {
@@ -106,6 +120,8 @@ export function NodeOperationMonitor() {
                 operation={operation}
                 busy={busyOperationId === operation.operationId}
                 onCancel={() => cancelOperation(operation.operationId)}
+                onPause={() => pauseOperation(operation.operationId)}
+                onResume={() => resumeOperation(operation.operationId)}
               />
             ))}
           </div>
@@ -146,10 +162,14 @@ function OperationRow({
   operation,
   busy,
   onCancel,
+  onPause,
+  onResume,
 }: {
   operation: TrackedNodeOperation
   busy: boolean
   onCancel: () => void
+  onPause: () => void
+  onResume: () => void
 }) {
   const { t } = useTranslation()
   const terminal = isTerminalPhase(operation.phase)
@@ -169,12 +189,16 @@ function OperationRow({
             {operation.lastMessage || operation.result?.message || t("view:operations.noMessage")}
           </div>
         </div>
-        {!terminal && (
+        {!terminal && <div className="flex gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={busy} onClick={operation.phase === "paused" ? onResume : onPause}>
+            {operation.phase === "paused" ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+            {operation.phase === "paused" ? "继续" : "暂停"}
+          </Button>
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={busy} onClick={onCancel}>
             <Square className="h-3 w-3" />
             {t("view:operations.cancel")}
           </Button>
-        )}
+        </div>}
       </div>
 
       {typeof progress === "number" && (

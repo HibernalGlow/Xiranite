@@ -6,6 +6,8 @@ import { act } from "react"
 import type { TerminalInteractionDefinition } from "../../interaction.js"
 import type { TerminalPreferenceValues } from "../index.js"
 import { OpenTuiTerminalApp } from "./app.js"
+import { TerminalTaskQueueScreen } from "./task-queue-screen.js"
+import { TerminalThemeProvider, resolveTerminalTheme } from "../theme.js"
 
 interface DemoInput {
   action: string
@@ -78,6 +80,30 @@ function createDefinition(onRun?: (input: DemoInput) => void): TerminalInteracti
 }
 
 describe("OpenTUI terminal adapter", () => {
+  test("lists and controls backend operations from the shared task queue", async () => {
+    let action = ""
+    const controller = {
+      available: true,
+      list: async () => [{ operationId: "op-1", nodeId: "sleept", phase: "running" as const, createdAt: 1, updatedAt: 1, eventCount: 2 }],
+      pause: async () => { action = "pause" },
+      resume: async () => { action = "resume" },
+      cancel: async () => { action = "cancel" },
+      run: async () => ({ success: true, message: "done" }),
+    }
+    let setup!: Awaited<ReturnType<typeof testRender>>
+    await act(async () => { setup = await testRender(<TerminalThemeProvider theme={resolveTerminalTheme("nord")}><TerminalTaskQueueScreen controller={controller} onBack={() => undefined} /></TerminalThemeProvider>, { width: 100, height: 28, useMouse: true }) })
+    try {
+      await act(async () => setup.renderOnce())
+      await setup.waitFor(() => setup.renderer.root.findDescendantById("task-pause") !== undefined)
+      const pause = setup.renderer.root.findDescendantById("task-pause")!
+      await act(async () => setup.mockMouse.click(pause.x + 1, pause.y + 1))
+      await setup.waitFor(() => action === "pause")
+      const cancel = setup.renderer.root.findDescendantById("task-cancel")!
+      await act(async () => setup.mockMouse.click(cancel.x + 1, cancel.y + 1))
+      await setup.waitFor(() => action === "cancel")
+    } finally { await act(async () => setup.renderer.destroy()) }
+  })
+
   test("renders the full shared workbench at the terminal dimensions", async () => {
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     let setup!: Awaited<ReturnType<typeof testRender>>

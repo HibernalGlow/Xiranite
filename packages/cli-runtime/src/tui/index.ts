@@ -4,6 +4,7 @@ import { resolveTerminalLanguage, type TerminalLanguage } from "./i18n.js"
 import { isBunRuntime, reexecTerminalUiWithBun } from "./bun-runtime.js"
 import { listTerminalThemes } from "./theme.js"
 import type { ReactNode } from "react"
+import { bindDefinitionToTaskQueue, createTerminalTaskQueueController, type TerminalTaskQueueController } from "./task-queue.js"
 
 export interface TerminalUiScreenProps<Input, Result> {
   definition: TerminalInteractionDefinition<Input, Result>
@@ -24,6 +25,7 @@ export interface RunTerminalUiOptions<Input = unknown, Result = unknown> {
   preferences?: TerminalPreferenceController
   screen?: TerminalUiScreen<Input, Result>
   loadScreen?: () => Promise<TerminalUiScreen<Input, Result>>
+  taskQueue?: TerminalTaskQueueController
 }
 
 export interface TerminalPreferenceValues {
@@ -123,7 +125,9 @@ export async function runInteractionCli<Context, Input, Result>(options: RunInte
     return
   }
   const values: TerminalPreferenceValues = { theme: flags.theme ?? "inherit", defaultMode: loaded.preferences.mode, language: flags.language }
-  await (options.runUi ?? runTerminalUi)(definition, {
+  const taskQueue = createTerminalTaskQueueController(host.env)
+  const uiDefinition = bindDefinitionToTaskQueue(definition, taskQueue)
+  await (options.runUi ?? runTerminalUi)(uiDefinition, {
     host,
     renderer: flags.renderer,
     language: flags.language,
@@ -131,6 +135,7 @@ export async function runInteractionCli<Context, Input, Result>(options: RunInte
     preferences: options.createPreferences?.(loaded.value, values),
     screen: options.screen,
     loadScreen: options.loadScreen,
+    taskQueue,
     reexec: options.reexecEntrypoint ? { entrypoint: options.reexecEntrypoint, args } : undefined,
   })
 }
@@ -148,3 +153,4 @@ export {
 } from "./i18n.js"
 export { listTerminalThemes, registerTerminalTheme, resolveTerminalTheme, type TerminalTheme } from "./theme.js"
 export { isBunRuntime, reexecTerminalUiWithBun } from "./bun-runtime.js"
+export { bindDefinitionToTaskQueue, createTerminalTaskQueueController, type TerminalTaskQueueController, type TerminalTaskQueueItem } from "./task-queue.js"

@@ -41,6 +41,7 @@
     "test": "vitest run src/index.test.ts src/browser-boundary.test.ts src/tui/interaction-cli.test.ts && bun test src/tui/opentui/app.bun.test.tsx"
   },
   "dependencies": {
+    "@xiranite/api": "workspace:*",
     "@clack/prompts": "^1.7.0",
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
