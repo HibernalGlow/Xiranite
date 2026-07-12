@@ -111,12 +111,6 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
 
   async function execute(nextAction: ClassfAction = action) {
     if (running) return
-    if (!splitLines(dataRef.current.pathsText).length) {
-      const message = "Add at least one selected source path before running ClassF."
-      patch({ phase: "error", progress: 0, progressText: message })
-      pushLog(message)
-      return
-    }
     const run = host.runner?.run ?? host.actions?.run
     if (!run) {
       const message = "Native execution is unavailable in this host. Use the desktop backend or CLI."
@@ -339,11 +333,12 @@ function TransferToggle(props: { disabled?: boolean; value: ClassfTransferMode; 
 function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<ClassfCardState>) => void }) {
   return (
     <div className="grid gap-1.5">
-      {!props.compact && <Label htmlFor="classf-paths" className="text-xs">Selected source paths</Label>}
+      {!props.compact && <Label htmlFor="classf-paths" className="text-xs">SameA archive roots</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <Textarea id="classf-paths" aria-label="classf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"One selected file or folder per line\nD:/set/reviewed.zip"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label="Paste paths" onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="Clear paths" onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
+      <Textarea aria-label="classf crashu sources" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-12" : "h-20")} disabled={props.disabled} placeholder="CrashU source directory per line" value={props.data.crashuSourcesText ?? ""} onChange={(event) => props.onPatch({ crashuSourcesText: event.currentTarget.value })} />
     </div>
   )
 }
@@ -531,6 +526,7 @@ function buildInput(action: ClassfAction, data: ClassfCardState): ClassfInput {
   return {
     action,
     paths: splitLines(data.pathsText),
+    crashuSourcePaths: splitLines(data.crashuSourcesText),
     targetDir: clean(data.targetDir),
     transferMode: data.transferMode ?? "move",
     classifyMode: data.classifyMode ?? "auto",

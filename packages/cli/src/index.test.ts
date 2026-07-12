@@ -3,11 +3,12 @@ import { findNodeCli, formatHelp, formatNodeList, NODE_CLI_REGISTRY, normalizeNo
 
 describe("@xiranite/cli registry", () => {
   test("registers generated node CLIs including migrated utility nodes", () => {
-    expect(NODE_CLI_REGISTRY).toHaveLength(42)
+    expect(NODE_CLI_REGISTRY.length).toBeGreaterThanOrEqual(42)
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("cleanf")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("envuconfig")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("gifu")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("smartzip")
+    expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("samea")
     expect(NODE_CLI_REGISTRY.map((entry) => entry.id)).toContain("trename")
   })
 

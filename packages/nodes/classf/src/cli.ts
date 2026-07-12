@@ -12,6 +12,11 @@ import { createClassfInteractionSchema, type ClassfInteractionValues } from "./i
 import { help } from "./help.js"
 
 interface ClassfNodeConfig {
+  crashu_source_paths?: string[]
+  crashu_similarity_threshold?: number
+  samea_min_occurrences?: number
+  samea_centralize?: boolean
+  samea_ignore_path_blacklist?: boolean
   target_dir?: string
   transfer_mode?: ClassfTransferMode
   classify_mode?: ClassfClassifyMode
@@ -41,7 +46,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -62,6 +67,11 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   const input: ClassfInput = {
     action,
     paths,
+    crashuSourcePaths: valueFor(args, "--crashu-source")?.split(/[,\r\n]+/).map((path) => path.trim()).filter(Boolean) ?? config?.crashu_source_paths,
+    crashuSimilarityThreshold: numberFor(args, "--similarity") ?? config?.crashu_similarity_threshold,
+    sameaMinOccurrences: numberFor(args, "--samea-min") ?? config?.samea_min_occurrences,
+    sameaCentralize: args.includes("--samea-centralize") || config?.samea_centralize,
+    sameaIgnorePathBlacklist: args.includes("--samea-ignore-path-blacklist") || config?.samea_ignore_path_blacklist,
     targetDir: valueFor(args, "--target") ?? config?.target_dir,
     transferMode: valueFor(args, "--transfer") as ClassfTransferMode | undefined ?? config?.transfer_mode,
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,
@@ -81,11 +91,16 @@ if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
-  const valueOptions = new Set(["--target", "--transfer", "--classify", "--existing"])
+  const valueOptions = new Set(["--target", "--transfer", "--classify", "--existing", "--crashu-source", "--similarity", "--samea-min"])
   return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
 }
 
 function valueFor(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)
   return index >= 0 ? args[index + 1] : undefined
+}
+
+function numberFor(args: string[], flag: string): number | undefined {
+  const value = valueFor(args, flag)
+  return value === undefined ? undefined : Number(value)
 }

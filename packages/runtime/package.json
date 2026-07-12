@@ -30,6 +30,7 @@
     "@xiranite/node-bitv": "workspace:*",
     "@xiranite/node-classf": "workspace:*",
     "@xiranite/node-classq": "workspace:*",
+    "@xiranite/node-samea": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-coveru": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",

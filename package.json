@@ -85,6 +85,7 @@
     "@xiranite/node-classf": "workspace:*",
     "@xiranite/node-classq": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
+    "@xiranite/node-samea": "workspace:*",
     "@xiranite/node-coveru": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",

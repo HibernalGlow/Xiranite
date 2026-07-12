@@ -2,17 +2,16 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   title: "ClassF",
-  short: "Classify selected paths into already, wait, or a target folder.",
-  description: "Plan and apply native move/copy transfers for selected files and folders. Auto mode sends selected items to already and remaining siblings to wait; it requires individual selected items rather than a single directory root.",
+  short: "Run the SameA, CrashU, and MigrateF archive-classification pipeline.",
+  description: "ClassF directly orchestrates SameA artist extraction, CrashU folder matching, and MigrateF already/wait transfers with the original pipeline defaults. It reads SameA roots from the clipboard.",
   whenToUse: [
-    "Use ClassF when a folder has reviewed items and remaining items that need to be split into already and wait queues.",
-    "In auto mode, paste the individual reviewed items inside the folder. A lone folder path is rejected so ClassF cannot reorganize its parent by mistake.",
+    "Use ClassF when archive roots should first be organized by SameA, then matched against CrashU source folders and classified with MigrateF.",
   ],
   workflows: [
     {
-      title: "Auto classify",
-      summary: "Move selected items to already and other siblings to wait.",
-      ui: ["Paste selected source paths.", "Keep classify mode on auto.", "Preview the already/wait split before live classify."],
+      title: "Pipeline classify",
+      summary: "Extract artist folders, match them, then send matching folders to already and unmatched siblings to wait.",
+      ui: ["Copy SameA archive roots to the clipboard.", "Run the default pipeline preview.", "Review the pipeline result before live classify."],
     },
     {
       title: "Direct target",

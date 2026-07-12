@@ -6,9 +6,9 @@ export const def = {
   name: "ClassF",
   version: "0.1.0",
   category: "file",
-  description: "Plan and apply native already/wait classification transfers.",
+  description: "Orchestrate SameA artist extraction, CrashU matching, and MigrateF classification transfers.",
   icon: "Workflow",
-  keywords: ["classify", "transfer", "already", "wait", "move"],
+  keywords: ["samea", "crashu", "migratef", "classify", "transfer", "archive"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

@@ -41,6 +41,9 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "@xiranite/node-crashu": "workspace:*",
+    "@xiranite/node-migratef": "workspace:*",
+    "@xiranite/node-samea": "workspace:*",
     "react": "^19.2.4"
   },
   "devDependencies": {

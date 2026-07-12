@@ -25,7 +25,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "classf",
     packageName: "@xiranite/node-classf",
     bin: nodeCliName("classf"),
-    description: "Plan and apply native already/wait classification transfers.",
+    description: "Orchestrate SameA artist extraction, CrashU matching, and MigrateF classification transfers.",
   },
   {
     id: "classq",
@@ -188,6 +188,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-repacku",
     bin: nodeCliName("repacku"),
     description: "Analyze folder structures and repack matching folders into zip archives.",
+  },
+  {
+    id: "samea",
+    packageName: "@xiranite/node-samea",
+    bin: nodeCliName("samea"),
+    description: "Extract artist metadata from archive names and organize matching archives.",
   },
   {
     id: "scoolp",

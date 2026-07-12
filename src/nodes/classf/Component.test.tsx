@@ -73,6 +73,7 @@ describe("app-owned classf Component", () => {
     const host = createHost({
       action: "plan",
       pathsText: "D:/set/a.zip",
+      crashuSourcesText: "D:/library",
       classifyMode: "auto",
       transferMode: "move",
       dryRun: true,
@@ -89,6 +90,7 @@ describe("app-owned classf Component", () => {
       input: {
         action: "plan",
         paths: ["D:/set/a.zip"],
+        crashuSourcePaths: ["D:/library"],
         targetDir: undefined,
         transferMode: "move",
         classifyMode: "auto",
@@ -102,7 +104,7 @@ describe("app-owned classf Component", () => {
 
   test("requires confirmation before live classify execution", async () => {
     setSurface("regular")
-    const host = createHost({ action: "classify", pathsText: "D:/set/a.zip", dryRun: false, logs: [] })
+    const host = createHost({ action: "classify", pathsText: "D:/set/a.zip", crashuSourcesText: "D:/library", dryRun: false, logs: [] })
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
@@ -117,7 +119,7 @@ describe("app-owned classf Component", () => {
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
   })
 
-  test("marks the card as error when run has no paths", async () => {
+  test("allows an empty form so ClassF can use clipboard defaults", async () => {
     setSurface("regular")
     const host = createHost({ action: "plan", logs: [] })
     render(<Component compId="comp-classf" host={host} />)
@@ -125,9 +127,9 @@ describe("app-owned classf Component", () => {
 
     await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
 
-    expect(host.runCalls).toHaveLength(0)
-    await waitFor(() => expect(host.cardState.phase).toBe("error"))
-    expect(host.cardState.progressText).toContain("source path")
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input).toEqual(expect.objectContaining({ paths: [], crashuSourcePaths: [] }))
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
   })
 })
 

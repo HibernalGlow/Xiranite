@@ -5,6 +5,7 @@ export type ClassfPhase = "idle" | "running" | "completed" | "error"
 export interface ClassfCardState {
   action?: ClassfAction
   pathsText?: string
+  crashuSourcesText?: string
   targetDir?: string
   transferMode?: ClassfTransferMode
   classifyMode?: ClassfClassifyMode
@@ -27,6 +28,7 @@ export interface ClassfStatusMeta {
 
 export const CONFIG_FIELDS = [
   "pathsText",
+  "crashuSourcesText",
   "targetDir",
   "transferMode",
   "classifyMode",
