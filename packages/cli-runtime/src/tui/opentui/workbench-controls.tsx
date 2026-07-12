@@ -191,6 +191,8 @@ export function WorkbenchButton({
       borderColor={color}
       paddingLeft={1}
       paddingRight={1}
+      justifyContent="center"
+      alignItems="center"
       onMouseDown={disabled ? undefined : onClick}
       onMouseOver={disabled ? undefined : () => setHovered(true)}
       onMouseOut={disabled ? undefined : () => setHovered(false)}
@@ -229,6 +231,9 @@ export function ClickTarget({
       paddingRight={1}
       borderStyle={bordered ? "rounded" : undefined}
       borderColor={bordered ? color : undefined}
+      height={bordered ? 3 : 1}
+      justifyContent="center"
+      alignItems="center"
       onMouseDown={disabled ? undefined : onClick}
       onMouseOver={disabled ? undefined : () => setHovered(true)}
       onMouseOut={disabled ? undefined : () => setHovered(false)}

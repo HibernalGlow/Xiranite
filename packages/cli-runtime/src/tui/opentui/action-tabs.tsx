@@ -27,7 +27,7 @@ export function ActionTabs({
   onChange: (value: InteractionValue) => void
 }) {
   return (
-    <box id={id} flexDirection="row" flexWrap="wrap" minHeight={2}>
+    <box id={id} flexDirection="row" flexWrap="wrap" minHeight={3} alignItems="center">
       {options.map((option) => (
         <ActionTab
           key={String(option.value)}
@@ -68,10 +68,15 @@ function ActionTab({
   return (
     <box
       id={id}
-      borderStyle={selected ? "single" : undefined}
-      borderColor={selected ? color : undefined}
+      // Keep the border on every tab. Toggling it changed the terminal row
+      // count and made inactive labels appear to float above the active tab.
+      borderStyle="rounded"
+      borderColor={selected ? color : theme.colors.border}
+      height={3}
       paddingLeft={1}
       paddingRight={1}
+      justifyContent="center"
+      alignItems="center"
       onMouseDown={disabled ? undefined : onClick}
       onMouseOver={disabled ? undefined : () => setHovered(true)}
       onMouseOut={disabled ? undefined : () => setHovered(false)}

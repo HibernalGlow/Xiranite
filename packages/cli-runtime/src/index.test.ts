@@ -15,7 +15,7 @@ import {
   resolveInteractionPreferences,
   resolveTerminalUiFlags,
 } from "./interaction.js"
-import { listTerminalThemes, runTerminalUi } from "./terminal.js"
+import { listTerminalThemes, resolveTerminalTheme, runTerminalUi } from "./terminal.js"
 
 describe("cli-runtime", () => {
   test("derives short node command names and normalizes legacy names", () => {
@@ -98,7 +98,8 @@ describe("cli-runtime", () => {
   })
 
   test("shares terminal themes and GUI-compatible Chinese common labels", () => {
-    expect(listTerminalThemes()).toEqual(expect.arrayContaining(["default", "dracula", "high-contrast"]))
+    expect(listTerminalThemes()).toEqual(expect.arrayContaining(["nord", "default", "dracula", "high-contrast", "tokyo-night"]))
+    expect(resolveTerminalTheme().name).toBe("nord")
     const zh = createTerminalTranslator("zh")
     expect(zh("cancel")).toBe("取消")
     expect(zh("confirm")).toBe("确认")

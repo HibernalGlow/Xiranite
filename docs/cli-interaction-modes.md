@@ -135,10 +135,10 @@ read and write the separate `nodes.<id>.ui` table.
 
 ## Shared themes and i18n
 
-OpenTUI consumes the shared terminal theme registry. The initial registry
-contains `default`, `dracula`, and `high-contrast` palettes and can be
-extended through `registerTerminalTheme`; nodes never define renderer-specific
-colours.
+OpenTUI consumes the complete checked-in termcn OpenTUI theme registry; Nord
+is the global CLI fallback. The local snapshot and exact current theme list
+live in `docs/termcn-registry.md`. Nodes never define renderer-specific
+colours and may extend the shared registry only through `registerTerminalTheme`.
 
 Internationalisation uses `i18next` core in independently distributed CLI
 packages. Do not import the browser singleton or `react-i18next` into a CLI.

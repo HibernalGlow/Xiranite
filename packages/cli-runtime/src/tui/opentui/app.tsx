@@ -30,7 +30,7 @@ export function OpenTuiTerminalApp<Input, Result>({
   const t = createTerminalTranslator(language)
   const [previewTheme, setPreviewTheme] = useState(theme ?? preferences?.current.theme ?? "inherit")
   return (
-    <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "default" : previewTheme)}>
+    <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}>
       <OpenTuiTerminalScreen definition={definition} preferences={preferences} onThemePreview={setPreviewTheme} onExit={onExit} t={t} />
     </TerminalThemeProvider>
   )
@@ -261,14 +261,16 @@ export function TerminalPreferencesScreen({ controller, focusedId, onFocus, onPr
   return (
     <box width="100%" height="100%" flexDirection="column" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1}>
       <WorkbenchPanel title={`${terminalIcon("settings")} ${controller.nodeId} CLI 设置`} description="主题可即时预览；启动模式只影响无参数 CLI。" flexGrow={1}>
-        <box flexDirection="column" gap={1}>
+        <box flexDirection="column">
           <text fg={theme.colors.mutedForeground}>主题</text>
-          <ActionTabs id="pref-theme" options={["inherit", ...listTerminalThemes()].map((value) => ({ value, label: value }))} value={values.theme} focused={focusedId === "pref-theme"} onFocus={() => onFocus("pref-theme")} onChange={(value) => update({ theme: String(value) })} />
+          <box height={3} flexShrink={0} overflow="hidden">
+            <ActionTabs id="pref-theme" options={["inherit", ...listTerminalThemes()].map((value) => ({ value, label: value }))} value={values.theme} focused={focusedId === "pref-theme"} onFocus={() => onFocus("pref-theme")} onChange={(value) => update({ theme: String(value) })} />
+          </box>
           <text fg={theme.colors.mutedForeground}>默认启动模式</text>
           <ActionTabs id="pref-mode" options={[{ value: "ui", label: "UI" }, { value: "gd", label: "引导" }, { value: "pipe", label: "纯命令行" }]} value={values.defaultMode} focused={focusedId === "pref-mode"} onFocus={() => onFocus("pref-mode")} onChange={(value) => update({ defaultMode: value as TerminalPreferenceValues["defaultMode"] })} />
           <text fg={theme.colors.mutedForeground}>语言</text>
           <ActionTabs id="pref-language" options={[{ value: "zh", label: "中文" }, { value: "en", label: "English" }]} value={values.language} focused={focusedId === "pref-language"} onFocus={() => onFocus("pref-language")} onChange={(value) => update({ language: value as TerminalPreferenceValues["language"] })} />
-          <box borderStyle="rounded" borderColor={theme.colors.focusRing} paddingLeft={1} paddingRight={1} flexDirection="column">
+          <box borderStyle="rounded" borderColor={theme.colors.focusRing} height={3} flexShrink={0} paddingLeft={1} paddingRight={1} flexDirection="row" gap={2} alignItems="center">
             <text fg={theme.colors.primary}><b>{`${terminalIcon("result")} 主题预览 / ${values.theme}`}</b></text>
             <box flexDirection="row" gap={2}><text fg={theme.colors.foreground}>主要文字</text><text fg={theme.colors.mutedForeground}>次要文字</text><text fg={theme.colors.success}>成功</text><text fg={theme.colors.warning}>警告</text><text fg={theme.colors.error}>危险</text></box>
           </box>

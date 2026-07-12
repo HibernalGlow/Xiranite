@@ -25,7 +25,7 @@ import type { RecycleuInput, RecycleuResult } from "./core.js"
 export function RecycleuTui(props: TerminalUiScreenProps<RecycleuInput, RecycleuResult>) {
   const [theme, setTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return (
-    <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "default" : theme)}>
+    <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}>
       <RecycleuWorkbench {...props} onThemePreview={setTheme} />
     </TerminalThemeProvider>
   )
