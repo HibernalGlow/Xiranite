@@ -17,7 +17,7 @@ const definition: TerminalInteractionDefinition<{ action: string }, { success: b
 afterEach(() => { process.exitCode = 0 })
 
 describe("shared interaction CLI dispatcher", () => {
-  test("renders package-owned help for CLI and passes it into GD", async () => {
+  test("renders package-owned help only when explicitly requested", async () => {
     const adapters = createAdapters()
     const helpHost = createMemoryCliHost()
     await dispatch(["--help"], helpHost, adapters)
@@ -25,7 +25,7 @@ describe("shared interaction CLI dispatcher", () => {
     expect(adapters.runPipe).not.toHaveBeenCalled()
 
     await dispatch(["gd"], createMemoryCliHost({ tty: true }), adapters)
-    expect(adapters.runGuide).toHaveBeenCalledWith(definition, expect.objectContaining({ help: expect.objectContaining({ title: "Demo" }) }))
+    expect(adapters.runGuide).toHaveBeenCalledWith(definition, expect.not.objectContaining({ help: expect.anything() }))
   })
 
   test.each(explicitInteractionModes)("rejects %s without a TTY", async (mode) => {
@@ -48,6 +48,22 @@ describe("shared interaction CLI dispatcher", () => {
     expect(adapters.runUi).toHaveBeenCalledTimes(1)
     expect(adapters.runPipe).toHaveBeenCalledWith(["status", "--json"], expect.anything())
   })
+
+  test("passes the resolved Nord preference into the settings controller", async () => {
+    let current: unknown
+    const adapters = createAdapters()
+    const host = createMemoryCliHost({ tty: true })
+    await runInteractionCli({
+      args: [], host, cliName: "xdemo",
+      loadContext: async () => ({ preferences: { mode: "ui", renderer: "opentui", language: "zh", theme: "nord" }, value: {} }),
+      createDefinition: () => definition,
+      runPipe: adapters.runPipe,
+      runUi: adapters.runUi,
+      runGuide: adapters.runGuide,
+      createPreferences: (_value, values) => { current = values; return { nodeId: "demo", current: values, save: async () => undefined, restore: async () => values } },
+    })
+    expect(current).toEqual({ theme: "nord", defaultMode: "ui", language: "zh" })
+  })
 })
 
 function createAdapters() {
@@ -57,7 +73,7 @@ function createAdapters() {
 async function dispatch(args: string[], host: ReturnType<typeof createMemoryCliHost>, adapters: ReturnType<typeof createAdapters>, mode: "ui" | "gd" | "pipe" = "ui") {
   await runInteractionCli({
     args, host, cliName: "xdemo",
-    loadContext: async () => ({ preferences: { mode, renderer: "opentui", language: "zh", theme: "inherit" }, value: {} }),
+    loadContext: async () => ({ preferences: { mode, renderer: "opentui", language: "zh", theme: "nord" }, value: {} }),
     createDefinition: () => definition,
     runPipe: adapters.runPipe,
     runUi: adapters.runUi,

@@ -59,7 +59,7 @@ export function TerminalRoot({ taskQueue, help, language, preferences, theme: re
   const [showQueue, setShowQueue] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
-  const [previewTheme, setPreviewTheme] = useState(requestedTheme ?? preferences?.current.theme ?? "inherit")
+  const [previewTheme, setPreviewTheme] = useState(requestedTheme ?? preferences?.current.theme ?? "nord")
   const [chromeActions, setChromeActions] = useState<TerminalChromeActions>()
   useKeyboard((key) => {
     if (key.name === "f9") setShowQueue((value) => !value)

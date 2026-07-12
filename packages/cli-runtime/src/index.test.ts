@@ -93,8 +93,9 @@ describe("cli-runtime", () => {
       interaction_mode: "gd",
       interaction_language: "en",
       interaction_theme: "legacy",
-    } as never)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "inherit" })
-    expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "inherit" })
+    } as never)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "nord" })
+    expect(resolveInteractionPreferences(undefined)).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "nord" })
+    expect(resolveInteractionPreferences({ cli: { theme: "inherit" } })).toEqual({ mode: "ui", renderer: "opentui", language: undefined, theme: "inherit" })
   })
 
   test("shares terminal themes and GUI-compatible Chinese common labels", () => {

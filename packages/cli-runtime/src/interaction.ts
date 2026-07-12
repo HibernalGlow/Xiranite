@@ -225,10 +225,11 @@ export function resolveTerminalUiFlags(
 }
 
 export function resolveInteractionPreferences(source: CliInteractionPreferencesSource | undefined): CliInteractionPreferences {
+  const configuredTheme = source?.cli?.theme?.trim().toLowerCase()
   return {
     mode: source?.cli?.default_mode ?? "ui",
     renderer: source?.cli?.renderer ?? "opentui",
     language: source?.cli?.language,
-    theme: source?.cli?.theme?.trim() || "inherit",
+    theme: configuredTheme || "nord",
   }
 }

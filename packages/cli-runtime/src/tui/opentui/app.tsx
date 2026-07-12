@@ -30,7 +30,7 @@ export function OpenTuiTerminalApp<Input, Result>({
   onExit: () => void
 }) {
   const t = createTerminalTranslator(language)
-  const [previewTheme, setPreviewTheme] = useState(theme ?? preferences?.current.theme ?? "inherit")
+  const [previewTheme, setPreviewTheme] = useState(theme ?? preferences?.current.theme ?? "nord")
   return (
     <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}>
       <OpenTuiTerminalScreen definition={definition} preferences={preferences} onThemePreview={setPreviewTheme} onExit={onExit} t={t} />

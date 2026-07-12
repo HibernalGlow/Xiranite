@@ -131,10 +131,10 @@ export async function runInteractionCli<Context, Input, Result>(options: RunInte
 
   const definition = options.createDefinition(loaded.value, flags.language)
   if (invocation === "gd") {
-    await (options.runGuide ?? runGuidedInteraction)(definition, { host, language: flags.language, help: options.help })
+    await (options.runGuide ?? runGuidedInteraction)(definition, { host, language: flags.language })
     return
   }
-  const values: TerminalPreferenceValues = { theme: flags.theme ?? "inherit", defaultMode: loaded.preferences.mode, language: flags.language }
+  const values: TerminalPreferenceValues = { theme: flags.theme ?? loaded.preferences.theme ?? "nord", defaultMode: loaded.preferences.mode, language: flags.language }
   const taskQueue = createTerminalTaskQueueController(host.env)
   const uiDefinition = bindDefinitionToTaskQueue(definition, taskQueue)
   await (options.runUi ?? runTerminalUi)(uiDefinition, {
