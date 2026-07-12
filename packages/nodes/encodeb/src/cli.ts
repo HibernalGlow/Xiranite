@@ -22,13 +22,19 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
+import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths, runEncodeb } from "./core.js"
 import { createNodeEncodebRuntime, readClipboardText } from "./platform.js"
+import { createEncodebInteractionSchema, type EncodebInteractionValues } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("encodeb")
 const PREVIEW_LIMIT = 40
@@ -43,7 +49,7 @@ interface EncodebCliOptions {
   json?: boolean
 }
 
-interface EncodebNodeConfig {
+interface EncodebNodeConfig extends CliInteractionPreferencesSource {
   preset?: string
   src_encoding?: string
   dst_encoding?: string
@@ -127,13 +133,20 @@ export const cli: CliCommand = {
 export const program = createProgram()
 
 export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
-  if (args.length === 0) {
-    await runGuided(host)
-    return
-  }
-
-  await runMain(createProgram(host), { rawArgs: args })
+  await runInteractionCli({ args, host, cliName: CLI_NAME,
+    loadContext: async () => { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+    createDefinition: createEncodebDefinition,
+    runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeUsage(pipeHost)),
+    runGuide: runGuidedInteraction, runUi: runTerminalUi,
+    loadScreen: async () => (await import("./Tui.js")).EncodebTui,
+    createPreferences: (_defaults, values) => createEncodebPreferences(host, values),
+    reexecEntrypoint: process.argv[1], help,
+  })
 }
+
+function createEncodebDefinition(defaults: EncodebNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EncodebInput, EncodebResult> { return { schema: createEncodebInteractionSchema({ preset: defaults.preset ?? "cn", srcEncoding: defaults.src_encoding ?? "cp437", dstEncoding: defaults.dst_encoding ?? "cp936", strategy: defaults.strategy === "copy" ? "copy" : "replace", limit: defaults.limit ?? 200 } satisfies Partial<EncodebInteractionValues>, language), run: (input, onEvent) => runEncodeb(input, createNodeEncodebRuntime(), onEvent) } }
+function createEncodebPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "encodeb", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "encodeb", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
+function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - filename encoding recovery`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} find|preview|recover <paths...> [--json]`) }
 
 function createDefaultHost(): CliHost {
   return {
