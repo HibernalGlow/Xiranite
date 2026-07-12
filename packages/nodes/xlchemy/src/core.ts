@@ -315,10 +315,11 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       if (resized.exitCode !== 0) throw new Error(resized.stderr.trim() || "ImageMagick downscaling failed.")
       encoderSource = temporarySource
     }
-    const invocation = input.format === "AVIF" && input.avifEncoder === "slimg" ? undefined : await encoderInvocation(encoderSource, plan.outputPath, input, runtime)
-    const result = invocation ? await runRuntimeCommand(runtime, invocation.command, invocation.args) : await runSlimgConversion(encoderSource, plan.outputPath, input, runtime)
+    const result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
+      ? await runIntelligentJxlComparison(encoderSource, plan.outputPath, input, runtime)
+      : await runEncoderConversion(encoderSource, plan.outputPath, input, runtime)
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${invocation?.command ?? "slimg CFFI"} exited with ${result.exitCode}`)
+    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Encoder exited with ${result.exitCode}`)
     if (input.format === "JPEG XL" && input.jxlVerify) {
       const decoder = await runtime.resolveCommand(["djxl"])
       if (!decoder) throw new Error("djxl is required for JPEG XL integrity verification.")
@@ -414,7 +415,7 @@ function downscaleArgs(settings: XlchemyDownscaleSettings): string[] {
 }
 
 async function encoderInvocation(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<{ command: string; args: string[] }> {
-  const quality = String(input.quality), effort = String(input.maxCompression ? 10 : input.effort), threads = String(await optimizedThreads(source, input, runtime))
+  const quality = String(input.quality), effort = String(input.intelligentEffort && input.format === "JPEG XL" && (input.lossless || input.jxlModular) ? 9 : input.maxCompression ? 10 : input.effort), threads = String(await optimizedThreads(source, input, runtime))
   const custom = (value?: string) => input.enableCustomArgs ? splitCommandArgs(value ?? "") : []
   const sourceExt = runtime.extname(source).toLowerCase(), jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(sourceExt)
   if (input.format === "Lossless JPEG Transcoding") return resolved(runtime, ["cjxl"], ["--lossless_jpeg=1", "-e", effort, "--num_threads", threads, ...custom(input.cjxlArgs), source, target])
@@ -435,6 +436,18 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
 }
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
+async function runEncoderConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (input.format === "AVIF" && input.avifEncoder === "slimg") return runSlimgConversion(source, target, input, runtime); const invocation = await encoderInvocation(source, target, input, runtime); return runRuntimeCommand(runtime, invocation.command, invocation.args) }
+async function runIntelligentJxlComparison(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> {
+  const effort9 = `${target}.effort-9.jxl`
+  const effort7Result = await runEncoderConversion(source, target, { ...input, intelligentEffort: false, effort: 7, maxCompression: false }, runtime)
+  if (effort7Result.exitCode !== 0 || runtime.isCancelled?.()) return effort7Result
+  const effort9Result = await runEncoderConversion(source, effort9, { ...input, intelligentEffort: false, effort: 9, maxCompression: false }, runtime)
+  if (effort9Result.exitCode !== 0) { if ((await runtime.pathInfo(effort9)).exists) await runtime.removeFile(effort9); return effort7Result }
+  const [effort7Info, effort9Info] = await Promise.all([runtime.pathInfo(target), runtime.pathInfo(effort9)])
+  if (effort9Info.exists && effort9Info.size < effort7Info.size) { await runtime.removeFile(target); await runtime.renameFile(effort9, target) }
+  else if (effort9Info.exists) await runtime.removeFile(effort9)
+  return effort7Result
+}
 async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg CFFI is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality); return { exitCode: 0, stdout: "slimg CFFI conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
 async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime) { const exiftool = await runtime.resolveCommand(["exiftool"]); if (!exiftool) return; const result = await runRuntimeCommand(runtime, exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target]); if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata copy failed.") }
 
