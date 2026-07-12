@@ -254,6 +254,12 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: () => import("@xiranite/node-trename/platform"),
     createRuntime: "createNodeTrenameRuntime",
   },
+  xlchemy: {
+    loadCore: () => import("@xiranite/node-xlchemy/core"),
+    run: "runXlchemy",
+    loadPlatform: () => import("@xiranite/node-xlchemy/platform"),
+    createRuntime: "createNodeXlchemyRuntime",
+  },
 }
 
 export const generatedNodeIds = Object.keys(generatedNodeSpecs).sort()

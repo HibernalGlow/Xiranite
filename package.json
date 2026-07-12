@@ -121,6 +121,7 @@
     "@xiranite/node-timeu": "workspace:*",
     "@xiranite/node-transq": "workspace:*",
     "@xiranite/node-trename": "workspace:*",
+    "@xiranite/node-xlchemy": "workspace:*",
     "@xiranite/packu-node-runtime": "workspace:*",
     "@xiranite/runtime": "workspace:*",
     "@xiranite/shared": "workspace:*",

@@ -19,6 +19,7 @@ const REFERENCE_ALIASES = {
   marku: "marku",
   scoolp: "scoolp_scoop_1",
   soundw: "songswitcher",
+  xlchemy: "xlchemcy/2",
 }
 const REFERENCE_ROOTS = [
   path.resolve(REPO_ROOT, "ref", "stitch_wuling_city_40nodes_design (1)"),

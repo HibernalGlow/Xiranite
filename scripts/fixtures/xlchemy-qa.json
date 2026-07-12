@@ -1,0 +1,37 @@
+{
+  "theme": "wuling",
+  "data": {
+    "action": "convert",
+    "pathsText": "D:/images/editorial/cover-master.png\nD:/images/editorial/spread-02.tif\nD:/images/editorial/product-alpha.jpg",
+    "format": "JPEG XL",
+    "lossless": false,
+    "quality": 88,
+    "effort": 7,
+    "threads": 12,
+    "outputMode": "source",
+    "preserveMetadata": true,
+    "preserveStructure": true,
+    "overwrite": false,
+    "recursive": true,
+    "selectedPreset": "balanced",
+    "phase": "completed",
+    "progress": 100,
+    "progressText": "3 张图片已完成格式校准。",
+    "logs": ["读取 3 个输入。", "JPEG XL 编码器准备完成。", "批次转换完成。"],
+    "result": {
+      "files": [
+        { "sourcePath": "D:/images/editorial/cover-master.png", "outputPath": "D:/images/editorial/cover-master.jxl", "sourceBytes": 18432000, "outputBytes": 4312000, "status": "converted" },
+        { "sourcePath": "D:/images/editorial/spread-02.tif", "outputPath": "D:/images/editorial/spread-02.jxl", "sourceBytes": 27840000, "outputBytes": 6940000, "status": "converted" },
+        { "sourcePath": "D:/images/editorial/product-alpha.jpg", "outputPath": "D:/images/editorial/product-alpha.jxl", "sourceBytes": 7920000, "outputBytes": 4520000, "status": "converted" }
+      ],
+      "inputCount": 3,
+      "convertedCount": 3,
+      "skippedCount": 0,
+      "errorCount": 0,
+      "inputBytes": 54192000,
+      "outputBytes": 15772000,
+      "elapsedMs": 18340,
+      "errors": []
+    }
+  }
+}
