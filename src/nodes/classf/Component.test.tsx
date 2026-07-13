@@ -99,6 +99,17 @@ describe("app-owned classf Component", () => {
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.items[0]?.targetRelative).toBe("already/a.zip")
+    expect(host.patches.some((patch) => patch.result === null)).toBe(false)
+  })
+
+  test("recovers a persisted phantom running state after remount", async () => {
+    setSurface("regular")
+    const host = createHost({ phase: "running", progress: 45, progressText: "stale run", result: null })
+    render(<Component compId="comp-classf" host={host} />)
+
+    await waitFor(() => expect(host.cardState.phase).toBe("idle"))
+    expect(host.cardState.progress).toBe(0)
+    expect(host.cardState.progressText).toBe("")
   })
 
   test("previews the planned target hierarchy in the file tree tab", async () => {

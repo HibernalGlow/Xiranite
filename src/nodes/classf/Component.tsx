@@ -69,6 +69,19 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   }, [reloadDefaults])
 
   useEffect(() => {
+    if (data.phase !== "running" || running) return
+    patch({
+      phase: data.result ? "completed" : "idle",
+      progress: data.result ? data.progress ?? 100 : 0,
+      progressText: data.result ? data.progressText : "",
+      runningItem: null,
+    })
+  // A persisted running phase cannot be resumed after an HMR/remount. Keep any
+  // preview result and recover to a stable state instead of showing a phantom run.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.phase, running])
+
+  useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
   }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.existingPolicy, data.dryRun, defaults])
@@ -124,7 +137,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
     }
     const nextAction = requestedAction === "classify" && !isPlanCurrent(dataRef.current) ? "plan" : requestedAction
     setRunning(true)
-    patch({ phase: "running", progress: 0, progressText: tNode(nextAction === "plan" ? "progress.buildingPlan" : "progress.executing", nextAction === "plan" ? "正在生成完整分类计划…" : "正在执行已确认的分类计划…"), result: nextAction === "plan" ? null : dataRef.current.result, runningItem: null })
+    patch({ progress: 0, progressText: tNode(nextAction === "plan" ? "progress.buildingPlan" : "progress.executing", nextAction === "plan" ? "正在生成完整分类计划…" : "正在执行已确认的分类计划…"), runningItem: null })
     try {
       const response = await run<ClassfInput, ClassfData>("classf", buildInput(nextAction, dataRef.current), (event: NodeRunEvent) => {
         const progressData = readProgressData(event.data)
