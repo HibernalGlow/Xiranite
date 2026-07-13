@@ -1,4 +1,4 @@
-import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfStage, ClassfTransferMode } from "@xiranite/node-classf/core"
 
 export type ClassfPhase = "idle" | "running" | "completed" | "error"
 
@@ -16,6 +16,8 @@ export interface ClassfCardState {
   progressText?: string
   logs?: string[]
   result?: ClassfData | null
+  planFingerprint?: string
+  runningItem?: { sourcePath: string; stage: ClassfStage } | null
 }
 
 export interface ClassfStatusMeta {

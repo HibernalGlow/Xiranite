@@ -7,7 +7,6 @@ import type { ClassfData, ClassfInput } from "@xiranite/node-classf/core"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import { Component } from "./Component"
-import { ACTIONS } from "./constants"
 import type { ClassfCardState } from "./types"
 
 const surfaceState = vi.hoisted(() => ({ height: 420, width: 720 }))
@@ -63,7 +62,7 @@ describe("app-owned classf Component", () => {
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
         expect(screen.getByTestId("classf-scan-sources")).toBeTruthy()
         expect(screen.getByTestId("classf-classification-matrix")).toBeTruthy()
-        expect(screen.getByRole("button", { name: ACTIONS[0]!.label })).toBeTruthy()
+        expect(screen.getByRole("button", { name: "生成计划" })).toBeTruthy()
       }
     },
   )
@@ -82,7 +81,7 @@ describe("app-owned classf Component", () => {
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
+    await user.click(screen.getByRole("button", { name: "生成计划" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -102,21 +101,30 @@ describe("app-owned classf Component", () => {
     expect(host.cardState.result?.items[0]?.targetRelative).toBe("already/a.zip")
   })
 
-  test("requires confirmation before live classify execution", async () => {
+  test("builds a reviewable plan before enabling confirmed live execution", async () => {
     setSurface("regular")
     const host = createHost({ action: "classify", pathsText: "D:/set/a.zip", crashuSourcesText: "D:/library", dryRun: false, logs: [] })
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[1]!.label }))
-    expect(host.runCalls).toHaveLength(0)
+    await user.click(screen.getByRole("button", { name: "先生成执行计划" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.action).toBe("plan")
+    expect(host.cardState.result?.items[0]?.targetPath).toBe("D:/set/already/a.zip")
+
+    cleanup()
+    render(<Component compId="comp-classf" host={host} />)
+    await user.click(screen.getByRole("button", { name: "执行分类" }))
+    expect(host.runCalls).toHaveLength(1)
 
     const dialog = screen.getByRole("alertdialog")
-    await user.click(within(dialog).getByRole("button", { name: "Confirm classify" }))
+    await user.click(within(dialog).getByRole("button", { name: "确认执行" }))
 
-    await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input.action).toBe("classify")
-    expect(host.runCalls[0]?.input.dryRun).toBe(false)
+    await waitFor(() => expect(host.runCalls).toHaveLength(2))
+    expect(host.runCalls[1]?.input.action).toBe("classify")
+    expect(host.runCalls[1]?.input.dryRun).toBe(false)
+    expect(host.patches).toContainEqual(expect.objectContaining({ runningItem: { sourcePath: "D:/set/a.zip", stage: "already" } }))
+    expect(host.cardState.result?.items[0]?.status).toBe("moved")
   })
 
   test("allows an empty form so ClassF can use clipboard defaults", async () => {
@@ -125,7 +133,7 @@ describe("app-owned classf Component", () => {
     render(<Component compId="comp-classf" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: ACTIONS[0]!.label }))
+    await user.click(screen.getByRole("button", { name: "生成计划" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input).toEqual(expect.objectContaining({ paths: [], crashuSourcePaths: [] }))
@@ -136,6 +144,7 @@ describe("app-owned classf Component", () => {
 type TestHost = NodeHostApi<ClassfCardState, Partial<ClassfCardState>> & {
   copiedText: string
   runCalls: Array<{ nodeId: string; input: ClassfInput }>
+  patches: Array<Partial<ClassfCardState>>
   savedConfig: Partial<ClassfCardState> | undefined
   cardState: ClassfCardState
 }
@@ -144,6 +153,7 @@ function createHost(initial: ClassfCardState): TestHost {
   const stateCapability = {
     getData: () => host.cardState,
     patchData: (patch: Partial<ClassfCardState>) => {
+      host.patches.push(patch)
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -151,6 +161,7 @@ function createHost(initial: ClassfCardState): TestHost {
   const host: TestHost = {
     cardState: { ...initial },
     runCalls: [],
+    patches: [],
     copiedText: "",
     savedConfig: undefined,
     contract: {
@@ -168,11 +179,16 @@ function createHost(initial: ClassfCardState): TestHost {
         onEvent?: (event: NodeRunEvent) => void,
       ): Promise<NodeRunResult<TData>> => {
         host.runCalls.push({ nodeId, input: input as ClassfInput })
-        onEvent?.({ type: "progress", progress: 50, message: "Planning classification transfers." })
+        const classfInput = input as ClassfInput
+        onEvent?.({ type: "progress", progress: 45, message: "Plan ready.", data: { kind: "classf-plan", result: classfData } })
+        if (classfInput.action === "classify") {
+          onEvent?.({ type: "progress", progress: 70, message: "a.zip", data: { kind: "classf-item", sourcePath: "D:/set/a.zip", stage: "already", status: "running" } })
+          onEvent?.({ type: "log", message: "a.zip: moved", data: { kind: "classf-item", sourcePath: "D:/set/a.zip", stage: "already", status: "moved" } })
+        }
         return {
           success: true,
-          message: "ClassF planned 1 item.",
-          data: classfData as TData,
+          message: classfInput.action === "classify" ? "ClassF applied 1 item." : "ClassF planned 1 item.",
+          data: (classfInput.action === "classify" ? completedClassfData : classfData) as TData,
         }
       },
     },
@@ -230,4 +246,12 @@ const classfData: ClassfData = {
   conflictCount: 0,
   errorCount: 0,
   errors: [],
+}
+
+const completedClassfData: ClassfData = {
+  ...classfData,
+  action: "classify",
+  items: classfData.items.map((item) => ({ ...item, status: "moved" as const })),
+  readyCount: 0,
+  movedCount: 1,
 }

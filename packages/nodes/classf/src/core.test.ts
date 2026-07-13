@@ -26,13 +26,37 @@ describe("classf pipeline", () => {
     expect(result.success).toBe(false)
     expect(result.message).toContain("clipboard")
   })
+
+  test("publishes the complete plan before the first live filesystem stage", async () => {
+    const calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }> = []
+    const timeline: string[] = []
+    const runtime = fakeRuntime(calls, (stage, input) => timeline.push(`${stage}:${"action" in input ? input.action : "scan"}`))
+    const result = await runClassf({ action: "classify", classifyMode: "auto", dryRun: false }, runtime, (event) => {
+      const data = event.data as { kind?: string } | undefined
+      if (data?.kind === "classf-plan") timeline.push("event:plan")
+    })
+
+    expect(result.success).toBe(true)
+    expect(timeline.indexOf("event:plan")).toBeGreaterThan(-1)
+    expect(timeline.indexOf("event:plan")).toBeLessThan(timeline.indexOf("samea:classify"))
+    expect(calls.map((call) => `${call.stage}:${"action" in call.input ? call.input.action : "scan"}`)).toEqual([
+      "samea:plan",
+      "crashu:scan",
+      "migratef:plan",
+      "migratef:plan",
+      "samea:classify",
+      "migratef:move",
+      "migratef:move",
+    ])
+    expect(result.data?.items.every((item) => item.status === "moved")).toBe(true)
+  })
 })
 
-function fakeRuntime(calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }>): ClassfRuntime {
+function fakeRuntime(calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }>, onCall?: (stage: string, input: SameaInput | CrashuInput | MigratefInput) => void): ClassfRuntime {
   return {
-    runSamea: async (input) => { calls.push({ stage: "samea", input }); return { success: true, message: "samea", data: { action: input.action ?? "plan", centralize: false, minOccurrences: 1, items: [], groups: [{ key: "artist", name: "[Artist]", targetDir: "/target/[Artist]", count: 2, status: "ready" }], scannedCount: 2, detectedCount: 2, readyCount: 2, movedCount: 0, ignoredCount: 0, skippedCount: 0, conflictCount: 0, errorCount: 0, errors: [] } } },
-    runCrashu: async (input) => { calls.push({ stage: "crashu", input }); return { success: true, message: "crashu", data: { sourceCount: 1, targetCount: 1, totalScanned: 1, similarFound: 1, movedCount: 0, skippedCount: 0, errorCount: 0, pairsFile: "", similarFolders: [{ name: "Artist Source", path: "/library/Artist Source", target: "[Artist]", similarity: 1, matchDim: "exact", matchSrc: "artist", matchTgt: "artist" }], plan: [], errors: [] } } },
-    runMigratef: async (input) => { calls.push({ stage: "migratef", input }); const action = input.action === "copy" ? "copy" : "move"; const plan = (input.sourcePaths ?? []).map((sourcePath) => ({ sourcePath, targetPath: `${input.targetPath}/${sourcePath.split("/").at(-1)}`, action, kind: "directory" as const, status: "pending" as const })); return { success: true, message: "migratef", data: { plan, history: [], migratedCount: 0, skippedCount: 0, errorCount: 0, totalCount: plan.length, operationId: "", successCount: 0, failedCount: 0, errors: [] } } },
+    runSamea: async (input) => { calls.push({ stage: "samea", input }); onCall?.("samea", input); return { success: true, message: "samea", data: { action: input.action ?? "plan", centralize: false, minOccurrences: 1, items: [], groups: [{ key: "artist", name: "[Artist]", targetDir: "/target/[Artist]", count: 2, status: "ready" }], scannedCount: 2, detectedCount: 2, readyCount: 2, movedCount: 0, ignoredCount: 0, skippedCount: 0, conflictCount: 0, errorCount: 0, errors: [] } } },
+    runCrashu: async (input) => { calls.push({ stage: "crashu", input }); onCall?.("crashu", input); return { success: true, message: "crashu", data: { sourceCount: 1, targetCount: 1, totalScanned: 1, similarFound: 1, movedCount: 0, skippedCount: 0, errorCount: 0, pairsFile: "", similarFolders: [{ name: "Artist Source", path: "/library/Artist Source", target: "[Artist]", similarity: 1, matchDim: "exact", matchSrc: "artist", matchTgt: "artist" }], plan: [], errors: [] } } },
+    runMigratef: async (input) => { calls.push({ stage: "migratef", input }); onCall?.("migratef", input); const action = input.action === "copy" ? "copy" : "move"; const status = input.action === "plan" || input.dryRun ? "pending" as const : "success" as const; const plan = (input.sourcePaths ?? []).map((sourcePath) => ({ sourcePath, targetPath: `${input.targetPath}/${sourcePath.split("/").at(-1)}`, action, kind: "directory" as const, status })); return { success: true, message: "migratef", data: { plan, history: [], migratedCount: status === "success" ? plan.length : 0, skippedCount: 0, errorCount: 0, totalCount: plan.length, operationId: "", successCount: status === "success" ? plan.length : 0, failedCount: 0, errors: [] } } },
     readClipboardPaths: async () => ["/archives"],
     pathInfo: async (path) => ({ path, exists: path === "/target" || path === "/target/[Artist]" || path === "/target/unmatched", isFile: false, isDirectory: true }),
     listDir: async (path) => path === "/target" ? [{ name: "[Artist]", path: "/target/[Artist]", isFile: false, isDirectory: true }, { name: "unmatched", path: "/target/unmatched", isFile: false, isDirectory: true }] satisfies ClassfDirEntry[] : [],
