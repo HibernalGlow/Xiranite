@@ -24,7 +24,11 @@ describe("app-owned xlchemy Component", () => {
     expect(screen.getByText("Xlchemy")).toBeTruthy()
     expect(screen.getByTestId(`xlchemy-${mode === "regular" || mode === "expanded" || mode === "workspace" ? "full" : mode}-view`)).toBeTruthy()
     expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(0)
-    if (mode === "workspace") expect(screen.getByTestId("xlchemy-workspace-grid")).toBeTruthy()
+    if (mode === "workspace") {
+      const grid = screen.getByTestId("xlchemy-workspace-grid")
+      expect(grid.className).toContain("minmax(260px,1fr)")
+      expect(grid.querySelector('[data-slot="module-panel-title"] [data-slot="badge"]')?.className).toContain("bg-transparent")
+    }
     if (mode !== "collapsed") {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
       expect(screen.getAllByRole("button", { name: "添加文件" }).length).toBeGreaterThan(0)

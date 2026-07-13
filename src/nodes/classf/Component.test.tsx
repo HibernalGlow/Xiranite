@@ -60,8 +60,13 @@ describe("app-owned classf Component", () => {
       } else {
         expect(screen.getByTestId("classf-full-view")).toBeTruthy()
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
-        expect(screen.getByTestId("classf-scan-sources")).toBeTruthy()
+        const scanSources = screen.getByTestId("classf-scan-sources")
+        expect(scanSources).toBeTruthy()
+        expect(within(scanSources.parentElement!).getByTestId("classf-execution-gate")).toBeTruthy()
         expect(screen.getByTestId("classf-classification-matrix")).toBeTruthy()
+        expect(screen.getByTestId("classf-analysis")).toBeTruthy()
+        expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(0)
+        expect(screen.getByRole("tab", { name: "文件树" }).getAttribute("aria-selected")).toBe("true")
         expect(screen.getByRole("button", { name: "生成计划" })).toBeTruthy()
       }
     },
@@ -127,9 +132,8 @@ describe("app-owned classf Component", () => {
     })
     render(<Component compId="comp-classf" host={host} />)
 
-    await userEvent.setup().click(screen.getByRole("tab", { name: "文件树" }))
-
-    expect(screen.getByText("already")).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "文件树" }).getAttribute("aria-selected")).toBe("true")
+    expect(within(screen.getByTestId("classf-classification-matrix")).getByText("already")).toBeTruthy()
     expect(screen.getByText("a.zip · 待执行")).toBeTruthy()
   })
 
@@ -176,7 +180,7 @@ describe("app-owned classf Component", () => {
     const host = createHost({ pathsText: "D:/set", placementMode: "root" })
     render(<Component compId="comp-classf" host={host} />)
     expect(screen.getByLabelText("classf target")).toBeTruthy()
-    await userEvent.setup().click(screen.getByText("就地分流"))
+    await userEvent.setup().click(screen.getByRole("radio", { name: "就地分流" }))
     expect(host.patches).toContainEqual(expect.objectContaining({ placementMode: "local" }))
   })
 })

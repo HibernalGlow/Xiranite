@@ -321,7 +321,7 @@ function FullView(props: ViewProps) {
 function WorkspaceWorkbench({ props }: { props: ViewProps }) {
   return <div data-testid="xlchemy-full-view" className="xlchemy-grid flex min-h-0 flex-1 flex-col gap-2 p-3">
     <Header props={props} />
-    <div data-testid="xlchemy-workspace-grid" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] grid-rows-[minmax(0,1fr)_minmax(220px,0.72fr)] gap-2 overflow-hidden">
+    <div data-testid="xlchemy-workspace-grid" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] grid-rows-[minmax(0,1fr)_minmax(260px,1fr)] gap-2 overflow-hidden">
       <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
       <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
       <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
@@ -491,7 +491,7 @@ function ResultPanel({ props }: { props: ViewProps }) {
 }
 
 function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; fill?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
-  return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} contentClassName="pt-1">{children}</ModulePanel>
+  return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} titleClassName="border-0 bg-transparent px-0" contentClassName="pt-1">{children}</ModulePanel>
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }

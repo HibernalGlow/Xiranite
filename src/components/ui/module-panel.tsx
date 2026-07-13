@@ -12,9 +12,10 @@ export interface ModulePanelProps {
   grow?: boolean
   icon?: LucideIcon
   title: ReactNode
+  titleClassName?: string
 }
 
-export function ModulePanel({ badge, children, className, contentClassName, fill = false, grow = false, icon: Icon, title }: ModulePanelProps) {
+export function ModulePanel({ badge, children, className, contentClassName, fill = false, grow = false, icon: Icon, title, titleClassName }: ModulePanelProps) {
   return <section
     data-slot="module-panel"
     className={cn(
@@ -37,7 +38,7 @@ export function ModulePanel({ badge, children, className, contentClassName, fill
         "[[data-module-title-style=minimal]_&]:absolute [[data-module-title-style=minimal]_&]:left-2.5 [[data-module-title-style=minimal]_&]:top-1 [[data-module-title-style=minimal]_&]:ml-0",
       )}
     >
-      <Badge className="gap-1 px-1.5 py-0 text-[10px] font-medium text-foreground shadow-none [[data-module-title-style=inline]_&]:border-0 [[data-module-title-style=inline]_&]:bg-transparent [[data-module-title-style=inline]_&]:px-0 [[data-module-title-style=bar]_&]:border-0 [[data-module-title-style=bar]_&]:bg-transparent [[data-module-title-style=bar]_&]:px-0 [[data-module-title-style=minimal]_&]:border-0 [[data-module-title-style=minimal]_&]:bg-transparent [[data-module-title-style=minimal]_&]:px-0" variant="outline">
+      <Badge className={cn("gap-1 px-1.5 py-0 text-[10px] font-medium text-foreground shadow-none [[data-module-title-style=inline]_&]:border-0 [[data-module-title-style=inline]_&]:bg-transparent [[data-module-title-style=inline]_&]:px-0 [[data-module-title-style=bar]_&]:border-0 [[data-module-title-style=bar]_&]:bg-transparent [[data-module-title-style=bar]_&]:px-0 [[data-module-title-style=minimal]_&]:border-0 [[data-module-title-style=minimal]_&]:bg-transparent [[data-module-title-style=minimal]_&]:px-0", titleClassName)} variant="outline">
         {Icon ? <Icon /> : null}{title}{badge ? <span className="font-mono text-muted-foreground">· {badge}</span> : null}
       </Badge>
     </header>
