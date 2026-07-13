@@ -11,7 +11,7 @@ function ResizablePanelGroup({
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
       className={cn(
-        "flex h-full w-full aria-[orientation=vertical]:flex-col [&>[data-panel]]:min-h-0 [&>[data-panel]]:min-w-0 [&>[data-panel]]:overflow-hidden",
+        "flex h-full w-full aria-[orientation=vertical]:flex-col",
         className
       )}
       {...props}
@@ -19,7 +19,7 @@ function ResizablePanelGroup({
   )
 }
 
-function ResizablePanel({ collapsedSize, defaultSize, maxSize, minSize, style, ...props }: ResizablePrimitive.PanelProps) {
+function ResizablePanel({ collapsedSize, defaultSize, maxSize, minSize, ...props }: ResizablePrimitive.PanelProps) {
   return (
     <ResizablePrimitive.Panel
       data-slot="resizable-panel"
@@ -27,7 +27,6 @@ function ResizablePanel({ collapsedSize, defaultSize, maxSize, minSize, style, .
       defaultSize={normalizePanelSize(defaultSize)}
       maxSize={normalizePanelSize(maxSize)}
       minSize={normalizePanelSize(minSize)}
-      style={{ minHeight: 0, minWidth: 0, overflow: "hidden", ...style }}
       {...props}
     />
   )

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, Archive, ArrowRight, BarChart3, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Layers3, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, Archive, ArrowRight, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -21,20 +20,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { ModulePanel } from "@/components/ui/module-panel"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
-import { readNodePanelLayout, updateNodePanelLayout, type NodePanelLayout } from "@/nodes/shared/nodePanelLayouts"
 import { ACTIONS, CLASSIFY_MODES, NODE_ICON, PLACEMENT_MODES, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassfCardState, ClassfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
-
-const PANEL_LAYOUTS = {
-  main: { key: "classf-main-v1", panelIds: ["classf-sources", "classf-matrix", "classf-analysis-panel"] },
-  source: { key: "classf-source-v1", panelIds: ["classf-sources-inputs", "classf-execution"] },
-} as const
 
 export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
   const surface = useNodeSurface()
@@ -206,7 +198,6 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
     onReset: reset,
     onReloadDefaults: reloadDefaults,
     onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
-    onPanelLayoutChanged: (key, layout) => patch({ panelLayouts: updateNodePanelLayout(dataRef.current.panelLayouts, key, layout) }),
     onRestoreDefault: () => defaults && patch(defaults),
     onSaveDefault: saveAsDefault,
   }
@@ -250,7 +241,6 @@ interface ViewProps {
   onReset: () => void
   onReloadDefaults: () => Promise<void>
   onOpenConfigFile?: () => Promise<void> | void
-  onPanelLayoutChanged: (key: string, layout: NodePanelLayout) => void
   onRestoreDefault: () => void
   onSaveDefault: () => void
 }
@@ -300,117 +290,51 @@ function PortraitView(props: ViewProps) {
 }
 
 function FullView(props: ViewProps) {
-  const panelResizeEnabled = props.data.panelResizeEnabled === true
-  const mainLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.main.key, PANEL_LAYOUTS.main.panelIds)
-  const sourceLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.source.key, PANEL_LAYOUTS.source.panelIds)
-  const sourcesPanel = (
-    <div data-testid="classf-scan-sources" className="h-full min-h-0">
-      <ModulePanel fill icon={FolderInput} title={props.tNode("sections.scanSources", "Scan sources")}>
-        <PathInput data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-        <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
-        <TargetField data={props.data} disabled={props.running} t={props.tNode} onPatch={props.onPatch} />
-      </ModulePanel>
-    </div>
-  )
-  const executionPanel = <ExecutionGate {...props} embedded />
-  const sourceAndExecution = panelResizeEnabled ? (
-    <ResizablePanelGroup
-      id={PANEL_LAYOUTS.source.key}
-      orientation="vertical"
-      className="min-h-0"
-      defaultLayout={sourceLayout}
-      onLayoutChanged={(layout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.source.key, layout)}
-    >
-      <ResizablePanel id="classf-sources-inputs" defaultSize={68} minSize={46}>
-        <div className="h-full min-h-0">{sourcesPanel}</div>
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel id="classf-execution" defaultSize={32} minSize={24}>
-        <div className="h-full min-h-0">{executionPanel}</div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  ) : (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
-      {sourcesPanel}
-      {executionPanel}
-    </div>
-  )
-  const matrixPanel = (
-    <div data-testid="classf-classification-matrix" className="h-full min-h-0">
-      <ModulePanel fill badge={props.result?.items.length ?? props.paths.length} icon={PLAN_ICON} title={props.tNode("tabs.matrix", "Classification matrix")} contentClassName="gap-0">
-        <Tabs defaultValue="tree" className="min-h-0 flex-1 gap-0">
-          <div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-1">
-            <TabsList variant="line">
-              <TabsTrigger value="tree"><FolderTree />{props.tNode("tabs.tree", "文件树")}</TabsTrigger>
-              <TabsTrigger value="matrix"><PLAN_ICON />{props.tNode("tabs.matrix", "分类矩阵")}</TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-1">{props.result?.items.length && !props.planCurrent ? <Badge variant="destructive">{props.tNode("status.stale", "计划已失效")}</Badge> : null}<Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
-          </div>
-          <Separator />
-          <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
-          <TabsContent value="matrix" className="flex min-h-0 flex-1 flex-col"><PlanRows items={props.result?.items ?? []} paths={props.paths} planCurrent={props.planCurrent} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
-        </Tabs>
-      </ModulePanel>
-    </div>
-  )
-  const analysisPanel = <div data-testid="classf-analysis" className="h-full min-h-0"><AnalysisPanel {...props} /></div>
-
   return (
     <div data-testid="classf-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <div className="flex shrink-0 flex-col gap-2 @3xl/classf:flex-row @3xl/classf:items-center @3xl/classf:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @3xl/classf:flex-row @3xl/classf:items-center">
           <HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} />
-          <div data-testid="classf-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1">
-            <ActionTools {...props} hideAction />
-          </div>
+          <div data-testid="classf-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-1"><ActionTools {...props} /></div>
         </div>
         <StatsPanel progress={props.progress} result={props.result} paths={props.paths} t={props.tNode} />
       </div>
       {(props.status.tone === "running" || props.status.tone === "error") && <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />}
-      {panelResizeEnabled ? (
-        <ResizablePanelGroup
-          id={PANEL_LAYOUTS.main.key}
-          orientation="horizontal"
-          className="min-h-0 flex-1"
-          defaultLayout={mainLayout}
-          onLayoutChanged={(layout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.main.key, layout)}
-        >
-          <ResizablePanel id="classf-sources" defaultSize={29} minSize={22} maxSize={38}>
-            <div className="h-full min-h-0">{sourceAndExecution}</div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="classf-matrix" defaultSize={47} minSize={36}>
-            <div className="h-full min-h-0">{matrixPanel}</div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="classf-analysis-panel" defaultSize={24} minSize={20} maxSize={34}>
-            <div className="h-full min-h-0">{analysisPanel}</div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      ) : (
-        <div className="grid min-h-0 flex-1 gap-2 @2xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(270px,340px)]">
-          {sourceAndExecution}
-          {matrixPanel}
-          <div className="min-h-0 @2xl/classf:col-span-2 @4xl/classf:col-span-1">{analysisPanel}</div>
+      <div className="grid min-h-0 flex-1 gap-2 @2xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] @4xl/classf:grid-cols-[minmax(250px,330px)_minmax(0,1fr)_minmax(270px,340px)]">
+        <section data-testid="classf-scan-sources" className="flex min-h-0 flex-col gap-2 overflow-auto rounded-lg border bg-card p-2">
+          <ZoneTitle icon={FolderInput} label={props.tNode("sections.scanSources", "扫描来源")} />
+          <PathInput data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
+          <TargetField data={props.data} disabled={props.running} t={props.tNode} onPatch={props.onPatch} />
+          <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} t={props.tNode} onChange={(transferMode) => props.onPatch({ transferMode })} />
+          <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label={props.tNode("fields.dryRun", "预演模式")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
+        </section>
+        <section data-testid="classf-classification-matrix" className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <Tabs defaultValue="matrix" className="min-h-0 flex-1 gap-0">
+            <div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-1">
+              <TabsList variant="line">
+                <TabsTrigger value="matrix"><PLAN_ICON />{props.tNode("tabs.matrix", "分类矩阵")}</TabsTrigger>
+                <TabsTrigger value="tree"><FolderTree />{props.tNode("tabs.tree", "文件树")}</TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-1">{props.result?.items.length && !props.planCurrent ? <Badge variant="destructive">{props.tNode("status.stale", "计划已失效")}</Badge> : null}<Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
+            </div>
+            <Separator />
+            <TabsContent value="matrix" className="flex min-h-0 flex-1 flex-col"><PlanRows items={props.result?.items ?? []} paths={props.paths} planCurrent={props.planCurrent} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
+            <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
+          </Tabs>
+        </section>
+        <div className="min-h-0 @2xl/classf:col-span-2 @4xl/classf:col-span-1">
+          <ExecutionGate {...props} />
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
-function PanelResizeToggle(props: { checked: boolean; disabled?: boolean; t: ViewProps["tNode"]; onCheckedChange: (checked: boolean) => void }) {
-  return (
-    <label className="flex h-8 items-center gap-1.5 rounded-md border bg-background/70 px-2 text-xs text-muted-foreground">
-      <span>{props.t("layout.panelDrag", "面板拖拽")}</span>
-      <Switch aria-label={props.t("layout.panelDrag", "面板拖拽")} checked={props.checked} disabled={props.disabled} size="sm" onCheckedChange={props.onCheckedChange} />
-    </label>
-  )
-}
-
-function ActionTools(props: ViewProps & { compact?: boolean; hideAction?: boolean }) {
+function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
-      {!props.compact && !props.hideAction && <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />}
+      {!props.compact && <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />}
       <NodeConfigPopover
         configPath={props.configFilePath}
         defaults={props.defaults}
@@ -421,9 +345,7 @@ function ActionTools(props: ViewProps & { compact?: boolean; hideAction?: boolea
         onReload={props.onReloadDefaults}
         onRestore={props.onRestoreDefault}
         onSave={props.onSaveDefault}
-      >
-        {!props.compact && <PanelResizeToggle checked={props.data.panelResizeEnabled === true} disabled={props.running} t={props.tNode} onCheckedChange={(panelResizeEnabled) => props.onPatch({ panelResizeEnabled })} />}
-      </NodeConfigPopover>
+      />
       <IconButton icon={RotateCcw} label={props.tNode("actions.clear", "清空状态")} onClick={props.onReset} />
     </div>
   )
@@ -477,16 +399,16 @@ function TargetField(props: { compact?: boolean; data: ClassfCardState; disabled
   )
 }
 
-function ExecutionGate(props: ViewProps & { embedded?: boolean }) {
+function ExecutionGate(props: ViewProps) {
   const live = props.action === "classify" && !(props.data.dryRun ?? true)
   const readyRatio = props.result?.items.length ? Math.round((props.result.readyCount / props.result.items.length) * 100) : props.progress
   return (
-    <section data-testid="classf-execution-gate" className={cn("flex min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", !props.embedded && "h-full", live && "border-destructive/50 bg-destructive/[0.03]")}>
+    <section className={cn("flex h-full min-h-0 flex-col gap-2 rounded-lg border bg-card p-2", live && "border-destructive/50 bg-destructive/[0.03]")}>
       <div className="flex items-center justify-between gap-2"><ZoneTitle icon={live ? AlertTriangle : ShieldAlert} label={props.tNode("sections.executionGate", "执行门")} tone={live ? "danger" : "default"} /><Badge variant={live ? "destructive" : "outline"}>{props.data.dryRun ?? true ? props.tNode("modes.dryRun", "预演") : props.tNode("modes.live", "实际执行")}</Badge></div>
       <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />
       <TransferToggle value={props.data.transferMode ?? "move"} disabled={props.running} t={props.tNode} onChange={(transferMode) => props.onPatch({ transferMode })} />
       <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label={props.tNode("fields.dryRun", "预演模式")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
-      <div className={cn("rounded-md border bg-muted/20", props.embedded ? "p-2" : "p-3")}>
+      <div className="rounded-md border bg-muted/20 p-3">
         <div className="mb-2 flex items-end justify-between gap-2"><span className="text-xs font-medium text-muted-foreground">{props.tNode("execution.planReadiness", "计划就绪度")}</span><span className="text-sm font-semibold tabular-nums">{readyRatio}%</span></div>
         <Progress value={readyRatio} className="h-2" />
         <div className="mt-2 flex justify-between text-[11px] text-muted-foreground"><span>{props.tNode("execution.ready", "可执行")} {props.result?.readyCount ?? 0}</span><span>{props.planCurrent ? props.tNode("execution.reviewed", "计划已确认") : props.tNode("execution.stale", "需要生成计划")}</span></div>
@@ -494,65 +416,6 @@ function ExecutionGate(props: ViewProps & { embedded?: boolean }) {
       <div className="mt-auto"><RunButton props={props} /></div>
     </section>
   )
-}
-
-function AnalysisPanel(props: ViewProps) {
-  const analysis = useMemo(() => analyzePlan(props.result), [props.result])
-  const issueLines = useMemo(() => [
-    ...(props.result?.errors ?? []),
-    ...(props.result?.items ?? []).filter((item) => item.reason).map((item) => `${item.sourcePath}: ${item.reason}`),
-  ], [props.result])
-  return (
-    <ModulePanel fill badge={issueLines.length} icon={BarChart3} title={props.tNode("tabs.analysis", "Analysis")} contentClassName="gap-0">
-      <Tabs defaultValue="overview" className="min-h-0 flex-1 gap-0">
-        <div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-1">
-          <TabsList variant="line">
-            <TabsTrigger value="overview"><BarChart3 />{props.tNode("tabs.analysis", "分析")}</TabsTrigger>
-            <TabsTrigger value="issues"><AlertTriangle />{props.tNode("tabs.issues", "问题")}</TabsTrigger>
-            <TabsTrigger value="logs"><Terminal />{props.tNode("tabs.logs", "日志")}</TabsTrigger>
-          </TabsList>
-          <Badge variant={issueLines.length ? "destructive" : "outline"}>{issueLines.length}</Badge>
-        </div>
-        <Separator />
-        <TabsContent value="overview" className="min-h-0 flex-1">
-          <ScrollArea className="h-full">
-            <div className="flex flex-col gap-3 p-3">
-              <div className="flex items-center justify-between gap-2"><ZoneTitle icon={Layers3} label={props.tNode("analysis.distribution", "分类分布")} /><Badge variant="outline">{props.result?.placementMode === "root" ? props.tNode("placementModes.root", "根目录分流") : props.tNode("placementModes.local", "就地分流")}</Badge></div>
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">already</span><span className="font-medium tabular-nums">{analysis.alreadyCount} · {analysis.alreadyRatio}%</span></div>
-                <Progress value={analysis.alreadyRatio} className="h-2" />
-                <div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">wait</span><span className="font-medium tabular-nums">{analysis.waitCount} · {analysis.waitRatio}%</span></div>
-              </div>
-              <Separator />
-              <div className="grid grid-cols-2 gap-2">
-                <AnalysisMetric label={props.tNode("analysis.files", "文件数")} value={analysis.fileCount} />
-                <AnalysisMetric label={props.tNode("analysis.directories", "来源目录")} value={analysis.directoryCount} />
-                <AnalysisMetric label={props.tNode("analysis.depth", "最大层级")} value={analysis.maxDepth} />
-                <AnalysisMetric label={props.tNode("analysis.ready", "可执行")} value={props.result?.readyCount ?? 0} />
-              </div>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <div className="text-xs font-medium text-muted-foreground">{props.tNode("analysis.extensions", "格式构成")}</div>
-                {analysis.extensions.length ? analysis.extensions.map((item) => (
-                  <div key={item.extension} className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-mono">{item.extension}</span><Badge variant="secondary">{item.count}</Badge></div>
-                )) : <div className="py-4 text-center text-xs text-muted-foreground">{props.tNode("analysis.empty", "生成计划后显示分析结果。")}</div>}
-              </div>
-            </div>
-          </ScrollArea>
-        </TabsContent>
-        <TabsContent value="issues" className="min-h-0 flex-1"><AnalysisLines empty={props.tNode("empty.noIssues", "暂无问题。") } lines={issueLines} /></TabsContent>
-        <TabsContent value="logs" className="min-h-0 flex-1"><AnalysisLines empty={props.tNode("empty.logs", "运行日志会显示在这里。") } lines={props.logs} /></TabsContent>
-      </Tabs>
-    </ModulePanel>
-  )
-}
-
-function AnalysisMetric(props: { label: string; value: number }) {
-  return <div className="rounded-md border bg-muted/20 p-2"><div className="text-[11px] text-muted-foreground">{props.label}</div><div className="mt-1 text-lg font-semibold tabular-nums">{props.value}</div></div>
-}
-
-function AnalysisLines(props: { empty: string; lines: string[] }) {
-  return <ScrollArea className="h-full">{props.lines.length ? <div className="flex flex-col gap-2 p-3">{props.lines.map((line, index) => <div key={`${line}:${index}`} className="rounded-md border bg-muted/20 p-2 font-mono text-xs leading-5 text-muted-foreground">{line}</div>)}</div> : <Empty className="h-full border-0 p-4"><EmptyHeader><EmptyTitle className="text-sm">{props.empty}</EmptyTitle></EmptyHeader></Empty>}</ScrollArea>
 }
 
 function PlacementToggle(props: { disabled?: boolean; value: ClassfPlacementMode; t: ViewProps["tNode"]; onChange: (value: ClassfPlacementMode) => void }) {
@@ -661,10 +524,10 @@ function PlanTree(props: { planCurrent: boolean; result: ClassfData | null; runn
 
 function ResultTabs(props: { compact?: boolean; logs: string[]; planCurrent: boolean; result: ClassfData | null; runningItem?: ClassfCardState["runningItem"]; t: ViewProps["tNode"]; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
-    <Tabs defaultValue="tree" className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0"><TabsTrigger value="tree"><FolderTree />{props.t("tabs.tree", "文件树")}</TabsTrigger><TabsTrigger value="plan"><PLAN_ICON />{props.t("tabs.plan", "计划")}</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />{props.t("tabs.issues", "问题")}</TabsTrigger><TabsTrigger value="logs"><Terminal />{props.t("tabs.logs", "日志")}</TabsTrigger></TabsList>
-      <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.runningItem} t={props.t} /></TabsContent>
+    <Tabs defaultValue="plan" className="flex h-full min-h-0 flex-col">
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan"><PLAN_ICON />{props.t("tabs.plan", "计划")}</TabsTrigger><TabsTrigger value="tree"><FolderTree />{props.t("tabs.tree", "文件树")}</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />{props.t("tabs.issues", "问题")}</TabsTrigger><TabsTrigger value="logs"><Terminal />{props.t("tabs.logs", "日志")}</TabsTrigger></TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} runningItem={props.runningItem} t={props.t} onCopy={props.onCopyResults} /></TabsContent>
+      <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.runningItem} t={props.t} /></TabsContent>
       <TabsContent value="issues" className="min-h-0 flex-1"><TextPanel empty={props.t("empty.noIssues", "暂无问题。") } lines={[...(props.result?.errors ?? []), ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} /></TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel={props.t("actions.copy", "复制")} empty={props.t("empty.logs", "运行日志会显示在这里。") } icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
     </Tabs>
@@ -796,31 +659,6 @@ function buildPlanTree(result: ClassfData | null, runningItem: ClassfCardState["
 function collectTreeFolderIds(element: TreeViewElement): string[] {
   if (element.type !== "folder") return []
   return [element.id, ...(element.children ?? []).flatMap(collectTreeFolderIds)]
-}
-
-function analyzePlan(result: ClassfData | null) {
-  const items = result?.items ?? []
-  const alreadyCount = items.filter((item) => item.stage === "already").length
-  const waitCount = items.filter((item) => item.stage === "wait").length
-  const classifiedCount = alreadyCount + waitCount
-  const directoryCount = new Set(items.map((item) => item.sourcePath.replace(/[\\/][^\\/]+$/, ""))).size
-  const maxDepth = items.reduce((maximum, item) => Math.max(maximum, Math.max(0, (item.targetRelative || item.targetPath).split(/[\\/]+/).filter(Boolean).length - 1)), 0)
-  const extensions = new Map<string, number>()
-  for (const item of items) {
-    const match = /(?:^|[\\/])[^\\/]+(\.[^.\\/]+)$/.exec(item.sourcePath)
-    const extension = match?.[1]?.toLocaleLowerCase() ?? "(无扩展名)"
-    extensions.set(extension, (extensions.get(extension) ?? 0) + 1)
-  }
-  return {
-    alreadyCount,
-    waitCount,
-    alreadyRatio: classifiedCount ? Math.round((alreadyCount / classifiedCount) * 100) : 0,
-    waitRatio: classifiedCount ? Math.round((waitCount / classifiedCount) * 100) : 0,
-    fileCount: items.filter((item) => item.kind === "file").length,
-    directoryCount: items.length ? directoryCount : 0,
-    maxDepth,
-    extensions: [...extensions.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).slice(0, 6).map(([extension, count]) => ({ extension, count })),
-  }
 }
 
 function summaryText(props: ViewProps): string {

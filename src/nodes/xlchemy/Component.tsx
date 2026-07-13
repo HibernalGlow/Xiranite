@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
@@ -23,7 +22,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
-import { readNodePanelLayout, updateNodePanelLayout, type NodePanelLayout } from "@/nodes/shared/nodePanelLayouts"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -34,13 +32,6 @@ import { InputFilesWorkbench } from "./InputFilesWorkbench"
 import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./ProgressAndLogs"
 import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
-
-const PANEL_LAYOUTS = {
-  full: { key: "xlchemy-full-main-v1", panelIds: ["xlchemy-input", "xlchemy-configuration"] },
-  workspace: { key: "xlchemy-workspace-main-v1", panelIds: ["xlchemy-workspace-input", "xlchemy-workspace-configuration"] },
-  queue: { key: "xlchemy-workspace-queue-v1", panelIds: ["xlchemy-input-files", "xlchemy-run-feedback"] },
-  configuration: { key: "xlchemy-workspace-configuration-v1", panelIds: ["xlchemy-settings", "xlchemy-results-and-log"] },
-} as const
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
   const surface = useNodeSurface()
@@ -230,7 +221,6 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const props: ViewProps = {
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
-    onPanelLayoutChanged: (key, layout) => patch({ panelLayouts: updateNodePanelLayout(dataRef.current.panelLayouts, key, layout) }),
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
   }
@@ -297,7 +287,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPanelLayoutChanged: (key: string, layout: NodePanelLayout) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -310,66 +300,36 @@ function CompactView(props: ViewProps & { portrait: boolean }) {
 
 function FullView(props: ViewProps) {
   if (props.surfaceMode === "workspace") return <WorkspaceWorkbench props={props} />
-  const layout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.full.key, PANEL_LAYOUTS.full.panelIds)
   return (
     <div data-testid="xlchemy-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <Header props={props} />
-      <ResizablePanelGroup id={PANEL_LAYOUTS.full.key} orientation="horizontal" className="min-h-0 flex-1" defaultLayout={layout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.full.key, nextLayout)}>
-        <ResizablePanel id="xlchemy-input" defaultSize={58} minSize={44}>
-        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2">
-          <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`} grow>
-            <InputWorkbench props={props} />
-          </WorkbenchCard>
-          <OperationsCard props={props} />
-          <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
+      <div className="grid min-h-0 flex-1 gap-2 overflow-auto @2xl/xlchemy:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] @2xl/xlchemy:overflow-hidden">
+        <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
+            <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`} grow><InputWorkbench props={props} /></WorkbenchCard>
+            <OperationsCard props={props} />
+            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
         </div></ScrollArea>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel id="xlchemy-configuration" defaultSize={42} minSize={32}>
-        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2">
+        <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <ConfigurationCard props={props} />
             <WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard>
         </div></ScrollArea>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      </div>
     </div>
   )
 }
 
 function WorkspaceWorkbench({ props }: { props: ViewProps }) {
-  const workspaceLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.workspace.key, PANEL_LAYOUTS.workspace.panelIds)
-  const queueLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.queue.key, PANEL_LAYOUTS.queue.panelIds)
-  const configurationLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.configuration.key, PANEL_LAYOUTS.configuration.panelIds)
   return <div data-testid="xlchemy-full-view" className="xlchemy-grid flex min-h-0 flex-1 flex-col gap-2 p-3">
     <Header props={props} />
-    <ResizablePanelGroup id={PANEL_LAYOUTS.workspace.key} orientation="horizontal" className="min-h-0 flex-1" defaultLayout={workspaceLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.workspace.key, nextLayout)}>
-      <ResizablePanel id="xlchemy-workspace-input" defaultSize={58} minSize={46}>
-        <ResizablePanelGroup key={props.paths.length ? "xlchemy-queue" : "xlchemy-empty-queue"} id={PANEL_LAYOUTS.queue.key} orientation="vertical" className="min-h-0" defaultLayout={queueLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.queue.key, nextLayout)}>
-          <ResizablePanel id="xlchemy-input-files" defaultSize={props.paths.length ? 58 : 36} minSize={props.paths.length ? 42 : 32}>
-            <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="xlchemy-run-feedback" defaultSize={props.paths.length ? 42 : 64} minSize={30}>
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
-              <OperationsCard fill props={props} />
-              <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel id="xlchemy-workspace-configuration" defaultSize={42} minSize={32}>
-        <ResizablePanelGroup id={PANEL_LAYOUTS.configuration.key} orientation="vertical" className="min-h-0" defaultLayout={configurationLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.configuration.key, nextLayout)}>
-          <ResizablePanel id="xlchemy-settings" defaultSize={60} minSize={42}>
-            <ScrollArea className="h-full"><div className="flex flex-col gap-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="xlchemy-results-and-log" defaultSize={40} minSize={28}>
-            <div className="h-full min-h-0"><WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <div data-testid="xlchemy-workspace-grid" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] grid-rows-[minmax(0,1fr)_minmax(220px,0.72fr)] gap-2 overflow-hidden">
+      <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
+      <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
+      <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
+        <OperationsCard fill props={props} />
+        <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+      </div>
+      <WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard>
+    </div>
   </div>
 }
 

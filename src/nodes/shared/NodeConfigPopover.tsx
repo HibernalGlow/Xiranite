@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react"
+import { useId, useState } from "react"
 import { DatabaseZap, Download, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
@@ -17,7 +17,6 @@ import type { useNodeI18n } from "./useNodeI18n"
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
 
 export interface NodeConfigPopoverProps {
-  children?: ReactNode
   configPath?: string
   defaults?: Record<string, unknown>
   fallbackDefaults?: Record<string, unknown>
@@ -180,10 +179,6 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Separator />
-          </>}
-          {props.children && <>
-            <div className="grid gap-2">{props.children}</div>
             <Separator />
           </>}
           <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "保存为默认")}</Button>

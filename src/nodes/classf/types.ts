@@ -1,5 +1,4 @@
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfPlacementMode, ClassfStage, ClassfTransferMode } from "@xiranite/node-classf/core"
-import type { NodePanelLayouts } from "@/nodes/shared/nodePanelLayouts"
 
 export type ClassfPhase = "idle" | "running" | "completed" | "error"
 
@@ -20,8 +19,6 @@ export interface ClassfCardState {
   result?: ClassfData | null
   planFingerprint?: string
   runningItem?: { sourcePath: string; stage: ClassfStage } | null
-  panelResizeEnabled?: boolean
-  panelLayouts?: NodePanelLayouts
 }
 
 export interface ClassfStatusMeta {

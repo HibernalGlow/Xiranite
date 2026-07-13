@@ -1,5 +1,4 @@
 import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFilenameRule, XlchemyFormat, XlchemyOutputMode, XlchemyToolStatus } from "@xiranite/node-xlchemy/core"
-import type { NodePanelLayouts } from "@/nodes/shared/nodePanelLayouts"
 
 export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "error"
 
@@ -97,7 +96,6 @@ export interface XlchemyCardState {
   analysisTab?: "input" | "output"
   resultTab?: "results" | "issues" | "logs"
   result?: XlchemyData | null
-  panelLayouts?: NodePanelLayouts
 }
 
 export interface XlchemyCustomPreset {

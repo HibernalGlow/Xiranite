@@ -23,6 +23,8 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={createHost({ pathsText: "D:/images/a.png" })} />)
     expect(screen.getByText("Xlchemy")).toBeTruthy()
     expect(screen.getByTestId(`xlchemy-${mode === "regular" || mode === "expanded" || mode === "workspace" ? "full" : mode}-view`)).toBeTruthy()
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(0)
+    if (mode === "workspace") expect(screen.getByTestId("xlchemy-workspace-grid")).toBeTruthy()
     if (mode !== "collapsed") {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
       expect(screen.getAllByRole("button", { name: "添加文件" }).length).toBeGreaterThan(0)
@@ -37,37 +39,6 @@ describe("app-owned xlchemy Component", () => {
       expect(screen.getByRole("tab", { name: "问题" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
     }
-  })
-
-  test("restores the regular workbench panel layout independently", () => {
-    setSurface("regular")
-    render(<Component compId="xlchemy-card" host={createHost({
-      pathsText: "D:/images/a.png",
-      panelLayouts: {
-        "xlchemy-full-main-v1": { "xlchemy-input": 62, "xlchemy-configuration": 38 },
-      },
-    })} />)
-
-    expect(screen.getByTestId("xlchemy-full-main-v1")).toBeTruthy()
-    expect(screen.getByTestId("xlchemy-input").firstElementChild?.getAttribute("style")).toContain("overflow: hidden")
-    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(1)
-  })
-
-  test("restores all nested workspace panel layouts independently", () => {
-    setSurface("workspace")
-    render(<Component compId="xlchemy-card" host={createHost({
-      pathsText: "D:/images/a.png",
-      panelLayouts: {
-        "xlchemy-workspace-main-v1": { "xlchemy-workspace-input": 55, "xlchemy-workspace-configuration": 45 },
-        "xlchemy-workspace-queue-v1": { "xlchemy-input-files": 64, "xlchemy-run-feedback": 36 },
-        "xlchemy-workspace-configuration-v1": { "xlchemy-settings": 52, "xlchemy-results-and-log": 48 },
-      },
-    })} />)
-
-    expect(screen.getByTestId("xlchemy-workspace-main-v1")).toBeTruthy()
-    expect(screen.getByTestId("xlchemy-workspace-queue-v1")).toBeTruthy()
-    expect(screen.getByTestId("xlchemy-workspace-configuration-v1")).toBeTruthy()
-    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(3)
   })
 
   test("uses quality 60 by default and exposes only global presets", async () => {
