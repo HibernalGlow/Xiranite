@@ -5,7 +5,7 @@ import {
   CliPromptExitError,
   confirmRich,
   defineCommand,
-  hasPipedInput,
+  hasPipedInput as runtimeHasPipedInput,
   nodeCliName,
   promptRich,
   readStdinLines,
@@ -19,15 +19,21 @@ import {
   writeJson,
   writeLine,
   writeRichPanel,
+  runGuidedInteraction,
 } from "@xiranite/cli-runtime"
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
+import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
 import type { LinkuAction, LinkuInput, LinkuPathKind, LinkuResult } from "./core.js"
 import { runLinku } from "./core.js"
 import { createNodeLinkuRuntime, readClipboardText } from "./platform.js"
+import { createLinkuInteractionSchema } from "./interaction.js"
+import { help } from "./help.js"
 
 const CLI_NAME = nodeCliName("linku")
+const hasPipedInput = (stream: NodeJS.ReadableStream) => runtimeHasPipedInput(stream) && Symbol.asyncIterator in Object(stream)
 
 interface LinkuCliOptions {
   path?: string
@@ -36,7 +42,7 @@ interface LinkuCliOptions {
   json?: boolean
 }
 
-interface LinkuNodeConfig {
+interface LinkuNodeConfig extends CliInteractionPreferencesSource {
   default_path?: string
   default_target?: string
 }
@@ -128,13 +134,16 @@ export const cli: CliCommand = {
 
 export const program = createProgram()
 
-export async function runProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
+async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = createDefaultHost()): Promise<void> {
   if (args.length === 0) {
     await runGuided(host)
     return
   }
   await runMain(createProgram(host), { rawArgs: args })
 }
+
+export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<LinkuNodeConfig>("linku",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createLinkuInteractionSchema({path:d.default_path,target:d.default_target},l),run:(i,e)=>runLinku(i,createNodeLinkuRuntime(),e)}),runPipe:legacyRunProgram,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).LinkuTui,createPreferences:(_d,c)=>prefs(host,c),reexecEntrypoint:process.argv[1],help})}
+function prefs(h:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:h.env,cwd:h.cwd};return{nodeId:"linku",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"linku",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<LinkuNodeConfig>("linku",{...o,jsonMode:true}),p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {
