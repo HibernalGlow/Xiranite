@@ -92,6 +92,7 @@ export interface XlchemyCardState {
   environment?: XlchemyToolStatus[]
   environmentCheckedAt?: string
   settingsTab?: "common" | "conversion" | "files" | "general"
+  analysisTab?: "input" | "output"
   resultTab?: "results" | "issues" | "logs"
   result?: XlchemyData | null
 }

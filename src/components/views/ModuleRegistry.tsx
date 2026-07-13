@@ -26,14 +26,13 @@ import {
   LayoutList,
   Package,
   Table2,
-  type LucideIcon,
 } from "lucide-react"
-import * as LucideIcons from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { NodeHelpSheet } from "@/components/help/NodeHelpSheet"
 import { hasNodeHelp } from "@/components/help/nodeHelpRegistry"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
+import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { useWorkspaceActions, useWorkspaceSelector } from "@/store/workspaceStore"
 import { setModuleDragData } from "@/lib/moduleDragDrop"
 import { cn } from "@/lib/utils"
@@ -80,8 +79,6 @@ const BoardView = Object.assign(React.lazy(async () => {
   return { default: mod.BoardView as React.ComponentType<BoardViewProps<ModuleRow>> }
 }), { dataViewType: "board" as const, defaultLimit: 25 })
 
-const iconRegistry = LucideIcons as unknown as Record<string, LucideIcon | undefined>
-
 function toModuleRow(module: ModuleDef, t: TFunction, i18n: ReturnType<typeof useTranslation>["i18n"]): ModuleRow {
   const nameKey = `module:${module.id}.name`
   const descKey = `module:${module.id}.description`
@@ -98,7 +95,7 @@ function toModuleRow(module: ModuleDef, t: TFunction, i18n: ReturnType<typeof us
 }
 
 function ModuleIcon({ icon, className }: { icon: string; className?: string }) {
-  const Icon = iconRegistry[icon] ?? Package
+  const Icon = resolveModuleIcon(icon, Package)
   return <Icon className={className} />
 }
 

@@ -13,7 +13,6 @@ import {
 } from "react"
 import { motion, useDragControls, type PanInfo } from "motion/react"
 import { Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, Pause, PictureInPicture2, Play, SkipBack, SkipForward, X } from "lucide-react"
-import { MusicVisualizerIcon } from "@/components/modules/musicPlayer/MusicVisualizerIcon"
 import type { MusicPlaybackControls, MusicPlaybackState, PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
 import { DEFAULT_MUSIC_VISUALIZER_STYLE, normalizeMusicVisualizerStyle, type MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
 import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-island"
@@ -68,6 +67,11 @@ const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
 const MusicPlayerSurface = lazy(() =>
   import("@/components/modules/musicPlayer/MusicPlayerSurface").then((module) => ({
     default: module.MusicPlayerSurface,
+  })),
+)
+const MusicVisualizerIcon = lazy(() =>
+  import("@/components/modules/musicPlayer/MusicVisualizerIcon").then((module) => ({
+    default: module.MusicVisualizerIcon,
   })),
 )
 const MusicDockContext = createContext<MusicDockContextValue | null>(null)
@@ -363,7 +367,9 @@ function MusicIslandSpectrum({
         compact ? "h-6 w-8" : "h-6 w-11",
       )}
     >
-      <MusicVisualizerIcon compact={compact} isPlaying={isPlaying} style={style} />
+      <Suspense fallback={null}>
+        <MusicVisualizerIcon compact={compact} isPlaying={isPlaying} style={style} />
+      </Suspense>
     </span>
   )
 }

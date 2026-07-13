@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react"
-import { CircleHelp, type LucideIcon } from "lucide-react"
-import * as LucideIcons from "lucide-react"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
+import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
@@ -19,10 +18,8 @@ const RAIL_STYLE_CLASSES = {
   minimal: "border-transparent bg-background/65 shadow-none backdrop-blur-sm",
 } as const
 
-const moduleIconRegistry = LucideIcons as unknown as Record<string, LucideIcon | undefined>
-
 function ModuleIcon({ icon }: { icon: string }) {
-  const Icon = moduleIconRegistry[icon] ?? CircleHelp
+  const Icon = resolveModuleIcon(icon)
   return <Icon aria-hidden="true" />
 }
 

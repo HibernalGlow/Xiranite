@@ -173,10 +173,14 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     if (!run) { patch({ phase: "error", progressText: t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。") }); return }
     setRunning(true)
     if (nextAction === "diagnose") patch({ action: nextAction, environment: pendingEnvironment(), environmentCheckedAt: undefined, progressText: "正在检测 PATH 与 slimg CFFI 工具链…" })
-    else patch({ action: nextAction, phase: "running", progress: 0, progressText: t("status.start", "正在准备 Xlchemy 转换任务…"), result: null })
+    else patch({ action: nextAction, phase: "running", progress: 0, progressText: t("status.start", "正在准备 Xlchemy 转换任务…"), analysisTab: nextAction === "convert" ? "output" : dataRef.current.analysisTab, result: null })
     try {
       const response = await run<XlchemyInput, XlchemyData>("xlchemy", input, (event: NodeRunEvent) => {
-        if (event.type === "progress") { const currentFile = /^Converting (.+)\.$/.exec(event.message)?.[1]; patch({ progress: event.progress ?? 0, progressText: event.message, ...(currentFile ? { currentFile } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`] }) }
+        if (event.type === "progress") {
+          const currentFile = /^Converting (.+)\.$/.exec(event.message)?.[1]
+          const liveResult = readLiveResult(event.data)
+          patch({ progress: event.progress ?? 0, progressText: event.message, ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`] })
+        }
       }) as NodeRunResult<XlchemyData>
       if (nextAction === "diagnose") patch({ environment: response.data?.environment?.length ? response.data.environment : unavailableEnvironment("运行端待刷新，请重新检测"), environmentCheckedAt: response.data?.environment?.length ? new Date().toISOString() : undefined, progressText: response.data?.environment?.length ? response.message : "运行端尚未加载新版工具检测，请刷新后重试。" })
       else {
@@ -289,7 +293,7 @@ function CollapsedView(props: ViewProps) {
 }
 
 function CompactView(props: ViewProps & { portrait: boolean }) {
-  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
+  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
 }
 
 function FullView(props: ViewProps) {
@@ -304,7 +308,7 @@ function FullView(props: ViewProps) {
             <InputWorkbench props={props} />
           </WorkbenchCard>
           <OperationsCard props={props} />
-          <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} /></WorkbenchCard>
+          <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
         </div></ScrollArea>
         </ResizablePanel>
         <ResizableHandle withHandle />
@@ -332,7 +336,7 @@ function WorkspaceWorkbench({ props }: { props: ViewProps }) {
           <ResizablePanel id="xlchemy-run-feedback" defaultSize={props.paths.length ? 42 : 64} minSize={30}>
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2 pt-2">
               <OperationsCard fill props={props} />
-              <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} /></div></ScrollArea></WorkbenchCard>
+              <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -381,7 +385,7 @@ function InputWorkbench({ props }: { props: ViewProps }) {
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
-  const lossy = !(props.data.lossless ?? false), outputMode = props.data.outputMode ?? "source", supportsLosslessChoice = ["JPEG XL", "AVIF", "WebP", "TIFF"].includes(props.format), showQuality = props.format === "JPEG" || (supportsLosslessChoice && lossy)
+  const lossy = !(props.data.lossless ?? false), outputMode = props.data.outputMode ?? "source", supportsLosslessChoice = ["JPEG XL", "AVIF", "WebP", "TIFF"].includes(props.format), showQuality = props.format === "JPEG" || (supportsLosslessChoice && lossy), chromaUnavailable = props.format === "AVIF" && props.data.avifEncoder === "slimg"
   const selectFormat = (format: XlchemyFormat) => props.onPatch({ format, ...(format === "PNG" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? { lossless: true } : format === "JPEG" || format === "JPEG Reconstruction" ? { lossless: false } : {}) })
   return <div className="flex flex-col gap-2">
     <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
@@ -389,11 +393,16 @@ function FormatControls({ props }: { props: ViewProps }) {
       {supportsLosslessChoice && <ChoiceControlField label="压缩模式"><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid w-full grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
+      {showsChromaSubsampling(props) && <ChromaSubsamplingField disabled={chromaUnavailable} props={props} />}
     </div>
     {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
     {props.format === "Smallest Lossless" && <ChoiceControlField label="最小格式池"><ToggleGroup type="multiple" value={[(props.data.smallestPng ?? true) ? "png" : "", (props.data.smallestWebp ?? true) ? "webp" : "", (props.data.smallestJxl ?? true) ? "jxl" : ""].filter(Boolean)} className="grid w-full grid-cols-3" size="sm" onValueChange={(values) => values.length && props.onPatch({ smallestPng: values.includes("png"), smallestWebp: values.includes("webp"), smallestJxl: values.includes("jxl") })}><ToggleGroupItem value="png">PNG</ToggleGroupItem><ToggleGroupItem value="webp">WebP</ToggleGroupItem><ToggleGroupItem value="jxl">JXL</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
     {showQuality && <SliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
   </div>
+}
+
+function ChromaSubsamplingField({ disabled, props }: { disabled: boolean; props: ViewProps }) {
+  return <Field className="gap-1"><FieldLabel className="text-[10px]">色度采样</FieldLabel><Select disabled={disabled} value={props.data.chromaSubsampling ?? "default"} onValueChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select>{disabled && <span className="text-[10px] text-muted-foreground">slimg 编码器未提供色度采样控制</span>}</Field>
 }
 
 function InputFilterCard({ props, embedded = false }: { props: ViewProps; embedded?: boolean }) {
@@ -422,8 +431,11 @@ function OriginalConversionSettings({ props }: { props: ViewProps }) {
 function EncoderTuning({ props }: { props: ViewProps }) {
   if (props.format === "JPEG XL") return <div className="grid grid-cols-2 gap-2"><SwitchField label="最大压缩" checked={props.data.maxCompression ?? false} onChange={(maxCompression) => props.onPatch({ maxCompression })} /><SwitchField label="智能压缩力度" checked={props.data.intelligentEffort ?? false} onChange={(intelligentEffort) => props.onPatch({ intelligentEffort })} /><SwitchField label="校验完整性" checked={props.data.jxlVerify ?? false} onChange={(jxlVerify) => props.onPatch({ jxlVerify })} /><SwitchField label="PNG 回退" checked={props.data.jxlPngFallback ?? true} onChange={(jxlPngFallback) => props.onPatch({ jxlPngFallback })} /><SwitchField label="编码前标准化" checked={props.data.jxlNormalize ?? false} onChange={(jxlNormalize) => props.onPatch({ jxlNormalize })} />{props.data.jxlNormalize && <SelectField label="标准化时机" value={props.data.jxlNormalizeWhen ?? "on-fail"} options={[["on-fail", "失败时"], ["always", "始终"]]} onChange={(jxlNormalizeWhen) => props.onPatch({ jxlNormalizeWhen: jxlNormalizeWhen as "on-fail" | "always" })} />}</div>
   if (props.format === "Lossless JPEG Transcoding") return <div className="grid grid-cols-2 gap-2"><SwitchField label="最大压缩" checked={props.data.maxCompression ?? false} onChange={(maxCompression) => props.onPatch({ maxCompression })} /><SwitchField label="校验完整性" checked={props.data.jxlVerify ?? false} onChange={(jxlVerify) => props.onPatch({ jxlVerify })} /><SwitchField label="编码前标准化" checked={props.data.jxlNormalize ?? false} onChange={(jxlNormalize) => props.onPatch({ jxlNormalize })} />{props.data.jxlNormalize && <SelectField label="标准化时机" value={props.data.jxlNormalizeWhen ?? "on-fail"} options={[["on-fail", "失败时"], ["always", "始终"]]} onChange={(jxlNormalizeWhen) => props.onPatch({ jxlNormalizeWhen: jxlNormalizeWhen as "on-fail" | "always" })} />}</div>
-  if (props.format === "JPEG" || (props.format === "AVIF" && (props.data.avifEncoder ?? "aom") === "aom")) return <SelectField label="色度采样" value={props.data.chromaSubsampling ?? "default"} options={[["default", "默认"], ["444", "4:4:4"], ["422", "4:2:2"], ["420", "4:2:0"]]} onChange={(chromaSubsampling) => props.onPatch({ chromaSubsampling })} />
   return null
+}
+
+function showsChromaSubsampling(props: ViewProps) {
+  return props.format === "JPEG" || props.format === "AVIF"
 }
 
 function CoreExecutionOptions({ props }: { props: ViewProps }) {
@@ -498,7 +510,7 @@ function RunButton({ className, label, props, compact }: { className?: string; l
 }
 
 function ResultPanel({ props }: { props: ViewProps }) {
-  return <Tabs defaultValue={props.data.resultTab ?? "results"} className="flex h-full min-h-0 flex-col" onValueChange={(resultTab) => props.onPatch({ resultTab: resultTab as XlchemyCardState["resultTab"] })}><TabsList variant="line"><TabsTrigger value="results"><CheckCircle2 />结果</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />问题</TabsTrigger><TabsTrigger value="logs"><Terminal />日志</TabsTrigger></TabsList><TabsContent value="results" className="min-h-0 flex-1"><ScrollArea className="h-full"><div className="grid gap-1.5 p-2">{props.result?.files.length ? props.result.files.map((file) => <div key={file.sourcePath} className="flex items-center gap-2 rounded-md border px-2 py-1.5"><FileImage className="size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs">{baseName(file.sourcePath)}</div><div className="truncate text-[10px] text-muted-foreground">{file.outputPath}</div></div><Badge variant={file.status === "error" ? "destructive" : "outline"}>{file.status}</Badge></div>) : <div className="p-4 text-center text-xs text-muted-foreground">预览后显示输出路径和编码结果</div>}</div></ScrollArea></TabsContent><TabsContent value="issues" className="min-h-0 flex-1 p-3 text-xs text-muted-foreground">{props.result?.errors.join("\n") || "暂无问题"}</TabsContent><TabsContent value="logs" className="min-h-0 flex-1 pt-2"><ConversionLog logs={props.data.logs ?? []} onClear={() => props.onPatch({ logs: [] })} onCopy={(text) => void props.onCopyText(text)} /></TabsContent></Tabs>
+  return <Tabs defaultValue={props.data.resultTab ?? "results"} className="flex h-full min-h-0 flex-col" onValueChange={(resultTab) => props.onPatch({ resultTab: resultTab as XlchemyCardState["resultTab"] })}><TabsList variant="line"><TabsTrigger value="results"><CheckCircle2 />结果</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />问题</TabsTrigger><TabsTrigger value="logs"><Terminal />日志</TabsTrigger></TabsList><TabsContent value="results" className="min-h-0 flex-1 overflow-hidden"><ScrollArea className="h-full"><div className="grid gap-1.5 p-2">{props.result?.files.length ? props.result.files.map((file) => <div key={file.sourcePath} className="flex items-center gap-2 rounded-md border px-2 py-1.5"><FileImage className="size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-xs">{baseName(file.sourcePath)}</div><div className="truncate text-[10px] text-muted-foreground">{file.outputPath}</div></div><Badge variant={file.status === "error" ? "destructive" : "outline"}>{file.status}</Badge></div>) : <div className="p-4 text-center text-xs text-muted-foreground">预览后显示输出路径和编码结果</div>}</div></ScrollArea></TabsContent><TabsContent value="issues" className="min-h-0 flex-1 overflow-hidden pt-2"><ScrollArea className="h-full rounded-md border bg-muted/30" data-testid="xlchemy-result-issues-scroll"><pre className="min-w-0 whitespace-pre-wrap break-all p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">{props.result?.errors.join("\n") || "暂无问题"}</pre></ScrollArea></TabsContent><TabsContent value="logs" className="min-h-0 flex-1 overflow-hidden pt-2"><ConversionLog logs={props.data.logs ?? []} onClear={() => props.onPatch({ logs: [] })} onCopy={(text) => void props.onCopyText(text)} /></TabsContent></Tabs>
 }
 
 function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; fill?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
@@ -506,6 +518,12 @@ function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
+function readLiveResult(value: unknown): XlchemyData | undefined {
+  if (!value || typeof value !== "object" || (value as { kind?: unknown }).kind !== "xlchemy-live-result") return undefined
+  const result = (value as { result?: unknown }).result
+  if (!result || typeof result !== "object" || !Array.isArray((result as { files?: unknown }).files)) return undefined
+  return result as XlchemyData
+}
 function pendingEnvironment() { return ENVIRONMENT_TARGETS.map(([id, label, purpose]) => ({ id, label, purpose, available: false, runnable: false, detail: "等待检测" })) }
 function unavailableEnvironment(detail: string) { return ENVIRONMENT_TARGETS.map(([id, label, purpose]) => ({ id, label, purpose, available: false, runnable: false, detail })) }
 function baseName(path: string) { return path.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? path }

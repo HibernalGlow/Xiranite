@@ -70,6 +70,9 @@ export const nodeRunEventSchema = z.object({
   type: z.enum(["progress", "log"]),
   progress: z.number().optional(),
   message: z.string(),
+  // Optional structured progress payload.  Existing nodes keep using the
+  // compact message-only form; long-running nodes can expose live previews.
+  data: z.unknown().optional(),
 })
 
 export const nodeRunResultSchema = z.object({

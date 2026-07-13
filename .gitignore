@@ -34,7 +34,16 @@ public/.well-known/xiranite/backend.json
 ref/*
 repacku-direct*/*
 .turbo/
+.cache/
+.tmp/
+.playwright-cli/
 tmp/*
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.vite/
+*.tsbuildinfo
 output/playwright/*
 output/qa/*
 src/styles/.tailwind-candidates.txt

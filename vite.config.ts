@@ -41,6 +41,23 @@ function tailwindCandidateSnapshotPlugin() {
   }
 }
 
+/** Opt-in module map for investigating production chunk regressions. */
+function productionChunkReportPlugin() {
+  return {
+    name: "xiranite:production-chunk-report",
+    apply: "build" as const,
+    async generateBundle(_: unknown, bundle: Record<string, { type: string; fileName: string; code?: string; modules?: Record<string, unknown> }>) {
+      if (process.env.XIRANITE_CHUNK_REPORT !== "1") return
+      const chunks = Object.values(bundle)
+        .filter((output) => output.type === "chunk")
+        .map((output) => ({ fileName: output.fileName, bytes: output.code?.length ?? 0, modules: Object.keys(output.modules ?? {}) }))
+        .sort((a, b) => b.bytes - a.bytes)
+      await mkdir(path.resolve(__dirname, "artifacts"), { recursive: true })
+      await writeFile(path.resolve(__dirname, "artifacts", "production-chunks.json"), `${JSON.stringify(chunks, null, 2)}\n`)
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
@@ -48,6 +65,7 @@ export default defineConfig({
   },
   plugins: [
     tailwindCandidateSnapshotPlugin(),
+    productionChunkReportPlugin(),
     react({
       babel: {
         plugins: [

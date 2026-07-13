@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils"
 type InputEntry = { ext: string; folder: string; size: number }
 type Distribution = { key: string; count: number; size: number }
 
-export function DataAnalysis(props: { paths: string[]; result: XlchemyData | null }) {
+export function DataAnalysis(props: { paths: string[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
   const input = useMemo(() => buildInputStats(props.paths, props.result), [props.paths, props.result])
   const output = useMemo(() => buildOutputStats(props.result), [props.result])
-  return <Tabs defaultValue="input" className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis">
+  return <Tabs defaultValue="input" value={props.activeTab} className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis" onValueChange={(tab) => props.onTabChange?.(tab as "input" | "output")}>
     <TabsList className="grid w-full grid-cols-2">
       <TabsTrigger value="input"><FolderOpen data-icon="inline-start" />输入分析</TabsTrigger>
       <TabsTrigger value="output"><BarChart3 data-icon="inline-start" />输出分析</TabsTrigger>

@@ -51,6 +51,18 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 400 })
   })
 
+  test("emits incremental result snapshots while converting", async () => {
+    const events: Array<{ data?: unknown }> = []
+    const result = await runXlchemy({
+      action: "convert", paths: ["/photos/a.png"], format: "WebP", lossless: false, quality: 80, effort: 6, threads: 2,
+      outputMode: "source", preserveMetadata: false, preserveStructure: true, overwrite: true, recursive: true,
+    }, fakeRuntime(), (event) => events.push(event))
+    expect(result.success).toBe(true)
+    expect(events.find((event) => (event.data as { kind?: string } | undefined)?.kind === "xlchemy-live-result")?.data).toMatchObject({
+      result: { convertedCount: 1, files: [{ sourcePath: "/photos/a.png", status: "converted" }] },
+    })
+  })
+
   test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {
     const runtime = fakeRuntime()
     runtime.resolveCommand = async (candidates) => candidates[0] === "oxipng" ? undefined : `/bin/${candidates[0]}`
@@ -81,6 +93,13 @@ describe("xlchemy core contract", () => {
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", quality: 60, effort: 7, threads: 4, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
     expect(runtime.commands.at(-1)).toEqual({ command: "/bin/ffmpeg", args: ["-hide_banner", "-loglevel", "error", "-y", "-i", "/photos/a.png", "-frames:v", "1", "-c:v", "libsvtav1", "-preset", "4", "-crf", "25", "-threads", "4", "-pix_fmt", "yuv420p", "-f", "avif", "/photos/a.avif"] })
+  })
+
+  test("passes AVIF chroma subsampling through to the SVT pixel format", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", avifBitDepth: "10", chromaSubsampling: "444", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.at(-1)?.args).toContain("yuv444p10le")
   })
 
   test("applies original dynamic RAM rules to high-memory SVT encoding", async () => {
@@ -177,6 +196,19 @@ describe("xlchemy core contract", () => {
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true, metadataMode: "exiftool-custom", exiftoolCustomArgs: '-overwrite_original -Artist="Custom metadata" "$dst"' }), runtime)
     expect(result.success).toBe(true)
     expect(runtime.commands.at(-1)?.args).toEqual(["-overwrite_original", "-Artist=Custom metadata", "/photos/a.webp"])
+  })
+
+  test("keeps a successful conversion when best-effort encoder metadata copy is unsupported", async () => {
+    const runtime = fakeRuntime()
+    const runCommand = runtime.runCommand
+    runtime.runCommand = async (command, args) => command.endsWith("exiftool")
+      ? (runtime.commands.push({ command, args }), { exitCode: 1, stdout: "", stderr: "target format is read-only" })
+      : runCommand(command, args)
+    const events: NodeRunEvent[] = []
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "JPEG XL", outputMode: "source", overwrite: true, metadataMode: "encoder-preserve" }), runtime, (event) => events.push(event))
+    expect(result.success).toBe(true)
+    expect(result.data?.files[0]).toMatchObject({ status: "converted" })
+    expect(events).toContainEqual(expect.objectContaining({ type: "log", message: expect.stringContaining("Metadata copy skipped") }))
   })
 
   test("uses the recycle bin instead of permanent deletion when trash mode is selected", async () => {

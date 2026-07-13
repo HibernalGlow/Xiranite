@@ -56,6 +56,12 @@ describe("app-owned xlchemy Component", () => {
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], quality: 60 } })
   })
 
+  test("keeps chroma subsampling visible in the common parameters tab for every AVIF encoder", () => {
+    render(<Component compId="xlchemy-card" host={createHost({ pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg" })} />)
+    expect(screen.getByText("色度采样")).toBeTruthy()
+    expect(screen.getByText("slimg 编码器未提供色度采样控制")).toBeTruthy()
+  })
+
   test("creates, renames, overwrites and deletes custom presets through the database preset capability", async () => {
     const host = createHost({ pathsText: "D:/images/a.png", format: "WebP", lossless: false, quality: 77, effort: 5 })
     const view = render(<Component compId="xlchemy-card" host={host} />)
@@ -334,6 +340,20 @@ describe("app-owned xlchemy Component", () => {
     expect(screen.getByText("大小对比")).toBeTruthy()
     expect(screen.getByText("转换前：1000 B")).toBeTruthy()
     expect(screen.getByText("转换后：400 B")).toBeTruthy()
+  })
+
+  test("opens output analysis at conversion start and accepts live result snapshots", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png" })
+    host.runner!.run = async <TInput, TData>(_nodeId: string, _input: TInput, onEvent?: (event: NodeRunEvent) => void) => {
+      onEvent?.({ type: "progress", progress: 50, message: "Processed 1/1 image(s).", data: { kind: "xlchemy-live-result", result: { ...result, files: [{ sourcePath: "D:/images/a.png", outputPath: "D:/images/a.webp", sourceBytes: 1000, outputBytes: 250, status: "converted" }], inputCount: 1, convertedCount: 1, inputBytes: 1000, outputBytes: 250 } } })
+      return { success: true, message: "Converted.", data: { ...result, files: [{ sourcePath: "D:/images/a.png", outputPath: "D:/images/a.webp", sourceBytes: 1000, outputBytes: 250, status: "converted" }], inputCount: 1, convertedCount: 1, inputBytes: 1000, outputBytes: 250 } as TData }
+    }
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始转换" }))
+    await waitFor(() => expect(host.cardState.analysisTab).toBe("output"))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.getByRole("tab", { name: "输出分析" }).getAttribute("aria-selected")).toBe("true")
+    expect(screen.getByText("75.0%")).toBeTruthy()
   })
 
   test("exposes the original in-place cancel action while conversion is running", async () => {

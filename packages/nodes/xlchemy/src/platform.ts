@@ -11,7 +11,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
   return {
     pathInfo,
     listDir,
-    ensureDir: async (path) => { await mkdir(path, { recursive: true }) },
+    ensureDir,
     copyFile,
     removeFile: async (path) => { await rm(path, { force: true }) },
     trashFile: moveFileToRecycleBin,
@@ -42,6 +42,24 @@ async function pathInfo(path: string) {
 }
 
 async function listDir(path: string) { const entries = await readdir(path, { withFileTypes: true }); return entries.map((entry) => ({ path: join(path, entry.name), name: entry.name, isFile: entry.isFile(), isDirectory: entry.isDirectory() })) }
+
+/**
+ * Bun on Windows can report EEXIST for `mkdir(path, { recursive: true })`
+ * when `path` already exists as a directory. Source-output conversions call
+ * this for the image's existing parent directory, so verify the target and
+ * treat that one case as success.
+ */
+export async function ensureDir(path: string): Promise<void> {
+  try {
+    await mkdir(path, { recursive: true })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      const existing = await stat(path).catch(() => undefined)
+      if (existing?.isDirectory()) return
+    }
+    throw error
+  }
+}
 
 async function resolveCommand(candidates: string[]): Promise<string | undefined> {
   const extensions = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";") : [""]

@@ -11,7 +11,7 @@ import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/wor
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
 
 const APP_UI_SECTION = "ui"
-const APP_UI_CONFIG_VERSION = 1
+const APP_UI_CONFIG_VERSION = 2
 const WORKSPACE_UI_STORAGE_KEY = "xiranite-workspace-ui"
 const THEME_STORAGE_KEY = "theme"
 const AESTIVUS_THEME_NAME_STORAGE_KEY = "theme-name"
@@ -66,6 +66,9 @@ const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(
 const RESIZABLE_HANDLE_STYLES = new Set<WorkspaceUiPreferences["resizableHandleStyle"]>(["grip", "dots", "line", "minimal"])
 const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles"])
 const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden"])
+const CARD_CLICK_ACTIONS = new Set<WorkspaceUiPreferences["cardClickAction"]>(["none", "focus", "fullscreen"])
+const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet"])
+const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
@@ -113,8 +116,8 @@ export function AppConfigSync() {
         const response = await getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION)
         if (cancelled) return
 
-        const existing = normalizeAppUiConfig(response.config)
-        if (isEmptyAppUiConfig(existing)) {
+        const normalizedResponse = normalizeAppUiConfig(response.config)
+        if (isEmptyAppUiConfig(normalizedResponse)) {
           const legacy = readBrowserLegacyConfig()
           const workspace = legacy.hasWorkspaceStore
             ? currentRef.current.workspace
@@ -146,7 +149,19 @@ export function AppConfigSync() {
           return
         }
 
+        const existing = mergeMissingWorkspacePreferences(
+          normalizedResponse,
+          currentRef.current.workspace,
+        )
+
         migratedFromRef.current = existing.migratedFrom
+        // Older app.ui files did not contain every workspace preference. The
+        // current Zustand store carries the legacy values, so backfill only
+        // absent fields once and never replace a saved shared setting.
+        if (stableStringify(existing) !== stableStringify(normalizedResponse)) {
+          await saveAppConfigToBackend(APP_UI_SECTION, existing)
+          if (cancelled) return
+        }
         applyingRef.current = true
         applyAppUiConfig(
           existing,
@@ -414,6 +429,10 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     alphabetIndexOpacity: state.alphabetIndexOpacity,
     alphabetIndexStyle: state.alphabetIndexStyle,
     alphabetIndexWaveIntensity: state.alphabetIndexWaveIntensity,
+    cardClickAction: state.cardClickAction,
+    cardDoubleClickAction: state.cardDoubleClickAction,
+    tabDisplayStyle: state.tabDisplayStyle,
+    switchDisplayStyle: state.switchDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
     resizableHandleStyle: state.resizableHandleStyle,
@@ -510,6 +529,10 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (typeof value.alphabetIndexOpacity === "number") next.alphabetIndexOpacity = value.alphabetIndexOpacity
   if (isOneOf(value.alphabetIndexStyle, ALPHABET_INDEX_STYLES)) next.alphabetIndexStyle = value.alphabetIndexStyle
   if (typeof value.alphabetIndexWaveIntensity === "number") next.alphabetIndexWaveIntensity = value.alphabetIndexWaveIntensity
+  if (isOneOf(value.cardClickAction, CARD_CLICK_ACTIONS)) next.cardClickAction = value.cardClickAction
+  if (isOneOf(value.cardDoubleClickAction, CARD_CLICK_ACTIONS)) next.cardDoubleClickAction = value.cardDoubleClickAction
+  if (isOneOf(value.tabDisplayStyle, TAB_DISPLAY_STYLES)) next.tabDisplayStyle = value.tabDisplayStyle
+  if (isOneOf(value.switchDisplayStyle, SWITCH_DISPLAY_STYLES)) next.switchDisplayStyle = value.switchDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
@@ -517,6 +540,24 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle
   if (isOneOf(fieldTitleStyle, FIELD_TITLE_STYLES)) next.fieldTitleStyle = fieldTitleStyle
   return Object.keys(next).length ? next : undefined
+}
+
+function mergeMissingWorkspacePreferences(config: AppUiConfig, fallback: WorkspaceUiPreferences): AppUiConfig {
+  const normalized = normalizeAppUiConfig(config)
+  const existing = normalized.workspace ?? {}
+  const missing = Object.fromEntries(
+    Object.entries(sanitizeWorkspaceConfig(fallback))
+      .filter(([key]) => existing[key as keyof WorkspaceUiPreferences] === undefined),
+  ) as Partial<WorkspaceUiPreferences>
+  if (!Object.keys(missing).length && normalized.version === APP_UI_CONFIG_VERSION) return normalized
+  return {
+    ...normalized,
+    version: APP_UI_CONFIG_VERSION,
+    workspace: {
+      ...missing,
+      ...existing,
+    },
+  }
 }
 
 function normalizeAppearanceConfig(value: unknown): AppUiConfig["appearance"] {

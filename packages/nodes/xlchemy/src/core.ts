@@ -208,9 +208,14 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
       await runtime.waitWhilePaused?.()
       if (runtime.isCancelled?.()) return cancelled(files, started)
       const item = planned[index]!
-      if (item.status === "skipped") { files.push(item); continue }
+      if (item.status === "skipped") {
+        files.push(item)
+        emitLiveResult(onEvent, files, planned.length, started)
+        continue
+      }
       onEvent({ type: "progress", progress: Math.round(10 + index / planned.length * 85), message: `Converting ${runtime.basename(item.sourcePath)}.` })
-      files.push(await convertFile(item, options, runtime))
+      files.push(await convertFile(item, options, runtime, onEvent))
+      emitLiveResult(onEvent, files, planned.length, started)
       if (runtime.isCancelled?.()) return cancelled(files, started)
     }
     const data = summarize(files, Date.now() - started)
@@ -219,6 +224,16 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
   }
+}
+
+function emitLiveResult(onEvent: (event: NodeRunEvent) => void, files: XlchemyFileResult[], total: number, started: number) {
+  const snapshot = summarize(files, Date.now() - started)
+  onEvent({
+    type: "progress",
+    progress: Math.round(10 + files.length / Math.max(total, 1) * 85),
+    message: `Processed ${files.length}/${total} image(s).`,
+    data: { kind: "xlchemy-live-result", result: snapshot },
+  })
 }
 
 const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
@@ -314,10 +329,10 @@ async function jpegReconstructionExtension(source: string, input: XlchemyInput, 
   throw new Error("JPEG reconstruction data was not found. Enable PNG fallback to decode this JPEG XL image.")
 }
 
-async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyFileResult> {
   try {
     await runtime.ensureDir(runtime.dirname(plan.outputPath))
-    if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime)
+    if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime, onEvent)
     let encoderSource = plan.sourcePath
     const temporarySource = `${plan.outputPath}.xlchemy-input.png`
     const normalizedJpeg = `${plan.outputPath}.xlchemy-normalized.jpg`
@@ -348,7 +363,10 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     if (encoderSource === temporarySource) await runtime.removeFile(temporarySource)
     if ((await runtime.pathInfo(normalizedJpeg)).exists) await runtime.removeFile(normalizedJpeg)
     if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, plan.outputPath, input, runtime)
-    else if (input.metadataMode === "encoder-preserve") await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
+    else if (input.metadataMode === "encoder-preserve") {
+      const warning = await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
+      if (warning) onEvent({ type: "log", message: `Metadata copy skipped for ${runtime.basename(plan.outputPath)}: ${warning}` })
+    }
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(plan.outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     const outputInfo = await runtime.pathInfo(plan.outputPath)
@@ -367,7 +385,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
   } catch (error) { return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) } }
 }
 
-async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyFileResult> {
   const pool = input.smallestFormatPool ?? { png: true, webp: true, jxl: true }
   const enabled = (["png", "webp", "jxl"] as const).filter((format) => pool[format] !== false)
   if (!enabled.length) throw new Error("Smallest Lossless requires at least one format in the comparison pool.")
@@ -404,7 +422,10 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
     for (const candidate of candidates) if (candidate.path !== winner.path) await runtime.removeFile(candidate.path)
     await runtime.renameFile(winner.path, outputPath)
     if (input.metadataMode?.startsWith("exiftool")) await applyExifToolMetadata(plan.sourcePath, outputPath, input, runtime)
-    else if (input.metadataMode === "encoder-preserve") await copyMetadata(plan.sourcePath, outputPath, runtime)
+    else if (input.metadataMode === "encoder-preserve") {
+      const warning = await copyMetadata(plan.sourcePath, outputPath, runtime)
+      if (warning) onEvent({ type: "log", message: `Metadata copy skipped for ${runtime.basename(outputPath)}: ${warning}` })
+    }
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     if (input.deleteOriginal && plan.sourcePath !== outputPath) {
@@ -508,7 +529,7 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
   if (input.format === "AVIF" && input.avifEncoder === "svt") {
     const crf = input.lossless ? 0 : Math.round((100 - input.quality) * 0.63)
     const preset = input.maxCompression ? 0 : 13 - Math.round((input.effort - 1) * 13 / 9)
-    const pixelFormat = input.avifBitDepth === "10" || input.avifBitDepth === "12" ? "yuv420p10le" : "yuv420p"
+    const pixelFormat = avifPixelFormat(input.avifBitDepth, input.chromaSubsampling)
     return resolved(runtime, ["ffmpeg"], ["-hide_banner", "-loglevel", "error", "-y", "-i", source, "-frames:v", "1", "-c:v", "libsvtav1", "-preset", String(preset), "-crf", String(crf), "-threads", threads, "-pix_fmt", pixelFormat, "-f", "avif", target])
   }
   if (input.format === "AVIF") return resolved(runtime, ["avifenc"], ["-q", input.lossless ? "100" : quality, "-s", effort, "-j", threads, ...(input.avifBitDepth && input.avifBitDepth !== "auto" ? ["--bitdepth", input.avifBitDepth] : []), "-c", "aom", ...(input.avifAomIqTune ? ["-a", "tune=iq"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-y", input.chromaSubsampling] : []), ...custom(input.avifencArgs), source, target])
@@ -517,6 +538,12 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
   if (input.format === "TIFF") return resolved(runtime, ["magick"], [source, "-compress", input.lossless ? "zip" : "jpeg", "-quality", quality, ...custom(input.imageMagickArgs), target])
   if (input.jpegEncoder === "libjpeg") return resolved(runtime, ["magick"], [source, "-quality", quality, ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["-sampling-factor", input.chromaSubsampling] : []), ...custom(input.imageMagickArgs), target])
   return resolved(runtime, ["cjpegli"], ["-q", quality, ...(input.disableProgressiveJpegli ? ["-p", "0"] : []), ...(input.chromaSubsampling && input.chromaSubsampling !== "default" ? ["--chroma_subsampling", input.chromaSubsampling] : []), ...custom(input.cjpegliArgs), source, target])
+}
+
+function avifPixelFormat(bitDepth: XlchemyInput["avifBitDepth"], chromaSubsampling: string | undefined) {
+  const sampling = ["444", "422", "420"].includes(chromaSubsampling ?? "") ? chromaSubsampling : "420"
+  const depth = bitDepth === "10" || bitDepth === "12" ? `${bitDepth}le` : ""
+  return `yuv${sampling}p${depth}`
 }
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
@@ -533,7 +560,14 @@ async function runIntelligentJxlComparison(source: string, target: string, input
   return effort7Result
 }
 async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg CFFI is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality); return { exitCode: 0, stdout: "slimg CFFI conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
-async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime) { const exiftool = await runtime.resolveCommand(["exiftool"]); if (!exiftool) return; const result = await runRuntimeCommand(runtime, exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target]); if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "ExifTool metadata copy failed.") }
+/** Encoder-preserve is best effort: a format encoder may have already kept metadata,
+ * while ExifTool may not support rewriting that target format (notably JXL). */
+async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime): Promise<string | undefined> {
+  const exiftool = await runtime.resolveCommand(["exiftool"])
+  if (!exiftool) return "ExifTool was not found."
+  const result = await runRuntimeCommand(runtime, exiftool, ["-overwrite_original", "-TagsFromFile", source, "-all:all", target])
+  return result.exitCode === 0 ? undefined : (result.stderr.trim() || "ExifTool could not rewrite this output format.")
+}
 
 async function applyExifToolMetadata(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime) {
   const exiftool = await runtime.resolveCommand(["exiftool"])
