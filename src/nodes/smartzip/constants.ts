@@ -1,4 +1,4 @@
-import { Archive, FolderOpen, ScanLine, SquareTerminal } from "lucide-react"
+import { Archive, FolderOpen, ScanLine, ScanSearch, SquareTerminal } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { SmartZipAction } from "@xiranite/node-smartzip/core"
 
@@ -18,6 +18,14 @@ export const ACTIONS: SmartZipActionMeta[] = [
     shortLabel: "状态",
     description: "加载 SmartZip 配置，列出归档扩展名和密码。",
     icon: ScanLine,
+    destructive: false,
+  },
+  {
+    value: "inspect_codepage",
+    label: "预检文件名编码",
+    shortLabel: "预检编码",
+    description: "读取 ZIP 原始文件名字节，展示候选代码页、置信度和对应预览。",
+    icon: ScanSearch,
     destructive: false,
   },
   {

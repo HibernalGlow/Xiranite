@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { NODE_SURFACE_TEST_MODES, NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
@@ -63,6 +63,7 @@ describe("app-owned smartzip Component", () => {
       } else {
         expect(screen.getByTestId("smartzip-full-view")).toBeTruthy()
         expect(screen.getByTestId("smartzip-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("smartzip-wide-layout").firstElementChild).toBe(screen.getByTestId("smartzip-control-panel"))
         expect(screen.getByText("归档工作台")).toBeTruthy()
         expect(screen.getByTestId("smartzip-action-deck")).toBeTruthy()
         expect(screen.getByRole("button", { name: "解压归档" })).toBeTruthy()
@@ -89,9 +90,10 @@ describe("app-owned smartzip Component", () => {
       nodeId: "smartzip",
       input: {
         action: "status",
-        codePage: 936,
+        codePage: 0,
         paths: ["D:/archives/a.zip"],
         iniPath: undefined,
+        passwords: [],
         databasePath: undefined,
         dryRun: true,
         recordRun: false,
@@ -132,6 +134,104 @@ describe("app-owned smartzip Component", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("extract")
     expect(host.cardState.action).toBe("extract")
+  })
+
+  test("manages a masked password list without logging plaintext", async () => {
+    setSurface("regular")
+    const host = createHost({ passwords: [], pathsText: "D:/archives/a.zip" })
+    const view = render(<Component compId="comp-smartzip" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "添加密码" }))
+    view.rerender(<Component compId="comp-smartzip" host={host} />)
+    const passwordInput = screen.getByLabelText("归档密码 1")
+    expect(passwordInput.getAttribute("type")).toBe("password")
+    fireEvent.change(passwordInput, { target: { value: "local-secret" } })
+
+    expect(host.cardState.passwords).toEqual(["local-secret"])
+    expect(host.cardState.logs ?? []).not.toContain("local-secret")
+    await waitFor(() => expect(host.savedConfig?.passwords).toEqual(["local-secret"]))
+
+    await user.click(screen.getByRole("button", { name: "添加密码" }))
+    view.rerender(<Component compId="comp-smartzip" host={host} />)
+    fireEvent.change(screen.getByLabelText("归档密码 2"), { target: { value: "second-secret" } })
+    await waitFor(() => expect(host.savedConfig?.passwords).toEqual(["local-secret", "second-secret"]))
+
+    view.rerender(<Component compId="comp-smartzip" host={host} />)
+    await user.click(screen.getByRole("button", { name: "上移密码 2" }))
+    await waitFor(() => expect(host.savedConfig?.passwords).toEqual(["second-secret", "local-secret"]))
+    view.rerender(<Component compId="comp-smartzip" host={host} />)
+    await user.click(screen.getByRole("button", { name: "删除密码 1" }))
+    await waitFor(() => expect(host.savedConfig?.passwords).toEqual(["local-secret"]))
+  })
+
+  test("uses saved node passwords when the card has no password override", async () => {
+    setSurface("regular")
+    const host = createHost({ pathsText: "D:/archives/a.zip", logs: [] })
+    host.config!.get = async () => ({
+      config: { passwords: ["saved-secret"], dryRun: true },
+      path: "D:/config/xiranite.config.toml",
+    })
+    render(<Component compId="comp-smartzip" host={host} />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(screen.getByLabelText("归档密码 1")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "查看状态" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.passwords).toEqual(["saved-secret"])
+    expect(host.cardState.logs ?? []).not.toContain("saved-secret")
+  })
+
+  test("adds per-archive failures to the visible log", async () => {
+    setSurface("regular")
+    const host = createHost({ pathsText: "D:/archives/a.zip", logs: [] })
+    host.runner!.run = async <TInput, TData>(nodeId: string, input: TInput) => {
+      host.runCalls.push({ nodeId, input: input as SmartZipInput })
+      return {
+        success: false,
+        message: "1 SmartZip workflow operation(s) failed.",
+        data: { ...smartzipData, errors: ["D:/archives/a.zip: Wrong password or missing volume."] } as TData,
+      }
+    }
+    render(<Component compId="comp-smartzip" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "解压归档" }))
+
+    await waitFor(() => expect(host.cardState.logs).toContain("[error] D:/archives/a.zip: Wrong password or missing volume."))
+  })
+
+  test("shows encoding candidates and applies the selected preview", async () => {
+    setSurface("regular")
+    const host = createHost({
+      pathsText: "D:/archives/a.zip",
+      result: {
+        ...smartzipData,
+        encodingInspections: [{
+          sourcePath: "D:/archives/a.zip",
+          recommendedCodePage: 932,
+          confidence: "high",
+          unicodeMetadata: false,
+          archiveStatus: "readable",
+          entries: ["folder/テスト.txt", "root.txt"],
+          message: "Recommended Shift_JIS.",
+          candidates: [
+            { codePage: 932, label: "Shift_JIS / CP932", score: 40, preview: ["テスト.txt"] },
+            { codePage: 936, label: "GBK / CP936", score: 8, preview: ["僥僗僩.txt"] },
+          ],
+        }],
+      },
+    })
+    render(<Component compId="comp-smartzip" host={host} />)
+    const user = userEvent.setup()
+
+    expect(screen.getByText("テスト.txt")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: /Shift_JIS \/ CP932/ }))
+    expect(host.cardState.codePage).toBe(932)
+    await user.click(screen.getByRole("tab", { name: "文件树" }))
+    expect(screen.getByText("folder")).toBeTruthy()
+    expect(screen.getByText("root.txt")).toBeTruthy()
   })
 
   test("marks the card as error when extract has no paths", async () => {

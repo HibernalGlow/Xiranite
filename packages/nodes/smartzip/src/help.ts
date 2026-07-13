@@ -13,7 +13,8 @@ export const help = {
       "summary": "Deploy SmartZip from the module registry and run it from the node surface.",
       "ui": [
         "Open the module registry and deploy SmartZip to the current workspace.",
-        "Fill the node fields or paste paths/configuration into the node surface.",
+      "Fill the node fields, manage the masked password list, or paste paths/configuration into the node surface.",
+      "For legacy ZIP names, run filename-encoding inspection and choose a candidate preview before extraction.",
         "Run preview or the primary action, then review results and logs before applying live changes."
       ]
     },
@@ -71,7 +72,8 @@ export const help = {
           "summary": "从模块库部署 SmartZip，并在节点面板中运行。",
           "ui": [
             "打开模块库，将 SmartZip 部署到当前工作区。",
-            "填写节点字段，或将路径/配置粘贴到节点面板。",
+            "填写节点字段、管理掩码密码列表，或将路径/配置粘贴到节点面板。",
+            "旧 ZIP 文件名可先运行编码预检，根据候选预览选择代码页后再解压。",
             "先运行预览或主操作，确认结果和日志后再应用真实更改。"
           ]
         },

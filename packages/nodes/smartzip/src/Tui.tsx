@@ -63,7 +63,7 @@ function SmartZipWorkbench({ definition, language, preferences, onExit, onThemeP
     </box>
 
     <box height={3} flexShrink={0} marginTop={1} flexDirection="row" justifyContent="space-between">
-      <ActionTabs id="field-action" options={[{ value: "status", label: "◉ 状态" }, { value: "extract", label: "⇩ 解压" }, { value: "extract_codepage", label: "⌘ 编码解压" }, { value: "open", label: "↗ 打开" }, { value: "archive", label: "▣ 打包" }]} value={action} focused={session.focusedControlId === "action"} disabled={session.phase === "running"} onFocus={() => session.focus("action")} onChange={(value) => session.setField("action", value)} />
+      <ActionTabs id="field-action" options={[{ value: "status", label: "◉ 状态" }, { value: "inspect_codepage", label: "⌕ 编码预检" }, { value: "extract", label: "⇩ 解压" }, { value: "extract_codepage", label: "⌘ 编码解压" }, { value: "open", label: "↗ 打开" }, { value: "archive", label: "▣ 打包" }]} value={action} focused={session.focusedControlId === "action"} disabled={session.phase === "running"} onFocus={() => session.focus("action")} onChange={(value) => session.setField("action", value)} />
       <text fg={theme.colors.mutedForeground}>{`QUEUE ${pathCount}  ·  ${result?.success ? "PLANNED" : "IDLE"}  ·  ${session.progress}%`}</text>
     </box>
 

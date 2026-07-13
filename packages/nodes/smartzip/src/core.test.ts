@@ -25,6 +25,7 @@ describe("smartzip core", () => {
       path: "",
       iniPath: "",
       iniText: "",
+      passwords: [],
       codePage: 0,
       databasePath: "",
       recordRun: false,
@@ -101,6 +102,36 @@ describe("smartzip core", () => {
     expect(JSON.stringify(result)).not.toContain("secret-value")
   })
 
+  test("merges managed passwords with INI passwords and keeps both redacted", async () => {
+    const result = await runSmartZip({ action: "status", passwords: ["managed-secret"], iniText: "[password]\n1=ini-secret" }, {
+      readText: async () => "",
+      appendRecord: async () => {},
+      find7z: async () => null,
+      execute: async () => [],
+    })
+    expect(result.data?.config.passwords).toEqual(["••••", "••••"])
+    expect(JSON.stringify(result)).not.toMatch(/managed-secret|ini-secret/)
+  })
+
+  test("returns filename encoding previews without requiring 7-Zip", async () => {
+    const result = await runSmartZip({ action: "inspect_codepage", path: "D:/legacy.zip" }, {
+      readText: async () => "",
+      appendRecord: async () => {},
+      find7z: async () => null,
+      execute: async () => [],
+      inspectCodePages: async (paths) => paths.map((sourcePath) => ({
+        sourcePath,
+        recommendedCodePage: 932,
+        confidence: "high",
+        unicodeMetadata: false,
+        message: "Shift_JIS recommended.",
+        candidates: [{ codePage: 932, label: "Shift_JIS / CP932", score: 40, preview: ["テスト.txt"] }],
+      })),
+    })
+    expect(result.success).toBe(true)
+    expect(result.data?.encodingInspections?.[0]?.candidates[0]?.preview).toEqual(["テスト.txt"])
+  })
+
   test.each([936, 950, 932, 949, 65001])("passes filename code page CP%s to 7-Zip", (codePage) => {
     const command = buildSmartZipCommand(normalizeSmartZipInput({ action: "extract_codepage", path: "D:/多言語.zip", codePage }), "7z.exe")
     expect(command.args).toContain(`-mcp=${codePage}`)
@@ -120,5 +151,20 @@ describe("smartzip core", () => {
     expect(result.success).toBe(true)
     expect(requests).toEqual([{ paths: ["D:/a.zip", "D:/b.7z"], cli: "C:/Program Files/7-Zip/7z.exe" }])
     expect(result.data?.operations).toHaveLength(2)
+  })
+
+  test("uses resolved first volumes in directory dry-run plans", async () => {
+    const result = await runSmartZip({ action: "extract", path: "D:/volumes", dryRun: true }, {
+      readText: async () => "",
+      appendRecord: async () => {},
+      find7z: async () => null,
+      execute: async () => [],
+      resolveInputPaths: async () => ["D:/volumes/a.7z.001", "D:/volumes/b.7z.001"],
+    })
+    expect(result.success).toBe(true)
+    expect(result.data?.operations?.map((operation) => operation.sourcePath)).toEqual([
+      "D:/volumes/a.7z.001",
+      "D:/volumes/b.7z.001",
+    ])
   })
 })

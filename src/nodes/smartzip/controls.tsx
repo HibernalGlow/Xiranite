@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react"
-import { Archive, Clipboard, DatabaseZap, Eye, FileText, Info, Settings2 } from "lucide-react"
+import { useState } from "react"
+import { Archive, ArrowDown, ArrowUp, Clipboard, DatabaseZap, Eye, EyeOff, Info, KeyRound, Plus, Settings2, Trash2 } from "lucide-react"
 import type { SmartZipAction } from "@xiranite/node-smartzip/core"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { PathInput, PathTextarea } from "@/components/ui/path-input"
 import { Label } from "@/components/ui/label"
@@ -163,11 +165,12 @@ export function RuntimeOptions(props: {
     <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
       <div className="grid gap-1.5 rounded-md border bg-background/60 p-2 @3xl/smartzip:col-span-2">
         <Label htmlFor="smartzip-code-page">{t("fields.codePage", "旧 ZIP 文件名编码")}</Label>
-        <Select disabled={props.disabled} value={String(props.data.codePage ?? 936)} onValueChange={(value) => props.onPatch({ codePage: Number(value) })}>
+        <Select disabled={props.disabled} value={String(props.data.codePage ?? 0)} onValueChange={(value) => props.onPatch({ codePage: Number(value) })}>
           <SelectTrigger id="smartzip-code-page" aria-label="smartzip archive filename code page">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="0">自动检测 · 先预检再选择</SelectItem>
             <SelectItem value="936">简体中文 · GBK / CP936</SelectItem>
             <SelectItem value="950">繁體中文 · Big5 / CP950</SelectItem>
             <SelectItem value="932">日本語 · Shift_JIS / CP932</SelectItem>
@@ -175,8 +178,9 @@ export function RuntimeOptions(props: {
             <SelectItem value="65001">Unicode · UTF-8</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">{t("hints.codePage", "没有 UTF-8 文件名标记的旧归档，会把该代码页传给 7-Zip 解码。")}</p>
+        <p className="text-xs text-muted-foreground">{t("hints.codePage", "自动模式会预检原始文件名字节并推荐代码页；也可以根据候选预览手动覆盖。")}</p>
       </div>
+      <PasswordManager {...props} />
       <SwitchRow
         checked={props.data.dryRun ?? true}
         disabled={props.disabled}
@@ -193,6 +197,66 @@ export function RuntimeOptions(props: {
         description={t("switches.recordRunDesc", "把每次运行的命令和结果写入 JSONL。")}
         onCheckedChange={(recordRun) => props.onPatch({ recordRun })}
       />
+    </div>
+  )
+}
+
+export function PasswordManager(props: {
+  data: SmartZipCardState
+  disabled?: boolean
+  onPatch: (patch: Partial<SmartZipCardState>) => void
+}) {
+  const { t } = useNodeI18n("smartzip")
+  const [revealed, setRevealed] = useState(false)
+  const passwords = props.data.passwords ?? []
+  const update = (index: number, value: string) => {
+    const next = [...passwords]
+    next[index] = value
+    props.onPatch({ passwords: next })
+  }
+  const remove = (index: number) => props.onPatch({ passwords: passwords.filter((_value, itemIndex) => itemIndex !== index) })
+  const move = (index: number, offset: -1 | 1) => {
+    const target = index + offset
+    if (target < 0 || target >= passwords.length) return
+    const next = [...passwords]
+    ;[next[index], next[target]] = [next[target]!, next[index]!]
+    props.onPatch({ passwords: next })
+  }
+  return (
+    <div className="grid gap-2 rounded-md border bg-background/60 p-2 @3xl/smartzip:col-span-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="flex items-center gap-1.5"><KeyRound className="size-3.5 text-muted-foreground" />{t("passwords.title", "密码列表")}</Label>
+        <div className="flex items-center gap-1">
+          <Button aria-label={revealed ? t("passwords.hide", "隐藏密码") : t("passwords.show", "显示密码")} disabled={!passwords.length} size="icon-sm" type="button" variant="ghost" onClick={() => setRevealed((value) => !value)}>
+            {revealed ? <EyeOff /> : <Eye />}
+          </Button>
+          <Button aria-label={t("passwords.add", "添加密码")} disabled={props.disabled} size="icon-sm" type="button" variant="outline" onClick={() => props.onPatch({ passwords: [...passwords, ""] })}>
+            <Plus />
+          </Button>
+        </div>
+      </div>
+      {passwords.length ? passwords.map((password, index) => (
+        <div key={index} className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-1.5">
+          <Input
+            aria-label={t("passwords.item", "归档密码 {{index}}", { index: index + 1 })}
+            autoComplete="off"
+            disabled={props.disabled}
+            type={revealed ? "text" : "password"}
+            value={password}
+            onChange={(event) => update(index, event.currentTarget.value)}
+          />
+          <Button aria-label={t("passwords.moveUp", "上移密码 {{index}}", { index: index + 1 })} disabled={props.disabled || index === 0} size="icon-sm" type="button" variant="ghost" onClick={() => move(index, -1)}>
+            <ArrowUp />
+          </Button>
+          <Button aria-label={t("passwords.moveDown", "下移密码 {{index}}", { index: index + 1 })} disabled={props.disabled || index === passwords.length - 1} size="icon-sm" type="button" variant="ghost" onClick={() => move(index, 1)}>
+            <ArrowDown />
+          </Button>
+          <Button aria-label={t("passwords.remove", "删除密码 {{index}}", { index: index + 1 })} disabled={props.disabled} size="icon-sm" type="button" variant="ghost" onClick={() => remove(index)}>
+            <Trash2 />
+          </Button>
+        </div>
+      )) : <p className="text-xs text-muted-foreground">{t("passwords.empty", "暂无额外密码；仍会读取 SmartZip.ini 的 [password]。")}</p>}
+      <p className="text-[11px] text-muted-foreground">{t("passwords.hint", "按顺序尝试。新增、修改、删除和排序会自动保存；密码不会写入日志或结果。")}</p>
     </div>
   )
 }

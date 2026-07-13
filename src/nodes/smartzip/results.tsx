@@ -1,8 +1,9 @@
 import type { CommandResult, SmartZipCommandPlan, SmartZipConfig, SmartZipData } from "@xiranite/node-smartzip/core"
 import type { LucideIcon } from "lucide-react"
-import { Copy, ScrollText, Settings2, Terminal } from "lucide-react"
+import { Check, Copy, FolderTree, Languages, Maximize2, ScrollText, Settings2, Terminal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CollapseButton, Tree, type TreeViewElement } from "@/components/ui/file-tree"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -36,22 +37,33 @@ export function SmartZipResultTabs(props: {
   logs: string[]
   result: SmartZipData | null
   running?: boolean
+  selectedCodePage?: number
   onCopyLogs: () => void
   onCopyResults: () => void
+  onSelectCodePage?: (codePage: number) => void
 }) {
   const { t } = useNodeI18n("smartzip")
   const hasCommand = Boolean(props.result?.command)
   const hasConfig = Boolean(props.result?.config)
-  const preferredTab = props.running ? "logs" : hasCommand ? "command" : hasConfig ? "config" : "logs"
+  const hasEncodingInspection = Boolean(props.result?.encodingInspections?.length)
+  const preferredTab = props.running ? "logs" : hasEncodingInspection ? "encoding" : hasCommand ? "command" : hasConfig ? "config" : "logs"
   return (
-    <Tabs defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
+    <Tabs key={preferredTab} defaultValue={preferredTab} className="flex h-full min-h-0 flex-col">
       <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="command">{t("tabs.command", "命令")}</TabsTrigger>
+        <TabsTrigger value="encoding">{t("tabs.encoding", "编码预检")}</TabsTrigger>
+        <TabsTrigger value="tree">{t("tabs.tree", "文件树")}</TabsTrigger>
         <TabsTrigger value="config">{t("tabs.config", "配置")}</TabsTrigger>
         <TabsTrigger value="logs">{t("tabs.logs", "日志")}</TabsTrigger>
       </TabsList>
       <TabsContent value="command" className="min-h-0 flex-1">
         <CommandPanel compact={props.compact} result={props.result} onCopy={props.onCopyResults} />
+      </TabsContent>
+      <TabsContent value="encoding" className="min-h-0 flex-1">
+        <EncodingPanel inspections={props.result?.encodingInspections ?? []} selectedCodePage={props.selectedCodePage} onSelect={props.onSelectCodePage} />
+      </TabsContent>
+      <TabsContent value="tree" className="min-h-0 flex-1">
+        <ArchiveTreePanel inspections={props.result?.encodingInspections ?? []} />
       </TabsContent>
       <TabsContent value="config" className="min-h-0 flex-1">
         <ConfigPanel compact={props.compact} config={props.result?.config} onCopy={props.onCopyResults} />
@@ -93,6 +105,129 @@ function CommandPanel(props: {
   )
 }
 
+function ArchiveTreePanel({ inspections }: { inspections: NonNullable<SmartZipData["encodingInspections"]> }) {
+  const { t } = useNodeI18n("smartzip")
+  const elements = inspections.map(toArchiveTreeElement)
+  const expandedItems = elements.flatMap(collectTreeFolderIds)
+  const entryCount = inspections.reduce((total, inspection) => total + (inspection.entries?.length ?? 0), 0)
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <PanelHeader count={entryCount} icon={FolderTree} label={t("tabs.tree", "文件树")} />
+      <div className="min-h-0 flex-1">
+        {elements.length ? (
+          <Tree
+            actions={<CollapseButton elements={elements}><Maximize2 data-icon="inline-start" />{t("tree.expand", "展开")}</CollapseButton>}
+            className="text-xs"
+            elements={elements}
+            initialExpandedItems={expandedItems}
+            sort="none"
+          />
+        ) : (
+          <EmptyState icon={FolderTree} title={t("tree.empty", "等待文件树")} description={t("tree.emptyDescription", "运行编码预检后会读取归档成员并显示目录结构。")}/>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function toArchiveTreeElement(inspection: NonNullable<SmartZipData["encodingInspections"]>[number]): TreeViewElement {
+  const root: MutableTreeNode = {
+    id: inspection.sourcePath,
+    name: `${inspection.sourcePath.split(/[\\/]/).pop() ?? inspection.sourcePath} · ${inspection.archiveStatus ?? inspection.confidence}`,
+    type: "folder",
+    children: [],
+  }
+  for (const entry of inspection.entries ?? []) addTreePath(root, entry)
+  if (!root.children.length) {
+    root.children.push({
+      id: `${inspection.sourcePath}::status`,
+      name: inspection.treeError ?? inspection.message,
+      type: "file",
+      isSelectable: false,
+    })
+  }
+  return root
+}
+
+interface MutableTreeNode extends TreeViewElement {
+  children?: MutableTreeNode[]
+}
+
+function addTreePath(root: MutableTreeNode, path: string) {
+  const normalized = path.replaceAll("\\", "/")
+  const parts = normalized.split("/").filter(Boolean)
+  let parent = root
+  parts.forEach((part, index) => {
+    parent.children ??= []
+    const id = `${root.id}::${parts.slice(0, index + 1).join("/")}`
+    let child = parent.children.find((item) => item.id === id)
+    if (!child) {
+      const folder = index < parts.length - 1 || normalized.endsWith("/")
+      child = { id, name: part, type: folder ? "folder" : "file", children: folder ? [] : undefined, isSelectable: false }
+      parent.children.push(child)
+    }
+    parent = child
+  })
+}
+
+function collectTreeFolderIds(element: TreeViewElement): string[] {
+  if (element.type !== "folder") return []
+  return [element.id, ...(element.children ?? []).flatMap(collectTreeFolderIds)]
+}
+
+function EncodingPanel(props: {
+  inspections: NonNullable<SmartZipData["encodingInspections"]>
+  selectedCodePage?: number
+  onSelect?: (codePage: number) => void
+}) {
+  const { t } = useNodeI18n("smartzip")
+  return (
+    <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
+      <PanelHeader count={props.inspections.length} icon={Languages} label={t("tabs.encoding", "编码预检")} />
+      <ScrollArea className="min-h-0 flex-1">
+        {props.inspections.length ? (
+          <div className="grid gap-3 p-3">
+            {props.inspections.map((inspection) => (
+              <div key={inspection.sourcePath} className="grid gap-2 rounded-lg border bg-background/70 p-3">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="truncate font-mono text-xs" title={inspection.sourcePath}>{inspection.sourcePath}</div>
+                  <Badge variant={inspection.confidence === "low" || inspection.confidence === "unknown" ? "outline" : "secondary"}>{inspection.confidence}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{inspection.message}</p>
+                <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
+                  {inspection.candidates.map((candidate) => {
+                    const selected = props.selectedCodePage === candidate.codePage
+                    const recommended = inspection.recommendedCodePage === candidate.codePage
+                    return (
+                      <button
+                        key={candidate.codePage}
+                        type="button"
+                        className={cn("grid min-w-0 gap-1 rounded-md border p-2 text-left transition-colors hover:bg-muted/60", selected && "border-primary bg-primary/5")}
+                        onClick={() => props.onSelect?.(candidate.codePage)}
+                      >
+                        <span className="flex items-center justify-between gap-2 text-xs font-medium">
+                          <span>{candidate.label}</span>
+                          <span className="flex items-center gap-1">
+                            {recommended && <Badge variant="secondary">{t("encoding.recommended", "推荐")}</Badge>}
+                            {selected && <Check className="size-3.5 text-primary" />}
+                          </span>
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-muted-foreground" title={candidate.preview.join(" · ")}>{candidate.preview.join(" · ")}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState icon={Languages} title={t("encoding.empty", "等待编码预检")} description={t("encoding.emptyDescription", "点击“预检文件名编码”后，这里会显示各代码页对应的文件名预览。")}/>
+        )}
+      </ScrollArea>
+    </section>
+  )
+}
+
 function OperationRow({ operation }: { operation: NonNullable<SmartZipData["operations"]>[number] }) {
   return (
     <div className="grid min-w-0 gap-1 rounded-md border bg-background/70 p-2">
@@ -125,7 +260,7 @@ function CommandRow({ command, result }: { command: SmartZipCommandPlan; result?
 function ConfigPanel(props: {
   compact?: boolean
   config?: SmartZipConfig
-  onCopy: () => void
+  onCopy?: () => void
 }) {
   const { t } = useNodeI18n("smartzip")
   const config = props.config
@@ -199,10 +334,12 @@ function PanelHeader(props: {
           <Icon className="size-3.5" />
           <span>{props.count ? t("panelHeader.items", "{{count}} 项{{label}}", { count: props.count, label: props.label }) : t("panelHeader.waiting", "等待{{label}}", { label: props.label })}</span>
         </div>
-        <Button disabled={!props.count} size="xs" variant="ghost" onClick={props.onCopy}>
-          <Copy data-icon="inline-start" />
-          {t("actions.copy", "复制")}
-        </Button>
+        {props.onCopy && (
+          <Button disabled={!props.count} size="xs" variant="ghost" onClick={props.onCopy}>
+            <Copy data-icon="inline-start" />
+            {t("actions.copy", "复制")}
+          </Button>
+        )}
       </div>
       <Separator />
     </>

@@ -1,12 +1,15 @@
 import { execFile } from "node:child_process"
-import { appendFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat } from "node:fs/promises"
+import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat } from "node:fs/promises"
 import { basename, dirname, extname, join, parse } from "node:path"
 import type { NodeRunEvent } from "@xiranite/contract"
 import type {
   CommandResult,
   SmartZipCommandPlan,
   SmartZipConfig,
+  SmartZipEncodingCandidate,
+  SmartZipEncodingInspection,
   SmartZipExecutionRequest,
+  SmartZipExecutionAction,
   SmartZipOperationResult,
   SmartZipRuntime,
   SmartZipTools,
@@ -18,6 +21,8 @@ export function createNodeSmartZipRuntime(): SmartZipRuntime {
     appendRecord,
     find7z,
     execute,
+    inspectCodePages,
+    resolveInputPaths: expandExtractSources,
   }
 }
 
@@ -51,14 +56,34 @@ async function find7z(configuredDirectory = ""): Promise<SmartZipTools | null> {
 async function execute(request: SmartZipExecutionRequest, onEvent: (event: NodeRunEvent) => void): Promise<SmartZipOperationResult[]> {
   if (request.action === "archive") return archivePaths(request, onEvent)
   if (request.action === "open") return smartOpen(request, onEvent)
+  const sources = await expandExtractSources(request.paths, request.config)
+  if (!sources.length) return request.paths.map((path) => operationError(request.action, path, "No supported archive or first multipart volume was found."))
   const results: SmartZipOperationResult[] = []
-  for (let index = 0; index < request.paths.length; index += 1) {
-    const sourcePath = request.paths[index]!
-    onEvent({ type: "progress", progress: Math.round(index / request.paths.length * 100), message: `Extracting ${basename(sourcePath)}` })
+  for (let index = 0; index < sources.length; index += 1) {
+    const sourcePath = sources[index]!
+    onEvent({ type: "progress", progress: Math.round(index / sources.length * 100), message: `Extracting ${basename(sourcePath)}` })
     results.push(await extractArchive(sourcePath, request, 0))
   }
   onEvent({ type: "progress", progress: 100, message: "Smart extraction completed." })
   return results
+}
+
+async function expandExtractSources(paths: string[], config: SmartZipConfig, _action?: SmartZipExecutionAction): Promise<string[]> {
+  const sources: string[] = []
+  for (const path of paths) {
+    if (!await isDirectory(path)) {
+      if (multipartKind(path) !== "continuation") sources.push(path)
+      continue
+    }
+    const entries = await walk(path)
+    const fileFlags = await Promise.all(entries.map(isFile))
+    for (let index = 0; index < entries.length; index += 1) {
+      const candidate = entries[index]!
+      if (!fileFlags[index] || multipartKind(candidate) === "continuation" || !isConfiguredArchive(candidate, config)) continue
+      sources.push(candidate)
+    }
+  }
+  return [...new Set(sources)]
 }
 
 async function extractArchive(sourcePath: string, request: SmartZipExecutionRequest, depth: number): Promise<SmartZipOperationResult> {
@@ -75,6 +100,7 @@ async function extractArchive(sourcePath: string, request: SmartZipExecutionRequ
   const candidates = passwordCandidates(sourcePath, request.config)
   let password: string | undefined
   let tested: CommandResult | undefined
+  const testFailures: CommandResult[] = []
   for (const candidate of candidates) {
     const testPassword = candidate || "__XIRANITE_NO_PASSWORD__"
     const args = ["t", sourcePath, "-y", "-sccUTF-8", `-p${testPassword}`]
@@ -83,11 +109,21 @@ async function extractArchive(sourcePath: string, request: SmartZipExecutionRequ
       password = candidate || undefined
       break
     }
+    testFailures.push(tested)
   }
   if (!tested || tested.code !== 0) {
     await rm(temporary, { force: true, recursive: true })
-    return operationError(request.action, sourcePath, "Archive test failed; no configured password succeeded.", tested)
+    return operationError(
+      request.action,
+      sourcePath,
+      archiveTestFailureMessage(testFailures, request.config.passwords.length),
+      tested,
+    )
   }
+  const encodingInspection = request.action === "extract_codepage" && !request.codePage
+    ? await inspectCodePage(sourcePath, request.config.codePages)
+    : undefined
+  const resolvedCodePage = request.codePage || encodingInspection?.recommendedCodePage
   const args = [
     "x",
     sourcePath,
@@ -96,7 +132,7 @@ async function extractArchive(sourcePath: string, request: SmartZipExecutionRequ
     "-y",
     "-sccUTF-8",
     ...(password ? [`-p${password}`] : []),
-    ...(request.codePage ? [`-mcp=${request.codePage}`] : []),
+    ...(resolvedCodePage ? [`-mcp=${resolvedCodePage}`] : []),
     ...excludeArgs(request.config),
   ]
   const displayArgs = args.map((arg) => arg.startsWith("-p") ? "-p••••" : arg)
@@ -126,11 +162,248 @@ async function extractArchive(sourcePath: string, request: SmartZipExecutionRequ
     sourcePath,
     outputPath,
     status: "completed",
-    message: password ? "Extracted with a configured password." : "Extracted.",
+    message: extractionMessage(password, resolvedCodePage, encodingInspection),
     command,
     commandResult,
     passwordUsed: Boolean(password),
   }
+}
+
+const DEFAULT_CODE_PAGES = [65001, 936, 950, 932, 949] as const
+
+async function inspectCodePages(paths: string[], config: SmartZipConfig): Promise<SmartZipEncodingInspection[]> {
+  const sources: string[] = []
+  for (const path of paths) {
+    if (!await isDirectory(path)) {
+      if (multipartKind(path) !== "continuation") sources.push(path)
+      continue
+    }
+    const entries = await walk(path)
+    const fileFlags = await Promise.all(entries.map(isFile))
+    for (let index = 0; index < entries.length; index += 1) {
+      const candidate = entries[index]!
+      if (fileFlags[index] && multipartKind(candidate) !== "continuation" && /\.(?:zip|cbz|7z|7z\.001)$/i.test(candidate)) sources.push(candidate)
+    }
+  }
+  const tools = await find7z(config.sevenZipDir)
+  return Promise.all([...new Set(sources)].map(async (path) => {
+    const inspection = await inspectCodePage(path, config.codePages)
+    if (!tools) return { ...inspection, archiveStatus: "unsupported" as const, treeError: "7-Zip was not found; file-tree preview is unavailable." }
+    const tree = await listArchiveEntries(path, tools.cli, config, inspection.recommendedCodePage)
+    return { ...inspection, ...tree }
+  }))
+}
+
+async function listArchiveEntries(
+  path: string,
+  cli: string,
+  config: SmartZipConfig,
+  codePage?: number,
+): Promise<Pick<SmartZipEncodingInspection, "entries" | "archiveStatus" | "treeError">> {
+  let lastResult: CommandResult | undefined
+  for (const candidate of passwordCandidates(path, config)) {
+    const password = candidate || "__XIRANITE_NO_PASSWORD__"
+    const result = await runRaw(cli, ["l", "-slt", path, "-sccUTF-8", `-p${password}`, ...(codePage && codePage !== 65001 ? [`-mcp=${codePage}`] : [])])
+    lastResult = result
+    if (result.code !== 0) continue
+    const entries = parseArchiveEntryPaths(result.stdout)
+    return { entries, archiveStatus: candidate ? "encrypted" : "readable" }
+  }
+  const error = lastResult?.stderr || lastResult?.stdout || "7-Zip could not list this archive."
+  return {
+    entries: [],
+    archiveStatus: /Unexpected end|missing volume|Can not open/i.test(error) ? "incomplete" : "unsupported",
+    treeError: conciseArchiveError(error),
+  }
+}
+
+function parseArchiveEntryPaths(stdout: string): string[] {
+  const body = stdout.split(/\r?\n-{10,}\r?\n/).slice(1).join("\n")
+  return [...body.matchAll(/^Path = (.+)$/gm)].map((match) => match[1]!.trim()).filter(Boolean)
+}
+
+function conciseArchiveError(value: string): string {
+  const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  return lines.find((line) => /Unexpected end|Wrong password|missing volume|Headers Error|Can not open/i.test(line)) ?? lines.at(-1) ?? "Unable to list archive entries."
+}
+
+function archiveTestFailureMessage(results: CommandResult[], configuredPasswordCount: number): string {
+  const output = results.map((result) => `${result.stderr}\n${result.stdout}`).join("\n")
+  const detail = conciseArchiveError(output)
+  if (/Unexpected end|missing volume/i.test(output)) return `Archive is incomplete or a multipart volume is missing. 7-Zip: ${detail}`
+  if (/Wrong password|Cannot open encrypted archive|Headers Error/i.test(output)) {
+    const count = configuredPasswordCount
+      ? `${configuredPasswordCount} configured password${configuredPasswordCount === 1 ? "" : "s"}`
+      : "no configured passwords"
+    return `Encrypted archive could not be unlocked after trying ${count}. 7-Zip: ${detail}`
+  }
+  return `Archive test failed. 7-Zip: ${detail}`
+}
+
+async function inspectCodePage(path: string, configuredCodePages: number[] = []): Promise<SmartZipEncodingInspection> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    handle = await open(path, "r")
+    const info = await handle.stat()
+    const signature = Buffer.alloc(Math.min(8, info.size))
+    await handle.read(signature, 0, signature.length, 0)
+    if (isSevenZipSignature(signature)) {
+      return { sourcePath: path, confidence: "certain", unicodeMetadata: true, candidates: [], message: "7z stores Unicode filenames; legacy ZIP codepage selection is not applicable." }
+    }
+    const tailSize = Math.min(info.size, 32 * 1024 * 1024)
+    const tailOffset = info.size - tailSize
+    const tail = Buffer.alloc(tailSize)
+    await handle.read(tail, 0, tailSize, tailOffset)
+    return detectZipFilenameEncoding(tail, path, configuredCodePages, tailOffset)
+  } catch (error) {
+    return {
+      sourcePath: path,
+      confidence: "unknown",
+      unicodeMetadata: false,
+      candidates: [],
+      message: error instanceof Error ? error.message : String(error),
+    }
+  } finally {
+    await handle?.close()
+  }
+}
+
+export function detectZipFilenameEncoding(
+  bytes: Uint8Array,
+  sourcePath = "archive.zip",
+  configuredCodePages: number[] = [],
+  baseOffset = 0,
+): SmartZipEncodingInspection {
+  if (isSevenZipSignature(bytes)) {
+    return { sourcePath, confidence: "certain", unicodeMetadata: true, candidates: [], message: "7z stores Unicode filenames; legacy ZIP codepage selection is not applicable." }
+  }
+  const names = readZipCentralDirectoryNames(bytes, baseOffset)
+  if (!names.length) {
+    return { sourcePath, confidence: "unknown", unicodeMetadata: false, candidates: [], message: "No ZIP central-directory filenames were found." }
+  }
+  const nonAscii = names.filter((entry) => entry.bytes.some((byte) => byte > 0x7f))
+  if (!nonAscii.length) {
+    return { sourcePath, confidence: "certain", unicodeMetadata: false, candidates: [], message: "All archived filenames are ASCII; no codepage override is required." }
+  }
+  const unicodeMetadata = nonAscii.every((entry) => (entry.flags & 0x0800) !== 0)
+  if (unicodeMetadata) {
+    const preview = decodeNames(nonAscii.map((entry) => entry.bytes), 65001) ?? []
+    return {
+      sourcePath,
+      recommendedCodePage: 65001,
+      confidence: "certain",
+      unicodeMetadata: true,
+      candidates: [{ codePage: 65001, label: codePageLabel(65001), score: 100, preview }],
+      message: "ZIP UTF-8 filename metadata is present.",
+    }
+  }
+
+  const requested = [...new Set([...configuredCodePages, ...DEFAULT_CODE_PAGES])]
+  const candidates = requested
+    .map((codePage) => buildEncodingCandidate(nonAscii.map((entry) => entry.bytes), codePage))
+    .filter((candidate): candidate is SmartZipEncodingCandidate => Boolean(candidate))
+    .sort((left, right) => right.score - left.score || requested.indexOf(left.codePage) - requested.indexOf(right.codePage))
+  const best = candidates[0]
+  const margin = best ? best.score - (candidates[1]?.score ?? best.score - 20) : 0
+  const confidence = !best ? "unknown" : margin >= 16 ? "high" : margin >= 6 ? "medium" : "low"
+  return {
+    sourcePath,
+    recommendedCodePage: best?.codePage,
+    confidence,
+    unicodeMetadata: false,
+    candidates,
+    message: best
+      ? `Recommended ${best.label} (${confidence} confidence); review filename previews before extraction.`
+      : "No candidate codepage could decode the archived filenames.",
+  }
+}
+
+function readZipCentralDirectoryNames(bytes: Uint8Array, baseOffset = 0): Array<{ bytes: Uint8Array; flags: number }> {
+  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let eocd = -1
+  for (let offset = Math.max(0, buffer.length - 65_557); offset <= buffer.length - 22; offset += 1) {
+    if (buffer.readUInt32LE(offset) === 0x06054b50) eocd = offset
+  }
+  if (eocd < 0) return []
+  const count = buffer.readUInt16LE(eocd + 10)
+  let offset = buffer.readUInt32LE(eocd + 16) - baseOffset
+  const result: Array<{ bytes: Uint8Array; flags: number }> = []
+  for (let index = 0; index < count && offset + 46 <= buffer.length; index += 1) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break
+    const flags = buffer.readUInt16LE(offset + 8)
+    const nameLength = buffer.readUInt16LE(offset + 28)
+    const extraLength = buffer.readUInt16LE(offset + 30)
+    const commentLength = buffer.readUInt16LE(offset + 32)
+    const start = offset + 46
+    const end = start + nameLength
+    if (end > buffer.length) break
+    result.push({ bytes: buffer.subarray(start, end), flags })
+    offset = end + extraLength + commentLength
+  }
+  return result
+}
+
+function isSevenZipSignature(bytes: Uint8Array): boolean {
+  return bytes.length >= 6 && bytes[0] === 0x37 && bytes[1] === 0x7a && bytes[2] === 0xbc && bytes[3] === 0xaf && bytes[4] === 0x27 && bytes[5] === 0x1c
+}
+
+function buildEncodingCandidate(names: Uint8Array[], codePage: number): SmartZipEncodingCandidate | null {
+  const preview = decodeNames(names, codePage)
+  if (!preview) return null
+  return {
+    codePage,
+    label: codePageLabel(codePage),
+    score: preview.reduce((total, name) => total + filenameScore(name, codePage), 0),
+    preview,
+  }
+}
+
+function decodeNames(names: Uint8Array[], codePage: number): string[] | null {
+  const encoding = codePageEncoding(codePage)
+  if (!encoding) return null
+  try {
+    const decoder = new TextDecoder(encoding, { fatal: true })
+    return names.slice(0, 12).map((name) => decoder.decode(name))
+  } catch {
+    return null
+  }
+}
+
+function filenameScore(value: string, codePage: number): number {
+  let score = 0
+  for (const character of value) {
+    const point = character.codePointAt(0) ?? 0
+    if (point === 0xfffd || point < 0x20) score -= 40
+    else if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(character)) score += codePage === 932 ? 14 : 2
+    else if (/\p{Script=Hangul}/u.test(character)) score += codePage === 949 ? 14 : 2
+    else if (/\p{Script=Han}/u.test(character)) score += 4
+    else if (/[A-Za-z0-9 ._()[\]{}+\-\\/]/.test(character)) score += 1
+    else score -= 1
+  }
+  if (/\.[A-Za-z0-9]{1,8}$/.test(value)) score += 4
+  if (/[这为国画动压缩档测试目录文件]/.test(value)) score += codePage === 936 ? 3 : 0
+  if (/[這為國畫動壓縮檔測試目錄文件]/.test(value)) score += codePage === 950 ? 3 : 0
+  return score
+}
+
+function codePageEncoding(codePage: number): string | null {
+  if (codePage === 65001) return "utf-8"
+  if (codePage === 936) return "gbk"
+  if (codePage === 950) return "big5"
+  if (codePage === 932) return "shift_jis"
+  if (codePage === 949) return "euc-kr"
+  return null
+}
+
+function codePageLabel(codePage: number): string {
+  return ({ 65001: "UTF-8 / CP65001", 936: "GBK / CP936", 950: "Big5 / CP950", 932: "Shift_JIS / CP932", 949: "EUC-KR / CP949" } as Record<number, string>)[codePage] ?? `CP${codePage}`
+}
+
+function extractionMessage(password: string | undefined, codePage: number | undefined, inspection: SmartZipEncodingInspection | undefined): string {
+  const passwordText = password ? " with a configured password" : ""
+  if (codePage && inspection) return `Extracted${passwordText}; auto-selected ${codePageLabel(codePage)} (${inspection.confidence} confidence).`
+  if (codePage) return `Extracted${passwordText}; filename encoding ${codePageLabel(codePage)}.`
+  return `Extracted${passwordText}.`
 }
 
 async function archivePaths(request: SmartZipExecutionRequest, onEvent: (event: NodeRunEvent) => void): Promise<SmartZipOperationResult[]> {
@@ -334,7 +607,7 @@ async function recyclePath(path: string): Promise<void> {
   }
   const command = process.platform === "darwin" ? "osascript" : "gio"
   const args = process.platform === "darwin"
-    ? ["-e", `tell application \"Finder\" to delete POSIX file \"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}\"`]
+    ? ["-e", `tell application "Finder" to delete POSIX file "${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`]
     : ["trash", path]
   const result = await runRaw(command, args)
   if (result.code !== 0) throw new Error(result.stderr || `Unable to move ${path} to trash.`)

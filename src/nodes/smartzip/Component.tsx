@@ -30,11 +30,14 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
   const data = getHostData(host, compId)
   const dataRef = useRef<SmartZipCardState>(data)
   dataRef.current = data
+  const passwordSaveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const passwordSaveChainRef = useRef<Promise<void>>(Promise.resolve())
 
   const [running, setRunning] = useState(false)
   const [defaults, setDefaults] = useState<Partial<SmartZipCardState> | undefined>(undefined)
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
+  const resolvedData = resolveCardData(data, defaults)
 
   const action = data.action ?? "status"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
@@ -56,11 +59,16 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
       .catch(() => undefined)
   }, [host])
 
+  useEffect(() => () => {
+    if (passwordSaveTimerRef.current) clearTimeout(passwordSaveTimerRef.current)
+  }, [])
+
   useEffect(() => {
     if (!defaults) return
-    setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
+    setConfigDirty(CONFIG_FIELDS.some((field) => data[field] !== undefined && String(data[field] ?? "") !== String(defaults[field] ?? "")))
   }, [
     data.iniPath,
+    data.passwords,
     data.codePage,
     data.databasePath,
     data.dryRun,
@@ -72,6 +80,32 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     dataRef.current = { ...dataRef.current, ...patchData }
     if (host.state?.patchData) host.state.patchData(patchData)
     else host.patchData(compId, patchData)
+  }
+
+  function patchWithPasswordAutosave(patchData: Partial<SmartZipCardState>) {
+    patch(patchData)
+    if (!Object.prototype.hasOwnProperty.call(patchData, "passwords") || !patchData.passwords) return
+    if (passwordSaveTimerRef.current) clearTimeout(passwordSaveTimerRef.current)
+    const passwords = [...patchData.passwords]
+    passwordSaveTimerRef.current = setTimeout(() => {
+      passwordSaveTimerRef.current = undefined
+      passwordSaveChainRef.current = passwordSaveChainRef.current
+        .catch(() => undefined)
+        .then(() => persistPasswords(passwords))
+    }, 250)
+  }
+
+  async function persistPasswords(passwords: string[]) {
+    const resolved = resolveCardData(dataRef.current, defaults)
+    const config: Partial<SmartZipCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = field === "passwords" ? passwords : resolved[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    if (host.config?.save) await host.config.save(config)
+    else await host.saveNodeConfig?.(config)
+    setDefaults(config)
+    setConfigDirty(false)
   }
 
   function pushLog(message: string) {
@@ -105,8 +139,9 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
 
   async function saveAsDefault() {
     const config: Partial<SmartZipCardState> = {}
+    const resolved = resolveCardData(dataRef.current, defaults)
     for (const field of CONFIG_FIELDS) {
-      const value = dataRef.current[field]
+      const value = resolved[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
     if (host.config?.save) await host.config.save(config)
@@ -146,7 +181,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     setRunning(true)
     patch({ action: nextAction, phase: "running", progress: 0, progressText: t("progress.start", "{{action}}开始", { action: actionLabel(nextAction) }), result: null })
     try {
-      const response = await run<SmartZipInput, SmartZipData>("smartzip", buildInput(nextAction, current), (event: NodeRunEvent) => {
+      const response = await run<SmartZipInput, SmartZipData>("smartzip", buildInput(nextAction, current, defaults), (event: NodeRunEvent) => {
         if (event.type === "progress") {
           patch({ progress: event.progress ?? 0, progressText: event.message })
           pushLog(`[${event.progress ?? 0}%] ${event.message}`)
@@ -154,6 +189,8 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
         }
         pushLog(event.message)
       }) as NodeRunResult<SmartZipData>
+
+      for (const error of response.data?.errors ?? []) pushLog(`[error] ${error}`)
 
       patch({
         phase: response.success ? "completed" : "error",
@@ -176,7 +213,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     actionMeta,
     configDirty,
     configFilePath,
-    data,
+    data: resolvedData,
     defaults,
     logs,
     progress,
@@ -188,7 +225,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     onExecute: execute,
     onOpenConfigFile: host.config?.openFile ?? host.openConfigFile,
     onPastePaths: pastePaths,
-    onPatch: patch,
+    onPatch: patchWithPasswordAutosave,
     onReset: reset,
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
@@ -281,7 +318,7 @@ function CompactView(props: ViewProps) {
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
         <div className="min-h-0 flex-1">
-          <SmartZipResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+          <SmartZipResultTabs compact logs={props.logs} result={props.result} running={props.running} selectedCodePage={props.data.codePage} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onSelectCodePage={(codePage) => props.onPatch({ codePage })} />
         </div>
       </div>
     </div>
@@ -302,7 +339,7 @@ function PortraitCompactView(props: ViewProps) {
         <ActionDeck compact props={props} />
       </div>
       <div className="min-h-0 flex-1">
-        <SmartZipResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        <SmartZipResultTabs compact logs={props.logs} result={props.result} running={props.running} selectedCodePage={props.data.codePage} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onSelectCodePage={(codePage) => props.onPatch({ codePage })} />
       </div>
     </div>
   )
@@ -333,11 +370,8 @@ function FullView(props: ViewProps) {
         <SmartZipStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 @[760px]/smartzip:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-        <div className="min-h-0">
-          <SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
+      <div data-testid="smartzip-wide-layout" className="grid min-h-0 flex-1 gap-3 @[760px]/smartzip:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <section data-testid="smartzip-control-panel" className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold">{t("fields.workbench", "归档工作台")}</div>
@@ -353,6 +387,9 @@ function FullView(props: ViewProps) {
             <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
           </div>
         </section>
+        <div className="min-h-0">
+          <SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} selectedCodePage={props.data.codePage} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onSelectCodePage={(codePage) => props.onPatch({ codePage })} />
+        </div>
       </div>
     </div>
   )
@@ -400,7 +437,7 @@ function DirectActionButton({ action, compact, props }: {
       <Icon className={cn(activeRunning && "animate-spin")} />
       <span className="truncate">{compact ? shortLabel : label}</span>
       {!compact && action === "extract_codepage" && (
-        <Badge className="ml-auto shrink-0 px-1.5 font-mono text-[10px]" variant="secondary">CP{props.data.codePage ?? 936}</Badge>
+        <Badge className="ml-auto shrink-0 px-1.5 font-mono text-[10px]" variant="secondary">{props.data.codePage ? `CP${props.data.codePage}` : "AUTO"}</Badge>
       )}
     </Button>
   )
@@ -494,18 +531,30 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   )
 }
 
-function buildInput(action: SmartZipAction, data: SmartZipCardState): SmartZipInput {
-  const pathsText = clean(data.pathsText)
+function buildInput(action: SmartZipAction, data: SmartZipCardState, defaults?: Partial<SmartZipCardState>): SmartZipInput {
+  const resolved = resolveCardData(data, defaults)
+  const pathsText = clean(resolved.pathsText)
   const paths = pathsText ? pathsText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : []
   return {
     action,
     paths,
-    iniPath: clean(data.iniPath),
-    codePage: data.codePage ?? 936,
-    databasePath: clean(data.databasePath),
-    dryRun: data.dryRun ?? true,
-    recordRun: data.recordRun ?? false,
+    iniPath: clean(resolved.iniPath),
+    passwords: resolved.passwords ?? [],
+    codePage: resolved.codePage ?? 0,
+    databasePath: clean(resolved.databasePath),
+    dryRun: resolved.dryRun ?? true,
+    recordRun: resolved.recordRun ?? false,
   }
+}
+
+function resolveCardData(data: SmartZipCardState, defaults?: Partial<SmartZipCardState>): SmartZipCardState {
+  if (!defaults) return data
+  const resolved: SmartZipCardState = { ...defaults }
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) (resolved as Record<string, unknown>)[key] = value
+  }
+
+  return resolved
 }
 
 function statusFromState(data: SmartZipCardState, running: boolean): SmartZipStatusMeta {

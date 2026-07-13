@@ -6,6 +6,7 @@ export interface SmartZipCardState {
   action?: SmartZipAction
   pathsText?: string
   iniPath?: string
+  passwords?: string[]
   codePage?: number
   databasePath?: string
   dryRun?: boolean
@@ -27,6 +28,7 @@ export interface SmartZipStatusMeta {
 
 export const CONFIG_FIELDS: Array<keyof SmartZipCardState> = [
   "iniPath",
+  "passwords",
   "codePage",
   "databasePath",
   "dryRun",

@@ -46,6 +46,7 @@ import { help } from "./help.js";
 const CLI_NAME = nodeCliName("smartzip");
 interface Config extends CliInteractionPreferencesSource {
   ini_path?: string;
+  passwords?: string[];
   code_page?: number;
   database_path?: string;
   record_run?: boolean;
@@ -54,6 +55,7 @@ interface Config extends CliInteractionPreferencesSource {
 type Defaults = Pick<
   SmartZipInteractionValues,
   | "iniPath"
+  | "passwordsText"
   | "codePage"
   | "databasePath"
   | "recordRun"
@@ -106,7 +108,8 @@ async function context(host: CliHost, json: boolean) {
       preferences: resolveInteractionPreferences(config),
       value: {
         iniPath: config?.ini_path ?? "",
-        codePage: String(config?.code_page ?? 936),
+        passwordsText: (config?.passwords ?? []).join("\n"),
+        codePage: String(config?.code_page ?? 0),
         databasePath: config?.database_path ?? "",
         recordRun: config?.record_run ?? false,
         dryRun: config?.dry_run ?? true,
@@ -117,7 +120,8 @@ async function context(host: CliHost, json: boolean) {
       preferences: resolveInteractionPreferences(undefined),
       value: {
         iniPath: "",
-        codePage: "936",
+        passwordsText: "",
+        codePage: "0",
         databasePath: "",
         recordRun: false,
         dryRun: true,
@@ -176,12 +180,14 @@ async function pipe(
   if (args.includes("--help") || args.includes("-h")) {
     writeLine(
       host,
-      `Usage: ${CLI_NAME} ui|gd|status|x|xc|o|a PATH... [--code-page 936|950|932|949|65001] [--dry-run] [--json]`,
+      `Usage: ${CLI_NAME} ui|gd|status|cp|x|xc|o|a PATH... [--code-page auto|936|950|932|949|65001] [--dry-run] [--json]`,
     );
     return;
   }
   const action =
-    args[0] === "x"
+    args[0] === "cp"
+      ? "inspect_codepage"
+      : args[0] === "x"
       ? "extract"
       : args[0] === "xc"
         ? "extract_codepage"
@@ -199,7 +205,7 @@ async function pipe(
   }
   const json = args.includes("--json");
   const loaded = await context(host, json);
-  const codePage = readNumberOption(args, "--code-page") ?? (Number(loaded.value.codePage) || 936);
+  const codePage = readCodePageOption(args, "--code-page") ?? (Number(loaded.value.codePage) || 0);
   let paths = positionalPaths(args.slice(1), ["--code-page"]);
   if (paths.includes("-"))
     paths = paths
@@ -210,6 +216,7 @@ async function pipe(
       action,
       paths,
       ...loaded.value,
+      passwords: loaded.value.passwordsText.split(/\r?\n/).map((password) => password.trim()).filter(Boolean),
       codePage,
       dryRun: args.includes("--dry-run") || loaded.value.dryRun,
     },
@@ -222,11 +229,12 @@ async function pipe(
   else writeLine(host, result.message);
   if (!result.success) process.exitCode = 1;
 }
-function readNumberOption(args: string[], name: string): number | undefined {
+function readCodePageOption(args: string[], name: string): number | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`));
-  if (inline) return Number(inline.slice(name.length + 1)) || undefined;
   const index = args.indexOf(name);
-  return index >= 0 ? Number(args[index + 1]) || undefined : undefined;
+  const value = inline ? inline.slice(name.length + 1) : index >= 0 ? args[index + 1] : undefined;
+  if (value?.toLowerCase() === "auto") return 0;
+  return value === undefined ? undefined : Number(value) || undefined;
 }
 function positionalPaths(args: string[], valueOptions: string[]): string[] {
   const result: string[] = [];

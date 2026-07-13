@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-export type SmartZipAction = "status" | "extract" | "extract_codepage" | "open" | "archive"
+export type SmartZipAction = "status" | "inspect_codepage" | "extract" | "extract_codepage" | "open" | "archive"
+export type SmartZipExecutionAction = Exclude<SmartZipAction, "status" | "inspect_codepage">
 
 export interface SmartZipInput {
   action?: SmartZipAction
@@ -8,6 +9,7 @@ export interface SmartZipInput {
   path?: string
   iniPath?: string
   iniText?: string
+  passwords?: string[]
   codePage?: number
   databasePath?: string
   recordRun?: boolean
@@ -41,12 +43,31 @@ export interface SmartZipRule {
 export interface SmartZipOperationResult {
   sourcePath: string
   outputPath?: string
-  action: Exclude<SmartZipAction, "status">
+  action: SmartZipExecutionAction
   status: "completed" | "skipped" | "error"
   message: string
   command?: SmartZipCommandPlan
   commandResult?: CommandResult
   passwordUsed?: boolean
+}
+
+export interface SmartZipEncodingCandidate {
+  codePage: number
+  label: string
+  score: number
+  preview: string[]
+}
+
+export interface SmartZipEncodingInspection {
+  sourcePath: string
+  recommendedCodePage?: number
+  confidence: "certain" | "high" | "medium" | "low" | "unknown"
+  unicodeMetadata: boolean
+  candidates: SmartZipEncodingCandidate[]
+  entries?: string[]
+  archiveStatus?: "readable" | "encrypted" | "incomplete" | "unsupported"
+  treeError?: string
+  message: string
 }
 
 export interface SmartZipConfig {
@@ -88,6 +109,7 @@ export interface SmartZipData {
   command?: SmartZipCommandPlan
   commandResult?: CommandResult
   operations?: SmartZipOperationResult[]
+  encodingInspections?: SmartZipEncodingInspection[]
   selectedPaths: string[]
   archiveCount: number
   errors: string[]
@@ -98,10 +120,12 @@ export interface SmartZipRuntime {
   appendRecord: (path: string, record: unknown) => Promise<void>
   find7z: (configuredDirectory?: string) => Promise<SmartZipTools | null>
   execute: (request: SmartZipExecutionRequest, onEvent: (event: NodeRunEvent) => void) => Promise<SmartZipOperationResult[]>
+  inspectCodePages?: (paths: string[], config: SmartZipConfig) => Promise<SmartZipEncodingInspection[]>
+  resolveInputPaths?: (paths: string[], config: SmartZipConfig, action: SmartZipExecutionAction) => Promise<string[]>
 }
 
 export interface SmartZipExecutionRequest {
-  action: Exclude<SmartZipAction, "status">
+  action: SmartZipExecutionAction
   paths: string[]
   config: SmartZipConfig
   tools: SmartZipTools
@@ -119,6 +143,7 @@ export function normalizeSmartZipInput(input: SmartZipInput): Required<SmartZipI
     path: clean(input.path),
     iniPath: clean(input.iniPath),
     iniText: input.iniText ?? "",
+    passwords: uniqueClean(input.passwords ?? []),
     codePage: Number.isInteger(input.codePage) && Number(input.codePage) > 0 ? Number(input.codePage) : 0,
     databasePath: clean(input.databasePath),
     recordRun: input.recordRun ?? Boolean(input.databasePath),
@@ -134,7 +159,8 @@ export async function runSmartZip(
   const normalized = normalizeSmartZipInput(input)
   try {
     onEvent({ type: "progress", progress: 20, message: "Loading SmartZip config." })
-    const config = parseSmartZipIni(normalized.iniText || (normalized.iniPath ? await runtime.readText(normalized.iniPath) : ""))
+    const parsedConfig = parseSmartZipIni(normalized.iniText || (normalized.iniPath ? await runtime.readText(normalized.iniPath) : ""))
+    const config = { ...parsedConfig, passwords: [...new Set([...normalized.passwords, ...parsedConfig.passwords])] }
     const selectedPaths = normalized.paths
     const database = buildSmartZipDatabase(normalized)
     if (normalized.action === "status") {
@@ -146,15 +172,32 @@ export async function runSmartZip(
       })
     }
     if (!selectedPaths.length) return failure("At least one archive or directory path is required.")
+    if (normalized.action === "inspect_codepage") {
+      if (!runtime.inspectCodePages) return failure("Filename encoding inspection is unavailable in this runtime.")
+      onEvent({ type: "progress", progress: 45, message: "Inspecting raw ZIP filename bytes." })
+      const encodingInspections = await runtime.inspectCodePages(selectedPaths, config)
+      onEvent({ type: "progress", progress: 100, message: "Filename encoding inspection completed." })
+      return success(`Inspected filename encodings for ${encodingInspections.length} archive(s).`, {
+        config,
+        database,
+        selectedPaths,
+        encodingInspections,
+      })
+    }
     const tools = normalized.dryRun ? { cli: "7z", fileManager: "7zFM" } : await runtime.find7z(config.sevenZipDir)
     if (!tools) return failure("7-Zip was not found. Install 7-Zip or add 7z to PATH; SmartZip.exe and AutoHotkey are never required.")
-    const plans = selectedPaths.map((path) => buildSmartZipCommand({ ...normalized, paths: [path], path }, tools.cli))
+    const executionAction = normalized.action as SmartZipExecutionAction
+    const executionPaths = runtime.resolveInputPaths && (executionAction === "extract" || executionAction === "extract_codepage")
+      ? await runtime.resolveInputPaths(selectedPaths, config, executionAction)
+      : selectedPaths
+    if (!executionPaths.length) return failure("No supported archive or first multipart volume was found.")
+    const plans = executionPaths.map((path) => buildSmartZipCommand({ ...normalized, paths: [path], path }, tools.cli))
     const command = plans[0]
     if (normalized.dryRun) {
       await writeSmartZipRecordIfEnabled(normalized.action, normalized, config, selectedPaths, command, undefined, database, runtime)
-      const operations = selectedPaths.map((sourcePath, index): SmartZipOperationResult => ({
+      const operations = executionPaths.map((sourcePath, index): SmartZipOperationResult => ({
         sourcePath,
-        action: normalized.action as Exclude<SmartZipAction, "status">,
+        action: normalized.action as SmartZipExecutionAction,
         status: "completed",
         message: "Planned",
         command: plans[index],
@@ -162,11 +205,11 @@ export async function runSmartZip(
       return success(`SmartZip dry-run: ${plans.length} TypeScript-planned operation(s).`, { config, database, selectedPaths, command, operations })
     }
     const operations = await runtime.execute({
-      action: normalized.action as Exclude<SmartZipAction, "status">,
-      paths: selectedPaths,
+      action: executionAction,
+      paths: executionPaths,
       config,
       tools,
-      codePage: normalized.action === "extract_codepage" ? (normalized.codePage || 936) : undefined,
+      codePage: normalized.action === "extract_codepage" ? (normalized.codePage || undefined) : undefined,
     }, onEvent)
     const results = operations.map((operation) => operation.commandResult).filter((result): result is CommandResult => Boolean(result))
     const commandResult = combineResults(results)
@@ -220,11 +263,12 @@ export function buildSmartZipCommand(input: Required<SmartZipInput>, executable 
   if (input.action === "open") return { label: `Smart-open ${source}`, command: "7zFM", args: [source] }
   if (input.action === "archive") return { label: `Archive ${source}`, command: executable, args: ["a", archiveOutput(source), source, "-y", "-sccUTF-8"] }
   const args = ["x", source, `-o${extractOutput(source)}`, "-y", "-sccUTF-8"]
-  if (input.action === "extract_codepage") args.push(`-mcp=${input.codePage || 936}`)
+  if (input.action === "extract_codepage" && input.codePage) args.push(`-mcp=${input.codePage}`)
   return { label: `Extract ${source}`, command: executable, args }
 }
 
 export function actionMode(action: SmartZipAction): string {
+  if (action === "inspect_codepage") return "cp"
   if (action === "extract") return "x"
   if (action === "extract_codepage") return "xc"
   if (action === "open") return "o"
