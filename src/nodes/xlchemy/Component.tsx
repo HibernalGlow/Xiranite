@@ -12,6 +12,7 @@ import { Field, FieldContent, FieldLabel, FieldLegend, FieldSet } from "@/compon
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
@@ -321,14 +322,18 @@ function FullView(props: ViewProps) {
 function WorkspaceWorkbench({ props }: { props: ViewProps }) {
   return <div data-testid="xlchemy-full-view" className="xlchemy-grid flex min-h-0 flex-1 flex-col gap-2 p-3">
     <Header props={props} />
-    <div data-testid="xlchemy-workspace-grid" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] grid-rows-[minmax(0,1fr)_minmax(260px,1fr)] gap-2 overflow-hidden">
-      <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
-      <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
-      <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
-        <OperationsCard fill props={props} />
-        <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+    <div data-testid="xlchemy-workspace-grid" className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] gap-2 overflow-hidden pt-2">
+      <div data-testid="xlchemy-workspace-left-column" className="grid min-h-0 grid-rows-[minmax(0,0.9fr)_minmax(280px,1.1fr)] gap-2">
+        <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
+        <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
+          <OperationsCard fill props={props} />
+          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+        </div>
       </div>
-      <WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard>
+      <div data-testid="xlchemy-workspace-right-column" className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(220px,1fr)] gap-2">
+        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pt-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
+        <WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard>
+      </div>
     </div>
   </div>
 }
@@ -353,11 +358,12 @@ function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewPr
 }
 
 function Header({ props }: { props: ViewProps }) {
-  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex items-center gap-1"><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset, onExport: props.onExportPresets, onImport: props.onImportPresets }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
+  const compactActions = props.surfaceMode === "compact" || props.surfaceMode === "portrait"
+  return <div className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="flex shrink-0 items-center gap-1"><FilenameRuleEditor compact={compactActions} disabled={props.running} rules={props.data.filenameRules} onChange={(filenameRules) => props.onPatch({ filenameRules })} /><RunButton compact={compactActions} label="转换" props={props} /><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !props.paths.length}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset, onExport: props.onExportPresets, onImport: props.onImportPresets }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div></div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench data={props.data} disabled={props.running} footer={<RunButton className="w-full" label={`转换 (${props.paths.length})`} props={props} />} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
@@ -369,7 +375,6 @@ function FormatControls({ props }: { props: ViewProps }) {
       {supportsLosslessChoice && <ChoiceControlField label="压缩模式"><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid w-full grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
-      <Field className="gap-1"><FieldLabel className="text-[10px]">输出命名</FieldLabel><FilenameRuleEditor disabled={props.running} rules={props.data.filenameRules} onChange={(filenameRules) => props.onPatch({ filenameRules })} /></Field>
       {showsChromaSubsampling(props) && <ChromaSubsamplingField disabled={chromaUnavailable} props={props} />}
     </div>
     {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
@@ -449,8 +454,23 @@ function SettingsGroup({ children, label }: { children: ReactNode; label: string
 }
 
 function SliderField({ editable, label, value, min, max, step = 1, onChange }: { editable?: boolean; label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(value))
   const update = (next: number) => onChange(Math.min(max, Math.max(min, next)))
-  return <Field className="gap-1.5"><div className="flex items-center justify-between gap-2"><FieldLabel className="text-[10px]">{label}</FieldLabel>{editable ? <Input aria-label={`${label}数值`} className="h-7 w-16 px-2 text-right text-xs tabular-nums" min={min} max={max} step={step} type="number" value={value} onChange={(event) => update(Number(event.currentTarget.value))} onWheel={(event) => { event.preventDefault(); update(value + (event.deltaY < 0 ? step : -step)) }} /> : <Badge variant="outline">{value}</Badge>}</div><Slider aria-label={label} min={min} max={max} step={step} value={[value]} onValueChange={(values) => onChange(values[0] ?? value)} /></Field>
+  const commit = () => {
+    const next = Number(draft)
+    if (Number.isFinite(next)) update(next)
+    setEditing(false)
+  }
+  const editableValue = <Popover open={editing} onOpenChange={setEditing}>
+    <PopoverAnchor className="inline-flex">
+      <Badge aria-label={`${label}数值`} aria-valuemax={max} aria-valuemin={min} aria-valuenow={value} className="xiranite-no-drag cursor-text tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring" role="spinbutton" tabIndex={0} variant="outline" onClick={() => { setDraft(String(value)); setEditing(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setDraft(String(value)); setEditing(true) } else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); update(value + (event.key === "ArrowUp" ? step : -step)) } }} onWheel={(event) => { event.preventDefault(); update(value + (event.deltaY < 0 ? step : -step)) }}>{value}</Badge>
+    </PopoverAnchor>
+    <PopoverContent className="w-28 p-2" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <Input autoFocus aria-label={`编辑${label}`} className="h-8 text-center tabular-nums" min={min} max={max} step={step} type="number" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commit() } }} />
+    </PopoverContent>
+  </Popover>
+  return <Field className="gap-1.5"><div className="flex items-center justify-between gap-2"><FieldLabel className="text-[10px]">{label}</FieldLabel>{editable ? editableValue : <Badge variant="outline">{value}</Badge>}</div><Slider aria-label={label} min={min} max={max} step={step} value={[value]} onValueChange={(values) => onChange(values[0] ?? value)} /></Field>
 }
 
 function activeEncoder(data: XlchemyCardState) { const format = data.format ?? "JPEG XL"; if (format === "AVIF") return data.avifEncoder === "svt" ? "SVT-AV1" : data.avifEncoder === "slimg" ? "slimg" : "AOM AV1"; if (format === "JPEG") return data.jpegEncoder === "libjpeg" ? "libjpeg" : "JPEGli"; if (format === "JPEG XL" || format === "Lossless JPEG Transcoding") return "cjxl"; if (format === "JPEG Reconstruction") return "djxl"; return format }
@@ -491,7 +511,7 @@ function ResultPanel({ props }: { props: ViewProps }) {
 }
 
 function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon, title }: { badge?: string; children: ReactNode; fill?: boolean; grow?: boolean; icon?: LucideIcon; title: string }) {
-  return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} titleClassName="border-0 bg-transparent px-0" contentClassName="pt-1">{children}</ModulePanel>
+  return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} titleClassName="!border-transparent !bg-transparent !text-foreground px-0" contentClassName="pt-1">{children}</ModulePanel>
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }

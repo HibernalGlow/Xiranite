@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { FORMATS } from "./constants"
 
-export function FilenameRuleEditor(props: { disabled?: boolean; rules?: XlchemyFilenameRule[]; onChange: (rules: XlchemyFilenameRule[]) => void }) {
+export function FilenameRuleEditor(props: { compact?: boolean; disabled?: boolean; rules?: XlchemyFilenameRule[]; onChange: (rules: XlchemyFilenameRule[]) => void }) {
   const [rules, setRules] = useState<XlchemyFilenameRule[]>(() => props.rules ?? cloneDefaultRules())
   useEffect(() => { setRules(props.rules ?? cloneDefaultRules()) }, [props.rules])
   const commit = (next: XlchemyFilenameRule[]) => { setRules(next); props.onChange(next) }
@@ -22,7 +22,7 @@ export function FilenameRuleEditor(props: { disabled?: boolean; rules?: XlchemyF
 
   return (
     <Dialog>
-      <DialogTrigger asChild><Button aria-label="打开命名规则编辑器" disabled={props.disabled} size="sm" variant="outline"><Braces />命名规则 <span className="text-muted-foreground">{rules.length}</span></Button></DialogTrigger>
+      <DialogTrigger asChild><Button aria-label="打开命名规则编辑器" disabled={props.disabled} size={props.compact ? "icon-sm" : "sm"} variant="outline"><Braces />{!props.compact && <>命名规则 <span className="text-muted-foreground">{rules.length}</span></>}</Button></DialogTrigger>
       <DialogContent className="grid max-h-[86vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-4xl">
         <DialogHeader><DialogTitle>命名规则编辑器</DialogTitle><DialogDescription>规则从上到下匹配；所有命中的前缀和后缀会先组合，再执行同名文件策略。扩展名不需要输入点号。</DialogDescription></DialogHeader>
         <ScrollArea className="min-h-0 pr-3">

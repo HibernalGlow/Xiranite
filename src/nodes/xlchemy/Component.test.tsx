@@ -26,8 +26,10 @@ describe("app-owned xlchemy Component", () => {
     expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(0)
     if (mode === "workspace") {
       const grid = screen.getByTestId("xlchemy-workspace-grid")
-      expect(grid.className).toContain("minmax(260px,1fr)")
-      expect(grid.querySelector('[data-slot="module-panel-title"] [data-slot="badge"]')?.className).toContain("bg-transparent")
+      expect(grid.className).toContain("pt-2")
+      expect(screen.getByTestId("xlchemy-workspace-left-column").className).toContain("minmax(280px,1.1fr)")
+      expect(screen.getByTestId("xlchemy-workspace-right-column").className).toContain("minmax(220px,1fr)")
+      expect(grid.querySelector('[data-slot="module-panel-title"] [data-slot="badge"]')?.className).toContain("!bg-transparent")
     }
     if (mode !== "collapsed") {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
@@ -197,7 +199,8 @@ describe("app-owned xlchemy Component", () => {
     expect(within(empty).getByRole("button", { name: "添加文件" }).className).toContain("bg-primary")
     expect(within(empty).getByRole("button", { name: "添加文件夹" }).className).toContain("border")
     expect(empty.querySelector(".lucide-file-image")?.getAttribute("class")).toContain("text-primary")
-    expect(within(screen.getByTestId("xlchemy-run-footer")).getByRole("button", { name: "开始转换" }).className).toContain("w-full")
+    expect(within(screen.getByTestId("xlchemy-run-footer")).queryByRole("button", { name: "开始转换" })).toBeNull()
+    expect(screen.getByRole("button", { name: "开始转换" })).toBeTruthy()
   })
 
   test("uses native local pickers and keeps selected paths after the host rerenders", async () => {
@@ -373,7 +376,10 @@ describe("app-owned xlchemy Component", () => {
     const host = createHost({ pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg", threads: 4 })
     const view = render(<Component compId="xlchemy-card" host={host} />)
     const input = screen.getByLabelText("并行线程数值")
-    fireEvent.change(input, { target: { value: "12" } })
+    expect(input.getAttribute("data-slot")).toBe("badge")
+    fireEvent.click(input)
+    fireEvent.change(screen.getByLabelText("编辑并行线程"), { target: { value: "12" } })
+    fireEvent.keyDown(screen.getByLabelText("编辑并行线程"), { key: "Enter" })
     expect(host.cardState.threads).toBe(12)
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     fireEvent.wheel(screen.getByLabelText("并行线程数值"), { deltaY: -1 })
