@@ -5,7 +5,7 @@ import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { useTheme } from "@/components/use-theme"
-import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, THEME_PRESET_DEFAULT_MODE, THEME_PRESET_OPTIONS, type ThemePresetOption } from "@/lib/appearance"
+import { FONT_PRESETS, getActiveCustomTheme, parseImportedThemeJson, resolveThemeScheme, THEME_PRESET_OPTIONS, type ThemePresetOption } from "@/lib/appearance"
 import type { AppTheme } from "@/types/workspace"
 import { cn } from "@/lib/utils"
 import { Switch } from "@/components/ui/switch"
@@ -198,8 +198,8 @@ function DataSettingsPanel({
 export function ThemeSettings() {
   const state = useWorkspaceShallowSelector((workspace) => ({
     theme: workspace.theme,
+    themeSelections: workspace.themeSelections,
     customThemes: workspace.customThemes,
-    activeCustomThemeName: workspace.activeCustomThemeName,
     fontPreset: workspace.fontPreset,
     vignetteDepth: workspace.vignetteDepth,
     grainIntensity: workspace.grainIntensity,
@@ -248,25 +248,29 @@ export function ThemeSettings() {
   const [themeJson, setThemeJson] = useState("")
   const [themeImportError, setThemeImportError] = useState<string | null>(null)
 
-  const active = THEMES.find(th => th.key === state.theme) ?? THEMES[0]
+  const activeScheme = resolveThemeScheme((colorMode ?? "system") as ColorMode, window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? document.documentElement.classList.contains("dark"))
+  const activeSelection = state.themeSelections[activeScheme]
+  const activePresetKey = activeSelection.kind === "preset" ? activeSelection.name : state.theme
+  const active = THEMES.find(th => th.key === activePresetKey) ?? THEMES[0]
   const ActiveThemeIcon = THEME_ICONS[active.key]
-  const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
+  const activeCustomTheme = activeSelection.kind === "custom" ? getActiveCustomTheme(state.customThemes, activeSelection.name) : null
   const activeCustomThemeSwatches = useMemo(() => {
     if (!activeCustomTheme) return []
-    const colors = activeCustomTheme.cssVars.light
+    const colors = activeScheme === "dark" ? (activeCustomTheme.cssVars.dark ?? activeCustomTheme.cssVars.light) : activeCustomTheme.cssVars.light
     return [
       colors.background,
       colors.primary,
       colors.secondary,
       colors.accent,
     ].filter(Boolean)
-  }, [activeCustomTheme])
+  }, [activeCustomTheme, activeScheme])
+  const activeCustomColors = activeCustomTheme ? (activeScheme === "dark" ? (activeCustomTheme.cssVars.dark ?? activeCustomTheme.cssVars.light) : activeCustomTheme.cssVars.light) : null
   const activeThemePalette = activeCustomTheme
     ? [
-      activeCustomTheme.cssVars.light.background,
-      activeCustomTheme.cssVars.light.primary,
-      activeCustomTheme.cssVars.light.border,
-      activeCustomTheme.cssVars.light.foreground,
+      activeCustomColors?.background,
+      activeCustomColors?.primary,
+      activeCustomColors?.border,
+      activeCustomColors?.foreground,
     ].filter(Boolean)
     : active.palette
   const activeThemePaletteLabels = activeCustomTheme
@@ -317,15 +321,14 @@ export function ThemeSettings() {
 
   // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
   function selectPreset(key: AppTheme) {
-    workspaceActions.setTheme(key)
-    setColorMode(THEME_PRESET_DEFAULT_MODE[key])
+    workspaceActions.setThemeSelection(activeScheme, { kind: "preset", name: key })
   }
 
   function importThemeJson() {
     try {
       const imported = parseImportedThemeJson(themeJson)
       workspaceActions.setCustomThemes(imported)
-      workspaceActions.setActiveCustomThemeName(imported[0]?.name ?? null)
+      if (imported[0]) workspaceActions.setThemeSelection(activeScheme, { kind: "custom", name: imported[0].name })
       setThemeJson("")
       setThemeImportError(null)
     } catch (error) {
@@ -335,7 +338,6 @@ export function ThemeSettings() {
 
   function clearImportedTheme() {
     workspaceActions.setCustomThemes([])
-    workspaceActions.setActiveCustomThemeName(null)
     setThemeImportError(null)
   }
 
@@ -471,7 +473,7 @@ export function ThemeSettings() {
                 </Badge>
               </div>
               <Select
-                value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : state.theme}
+                value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : activePresetKey}
                 onValueChange={(value) => {
                   if (value !== CUSTOM_THEME_ACTIVE_VALUE) selectPreset(value as AppTheme)
                 }}
@@ -633,8 +635,8 @@ export function ThemeSettings() {
                     )}
                   </div>
                   <Select
-                    value={state.activeCustomThemeName ?? "none"}
-                    onValueChange={(value) => workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)}
+                    value={activeCustomTheme?.name ?? "none"}
+                    onValueChange={(value) => workspaceActions.setThemeSelection(activeScheme, value === "none" ? { kind: "preset", name: state.theme } : { kind: "custom", name: value })}
                   >
                     <SelectTrigger className="w-full bg-background/60 font-mono text-xs" size="sm">
                       <SelectValue placeholder={t("settings:themeImport.selectTheme", "Select imported theme")} />
@@ -650,7 +652,7 @@ export function ThemeSettings() {
                   </Select>
                   {activeCustomTheme && (
                     <p className="mt-2 truncate text-[10px] font-mono text-muted-foreground/70">
-                      {activeCustomTheme.cssVars.light.primary ?? activeCustomTheme.cssVars.light.background ?? "custom cssVars"}
+                      {activeCustomColors?.primary ?? activeCustomColors?.background ?? "custom cssVars"}
                     </p>
                   )}
                 </div>

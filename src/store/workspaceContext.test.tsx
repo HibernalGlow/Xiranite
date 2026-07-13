@@ -34,6 +34,10 @@ describe("workspace UI preference persistence", () => {
       },
     ])
     expect(persisted.state?.activeCustomThemeName).toBe("Imported")
+    expect(persisted.state?.themeSelections).toEqual({
+      light: { kind: "custom", name: "Imported" },
+      dark: { kind: "custom", name: "Imported" },
+    })
     expect(persisted.state?.fontPreset).toBe("aestivus")
     expect(persisted.state?.bgMode).toBe("image")
     expect(persisted.state?.bgImageUrl).toBe("D:/Images/background.jpg")
@@ -91,6 +95,36 @@ describe("workspace UI preference persistence", () => {
     expect(useWorkspaceStore.getState().theme).toBe("endfield")
     expect(useWorkspaceStore.getState().activeCustomThemeName).toBeNull()
   })
+
+  test("assigns independent preset or imported colors to light and dark modes", () => {
+    const actions = useWorkspaceStore.getState()
+    actions.setTheme("spatial")
+    actions.setCustomThemes([{
+      name: "Midnight imported",
+      cssVars: {
+        light: { primary: "oklch(0.5 0.1 120)" },
+        dark: { primary: "oklch(0.72 0.12 250)" },
+      },
+    }])
+    actions.setThemeSelection("light", { kind: "preset", name: "wuling" })
+    actions.setThemeSelection("dark", { kind: "custom", name: "Midnight imported" })
+
+    expect(useWorkspaceStore.getState().themeSelections).toEqual({
+      light: { kind: "preset", name: "wuling" },
+      dark: { kind: "custom", name: "Midnight imported" },
+    })
+
+    actions.setCustomThemes([])
+    expect(useWorkspaceStore.getState().themeSelections.dark).toEqual({ kind: "preset", name: "wuling" })
+    actions.setTheme("spatial")
+  })
+
+  test("exposes the mode assignment action through the workspace actions hook", async () => {
+    render(<WorkspacePreferenceProbe />)
+    await userEvent.setup().click(screen.getByRole("button", { name: "set dark theme assignment" }))
+    expect(useWorkspaceStore.getState().themeSelections.dark).toEqual({ kind: "preset", name: "endfield" })
+    useWorkspaceStore.getState().setTheme("spatial")
+  })
 })
 
 function WorkspacePreferenceProbe() {
@@ -112,6 +146,12 @@ function WorkspacePreferenceProbe() {
   return (
     <div>
       <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}/${prefs.tabDisplayStyle}/${prefs.switchDisplayStyle}`}</output>
+      <button
+        type="button"
+        onClick={() => workspaceActions.setThemeSelection("dark", { kind: "preset", name: "endfield" })}
+      >
+        set dark theme assignment
+      </button>
       <button
         type="button"
         onClick={() => {

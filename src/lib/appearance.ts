@@ -62,6 +62,10 @@ export interface ThemeDesignRecipe {
 
 export type ThemeMode = "system" | "light" | "dark"
 
+export function resolveThemeScheme(mode: ThemeMode, systemDark: boolean): ThemePresetMode {
+  return mode === "system" ? (systemDark ? "dark" : "light") : mode
+}
+
 export interface FontPresetOption {
   key: AppFontPreset
   label: string

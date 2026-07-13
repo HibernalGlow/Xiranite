@@ -7,10 +7,18 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
       const recipe = THEME_DESIGN_RECIPES[theme]
       set({
         theme,
+        themeSelections: {
+          light: { kind: "preset", name: theme },
+          dark: { kind: "preset", name: theme },
+        },
         activeCustomThemeName: null,
         fontPreset: recipe.fontPreset,
       }, false, "SET_THEME")
     },
+    setThemeSelection: (scheme, selection) => set((state) => ({
+      themeSelections: { ...state.themeSelections, [scheme]: selection },
+      ...(selection.kind === "preset" ? { theme: selection.name, activeCustomThemeName: null } : { activeCustomThemeName: selection.name }),
+    }), false, "SET_THEME_SELECTION"),
     hydrateUiPreferences: (preferences) => set(
       sanitizeUiPreferences(preferences),
       false,
@@ -18,13 +26,24 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     ),
     setCustomThemes: (customThemes) => set((state) => ({
       customThemes,
+      themeSelections: Object.fromEntries(Object.entries(state.themeSelections).map(([scheme, selection]) => [
+        scheme,
+        selection.kind === "custom" && !customThemes.some((theme) => theme.name === selection.name)
+          ? { kind: "preset", name: state.theme }
+          : selection,
+      ])) as typeof state.themeSelections,
       // A preset explicitly clears the active custom theme. Do not revive the
       // first imported theme while rehydrating the list on startup.
       activeCustomThemeName: state.activeCustomThemeName && customThemes.some((theme) => theme.name === state.activeCustomThemeName)
         ? state.activeCustomThemeName
         : null,
     }), false, "SET_CUSTOM_THEMES"),
-    setActiveCustomThemeName: (activeCustomThemeName) => set({ activeCustomThemeName }, false, "SET_ACTIVE_CUSTOM_THEME"),
+    setActiveCustomThemeName: (activeCustomThemeName) => set((state) => ({
+      activeCustomThemeName,
+      themeSelections: activeCustomThemeName
+        ? { light: { kind: "custom", name: activeCustomThemeName }, dark: { kind: "custom", name: activeCustomThemeName } }
+        : { light: { kind: "preset", name: state.theme }, dark: { kind: "preset", name: state.theme } },
+    }), false, "SET_ACTIVE_CUSTOM_THEME"),
     setFontPreset: (fontPreset) => set({ fontPreset }, false, "SET_FONT_PRESET"),
     setViewMode: (mode) => set({ viewMode: mode }, false, "SET_VIEW_MODE"),
     setCardLayout: (layout) => set({ cardLayout: layout }, false, "SET_CARD_LAYOUT"),
@@ -76,7 +95,14 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
 }
 
 function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Partial<WorkspaceUiPreferences> {
-  return Object.fromEntries(
+  const sanitized = Object.fromEntries(
     Object.entries(preferences).filter(([, value]) => value !== undefined),
   ) as Partial<WorkspaceUiPreferences>
+  if (!sanitized.themeSelections) {
+    const selection = sanitized.activeCustomThemeName
+      ? { kind: "custom" as const, name: sanitized.activeCustomThemeName }
+      : { kind: "preset" as const, name: sanitized.theme ?? "spatial" }
+    sanitized.themeSelections = { light: selection, dark: selection }
+  }
+  return sanitized
 }

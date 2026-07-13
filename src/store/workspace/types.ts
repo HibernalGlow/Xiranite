@@ -1,5 +1,8 @@
 import type {
   AppTheme,
+  AppThemeScheme,
+  AppThemeSelection,
+  AppThemeSelections,
   AppFontPreset,
   AppCustomTheme,
   CardClickAction,
@@ -23,6 +26,7 @@ import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@
 
 export interface WSState {
   theme: AppTheme
+  themeSelections: AppThemeSelections
   customThemes: AppCustomTheme[]
   activeCustomThemeName: string | null
   fontPreset: AppFontPreset
@@ -94,6 +98,7 @@ export interface OverlayFloatingMetrics {
 
 export interface WorkspaceUiActions {
   setTheme(theme: AppTheme): void
+  setThemeSelection(scheme: AppThemeScheme, selection: AppThemeSelection): void
   hydrateUiPreferences(preferences: Partial<WorkspaceUiPreferences>): void
   setCustomThemes(themes: AppCustomTheme[]): void
   setActiveCustomThemeName(name: string | null): void
@@ -215,6 +220,7 @@ export type WSStore = WSState & WorkspaceActions
 export type WorkspaceUiPreferences = Pick<
   WSState,
   | "theme"
+  | "themeSelections"
   | "customThemes"
   | "activeCustomThemeName"
   | "fontPreset"

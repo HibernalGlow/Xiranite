@@ -12,6 +12,7 @@ const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
 function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   return {
     theme: state.theme,
+    themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
@@ -66,9 +67,17 @@ export const useWorkspaceStore = create<WSStore>()(
       }),
       {
         name: "xiranite-workspace-ui",
-        version: 1,
+        version: 2,
         storage: createJSONStorage(() => localStorage),
         partialize: selectWorkspaceUiPreferences,
+        migrate: (persisted, version) => {
+          const state = persisted as Partial<WSStore>
+          if (version >= 2 || state.themeSelections) return state
+          const selection = state.activeCustomThemeName
+            ? { kind: "custom" as const, name: state.activeCustomThemeName }
+            : { kind: "preset" as const, name: state.theme ?? "spatial" }
+          return { ...state, themeSelections: { light: selection, dark: selection } }
+        },
       },
     ),
     { name: "xiranite-workspace" },
@@ -110,6 +119,7 @@ export function useWorkspaceActions(): WorkspaceActions {
 function selectWorkspaceState(store: WSStore): WSState {
   return {
     theme: store.theme,
+    themeSelections: store.themeSelections,
     customThemes: store.customThemes,
     activeCustomThemeName: store.activeCustomThemeName,
     fontPreset: store.fontPreset,
@@ -165,6 +175,7 @@ function selectWorkspaceState(store: WSStore): WSState {
 function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,
+    setThemeSelection: store.setThemeSelection,
     hydrateUiPreferences: store.hydrateUiPreferences,
     setCustomThemes: store.setCustomThemes,
     setActiveCustomThemeName: store.setActiveCustomThemeName,

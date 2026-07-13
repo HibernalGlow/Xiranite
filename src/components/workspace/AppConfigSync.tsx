@@ -397,6 +397,7 @@ export function AppConfigSync() {
 function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceUiPreferences {
   return {
     theme: state.theme,
+    themeSelections: state.themeSelections,
     customThemes: state.customThemes,
     activeCustomThemeName: state.activeCustomThemeName,
     fontPreset: state.fontPreset,
@@ -491,6 +492,11 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (!isRecord(value)) return undefined
   const next: Partial<WorkspaceUiPreferences> = {}
   if (isOneOf(value.theme, APP_THEMES)) next.theme = value.theme
+  {
+    const light = normalizeThemeSelection(isRecord(value.themeSelections) ? value.themeSelections.light : undefined)
+    const dark = normalizeThemeSelection(isRecord(value.themeSelections) ? value.themeSelections.dark : undefined)
+    if (light && dark) next.themeSelections = { light, dark }
+  }
   if (typeof value.activeCustomThemeName === "string" || value.activeCustomThemeName === null) next.activeCustomThemeName = value.activeCustomThemeName
   if (isOneOf(value.fontPreset, FONT_PRESETS)) next.fontPreset = value.fontPreset
   if (isOneOf(value.cardLayout, CARD_LAYOUTS)) next.cardLayout = value.cardLayout
@@ -563,6 +569,12 @@ function mergeMissingWorkspacePreferences(config: AppUiConfig, fallback: Workspa
 function normalizeAppearanceConfig(value: unknown): AppUiConfig["appearance"] {
   if (!isRecord(value)) return undefined
   return isThemeMode(value.colorMode) ? { colorMode: value.colorMode } : undefined
+}
+
+function normalizeThemeSelection(value: unknown): WorkspaceUiPreferences["themeSelections"]["light"] | undefined {
+  if (!isRecord(value) || (value.kind !== "preset" && value.kind !== "custom") || typeof value.name !== "string") return undefined
+  if (value.kind === "preset" && !isOneOf(value.name, APP_THEMES)) return undefined
+  return { kind: value.kind, name: value.name } as WorkspaceUiPreferences["themeSelections"]["light"]
 }
 
 function sanitizeWorkspaceConfig(workspace: WorkspaceUiPreferences): WorkspaceUiPreferences {

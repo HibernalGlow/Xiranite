@@ -8,6 +8,10 @@ export const COMPONENT_VIEW_MODES: ComponentViewMode[] = ["cards", "dockview", "
 
 export const INITIAL_STATE: WSState = {
   theme: "spatial",
+  themeSelections: {
+    light: { kind: "preset", name: "spatial" },
+    dark: { kind: "preset", name: "spatial" },
+  },
   customThemes: [],
   activeCustomThemeName: null,
   fontPreset: "xiranite",

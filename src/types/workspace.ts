@@ -19,6 +19,11 @@ export interface FlowCanvasCamera {
 
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
 export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
+export type AppThemeScheme = "light" | "dark"
+export type AppThemeSelection =
+  | { kind: "preset"; name: AppTheme }
+  | { kind: "custom"; name: string }
+export type AppThemeSelections = Record<AppThemeScheme, AppThemeSelection>
 export type AppFontPreset = "xiranite" | "system" | "aestivus" | "industrial" | "display" | "editorial" | "poster" | "terminal" | "machina" | "sketch" | "workshop" | "canvas" | "serif" | "mono"
 
 export interface AppCustomTheme {

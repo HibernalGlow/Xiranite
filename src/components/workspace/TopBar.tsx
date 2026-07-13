@@ -9,7 +9,7 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import { activeNodeOperationCount, useNodeOperations } from "@/store/nodeOperations"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useTheme } from "@/components/use-theme"
-import { getActiveCustomTheme, THEME_PRESET_DEFAULT_MODE, THEME_PRESET_OPTIONS } from "@/lib/appearance"
+import { getActiveCustomTheme, resolveThemeScheme, THEME_PRESET_OPTIONS } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMusicDock"
@@ -126,8 +126,8 @@ export function TopBar() {
     workspaces: workspace.workspaces,
     activeWorkspaceId: workspace.activeWorkspaceId,
     theme: workspace.theme,
+    themeSelections: workspace.themeSelections,
     customThemes: workspace.customThemes,
-    activeCustomThemeName: workspace.activeCustomThemeName,
     components: workspace.components,
     hazardMode: workspace.hazardMode,
   }))
@@ -149,26 +149,28 @@ export function TopBar() {
   const showWindowControls = capabilities?.nativeWindowControls === true
 
   const activeWorkspace = state.workspaces.find((w) => w.id === state.activeWorkspaceId)
-  const activeCustomTheme = getActiveCustomTheme(state.customThemes, state.activeCustomThemeName)
-  const activePreset = THEME_PRESETS.find(p => p.key === state.theme) ?? THEME_PRESETS[0]
+  const activeScheme = resolveThemeScheme((colorMode ?? "system") as ColorMode, window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? document.documentElement.classList.contains("dark"))
+  const activeSelection = state.themeSelections[activeScheme]
+  const activePresetKey = activeSelection.kind === "preset" ? activeSelection.name : state.theme
+  const activeCustomTheme = activeSelection.kind === "custom" ? getActiveCustomTheme(state.customThemes, activeSelection.name) : null
+  const activePreset = THEME_PRESETS.find(p => p.key === activePresetKey) ?? THEME_PRESETS[0]
   const activeThemeLabel = activeCustomTheme?.name ?? t(activePreset.labelKey)
   const activeThemeColors = activeCustomTheme
     ? [
-      activeCustomTheme.cssVars.light.background,
-      activeCustomTheme.cssVars.light.primary,
-      activeCustomTheme.cssVars.light.secondary,
-      activeCustomTheme.cssVars.light.accent,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.background ?? activeCustomTheme.cssVars.light.background,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.primary ?? activeCustomTheme.cssVars.light.primary,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.secondary ?? activeCustomTheme.cssVars.light.secondary,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.accent ?? activeCustomTheme.cssVars.light.accent,
     ].filter(Boolean)
     : activePreset.palette
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
-    workspaceActions.setTheme(key)
-    setColorMode(THEME_PRESET_DEFAULT_MODE[key])
+    workspaceActions.setThemeSelection(activeScheme, { kind: "preset", name: key })
   }
 
   function selectCustomThemeName(value: string) {
-    workspaceActions.setActiveCustomThemeName(value === "none" ? null : value)
+    workspaceActions.setThemeSelection(activeScheme, value === "none" ? { kind: "preset", name: state.theme } : { kind: "custom", name: value })
   }
 
   async function controlMainWindow(action: "minimize" | "maximize" | "close") {
@@ -564,7 +566,7 @@ export function TopBar() {
                     {!activeCustomTheme && <Check className="h-3 w-3 text-primary" />}
                   </div>
                   <Select
-                    value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : state.theme}
+                    value={activeCustomTheme ? CUSTOM_THEME_ACTIVE_VALUE : activePresetKey}
                     onValueChange={(value) => {
                       if (value !== CUSTOM_THEME_ACTIVE_VALUE) selectPreset(value as AppTheme)
                     }}
@@ -600,7 +602,7 @@ export function TopBar() {
                     {activeCustomTheme && <Check className="h-3 w-3 text-primary" />}
                   </div>
                   {state.customThemes.length > 0 ? (
-                    <Select value={state.activeCustomThemeName ?? "none"} onValueChange={selectCustomThemeName}>
+                    <Select value={activeCustomTheme?.name ?? "none"} onValueChange={selectCustomThemeName}>
                       <SelectTrigger className="w-full bg-background/65 font-mono text-xs" size="sm">
                         <SelectValue />
                       </SelectTrigger>
