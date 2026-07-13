@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
-import { writePsdBuffer, type BlendMode, type Layer, type PixelData, type Psd } from "ag-psd"
+import { writePsdBuffer, type AdjustmentLayer, type BlendMode, type Layer, type PixelData, type Psd } from "ag-psd"
 import { extractClipSqlite, parseClipChunks, parseClipExternalChunks, type ClipExternalChunk } from "./clip-format.js"
 
 type SqlValue = string | number | bigint | boolean | Uint8Array | null
@@ -30,7 +30,7 @@ export async function convertClipToPsd(sourcePath: string, outputPath: string, o
     const database = new Database(sqlitePath, { readonly: true, strict: true })
     try {
       const document = readClipDocument(database, externalChunks)
-      const buffer = writePsdBuffer(document, { compress: true, noBackground: true, psb: options.psb ?? outputPath.toLowerCase().endsWith(".psb"), trimImageData: true })
+      const buffer = writePsdBuffer(document, { compress: true, noBackground: true, psb: options.psb ?? outputPath.toLowerCase().endsWith(".psb") })
       await writeFile(outputPath, buffer)
     } finally {
       database.close()
@@ -83,8 +83,8 @@ function buildChildren(parentId: number, layers: Map<number, SqlRow>, create: (r
 function createLayer(row: SqlRow, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>, canvasWidth: number, canvasHeight: number): Layer {
   const image = resolveBitmap(row.LayerRenderMipmap, chunks, offscreens, mipmaps, mipmapInfo)
   const mask = resolveBitmap(row.LayerLayerMaskMipmap, chunks, offscreens, mipmaps, mipmapInfo)
-  const left = numberValue(row.LayerOffsetX) + numberValue(row.LayerRenderOffscrOffsetX)
-  const top = numberValue(row.LayerOffsetY) + numberValue(row.LayerRenderOffscrOffsetY)
+  const left = numberValue(row.LayerOffsetX) + numberValue(row.LayerRenderOffscrOffsetX) + (image?.left ?? 0)
+  const top = numberValue(row.LayerOffsetY) + numberValue(row.LayerRenderOffscrOffsetY) + (image?.top ?? 0)
   const layer: Layer = {
     name: stringValue(row.LayerName) || `Layer ${numberValue(row.MainId)}`,
     blendMode: BLEND_MODES[numberValue(row.LayerComposite)] ?? "normal",
@@ -95,11 +95,54 @@ function createLayer(row: SqlRow, chunks: Map<string, ClipExternalChunk>, offscr
     left,
     top,
   }
-  if (image) layer.imageData = image
-  if (mask) layer.mask = { imageData: mask, left: numberValue(row.LayerMaskOffsetX) + numberValue(row.LayerMaskOffscrOffsetX), top: numberValue(row.LayerMaskOffsetY) + numberValue(row.LayerMaskOffscrOffsetY), disabled: !(numberValue(row.LayerVisibility) & 2), positionRelativeToLayer: !(numberValue(row.LayerSelect) & 256) }
+  if (image) layer.imageData = image.imageData
+  if (mask) layer.mask = { imageData: mask.imageData, left: numberValue(row.LayerMaskOffsetX) + numberValue(row.LayerMaskOffscrOffsetX) + mask.left, top: numberValue(row.LayerMaskOffsetY) + numberValue(row.LayerMaskOffscrOffsetY) + mask.top, disabled: !(numberValue(row.LayerVisibility) & 2), positionRelativeToLayer: !(numberValue(row.LayerSelect) & 256) }
   attachEditableText(layer, row)
   attachEditableGradient(layer, row, canvasWidth, canvasHeight)
+  if (row.FilterLayerInfo instanceof Uint8Array) layer.adjustment = parseFilterAdjustment(row.FilterLayerInfo)
+  if (row.LayerEffectInfo instanceof Uint8Array) attachLayerEffects(layer, row.LayerEffectInfo)
   return layer
+}
+
+function attachLayerEffects(layer: Layer, data: Uint8Array) {
+  const name = "EffectEdge", length = Buffer.alloc(4); length.writeUInt32BE(name.length)
+  const encoded = Buffer.from(name, "utf16le"); encoded.swap16()
+  const marker = Buffer.concat([length, encoded]), buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+  const index = buffer.indexOf(marker)
+  if (index < 0 || index + marker.length + 24 > buffer.length) return
+  const offset = index + marker.length
+  if (!buffer.readUInt32BE(offset)) return
+  const size = buffer.readDoubleBE(offset + 4)
+  const color = { r: buffer.readUInt32BE(offset + 12) >>> 24, g: buffer.readUInt32BE(offset + 16) >>> 24, b: buffer.readUInt32BE(offset + 20) >>> 24 }
+  layer.effects = { stroke: [{ enabled: true, present: true, showInDialog: true, position: "outside", fillType: "color", blendMode: "normal", opacity: 1, size: { units: "Pixels", value: size + 0.5 }, color }] }
+}
+
+export function parseFilterAdjustment(data: Uint8Array): AdjustmentLayer | undefined {
+  if (data.byteLength < 8) throw new Error("Truncated CLIP filter layer data.")
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const filter = view.getUint32(0), size = view.getUint32(4)
+  if (size > data.byteLength - 8) throw new Error("Invalid CLIP filter layer size.")
+  if (filter === 1 && size >= 8) return { type: "brightness/contrast", brightness: view.getInt32(8), contrast: view.getInt32(12), meanValue: 127, useLegacy: true }
+  if (filter === 2 && size >= 10) {
+    const channels = Array.from({ length: Math.min(4, Math.floor(size / 10)) }, (_, index) => {
+      const offset = 8 + index * 10
+      const shadow = view.getUint16(offset), middle = view.getUint16(offset + 2), highlight = view.getUint16(offset + 4), outputShadow = view.getUint16(offset + 6), outputHighlight = view.getUint16(offset + 8)
+      const ratio = (middle - shadow) / Math.max(1, highlight - shadow)
+      const gamma = Math.max(0.1, Math.min(9.99, -Math.log2(Math.max(ratio, Number.EPSILON))))
+      return { shadowInput: Math.floor(shadow / 256), highlightInput: Math.floor(highlight / 256), shadowOutput: Math.floor(outputShadow / 256), highlightOutput: Math.floor(outputHighlight / 256), midtoneInput: gamma }
+    })
+    return { type: "levels", rgb: channels[0], red: channels[1], green: channels[2], blue: channels[3] }
+  }
+  if (filter === 3 && size >= 130) {
+    const channels = Array.from({ length: Math.min(4, Math.floor(size / 130)) }, (_, channel) => {
+      const offset = 8 + channel * 130, count = Math.min(view.getUint16(offset), 32)
+      return Array.from({ length: count }, (_, index) => ({ input: Math.floor(view.getUint16(offset + 2 + index * 4) / 256), output: Math.floor(view.getUint16(offset + 4 + index * 4) / 256) }))
+    })
+    return { type: "curves", rgb: channels[0], red: channels[1], green: channels[2], blue: channels[3] }
+  }
+  if (filter === 4 && size >= 12) return { type: "hue/saturation", master: { a: 0, b: 0, c: 0, d: 0, hue: view.getInt32(8), saturation: view.getInt32(12), lightness: view.getInt32(16) } }
+  if (filter === 6) return { type: "invert" }
+  return undefined
 }
 
 function attachEditableGradient(layer: Layer, row: SqlRow, canvasWidth: number, canvasHeight: number) {
@@ -200,7 +243,7 @@ export function parseTextAttributes(data: Uint8Array): { font?: string; fontSize
   return output
 }
 
-function resolveBitmap(mipmapIdValue: SqlValue | undefined, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>): PixelData | undefined {
+function resolveBitmap(mipmapIdValue: SqlValue | undefined, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>): DecodedBitmap | undefined {
   const mipmapId = numberValue(mipmapIdValue)
   if (!mipmapId) return undefined
   const mipmap = mipmaps.get(mipmapId)
@@ -212,7 +255,8 @@ function resolveBitmap(mipmapIdValue: SqlValue | undefined, chunks: Map<string, 
   return decodeBitmap(bytesValue(offscreen.Attribute), chunk.bitmapBlocks)
 }
 
-export function decodeBitmap(attribute: Uint8Array, blocks: Array<Buffer | undefined>): PixelData {
+interface DecodedBitmap { imageData: PixelData; left: number; top: number }
+export function decodeBitmap(attribute: Uint8Array, blocks: Array<Buffer | undefined>): DecodedBitmap {
   const reader = new BinaryReader(attribute)
   if (reader.u32() !== 16 || reader.u32() !== 102) throw new Error("Unsupported CLIP offscreen attribute header.")
   const extraSize = reader.u32()
@@ -229,10 +273,16 @@ export function decodeBitmap(attribute: Uint8Array, blocks: Array<Buffer | undef
   if (!((packing[1] === 1 && packing[2] === 4) || channelCount === 1)) throw new Error(`Unsupported CLIP pixel packing ${packing[1]}+${packing[2]}.`)
   if (packing[8] === 32) throw new Error("1-bit CLIP bitmap packing is not supported.")
   if (gridWidth * gridHeight !== blocks.length) throw new Error("CLIP bitmap grid does not match block count.")
-  const rgba = new Uint8ClampedArray(width * height * 4)
+  const existing = blocks.flatMap((block, index) => block ? [{ x: index % gridWidth, y: Math.floor(index / gridWidth) }] : [])
+  if (!existing.length) return { imageData: { width: 1, height: 1, data: new Uint8ClampedArray(defaultWhite ? [255, 255, 255, 255] : [0, 0, 0, 0]) }, left: 0, top: 0 }
+  const startX = Math.min(...existing.map((item) => item.x)), endX = Math.max(...existing.map((item) => item.x)) + 1
+  const startY = Math.min(...existing.map((item) => item.y)), endY = Math.max(...existing.map((item) => item.y)) + 1
+  const cropLeft = startX * 256, cropTop = startY * 256
+  const cropWidth = Math.min(endX * 256, width) - cropLeft, cropHeight = Math.min(endY * 256, height) - cropTop
+  const rgba = new Uint8ClampedArray(cropWidth * cropHeight * 4)
   if (defaultWhite) rgba.fill(255)
   const pixelsPerBlock = 256 * 256
-  for (let gridY = 0; gridY < gridHeight; gridY += 1) for (let gridX = 0; gridX < gridWidth; gridX += 1) {
+  for (let gridY = startY; gridY < endY; gridY += 1) for (let gridX = startX; gridX < endX; gridX += 1) {
     const compressed = blocks[gridY * gridWidth + gridX]
     if (!compressed) continue
     const pixels = inflateSync(compressed)
@@ -241,7 +291,7 @@ export function decodeBitmap(attribute: Uint8Array, blocks: Array<Buffer | undef
     const blockWidth = Math.min(256, width - gridX * 256), blockHeight = Math.min(256, height - gridY * 256)
     for (let y = 0; y < blockHeight; y += 1) for (let x = 0; x < blockWidth; x += 1) {
       const source = y * 256 + x
-      const target = ((gridY * 256 + y) * width + gridX * 256 + x) * 4
+      const target = (((gridY - startY) * 256 + y) * cropWidth + (gridX - startX) * 256 + x) * 4
       if (channelCount === 5) {
         rgba[target] = pixels[pixelsPerBlock + source * 4 + 2]!
         rgba[target + 1] = pixels[pixelsPerBlock + source * 4 + 1]!
@@ -250,7 +300,7 @@ export function decodeBitmap(attribute: Uint8Array, blocks: Array<Buffer | undef
       } else rgba[target] = rgba[target + 1] = rgba[target + 2] = rgba[target + 3] = pixels[source]!
     }
   }
-  return { width, height, data: rgba }
+  return { imageData: { width: cropWidth, height: cropHeight, data: rgba }, left: cropLeft, top: cropTop }
 }
 
 class BinaryReader {
@@ -259,6 +309,16 @@ class BinaryReader {
   u32() { if (this.offset + 4 > this.data.length) throw new Error("Truncated CLIP binary attribute."); const value = new DataView(this.data.buffer, this.data.byteOffset + this.offset, 4).getUint32(0); this.offset += 4; return value }
   utf16() { const length = this.u32(); const size = length * 2; if (this.offset + size > this.data.length) throw new Error("Truncated CLIP UTF-16 string."); const buffer = Buffer.from(this.data.buffer, this.data.byteOffset + this.offset, size); this.offset += size; return buffer.swap16().toString("utf16le") }
   expectUtf16(value: string) { const actual = this.utf16(); if (actual !== value) throw new Error(`Expected CLIP attribute ${value}, got ${actual}.`) }
+}
+
+class GradientReader {
+  private offset = 0
+  constructor(private readonly data: Uint8Array) {}
+  get remaining() { return this.data.byteLength - this.offset }
+  u32() { if (this.remaining < 4) throw new Error("Truncated CLIP gradient data."); const value = new DataView(this.data.buffer, this.data.byteOffset + this.offset, 4).getUint32(0); this.offset += 4; return value }
+  f64() { if (this.remaining < 8) throw new Error("Truncated CLIP gradient number."); const value = new DataView(this.data.buffer, this.data.byteOffset + this.offset, 8).getFloat64(0, false); this.offset += 8; return value }
+  bytes(length: number) { if (length < 0 || this.remaining < length) throw new Error("Truncated CLIP gradient section."); const value = this.data.subarray(this.offset, this.offset + length); this.offset += length; return value }
+  utf16() { const length = this.u32(); const value = Buffer.from(this.bytes(length * 2)); value.swap16(); return value.toString("utf16le") }
 }
 
 function queryAll(database: Database, query: string): SqlRow[] { return database.query(query).all() as SqlRow[] }
