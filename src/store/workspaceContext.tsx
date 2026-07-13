@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 import type { AppTheme, CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
@@ -83,6 +83,7 @@ async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<vo
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
+  const locallyPersistedSnapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
   const localBackendStatus = useLocalBackendStatus()
   const localBackendReady = localBackendStatus.data?.status === "ready"
   const workspaceQueryKey = workspaceSnapshotQueryKey(localBackendStatus.data?.config)
@@ -115,6 +116,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     scope: { id: "workspace-persist" },
     onSuccess: (_result, snapshot) => {
       queryClient.setQueryData(workspaceQueryKey, snapshot)
+      locallyPersistedSnapshotRef.current = queryClient.getQueryData<WorkspaceSnapshot>(workspaceQueryKey)
     },
     onError: (error) => {
       console.error("[backend] persist failed:", error)
@@ -123,6 +125,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!workspaceQuery.data) return
+    // The Zustand store is the live source of truth after initial hydration.
+    // Updating the query cache after a successful local persist must not feed
+    // that (potentially older) snapshot back into the store and overwrite node
+    // updates that happened while the request was in flight.
+    if (workspaceQuery.data === locallyPersistedSnapshotRef.current) return
 
     hydrate(workspaceQuery.data.workspaces, workspaceQuery.data.lanes, workspaceQuery.data.components)
     setBackendReady(true)

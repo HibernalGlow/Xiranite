@@ -53,7 +53,7 @@ function readClipDocument(database: Database, chunks: Map<string, ClipExternalCh
   const mipmaps = new Map(queryAll(database, "SELECT MainId, BaseMipmapInfo FROM Mipmap").map((row) => [numberValue(row.MainId), row]))
   const mipmapInfo = new Map(queryAll(database, "SELECT MainId, Offscreen FROM MipmapInfo").map((row) => [numberValue(row.MainId), row]))
 
-  const children = buildChildren(rootFolder, layerById, (row) => createLayer(row, chunks, offscreens, mipmaps, mipmapInfo))
+  const children = buildChildren(rootFolder, layerById, (row) => createLayer(row, chunks, offscreens, mipmaps, mipmapInfo, width, height))
   return { width, height, children, imageResources: { resolutionInfo: { horizontalResolution: numberValue(canvas.CanvasResolution) || 72, horizontalResolutionUnit: "PPI", widthUnit: "Inches", verticalResolution: numberValue(canvas.CanvasResolution) || 72, verticalResolutionUnit: "PPI", heightUnit: "Inches" } } }
 }
 
@@ -80,7 +80,7 @@ function buildChildren(parentId: number, layers: Map<number, SqlRow>, create: (r
   return output
 }
 
-function createLayer(row: SqlRow, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>): Layer {
+function createLayer(row: SqlRow, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>, canvasWidth: number, canvasHeight: number): Layer {
   const image = resolveBitmap(row.LayerRenderMipmap, chunks, offscreens, mipmaps, mipmapInfo)
   const mask = resolveBitmap(row.LayerLayerMaskMipmap, chunks, offscreens, mipmaps, mipmapInfo)
   const left = numberValue(row.LayerOffsetX) + numberValue(row.LayerRenderOffscrOffsetX)
@@ -97,7 +97,107 @@ function createLayer(row: SqlRow, chunks: Map<string, ClipExternalChunk>, offscr
   }
   if (image) layer.imageData = image
   if (mask) layer.mask = { imageData: mask, left: numberValue(row.LayerMaskOffsetX) + numberValue(row.LayerMaskOffscrOffsetX), top: numberValue(row.LayerMaskOffsetY) + numberValue(row.LayerMaskOffscrOffsetY), disabled: !(numberValue(row.LayerVisibility) & 2), positionRelativeToLayer: !(numberValue(row.LayerSelect) & 256) }
+  attachEditableText(layer, row)
+  attachEditableGradient(layer, row, canvasWidth, canvasHeight)
   return layer
+}
+
+function attachEditableGradient(layer: Layer, row: SqlRow, canvasWidth: number, canvasHeight: number) {
+  if (!(row.GradationFillInfo instanceof Uint8Array)) return
+  const gradient = parseGradientFill(row.GradationFillInfo)
+  if (!gradient) return
+  if (gradient.flatColor) { layer.vectorFill = { type: "color", color: gradient.flatColor }; return }
+  if (!gradient.stops?.length || !gradient.geometry) return
+  const geometry = gradient.geometry
+  const startX = geometry.startX + numberValue(row.LayerOffsetX), startY = geometry.startY + numberValue(row.LayerOffsetY)
+  const endX = geometry.endX + numberValue(row.LayerOffsetX), endY = geometry.endY + numberValue(row.LayerOffsetY)
+  const dx = endX - startX, dy = endY - startY
+  let scale = (Math.abs(dx * canvasHeight) < Math.abs(dy * canvasWidth) ? Math.abs(dy) / canvasHeight : Math.abs(dx) / canvasWidth) * 100
+  const radial = geometry.shape !== 0
+  if (radial) scale *= 2
+  const centerX = radial ? startX : (startX + endX) / 2, centerY = radial ? startY : (startY + endY) / 2
+  layer.vectorFill = {
+    type: "solid", name: "Imported from CLIP Studio", smoothness: 1,
+    colorStops: gradient.stops.map((stop) => ({ color: { r: stop.r, g: stop.g, b: stop.b }, location: stop.position / 100, midpoint: 0.5 })),
+    opacityStops: gradient.stops.map((stop) => ({ opacity: stop.opacity / 255, location: stop.position / 100, midpoint: 0.5 })),
+    style: radial ? "radial" : "linear", angle: -Math.atan2(dy, dx) * 180 / Math.PI, scale, align: false,
+    offset: { x: (centerX - canvasWidth / 2) * 100 / canvasWidth, y: (centerY - canvasHeight / 2) * 100 / canvasHeight },
+  }
+}
+
+interface ClipGradientStop { r: number; g: number; b: number; opacity: number; position: number }
+interface ClipGradientGeometry { repeatMode: number; shape: number; antiAliasing: number; ellipseDiameter: number; startX: number; startY: number; endX: number; endY: number }
+export function parseGradientFill(data: Uint8Array): { flatColor?: { r: number; g: number; b: number }; stops?: ClipGradientStop[]; geometry?: ClipGradientGeometry } | undefined {
+  const reader = new GradientReader(data)
+  reader.u32(); reader.u32()
+  const result: { flatColor?: { r: number; g: number; b: number }; stops?: ClipGradientStop[]; geometry?: ClipGradientGeometry } = {}
+  while (reader.remaining >= 4) {
+    const name = reader.utf16()
+    if (name === "GradationData") {
+      const section = new GradientReader(reader.bytes(reader.u32()))
+      section.u32(); section.u32(); const count = section.u32(); section.u32()
+      result.stops = Array.from({ length: count }, () => { const r = section.u32() >>> 24, g = section.u32() >>> 24, b = section.u32() >>> 24, opacity = section.u32() >>> 24; section.u32(); const position = section.u32() * 100 / 2 ** 15; const curvePoints = section.u32(); if (curvePoints) section.bytes(curvePoints * 16); return { r, g, b, opacity, position } })
+    } else if (name === "GradationSettingAdd0001") {
+      const section = new GradientReader(reader.bytes(reader.u32()))
+      if (section.u32()) result.flatColor = { r: section.u32() >>> 24, g: section.u32() >>> 24, b: section.u32() >>> 24 }
+    } else if (name === "GradationSetting") {
+      const repeatMode = reader.u32(), shape = reader.u32(), antiAliasing = reader.u32(); reader.f64(); const ellipseDiameter = reader.f64(); reader.f64()
+      result.geometry = { repeatMode, shape, antiAliasing, ellipseDiameter, startX: reader.f64(), startY: reader.f64(), endX: reader.f64(), endY: reader.f64() }
+    } else {
+      if (reader.remaining < 4) break
+      reader.bytes(reader.u32())
+    }
+  }
+  return result.flatColor || result.stops?.length && result.geometry ? result : undefined
+}
+
+function attachEditableText(layer: Layer, row: SqlRow) {
+  const strings = collectBlobArray(row.TextLayerString, row.TextLayerStringArray).map((value) => Buffer.from(value).toString("utf8"))
+  const attributes = collectBlobArray(row.TextLayerAttributes, row.TextLayerAttributesArray)
+  if (!strings.length || !attributes.length) return
+  const params = parseTextAttributes(attributes[0]!)
+  const fontName = typeof params.font === "string" ? params.font : "Arial"
+  const fontSize = typeof params.fontSize === "number" ? params.fontSize / 100 : 12
+  const color = Array.isArray(params.color) ? params.color : [0, 0, 0]
+  const bbox = Array.isArray(params.bbox) ? params.bbox : undefined
+  layer.text = {
+    text: strings[0]!,
+    shapeType: bbox ? "box" : "point",
+    style: { font: { name: fontName }, fontSize, fillColor: { r: Math.round((color[0] ?? 0) * 255), g: Math.round((color[1] ?? 0) * 255), b: Math.round((color[2] ?? 0) * 255) } },
+    ...(bbox ? { left: bbox[0], top: bbox[1], right: bbox[2], bottom: bbox[3] } : {}),
+  }
+}
+
+function collectBlobArray(first: SqlValue | undefined, array: SqlValue | undefined): Uint8Array[] {
+  const output: Uint8Array[] = []
+  if (first instanceof Uint8Array) output.push(first)
+  if (!(array instanceof Uint8Array)) return output
+  const view = new DataView(array.buffer, array.byteOffset, array.byteLength)
+  let offset = 0
+  while (offset < array.byteLength) {
+    if (offset + 4 > array.byteLength) throw new Error("Truncated CLIP text attribute array.")
+    const length = view.getUint32(offset, true); offset += 4
+    if (offset + length > array.byteLength) throw new Error("Invalid CLIP text attribute array item length.")
+    output.push(array.subarray(offset, offset + length)); offset += length
+  }
+  return output
+}
+
+export function parseTextAttributes(data: Uint8Array): { font?: string; fontSize?: number; color?: number[]; bbox?: number[] } {
+  const output: { font?: string; fontSize?: number; color?: number[]; bbox?: number[] } = {}
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  let offset = 0
+  while (offset + 8 <= data.byteLength) {
+    const id = view.getUint32(offset, true), size = view.getUint32(offset + 4, true); offset += 8
+    if (offset + size > data.byteLength) throw new Error(`Invalid CLIP text parameter ${id} length.`)
+    const parameter = new DataView(data.buffer, data.byteOffset + offset, size)
+    if (id === 31) output.font = Buffer.from(data.buffer, data.byteOffset + offset, size).toString("utf8")
+    else if (id === 32 && size >= 4) output.fontSize = parameter.getUint32(0, true)
+    else if (id === 34 && size >= 12) output.color = [parameter.getUint32(0, true), parameter.getUint32(4, true), parameter.getUint32(8, true)].map((value) => value / 0xffffffff)
+    else if (id === 42 && size >= 16) output.bbox = [parameter.getInt32(0, true), parameter.getInt32(4, true), parameter.getInt32(8, true), parameter.getInt32(12, true)]
+    offset += size
+  }
+  return output
 }
 
 function resolveBitmap(mipmapIdValue: SqlValue | undefined, chunks: Map<string, ClipExternalChunk>, offscreens: Map<number, SqlRow>, mipmaps: Map<number, SqlRow>, mipmapInfo: Map<number, SqlRow>): PixelData | undefined {

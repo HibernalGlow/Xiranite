@@ -56,7 +56,7 @@ describe("app-owned classf Component", () => {
       if (mode === "compact") {
         expect(screen.getByTestId("classf-compact-view")).toBeTruthy()
       } else if (mode === "portrait") {
-        expect(screen.getByTestId("classf-portrait-view")).toBeTruthy()
+        expect(screen.getByTestId("classf-portrait-view").className).toContain("w-full")
       } else {
         expect(screen.getByTestId("classf-full-view")).toBeTruthy()
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()

@@ -343,11 +343,8 @@ function FullView(props: ViewProps) {
         <GifuStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 @[760px]/gifu:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-        <div className="min-h-0">
-          <GifuResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
-        </div>
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
+      <div data-testid="gifu-wide-layout" className="grid min-h-0 flex-1 gap-3 @[760px]/gifu:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
+        <section data-testid="gifu-control-panel" className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold">动画编译台</div>
@@ -363,6 +360,9 @@ function FullView(props: ViewProps) {
             <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
           </div>
         </section>
+        <div className="min-h-0">
+          <GifuResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
+        </div>
       </div>
     </div>
   )

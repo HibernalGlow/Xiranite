@@ -38,6 +38,14 @@ describe("path controls", () => {
     fireEvent.drop(control, { dataTransfer: { files: [image] } })
     expect((control as HTMLInputElement).value).toBe("D:/cover.png")
   })
+
+  test("auto-resizing path textareas keep a bounded height", () => {
+    render(<PathTextarea aria-label="bounded paths" autoResize={{ minHeight: 40, maxHeight: 112 }} value="D:/single" onValueChange={() => undefined} />)
+    const control = screen.getByLabelText("bounded paths") as HTMLTextAreaElement
+    expect(Number(control.rows)).toBe(1)
+    expect(control.style.minHeight).toBe("40px")
+    expect(control.style.maxHeight).toBe("112px")
+  })
 })
 
 function TextareaProbe() {

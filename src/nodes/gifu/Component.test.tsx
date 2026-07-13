@@ -64,6 +64,7 @@ describe("app-owned gifu Component", () => {
       } else {
         expect(screen.getByTestId("gifu-full-view")).toBeTruthy()
         expect(screen.getByTestId("gifu-header-toolbar")).toBeTruthy()
+        expect(screen.getByTestId("gifu-wide-layout").firstElementChild).toBe(screen.getByTestId("gifu-control-panel"))
         expect(screen.getByText("动画编译台")).toBeTruthy()
         expect(screen.getByTestId("gifu-action-deck")).toBeTruthy()
         expect(screen.getByRole("button", { name: "检查归档" })).toBeTruthy()

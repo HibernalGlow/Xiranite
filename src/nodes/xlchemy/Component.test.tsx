@@ -49,6 +49,7 @@ describe("app-owned xlchemy Component", () => {
     })} />)
 
     expect(screen.getByTestId("xlchemy-full-main-v1")).toBeTruthy()
+    expect(screen.getByTestId("xlchemy-input").firstElementChild?.getAttribute("style")).toContain("overflow: hidden")
     expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(1)
   })
 

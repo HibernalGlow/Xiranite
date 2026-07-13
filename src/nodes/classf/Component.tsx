@@ -288,7 +288,7 @@ function CompactView(props: ViewProps) {
 
 function PortraitView(props: ViewProps) {
   return (
-    <div data-testid="classf-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
+    <div data-testid="classf-portrait-view" className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><RunButton compact props={props} /></div>
       <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />
       <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
@@ -322,11 +322,11 @@ function FullView(props: ViewProps) {
       onLayoutChanged={(layout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.source.key, layout)}
     >
       <ResizablePanel id="classf-sources-inputs" defaultSize={68} minSize={46}>
-        <div className="h-full min-h-0 pb-2">{sourcesPanel}</div>
+        <div className="h-full min-h-0">{sourcesPanel}</div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel id="classf-execution" defaultSize={32} minSize={24}>
-        <div className="h-full min-h-0 pt-2">{executionPanel}</div>
+        <div className="h-full min-h-0">{executionPanel}</div>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -376,15 +376,15 @@ function FullView(props: ViewProps) {
           onLayoutChanged={(layout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.main.key, layout)}
         >
           <ResizablePanel id="classf-sources" defaultSize={29} minSize={22} maxSize={38}>
-            <div className="h-full min-h-0 pr-2">{sourceAndExecution}</div>
+            <div className="h-full min-h-0">{sourceAndExecution}</div>
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="classf-matrix" defaultSize={47} minSize={36}>
-            <div className="h-full min-h-0 px-2">{matrixPanel}</div>
+            <div className="h-full min-h-0">{matrixPanel}</div>
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="classf-analysis-panel" defaultSize={24} minSize={20} maxSize={34}>
-            <div className="h-full min-h-0 pl-2">{analysisPanel}</div>
+            <div className="h-full min-h-0">{analysisPanel}</div>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (

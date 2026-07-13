@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { deflateSync } from "node:zlib"
-import { decodeBitmap } from "./clip-to-psd.js"
+import { decodeBitmap, parseTextAttributes } from "./clip-to-psd.js"
 import { extractClipSqlite, parseClipChunks } from "./clip-format.js"
 
 describe("native CLIP format parser", () => {
@@ -32,7 +32,17 @@ describe("native CLIP format parser", () => {
     expect(image).toMatchObject({ width: 2, height: 1 })
     expect([...image.data.slice(0, 4)]).toEqual([10, 20, 30, 128])
   })
+
+  test("decodes editable CLIP text defaults", () => {
+    const font = Buffer.from("Noto Sans CJK", "utf8")
+    const fontSize = Buffer.alloc(4); fontSize.writeUInt32LE(2400)
+    const color = Buffer.alloc(12); color.writeUInt32LE(0xffffffff, 0); color.writeUInt32LE(0x7fffffff, 4); color.writeUInt32LE(0, 8)
+    const attributes = Buffer.concat([textParam(31, font), textParam(32, fontSize), textParam(34, color)])
+    expect(parseTextAttributes(attributes)).toMatchObject({ font: "Noto Sans CJK", fontSize: 2400, color: [1, expect.closeTo(0.5, 5), 0] })
+  })
 })
+
+function textParam(id: number, value: Buffer) { const header = Buffer.alloc(8); header.writeUInt32LE(id); header.writeUInt32LE(value.length, 4); return Buffer.concat([header, value]) }
 
 function offscreenAttribute(width: number, height: number) {
   const values: Buffer[] = []

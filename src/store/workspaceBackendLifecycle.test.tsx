@@ -8,7 +8,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
 import { WorkspaceProvider } from "./workspaceContext"
-import { useWorkspaceShallowSelector } from "./workspaceStore"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceStore"
 
 const healthMock = vi.hoisted(() => vi.fn())
 const loadSnapshotMock = vi.hoisted(() => vi.fn())
@@ -87,6 +87,42 @@ describe("WorkspaceProvider backend lifecycle", () => {
     expect(loadSnapshotMock).toHaveBeenCalledTimes(1)
   })
 
+  test("does not hydrate an older persisted snapshot over newer component data", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39104", token: "workspace-token" }
+    healthMock.mockResolvedValueOnce({ ok: true })
+    loadSnapshotMock.mockResolvedValueOnce({
+      workspaces: [{ id: "ws-race", label: "Race", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+      components: [{ id: "component-race", moduleId: "classf", workspaceId: "ws-race", data: { value: "initial" }, createdAt: 1, updatedAt: 1 }],
+    })
+    persistSnapshotMock.mockResolvedValue(undefined)
+
+    const { queryClient } = renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("component-value").textContent).toBe("initial"))
+    await waitFor(() => expect(persistSnapshotMock).toHaveBeenCalled(), { timeout: 2_000 })
+    persistSnapshotMock.mockClear()
+
+    const deferred = createDeferred<void>()
+    persistSnapshotMock.mockImplementationOnce(() => deferred.promise)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "set older component data" }))
+    await waitFor(() => expect(persistSnapshotMock).toHaveBeenCalledTimes(1), { timeout: 2_000 })
+    await user.click(screen.getByRole("button", { name: "set latest component data" }))
+    expect(screen.getByTestId("component-value").textContent).toBe("latest")
+
+    deferred.resolve()
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<{ components: Array<{ data?: Record<string, unknown> }> }>(["workspace", "snapshot", "http://127.0.0.1:39104", "token:set"])
+      expect(cached?.components[0]?.data?.value).toBe("older")
+    })
+    expect(screen.getByTestId("component-value").textContent).toBe("latest")
+  })
+
   test("keeps the workspace not-ready and does not load snapshots when health check fails", async () => {
     window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39102" }
     healthMock.mockRejectedValueOnce(new Error("connection refused"))
@@ -121,13 +157,18 @@ function WorkspaceStateProbe() {
     backendReady: workspace.backendReady,
     activeWorkspaceId: workspace.activeWorkspaceId,
     overlay: workspace.overlay,
+    componentValue: workspace.components.find((component) => component.id === "component-race")?.data?.value,
   }))
+  const workspaceActions = useWorkspaceActions()
 
   return (
     <div>
       <output data-testid="backend-ready">{state.backendReady ? "ready" : "not-ready"}</output>
       <output data-testid="active-workspace">{state.activeWorkspaceId}</output>
       <output data-testid="overlay">{state.overlay ?? "none"}</output>
+      <output data-testid="component-value">{String(state.componentValue ?? "")}</output>
+      <button type="button" onClick={() => workspaceActions.patchComponentData("component-race", { value: "older" })}>set older component data</button>
+      <button type="button" onClick={() => workspaceActions.patchComponentData("component-race", { value: "latest" })}>set latest component data</button>
     </div>
   )
 }
@@ -140,11 +181,21 @@ function renderWithQuery(ui: React.ReactElement) {
     },
   })
 
-  return render(
+  return {
+    queryClient,
+    ...render(
     <QueryClientProvider client={queryClient}>
       {ui}
     </QueryClientProvider>,
-  )
+    ),
+  }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise })
+  return { promise, resolve, reject }
 }
 
 function renderWithQueryAndI18n(ui: React.ReactElement) {
