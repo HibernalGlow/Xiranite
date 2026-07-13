@@ -1,4 +1,5 @@
-import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFormat, XlchemyOutputMode, XlchemyToolStatus } from "@xiranite/node-xlchemy/core"
+import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFilenameRule, XlchemyFormat, XlchemyOutputMode, XlchemyToolStatus } from "@xiranite/node-xlchemy/core"
+import type { NodePanelLayouts } from "@/nodes/shared/nodePanelLayouts"
 
 export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "error"
 
@@ -13,6 +14,7 @@ export interface XlchemyCardState {
   threads?: number
   outputMode?: XlchemyOutputMode
   outputDir?: string
+  filenameRules?: XlchemyFilenameRule[]
   preserveMetadata?: boolean
   preserveStructure?: boolean
   overwrite?: boolean
@@ -95,6 +97,7 @@ export interface XlchemyCardState {
   analysisTab?: "input" | "output"
   resultTab?: "results" | "issues" | "logs"
   result?: XlchemyData | null
+  panelLayouts?: NodePanelLayouts
 }
 
 export interface XlchemyCustomPreset {
@@ -104,3 +107,4 @@ export interface XlchemyCustomPreset {
 }
 
 export const XL_CONFIG_FIELDS = ["format", "lossless", "quality", "effort", "maxCompression", "threads", "outputMode", "outputDir", "preserveMetadata", "preserveStructure", "preserveTimestamps", "overwrite", "recursive", "existingPolicy", "deleteOriginal", "deleteOriginalMode", "intelligentEffort", "jxlModular", "jxlVerify", "jxlPngFallback", "jxlNormalize", "jxlNormalizeWhen", "chromaSubsampling", "metadataMode", "keepIfLarger", "copyIfLarger", "smallestPng", "smallestWebp", "smallestJxl", "jpegEncoder", "avifEncoder", "avifBitDepth", "avifAomIqTune", "disableProgressiveJpegli", "autoLosslessJpeg", "qualityPrecisionSnapping", "disableSorting", "disableDownscalingStartup", "disableDeleteStartup", "enableCustomArgs", "cjxlArgs", "avifencArgs", "cjpegliArgs", "imageMagickArgs", "ramOptimizer", "ramOptimizerRules", "playSoundOnFinish", "playSoundVolume", "autoClearCompleted", "exiftoolWipeArgs", "exiftoolPreserveArgs", "exiftoolUnsafeWipeArgs", "exiftoolCustomArgs", "processingOrder", "excludedFormatsText", "downscaleEnabled", "downscaleMode", "downscaleWidth", "downscaleHeight", "downscalePercent", "downscaleFileSizeKb", "downscaleShortestSide", "downscaleLongestSide", "downscaleMegapixels", "downscaleResample", "showProgressCounter", "showProgressSummary", "showProgressEta", "showProgressFormat", "showProgressEncoder", "showRawProgress", "showProgressCurrentFile", "showProgressSizeChange", "selectedPreset"] as const satisfies Array<keyof XlchemyCardState>
+export const XL_FILENAME_CONFIG_FIELDS = ["filenameRules"] as const satisfies Array<keyof XlchemyCardState>

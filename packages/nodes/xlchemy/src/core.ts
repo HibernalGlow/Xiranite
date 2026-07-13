@@ -6,6 +6,24 @@ export type XlchemyAction = "plan" | "convert" | "diagnose"
 export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless"
 export type XlchemyOutputMode = "source" | "directory"
 export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
+export type XlchemyFilenameMatchTarget = "filename" | "path"
+export type XlchemyFilenameMatcher = "contains" | "glob" | "regex"
+export interface XlchemyFilenameRule {
+  id: string
+  enabled: boolean
+  inputExtensions: string[]
+  outputFormats: XlchemyFormat[]
+  outputModes: XlchemyOutputMode[]
+  matchTarget: XlchemyFilenameMatchTarget
+  matcher: XlchemyFilenameMatcher
+  pattern: string
+  prefix: string
+  suffix: string
+}
+export const DEFAULT_FILENAME_RULES: XlchemyFilenameRule[] = [
+  { id: "builtin-psd", enabled: true, inputExtensions: ["psd", "psb"], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "[PSD]" },
+  { id: "builtin-clip", enabled: true, inputExtensions: ["clip"], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "[CLIP]" },
+]
 export type XlchemyDownscaleMode = "resolution" | "percent" | "file-size" | "shortest-side" | "longest-side" | "megapixels"
 export interface XlchemyDownscaleSettings { enabled: boolean; mode: XlchemyDownscaleMode; width: number; height: number; percent: number; fileSizeKb: number; shortestSide: number; longestSide: number; megapixels: number; resample: string }
 
@@ -20,6 +38,7 @@ export interface XlchemyInput {
   threads: number
   outputMode: XlchemyOutputMode
   outputDir?: string
+  filenameRules?: XlchemyFilenameRule[]
   preserveMetadata: boolean
   preserveStructure: boolean
   preserveTimestamps?: boolean
@@ -113,6 +132,7 @@ export interface XlchemyRuntime {
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
   probeSlimg?: () => Promise<XlchemyToolStatus>
   convertWithSlimg?: (source: string, target: string, quality: number) => Promise<void>
+  convertClipToPsd?: (source: string, target: string) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
   basename: (path: string) => string
@@ -121,7 +141,7 @@ export interface XlchemyRuntime {
 }
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
-export const XL_IMAGE_EXTENSIONS = new Set([".jxl", ".jpg", ".jpeg", ".jfif", ".jif", ".jpe", ".png", ".apng", ".gif", ".webp", ".jp2", ".bmp", ".ico", ".tiff", ".tif", ".avif"])
+export const XL_IMAGE_EXTENSIONS = new Set([".jxl", ".jpg", ".jpeg", ".jfif", ".jif", ".jpe", ".png", ".apng", ".gif", ".webp", ".jp2", ".bmp", ".ico", ".tiff", ".tif", ".avif", ".psd", ".psb", ".clip"])
 const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg", "Smallest Lossless": ".smallest" }
 
 export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInput {
@@ -136,6 +156,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     threads: clamp(input.threads ?? 4, 1, 64),
     outputMode: input.outputMode ?? "source",
     outputDir: input.outputDir?.trim() || undefined,
+    filenameRules: (input.filenameRules ?? DEFAULT_FILENAME_RULES).map(normalizeFilenameRule),
     preserveMetadata: input.preserveMetadata ?? true,
     preserveStructure: input.preserveStructure ?? true,
     preserveTimestamps: input.preserveTimestamps ?? false,
@@ -306,7 +327,8 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   if (input.format === "JPEG Reconstruction") extension = await jpegReconstructionExtension(source.path, input, runtime)
   const sourceExtension = runtime.extname(source.path)
   const stem = runtime.basename(source.path).slice(0, -sourceExtension.length)
-  let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${stem}${extension}`)
+  const outputStem = applyFilenameRules(stem, source.path, sourceExtension, input)
+  let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${outputStem}${extension}`)
   const existing = await runtime.pathInfo(outputPath)
   if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
   if (existing.exists && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime)
@@ -317,6 +339,35 @@ async function uniqueTarget(path: string, runtime: XlchemyRuntime): Promise<stri
   const ext = runtime.extname(path), stem = path.slice(0, -ext.length)
   for (let index = 1; index < 10_000; index += 1) { const candidate = `${stem}_${index}${ext}`; if (!(await runtime.pathInfo(candidate)).exists) return candidate }
   throw new Error(`Unable to allocate a unique output path for ${path}`)
+}
+
+function normalizeFilenameRule(rule: XlchemyFilenameRule): XlchemyFilenameRule {
+  const extensions = rule.inputExtensions.map((value) => value.trim().replace(/^\./, "").toLowerCase()).filter(Boolean)
+  return { ...rule, id: rule.id || `rule-${Math.random().toString(36).slice(2)}`, enabled: rule.enabled !== false, inputExtensions: [...new Set(extensions)], outputFormats: [...new Set(rule.outputFormats)], outputModes: [...new Set(rule.outputModes)], matchTarget: rule.matchTarget ?? "filename", matcher: rule.matcher ?? "glob", pattern: rule.pattern ?? "*", prefix: rule.prefix ?? "", suffix: rule.suffix ?? "" }
+}
+
+function applyFilenameRules(stem: string, sourcePath: string, sourceExtension: string, input: XlchemyInput): string {
+  const extension = sourceExtension.replace(/^\./, "").toLowerCase()
+  const filename = sourcePath.replace(/\\/g, "/").split("/").at(-1) ?? sourcePath
+  const matching = (input.filenameRules ?? DEFAULT_FILENAME_RULES).filter((rule) => {
+    if (!rule.enabled) return false
+    if (rule.inputExtensions.length && !rule.inputExtensions.includes(extension)) return false
+    if (rule.outputFormats.length && !rule.outputFormats.includes(input.format)) return false
+    if (rule.outputModes.length && !rule.outputModes.includes(input.outputMode)) return false
+    const value = rule.matchTarget === "path" ? sourcePath : filename
+    return matchesFilenameRule(value, rule)
+  })
+  return `${matching.map((rule) => rule.prefix).join("")}${stem}${matching.map((rule) => rule.suffix).join("")}`
+}
+
+function matchesFilenameRule(value: string, rule: XlchemyFilenameRule): boolean {
+  if (!rule.pattern || rule.pattern === "*") return true
+  if (rule.matcher === "contains") return value.toLowerCase().includes(rule.pattern.toLowerCase())
+  try {
+    if (rule.matcher === "regex") return new RegExp(rule.pattern, "i").test(value)
+    const escaped = rule.pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")
+    return new RegExp(`^${escaped}$`, "i").test(value)
+  } catch { return false }
 }
 
 async function jpegReconstructionExtension(source: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<".jpg" | ".png"> {
@@ -330,16 +381,19 @@ async function jpegReconstructionExtension(source: string, input: XlchemyInput, 
 }
 
 async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyFileResult> {
+  const layeredArtifacts: string[] = []
   try {
     await runtime.ensureDir(runtime.dirname(plan.outputPath))
-    if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime, onEvent)
-    let encoderSource = plan.sourcePath
+    const prepared = await prepareLayeredSource(plan.sourcePath, plan.outputPath, runtime)
+    layeredArtifacts.push(...prepared.artifacts)
+    let encoderSource = prepared.sourcePath
+    if (input.format === "Smallest Lossless") return await convertSmallestLossless(plan, input, runtime, onEvent, encoderSource)
     const temporarySource = `${plan.outputPath}.xlchemy-input.png`
     const normalizedJpeg = `${plan.outputPath}.xlchemy-normalized.jpg`
     if (input.downscale?.enabled && input.downscale.mode !== "file-size") {
       const magick = await runtime.resolveCommand(["magick"])
       if (!magick) throw new Error("ImageMagick is required for downscaling.")
-      const resized = await runRuntimeCommand(runtime, magick, [plan.sourcePath, ...downscaleArgs(input.downscale), temporarySource])
+      const resized = await runRuntimeCommand(runtime, magick, [encoderSource, ...downscaleArgs(input.downscale), temporarySource])
       if (resized.exitCode !== 0) throw new Error(resized.stderr.trim() || "ImageMagick downscaling failed.")
       encoderSource = temporarySource
     }
@@ -347,7 +401,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     if (normalizeLosslessJpeg && input.jxlNormalize && input.jxlNormalizeWhen === "always") encoderSource = await normalizeJpegSource(encoderSource, normalizedJpeg, runtime)
     let result: XlchemyCommandResult
     if (input.downscale?.enabled && input.downscale.mode === "file-size") {
-      const sized = await runTargetSizeConversion(plan.sourcePath, plan.outputPath, input, runtime)
+      const sized = await runTargetSizeConversion(encoderSource, plan.outputPath, input, runtime)
       result = sized.result
       encoderSource = sized.encoderSource
     } else result = input.format === "JPEG XL" && input.intelligentEffort && !input.lossless && !input.jxlModular
@@ -383,13 +437,49 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
     }
     return { ...plan, status: "converted", outputBytes: outputInfo.size, error: undefined }
   } catch (error) { return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) } }
+  finally {
+    for (const artifact of layeredArtifacts) if ((await runtime.pathInfo(artifact)).exists) await runtime.removeFile(artifact)
+  }
 }
 
-async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyFileResult> {
+async function prepareLayeredSource(sourcePath: string, outputPath: string, runtime: XlchemyRuntime): Promise<{ sourcePath: string; artifacts: string[] }> {
+  const extension = runtime.extname(sourcePath).toLowerCase()
+  if (![".psd", ".psb", ".clip"].includes(extension)) return { sourcePath, artifacts: [] }
+
+  const magick = await requireCommand(runtime, ["magick"])
+  const compositePath = `${outputPath}.xlchemy-layered.png`
+  const artifacts = [compositePath]
+  let layeredSource = sourcePath
+
+  try {
+    if (extension === ".clip") {
+      if (!runtime.convertClipToPsd) throw new Error("The current runtime does not include native CLIP to PSD conversion.")
+      const intermediatePsd = `${outputPath}.xlchemy-clip.psd`
+      artifacts.unshift(intermediatePsd)
+      await runtime.convertClipToPsd(sourcePath, intermediatePsd)
+      const output = await runtime.pathInfo(intermediatePsd)
+      if (!output.exists || !output.isFile) throw new Error("clip_to_psd did not create the intermediate PSD file.")
+      layeredSource = intermediatePsd
+    }
+
+    const flattened = await runRuntimeCommand(runtime, magick, extension === ".clip"
+      ? [layeredSource, "-background", "none", "-layers", "merge", compositePath]
+      : [`${layeredSource}[0]`, "-alpha", "on", compositePath])
+    if (flattened.exitCode !== 0) throw new Error(flattened.stderr.trim() || `${extension === ".clip" ? "CLIP" : "PSD"} compositing failed.`)
+    const output = await runtime.pathInfo(compositePath)
+    if (!output.exists || !output.isFile) throw new Error("ImageMagick did not create the layered-image composite.")
+    return { sourcePath: compositePath, artifacts }
+  } catch (error) {
+    for (const artifact of artifacts) if ((await runtime.pathInfo(artifact)).exists) await runtime.removeFile(artifact)
+    throw error
+  }
+}
+
+async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, encoderSource = plan.sourcePath): Promise<XlchemyFileResult> {
   const pool = input.smallestFormatPool ?? { png: true, webp: true, jxl: true }
   const enabled = (["png", "webp", "jxl"] as const).filter((format) => pool[format] !== false)
   if (!enabled.length) throw new Error("Smallest Lossless requires at least one format in the comparison pool.")
-  const threads = String(await optimizedThreads(plan.sourcePath, input, runtime))
+  const threads = String(await optimizedThreads(encoderSource, input, runtime))
   const effort = String(input.maxCompression ? 9 : Math.min(9, input.effort))
   const candidates: Array<{ format: "png" | "webp" | "jxl"; path: string; size: number }> = []
   try {
@@ -398,14 +488,14 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
       let command: string, args: string[]
       if (format === "png") {
         command = await requireCommand(runtime, ["magick"])
-        args = [plan.sourcePath, "-define", `png:compression-level=${effort}`, path]
+        args = [encoderSource, "-define", `png:compression-level=${effort}`, path]
       } else if (format === "webp") {
         command = await requireCommand(runtime, ["cwebp"])
-        args = [plan.sourcePath, "-o", path, "-lossless", "-m", "6", "-mt"]
+        args = [encoderSource, "-o", path, "-lossless", "-m", "6", "-mt"]
       } else {
         command = await requireCommand(runtime, ["cjxl"])
-        const jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(runtime.extname(plan.sourcePath).toLowerCase())
-        args = ["-q", "100", "-e", effort, "--num_threads", threads, `--lossless_jpeg=${jpegSource && input.autoLosslessJpeg ? 1 : 0}`, plan.sourcePath, path]
+        const jpegSource = [".jpg", ".jpeg", ".jfif", ".jif", ".jpe"].includes(runtime.extname(encoderSource).toLowerCase())
+        args = ["-q", "100", "-e", effort, "--num_threads", threads, `--lossless_jpeg=${jpegSource && input.autoLosslessJpeg ? 1 : 0}`, encoderSource, path]
       }
       const result = await runRuntimeCommand(runtime, command, args)
       if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `${format} comparison encoder failed.`)

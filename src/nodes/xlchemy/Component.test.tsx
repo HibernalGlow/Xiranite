@@ -39,6 +39,36 @@ describe("app-owned xlchemy Component", () => {
     }
   })
 
+  test("restores the regular workbench panel layout independently", () => {
+    setSurface("regular")
+    render(<Component compId="xlchemy-card" host={createHost({
+      pathsText: "D:/images/a.png",
+      panelLayouts: {
+        "xlchemy-full-main-v1": { "xlchemy-input": 62, "xlchemy-configuration": 38 },
+      },
+    })} />)
+
+    expect(screen.getByTestId("xlchemy-full-main-v1")).toBeTruthy()
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(1)
+  })
+
+  test("restores all nested workspace panel layouts independently", () => {
+    setSurface("workspace")
+    render(<Component compId="xlchemy-card" host={createHost({
+      pathsText: "D:/images/a.png",
+      panelLayouts: {
+        "xlchemy-workspace-main-v1": { "xlchemy-workspace-input": 55, "xlchemy-workspace-configuration": 45 },
+        "xlchemy-workspace-queue-v1": { "xlchemy-input-files": 64, "xlchemy-run-feedback": 36 },
+        "xlchemy-workspace-configuration-v1": { "xlchemy-settings": 52, "xlchemy-results-and-log": 48 },
+      },
+    })} />)
+
+    expect(screen.getByTestId("xlchemy-workspace-main-v1")).toBeTruthy()
+    expect(screen.getByTestId("xlchemy-workspace-queue-v1")).toBeTruthy()
+    expect(screen.getByTestId("xlchemy-workspace-configuration-v1")).toBeTruthy()
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(3)
+  })
+
   test("uses quality 60 by default and exposes only global presets", async () => {
     const host = createHost({ pathsText: "D:/images/a.png", lossless: false })
     render(<Component compId="xlchemy-card" host={host} />)
@@ -54,6 +84,20 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], quality: 60 } })
+  })
+
+  test("opens the filename rule editor and passes default PSD and CLIP rules", async () => {
+    const host = createHost({ pathsText: "D:/images/art.psd", format: "WebP", existingPolicy: "rename" })
+    render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "打开命名规则编辑器" }))
+    expect(screen.getByText("命名规则编辑器")).toBeTruthy()
+    expect(screen.getByDisplayValue("psd, psb")).toBeTruthy()
+    expect(screen.getByDisplayValue("clip")).toBeTruthy()
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [{ suffix: "[PSD]" }, { suffix: "[CLIP]" }], existingPolicy: "rename" })
   })
 
   test("keeps chroma subsampling visible in the common parameters tab for every AVIF encoder", () => {

@@ -8,7 +8,7 @@ export const def = {
   category: "media",
   description: "High-performance batch image transcoding workbench.",
   icon: "Images",
-  keywords: ["image", "convert", "jxl", "avif", "webp", "transcode"],
+  keywords: ["image", "convert", "jxl", "avif", "webp", "psd", "clip", "transcode"],
 } satisfies NodeDef
 
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>

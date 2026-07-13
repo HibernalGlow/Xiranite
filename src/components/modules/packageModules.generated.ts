@@ -46,7 +46,7 @@ export const PACKAGE_MODULES = [
   { id: "timeu", name: "TimeU", version: "0.1.0", category: "file", description: "Back up and restore file timestamps from JSON records.", icon: "Clock3", keywords: ["timestamp", "backup", "restore", "mtime", "atime"] },
   { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize manga-translator result queues with native filesystem operations.", icon: "Languages", keywords: ["translation", "manga-translator", "organize", "queue"] },
   { id: "trename", name: "Trename", version: "0.1.0", category: "file", description: "Scan folders into rename JSON, validate translated targets, rename, and undo.", icon: "FilePenLine", keywords: ["rename", "translate", "json", "undo", "batch"] },
-  { id: "xlchemy", name: "Xlchemy", version: "0.1.0", category: "media", description: "High-performance batch image transcoding workbench.", icon: "Images", keywords: ["image", "convert", "jxl", "avif", "webp", "transcode"] },
+  { id: "xlchemy", name: "Xlchemy", version: "0.1.0", category: "media", description: "High-performance batch image transcoding workbench.", icon: "Images", keywords: ["image", "convert", "jxl", "avif", "webp", "psd", "clip", "transcode"] },
 ] satisfies NodeDef[]
 
 export const packageModuleLoaders = {

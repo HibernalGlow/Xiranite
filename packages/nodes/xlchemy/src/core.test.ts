@@ -4,9 +4,40 @@ import { compressionRatio, discoverImages, normalizeXlchemyInput, runXlchemy, ty
 describe("xlchemy core contract", () => {
   test("discovers every format exposed by the GUI filter tags", async () => {
     const runtime = fakeRuntime()
-    runtime.listDir = async () => ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif"].map((extension) => ({ path: `/photos/input.${extension}`, name: `input.${extension}`, isFile: true, isDirectory: false }))
+    runtime.listDir = async () => ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif", "psd", "psb", "clip"].map((extension) => ({ path: `/photos/input.${extension}`, name: `input.${extension}`, isFile: true, isDirectory: false }))
     const discovered = await discoverImages(["/photos"], true, runtime)
-    expect(discovered).toHaveLength(16)
+    expect(discovered).toHaveLength(19)
+  })
+
+  test("composites PSD input before passing it to the selected encoder", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/art.psd"], format: "WebP", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.slice(0, 2)).toEqual([
+      { command: "/bin/magick", args: ["/photos/art.psd[0]", "-alpha", "on", "/photos/art[PSD].webp.xlchemy-layered.png"] },
+      { command: "/bin/cwebp", args: ["/photos/art[PSD].webp.xlchemy-layered.png", "-o", "/photos/art[PSD].webp", "-q", "60", "-m", "6"] },
+    ])
+  })
+
+  test("converts CLIP through an intermediate PSD before encoding", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/drawing.clip"], format: "PNG", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands.slice(0, 3)).toEqual([
+      { command: "clip-to-psd-native", args: ["/photos/drawing.clip", "/photos/drawing[CLIP].png.xlchemy-clip.psd"] },
+      { command: "/bin/magick", args: ["/photos/drawing[CLIP].png.xlchemy-clip.psd", "-background", "none", "-layers", "merge", "/photos/drawing[CLIP].png.xlchemy-layered.png"] },
+      { command: "/bin/magick", args: ["/photos/drawing[CLIP].png.xlchemy-layered.png", "-define", "png:compression-level=7", "/photos/drawing[CLIP].png"] },
+    ])
+  })
+
+  test("applies custom filename affixes before existing-file policy", async () => {
+    const runtime = fakeRuntime()
+    const pathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path === "/photos/pre-art-post.webp"
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 10, atimeMs: 0, mtimeMs: 0 }
+      : pathInfo(path)
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: ["/photos/art.psd"], format: "WebP", outputMode: "source", filenameRules: [{ id: "custom", enabled: true, inputExtensions: ["psd"], outputFormats: ["WebP"], outputModes: ["source"], matchTarget: "filename", matcher: "glob", pattern: "art.*", prefix: "pre-", suffix: "-post" }], existingPolicy: "rename" }), runtime)
+    expect(result.data?.files[0]?.outputPath).toBe("/photos/pre-art-post_1.webp")
   })
   test("normalizes paths and clamps encoder controls", () => {
     expect(normalizeXlchemyInput({
@@ -228,7 +259,7 @@ describe("xlchemy core contract", () => {
 })
 
 function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } {
-  const files = new Map<string, { size: number; directory?: boolean }>([["/photos", { size: 0, directory: true }], ["/photos/events", { size: 0, directory: true }], ["/photos/a.png", { size: 1000 }], ["/photos/a.jxl", { size: 700 }], ["/photos/events/b.jpg", { size: 2000 }]])
+  const files = new Map<string, { size: number; directory?: boolean }>([["/photos", { size: 0, directory: true }], ["/photos/events", { size: 0, directory: true }], ["/photos/a.png", { size: 1000 }], ["/photos/a.jxl", { size: 700 }], ["/photos/art.psd", { size: 3000 }], ["/photos/drawing.clip", { size: 4000 }], ["/photos/events/b.jpg", { size: 2000 }]])
   const runtime: XlchemyRuntime & { commands: Array<{ command: string; args: string[] }> } = {
     commands: [],
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
@@ -238,6 +269,7 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
     convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
+    convertClipToPsd: async (source, target) => { runtime.commands.push({ command: "clip-to-psd-native", args: [source, target] }); files.set(target, { size: 1200 }) },
     join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }
   return runtime

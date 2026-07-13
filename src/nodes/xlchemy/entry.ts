@@ -15,6 +15,7 @@ const dataSchema = z.object({
   threads: z.number().optional(),
   outputMode: z.enum(["source", "directory"]).optional(),
   outputDir: z.string().optional(),
+  filenameRules: z.array(z.object({ id: z.string(), enabled: z.boolean(), inputExtensions: z.array(z.string()), outputFormats: z.array(z.string()), outputModes: z.array(z.enum(["source", "directory"])), matchTarget: z.enum(["filename", "path"]), matcher: z.enum(["contains", "glob", "regex"]), pattern: z.string(), prefix: z.string(), suffix: z.string() })).optional(),
   preserveMetadata: z.boolean().optional(),
   preserveStructure: z.boolean().optional(),
   overwrite: z.boolean().optional(),

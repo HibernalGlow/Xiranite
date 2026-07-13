@@ -6,6 +6,7 @@ import { delimiter } from "node:path"
 import type { XlchemyRuntime } from "./core.js"
 import { runXlchemyCommand } from "./command.js"
 import { convertWithSlimg, probeSlimg } from "./slimg.js"
+import { convertClipToPsd } from "./clip-to-psd.js"
 
 export function createNodeXlchemyRuntime(): XlchemyRuntime {
   return {
@@ -22,6 +23,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     resolveCommand,
     probeSlimg,
     convertWithSlimg,
+    convertClipToPsd,
     join,
     dirname,
     basename,

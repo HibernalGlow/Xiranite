@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
-import { DEFAULT_RAM_OPTIMIZER_RULES, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
+import { DEFAULT_FILENAME_RULES, DEFAULT_RAM_OPTIMIZER_RULES, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
 import type { LucideIcon } from "lucide-react"
 import { Activity, AlertTriangle, CheckCircle2, CircleCheck, CircleX, FileImage, Files, FolderInput, Gauge, Images, Play, RefreshCw, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Square, Tags, Terminal, Wrench } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -23,15 +23,24 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { readNodePanelLayout, updateNodePanelLayout, type NodePanelLayout } from "@/nodes/shared/nodePanelLayouts"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ENVIRONMENT_TARGETS, FORMATS } from "./constants"
 import type { XlchemyCardState, XlchemyCustomPreset } from "./types"
-import { XL_CONFIG_FIELDS } from "./types"
+import { XL_CONFIG_FIELDS, XL_FILENAME_CONFIG_FIELDS } from "./types"
 import { InputFilesWorkbench } from "./InputFilesWorkbench"
 import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./ProgressAndLogs"
 import { DataAnalysis } from "./DataAnalysis"
+import { FilenameRuleEditor } from "./FilenameRuleEditor"
+
+const PANEL_LAYOUTS = {
+  full: { key: "xlchemy-full-main-v1", panelIds: ["xlchemy-input", "xlchemy-configuration"] },
+  workspace: { key: "xlchemy-workspace-main-v1", panelIds: ["xlchemy-workspace-input", "xlchemy-workspace-configuration"] },
+  queue: { key: "xlchemy-workspace-queue-v1", panelIds: ["xlchemy-input-files", "xlchemy-run-feedback"] },
+  configuration: { key: "xlchemy-workspace-configuration-v1", panelIds: ["xlchemy-settings", "xlchemy-results-and-log"] },
+} as const
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
   const surface = useNodeSurface()
@@ -76,7 +85,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }, [data.excludedFormatsText])
   useEffect(() => {
     if (!defaults) return
-    setConfigDirty(XL_CONFIG_FIELDS.some((field) => JSON.stringify(data[field] ?? null) !== JSON.stringify(defaults[field] ?? null)))
+    setConfigDirty(XL_SAVED_FIELDS.some((field) => JSON.stringify(data[field] ?? null) !== JSON.stringify(defaults[field] ?? null)))
   }, [data, defaults])
 
   function patch(next: Partial<XlchemyCardState>) {
@@ -87,7 +96,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   async function saveDefaults() {
     const config: XlchemyNodeConfig = {}
-    for (const field of XL_CONFIG_FIELDS) {
+    for (const field of XL_SAVED_FIELDS) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
@@ -104,7 +113,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   function snapshotPresetValues() {
     const values: Partial<XlchemyCardState> = {}
-    for (const field of XL_CONFIG_FIELDS) {
+    for (const field of XL_SAVED_FIELDS) {
       if (field === "selectedPreset") continue
       const value = dataRef.current[field]
       if (value !== undefined) (values as Record<string, unknown>)[field] = value
@@ -168,6 +177,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     if (running) return
     const selected = dataRef.current.selectedPaths
     const input = buildInput(nextAction, selected?.length ? { ...dataRef.current, pathsText: selected.join("\n") } : dataRef.current)
+    input.filenameRules = dataRef.current.filenameRules ?? DEFAULT_FILENAME_RULES
     if (nextAction !== "diagnose" && !input.paths.length) { patch({ phase: "error", progressText: t("errors.paths", "请先添加图片文件或文件夹。") }); return }
     const run = host.runner?.run ?? host.actions?.run
     if (!run) { patch({ phase: "error", progressText: t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。") }); return }
@@ -220,6 +230,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const props: ViewProps = {
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
+    onPanelLayoutChanged: (key, layout) => patch({ panelLayouts: updateNodePanelLayout(dataRef.current.panelLayouts, key, layout) }),
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
   }
@@ -235,10 +246,11 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
 type XlchemyNodeConfig = Partial<XlchemyCardState>
+const XL_SAVED_FIELDS = [...XL_CONFIG_FIELDS, ...XL_FILENAME_CONFIG_FIELDS] as const
 
 const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
   format: "JPEG XL", lossless: false, quality: 60, effort: 7, maxCompression: false, threads: 4,
-  outputMode: "source", outputDir: "", preserveMetadata: true, preserveStructure: true, preserveTimestamps: false,
+  outputMode: "source", outputDir: "", filenameRules: DEFAULT_FILENAME_RULES, preserveMetadata: true, preserveStructure: true, preserveTimestamps: false,
   overwrite: false, recursive: true, existingPolicy: "skip", deleteOriginal: false, deleteOriginalMode: "trash",
   intelligentEffort: false, jxlModular: false, jxlVerify: false, jxlPngFallback: true, jxlNormalize: false, jxlNormalizeWhen: "on-fail",
   chromaSubsampling: "default", metadataMode: "encoder-preserve", keepIfLarger: false, copyIfLarger: false,
@@ -263,7 +275,7 @@ function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
 function normalizeXlchemyDefaults(value: unknown): Partial<XlchemyCardState> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
   const defaults: Partial<XlchemyCardState> = {}
-  for (const field of XL_CONFIG_FIELDS) {
+  for (const field of XL_SAVED_FIELDS) {
     const fieldValue = (value as Record<string, unknown>)[field]
     if (fieldValue !== undefined) (defaults as Record<string, unknown>)[field] = fieldValue
   }
@@ -275,7 +287,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
   const { id, name, values } = candidate as Record<string, unknown>
   if (typeof id !== "string" || !id.startsWith("custom-") || typeof name !== "string" || !name.trim() || !values || typeof values !== "object" || Array.isArray(values)) return undefined
   const filtered: Partial<XlchemyCardState> = {}
-  for (const field of XL_CONFIG_FIELDS) {
+  for (const field of XL_SAVED_FIELDS) {
     if (field === "selectedPreset") continue
     const fieldValue = (values as Record<string, unknown>)[field]
     if (fieldValue !== undefined) (filtered as Record<string, unknown>)[field] = fieldValue
@@ -285,7 +297,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPanelLayoutChanged: (key: string, layout: NodePanelLayout) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -298,12 +310,13 @@ function CompactView(props: ViewProps & { portrait: boolean }) {
 
 function FullView(props: ViewProps) {
   if (props.surfaceMode === "workspace") return <WorkspaceWorkbench props={props} />
+  const layout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.full.key, PANEL_LAYOUTS.full.panelIds)
   return (
     <div data-testid="xlchemy-full-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <Header props={props} />
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" data-testid="xlchemy-workbench-layout">
+      <ResizablePanelGroup id={PANEL_LAYOUTS.full.key} orientation="horizontal" className="min-h-0 flex-1" defaultLayout={layout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.full.key, nextLayout)}>
         <ResizablePanel id="xlchemy-input" defaultSize={58} minSize={44}>
-        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2">
+        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2">
           <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`} grow>
             <InputWorkbench props={props} />
           </WorkbenchCard>
@@ -313,7 +326,7 @@ function FullView(props: ViewProps) {
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel id="xlchemy-configuration" defaultSize={42} minSize={32}>
-        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pl-3 pr-2">
+        <ScrollArea className="h-full min-h-0"><div className="flex flex-col gap-2 pr-2">
             <ConfigurationCard props={props} />
             <WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard>
         </div></ScrollArea>
@@ -324,17 +337,20 @@ function FullView(props: ViewProps) {
 }
 
 function WorkspaceWorkbench({ props }: { props: ViewProps }) {
+  const workspaceLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.workspace.key, PANEL_LAYOUTS.workspace.panelIds)
+  const queueLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.queue.key, PANEL_LAYOUTS.queue.panelIds)
+  const configurationLayout = readNodePanelLayout(props.data.panelLayouts, PANEL_LAYOUTS.configuration.key, PANEL_LAYOUTS.configuration.panelIds)
   return <div data-testid="xlchemy-full-view" className="xlchemy-grid flex min-h-0 flex-1 flex-col gap-2 p-3">
     <Header props={props} />
-    <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1" data-testid="xlchemy-workbench-layout">
+    <ResizablePanelGroup id={PANEL_LAYOUTS.workspace.key} orientation="horizontal" className="min-h-0 flex-1" defaultLayout={workspaceLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.workspace.key, nextLayout)}>
       <ResizablePanel id="xlchemy-workspace-input" defaultSize={58} minSize={46}>
-        <ResizablePanelGroup key={props.paths.length ? "xlchemy-queue" : "xlchemy-empty-queue"} orientation="vertical" className="min-h-0 pr-3">
+        <ResizablePanelGroup key={props.paths.length ? "xlchemy-queue" : "xlchemy-empty-queue"} id={PANEL_LAYOUTS.queue.key} orientation="vertical" className="min-h-0" defaultLayout={queueLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.queue.key, nextLayout)}>
           <ResizablePanel id="xlchemy-input-files" defaultSize={props.paths.length ? 58 : 36} minSize={props.paths.length ? 42 : 32}>
             <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")} badge={`${props.paths.length} 项`}><InputWorkbench props={props} /></WorkbenchCard>
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="xlchemy-run-feedback" defaultSize={props.paths.length ? 42 : 64} minSize={30}>
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2 pt-2">
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
               <OperationsCard fill props={props} />
               <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
             </div>
@@ -343,13 +359,13 @@ function WorkspaceWorkbench({ props }: { props: ViewProps }) {
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel id="xlchemy-workspace-configuration" defaultSize={42} minSize={32}>
-        <ResizablePanelGroup orientation="vertical" className="min-h-0 pl-3">
+        <ResizablePanelGroup id={PANEL_LAYOUTS.configuration.key} orientation="vertical" className="min-h-0" defaultLayout={configurationLayout} onLayoutChanged={(nextLayout) => props.onPanelLayoutChanged(PANEL_LAYOUTS.configuration.key, nextLayout)}>
           <ResizablePanel id="xlchemy-settings" defaultSize={60} minSize={42}>
             <ScrollArea className="h-full"><div className="flex flex-col gap-2 pr-2"><ConfigurationCard props={props} /></div></ScrollArea>
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel id="xlchemy-results-and-log" defaultSize={40} minSize={28}>
-            <div className="h-full min-h-0 pt-2"><WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div>
+            <div className="h-full min-h-0"><WorkbenchCard fill title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </ResizablePanel>
@@ -393,6 +409,7 @@ function FormatControls({ props }: { props: ViewProps }) {
       {supportsLosslessChoice && <ChoiceControlField label="压缩模式"><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid w-full grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
+      <Field className="gap-1"><FieldLabel className="text-[10px]">输出命名</FieldLabel><FilenameRuleEditor disabled={props.running} rules={props.data.filenameRules} onChange={(filenameRules) => props.onPatch({ filenameRules })} /></Field>
       {showsChromaSubsampling(props) && <ChromaSubsamplingField disabled={chromaUnavailable} props={props} />}
     </div>
     {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
@@ -534,5 +551,5 @@ function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput
 function playCompletionTone(volume: number) { const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext; if (!AudioContextCtor) return; const context = new AudioContextCtor(), oscillator = context.createOscillator(), gain = context.createGain(); oscillator.frequency.value = 660; gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)) * 0.12, context.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22); oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.22); oscillator.addEventListener("ended", () => void context.close()) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
 
-const XL_INPUT_FORMATS = ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif"]
+const XL_INPUT_FORMATS = ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif", "psd", "psb", "clip"]
 const DEFAULT_EXCLUDED_FORMATS = "avif,jxl,webp,gif"
