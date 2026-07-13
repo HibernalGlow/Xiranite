@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useState } from "react"
 import type { XlchemyFilenameRule, XlchemyFormat, XlchemyOutputMode } from "@xiranite/node-xlchemy/core"
 import { DEFAULT_FILENAME_RULES } from "@xiranite/node-xlchemy/core"
 import { ArrowDown, ArrowUp, Braces, Plus, RotateCcw, Trash2 } from "lucide-react"
@@ -12,11 +12,13 @@ import { Switch } from "@/components/ui/switch"
 import { FORMATS } from "./constants"
 
 export function FilenameRuleEditor(props: { disabled?: boolean; rules?: XlchemyFilenameRule[]; onChange: (rules: XlchemyFilenameRule[]) => void }) {
-  const rules = useMemo(() => props.rules ?? DEFAULT_FILENAME_RULES.map((rule) => ({ ...rule, inputExtensions: [...rule.inputExtensions], outputFormats: [...rule.outputFormats], outputModes: [...rule.outputModes] })), [props.rules])
-  const update = (index: number, patch: Partial<XlchemyFilenameRule>) => props.onChange(rules.map((rule, ruleIndex) => ruleIndex === index ? { ...rule, ...patch } : rule))
-  const move = (index: number, offset: number) => { const target = index + offset; if (target < 0 || target >= rules.length) return; const next = [...rules]; [next[index], next[target]] = [next[target]!, next[index]!]; props.onChange(next) }
-  const remove = (index: number) => props.onChange(rules.filter((_, ruleIndex) => ruleIndex !== index))
-  const add = () => props.onChange([...rules, { id: `rule-${Date.now().toString(36)}`, enabled: true, inputExtensions: [], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "" }])
+  const [rules, setRules] = useState<XlchemyFilenameRule[]>(() => props.rules ?? cloneDefaultRules())
+  useEffect(() => { setRules(props.rules ?? cloneDefaultRules()) }, [props.rules])
+  const commit = (next: XlchemyFilenameRule[]) => { setRules(next); props.onChange(next) }
+  const update = (index: number, patch: Partial<XlchemyFilenameRule>) => commit(rules.map((rule, ruleIndex) => ruleIndex === index ? { ...rule, ...patch } : rule))
+  const move = (index: number, offset: number) => { const target = index + offset; if (target < 0 || target >= rules.length) return; const next = [...rules]; [next[index], next[target]] = [next[target]!, next[index]!]; commit(next) }
+  const remove = (index: number) => commit(rules.filter((_, ruleIndex) => ruleIndex !== index))
+  const add = () => commit([...rules, { id: `rule-${Date.now().toString(36)}`, enabled: true, inputExtensions: [], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "" }])
 
   return (
     <Dialog>
@@ -29,7 +31,7 @@ export function FilenameRuleEditor(props: { disabled?: boolean; rules?: XlchemyF
             {!rules.length && <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">当前没有命名规则，输出将沿用原文件名。</div>}
           </div>
         </ScrollArea>
-        <div className="flex items-center justify-between gap-2 border-t pt-3"><Button variant="ghost" onClick={() => props.onChange(DEFAULT_FILENAME_RULES.map((rule) => ({ ...rule, inputExtensions: [...rule.inputExtensions], outputFormats: [], outputModes: [] })))}><RotateCcw />恢复 PSD / CLIP 默认规则</Button><Button onClick={add}><Plus />添加规则</Button></div>
+        <div className="flex items-center justify-between gap-2 border-t pt-3"><Button variant="ghost" onClick={() => commit(cloneDefaultRules())}><RotateCcw />恢复 PSD / CLIP 默认规则</Button><Button onClick={add}><Plus />添加规则</Button></div>
       </DialogContent>
     </Dialog>
   )
@@ -37,7 +39,7 @@ export function FilenameRuleEditor(props: { disabled?: boolean; rules?: XlchemyF
 
 function RuleCard(props: { index: number; count: number; rule: XlchemyFilenameRule; onUpdate: (patch: Partial<XlchemyFilenameRule>) => void; onMove: (offset: number) => void; onRemove: () => void }) {
   const rule = props.rule
-  return <section className="grid gap-3 rounded-xl border bg-card/60 p-3 shadow-sm">
+  return <section aria-label={`命名规则 ${props.index + 1}`} className="grid gap-3 rounded-xl border bg-card/60 p-3 shadow-sm">
     <div className="flex items-center gap-2"><Switch aria-label={`启用命名规则 ${props.index + 1}`} checked={rule.enabled} onCheckedChange={(enabled) => props.onUpdate({ enabled })} /><span className="text-xs font-semibold">规则 {props.index + 1}</span><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{summary(rule)}</span><Button aria-label="上移规则" disabled={props.index === 0} size="icon-xs" variant="ghost" onClick={() => props.onMove(-1)}><ArrowUp /></Button><Button aria-label="下移规则" disabled={props.index === props.count - 1} size="icon-xs" variant="ghost" onClick={() => props.onMove(1)}><ArrowDown /></Button><Button aria-label="删除命名规则" size="icon-xs" variant="ghost" className="text-destructive" onClick={props.onRemove}><Trash2 /></Button></div>
     <div className="grid gap-2 md:grid-cols-3">
       <TextField label="输入扩展名" placeholder="全部，或 psd, clip" value={rule.inputExtensions.join(", ")} onChange={(value) => props.onUpdate({ inputExtensions: splitList(value) })} />
@@ -52,7 +54,8 @@ function RuleCard(props: { index: number; count: number; rule: XlchemyFilenameRu
   </section>
 }
 
-function TextField(props: { label: string; placeholder: string; value: string; onChange: (value: string) => void }) { return <Field className="gap-1"><FieldLabel className="text-[10px]">{props.label}</FieldLabel><Input className="h-8 text-xs" placeholder={props.placeholder} value={props.value} onChange={(event) => props.onChange(event.currentTarget.value)} /></Field> }
-function SelectField(props: { label: string; value: string; options: string[][]; onChange: (value: string) => void }) { return <Field className="gap-1"><FieldLabel className="text-[10px]">{props.label}</FieldLabel><Select value={props.value} onValueChange={props.onChange}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{props.options.map(([value, label]) => <SelectItem key={value} value={value!}>{label}</SelectItem>)}</SelectContent></Select></Field> }
+function TextField(props: { label: string; placeholder: string; value: string; onChange: (value: string) => void }) { return <Field className="gap-1"><FieldLabel className="text-[10px]">{props.label}</FieldLabel><Input aria-label={props.label} className="h-8 text-xs" placeholder={props.placeholder} value={props.value} onChange={(event) => props.onChange(event.currentTarget.value)} /></Field> }
+function SelectField(props: { label: string; value: string; options: string[][]; onChange: (value: string) => void }) { return <Field className="gap-1"><FieldLabel className="text-[10px]">{props.label}</FieldLabel><Select value={props.value} onValueChange={props.onChange}><SelectTrigger aria-label={props.label} className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{props.options.map(([value, label]) => <SelectItem key={value} value={value!}>{label}</SelectItem>)}</SelectContent></Select></Field> }
 function splitList(value: string) { return value.split(/[,;\s]+/).map((item) => item.trim().replace(/^\./, "").toLowerCase()).filter(Boolean) }
 function summary(rule: XlchemyFilenameRule) { const scope = rule.inputExtensions.length ? rule.inputExtensions.map((item) => `.${item}`).join(", ") : "全部输入"; return `${scope} · ${rule.prefix || "∅"}名称${rule.suffix || "∅"}` }
+function cloneDefaultRules() { return DEFAULT_FILENAME_RULES.map((rule) => ({ ...rule, inputExtensions: [...rule.inputExtensions], outputFormats: [...rule.outputFormats], outputModes: [...rule.outputModes] })) }

@@ -72,6 +72,39 @@ describe("app-owned xlchemy Component", () => {
     expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [{ suffix: "[PSD]" }, { suffix: "[CLIP]" }], existingPolicy: "rename" })
   })
 
+  test("edits, adds and reorders filename rules before planning", async () => {
+    const host = createHost({ pathsText: "D:/images/art.psd", format: "WebP", existingPolicy: "rename" })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "打开命名规则编辑器" }))
+
+    const firstRule = screen.getByRole("region", { name: "命名规则 1" })
+    await user.clear(within(firstRule).getByRole("textbox", { name: "添加前缀" }))
+    await user.type(within(firstRule).getByRole("textbox", { name: "添加前缀" }), "source-")
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    await user.click(screen.getByRole("button", { name: "添加规则" }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+
+    let thirdRule = screen.getByRole("region", { name: "命名规则 3" })
+    await user.clear(within(thirdRule).getByRole("textbox", { name: "输入扩展名" }))
+    await user.type(within(thirdRule).getByRole("textbox", { name: "输入扩展名" }), ".psd")
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    thirdRule = screen.getByRole("region", { name: "命名规则 3" })
+    await user.type(within(thirdRule).getByRole("textbox", { name: "添加后缀" }), "-custom")
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    thirdRule = screen.getByRole("region", { name: "命名规则 3" })
+    await user.click(within(thirdRule).getByRole("button", { name: "上移规则" }))
+
+    await user.keyboard("{Escape}")
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [
+      { id: "builtin-psd", prefix: "source-", suffix: "[PSD]" },
+      { inputExtensions: ["psd"], suffix: "-custom" },
+      { id: "builtin-clip", suffix: "[CLIP]" },
+    ] })
+  })
+
   test("keeps chroma subsampling visible in the common parameters tab for every AVIF encoder", () => {
     render(<Component compId="xlchemy-card" host={createHost({ pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg" })} />)
     expect(screen.getByText("色度采样")).toBeTruthy()
