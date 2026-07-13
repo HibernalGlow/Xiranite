@@ -15,6 +15,7 @@
     "rootDir": "src",
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "jsx": "react-jsx",
     "types": [
       "node"
     ]
