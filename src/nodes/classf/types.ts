@@ -1,4 +1,4 @@
-import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfStage, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfPlacementMode, ClassfStage, ClassfTransferMode } from "@xiranite/node-classf/core"
 
 export type ClassfPhase = "idle" | "running" | "completed" | "error"
 
@@ -9,6 +9,7 @@ export interface ClassfCardState {
   targetDir?: string
   transferMode?: ClassfTransferMode
   classifyMode?: ClassfClassifyMode
+  placementMode?: ClassfPlacementMode
   existingPolicy?: ClassfExistingPolicy
   dryRun?: boolean
   phase?: ClassfPhase
@@ -34,6 +35,7 @@ export const CONFIG_FIELDS = [
   "targetDir",
   "transferMode",
   "classifyMode",
+  "placementMode",
   "existingPolicy",
   "dryRun",
 ] as const satisfies Array<keyof ClassfCardState>

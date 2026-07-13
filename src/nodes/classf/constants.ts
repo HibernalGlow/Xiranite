@@ -1,6 +1,6 @@
 import { ArrowRightLeft, ClipboardList, Copy, FolderCheck, FolderInput, FolderSymlink, MoveRight, Play, Workflow } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import type { ClassfAction, ClassfClassifyMode, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfPlacementMode, ClassfTransferMode } from "@xiranite/node-classf/core"
 
 export interface ClassfActionMeta {
   value: ClassfAction
@@ -23,6 +23,8 @@ export interface ClassfTransferMeta {
   description: string
   icon: LucideIcon
 }
+
+export interface ClassfPlacementMeta { value: ClassfPlacementMode; label: string; description: string; icon: LucideIcon }
 
 export const ACTIONS: ClassfActionMeta[] = [
   {
@@ -54,12 +56,6 @@ export const CLASSIFY_MODES: ClassfModeMeta[] = [
     description: "Selected items go to already, without wait candidates.",
     icon: FolderCheck,
   },
-  {
-    value: "off",
-    label: "Target",
-    description: "Selected items go to the explicit target folder.",
-    icon: FolderInput,
-  },
 ]
 
 export const TRANSFER_MODES: ClassfTransferMeta[] = [
@@ -75,6 +71,11 @@ export const TRANSFER_MODES: ClassfTransferMeta[] = [
     description: "Copy source paths and keep originals in place.",
     icon: Copy,
   },
+]
+
+export const PLACEMENT_MODES: ClassfPlacementMeta[] = [
+  { value: "local", label: "就地分流", description: "在每个文件当前所在目录创建 already 或 wait。", icon: FolderInput },
+  { value: "root", label: "根目录分流", description: "在给定根目录下创建 already 或 wait，并完整保留相对路径。", icon: FolderSymlink },
 ]
 
 export const NODE_ICON = Workflow

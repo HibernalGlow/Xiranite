@@ -6,7 +6,7 @@ import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-ru
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import { runClassf } from "./core.js"
-import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfResult, ClassfTransferMode } from "./core.js"
+import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode } from "./core.js"
 import { createNodeClassfRuntime } from "./platform.js"
 import { createClassfInteractionSchema, type ClassfInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
@@ -20,6 +20,7 @@ interface ClassfNodeConfig {
   target_dir?: string
   transfer_mode?: ClassfTransferMode
   classify_mode?: ClassfClassifyMode
+  placement_mode?: ClassfPlacementMode
   existing_policy?: ClassfExistingPolicy
   dry_run?: boolean
 }
@@ -46,7 +47,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -75,6 +76,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     targetDir: valueFor(args, "--target") ?? config?.target_dir,
     transferMode: valueFor(args, "--transfer") as ClassfTransferMode | undefined ?? config?.transfer_mode,
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,
+    placementMode: valueFor(args, "--placement") as ClassfPlacementMode | undefined ?? config?.placement_mode,
     existingPolicy: valueFor(args, "--existing") as ClassfExistingPolicy | undefined ?? config?.existing_policy,
     dryRun: action !== "classify" || args.includes("--dry-run") || config?.dry_run === true,
   }
@@ -91,7 +93,7 @@ if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
-  const valueOptions = new Set(["--target", "--transfer", "--classify", "--existing", "--crashu-source", "--similarity", "--samea-min"])
+  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--crashu-source", "--similarity", "--samea-min"])
   return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
 }
 

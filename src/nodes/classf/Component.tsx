@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlanItem, ClassfProgressData, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, Archive, ArrowRight, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
-import { ACTIONS, CLASSIFY_MODES, NODE_ICON, PLAN_ICON, TRANSFER_MODES } from "./constants"
+import { ACTIONS, CLASSIFY_MODES, NODE_ICON, PLACEMENT_MODES, PLAN_ICON, TRANSFER_MODES } from "./constants"
 import type { ClassfCardState, ClassfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -84,7 +84,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.existingPolicy, data.dryRun, defaults])
+  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.dryRun, defaults])
 
   function patch(patchData: Partial<ClassfCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -361,7 +361,7 @@ function ActionMode(props: { disabled?: boolean; value: ClassfAction; t: ViewPro
 
 function ModeToggle(props: { disabled?: boolean; value: ClassfClassifyMode; t: ViewProps["tNode"]; onChange: (value: ClassfClassifyMode) => void }) {
   return (
-    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassfClassifyMode)} className="grid grid-cols-3" size="sm">
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassfClassifyMode)} className="grid grid-cols-2" size="sm">
       {CLASSIFY_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon /><span className="truncate text-xs">{props.t(`classifyModes.${item.value}`, item.label)}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
@@ -389,10 +389,12 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
 }
 
 function TargetField(props: { compact?: boolean; data: ClassfCardState; disabled?: boolean; t: ViewProps["tNode"]; onPatch: (patch: Partial<ClassfCardState>) => void }) {
+  const placementMode = props.data.placementMode ?? "local"
   return (
     <div className="grid gap-1.5">
-      {!props.compact && <Label htmlFor="classf-target" className="text-xs">{props.t("fields.target", "目标目录")}</Label>}
-      <Input id="classf-target" aria-label="classf target" disabled={props.disabled} placeholder={props.data.classifyMode === "off" ? props.t("placeholders.targetRequired", "目标模式下必须填写") : props.t("placeholders.targetOptional", "可选；默认使用 already") } value={props.data.targetDir ?? ""} onChange={(event) => props.onPatch({ targetDir: event.currentTarget.value })} />
+      {!props.compact && <Label className="text-xs">{props.t("fields.placementMode", "放置位置")}</Label>}
+      <PlacementToggle value={placementMode} disabled={props.disabled} t={props.t} onChange={(value) => props.onPatch({ placementMode: value })} />
+      {placementMode === "root" && <Input id="classf-target" aria-label="classf target" disabled={props.disabled} placeholder={props.t("placeholders.targetRequired", "根目录分流必须填写目标根目录")} value={props.data.targetDir ?? ""} onChange={(event) => props.onPatch({ targetDir: event.currentTarget.value })} />}
     </div>
   )
 }
@@ -413,6 +415,14 @@ function ExecutionGate(props: ViewProps) {
       </div>
       <div className="mt-auto"><RunButton props={props} /></div>
     </section>
+  )
+}
+
+function PlacementToggle(props: { disabled?: boolean; value: ClassfPlacementMode; t: ViewProps["tNode"]; onChange: (value: ClassfPlacementMode) => void }) {
+  return (
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassfPlacementMode)} className="grid grid-cols-2" size="sm">
+      {PLACEMENT_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon /><span className="truncate text-xs">{props.t(`placementModes.${item.value}`, item.label)}</span></ToggleGroupItem>)}
+    </ToggleGroup>
   )
 }
 
@@ -670,6 +680,7 @@ function buildInput(action: ClassfAction, data: ClassfCardState): ClassfInput {
     targetDir: clean(data.targetDir),
     transferMode: data.transferMode ?? "move",
     classifyMode: data.classifyMode ?? "auto",
+    placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
     dryRun: data.dryRun ?? true,
   }
@@ -682,6 +693,7 @@ function planFingerprint(data: ClassfCardState): string {
     targetDir: clean(data.targetDir),
     transferMode: data.transferMode ?? "move",
     classifyMode: data.classifyMode ?? "auto",
+    placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
   })
 }

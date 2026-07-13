@@ -6,17 +6,74 @@ import type { MigratefInput } from "@xiranite/node-migratef/core"
 import type { SameaInput } from "@xiranite/node-samea/core"
 
 describe("classf pipeline", () => {
-  test("orchestrates SameA, CrashU, and MigrateF in pipeline order", async () => {
-    const calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }> = []
-    const runtime = fakeRuntime(calls)
-    const result = await runClassf({ action: "plan", classifyMode: "auto" }, runtime)
+  test("places every file in already or wait beside its current directory", async () => {
+    const calls: Call[] = []
+    const result = await runClassf({ action: "plan", classifyMode: "auto", placementMode: "local" }, fakeRuntime(calls))
+
     expect(result.success).toBe(true)
-    expect(calls.map((call) => call.stage)).toEqual(["samea", "crashu", "migratef", "migratef"])
-    expect(calls[0]?.input).toEqual(expect.objectContaining({ paths: ["/archives"], action: "plan" }))
-    expect(calls[1]?.input).toEqual(expect.objectContaining({ sourcePaths: ["E:\\1Hub\\EH\\1EHV"], targetNames: ["[Artist]"] }))
-    expect(calls[2]?.input).toEqual(expect.objectContaining({ sourcePaths: ["/target/[Artist]"], targetPath: "/target/already", mode: "direct" }))
-    expect(calls[3]?.input).toEqual(expect.objectContaining({ sourcePaths: ["/target/unmatched"], targetPath: "/target/wait", mode: "direct" }))
-    expect(result.data?.items).toEqual(expect.arrayContaining([expect.objectContaining({ stage: "already", sourcePath: "/target/[Artist]" }), expect.objectContaining({ stage: "wait", sourcePath: "/target/unmatched" })]))
+    expect(result.data?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: "/archives/[Artist] A.zip", targetPath: "/archives/already/[Artist] A.zip", stage: "already" }),
+      expect.objectContaining({ sourcePath: "/archives/nested/notes.txt", targetPath: "/archives/nested/wait/notes.txt", stage: "wait" }),
+    ]))
+    expect(calls.filter((call) => call.stage === "migratef").map((call) => call.input)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePaths: ["/archives/[Artist] A.zip"], targetPath: "/archives/already", mode: "direct" }),
+      expect.objectContaining({ sourcePaths: ["/archives/nested/notes.txt"], targetPath: "/archives/nested/wait", mode: "direct" }),
+    ]))
+  })
+
+  test("preserves the complete relative path under a selected target root", async () => {
+    const result = await runClassf({ action: "plan", classifyMode: "auto", placementMode: "root", targetDir: "/classified" }, fakeRuntime([]))
+
+    expect(result.success).toBe(true)
+    expect(result.data?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ targetPath: "/classified/already/[Artist] A.zip", targetRelative: "already/[Artist] A.zip" }),
+      expect.objectContaining({ targetPath: "/classified/wait/nested/notes.txt", targetRelative: "wait/nested/notes.txt" }),
+    ]))
+  })
+
+  test("keeps each source root name when several roots are sent to one target", async () => {
+    const runtime = fakeRuntime([])
+    runtime.runSamea = async () => ({ success: true, message: "samea", data: { action: "plan", centralize: false, minOccurrences: 1, items: [], groups: [], scannedCount: 0, detectedCount: 0, readyCount: 0, movedCount: 0, ignoredCount: 0, skippedCount: 0, conflictCount: 0, errorCount: 0, errors: [] } })
+    runtime.pathInfo = async (path) => ({ path, exists: true, isFile: path.endsWith(".txt"), isDirectory: !path.endsWith(".txt") })
+    runtime.listDir = async (path) => path === "/one" ? [{ name: "sub", path: "/one/sub", isFile: false, isDirectory: true }] : path === "/one/sub" ? [{ name: "same.txt", path: "/one/sub/same.txt", isFile: true, isDirectory: false }] : path === "/two" ? [{ name: "sub", path: "/two/sub", isFile: false, isDirectory: true }] : path === "/two/sub" ? [{ name: "same.txt", path: "/two/sub/same.txt", isFile: true, isDirectory: false }] : []
+
+    const result = await runClassf({ action: "plan", paths: ["/one", "/two"], placementMode: "root", targetDir: "/classified" }, runtime)
+    expect(result.data?.items.map((item) => item.targetPath)).toEqual([
+      "/classified/wait/one/sub/same.txt",
+      "/classified/wait/two/sub/same.txt",
+    ])
+  })
+
+  test("requires a target directory in root placement mode", async () => {
+    const result = await runClassf({ action: "plan", placementMode: "root" }, fakeRuntime([]))
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("target directory")
+  })
+
+  test("does not scan files already inside already or wait", async () => {
+    const runtime = fakeRuntime([])
+    runtime.listDir = async (path) => path === "/archives" ? [
+      { name: "already", path: "/archives/already", isFile: false, isDirectory: true },
+      { name: "wait", path: "/archives/wait", isFile: false, isDirectory: true },
+      { name: "fresh.txt", path: "/archives/fresh.txt", isFile: true, isDirectory: false },
+    ] : []
+    runtime.pathInfo = async (path) => ({ path, exists: true, isFile: path.endsWith(".txt"), isDirectory: !path.endsWith(".txt") })
+    const result = await runClassf({ action: "plan", placementMode: "local" }, runtime)
+    expect(result.data?.items.map((item) => item.sourcePath)).toEqual(["/archives/fresh.txt"])
+  })
+
+  test("publishes the complete plan before the first live transfer", async () => {
+    const calls: Call[] = []
+    const timeline: string[] = []
+    const runtime = fakeRuntime(calls, (stage, input) => timeline.push(`${stage}:${"action" in input ? input.action : "scan"}`))
+    const result = await runClassf({ action: "classify", classifyMode: "auto", placementMode: "local", dryRun: false }, runtime, (event) => {
+      if ((event.data as { kind?: string } | undefined)?.kind === "classf-plan") timeline.push("event:plan")
+    })
+
+    expect(result.success).toBe(true)
+    expect(timeline.indexOf("event:plan")).toBeLessThan(timeline.indexOf("migratef:move"))
+    expect(calls.filter((call) => call.stage === "samea")).toHaveLength(1)
+    expect(result.data?.items.every((item) => item.status === "moved")).toBe(true)
   })
 
   test("fails when the default clipboard has no archive roots", async () => {
@@ -26,40 +83,20 @@ describe("classf pipeline", () => {
     expect(result.success).toBe(false)
     expect(result.message).toContain("clipboard")
   })
-
-  test("publishes the complete plan before the first live filesystem stage", async () => {
-    const calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }> = []
-    const timeline: string[] = []
-    const runtime = fakeRuntime(calls, (stage, input) => timeline.push(`${stage}:${"action" in input ? input.action : "scan"}`))
-    const result = await runClassf({ action: "classify", classifyMode: "auto", dryRun: false }, runtime, (event) => {
-      const data = event.data as { kind?: string } | undefined
-      if (data?.kind === "classf-plan") timeline.push("event:plan")
-    })
-
-    expect(result.success).toBe(true)
-    expect(timeline.indexOf("event:plan")).toBeGreaterThan(-1)
-    expect(timeline.indexOf("event:plan")).toBeLessThan(timeline.indexOf("samea:classify"))
-    expect(calls.map((call) => `${call.stage}:${"action" in call.input ? call.input.action : "scan"}`)).toEqual([
-      "samea:plan",
-      "crashu:scan",
-      "migratef:plan",
-      "migratef:plan",
-      "samea:classify",
-      "migratef:move",
-      "migratef:move",
-    ])
-    expect(result.data?.items.every((item) => item.status === "moved")).toBe(true)
-  })
 })
 
-function fakeRuntime(calls: Array<{ stage: string; input: SameaInput | CrashuInput | MigratefInput }>, onCall?: (stage: string, input: SameaInput | CrashuInput | MigratefInput) => void): ClassfRuntime {
+type Call = { stage: string; input: SameaInput | CrashuInput | MigratefInput }
+
+function fakeRuntime(calls: Call[], onCall?: (stage: string, input: SameaInput | CrashuInput | MigratefInput) => void): ClassfRuntime {
+  const directories = new Set(["/archives", "/archives/nested"])
+  const files = new Set(["/archives/[Artist] A.zip", "/archives/nested/notes.txt"])
   return {
-    runSamea: async (input) => { calls.push({ stage: "samea", input }); onCall?.("samea", input); return { success: true, message: "samea", data: { action: input.action ?? "plan", centralize: false, minOccurrences: 1, items: [], groups: [{ key: "artist", name: "[Artist]", targetDir: "/target/[Artist]", count: 2, status: "ready" }], scannedCount: 2, detectedCount: 2, readyCount: 2, movedCount: 0, ignoredCount: 0, skippedCount: 0, conflictCount: 0, errorCount: 0, errors: [] } } },
-    runCrashu: async (input) => { calls.push({ stage: "crashu", input }); onCall?.("crashu", input); return { success: true, message: "crashu", data: { sourceCount: 1, targetCount: 1, totalScanned: 1, similarFound: 1, movedCount: 0, skippedCount: 0, errorCount: 0, pairsFile: "", similarFolders: [{ name: "Artist Source", path: "/library/Artist Source", target: "[Artist]", similarity: 1, matchDim: "exact", matchSrc: "artist", matchTgt: "artist" }], plan: [], errors: [] } } },
-    runMigratef: async (input) => { calls.push({ stage: "migratef", input }); onCall?.("migratef", input); const action = input.action === "copy" ? "copy" : "move"; const status = input.action === "plan" || input.dryRun ? "pending" as const : "success" as const; const plan = (input.sourcePaths ?? []).map((sourcePath) => ({ sourcePath, targetPath: `${input.targetPath}/${sourcePath.split("/").at(-1)}`, action, kind: "directory" as const, status })); return { success: true, message: "migratef", data: { plan, history: [], migratedCount: status === "success" ? plan.length : 0, skippedCount: 0, errorCount: 0, totalCount: plan.length, operationId: "", successCount: status === "success" ? plan.length : 0, failedCount: 0, errors: [] } } },
+    runSamea: async (input) => { calls.push({ stage: "samea", input }); onCall?.("samea", input); return { success: true, message: "samea", data: { action: input.action ?? "plan", centralize: false, minOccurrences: 1, items: [{ rootPath: "/archives", sourcePath: "/archives/[Artist] A.zip", targetPath: "/archives/[Artist]/[Artist] A.zip", sourceName: "[Artist] A.zip", artistKey: "artist", artistName: "[Artist]", status: "ready" }], groups: [{ key: "artist", name: "[Artist]", targetDir: "/archives/[Artist]", count: 1, status: "ready" }], scannedCount: 1, detectedCount: 1, readyCount: 1, movedCount: 0, ignoredCount: 0, skippedCount: 0, conflictCount: 0, errorCount: 0, errors: [] } } },
+    runCrashu: async (input) => { calls.push({ stage: "crashu", input }); onCall?.("crashu", input); return { success: true, message: "crashu", data: { sourceCount: 1, targetCount: 1, totalScanned: 1, similarFound: 1, movedCount: 0, skippedCount: 0, errorCount: 0, pairsFile: "", similarFolders: [{ name: "Artist", path: "/library/Artist", target: "[Artist]", similarity: 1, matchDim: "exact", matchSrc: "artist", matchTgt: "artist" }], plan: [], errors: [] } } },
+    runMigratef: async (input) => { calls.push({ stage: "migratef", input }); onCall?.("migratef", input); const action = input.action === "copy" ? "copy" : "move"; const status = input.action === "plan" || input.dryRun ? "pending" as const : "success" as const; const plan = (input.sourcePaths ?? []).map((sourcePath) => ({ sourcePath, targetPath: `${input.targetPath}/${sourcePath.split("/").at(-1)}`, action, kind: "file" as const, status })); return { success: true, message: "migratef", data: { plan, history: [], migratedCount: status === "success" ? plan.length : 0, skippedCount: 0, errorCount: 0, totalCount: plan.length, operationId: "", successCount: status === "success" ? plan.length : 0, failedCount: 0, errors: [] } } },
     readClipboardPaths: async () => ["/archives"],
-    pathInfo: async (path) => ({ path, exists: path === "/target" || path === "/target/[Artist]" || path === "/target/unmatched", isFile: false, isDirectory: true }),
-    listDir: async (path) => path === "/target" ? [{ name: "[Artist]", path: "/target/[Artist]", isFile: false, isDirectory: true }, { name: "unmatched", path: "/target/unmatched", isFile: false, isDirectory: true }] satisfies ClassfDirEntry[] : [],
+    pathInfo: async (path) => ({ path, exists: directories.has(path) || files.has(path), isFile: files.has(path), isDirectory: directories.has(path) }),
+    listDir: async (path) => path === "/archives" ? [{ name: "[Artist] A.zip", path: "/archives/[Artist] A.zip", isFile: true, isDirectory: false }, { name: "nested", path: "/archives/nested", isFile: false, isDirectory: true }] satisfies ClassfDirEntry[] : path === "/archives/nested" ? [{ name: "notes.txt", path: "/archives/nested/notes.txt", isFile: true, isDirectory: false }] : [],
     join: (...parts) => parts.join("/").replace(/\/{2,}/g, "/"), dirname: (path) => path.replace(/\/[^/]+$/, "") || "/", basename: (path) => path.split("/").at(-1) ?? path, relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }
 }

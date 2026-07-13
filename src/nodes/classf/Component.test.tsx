@@ -93,6 +93,7 @@ describe("app-owned classf Component", () => {
         targetDir: undefined,
         transferMode: "move",
         classifyMode: "auto",
+        placementMode: "local",
         existingPolicy: "merge",
         dryRun: true,
       },
@@ -122,7 +123,7 @@ describe("app-owned classf Component", () => {
       classifyMode: "auto",
       existingPolicy: "merge",
       result: classfData,
-      planFingerprint: "{\"paths\":[\"D:/set/a.zip\"],\"crashuSources\":[\"D:/library\"],\"transferMode\":\"move\",\"classifyMode\":\"auto\",\"existingPolicy\":\"merge\"}",
+      planFingerprint: "{\"paths\":[\"D:/set/a.zip\"],\"crashuSources\":[\"D:/library\"],\"transferMode\":\"move\",\"classifyMode\":\"auto\",\"placementMode\":\"local\",\"existingPolicy\":\"merge\"}",
     })
     render(<Component compId="comp-classf" host={host} />)
 
@@ -169,6 +170,14 @@ describe("app-owned classf Component", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input).toEqual(expect.objectContaining({ paths: [], crashuSourcePaths: [] }))
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+  })
+
+  test("switches between local and root placement without a hand-written selector", async () => {
+    const host = createHost({ pathsText: "D:/set", placementMode: "root" })
+    render(<Component compId="comp-classf" host={host} />)
+    expect(screen.getByLabelText("classf target")).toBeTruthy()
+    await userEvent.setup().click(screen.getByText("就地分流"))
+    expect(host.patches).toContainEqual(expect.objectContaining({ placementMode: "local" }))
   })
 })
 
