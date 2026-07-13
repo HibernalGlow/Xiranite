@@ -1,50 +1,5 @@
 #!/usr/bin/env node
-import { runEnvuConfig } from "./core.js"
-import { createNodeEnvuConfigRuntime } from "./platform.js"
-import { hasPipedInput, readStdinLines } from "@xiranite/cli-runtime"
-import { loadNodeConfigWithHints } from "@xiranite/config"
-
-interface EnvuConfigNodeConfig {
-  root?: string
-  backup_dir?: string
-  database_path?: string
-  record_run?: boolean
-  dry_run?: boolean
-}
-
-export async function runProgram(args = process.argv.slice(2)): Promise<void> {
-  const json = args.includes("--json")
-  const action = args.includes("backup") ? "backup" : args.includes("manifest") ? "manifest" : "scan"
-  let root = args.find((arg, index) => {
-    if (arg.startsWith("--") || ["scan", "manifest", "backup"].includes(arg)) return false
-    return !["--backup-dir", "--database-path"].includes(args[index - 1] ?? "")
-  })
-  if (root === "-") {
-    root = (await readStdinLines())[0]
-  } else if (root === undefined && hasPipedInput()) {
-    root = (await readStdinLines())[0]
-  }
-  const backupIndex = args.indexOf("--backup-dir")
-  const backupDir = backupIndex >= 0 ? args[backupIndex + 1] : undefined
-  const databaseIndex = args.indexOf("--database-path")
-  const databasePath = databaseIndex >= 0 ? args[databaseIndex + 1] : undefined
-  const { config: nodeConfig } = await loadNodeConfigWithHints<EnvuConfigNodeConfig>("envuconfig", {
-    hintSink: { stderr: process.stderr },
-    jsonMode: json,
-  })
-  const result = await runEnvuConfig({
-    action,
-    root: root ?? nodeConfig?.root,
-    backupDir: backupDir ?? nodeConfig?.backup_dir,
-    databasePath: databasePath ?? nodeConfig?.database_path,
-    recordRun: args.includes("--record-run") || nodeConfig?.record_run === true,
-    dryRun: args.includes("--dry-run") || nodeConfig?.dry_run === true,
-  }, createNodeEnvuConfigRuntime())
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else console.log(result.message)
-  if (!result.success) process.exitCode = 1
-}
-
-if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
-  await runProgram()
-}
+import{hasPipedInput,nodeCliName,readStdinLines,runGuidedInteraction,writeJson,writeLine}from"@xiranite/cli-runtime";import type{CliCommand,CliHost}from"@xiranite/cli-runtime";import{resolveInteractionPreferences,type CliInteractionPreferencesSource}from"@xiranite/cli-runtime/interaction";import{runInteractionCli,runTerminalUi,type TerminalPreferenceController,type TerminalPreferenceValues}from"@xiranite/cli-runtime/terminal";import{loadNodeConfigWithHints,loadXiraniteConfig,saveXiraniteConfig,updateNodeConfig}from"@xiranite/config";import{runEnvuConfig}from"./core.js";import type{EnvuConfigAction}from"./core.js";import{createNodeEnvuConfigRuntime}from"./platform.js";import{createEnvuConfigInteractionSchema}from"./interaction.js";import{help}from"./help.js";const CLI_NAME=nodeCliName("envuconfig");interface C extends CliInteractionPreferencesSource{root?:string;backup_dir?:string;database_path?:string;record_run?:boolean;dry_run?:boolean}
+export const cli:CliCommand={name:CLI_NAME,description:"EnvU configuration inventory and backup.",run:(a,h)=>runProgram(a,h)};export async function runProgram(args=process.argv.slice(2),host:CliHost=H()){await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<C>("envuconfig",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,l)=>({schema:createEnvuConfigInteractionSchema({root:d.root,backupDir:d.backup_dir,databasePath:d.database_path,recordRun:d.record_run,dryRun:d.dry_run},l),run:(i,e)=>runEnvuConfig(i,createNodeEnvuConfigRuntime(),e)}),runPipe,runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).EnvuConfigTui,createPreferences:(_d,c)=>P(host,c),reexecEntrypoint:process.argv[1],help})}
+async function runPipe(args:string[],host:CliHost){if(!args.length){writeLine(host,`${CLI_NAME} ui | gd | scan | manifest | backup`);return}const json=args.includes("--json"),action:EnvuConfigAction=args.includes("backup")?"backup":args.includes("manifest")?"manifest":"scan",bi=args.indexOf("--backup-dir"),di=args.indexOf("--database-path");let root=args.find((x,i)=>!x.startsWith("--")&&!['scan','manifest','backup'].includes(x)&&!['--backup-dir','--database-path'].includes(args[i-1]??""));if(root==="-")root=(await readStdinLines(host.stdin))[0];else if(root===undefined&&hasPipedInput(host.stdin)&&Symbol.asyncIterator in Object(host.stdin))root=(await readStdinLines(host.stdin))[0];const{config:d}=await loadNodeConfigWithHints<C>("envuconfig",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:json}),r=await runEnvuConfig({action,root:root??d?.root,backupDir:(bi>=0?args[bi+1]:undefined)??d?.backup_dir,databasePath:(di>=0?args[di+1]:undefined)??d?.database_path,recordRun:args.includes("--record-run")||d?.record_run===true,dryRun:args.includes("--dry-run")||d?.dry_run===true},createNodeEnvuConfigRuntime());if(json)writeJson(host,r);else writeLine(host,r.message);if(!r.success)process.exitCode=1}
+function P(h:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:h.env,cwd:h.cwd};return{nodeId:"envuconfig",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"envuconfig",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<C>("envuconfig",{...o,jsonMode:true}),p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}const H=():CliHost=>({cwd:process.cwd(),env:process.env,stdin:process.stdin,stdout:process.stdout,stderr:process.stderr});if(process.argv[1]&&/\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g,"/")))await runProgram()
