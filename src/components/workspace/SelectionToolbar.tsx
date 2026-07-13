@@ -24,7 +24,9 @@ export function SelectionToolbar() {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const count = selectedIds.length
-  const visible = count > 0 && viewMode !== "dashboard" && viewMode !== "cards"
+  // Flow canvas selection uses tldraw's own selection affordances; keep this
+  // disabled there for now until the bulk action bar is useful in that context.
+  const visible = count > 0 && viewMode !== "dashboard" && viewMode !== "cards" && viewMode !== "flow"
 
   return (
     <AnimatePresence>

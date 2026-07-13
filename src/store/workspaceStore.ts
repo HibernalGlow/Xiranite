@@ -177,6 +177,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     renameWorkspace: store.renameWorkspace,
     setWorkspaceIcon: store.setWorkspaceIcon,
     setWorkspaceFlowCanvas: store.setWorkspaceFlowCanvas,
+    setWorkspaceFlowCamera: store.setWorkspaceFlowCamera,
     deployComponent: store.deployComponent,
     ensureComponent: store.ensureComponent,
     removeComponent: store.removeComponent,

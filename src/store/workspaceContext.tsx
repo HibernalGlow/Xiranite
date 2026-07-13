@@ -32,6 +32,7 @@ function toWorkspaceDTO(workspace: WorkspaceItem, now: number): WorkspaceDTO {
     label: workspace.label,
     icon: workspace.icon,
     flowCanvas: workspace.flowCanvas,
+    flowCamera: workspace.flowCamera,
     createdAt: workspace.createdAt ?? now,
     updatedAt: workspace.updatedAt ?? now,
   }

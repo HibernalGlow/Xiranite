@@ -11,6 +11,11 @@ export type OverlayKind = "registry" | "settings" | "operations" | "history" | n
 export type OverlayMode = "docked" | "floating"
 
 export type FlowCanvasSnapshot = Record<string, unknown>
+export interface FlowCanvasCamera {
+  x: number
+  y: number
+  z: number
+}
 
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
 export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
@@ -31,6 +36,7 @@ export interface WorkspaceItem {
   label: string
   icon?: string
   flowCanvas?: FlowCanvasSnapshot
+  flowCamera?: FlowCanvasCamera
   createdAt?: number
   updatedAt?: number
 }

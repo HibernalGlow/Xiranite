@@ -1,4 +1,4 @@
-import type { FlowCanvasSnapshot } from "@/types/workspace"
+import type { FlowCanvasCamera, FlowCanvasSnapshot } from "@/types/workspace"
 import type { WorkspaceListActions, WorkspaceStoreUpdater, WSState } from "./types"
 
 export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceListActions {
@@ -10,6 +10,8 @@ export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceLi
     setWorkspaceIcon: (id, icon) => update("SET_WORKSPACE_ICON", (state) => setWorkspaceIconState(state, id, icon)),
     setWorkspaceFlowCanvas: (id, flowCanvas) =>
       update("SET_WORKSPACE_FLOW_CANVAS", (state) => setWorkspaceFlowCanvasState(state, id, flowCanvas)),
+    setWorkspaceFlowCamera: (id, flowCamera) =>
+      update("SET_WORKSPACE_FLOW_CAMERA", (state) => setWorkspaceFlowCameraState(state, id, flowCamera)),
   }
 }
 
@@ -61,6 +63,24 @@ function setWorkspaceFlowCanvasState(state: WSState, id: string, flowCanvas: Flo
     if (workspace.flowCanvas === flowCanvas) return workspace
     changed = true
     return { ...workspace, flowCanvas, updatedAt: now }
+  })
+
+  return changed ? { ...state, workspaces } : state
+}
+
+function setWorkspaceFlowCameraState(state: WSState, id: string, flowCamera: FlowCanvasCamera | undefined): WSState {
+  let changed = false
+  const now = Date.now()
+  const workspaces = state.workspaces.map((workspace) => {
+    if (workspace.id !== id) return workspace
+    const current = workspace.flowCamera
+    const same =
+      current?.x === flowCamera?.x &&
+      current?.y === flowCamera?.y &&
+      current?.z === flowCamera?.z
+    if (same) return workspace
+    changed = true
+    return { ...workspace, flowCamera, updatedAt: now }
   })
 
   return changed ? { ...state, workspaces } : state

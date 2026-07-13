@@ -22,6 +22,7 @@ describe("createLibsqlWorkspaceRepository", () => {
           id: "ws-alpha",
           label: "Alpha",
           flowCanvas: { store: { "shape:box": { typeName: "shape", type: "geo" } }, schema: { schemaVersion: 2 } },
+          flowCamera: { x: -88.123, y: 42.568, z: 0.8123 },
           createdAt: 100,
           updatedAt: 100,
         }],

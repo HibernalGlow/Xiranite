@@ -7,6 +7,7 @@ import type {
   ComponentInstance,
   ComponentState,
   DeployComponentOptions,
+  FlowCanvasCamera,
   FlowCanvasSnapshot,
   Lane,
   OverlayKind,
@@ -147,6 +148,7 @@ export interface WorkspaceListActions {
   renameWorkspace(id: string, label: string): void
   setWorkspaceIcon(id: string, icon: string | undefined): void
   setWorkspaceFlowCanvas(id: string, flowCanvas: FlowCanvasSnapshot | undefined): void
+  setWorkspaceFlowCamera(id: string, flowCamera: FlowCanvasCamera | undefined): void
 }
 
 export interface WorkspaceComponentActions {

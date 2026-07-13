@@ -25,6 +25,7 @@ const workspaces = sqliteTable("workspaces", {
   label: text("label").notNull(),
   icon: text("icon"),
   flowCanvas: text("flow_canvas"),
+  flowCamera: text("flow_camera"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 })
@@ -135,6 +136,7 @@ export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRe
           label: workspace.label,
           icon: workspace.icon ?? null,
           flowCanvas: serialize(workspace.flowCanvas),
+          flowCamera: serialize(workspace.flowCamera),
           createdAt: workspace.createdAt,
           updatedAt: workspace.updatedAt,
         },
@@ -196,6 +198,7 @@ async function ensureSchema(client: Client): Promise<void> {
       label TEXT NOT NULL,
       icon TEXT,
       flow_canvas TEXT,
+      flow_camera TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
@@ -257,6 +260,7 @@ async function ensureSchema(client: Client): Promise<void> {
     )`,
   ], "write")
   await addColumnIfMissing(client, "workspaces", "flow_canvas", "TEXT")
+  await addColumnIfMissing(client, "workspaces", "flow_camera", "TEXT")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")
 }
 
@@ -289,6 +293,7 @@ async function replaceRows(db: WorkspaceDb, snapshot: WorkspaceSnapshotDTO): Pro
         label: workspace.label,
         icon: workspace.icon ?? null,
         flowCanvas: serialize(workspace.flowCanvas),
+        flowCamera: serialize(workspace.flowCamera),
         createdAt: workspace.createdAt,
         updatedAt: workspace.updatedAt,
       },
@@ -316,6 +321,7 @@ function fromWorkspaceDTO(workspace: WorkspaceDTO): typeof workspaces.$inferInse
     label: workspace.label,
     icon: workspace.icon ?? null,
     flowCanvas: serialize(workspace.flowCanvas),
+    flowCamera: serialize(workspace.flowCamera),
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
   }
@@ -323,11 +329,13 @@ function fromWorkspaceDTO(workspace: WorkspaceDTO): typeof workspaces.$inferInse
 
 function toWorkspaceDTO(row: typeof workspaces.$inferSelect): WorkspaceDTO {
   const flowCanvas = deserialize<Record<string, unknown>>(row.flowCanvas)
+  const flowCamera = deserialize<WorkspaceDTO["flowCamera"]>(row.flowCamera)
   return {
     id: row.id,
     label: row.label,
     icon: row.icon ?? undefined,
     ...(flowCanvas === undefined ? {} : { flowCanvas }),
+    ...(flowCamera === undefined ? {} : { flowCamera }),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

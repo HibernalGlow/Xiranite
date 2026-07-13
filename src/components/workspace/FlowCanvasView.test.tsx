@@ -10,6 +10,7 @@ type DeleteShapeHandler = (shape: ModuleShapeStub, source: string) => void
 
 const setComponentVisibilityMock = vi.hoisted(() => vi.fn())
 const setWorkspaceFlowCanvasMock = vi.hoisted(() => vi.fn())
+const setWorkspaceFlowCameraMock = vi.hoisted(() => vi.fn())
 const visibleComponentsMock = vi.hoisted(() => vi.fn<() => ComponentInstance[]>(() => []))
 const tldrawPropsMock = vi.hoisted(() => vi.fn())
 const createTLStoreMock = vi.hoisted(() => vi.fn((options: Record<string, unknown>) => ({
@@ -17,7 +18,10 @@ const createTLStoreMock = vi.hoisted(() => vi.fn((options: Record<string, unknow
   id: `mock-store-${createTLStoreMock.mock.calls.length}`,
 })))
 const loadSnapshotMock = vi.hoisted(() => vi.fn())
-const storeListenerRef = vi.hoisted(() => ({
+const documentStoreListenerRef = vi.hoisted(() => ({
+  current: undefined as ((entry: unknown) => void) | undefined,
+}))
+const sessionStoreListenerRef = vi.hoisted(() => ({
   current: undefined as ((entry: unknown) => void) | undefined,
 }))
 const workspaceStateMock = vi.hoisted(() => vi.fn(() => ({
@@ -29,14 +33,17 @@ const editorMock = vi.hoisted(() => ({
   getCurrentPageShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
   getSelectedShapeIds: vi.fn<() => string[]>(() => []),
   getSelectedShapes: vi.fn<() => ModuleShapeStub[]>(() => []),
+  getCamera: vi.fn<() => { x: number; y: number; z: number }>(() => ({ x: 0, y: 0, z: 1 })),
+  setCamera: vi.fn<(camera: { x: number; y: number; z: number }, options?: unknown) => void>(),
   setSelectedShapes: vi.fn<(shapeIds: string[]) => void>(),
   deleteShapes: vi.fn<(shapeIds: unknown[]) => void>(),
   createShapes: vi.fn<(shapes: unknown[]) => void>(),
   updateShapes: vi.fn<(shapes: unknown[]) => void>(),
   store: {
     getStoreSnapshot: vi.fn<() => Record<string, unknown>>(() => ({ store: {}, schema: {} })),
-    listen: vi.fn((listener: (entry: unknown) => void) => {
-      storeListenerRef.current = listener
+    listen: vi.fn((listener: (entry: unknown) => void, filters?: { scope?: string }) => {
+      if (filters?.scope === "session") sessionStoreListenerRef.current = listener
+      else documentStoreListenerRef.current = listener
       return vi.fn()
     }),
   },
@@ -53,6 +60,7 @@ vi.mock("@/store/workspaceStore", () => ({
     setComponentFlowSize: vi.fn(),
     setComponentVisibility: setComponentVisibilityMock,
     setWorkspaceFlowCanvas: setWorkspaceFlowCanvasMock,
+    setWorkspaceFlowCamera: setWorkspaceFlowCameraMock,
     setSelection: vi.fn(),
   }),
   useWorkspaceShallowSelector: (selector: (state: ReturnType<typeof workspaceStateMock>) => unknown) => selector(workspaceStateMock()),
@@ -84,7 +92,8 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.clearAllMocks()
-  storeListenerRef.current = undefined
+  documentStoreListenerRef.current = undefined
+  sessionStoreListenerRef.current = undefined
   workspaceStateMock.mockReturnValue({
     activeWorkspaceId: "ws-test",
     workspaces: [{ id: "ws-test", label: "Test" }],
@@ -94,6 +103,7 @@ afterEach(() => {
   editorMock.getCurrentPageShapes.mockReturnValue([])
   editorMock.getSelectedShapeIds.mockReturnValue([])
   editorMock.getSelectedShapes.mockReturnValue([])
+  editorMock.getCamera.mockReturnValue({ x: 0, y: 0, z: 1 })
   editorMock.store.getStoreSnapshot.mockReturnValue({ store: {}, schema: {} })
 })
 
@@ -190,7 +200,7 @@ describe("FlowCanvasView", () => {
     render(<FlowCanvasView />)
 
     act(() => {
-      storeListenerRef.current?.({
+      documentStoreListenerRef.current?.({
         changes: {
           added: { "shape:box": { typeName: "shape", type: "geo" } },
           updated: {},
@@ -215,7 +225,7 @@ describe("FlowCanvasView", () => {
     render(<FlowCanvasView />)
 
     act(() => {
-      storeListenerRef.current?.({
+      documentStoreListenerRef.current?.({
         changes: {
           added: { "shape:comp-alpha": { typeName: "shape", type: "module" } },
           updated: {},
@@ -226,6 +236,44 @@ describe("FlowCanvasView", () => {
     })
 
     expect(setWorkspaceFlowCanvasMock).not.toHaveBeenCalled()
+  })
+
+  test("restores the active workspace camera when the flow canvas mounts", () => {
+    const flowCamera = { x: -120.5, y: 48, z: 0.82 }
+    workspaceStateMock.mockReturnValue({
+      activeWorkspaceId: "ws-test",
+      workspaces: [{ id: "ws-test", label: "Test", flowCamera }],
+      selectedComponentIds: [],
+    })
+
+    render(<FlowCanvasView />)
+
+    expect(editorMock.setCamera).toHaveBeenCalledWith(flowCamera, { immediate: true, force: true })
+  })
+
+  test("persists camera changes to the active workspace", () => {
+    vi.useFakeTimers()
+    editorMock.getCamera.mockReturnValue({ x: -88.1234, y: 42.5678, z: 0.81234 })
+
+    render(<FlowCanvasView />)
+
+    act(() => {
+      sessionStoreListenerRef.current?.({
+        changes: {
+          added: {},
+          updated: {
+            "camera:page": [
+              { typeName: "camera", x: 0, y: 0, z: 1 },
+              { typeName: "camera", x: -88.1234, y: 42.5678, z: 0.81234 },
+            ],
+          },
+          removed: {},
+        },
+      })
+      vi.advanceTimersByTime(300)
+    })
+
+    expect(setWorkspaceFlowCameraMock).toHaveBeenCalledWith("ws-test", { x: -88.123, y: 42.568, z: 0.8123 })
   })
 })
 

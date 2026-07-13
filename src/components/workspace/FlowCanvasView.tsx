@@ -29,7 +29,7 @@ import { useTheme } from "@/components/use-theme"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
-import type { ComponentInstance, FlowCanvasSnapshot } from "@/types/workspace"
+import type { ComponentInstance, FlowCanvasCamera, FlowCanvasSnapshot } from "@/types/workspace"
 // Patched zh-cn translation including the 4 keys missing from tldraw's official CDN
 // (action.copy-hovered-styles, action.frame-selection, page-menu.max-pages-reached,
 //  page-menu.resize). Served locally to silence the "missing messages" dev warning.
@@ -38,6 +38,7 @@ import zhCnTranslationUrl from "@/assets/tldraw-zh-cn.json?url"
 // assetUrls must be memoized or defined outside of any React component (per tldraw docs).
 const tldrawAssetUrls = { translations: { "zh-cn": zhCnTranslationUrl } }
 const FLOW_CANVAS_SAVE_DELAY_MS = 900
+const FLOW_CAMERA_SAVE_DELAY_MS = 300
 
 type FlowCanvasRecord = {
   typeName?: string
@@ -80,6 +81,47 @@ function getSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string 
 
 function getPersistableSnapshotSignature(snapshot: FlowCanvasSnapshot | undefined): string {
   return getSnapshotSignature(getPersistableFlowCanvasSnapshot(snapshot))
+}
+
+function normalizeFlowCanvasCamera(value: unknown): FlowCanvasCamera | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const camera = value as Partial<Record<keyof FlowCanvasCamera, unknown>>
+  if (
+    typeof camera.x !== "number" ||
+    typeof camera.y !== "number" ||
+    typeof camera.z !== "number" ||
+    !Number.isFinite(camera.x) ||
+    !Number.isFinite(camera.y) ||
+    !Number.isFinite(camera.z) ||
+    camera.z <= 0
+  ) {
+    return undefined
+  }
+
+  return {
+    x: Math.round(camera.x * 1000) / 1000,
+    y: Math.round(camera.y * 1000) / 1000,
+    z: Math.round(camera.z * 10000) / 10000,
+  }
+}
+
+function getFlowCanvasCameraSignature(camera: FlowCanvasCamera | undefined): string {
+  return camera ? `${camera.x}:${camera.y}:${camera.z}` : ""
+}
+
+function isCameraRecord(value: unknown): boolean {
+  return isFlowCanvasRecord(value) && value.typeName === "camera"
+}
+
+function hasCameraChange(entry: unknown): boolean {
+  const changes = (entry as { changes?: { added?: unknown; updated?: unknown; removed?: unknown } }).changes
+  if (!changes) return false
+
+  if (Object.values((changes.added ?? {}) as Record<string, unknown>).some(isCameraRecord)) return true
+  if (Object.values((changes.removed ?? {}) as Record<string, unknown>).some(isCameraRecord)) return true
+  return Object.values((changes.updated ?? {}) as Record<string, unknown>).some((value) =>
+    Array.isArray(value) && (isCameraRecord(value[0]) || isCameraRecord(value[1]))
+  )
 }
 
 function resolveRootColor(cssValue: string, fallback: string) {
@@ -620,6 +662,63 @@ function usePersistFlowCanvasToWorkspace(
   }, [editor, localPersistedSignatureRef, workspaceActions, workspaceId])
 }
 
+function usePersistFlowCameraToWorkspace(
+  editor: ReturnType<typeof useEditor> | null,
+  workspaceId: string,
+  flowCamera: FlowCanvasCamera | undefined,
+) {
+  const workspaceActions = useWorkspaceActions()
+  const persistedSignatureRef = useRef(getFlowCanvasCameraSignature(normalizeFlowCanvasCamera(flowCamera)))
+
+  useEffect(() => {
+    persistedSignatureRef.current = getFlowCanvasCameraSignature(normalizeFlowCanvasCamera(flowCamera))
+  }, [flowCamera])
+
+  useEffect(() => {
+    if (!editor) return
+    const camera = normalizeFlowCanvasCamera(flowCamera)
+    if (!camera) return
+
+    const signature = getFlowCanvasCameraSignature(camera)
+    const currentSignature = getFlowCanvasCameraSignature(normalizeFlowCanvasCamera(editor.getCamera()))
+    if (signature === currentSignature) return
+
+    editor.setCamera(camera, { immediate: true, force: true })
+  }, [editor, flowCamera, workspaceId])
+
+  useEffect(() => {
+    if (!editor) return undefined
+
+    let saveTimer: ReturnType<typeof setTimeout> | undefined
+
+    const persistCamera = () => {
+      saveTimer = undefined
+      const camera = normalizeFlowCanvasCamera(editor.getCamera())
+      const signature = getFlowCanvasCameraSignature(camera)
+      if (!camera || !signature || signature === persistedSignatureRef.current) return
+
+      persistedSignatureRef.current = signature
+      workspaceActions.setWorkspaceFlowCamera(workspaceId, camera)
+    }
+
+    const schedulePersist = () => {
+      if (saveTimer !== undefined) clearTimeout(saveTimer)
+      saveTimer = setTimeout(persistCamera, FLOW_CAMERA_SAVE_DELAY_MS)
+    }
+
+    const disposeCameraListener = editor.store.listen((entry) => {
+      if (hasCameraChange(entry)) schedulePersist()
+    }, { scope: "session" })
+
+    return () => {
+      disposeCameraListener()
+      if (saveTimer === undefined) return
+      clearTimeout(saveTimer)
+      persistCamera()
+    }
+  }, [editor, workspaceActions, workspaceId])
+}
+
 const customShapeUtils = [...defaultShapeUtils, ModuleShapeUtil]
 
 function createFlowCanvasStore(flowCanvas: FlowCanvasSnapshot | undefined): TLStore {
@@ -678,10 +777,12 @@ function useFlowCanvasStore(
 function FlowCanvas({
   workspaceId,
   flowCanvas,
+  flowCamera,
   localPersistedSignatureRef,
 }: {
   workspaceId: string
   flowCanvas?: FlowCanvasSnapshot
+  flowCamera?: FlowCanvasCamera
   localPersistedSignatureRef: { current: string }
 }) {
   const editor = useEditor()
@@ -693,6 +794,7 @@ function FlowCanvas({
   useSyncDeletedShapesToStore(editor, syncingShapeDeletesRef)
   useSyncSelectionWithStore(editor)
   usePersistFlowCanvasToWorkspace(editor, workspaceId, flowCanvas, localPersistedSignatureRef)
+  usePersistFlowCameraToWorkspace(editor, workspaceId, flowCamera)
 
   return null
 }
@@ -733,11 +835,12 @@ function CollapsibleStylePanel(props: TLUiStylePanelProps) {
 export function FlowCanvasView() {
   const { theme } = useTheme()
   const localPersistedSignatureRef = useRef("")
-  const { activeWorkspaceId, flowCanvas } = useWorkspaceShallowSelector((state) => {
+  const { activeWorkspaceId, flowCanvas, flowCamera } = useWorkspaceShallowSelector((state) => {
     const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)
     return {
       activeWorkspaceId: state.activeWorkspaceId,
       flowCanvas: activeWorkspace?.flowCanvas,
+      flowCamera: activeWorkspace?.flowCamera,
     }
   })
   const store = useFlowCanvasStore(activeWorkspaceId, flowCanvas, localPersistedSignatureRef)
@@ -756,6 +859,7 @@ export function FlowCanvasView() {
         <FlowCanvas
           workspaceId={activeWorkspaceId}
           flowCanvas={flowCanvas}
+          flowCamera={flowCamera}
           localPersistedSignatureRef={localPersistedSignatureRef}
         />
       </Tldraw>

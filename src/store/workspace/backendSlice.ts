@@ -17,6 +17,7 @@ function hydrateState(state: WSState, workspaces: WorkspaceDTO[], lanes: LaneDTO
       label: workspace.label,
       icon: workspace.icon,
       flowCanvas: workspace.flowCanvas,
+      flowCamera: workspace.flowCamera,
       createdAt: workspace.createdAt,
       updatedAt: workspace.updatedAt,
     }))

@@ -5,6 +5,7 @@ export const workspaceSchema = z.object({
   label: z.string().min(1),
   icon: z.string().optional(),
   flowCanvas: z.record(z.string(), z.unknown()).optional(),
+  flowCamera: z.object({ x: z.number(), y: z.number(), z: z.number().positive() }).optional(),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 })
