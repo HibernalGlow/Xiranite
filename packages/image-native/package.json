@@ -1,0 +1,25 @@
+{
+  "name": "@xiranite/image-native",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Typed loader for Xiranite's Rust image core Node-API module.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "native"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "build:native": "bun scripts/build-native.ts",
+    "test": "bun run build && bun test src"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2"
+  }
+}

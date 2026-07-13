@@ -1,0 +1,26 @@
+# Core
+core_similarity_original = Ursprunglig
+core_similarity_very_high = Mycket Hög
+core_similarity_high = Hög
+core_similarity_medium = Mellan
+core_similarity_small = Litet
+core_similarity_very_small = Väldigt Liten
+core_similarity_minimal = Minimalt
+core_cannot_open_dir = Kan inte öppna dir { $dir }anledning { $reason }
+core_cannot_read_entry_dir = Kan inte läsa post i dir { $dir }, anledning { $reason }
+core_cannot_read_metadata_dir = Kan inte läsa metadata i dir { $dir }, anledning { $reason }
+core_file_modified_before_epoch = Filen { $name } verkar ändras innan Unix Epoch
+core_folder_modified_before_epoch = Mappen { $name } verkar ändras innan Unix Epoch
+core_file_no_modification_date = Det går inte att hämta ändringsdatum från filen { $name }, anledning { $reason }
+core_folder_no_modification_date = Det går inte att hämta ändringsdatum från mappen { $name }, anledning { $reason }
+core_missing_no_chosen_included_directory = Minst en katalog måste tillhandahållas
+core_directory_must_exists = Kataloger: Tillhandahållen mappsökväg måste finnas, ignorerar { $path }
+core_directory_must_be_directory = Kataloger: Tillhandahållen sökväg måste peka på katalogen, ignorerar { $path }
+core_included_directory_zero_valid_directories = Inkluderad katalog FEL: Hittas inte ens en korrekt sökväg till inkluderad som krävs
+core_excluded_directory_pointless_slash = Kataloger: Exklusive / är meningslös, eftersom det innebär att inga filer kommer att skannas
+core_directory_overlap = Kataloger: Alla kataloger att söka överlappar med uteslutna kataloger
+core_directory_unable_to_get_device_id = Kataloger: Det går inte att hämta enhets-id från mappen { $path }
+core_ffmpeg_not_found = Kan inte hitta rätt installation av FFmpeg, detta är externt program, som du behöver installera manuellt.
+core_ffmpeg_not_found_windows = Se till att ffmpeg.exe och ffprobe.exe är tillgängliga i PATH eller sätts direkt till samma mapp där är app körbar
+core_invalid_symlink_infinite_recursion = Oändlig recursion
+core_invalid_symlink_non_existent_destination = Icke-existerande målfil
