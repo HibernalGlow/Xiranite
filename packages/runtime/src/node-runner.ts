@@ -3,6 +3,8 @@
 import { generatedNodeSpecs } from "./node-runner.generated.js"
 import type { ModuleLoader, NodeModule } from "./node-module-loader.js"
 
+export { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "./node-module-loader.js"
+
 export interface NodeRunBridgeResponse<TData = unknown> {
   result: NodeRunResult<TData>
   events: NodeRunEvent[]
@@ -36,7 +38,12 @@ export interface NodeRunControl {
 }
 type PureRunFunction = (input: unknown) => unknown
 
-const moduleCache = new WeakMap<ModuleLoader, Promise<NodeModule>>()
+interface CachedModule {
+  revision: number | undefined
+  module: Promise<NodeModule>
+}
+
+const moduleCache = new WeakMap<ModuleLoader, CachedModule>()
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -47,10 +54,14 @@ function isPlatformNode(spec: NodeSpec): spec is PlatformNodeSpec {
 }
 
 async function loadModule(loader: ModuleLoader): Promise<NodeModule> {
-  if (!moduleCache.has(loader)) {
-    moduleCache.set(loader, loader())
+  const revision = loader.getRevision?.()
+  const cached = moduleCache.get(loader)
+  if (!cached || cached.revision !== revision) {
+    const module = loader()
+    moduleCache.set(loader, { revision, module })
+    return module
   }
-  return moduleCache.get(loader)!
+  return cached.module
 }
 
 function getFunction<TFunction>(module: NodeModule, exportName: string): TFunction {

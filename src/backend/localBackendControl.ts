@@ -10,6 +10,21 @@ export interface LocalBackendControlRestartResult extends ApiRestartResult {
   source: LocalBackendRestartSource
 }
 
+export interface NodeSourceHotReloadState {
+  supported: boolean
+  enabled: boolean
+}
+
+export async function getNodeSourceHotReload(): Promise<NodeSourceHotReloadState> {
+  const config = resolveLocalBackendConfig()
+  return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).getNodeSourceHotReload()
+}
+
+export async function setNodeSourceHotReload(enabled: boolean): Promise<NodeSourceHotReloadState> {
+  const config = resolveLocalBackendConfig()
+  return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).setNodeSourceHotReload(enabled)
+}
+
 declare global {
   interface Window {
     _wails?: unknown

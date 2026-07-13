@@ -41,6 +41,8 @@ export interface LocalBackendRestartResult {
 export interface XiraniteSystemClient {
   health(): Promise<{ ok: boolean }>
   restartBackend(): Promise<LocalBackendRestartResult>
+  getNodeSourceHotReload(): Promise<{ supported: boolean; enabled: boolean }>
+  setNodeSourceHotReload(enabled: boolean): Promise<{ supported: boolean; enabled: boolean }>
 }
 
 export interface XiraniteWorkspaceClient {
@@ -258,6 +260,20 @@ export function createXiraniteSystemClient(baseUrl: string, options: XiraniteCli
         supported: false,
         message: `Local backend restart failed: ${response.status}`,
       }
+    },
+    async getNodeSourceHotReload() {
+      const response = await fetch(apiUrl(baseUrl, "/system/node-source-hot-reload"), { headers })
+      if (!response.ok) throw new Error(`Node source hot reload status failed: ${response.status}`)
+      return await response.json() as { supported: boolean; enabled: boolean }
+    },
+    async setNodeSourceHotReload(enabled) {
+      const response = await fetch(apiUrl(baseUrl, "/system/node-source-hot-reload"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      })
+      if (!response.ok) throw new Error(`Node source hot reload update failed: ${response.status}`)
+      return await response.json() as { supported: boolean; enabled: boolean }
     },
   }
 }

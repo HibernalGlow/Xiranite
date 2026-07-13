@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
 import { pickLocalPaths } from "./localFilePicker.js"
+import { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 
 export interface CreateDefaultBackendOptions {
   now?: number
@@ -73,7 +74,11 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     databasePath: database?.path,
     dataDir: options.dataDir,
     historyRepository,
-    system: options.system,
+    system: {
+      ...options.system,
+      getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
+      setNodeSourceHotReload: setDevelopmentSourceHotReloadEnabled,
+    },
   })
   await services.config.ensureConfigFile()
 

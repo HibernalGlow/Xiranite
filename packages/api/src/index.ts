@@ -28,6 +28,24 @@ export function createXiraniteApp(services: XiraniteServices) {
       }
       return await restartBackend()
     })
+    .get("/system/node-source-hot-reload", ({ set }) => {
+      const getEnabled = services.system?.getNodeSourceHotReload
+      if (!getEnabled) {
+        set.status = 501
+        return { supported: false, enabled: false }
+      }
+      return { supported: true, enabled: getEnabled() }
+    })
+    .put("/system/node-source-hot-reload", ({ body, set }) => {
+      const setEnabled = services.system?.setNodeSourceHotReload
+      if (!setEnabled) {
+        set.status = 501
+        return { supported: false, enabled: false }
+      }
+      return { supported: true, enabled: setEnabled(body.enabled) }
+    }, {
+      body: t.Object({ enabled: t.Boolean() }),
+    })
     .post("/nodes/:id/operations", ({ body, params }) => {
       const operation = services.nodes.startOperation(params.id, body.input, body.context)
       return { operation }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react"
 import type { Column, RowSelectionState, SortingState, Updater } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, CheckCheck, ChevronRight, Eraser, Eye, EyeOff, FileImage, FilePlus, Folder, FolderPlus, FolderTree, Rows3, Trash2 } from "lucide-react"
 import { DataTable } from "@/components/niko-table/core/data-table"
@@ -26,6 +26,8 @@ type TreeModel = { rootLabel: string; nodes: TreeNode[] }
 const IMAGE_EXTENSIONS = [".jxl", ".jpg", ".jpeg", ".jfif", ".jif", ".jpe", ".png", ".apng", ".gif", ".webp", ".jp2", ".bmp", ".ico", ".tiff", ".tif", ".avif"]
 
 export function InputFilesWorkbench(props: { data: XlchemyCardState; disabled?: boolean; footer: ReactNode; getFileUrl?: (path: string) => string; result: XlchemyData | null; onCopyPath: (path: string) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPickFiles: () => Promise<string[]>; onPickDirectory: () => Promise<string | undefined>; onListFiles?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ path: string; isDirectory: boolean; sizeBytes: number }>> }) {
+  const dropTargetId = `xlchemy-input-drop-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
+  const nativeDropHandlerRef = useRef<(paths: string[]) => void>(() => undefined)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [discoveredSizes, setDiscoveredSizes] = useState<Map<string, number>>(new Map())
   const entries = useMemo(() => deriveEntries(props.data.pathsText, props.result, discoveredSizes), [discoveredSizes, props.data.pathsText, props.result])
@@ -39,19 +41,45 @@ export function InputFilesWorkbench(props: { data: XlchemyCardState; disabled?: 
   function removeSelected() { props.onPatch({ pathsText: entries.filter((entry) => !selected.has(entry.path)).map((entry) => entry.path).join("\n"), selectedPaths: [] }) }
   function addPaths(paths: string[]) { if (!paths.length) return; const next = [...new Set([...splitLines(props.data.pathsText), ...paths.filter(Boolean)])]; props.onPatch({ pathsText: next.join("\n"), selectedPaths: next }) }
   function addListed(entries: Array<{ path: string; isDirectory: boolean; sizeBytes: number }>, fallback: string[]) { const files = entries.filter((entry) => !entry.isDirectory); if (files.length) setDiscoveredSizes((current) => new Map([...current, ...files.map((entry) => [entry.path, entry.sizeBytes] as const)])); addPaths(files.length ? files.map((entry) => entry.path) : fallback) }
+  async function addLocalPaths(paths: string[]) { if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const listed = (await Promise.all(paths.map((path) => props.onListFiles!(path, { recursive: props.data.recursive !== false, extensions: IMAGE_EXTENSIONS, limit: 10_000 }).catch(() => [])))).flat(); addListed(listed, paths) }
   async function pickFiles() { const paths = await props.onPickFiles(); if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const entries = (await Promise.all(paths.map((path) => props.onListFiles!(path, { extensions: IMAGE_EXTENSIONS, limit: 1 }).catch(() => [])))).flat(); addListed(entries, paths) }
   async function pickDirectory() { const path = await props.onPickDirectory(); if (!path) return; const files = await props.onListFiles?.(path, { recursive: props.data.recursive !== false, extensions: IMAGE_EXTENSIONS, limit: 10_000 }); addListed(files ?? [], [path]) }
-  function addDroppedFiles(files: FileList | null) { if (!files?.length) return; addPaths([...files].flatMap((file) => { const path = (file as File & { path?: string }).path; return path ? [path] : [] })) }
+  function addDroppedFiles(files: FileList | null) { if (!files?.length) return; const paths = [...files].flatMap((file) => { const path = (file as File & { path?: string }).path; return path ? [path] : [] }); if (paths.length) void addLocalPaths(paths) }
   function selectAll(checked: boolean) { props.onPatch({ selectedPaths: checked ? entries.map((entry) => entry.path) : [] }) }
+
+  nativeDropHandlerRef.current = (paths) => { if (!props.disabled) void addLocalPaths(paths) }
+  useEffect(() => {
+    if (typeof window === "undefined" || !window._wails) return
+    let disposed = false
+    let unsubscribe: (() => void) | undefined
+    void import("@wailsio/runtime").then(({ Events }) => {
+      if (disposed) return
+      unsubscribe = Events.On("files-dropped", (event: unknown) => {
+        const payload = readNativeFileDrop(event)
+        if (payload.targetId !== dropTargetId) return
+        nativeDropHandlerRef.current(payload.files)
+      })
+    })
+    return () => { disposed = true; unsubscribe?.() }
+  }, [dropTargetId])
 
   return <div className="flex min-h-0 flex-1 flex-col gap-2" data-testid="xlchemy-input-workbench">
     <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-2.5 py-2">
       <div className="flex items-center gap-1"><IconButton icon={FilePlus} label="添加文件" disabled={props.disabled} onClick={() => void pickFiles()} /><IconButton icon={FolderPlus} label="添加文件夹" disabled={props.disabled} onClick={() => void pickDirectory()} /><IconButton icon={Eraser} label="清空" disabled={!entries.length || props.disabled} onClick={() => props.onPatch({ pathsText: "", selectedPaths: [] })} /><IconButton icon={CheckCheck} label="移除已完成" disabled={!props.result?.files.length || props.disabled} onClick={() => { const done = new Set(props.result?.files.filter((file) => file.status === "converted").map((file) => file.sourcePath)); props.onPatch({ pathsText: entries.filter((entry) => !done.has(entry.path)).map((entry) => entry.path).join("\n") }) }} /><IconButton icon={Trash2} label="删除已选" disabled={!selected.size || props.disabled} onClick={removeSelected} /><IconButton icon={props.data.showOriginalPreview ? Eye : EyeOff} label={props.data.showOriginalPreview ? "隐藏预览" : "显示预览"} onClick={() => props.onPatch({ showOriginalPreview: !props.data.showOriginalPreview })} /></div>
       <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5"><Badge variant="secondary">{entries.length} 项</Badge>{totalBytes > 0 && <Badge variant="outline">{formatBytes(totalBytes)}</Badge>}{selected.size > 0 && <Badge variant="outline">已选 {selected.size}</Badge>}<Select value={sortField} onValueChange={(value) => props.onPatch({ inputSortField: value as SortField })}><SelectTrigger size="sm" className="w-28"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="name">名称</SelectItem><SelectItem value="ext">扩展名</SelectItem><SelectItem value="size">大小</SelectItem><SelectItem value="dir">目录</SelectItem></SelectGroup></SelectContent></Select><IconButton icon={sortDesc ? ArrowDown : ArrowUp} label={sortDesc ? "降序" : "升序"} onClick={() => props.onPatch({ inputSortDesc: !sortDesc })} /><ToggleGroup type="single" value={viewMode} variant="outline" size="sm" className="w-auto shrink-0" onValueChange={(value) => value && props.onPatch({ inputViewMode: value as ViewMode })}><ToggleGroupItem value="list" aria-label="列表视图"><Rows3 /></ToggleGroupItem><ToggleGroupItem value="tree" aria-label="文件树视图"><FolderTree /></ToggleGroupItem></ToggleGroup></div>
     </div>
-    <div className={cn("overflow-hidden rounded-md border bg-card", entries.length ? "min-h-0 flex-1" : "shrink-0")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (!props.disabled) addDroppedFiles(event.dataTransfer.files) }}>{entries.length ? viewMode === "list" ? <FileTable entries={entries} selected={selected} sortingDisabled={props.data.disableSorting ?? false} sortDesc={sortDesc} sortField={sortField} showPreview={props.data.showOriginalPreview ?? false} getFileUrl={props.getFileUrl} onCopyPath={props.onCopyPath} onSelectionChange={(selectedPaths) => props.onPatch({ selectedPaths })} onSortingChange={(inputSortField, inputSortDesc) => props.onPatch({ inputSortField, inputSortDesc })} onRemove={(path) => props.onPatch({ pathsText: entries.filter((entry) => entry.path !== path).map((entry) => entry.path).join("\n"), selectedPaths: [...selected].filter((item) => item !== path) })} /> : <FileTree model={tree} selected={selected} expanded={expanded} showPreview={props.data.showOriginalPreview ?? false} getFileUrl={props.getFileUrl} onExpanded={setExpanded} onSelect={togglePath} onSelectMany={togglePaths} onSelectAll={selectAll} /> : <EmptyInput onFiles={() => void pickFiles()} onFolder={() => void pickDirectory()} />}</div>
+    <div id={dropTargetId} data-file-drop-target="xlchemy-input" className={cn("overflow-hidden rounded-md border bg-card", entries.length ? "min-h-0 flex-1" : "shrink-0")} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy" }} onDrop={(event) => { event.preventDefault(); if (!props.disabled) addDroppedFiles(event.dataTransfer.files) }}>{entries.length ? viewMode === "list" ? <FileTable entries={entries} selected={selected} sortingDisabled={props.data.disableSorting ?? false} sortDesc={sortDesc} sortField={sortField} showPreview={props.data.showOriginalPreview ?? false} getFileUrl={props.getFileUrl} onCopyPath={props.onCopyPath} onSelectionChange={(selectedPaths) => props.onPatch({ selectedPaths })} onSortingChange={(inputSortField, inputSortDesc) => props.onPatch({ inputSortField, inputSortDesc })} onRemove={(path) => props.onPatch({ pathsText: entries.filter((entry) => entry.path !== path).map((entry) => entry.path).join("\n"), selectedPaths: [...selected].filter((item) => item !== path) })} /> : <FileTree model={tree} selected={selected} expanded={expanded} showPreview={props.data.showOriginalPreview ?? false} getFileUrl={props.getFileUrl} onExpanded={setExpanded} onSelect={togglePath} onSelectMany={togglePaths} onSelectAll={selectAll} /> : <EmptyInput onFiles={() => void pickFiles()} onFolder={() => void pickDirectory()} />}</div>
     <div className="shrink-0" data-testid="xlchemy-run-footer">{props.footer}</div>
   </div>
+}
+
+function readNativeFileDrop(event: unknown): { files: string[]; targetId?: string } {
+  const payload = event && typeof event === "object" && "data" in event ? (event as { data: unknown }).data : event
+  if (!payload || typeof payload !== "object") return { files: [] }
+  const files = Array.isArray((payload as { files?: unknown }).files) ? (payload as { files: unknown[] }).files.filter((path): path is string => typeof path === "string" && path.length > 0) : []
+  const details = (payload as { details?: unknown }).details
+  const targetId = details && typeof details === "object" && typeof (details as { id?: unknown }).id === "string" ? (details as { id: string }).id : undefined
+  return { files, targetId }
 }
 
 function FileTable(props: { entries: FileEntry[]; selected: Set<string>; sortingDisabled: boolean; sortDesc: boolean; sortField: SortField; showPreview: boolean; getFileUrl?: (path: string) => string; onCopyPath: (path: string) => void; onSelectionChange: (paths: string[]) => void; onSortingChange: (field: SortField, desc: boolean) => void; onRemove: (path: string) => void }) {

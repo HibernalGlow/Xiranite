@@ -532,6 +532,8 @@ export interface LocalBackendRestartResult {
 
 export interface XiraniteSystemService {
   restartBackend?: () => Promise<LocalBackendRestartResult>
+  getNodeSourceHotReload?: () => boolean
+  setNodeSourceHotReload?: (enabled: boolean) => boolean
 }
 
 export interface CreateXiraniteServicesOptions {

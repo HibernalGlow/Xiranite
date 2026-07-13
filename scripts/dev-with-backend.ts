@@ -1,8 +1,9 @@
-import { startBackend } from "../packages/backend/src/index"
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
+process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
+const { startBackend } = await import("../packages/backend/src/index")
 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 

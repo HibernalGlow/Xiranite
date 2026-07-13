@@ -14,7 +14,8 @@ var assets embed.FS
 var App *application.App
 
 type FileDropEvent struct {
-	Files []string `json:"files"`
+	Files   []string                       `json:"files"`
+	Details *application.DropTargetDetails `json:"details,omitempty"`
 }
 
 func init() {
@@ -89,6 +90,9 @@ func wireFileDrop(win *application.WebviewWindow) {
 		if len(files) == 0 {
 			return
 		}
-		App.Event.Emit("files-dropped", FileDropEvent{Files: files})
+		App.Event.Emit("files-dropped", FileDropEvent{
+			Files:   files,
+			Details: event.Context().DropTargetDetails(),
+		})
 	})
 }

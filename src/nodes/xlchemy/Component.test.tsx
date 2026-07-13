@@ -169,6 +169,23 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
   })
 
+  test("marks the input as a native drop target and ingests dropped desktop file paths", async () => {
+    const host = createHost({})
+    host.localFiles!.list = async (path) => [{ name: "dropped.png", path, isDirectory: false, sizeBytes: 321, lastModified: 0, type: "image/png" }]
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const target = screen.getByTestId("xlchemy-input-empty").parentElement!
+    const file = new File(["image"], "dropped.png", { type: "image/png" })
+    Object.defineProperty(file, "path", { value: "D:/images/dropped.png" })
+
+    expect(target.getAttribute("data-file-drop-target")).toBe("xlchemy-input")
+    fireEvent.drop(target, { dataTransfer: { files: [file] } })
+
+    await waitFor(() => expect(host.cardState.pathsText).toBe("D:/images/dropped.png"))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.getByText("dropped.png")).toBeTruthy()
+    expect(screen.getAllByText("321 B")).toHaveLength(2)
+  })
+
   test("selects a real local output directory through the host picker", async () => {
     const host = createHost({ pathsText: "D:/images/a.png", outputMode: "source" })
     host.localFiles!.pickDirectory = async () => "D:/converted"

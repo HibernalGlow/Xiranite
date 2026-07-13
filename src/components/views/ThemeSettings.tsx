@@ -1,6 +1,6 @@
-import { useMemo, useState, type ComponentType } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import { motion } from "motion/react"
-import { restartLocalBackend, type LocalBackendControlRestartResult } from "@/backend/localBackendControl"
+import { getNodeSourceHotReload, restartLocalBackend, setNodeSourceHotReload, type LocalBackendControlRestartResult } from "@/backend/localBackendControl"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -50,6 +50,7 @@ const THEME_ICONS: Record<AppTheme, ComponentType<{ className?: string }>> = {
 
 const THEMES: ThemePresetOption[] = THEME_PRESET_OPTIONS
 const CUSTOM_THEME_ACTIVE_VALUE = "__custom_theme_active__"
+const NODE_SOURCE_HOT_RELOAD_STORAGE_KEY = "xiranite.nodeSourceHotReload"
 
 const THEME_SOURCE_KIND_LABEL_KEYS: Record<ThemePresetOption["source"]["kind"], string> = {
   internal: "settings:themeSource.kindInternal",
@@ -240,6 +241,9 @@ export function ThemeSettings() {
   const [copiedCommand, setCopiedCommand] = useState<"attach" | "start" | null>(null)
   const [backendRestarting, setBackendRestarting] = useState(false)
   const [backendRestartResult, setBackendRestartResult] = useState<LocalBackendControlRestartResult | null>(null)
+  const [nodeSourceHotReload, setNodeSourceHotReloadState] = useState(false)
+  const [nodeSourceHotReloadSupported, setNodeSourceHotReloadSupported] = useState(false)
+  const [nodeSourceHotReloadSaving, setNodeSourceHotReloadSaving] = useState(false)
   const [section, setSection] = useState<SettingsSection>("appearance")
   const [themeJson, setThemeJson] = useState("")
   const [themeImportError, setThemeImportError] = useState<string | null>(null)
@@ -278,6 +282,38 @@ export function ThemeSettings() {
         : backendStatusKind === "checking"
           ? t("settings:developerRuntime.statusChecking")
           : t("common:unknown")
+
+  useEffect(() => {
+    if (backendStatus.data?.status !== "ready") return
+    let cancelled = false
+    void (async () => {
+      try {
+        const saved = window.localStorage.getItem(NODE_SOURCE_HOT_RELOAD_STORAGE_KEY)
+        const requested = saved === null ? undefined : saved === "1"
+        const state = requested === undefined
+          ? await getNodeSourceHotReload()
+          : await setNodeSourceHotReload(requested)
+        if (cancelled) return
+        setNodeSourceHotReloadSupported(state.supported)
+        setNodeSourceHotReloadState(state.enabled)
+      } catch {
+        if (!cancelled) setNodeSourceHotReloadSupported(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [backendStatus.data?.status, backendStatus.data?.config?.baseUrl])
+
+  async function changeNodeSourceHotReload(enabled: boolean) {
+    setNodeSourceHotReloadSaving(true)
+    try {
+      const state = await setNodeSourceHotReload(enabled)
+      setNodeSourceHotReloadSupported(state.supported)
+      setNodeSourceHotReloadState(state.enabled)
+      window.localStorage.setItem(NODE_SOURCE_HOT_RELOAD_STORAGE_KEY, state.enabled ? "1" : "0")
+    } finally {
+      setNodeSourceHotReloadSaving(false)
+    }
+  }
 
   // 切换主题预设时，自动同步颜色模式（用户后续可在 Color Mode 区单独覆盖）
   function selectPreset(key: AppTheme) {
@@ -739,6 +775,19 @@ export function ThemeSettings() {
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   {t("settings:developerRuntime.hotSwitchHint")}
                 </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm text-foreground">节点后端源码自动刷新</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">保存已使用节点的后端源码后，下一次运行该节点自动加载新代码；不会重启桌面端或其他节点。</p>
+                </div>
+                <Switch
+                  aria-label="节点后端源码自动刷新"
+                  checked={nodeSourceHotReload}
+                  disabled={!nodeSourceHotReloadSupported || nodeSourceHotReloadSaving}
+                  onCheckedChange={changeNodeSourceHotReload}
+                />
               </div>
 
               <div className="flex flex-wrap gap-2">
