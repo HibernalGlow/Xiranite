@@ -64,7 +64,7 @@ describe("app-owned smartzip Component", () => {
         expect(screen.getByTestId("smartzip-full-view")).toBeTruthy()
         expect(screen.getByTestId("smartzip-header-toolbar")).toBeTruthy()
         expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("可执行文件")).toBeTruthy()
+        expect(screen.getByText("运行配置 · 自动检测 7-Zip")).toBeTruthy()
         expect(screen.getByText("运行")).toBeTruthy()
       }
     },
@@ -88,10 +88,8 @@ describe("app-owned smartzip Component", () => {
       nodeId: "smartzip",
       input: {
         action: "status",
+        codePage: 936,
         paths: ["D:/archives/a.zip"],
-        smartZipExe: undefined,
-        smartZipAhk: undefined,
-        autohotkeyExe: undefined,
         iniPath: undefined,
         databasePath: undefined,
         dryRun: true,

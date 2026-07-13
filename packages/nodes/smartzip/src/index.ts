@@ -6,9 +6,9 @@ export const def = {
   name: "SmartZip",
   version: "0.1.0",
   category: "file",
-  description: "Plan and launch SmartZip archive open, extract, and compress workflows.",
+  description: "TypeScript archive workflows with automatic 7-Zip discovery.",
   icon: "Archive",
-  keywords: ["zip", "7zip", "archive", "ahk", "extract"],
+  keywords: ["zip", "7zip", "archive", "extract"],
 } satisfies NodeDef
 
 const entry = {

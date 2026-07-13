@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "SmartZip 7-Zip workflow planner and launcher node.",
+  "description": "TypeScript port of the SmartZip workflow with automatic 7-Zip discovery.",
   "license": "UNLICENSED",
   "bin": {
     "xsmartzip": "./dist/cli.js"
@@ -21,7 +21,10 @@
       "types": "./dist/help.d.ts",
       "default": "./dist/help.js"
     },
-    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
+    },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"

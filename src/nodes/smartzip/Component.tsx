@@ -61,10 +61,8 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
   }, [
-    data.smartZipExe,
-    data.smartZipAhk,
-    data.autohotkeyExe,
     data.iniPath,
+    data.codePage,
     data.databasePath,
     data.dryRun,
     data.recordRun,
@@ -97,6 +95,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     const lines: string[] = []
     if (current.command) lines.push(`${current.command.label}\t${current.command.command}\t${current.command.args.join(" ")}`)
     if (current.commandResult) lines.push(`code=${current.commandResult.code}\tstderr=${current.commandResult.stderr}`)
+    for (const operation of current.operations ?? []) lines.push(`${operation.status}\t${operation.sourcePath}\t${operation.outputPath ?? operation.message}`)
     if (current.config) lines.push(`ext=${current.config.archiveExtensions.join(",")}`)
     await host.clipboard?.writeText?.(lines.join("\n"))
   }
@@ -130,7 +129,7 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
   async function execute(nextAction: SmartZipAction = action) {
     if (running) return
     const current = dataRef.current
-    if (nextAction !== "status" && nextAction !== "settings" && !clean(current.pathsText)) {
+    if (nextAction !== "status" && !clean(current.pathsText)) {
       const message = t("error.noPaths", "请先输入至少一个归档或目录路径。")
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
@@ -350,7 +349,7 @@ function FullView(props: ViewProps) {
         </section>
         <CommandChamber result={props.result} />
         <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.executables", "可执行文件")}</span></div>
+          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.runtimeConfig", "运行配置 · 自动检测 7-Zip")}</span></div>
           <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <div className="min-h-0 flex-1"><SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
@@ -362,12 +361,12 @@ function FullView(props: ViewProps) {
           <div className="grid gap-3 border-b pb-3">
             <div>
               <div className="text-sm font-semibold">{t("fields.paths", "路径")}</div>
-              <div className="text-xs text-muted-foreground">{t("hints.pathsHelp", "归档或目录，每行一条。status 和 settings 不需要路径。")}</div>
+              <div className="text-xs text-muted-foreground">{t("hints.pathsHelp", "归档或目录，每行一条。status 不需要路径。")}</div>
             </div>
             <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{t("fields.executables", "可执行文件")}</div>
+            <div className="text-sm font-semibold">{t("fields.runtimeConfig", "运行配置 · 自动检测 7-Zip")}</div>
             <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           </div>
           <div className="grid gap-3 border-b pb-3">
@@ -391,7 +390,7 @@ function CommandChamber({ result }: { result: SmartZipData | null }) {
     <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between gap-2 border-b pb-3"><div className="flex items-center gap-2"><Terminal className="size-4 text-primary" /><span className="text-sm font-semibold">{t("labels.operationChamber", "Operation chamber")}</span></div><Badge variant="outline">{command ? t("badges.planned", "planned") : t("badges.idle", "idle")}</Badge></div>
       <div className="min-h-0 flex-1 overflow-auto py-4 font-mono text-xs leading-6">
-        {command ? <><div className="text-muted-foreground">{t("labels.commandPlan", "; SMARTZIP COMMAND PLAN")}</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">{t("labels.queuedArchives", "; QUEUED ARCHIVES")}</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">{t("labels.runCommandHint", "Run an action to produce the SmartZip command plan.")}</div>}
+        {command ? <><div className="text-muted-foreground">{t("labels.commandPlan", "; TYPESCRIPT WORKFLOW PLAN")}</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">{t("labels.queuedArchives", "; QUEUED ARCHIVES")}</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">{t("labels.runCommandHint", "Run an action to produce the TypeScript SmartZip workflow plan.")}</div>}
       </div>
     </section>
   )
@@ -423,7 +422,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
           <AlertDialogHeader>
             <AlertDialogTitle>{t("confirm.title", "确认{{action}}？", { action: label })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("confirm.description", "当前已关闭预演，会调用 SmartZip 实际执行{{action}}操作，可能会修改磁盘文件。请确认路径和配置无误。", { action: label })}
+              {t("confirm.description", "当前已关闭预演，TypeScript SmartZip 工作流会通过自动检测的 7-Zip 执行{{action}}，可能修改磁盘文件。", { action: label })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -472,10 +471,8 @@ function buildInput(action: SmartZipAction, data: SmartZipCardState): SmartZipIn
   return {
     action,
     paths,
-    smartZipExe: clean(data.smartZipExe),
-    smartZipAhk: clean(data.smartZipAhk),
-    autohotkeyExe: clean(data.autohotkeyExe),
     iniPath: clean(data.iniPath),
+    codePage: data.codePage ?? 936,
     databasePath: clean(data.databasePath),
     dryRun: data.dryRun ?? true,
     recordRun: data.recordRun ?? false,
@@ -512,7 +509,7 @@ function statusFromState(data: SmartZipCardState, running: boolean): SmartZipSta
   }
   return {
     label: tNode("smartzip", "status.idle", "就绪"),
-    description: tNode("smartzip", "status.idleDesc", "选择动作后查看状态、解压、打包或打开设置。"),
+    description: tNode("smartzip", "status.idleDesc", "选择动作后查看状态、智能解压、打包或打开。"),
     tone: "idle",
     badgeVariant: "outline",
     iconClass: "bg-secondary text-secondary-foreground",

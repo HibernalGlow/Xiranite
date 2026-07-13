@@ -71,19 +71,37 @@ function CommandPanel(props: {
   const { t } = useNodeI18n("smartzip")
   const command = props.result?.command
   const commandResult = props.result?.commandResult
+  const operations = props.result?.operations ?? []
+  const count = operations.length || (command ? 1 : 0)
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border bg-background/70">
-      <PanelHeader count={command ? 1 : 0} icon={Terminal} label={t("tabs.command", "命令")} onCopy={props.onCopy} />
+      <PanelHeader count={count} icon={Terminal} label={t("tabs.command", "工作流")} onCopy={props.onCopy} />
       <ScrollArea className="min-h-0 flex-1">
-        {command ? (
+        {count ? (
           <div className={props.compact ? "grid gap-1.5 p-2" : "grid gap-2 p-3"}>
-            <CommandRow command={command} result={commandResult} />
+            {operations.length
+              ? operations.map((operation, index) => operation.command
+                ? <CommandRow key={`${operation.sourcePath}-${index}`} command={operation.command} result={operation.commandResult} />
+                : <OperationRow key={`${operation.sourcePath}-${index}`} operation={operation} />)
+              : command ? <CommandRow command={command} result={commandResult} /> : null}
           </div>
         ) : (
-          <EmptyState compact={props.compact} icon={Terminal} title={t("empty.waitingCommand", "等待命令")} description={t("empty.waitingCommandDesc", "选择动作并运行后会显示 SmartZip 命令计划。")} />
+          <EmptyState compact={props.compact} icon={Terminal} title={t("empty.waitingCommand", "等待工作流")} description={t("empty.waitingCommandDesc", "选择动作并运行后会显示 TypeScript SmartZip 工作流计划。")} />
         )}
       </ScrollArea>
     </section>
+  )
+}
+
+function OperationRow({ operation }: { operation: NonNullable<SmartZipData["operations"]>[number] }) {
+  return (
+    <div className="grid min-w-0 gap-1 rounded-md border bg-background/70 p-2">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="truncate font-mono text-xs" title={operation.sourcePath}>{operation.sourcePath}</div>
+        <Badge variant={operation.status === "error" ? "destructive" : operation.status === "completed" ? "default" : "outline"}>{operation.status}</Badge>
+      </div>
+      <div className="truncate text-[11px] text-muted-foreground" title={operation.outputPath ?? operation.message}>{operation.outputPath ?? operation.message}</div>
+    </div>
   )
 }
 

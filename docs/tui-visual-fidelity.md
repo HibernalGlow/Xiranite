@@ -35,12 +35,13 @@ The terminal composition keeps SmartZip's reference workflow intact: a path
 queue on the left, a dominant `Operation chamber` command plan beside it, and
 a clearly isolated execution configuration area. Action tabs stay immediately
 above the two primary surfaces, with the same status, extract, codepage,
-open, archive, and settings paths as the GUI.
+open, and archive paths as the GUI.
 
 The GUI's tall right-hand configuration column is intentionally converted into
 a bottom drawer. This lets the command plan remain readable at terminal width
-while retaining editable INI, run-record, executable, AutoHotkey, dry-run,
-and execution controls in the same fullscreen view. The drawer is explicitly
+while retaining editable INI, run-record, filename-codepage, dry-run, and
+execution controls in the same fullscreen view. 7-Zip is discovered
+automatically; SmartZip.exe and AutoHotkey are not inputs. The drawer is explicitly
 validated in the 32-row PNG so no editable field is clipped.
 
 ## Gifu

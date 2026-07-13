@@ -1,4 +1,4 @@
-import { Archive, FolderOpen, ScanLine, Settings2, SquareTerminal } from "lucide-react"
+import { Archive, FolderOpen, ScanLine, SquareTerminal } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { SmartZipAction } from "@xiranite/node-smartzip/core"
 
@@ -24,7 +24,7 @@ export const ACTIONS: SmartZipActionMeta[] = [
     value: "extract",
     label: "解压归档",
     shortLabel: "解压",
-    description: "调用 SmartZip 解压选中的归档文件。",
+    description: "使用自动检测的 7-Zip 解压选中的归档文件。",
     icon: SquareTerminal,
     destructive: true,
   },
@@ -40,7 +40,7 @@ export const ACTIONS: SmartZipActionMeta[] = [
     value: "open",
     label: "打开归档",
     shortLabel: "打开",
-    description: "在 SmartZip GUI 中打开归档文件。",
+    description: "使用系统默认程序打开归档文件。",
     icon: FolderOpen,
     destructive: false,
   },
@@ -51,14 +51,6 @@ export const ACTIONS: SmartZipActionMeta[] = [
     description: "把选中路径打包成归档文件。",
     icon: Archive,
     destructive: true,
-  },
-  {
-    value: "settings",
-    label: "打开设置",
-    shortLabel: "设置",
-    description: "打开 SmartZip 设置窗口。",
-    icon: Settings2,
-    destructive: false,
   },
 ]
 

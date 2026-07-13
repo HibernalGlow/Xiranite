@@ -3,13 +3,13 @@ import { Archive, Clipboard, DatabaseZap, Eye, FileText, Info, Settings2 } from 
 import type { SmartZipAction } from "@xiranite/node-smartzip/core"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { PathInput, PathTextarea } from "@/components/ui/path-input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -97,24 +97,25 @@ export function PathsInput(props: {
       )}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         {props.compact ? (
-          <Input
+          <PathInput
             id="smartzip-paths"
             aria-label={`smartzip ${archivesOrDirs}`}
             disabled={props.disabled}
             className="font-mono text-xs"
             placeholder={"D:/archives/a.zip"}
             value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+            dropMode="append"
+            onValueChange={(pathsText) => props.onPatch({ pathsText })}
           />
         ) : (
-          <Textarea
+          <PathTextarea
             id="smartzip-paths"
             aria-label={`smartzip ${archivesOrDirs}`}
             disabled={props.disabled}
             className="min-h-[80px] resize-y font-mono text-xs"
             placeholder={"D:/archives/a.zip\nD:/archives/b.cbz"}
             value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+            onValueChange={(pathsText) => props.onPatch({ pathsText })}
           />
         )}
         <ActionIconButton disabled={props.disabled} icon={Clipboard} label={t("actions.pastePaths", "粘贴路径")} onClick={props.onPaste} />
@@ -131,41 +132,22 @@ export function PathFields(props: {
   const { t } = useNodeI18n("smartzip")
   return (
     <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
-      <Input
-        aria-label="smartzip SmartZip exe"
-        disabled={props.disabled}
-        placeholder={t("placeholders.smartZipExe", "SmartZip.exe，可留空使用 AHK")}
-        value={props.data.smartZipExe ?? ""}
-        onChange={(event) => props.onPatch({ smartZipExe: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="smartzip SmartZip ahk"
-        disabled={props.disabled}
-        placeholder={t("placeholders.smartZipAhk", "SmartZip.ahk 脚本路径")}
-        value={props.data.smartZipAhk ?? ""}
-        onChange={(event) => props.onPatch({ smartZipAhk: event.currentTarget.value })}
-      />
-      <Input
-        aria-label="smartzip AutoHotkey exe"
-        disabled={props.disabled}
-        placeholder={t("placeholders.autohotkeyExe", "AutoHotkey.exe，默认自动检测")}
-        value={props.data.autohotkeyExe ?? ""}
-        onChange={(event) => props.onPatch({ autohotkeyExe: event.currentTarget.value })}
-      />
-      <Input
+      <PathInput
         aria-label="smartzip ini path"
         disabled={props.disabled}
         placeholder={t("placeholders.iniPath", "SmartZip.ini 配置文件")}
         value={props.data.iniPath ?? ""}
-        onChange={(event) => props.onPatch({ iniPath: event.currentTarget.value })}
+        extensions={[".ini"]}
+        onValueChange={(iniPath) => props.onPatch({ iniPath })}
       />
-      <Input
+      <PathInput
         aria-label="smartzip run log JSONL"
         disabled={props.disabled}
         className="@3xl/smartzip:col-span-2"
         placeholder={t("placeholders.databasePath", ".xiranite/smartzip-runs.jsonl")}
         value={props.data.databasePath ?? ""}
-        onChange={(event) => props.onPatch({ databasePath: event.currentTarget.value })}
+        extensions={[".jsonl"]}
+        onValueChange={(databasePath) => props.onPatch({ databasePath })}
       />
     </div>
   )
@@ -179,12 +161,28 @@ export function RuntimeOptions(props: {
   const { t } = useNodeI18n("smartzip")
   return (
     <div className="grid gap-2 @3xl/smartzip:grid-cols-2">
+      <div className="grid gap-1.5 rounded-md border bg-background/60 p-2 @3xl/smartzip:col-span-2">
+        <Label htmlFor="smartzip-code-page">{t("fields.codePage", "旧 ZIP 文件名编码")}</Label>
+        <Select disabled={props.disabled} value={String(props.data.codePage ?? 936)} onValueChange={(value) => props.onPatch({ codePage: Number(value) })}>
+          <SelectTrigger id="smartzip-code-page" aria-label="smartzip archive filename code page">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="936">简体中文 · GBK / CP936</SelectItem>
+            <SelectItem value="950">繁體中文 · Big5 / CP950</SelectItem>
+            <SelectItem value="932">日本語 · Shift_JIS / CP932</SelectItem>
+            <SelectItem value="949">한국어 · EUC-KR / CP949</SelectItem>
+            <SelectItem value="65001">Unicode · UTF-8</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">{t("hints.codePage", "没有 UTF-8 文件名标记的旧归档，会把该代码页传给 7-Zip 解码。")}</p>
+      </div>
       <SwitchRow
         checked={props.data.dryRun ?? true}
         disabled={props.disabled}
         icon={Eye}
         label={t("switches.dryRun", "预演")}
-        description={t("switches.dryRunDesc", "只生成命令计划，不真正调用 SmartZip。")}
+        description={t("switches.dryRunDesc", "只生成 TypeScript 工作流计划，不修改归档或文件。")}
         onCheckedChange={(dryRun) => props.onPatch({ dryRun })}
       />
       <SwitchRow
@@ -222,7 +220,7 @@ export function OptionsPopover(props: {
       <PopoverContent align="end" className="w-[min(92vw,460px)]">
         <div className="mb-3">
           <div className="text-sm font-semibold">{optionsLabel}</div>
-          <p className="text-xs text-muted-foreground">{t("options.description", "SmartZip 路径、AHK、ini 和运行开关集中在这里。")}</p>
+          <p className="text-xs text-muted-foreground">{t("options.description", "SmartZip INI、文件名代码页和运行开关集中在这里；7-Zip 自动检测。")}</p>
         </div>
         <div className="grid gap-3">
           <PathFields {...props} />
@@ -261,7 +259,7 @@ export function ConfigDefaultsPopover(props: {
       <PopoverContent align="end" className="w-72">
         <div className="mb-3">
           <div className="text-sm font-semibold">{defaultsLabel}</div>
-          <p className="text-xs text-muted-foreground">{t("defaults.description", "保存 SmartZip 路径、AHK 和 ini 位置。")}</p>
+          <p className="text-xs text-muted-foreground">{t("defaults.description", "保存 SmartZip INI、文件名代码页和运行记录设置。")}</p>
         </div>
         <div className="grid gap-2">
           <Button disabled={props.disabled} size="sm" onClick={props.onSaveDefault}>{t("defaults.save", "保存为默认")}</Button>

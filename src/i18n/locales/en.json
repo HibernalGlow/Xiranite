@@ -3933,7 +3933,7 @@
     },
     "smartzip": {
       "name": "SmartZip",
-      "description": "SmartZip archive management: view status, extract, pack, or open settings.",
+      "description": "A native TypeScript port of SmartZip's intelligent archive workflow, backed by auto-detected 7-Zip.",
       "actions": {
         "clear": "Clear state",
         "cancel": "Cancel",
@@ -3948,7 +3948,7 @@
         "extract": {
           "label": "Extract archives",
           "shortLabel": "Extract",
-          "description": "Use SmartZip to extract selected archive files."
+          "description": "Intelligently extract archives with password attempts, multipart handling, flattening, and post-processing."
         },
         "extractCodepage": {
           "label": "Extract with codepage",
@@ -3958,37 +3958,30 @@
         "open": {
           "label": "Open archive",
           "shortLabel": "Open",
-          "description": "Open archive files in SmartZip GUI."
+          "description": "Open archives in the auto-detected 7-Zip File Manager; non-archives are packed."
         },
         "archive": {
           "label": "Create archive",
           "shortLabel": "Pack",
           "description": "Pack selected paths into an archive file."
-        },
-        "settings": {
-          "label": "Open settings",
-          "shortLabel": "Settings",
-          "description": "Open the SmartZip settings window."
         }
       },
       "fields": {
         "paths": "Paths",
-        "executables": "Executables",
+        "codePage": "Legacy ZIP filename encoding",
+        "executables": "Runtime config · auto-detect 7-Zip",
         "run": "Run",
         "archivesOrDirs": "Archives or directories"
       },
       "placeholders": {
-        "smartZipExe": "SmartZip.exe, leave empty to use AHK",
-        "smartZipAhk": "SmartZip.ahk script path",
-        "autohotkeyExe": "AutoHotkey.exe, auto-detected by default",
         "iniPath": "SmartZip.ini config file",
         "databasePath": ".xiranite/smartzip-runs.jsonl"
       },
       "labels": {
         "operationChamber": "Operation chamber",
-        "commandPlan": "; SMARTZIP COMMAND PLAN",
+        "commandPlan": "; TYPESCRIPT WORKFLOW PLAN",
         "queuedArchives": "; QUEUED ARCHIVES",
-        "runCommandHint": "Run an action to produce the SmartZip command plan.",
+        "runCommandHint": "Run an action to produce the TypeScript SmartZip workflow plan.",
         "hintSuffix": "{{label}} hint"
       },
       "badges": {
@@ -4003,7 +3996,7 @@
         "error": "Failed",
         "errorDesc": "Last task failed, check logs.",
         "idle": "Ready",
-        "idleDesc": "Select an action to view status, extract, pack, or open settings."
+        "idleDesc": "Select an action to view status, intelligently extract, pack, or open."
       },
       "tabs": {
         "command": "Command",
@@ -4018,11 +4011,11 @@
       },
       "options": {
         "title": "Run options",
-        "description": "SmartZip paths, AHK, ini, and run switches are all here."
+        "description": "SmartZip INI compatibility and run switches; 7-Zip is detected automatically."
       },
       "defaults": {
         "title": "Defaults",
-        "description": "Save SmartZip paths, AHK, and ini locations.",
+        "description": "Save SmartZip INI, run-log, and execution defaults.",
         "save": "Save as default",
         "restore": "Restore defaults",
         "clear": "Clear overrides",
@@ -4036,13 +4029,13 @@
       },
       "switches": {
         "dryRun": "Dry run",
-        "dryRunDesc": "Only generate command plan, don't actually call SmartZip.",
+        "dryRunDesc": "Only generate a workflow plan; do not modify archives or files.",
         "recordRun": "Record runs",
         "recordRunDesc": "Write each run's command and result to JSONL."
       },
       "empty": {
         "waitingCommand": "Waiting for command",
-        "waitingCommandDesc": "Select an action and run to see the SmartZip command plan.",
+        "waitingCommandDesc": "Select an action and run to see the TypeScript workflow plan.",
         "waitingConfig": "Waiting for config",
         "waitingConfigDesc": "Run status check to see SmartZip config.",
         "waitingLogs": "Waiting for logs",
@@ -4071,13 +4064,14 @@
       },
       "confirm": {
         "title": "Confirm {{action}}?",
-        "description": "Dry run is off. SmartZip will actually execute {{action}}, which may modify files on disk. Please verify paths and config."
+        "description": "Dry run is off. The TypeScript SmartZip workflow will execute {{action}} through auto-detected 7-Zip and may modify files on disk."
       },
       "summary": {
         "stats": "{{paths}} paths / {{archives}} archives / {{errors}} errors"
       },
       "hints": {
-        "pathsHelp": "Archives or directories, one per line. status and settings don't need paths.",
+        "codePage": "For legacy archives without UTF-8 filename metadata, this code page is passed to 7-Zip with -mcp.",
+        "pathsHelp": "Archives or directories, one per line. Status does not need paths.",
         "pathsDescription": "One path per line, supports .zip .7z .rar .tar etc."
       }
     },

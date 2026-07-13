@@ -223,7 +223,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "smartzip",
     packageName: "@xiranite/node-smartzip",
     bin: nodeCliName("smartzip"),
-    description: "Plan and launch SmartZip archive open, extract, and compress workflows.",
+    description: "TypeScript archive workflows with automatic 7-Zip discovery.",
   },
   {
     id: "snf",

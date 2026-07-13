@@ -5,10 +5,8 @@ export type SmartZipPhase = "idle" | "running" | "completed" | "error"
 export interface SmartZipCardState {
   action?: SmartZipAction
   pathsText?: string
-  smartZipExe?: string
-  smartZipAhk?: string
-  autohotkeyExe?: string
   iniPath?: string
+  codePage?: number
   databasePath?: string
   dryRun?: boolean
   recordRun?: boolean
@@ -28,10 +26,8 @@ export interface SmartZipStatusMeta {
 }
 
 export const CONFIG_FIELDS: Array<keyof SmartZipCardState> = [
-  "smartZipExe",
-  "smartZipAhk",
-  "autohotkeyExe",
   "iniPath",
+  "codePage",
   "databasePath",
   "dryRun",
   "recordRun",

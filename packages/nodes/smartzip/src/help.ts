@@ -2,8 +2,8 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   "title": "SmartZip",
-  "short": "Plan and launch SmartZip archive open, extract, and compress workflows.",
-  "description": "Plan and launch SmartZip archive open, extract, and compress workflows.",
+  "short": "TypeScript archive workflows with automatic 7-Zip discovery.",
+  "description": "Extract, compress, and open archives without SmartZip.exe or AutoHotkey.",
   "whenToUse": [
     "Use SmartZip when you need this node's file workflow from either the workspace UI or CLI."
   ],
@@ -60,8 +60,8 @@ export const help = {
   "translations": {
     "zh-CN": {
       "title": "SmartZip",
-      "short": "规划并启动 SmartZip 归档的打开、解压和压缩流程。",
-      "description": "规划并启动 SmartZip 归档的打开、解压和压缩流程。",
+      "short": "使用自动检测 7-Zip 的 TypeScript 归档工作流。",
+      "description": "无需 SmartZip.exe 或 AutoHotkey 即可解压、压缩和打开归档。",
       "whenToUse": [
         "需要从工作区 UI 或 CLI 使用该节点的文件流程时，可使用 SmartZip。"
       ],

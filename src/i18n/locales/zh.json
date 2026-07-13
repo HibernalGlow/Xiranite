@@ -3933,7 +3933,7 @@
     },
     "smartzip": {
       "name": "SmartZip",
-      "description": "SmartZip 归档管理：查看状态、解压、打包或打开设置。",
+      "description": "SmartZip 智能归档工作流逻辑的 TypeScript 移植，统一使用自动检测的 7-Zip 后端。",
       "actions": {
         "clear": "清空状态",
         "cancel": "取消",
@@ -3948,7 +3948,7 @@
         "extract": {
           "label": "解压归档",
           "shortLabel": "解压",
-          "description": "调用 SmartZip 解压选中的归档文件。"
+          "description": "智能解压归档，支持密码尝试、分卷、内容扁平化和解压后处理。"
         },
         "extractCodepage": {
           "label": "代码页解压",
@@ -3958,37 +3958,30 @@
         "open": {
           "label": "打开归档",
           "shortLabel": "打开",
-          "description": "在 SmartZip GUI 中打开归档文件。"
+          "description": "用自动检测的 7-Zip 文件管理器打开归档；非归档输入会进入压缩流程。"
         },
         "archive": {
           "label": "创建归档",
           "shortLabel": "打包",
           "description": "把选中路径打包成归档文件。"
-        },
-        "settings": {
-          "label": "打开设置",
-          "shortLabel": "设置",
-          "description": "打开 SmartZip 设置窗口。"
         }
       },
       "fields": {
         "paths": "路径",
-        "executables": "可执行文件",
+        "codePage": "旧 ZIP 文件名编码",
+        "executables": "运行配置 · 自动检测 7-Zip",
         "run": "运行",
         "archivesOrDirs": "归档或目录"
       },
       "placeholders": {
-        "smartZipExe": "SmartZip.exe，可留空使用 AHK",
-        "smartZipAhk": "SmartZip.ahk 脚本路径",
-        "autohotkeyExe": "AutoHotkey.exe，默认自动检测",
         "iniPath": "SmartZip.ini 配置文件",
         "databasePath": ".xiranite/smartzip-runs.jsonl"
       },
       "labels": {
         "operationChamber": "Operation chamber",
-        "commandPlan": "; SMARTZIP COMMAND PLAN",
+        "commandPlan": "; TYPESCRIPT WORKFLOW PLAN",
         "queuedArchives": "; QUEUED ARCHIVES",
-        "runCommandHint": "Run an action to produce the SmartZip command plan.",
+        "runCommandHint": "执行动作后会显示 TypeScript SmartZip 工作流计划。",
         "hintSuffix": "{{label}}说明"
       },
       "badges": {
@@ -4003,7 +3996,7 @@
         "error": "失败",
         "errorDesc": "上次任务失败，请查看日志。",
         "idle": "就绪",
-        "idleDesc": "选择动作后查看状态、解压、打包或打开设置。"
+        "idleDesc": "选择动作后查看状态、智能解压、打包或打开。"
       },
       "tabs": {
         "command": "命令",
@@ -4018,11 +4011,11 @@
       },
       "options": {
         "title": "运行选项",
-        "description": "SmartZip 路径、AHK、ini 和运行开关集中在这里。"
+        "description": "这里保留 SmartZip INI 兼容和运行开关；7-Zip 自动检测。"
       },
       "defaults": {
         "title": "默认配置",
-        "description": "保存 SmartZip 路径、AHK 和 ini 位置。",
+        "description": "保存 SmartZip INI、运行记录和执行默认值。",
         "save": "保存为默认",
         "restore": "恢复默认",
         "clear": "清除覆盖",
@@ -4036,13 +4029,13 @@
       },
       "switches": {
         "dryRun": "预演",
-        "dryRunDesc": "只生成命令计划，不真正调用 SmartZip。",
+        "dryRunDesc": "只生成工作流计划，不修改归档或文件。",
         "recordRun": "记录运行",
         "recordRunDesc": "把每次运行的命令和结果写入 JSONL。"
       },
       "empty": {
         "waitingCommand": "等待命令",
-        "waitingCommandDesc": "选择动作并运行后会显示 SmartZip 命令计划。",
+        "waitingCommandDesc": "选择动作并运行后会显示 TypeScript 工作流计划。",
         "waitingConfig": "等待配置",
         "waitingConfigDesc": "运行状态查看后会显示 SmartZip 配置。",
         "waitingLogs": "等待日志",
@@ -4071,13 +4064,14 @@
       },
       "confirm": {
         "title": "确认{{action}}？",
-        "description": "当前已关闭预演，会调用 SmartZip 实际执行{{action}}操作，可能会修改磁盘文件。请确认路径和配置无误。"
+        "description": "当前已关闭预演，TypeScript SmartZip 工作流会通过自动检测的 7-Zip 执行{{action}}，可能修改磁盘文件。"
       },
       "summary": {
         "stats": "{{paths}} 路径 / {{archives}} 归档 / {{errors}} 错误"
       },
       "hints": {
-        "pathsHelp": "归档或目录，每行一条。status 和 settings 不需要路径。",
+        "codePage": "旧归档没有 UTF-8 文件名元数据时，会通过 -mcp 把该代码页传给 7-Zip。",
+        "pathsHelp": "归档或目录，每行一条。状态查看不需要路径。",
         "pathsDescription": "每行一条路径，支持 .zip .7z .rar .tar 等。"
       }
     },

@@ -46,20 +46,16 @@ import { help } from "./help.js";
 const CLI_NAME = nodeCliName("smartzip");
 interface Config extends CliInteractionPreferencesSource {
   ini_path?: string;
+  code_page?: number;
   database_path?: string;
-  smartzip_exe?: string;
-  smartzip_ahk?: string;
-  autohotkey_exe?: string;
   record_run?: boolean;
   dry_run?: boolean;
 }
 type Defaults = Pick<
   SmartZipInteractionValues,
   | "iniPath"
+  | "codePage"
   | "databasePath"
-  | "smartZipExe"
-  | "smartZipAhk"
-  | "autohotkeyExe"
   | "recordRun"
   | "dryRun"
 >;
@@ -110,10 +106,8 @@ async function context(host: CliHost, json: boolean) {
       preferences: resolveInteractionPreferences(config),
       value: {
         iniPath: config?.ini_path ?? "",
+        codePage: String(config?.code_page ?? 936),
         databasePath: config?.database_path ?? "",
-        smartZipExe: config?.smartzip_exe ?? "",
-        smartZipAhk: config?.smartzip_ahk ?? "",
-        autohotkeyExe: config?.autohotkey_exe ?? "AutoHotkey.exe",
         recordRun: config?.record_run ?? false,
         dryRun: config?.dry_run ?? true,
       },
@@ -123,10 +117,8 @@ async function context(host: CliHost, json: boolean) {
       preferences: resolveInteractionPreferences(undefined),
       value: {
         iniPath: "",
+        codePage: "936",
         databasePath: "",
-        smartZipExe: "",
-        smartZipAhk: "",
-        autohotkeyExe: "AutoHotkey.exe",
         recordRun: false,
         dryRun: true,
       },
@@ -184,7 +176,7 @@ async function pipe(
   if (args.includes("--help") || args.includes("-h")) {
     writeLine(
       host,
-      `Usage: ${CLI_NAME} ui|gd|status|x|xc|o|a PATH... [--dry-run] [--json]`,
+      `Usage: ${CLI_NAME} ui|gd|status|x|xc|o|a PATH... [--code-page 936|950|932|949|65001] [--dry-run] [--json]`,
     );
     return;
   }
@@ -207,7 +199,8 @@ async function pipe(
   }
   const json = args.includes("--json");
   const loaded = await context(host, json);
-  let paths = args.slice(1).filter((arg) => !arg.startsWith("--"));
+  const codePage = readNumberOption(args, "--code-page") ?? (Number(loaded.value.codePage) || 936);
+  let paths = positionalPaths(args.slice(1), ["--code-page"]);
   if (paths.includes("-"))
     paths = paths
       .filter((path) => path !== "-")
@@ -217,6 +210,7 @@ async function pipe(
       action,
       paths,
       ...loaded.value,
+      codePage,
       dryRun: args.includes("--dry-run") || loaded.value.dryRun,
     },
     deps.createRuntime(),
@@ -227,6 +221,22 @@ async function pipe(
   if (json) writeJson(host, result);
   else writeLine(host, result.message);
   if (!result.success) process.exitCode = 1;
+}
+function readNumberOption(args: string[], name: string): number | undefined {
+  const inline = args.find((arg) => arg.startsWith(`${name}=`));
+  if (inline) return Number(inline.slice(name.length + 1)) || undefined;
+  const index = args.indexOf(name);
+  return index >= 0 ? Number(args[index + 1]) || undefined : undefined;
+}
+function positionalPaths(args: string[], valueOptions: string[]): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (valueOptions.includes(arg)) { index += 1; continue; }
+    if (arg.startsWith("--")) continue;
+    result.push(arg);
+  }
+  return result;
 }
 function createHost(): CliHost {
   return {

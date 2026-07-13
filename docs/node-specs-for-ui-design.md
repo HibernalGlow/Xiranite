@@ -384,7 +384,9 @@
 
 ## 13. Smartzip — SmartZip 归档工具
 
-**功能**: 通过 AutoHotkey 脚本驱动 SmartZip 归档工具的打开、解压和压缩
+**功能**: 用 TypeScript 移植 SmartZip 的智能归档工作流，并自动检测 7-Zip 作为统一归档后端
+
+**上游源码**: <https://github.com/vvyoko/SmartZip>（本机快照：`D:/1VSCODE/Projects/LazyCommand/SmartZip/SmartZip.ahk`）
 
 **子命令**: `status`, `extract`, `extract_codepage`, `open`, `archive`
 
@@ -394,8 +396,7 @@
 | 位置参数 `paths` | string[] | 是 | — | 归档文件路径 |
 | `--ini-path` | string | 否 | — | INI 配置路径 |
 | `--database-path` | string | 否 | — | 数据库路径 |
-| `--smartzip-exe` | string | 否 | — | SmartZip 路径 |
-| `--autohotkey-exe` | string | 否 | "AutoHotkey.exe" | AHK 路径 |
+| `--code-page` | number | 否 | 936 | 旧归档文件名代码页：936/950/932/949/65001 |
 | `--record-run` | boolean | 否 | false | 记录运行 |
 | `--dry-run` | boolean | 否 | true | 预演模式 |
 
@@ -404,7 +405,7 @@
 **输出结构**:
 ```
 {
-  config: { smartZipExe: string, autohotkeyExe: string, iniPath: string },
+  config: { sevenZipDir: "auto", archiveExtensions: string[], passwords: string[] },
   database: { history: [] } | undefined,
   command: { action: string, args: string[], status: string } | undefined,
   selectedPaths: string[],
@@ -412,7 +413,7 @@
 }
 ```
 
-**UI 建议**: 归档列表 → 操作选择 → AHK 脚本预览 → 运行日志
+**UI 建议**: 归档列表 → 智能操作选择 → TypeScript 工作流预览 → 运行日志与文件名代码页
 
 ---
 
