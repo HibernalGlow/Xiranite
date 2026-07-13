@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PathInput } from "@/components/ui/path-input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
@@ -150,26 +151,27 @@ export function PathFields(props: {
     <div data-testid="seriex-path-fields" className="grid gap-2 @2xl/seriex:grid-cols-2">
       <Field className="gap-1.5">
         <Label htmlFor="seriex-directory" className="text-xs">目录路径</Label>
-        <Input
+        <PathInput
           id="seriex-directory"
           aria-label="seriex directory path"
           className="font-mono text-xs"
           disabled={props.disabled}
           placeholder="D:/Media/Novels"
           value={props.data.directoryPath ?? ""}
-          onChange={(event) => props.onPatch({ directoryPath: event.currentTarget.value })}
+          onValueChange={(directoryPath) => props.onPatch({ directoryPath })}
         />
       </Field>
       <Field className="gap-1.5">
         <Label htmlFor="seriex-config" className="text-xs">配置文件路径</Label>
-        <Input
+        <PathInput
           id="seriex-config"
           aria-label="seriex config path"
           className="font-mono text-xs"
           disabled={props.disabled}
           placeholder="留空使用内嵌配置"
           value={props.data.configPath ?? ""}
-          onChange={(event) => props.onPatch({ configPath: event.currentTarget.value })}
+          extensions={[".toml", ".json", ".yaml", ".yml"]}
+          onValueChange={(configPath) => props.onPatch({ configPath })}
         />
       </Field>
       <Field className="gap-1.5">

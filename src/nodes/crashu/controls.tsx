@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -65,14 +66,14 @@ export function SourcePathsInput(props: {
         </FieldTitle>
       )}
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea
+        <PathTextarea
           id="crashu-sources"
           aria-label={tNode("crashu", "aria.sourcePaths", "crashu source paths")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-24")}
           disabled={props.disabled}
           placeholder={tNode("crashu", "input.sourcePlaceholder", "每行一个源根目录\nD:/source/gallery")}
           value={props.value}
-          onChange={(event) => props.onChange(event.currentTarget.value)}
+          onValueChange={props.onChange}
         />
         <div className="grid content-start gap-1.5">
           <ActionIconButton disabled={props.disabled} icon={Clipboard} label={tNode("crashu", "input.pasteSources", "粘贴源目录")} onClick={props.onPaste} />

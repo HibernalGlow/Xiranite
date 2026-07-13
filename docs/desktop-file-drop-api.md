@@ -38,6 +38,6 @@ Path-input nodes that are good candidates for the shared hook when their input w
 
 - File or mixed inputs: `audiov`, `bitv`, `classf`, `coveru`, `gifu`, `smartzip`, `synct`, `timeu`, `transq`.
 - Directory/library inputs: `classq`, `nameu`, `samea`, `snf`.
-- Specialized path flows requiring per-node acceptance rules before enabling drop: `crashu`, `enginev`, `seriex`.
+- Additional shared path controls are used by `crashu`, `enginev`, and `seriex`; their non-path text fields remain ordinary inputs.
 
 Do not make every text field a drop target automatically. Output paths, report paths, regex text, and destination directories need a distinct semantic action and must not consume source-file drops.

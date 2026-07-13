@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { PathInput as SharedPathInput } from "@/components/ui/path-input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
@@ -113,13 +114,13 @@ export function PathInput(props: PatchProps & {
         </div>
       )}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5">
-        <Input
+        <SharedPathInput
           id="enginev-workshop-path"
           aria-label={tNode("enginev", "aria.workshopPath", "Wallpaper Engine 工坊路径")}
           disabled={props.disabled}
           placeholder={DEFAULT_WORKSHOP_PATH}
           value={props.data.workshopPath ?? ""}
-          onChange={(event) => props.onPatch({ workshopPath: event.currentTarget.value })}
+          onValueChange={(workshopPath) => props.onPatch({ workshopPath })}
         />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -195,6 +196,7 @@ export function OptionsFields({ compact, data, disabled, onPatch }: PatchProps &
         onChange={(template) => onPatch({ template })}
       />
       <InputField
+        path
         label="目标 / 导出路径"
         value={data.targetPath || data.outputPath || ""}
         disabled={disabled}
@@ -490,6 +492,7 @@ function InputField(props: {
   disabled?: boolean
   label: string
   onChange: (value: string) => void
+  path?: boolean
   placeholder?: string
   value: string
 }) {
@@ -497,13 +500,9 @@ function InputField(props: {
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <Label htmlFor={id} className="text-xs">{props.label}</Label>
-      <Input
-        id={id}
-        disabled={props.disabled}
-        placeholder={props.placeholder}
-        value={props.value}
-        onChange={(event) => props.onChange(event.currentTarget.value)}
-      />
+      {props.path
+        ? <SharedPathInput id={id} disabled={props.disabled} placeholder={props.placeholder} value={props.value} onValueChange={props.onChange} />
+        : <Input id={id} disabled={props.disabled} placeholder={props.placeholder} value={props.value} onChange={(event) => props.onChange(event.currentTarget.value)} />}
     </div>
   )
 }

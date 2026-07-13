@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PathInput } from "@/components/ui/path-input"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -467,12 +468,12 @@ function GateTextField(props: {
   return (
     <Field className="min-w-0 gap-1">
       <FieldLabel htmlFor={id} className="text-xs text-muted-foreground">{props.label}</FieldLabel>
-      <Input
+      <PathInput
         id={id}
         disabled={props.disabled}
         placeholder={props.placeholder}
         value={props.value}
-        onChange={(event) => props.onChange(event.currentTarget.value)}
+        onValueChange={props.onChange}
       />
     </Field>
   )
