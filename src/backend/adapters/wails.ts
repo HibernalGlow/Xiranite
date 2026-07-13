@@ -5,6 +5,8 @@ import type {
   FsEntry,
   FsStat,
   MainWindowAction,
+  NativeFileDropEvent,
+  NativeFileDropRuntime,
   NodeRunnerRuntime,
   OpenComponentWindowInput,
   RuntimeInterface,
@@ -182,6 +184,31 @@ class WailsEventBus implements EventBusRuntime {
   }
 }
 
+class WailsFileDropRuntime implements NativeFileDropRuntime {
+  async subscribe(handler: (event: NativeFileDropEvent) => void): Promise<() => void> {
+    const runtime = await loadRuntime()
+    return runtime.Events.On("files-dropped", (event: unknown) => {
+      const payload = unwrapEventData(event)
+      if (!payload || typeof payload !== "object") return
+      const rawFiles = (payload as { files?: unknown }).files
+      const details = (payload as { details?: unknown }).details
+      const files = Array.isArray(rawFiles)
+        ? rawFiles.filter((path): path is string => typeof path === "string" && path.length > 0)
+        : []
+      const targetId = details && typeof details === "object" && typeof (details as { id?: unknown }).id === "string"
+        ? (details as { id: string }).id
+        : undefined
+      if (files.length) handler({ files, targetId })
+    })
+  }
+}
+
+function unwrapEventData(event: unknown): unknown {
+  return event && typeof event === "object" && "data" in event
+    ? (event as { data: unknown }).data
+    : event
+}
+
 class WailsNodeRunner implements NodeRunnerRuntime {
   async runNode<TInput = unknown, TData = unknown>(
     nodeId: string,
@@ -259,6 +286,7 @@ export function createWailsRuntime(): RuntimeInterface {
     kind: "wails",
     storage: new WailsStorage(),
     fs: new WailsFS(),
+    fileDrops: new WailsFileDropRuntime(),
     subprocess: new WailsSubprocess(),
     events: new WailsEventBus(),
     nodeRunner: new WailsNodeRunner(),

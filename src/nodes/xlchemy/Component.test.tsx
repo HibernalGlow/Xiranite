@@ -177,7 +177,7 @@ describe("app-owned xlchemy Component", () => {
     const file = new File(["image"], "dropped.png", { type: "image/png" })
     Object.defineProperty(file, "path", { value: "D:/images/dropped.png" })
 
-    expect(target.getAttribute("data-file-drop-target")).toBe("xlchemy-input")
+    expect(target.getAttribute("data-file-drop-target")).toBe("local-files")
     fireEvent.drop(target, { dataTransfer: { files: [file] } })
 
     await waitFor(() => expect(host.cardState.pathsText).toBe("D:/images/dropped.png"))

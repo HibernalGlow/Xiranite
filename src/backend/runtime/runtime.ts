@@ -34,6 +34,15 @@ export interface FileSystemRuntime {
   stat(path: string): Promise<FsStat>
 }
 
+export interface NativeFileDropEvent {
+  files: string[]
+  targetId?: string
+}
+
+export interface NativeFileDropRuntime {
+  subscribe(handler: (event: NativeFileDropEvent) => void): Promise<() => void>
+}
+
 export interface SubprocessSpawnOpts {
   cwd?: string
   env?: Record<string, string>
@@ -119,6 +128,7 @@ export interface RuntimeInterface {
   readonly kind: "web" | "wails" | "deno-desktop" | "tauri" | "electron"
   storage: StorageRuntime
   fs: FileSystemRuntime
+  fileDrops: NativeFileDropRuntime
   subprocess: SubprocessRuntime
   events: EventBusRuntime
   nodeRunner: NodeRunnerRuntime

@@ -1,4 +1,5 @@
-import { useId, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react"
+import { useId, useMemo, useRef, useState, type ChangeEvent, type HTMLAttributes } from "react"
+import type { NodeLocalFilesCapability } from "@xiranite/contract"
 import type { LoratCollectionResult } from "@xiranite/node-lorat/core"
 import { ImagePlus, PackageCheck, Trash2, Upload, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -11,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { TagsInput, TagsInputInput, TagsInputItem, TagsInputList } from "@/components/ui/tags-input"
 import { cn } from "@/lib/utils"
+import { useLocalFileDrop } from "@/nodes/shared/useLocalFileDrop"
 import type { LoratCardState, LoratCollectionDraft } from "./types"
 
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
@@ -25,6 +27,7 @@ export function LoratCollectionPanel(props: {
   data: LoratCardState
   disabled: boolean
   running: boolean
+  localFiles?: NodeLocalFilesCapability
   onCollect: () => void
   onPatch: (patch: Partial<LoratCardState>) => void
   t: Translate
@@ -40,6 +43,18 @@ export function LoratCollectionPanel(props: {
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
   const selected = items.find((item) => item.id === selectedId) ?? items[0]
   const resultBySource = useMemo(() => new Map((props.data.collectionResults ?? []).map((result) => [result.item.sourcePath, result])), [props.data.collectionResults])
+  const modelDrop = useLocalFileDrop({
+    disabled: props.disabled,
+    subscribeDrops: props.localFiles?.subscribeDrops,
+    onDropPaths: addModelPaths,
+    onUnsupported: () => setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。")),
+  })
+  const previewDrop = useLocalFileDrop({
+    disabled: props.disabled,
+    subscribeDrops: props.localFiles?.subscribeDrops,
+    onDropPaths: bindPreviewPaths,
+    onUnsupported: () => setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。")),
+  })
 
   function replaceItems(next: LoratCollectionDraft[]) {
     props.onPatch({ collectionItems: next })
@@ -52,11 +67,17 @@ export function LoratCollectionPanel(props: {
     if (missingPath.length) {
       setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。"))
     }
+    const paths = valid.flatMap((file) => nativePath(file) ? [nativePath(file)!] : [])
+    if (paths.length) addModelPaths(paths)
+    if (!valid.length) setDropMessage(props.t("collection.modelOnly", "这里只接受 .safetensors、.ckpt 或 .pt LoRA 模型。"))
+  }
+
+  function addModelPaths(paths: string[]) {
+    const valid = paths.filter((path) => hasExtension(path, MODEL_EXTENSIONS))
     const next = [...items]
-    for (const file of valid) {
-      const sourcePath = nativePath(file)
-      if (!sourcePath || next.some((item) => item.sourcePath === sourcePath)) continue
-      const sourceName = file.name
+    for (const sourcePath of valid) {
+      if (next.some((item) => item.sourcePath === sourcePath)) continue
+      const sourceName = fileName(sourcePath)
       next.push({
         id: `${sourcePath}:${Date.now()}:${next.length}`,
         sourcePath,
@@ -66,6 +87,7 @@ export function LoratCollectionPanel(props: {
       })
     }
     if (!valid.length) setDropMessage(props.t("collection.modelOnly", "这里只接受 .safetensors、.ckpt 或 .pt LoRA 模型。"))
+    else setDropMessage("")
     replaceItems(next)
   }
 
@@ -84,10 +106,27 @@ export function LoratCollectionPanel(props: {
       setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。"))
       return
     }
+    bindPreviewPath(sourcePath, file.name, URL.createObjectURL(file))
+  }
+
+  function bindPreviewPaths(paths: string[]) {
+    const sourcePath = paths.find((path) => hasExtension(path, IMAGE_EXTENSIONS))
+    if (!sourcePath) {
+      setDropMessage(props.t("collection.imageOnly", "预览图支持 PNG、JPG、WEBP 或 AVIF。"))
+      return
+    }
+    bindPreviewPath(sourcePath, fileName(sourcePath), props.localFiles?.getUrl(sourcePath))
+  }
+
+  function bindPreviewPath(sourcePath: string, name: string, previewUrl?: string) {
+    if (!selected) {
+      setDropMessage(props.t("collection.selectFirst", "先从队列选择一个 LoRA，再绑定预览图。"))
+      return
+    }
     const oldUrl = previewUrls[selected.id]
-    if (oldUrl) URL.revokeObjectURL(oldUrl)
-    setPreviewUrls((current) => ({ ...current, [selected.id]: URL.createObjectURL(file) }))
-    replaceItems(items.map((item) => item.id === selected.id ? { ...item, previewSourcePath: sourcePath, previewName: file.name } : item))
+    if (oldUrl?.startsWith("blob:")) URL.revokeObjectURL(oldUrl)
+    if (previewUrl) setPreviewUrls((current) => ({ ...current, [selected.id]: previewUrl }))
+    replaceItems(items.map((item) => item.id === selected.id ? { ...item, previewSourcePath: sourcePath, previewName: name } : item))
     setDropMessage("")
   }
 
@@ -116,21 +155,6 @@ export function LoratCollectionPanel(props: {
     event.currentTarget.value = ""
   }
 
-  function preventDrop(event: DragEvent<HTMLElement>) {
-    event.preventDefault()
-    event.stopPropagation()
-  }
-
-  function handleModelDrop(event: DragEvent<HTMLElement>) {
-    preventDrop(event)
-    addModels(Array.from(event.dataTransfer.files))
-  }
-
-  function handlePreviewDrop(event: DragEvent<HTMLElement>) {
-    preventDrop(event)
-    bindPreview(Array.from(event.dataTransfer.files))
-  }
-
   const canCollect = Boolean(props.data.collectionRoot?.trim() && items.length && !props.disabled)
   const triggerTags = selected?.triggerText?.split(",").map((tag) => tag.trim()).filter(Boolean) ?? []
 
@@ -154,8 +178,7 @@ export function LoratCollectionPanel(props: {
             disabled={props.disabled}
             icon={Upload}
             onBrowse={() => modelInputRef.current?.click()}
-            onDragOver={preventDrop}
-            onDrop={handleModelDrop}
+            targetProps={modelDrop.targetProps}
             testId="lorat-collection-model-drop"
           />
           <input ref={modelInputRef} accept={MODEL_EXTENSIONS.join(",")} className="sr-only" multiple type="file" onChange={handleModelInput} />
@@ -168,9 +191,8 @@ export function LoratCollectionPanel(props: {
 
         <section className="flex min-h-0 flex-col rounded-lg border bg-card p-3">
           <div
+            {...previewDrop.targetProps}
             className="grid min-h-44 flex-1 place-items-center rounded-md border border-dashed bg-muted/20 p-3 text-center"
-            onDragOver={preventDrop}
-            onDrop={handlePreviewDrop}
             data-testid="lorat-collection-preview-drop"
           >
             {selected && previewUrls[selected.id] ? <img alt={selected.previewName ?? selected.sourceName} className="h-full max-h-64 w-full rounded object-contain" src={previewUrls[selected.id]} /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><ImagePlus /><span className="text-sm font-medium">{selected ? props.t("collection.dropPreview", "拖入图片绑定预览") : props.t("collection.selectModel", "从队列选择 LoRA")}</span><span className="text-xs">{props.t("collection.previewHint", "PNG、JPG、WEBP 或 AVIF")}</span></div>}
@@ -211,9 +233,9 @@ export function LoratCollectionPanel(props: {
   )
 }
 
-function DropTarget(props: { description: string; disabled: boolean; icon: typeof Upload; label: string; onBrowse: () => void; onDragOver: (event: DragEvent<HTMLElement>) => void; onDrop: (event: DragEvent<HTMLElement>) => void; testId: string }) {
+function DropTarget(props: { description: string; disabled: boolean; icon: typeof Upload; label: string; onBrowse: () => void; targetProps: HTMLAttributes<HTMLDivElement>; testId: string }) {
   const Icon = props.icon
-  return <div data-testid={props.testId} className="grid place-items-center gap-1.5 p-4 text-center" onDragOver={props.onDragOver} onDrop={props.onDrop}><Icon className="text-muted-foreground" /><span className="text-sm font-medium">{props.label}</span><span className="text-xs text-muted-foreground">{props.description}</span><Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onBrowse}>浏览文件</Button></div>
+  return <div {...props.targetProps} data-testid={props.testId} className="grid place-items-center gap-1.5 p-4 text-center"><Icon className="text-muted-foreground" /><span className="text-sm font-medium">{props.label}</span><span className="text-xs text-muted-foreground">{props.description}</span><Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onBrowse}>浏览文件</Button></div>
 }
 
 function CollectionQueueItem(props: { item: LoratCollectionDraft; result?: LoratCollectionResult; selected: boolean; onRemove: () => void; onSelect: () => void }) {
@@ -230,6 +252,10 @@ function CollectionCommitButton(props: { canCollect: boolean; running: boolean; 
 function nativePath(file: File): string | undefined {
   const native = file as NativeFile
   return native.path?.trim() || undefined
+}
+
+function fileName(path: string): string {
+  return path.replaceAll("\\", "/").split("/").at(-1) ?? path
 }
 
 function hasExtension(name: string, extensions: string[]): boolean {

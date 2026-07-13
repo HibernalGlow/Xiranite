@@ -1,6 +1,7 @@
 import type {
   EventBusRuntime,
   FileSystemRuntime,
+  NativeFileDropRuntime,
   FsEntry,
   FsStat,
   NodeRunnerRuntime,
@@ -142,6 +143,14 @@ class MemoryEventBus implements EventBusRuntime {
   }
 }
 
+class BrowserFileDropRuntime implements NativeFileDropRuntime {
+  async subscribe(): Promise<() => void> {
+    // Browser drag events are handled locally by the shared hook. Browsers do
+    // not expose absolute paths, so there is no native path event to publish.
+    return () => undefined
+  }
+}
+
 class WebNodeRunner implements NodeRunnerRuntime {
   async runNode<TInput = unknown, TData = unknown>(
     nodeId: string,
@@ -237,6 +246,7 @@ export function createWebRuntime(): RuntimeInterface {
     kind: "web",
     storage: new WebStorage(),
     fs: new MemoryFS(),
+    fileDrops: new BrowserFileDropRuntime(),
     subprocess: new NoSubprocess(),
     events: new MemoryEventBus(),
     nodeRunner: new WebNodeRunner(),

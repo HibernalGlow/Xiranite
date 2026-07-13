@@ -335,6 +335,7 @@ export function Component({ compId, host }: NodeComponentProps) {
                   compact={compactSurface}
                   data={data}
                   disabled={running}
+                  localFiles={host.localFiles}
                   onCollect={() => execute("collect")}
                   onPatch={patch}
                   running={running}

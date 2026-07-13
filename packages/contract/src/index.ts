@@ -208,6 +208,8 @@ export interface NodeLocalFilesCapability {
   pickFiles?: () => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
   list?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ name: string; path: string; isDirectory: boolean; sizeBytes: number; lastModified: number; type: string }>>
+  /** Subscribe to native desktop file drops routed to one explicit DOM target. */
+  subscribeDrops?: (targetId: string, handler: (paths: string[]) => void) => Promise<() => void>
 }
 
 export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {

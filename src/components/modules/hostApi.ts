@@ -10,6 +10,7 @@ import type {
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
+import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
@@ -168,6 +169,12 @@ export function useNodeHostApi(
           return selected || undefined
         }
         return (await pickLocalPaths("directory"))[0]
+      },
+      subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
+        const runtime = await getRuntime()
+        return await runtime.fileDrops.subscribe((event) => {
+          if (event.targetId === targetId) handler(event.files)
+        })
       },
     }
 

@@ -204,6 +204,28 @@ describe("app-owned lorat Component", () => {
     })
   })
 
+  test("routes a native desktop drop through the shared local-files capability", async () => {
+    setSurface("regular")
+    const handlers = new Map<string, (paths: string[]) => void>()
+    const host = createHost({ collectionRoot: "D:/ComfyUI/models/loras" })
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      subscribeDrops: async (targetId, handler) => {
+        handlers.set(targetId, handler)
+        return () => handlers.delete(targetId)
+      },
+    }
+    render(<Component compId="comp-lorat" host={host} />)
+    await userEvent.setup().click(screen.getByRole("tab", { name: "收集" }))
+    const target = screen.getByTestId("lorat-collection-model-drop")
+    await waitFor(() => expect(handlers.has(target.id)).toBe(true))
+
+    handlers.get(target.id)?.(["D:/Downloads/native_style.safetensors"])
+
+    await waitFor(() => expect(screen.getByText("native_style.safetensors")).toBeTruthy())
+    expect(host.state.collectionItems?.[0]?.sourcePath).toBe("D:/Downloads/native_style.safetensors")
+  })
+
   test("toggles row selection and edits trigger", async () => {
     setSurface("regular")
     const host = createHost({ rows: [SAMPLE_ROW], logs: [] })
