@@ -3549,8 +3549,53 @@
       "execution": {
         "planReadiness": "计划就绪度",
         "ready": "可执行",
-        "pending": "待确认"
+        "pending": "待确认",
+        "reviewed": "计划已确认",
+        "stale": "需要生成计划"
       },
+      "actions": {
+        "plan": "计划",
+        "classify": "执行",
+        "planRun": "生成计划",
+        "classifyRun": "执行分类",
+        "prepareClassify": "先生成执行计划",
+        "copy": "复制",
+        "paste": "粘贴路径",
+        "clear": "清空状态",
+        "clearPaths": "清空路径"
+      },
+      "classifyModes": { "auto": "自动分类", "only": "仅 already", "off": "指定目标" },
+      "transferModes": { "move": "移动", "copy": "复制" },
+      "fields": { "sameaRoots": "SameA 归档来源", "target": "目标目录", "dryRun": "预演模式" },
+      "placeholders": {
+        "sameaRoots": "每行一个文件或文件夹\nD:/set/reviewed.zip",
+        "crashuSources": "CrashU 来源目录，每行一个；留空使用默认库",
+        "targetRequired": "目标模式下必须填写",
+        "targetOptional": "可选；默认使用 already"
+      },
+      "tabs": { "plan": "计划", "issues": "问题", "logs": "日志" },
+      "table": { "source": "来源", "status": "状态", "target": "执行后位置", "queue": "分类队列", "mapping": "来源 → 执行后位置" },
+      "stages": { "samea": "来源整理", "crashu": "目录匹配", "already": "already 队列", "wait": "wait 队列" },
+      "itemStatus": { "running": "执行中", "moved": "已移动", "copied": "已复制", "ready": "待执行", "conflict": "冲突", "error": "错误", "skipped": "已跳过" },
+      "stats": { "selected": "已选择", "ready": "待执行", "wait": "待处理", "completed": "已完成", "conflicts": "冲突", "progress": "进度" },
+      "status": {
+        "running": "正在运行", "failed": "失败", "done": "完成", "ready": "就绪", "stale": "计划已失效",
+        "runningDescription": "正在生成或执行分类计划。", "failedDescription": "上次运行失败，请检查问题列表。",
+        "doneDescription": "上次 ClassF 运行已完成。", "readyDescription": "添加来源并先预览 already / wait 的目标结果。"
+      },
+      "empty": {
+        "ready": "生成计划后，这里会在执行前列出每个来源及其目标位置。", "noSources": "添加来源路径，即可预览完整分类结果。",
+        "noIssues": "暂无问题。", "logs": "运行日志会显示在这里。", "waitingPlan": "等待生成计划"
+      },
+      "summary": { "items": "{{count}} 项", "result": "{{count}} 项 / 待执行 {{ready}} / wait {{wait}}", "selected": "已选择 {{count}} 项" },
+      "progress": {
+        "buildingPlan": "正在生成完整分类计划…", "executing": "正在执行已确认的分类计划…",
+        "planReady": "计划已生成：{{count}} 项可执行。", "completed": "执行完成：{{count}} 项已处理。",
+        "planVisible": "完整计划已生成，请在矩阵中确认执行结果。", "itemRunning": "正在处理：{{name}}", "itemCompleted": "已更新：{{name}}",
+        "stage": { "samea": "正在分析并整理来源…", "crashu": "正在匹配分类目录…", "already": "正在生成 already 队列…", "wait": "正在生成 wait 队列…" }
+      },
+      "confirm": { "title": "确认执行已预览的分类计划？", "description": "ClassF 将按中央矩阵中已确认的目标移动或复制文件；冲突项会跳过。", "action": "确认执行" },
+      "common": { "cancel": "取消" },
       "config": {
         "trigger": "配置管理",
         "title": "配置管理",

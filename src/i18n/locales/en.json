@@ -3549,8 +3549,26 @@
       "execution": {
         "planReadiness": "Plan readiness",
         "ready": "Ready",
-        "pending": "Pending"
+        "pending": "Pending",
+        "reviewed": "Plan reviewed",
+        "stale": "Plan required"
       },
+      "actions": { "plan": "Plan", "classify": "Classify", "planRun": "Build plan", "classifyRun": "Classify items", "prepareClassify": "Build execution plan first", "copy": "Copy", "paste": "Paste paths", "clear": "Clear state", "clearPaths": "Clear paths" },
+      "classifyModes": { "auto": "Auto", "only": "Already only", "off": "Target" },
+      "transferModes": { "move": "Move", "copy": "Copy" },
+      "fields": { "sameaRoots": "SameA archive roots", "target": "Target folder", "dryRun": "Preview mode" },
+      "placeholders": { "sameaRoots": "One file or folder per line\nD:/set/reviewed.zip", "crashuSources": "One CrashU source directory per line; blank uses the default library", "targetRequired": "Required in target mode", "targetOptional": "Optional; defaults to already" },
+      "tabs": { "plan": "Plan", "issues": "Issues", "logs": "Logs" },
+      "table": { "source": "Source", "status": "Status", "target": "Location after execution", "queue": "Classification queue", "mapping": "Source → location after execution" },
+      "stages": { "samea": "Source organization", "crashu": "Directory matching", "already": "Already queue", "wait": "Wait queue" },
+      "itemStatus": { "running": "Running", "moved": "Moved", "copied": "Copied", "ready": "Ready", "conflict": "Conflict", "error": "Error", "skipped": "Skipped" },
+      "stats": { "selected": "Selected", "ready": "Ready", "wait": "Wait", "completed": "Completed", "conflicts": "Conflicts", "progress": "Progress" },
+      "status": { "running": "Running", "failed": "Failed", "done": "Done", "ready": "Ready", "stale": "Plan stale", "runningDescription": "Building or applying the classification plan.", "failedDescription": "The last run failed. Check Issues.", "doneDescription": "The last ClassF run completed.", "readyDescription": "Add sources and preview every already / wait target first." },
+      "empty": { "ready": "Build a plan to list every source and target before execution.", "noSources": "Add source paths to preview the full classification result.", "noIssues": "No issues yet.", "logs": "Run logs will appear here.", "waitingPlan": "Waiting for plan" },
+      "summary": { "items": "{{count}} items", "result": "{{count}} items / ready {{ready}} / wait {{wait}}", "selected": "{{count}} selected" },
+      "progress": { "buildingPlan": "Building the complete classification plan…", "executing": "Applying the reviewed classification plan…", "planReady": "Plan ready: {{count}} executable items.", "completed": "Execution complete: {{count}} items processed.", "planVisible": "The complete plan is ready. Review every target in the matrix.", "itemRunning": "Processing: {{name}}", "itemCompleted": "Updated: {{name}}", "stage": { "samea": "Analyzing and organizing sources…", "crashu": "Matching classification directories…", "already": "Building the already queue…", "wait": "Building the wait queue…" } },
+      "confirm": { "title": "Apply the reviewed classification plan?", "description": "ClassF will move or copy files to the reviewed matrix targets. Conflicts are skipped.", "action": "Confirm execution" },
+      "common": { "cancel": "Cancel" },
       "config": {
         "trigger": "Configuration",
         "title": "Configuration",
