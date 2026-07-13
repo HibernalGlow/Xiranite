@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlanItem, ClassfProgressData, ClassfTransferMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
-import { AlertTriangle, Archive, ArrowRight, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, Archive, ArrowRight, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { CollapseButton, Tree, type TreeViewElement } from "@/components/ui/file-tree"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
@@ -255,7 +257,7 @@ function CompactView(props: ViewProps) {
         <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />
         <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
         <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-        <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
+        <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
   )
@@ -269,7 +271,7 @@ function PortraitView(props: ViewProps) {
       <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
       <TargetField compact data={props.data} disabled={props.running} t={props.tNode} onPatch={props.onPatch} />
-      <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
+      <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
     </div>
   )
 }
@@ -295,9 +297,18 @@ function FullView(props: ViewProps) {
           <SwitchRow checked={props.data.dryRun ?? true} disabled={props.running} icon={ShieldAlert} label={props.tNode("fields.dryRun", "预演模式")} onCheckedChange={(dryRun) => props.onPatch({ dryRun })} />
         </section>
         <section data-testid="classf-classification-matrix" className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2"><ZoneTitle icon={PLAN_ICON} label={props.tNode("sections.classificationMatrix", "分类矩阵")} /><div className="flex items-center gap-1">{props.result?.items.length && !props.planCurrent ? <Badge variant="destructive">{props.tNode("status.stale", "计划已失效")}</Badge> : null}<Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div></div>
-          <Separator />
-          <PlanRows items={props.result?.items ?? []} paths={props.paths} planCurrent={props.planCurrent} runningItem={props.data.runningItem} t={props.tNode} />
+          <Tabs defaultValue="matrix" className="min-h-0 flex-1 gap-0">
+            <div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-1">
+              <TabsList variant="line">
+                <TabsTrigger value="matrix"><PLAN_ICON />{props.tNode("tabs.matrix", "分类矩阵")}</TabsTrigger>
+                <TabsTrigger value="tree"><FolderTree />{props.tNode("tabs.tree", "文件树")}</TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-1">{props.result?.items.length && !props.planCurrent ? <Badge variant="destructive">{props.tNode("status.stale", "计划已失效")}</Badge> : null}<Badge variant="outline">{props.result?.items.length ?? props.paths.length}</Badge></div>
+            </div>
+            <Separator />
+            <TabsContent value="matrix" className="flex min-h-0 flex-1 flex-col"><PlanRows items={props.result?.items ?? []} paths={props.paths} planCurrent={props.planCurrent} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
+            <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} /></TabsContent>
+          </Tabs>
         </section>
         <div className="min-h-0 @2xl/classf:col-span-2 @4xl/classf:col-span-1">
           <ExecutionGate {...props} />
@@ -459,11 +470,41 @@ function PlanRows(props: { items: ClassfPlanItem[]; paths: string[]; planCurrent
   )
 }
 
-function ResultTabs(props: { compact?: boolean; logs: string[]; result: ClassfData | null; runningItem?: ClassfCardState["runningItem"]; t: ViewProps["tNode"]; onCopyLogs: () => void; onCopyResults: () => void }) {
+function PlanTree(props: { planCurrent: boolean; result: ClassfData | null; runningItem?: ClassfCardState["runningItem"]; t: ViewProps["tNode"] }) {
+  const elements = useMemo(() => buildPlanTree(props.result, props.runningItem, props.t), [props.result, props.runningItem, props.t])
+  const expandedItems = useMemo(() => elements.flatMap(collectTreeFolderIds), [elements])
+  if (!elements.length) {
+    return (
+      <Empty className="h-full border-0 p-4 md:p-6">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><FolderTree /></EmptyMedia>
+          <EmptyTitle className="text-sm">{props.t("tree.empty", "等待分类计划")}</EmptyTitle>
+          <EmptyDescription className="text-xs">{props.t("tree.emptyDescription", "生成计划后，这里会按目标目录预演具体分类结构。")}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+  return (
+    <div className="relative h-full min-h-0">
+      {!props.planCurrent ? <Badge variant="destructive" className="absolute right-3 top-2">{props.t("status.stale", "计划已失效")}</Badge> : null}
+      <Tree
+        key={`${props.result?.items.length ?? 0}:${props.result?.movedCount ?? 0}:${props.result?.copiedCount ?? 0}`}
+        actions={<CollapseButton elements={elements}><Maximize2 data-icon="inline-start" />{props.t("tree.toggle", "展开/收起")}</CollapseButton>}
+        className="py-2 text-xs"
+        elements={elements}
+        initialExpandedItems={expandedItems}
+        sort="none"
+      />
+    </div>
+  )
+}
+
+function ResultTabs(props: { compact?: boolean; logs: string[]; planCurrent: boolean; result: ClassfData | null; runningItem?: ClassfCardState["runningItem"]; t: ViewProps["tNode"]; onCopyLogs: () => void; onCopyResults: () => void }) {
   return (
     <Tabs defaultValue="plan" className="flex h-full min-h-0 flex-col">
-      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan"><PLAN_ICON />{props.t("tabs.plan", "计划")}</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />{props.t("tabs.issues", "问题")}</TabsTrigger><TabsTrigger value="logs"><Terminal />{props.t("tabs.logs", "日志")}</TabsTrigger></TabsList>
+      <TabsList variant="line" className="shrink-0"><TabsTrigger value="plan"><PLAN_ICON />{props.t("tabs.plan", "计划")}</TabsTrigger><TabsTrigger value="tree"><FolderTree />{props.t("tabs.tree", "文件树")}</TabsTrigger><TabsTrigger value="issues"><AlertTriangle />{props.t("tabs.issues", "问题")}</TabsTrigger><TabsTrigger value="logs"><Terminal />{props.t("tabs.logs", "日志")}</TabsTrigger></TabsList>
       <TabsContent value="plan" className="min-h-0 flex-1"><PlanPanel compact={props.compact} result={props.result} runningItem={props.runningItem} t={props.t} onCopy={props.onCopyResults} /></TabsContent>
+      <TabsContent value="tree" className="min-h-0 flex-1"><PlanTree planCurrent={props.planCurrent} result={props.result} runningItem={props.runningItem} t={props.t} /></TabsContent>
       <TabsContent value="issues" className="min-h-0 flex-1"><TextPanel empty={props.t("empty.noIssues", "暂无问题。") } lines={[...(props.result?.errors ?? []), ...(props.result?.items ?? []).filter((item) => item.reason && item.status !== "ready").map((item) => `${item.sourcePath}: ${item.reason}`)]} /></TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1"><TextPanel actionLabel={props.t("actions.copy", "复制")} empty={props.t("empty.logs", "运行日志会显示在这里。") } icon={Terminal} lines={props.logs} onAction={props.onCopyLogs} /></TabsContent>
     </Tabs>
@@ -542,6 +583,59 @@ function itemStatusMeta(status: ClassfPlanItem["status"] | "running", t: ViewPro
   if (status === "conflict") return { icon: AlertTriangle, label: t("itemStatus.conflict", "冲突"), variant: "destructive" as const }
   if (status === "error") return { icon: XCircle, label: t("itemStatus.error", "错误"), variant: "destructive" as const }
   return { icon: AlertTriangle, label: t("itemStatus.skipped", "已跳过"), variant: "outline" as const }
+}
+
+interface MutablePlanTreeElement extends TreeViewElement {
+  children?: MutablePlanTreeElement[]
+}
+
+function buildPlanTree(result: ClassfData | null, runningItem: ClassfCardState["runningItem"], t: ViewProps["tNode"]): TreeViewElement[] {
+  if (!result?.items.length) return []
+  const root: MutablePlanTreeElement = {
+    id: "classf-plan-root",
+    name: result.baseDir?.split(/[\\/]/).filter(Boolean).at(-1) ?? t("tree.targetRoot", "目标目录"),
+    type: "folder",
+    children: [],
+  }
+  for (const [itemIndex, item] of result.items.entries()) {
+    if (!item.targetPath && !item.targetRelative) continue
+    const relative = (item.targetRelative || item.targetPath).replaceAll("\\", "/")
+    const pathParts = relative.split("/").filter(Boolean)
+    if (!pathParts.length) continue
+    if (pathParts.length === 1 && (item.stage === "already" || item.stage === "wait")) pathParts.unshift(item.stage)
+    let parent = root
+    const folderParts = item.kind === "folder" ? pathParts : pathParts.slice(0, -1)
+    for (const [partIndex, part] of folderParts.entries()) {
+      parent.children ??= []
+      const id = `classf-plan:${pathParts.slice(0, partIndex + 1).join("/")}`
+      let child = parent.children.find((candidate) => candidate.id === id)
+      if (!child) {
+        child = { id, name: part, type: "folder", children: [] }
+        parent.children.push(child)
+      }
+      parent = child
+    }
+    const running = runningItem?.sourcePath === item.sourcePath && runningItem.stage === item.stage
+    const status = running ? "running" : item.status
+    const statusLabel = itemStatusMeta(status, t).label
+    const targetName = pathParts.at(-1) ?? item.sourceName
+    const mappingLabel = item.kind === "folder"
+      ? `${t("tree.source", "来源")}：${item.sourceName}`
+      : item.sourceName === targetName ? targetName : `${item.sourceName} → ${targetName}`
+    parent.children ??= []
+    parent.children.push({
+      id: `classf-plan:item:${item.stage}:${item.sourcePath}:${itemIndex}`,
+      name: `${mappingLabel} · ${statusLabel}`,
+      type: "file",
+      isSelectable: false,
+    })
+  }
+  return root.children?.length ? [root] : []
+}
+
+function collectTreeFolderIds(element: TreeViewElement): string[] {
+  if (element.type !== "folder") return []
+  return [element.id, ...(element.children ?? []).flatMap(collectTreeFolderIds)]
 }
 
 function summaryText(props: ViewProps): string {

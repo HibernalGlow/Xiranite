@@ -50,7 +50,7 @@ describe("app-owned classf Component", () => {
 
       expect(screen.getByLabelText("classf paths")).toBeTruthy()
       if (mode === "compact" || mode === "portrait") {
-        expect(screen.getAllByRole("tab")).toHaveLength(3)
+        expect(screen.getAllByRole("tab")).toHaveLength(4)
       }
 
       if (mode === "compact") {
@@ -99,6 +99,26 @@ describe("app-owned classf Component", () => {
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.result?.items[0]?.targetRelative).toBe("already/a.zip")
+  })
+
+  test("previews the planned target hierarchy in the file tree tab", async () => {
+    setSurface("regular")
+    const host = createHost({
+      action: "classify",
+      pathsText: "D:/set/a.zip",
+      crashuSourcesText: "D:/library",
+      transferMode: "move",
+      classifyMode: "auto",
+      existingPolicy: "merge",
+      result: classfData,
+      planFingerprint: "{\"paths\":[\"D:/set/a.zip\"],\"crashuSources\":[\"D:/library\"],\"transferMode\":\"move\",\"classifyMode\":\"auto\",\"existingPolicy\":\"merge\"}",
+    })
+    render(<Component compId="comp-classf" host={host} />)
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: "文件树" }))
+
+    expect(screen.getByText("already")).toBeTruthy()
+    expect(screen.getByText("a.zip · 待执行")).toBeTruthy()
   })
 
   test("builds a reviewable plan before enabling confirmed live execution", async () => {

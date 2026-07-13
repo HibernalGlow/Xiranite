@@ -3573,7 +3573,8 @@
         "targetRequired": "目标模式下必须填写",
         "targetOptional": "可选；默认使用 already"
       },
-      "tabs": { "plan": "计划", "issues": "问题", "logs": "日志" },
+      "tabs": { "plan": "计划", "matrix": "分类矩阵", "tree": "文件树", "issues": "问题", "logs": "日志" },
+      "tree": { "empty": "等待分类计划", "emptyDescription": "生成计划后，这里会按目标目录预演具体分类结构。", "targetRoot": "目标目录", "source": "来源", "toggle": "展开/收起" },
       "table": { "source": "来源", "status": "状态", "target": "执行后位置", "queue": "分类队列", "mapping": "来源 → 执行后位置" },
       "stages": { "samea": "来源整理", "crashu": "目录匹配", "already": "already 队列", "wait": "wait 队列" },
       "itemStatus": { "running": "执行中", "moved": "已移动", "copied": "已复制", "ready": "待执行", "conflict": "冲突", "error": "错误", "skipped": "已跳过" },
