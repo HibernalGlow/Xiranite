@@ -32,7 +32,7 @@ export const ACTIONS: GifuActionMeta[] = [
     value: "make",
     label: "生成动画",
     shortLabel: "生成",
-    description: "调用 gifu Python 模块生成 GIF/WebP/APNG/视频文件。",
+    description: "使用原生 TypeScript 工作流生成 GIF/WebP/APNG/视频文件。",
     icon: Film,
     destructive: true,
   },

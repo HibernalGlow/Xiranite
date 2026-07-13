@@ -405,7 +405,7 @@ function RunActionButton({ compact, props }: { compact?: boolean; props: ViewPro
           <AlertDialogHeader>
             <AlertDialogTitle>确认真实生成动画？</AlertDialogTitle>
             <AlertDialogDescription>
-              当前已关闭预演，会调用 gifu Python 模块写入输出文件。请确认路径和输出目录无误。
+              当前已关闭预演，会通过原生 TypeScript 工作流写入输出文件。请确认路径和输出目录无误。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

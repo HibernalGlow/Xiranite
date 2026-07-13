@@ -232,8 +232,8 @@ const gifuData: GifuData = {
     },
   ],
   command: {
-    command: "python",
-    args: ["-m", "gifu", "make", "D:/archives/a.zip"],
+    command: "gifu-native",
+    args: ["make", "D:/archives/a.zip"],
   },
   database: {
     path: "D:/archives/.xiranite/gifu-runs.jsonl",
