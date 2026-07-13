@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { GifuAction, GifuData, GifuInput } from "@xiranite/node-gifu/core"
-import { Film, Play, RotateCcw, Square } from "lucide-react"
+import { Film, LoaderCircle, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,6 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
-  ActionPicker,
   ConfigDefaultsPopover,
   OptionsPopover,
   OutputFields,
@@ -281,12 +280,11 @@ function CompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
         <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionDeck compact props={props} />
         <div className="grid grid-cols-2 gap-2">
           <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
         </div>
@@ -308,12 +306,11 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
         <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionDeck compact props={props} />
       </div>
       <div className="min-h-0 flex-1">
         <GifuResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
@@ -330,6 +327,7 @@ function FullView(props: ViewProps) {
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
           <div data-testid="gifu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
+            <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
@@ -345,38 +343,88 @@ function FullView(props: ViewProps) {
         <GifuStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @5xl/gifu:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(230px,300px)]">
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1 @5xl/gifu:[&>:nth-child(2)]:hidden @5xl/gifu:[&>:nth-child(3)]:hidden @5xl/gifu:[&>:nth-child(4)]:hidden">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">输入</div>
-              <div className="text-xs text-muted-foreground">归档路径固定在左侧，检查、计划和生成动作共用同一批输入。</div>
-            </div>
-            <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">输出</div>
-            <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">运行</div>
-            <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+      <div className="grid min-h-0 flex-1 gap-3 @[760px]/gifu:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
         <div className="min-h-0">
           <GifuResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
-        <section data-testid="gifu-compile-gate" className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="text-sm font-semibold">编译输出</div>
-          <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">动画编译台</div>
+              <div className="truncate text-xs text-muted-foreground">输入、参数和直接动作集中在同一控制台。</div>
+            </div>
+            <Badge className="shrink-0" variant="outline">{props.pathCount} 个输入</Badge>
+          </div>
+          <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <ActionDeck props={props} />
           <OutputFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
           <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <div className="mt-auto"><RunActionButton props={props} /></div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
+          <div className="mt-auto">
+            <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+          </div>
         </section>
       </div>
     </div>
+  )
+}
+
+function ActionDeck({ compact, props }: { compact?: boolean; props: ViewProps }) {
+  return (
+    <div
+      data-testid="gifu-action-deck"
+      className={compact ? "flex min-w-0 gap-1.5 overflow-x-auto pb-0.5" : "grid min-w-0 grid-cols-3 gap-2"}
+    >
+      {ACTIONS.map((action) => (
+        <DirectActionButton key={action.value} action={action.value} compact={compact} props={props} />
+      ))}
+    </div>
+  )
+}
+
+function DirectActionButton({ action, compact, props }: {
+  action: GifuAction
+  compact?: boolean
+  props: ViewProps
+}) {
+  const meta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]!
+  const label = actionLabel(action)
+  const activeRunning = props.running && props.action === action
+  const destructive = action === "make" && !(props.data.dryRun ?? true)
+  const Icon = activeRunning ? LoaderCircle : meta.icon
+  const button = (
+    <Button
+      aria-label={label}
+      className={cn(
+        compact && "h-8 shrink-0 px-2.5",
+        !compact && "h-auto min-h-10 min-w-0 justify-start px-3 py-2",
+      )}
+      disabled={props.running}
+      size="sm"
+      variant={activeRunning ? "secondary" : "outline"}
+      onClick={destructive ? undefined : () => props.onExecute(action)}
+    >
+      <Icon className={cn(activeRunning && "animate-spin")} />
+      <span className="truncate">{compact ? meta.shortLabel : label}</span>
+    </Button>
+  )
+
+  if (!destructive) return button
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认真实生成动画？</AlertDialogTitle>
+          <AlertDialogDescription>
+            当前已关闭预演，会通过原生 TypeScript 工作流写入输出文件。请确认路径和输出目录无误。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => props.onExecute(action)}>确认生成</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

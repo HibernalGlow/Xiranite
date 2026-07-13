@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SmartZipAction, SmartZipData, SmartZipInput } from "@xiranite/node-smartzip/core"
-import { FileArchive, FolderInput, Play, RotateCcw, Square, Terminal } from "lucide-react"
+import { FileArchive, LoaderCircle, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,6 @@ import { RunningTint } from "@/nodes/shared/controls"
 import { ACTIONS, actionI18nKey, isDestructiveAction } from "./constants"
 import {
   ActionIconButton,
-  ActionPicker,
   ConfigDefaultsPopover,
   OptionsPopover,
   PathFields,
@@ -184,7 +183,6 @@ export function Component({ compId, host }: NodeComponentProps<SmartZipCardState
     result,
     running,
     status,
-    onActionChange: (value: SmartZipAction) => patch({ action: value }),
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
@@ -229,7 +227,6 @@ function createViewProps(props: {
   result: SmartZipData | null
   running: boolean
   status: SmartZipStatusMeta
-  onActionChange: (value: SmartZipAction) => void
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: SmartZipAction) => void
@@ -275,12 +272,11 @@ function CompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
         <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionDeck compact props={props} />
         {(props.status.tone === "running" || props.status.tone === "error") && (
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
@@ -299,12 +295,11 @@ function PortraitCompactView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RunActionButton compact props={props} />
         </div>
       </div>
       <div className="grid shrink-0 gap-2">
-        <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
         <PathsInput compact data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <ActionDeck compact props={props} />
       </div>
       <div className="min-h-0 flex-1">
         <SmartZipResultTabs compact logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
@@ -315,15 +310,14 @@ function PortraitCompactView(props: ViewProps) {
 
 function FullView(props: ViewProps) {
   const { t } = useNodeI18n("smartzip")
-  const showLegacySurface = false
   return (
     <div data-testid="smartzip-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/smartzip:flex-row @4xl/smartzip:items-center @4xl/smartzip:justify-between">
+      <div className="flex shrink-0 flex-col gap-2 @4xl/smartzip:flex-row @4xl/smartzip:items-center @4xl/smartzip:justify-between">
         <div className="flex min-w-0 flex-col gap-2 @4xl/smartzip:flex-row @4xl/smartzip:items-center">
           <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
           <div data-testid="smartzip-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/smartzip:w-72" onActionChange={props.onActionChange} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label={t("actions.clear", "清空状态")} onClick={props.onReset} />
+            <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
             <ConfigDefaultsPopover
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
@@ -339,60 +333,95 @@ function FullView(props: ViewProps) {
         <SmartZipStatsPanel result={props.result} />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 @4xl/smartzip:grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(240px,300px)]">
-        <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2"><FolderInput className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.paths", "路径")}</span></div>
-          <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          <div className="mt-auto grid gap-1.5 text-xs text-muted-foreground">
-            {(props.result?.selectedPaths ?? props.data.pathsText?.split(/\r?\n/).filter(Boolean) ?? []).map((path) => <div key={path} className="truncate rounded-md border px-2 py-1.5">{path}</div>)}
-          </div>
-        </section>
-        <CommandChamber result={props.result} />
-        <section className="flex min-h-0 flex-col gap-3 rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2"><FileArchive className="size-4 text-muted-foreground" /><span className="text-sm font-semibold">{t("fields.runtimeConfig", "运行配置 · 自动检测 7-Zip")}</span></div>
-          <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          <div className="min-h-0 flex-1"><SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
-          <div className="mt-auto"><div className="mb-2 text-sm font-semibold">{t("fields.run", "运行")}</div><RunActionButton props={props} /></div>
-        </section>
-      </div>
-      {showLegacySurface && <div>
-        <section className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
-          <div className="grid gap-3 border-b pb-3">
-            <div>
-              <div className="text-sm font-semibold">{t("fields.paths", "路径")}</div>
-              <div className="text-xs text-muted-foreground">{t("hints.pathsHelp", "归档或目录，每行一条。status 不需要路径。")}</div>
-            </div>
-            <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{t("fields.runtimeConfig", "运行配置 · 自动检测 7-Zip")}</div>
-            <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <div className="grid gap-3 border-b pb-3">
-            <div className="text-sm font-semibold">{t("fields.run", "运行")}</div>
-            <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
-          </div>
-          <StatusStrip progress={props.progress} status={props.status} text={props.data.progressText} />
-        </section>
+      <div className="grid min-h-0 flex-1 gap-3 @[760px]/smartzip:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
         <div className="min-h-0">
           <SmartZipResultTabs logs={props.logs} result={props.result} running={props.running} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} />
         </div>
-      </div>}
+        <section className="flex min-h-0 flex-col gap-3 overflow-auto rounded-xl border bg-card/90 p-3 shadow-sm">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">{t("fields.workbench", "归档工作台")}</div>
+              <div className="truncate text-xs text-muted-foreground">{t("hints.directActions", "输入路径后直接选择动作，不需要先切换模式。")}</div>
+            </div>
+            <Badge className="shrink-0" variant="outline">7-Zip · auto</Badge>
+          </div>
+          <PathsInput data={props.data} disabled={props.running} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+          <ActionDeck props={props} />
+          <RuntimeOptions data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <PathFields data={props.data} disabled={props.running} onPatch={props.onPatch} />
+          <div className="mt-auto">
+            <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
+          </div>
+        </section>
+      </div>
     </div>
   )
 }
 
-function CommandChamber({ result }: { result: SmartZipData | null }) {
-  const { t } = useNodeI18n("smartzip")
-  const command = result?.command
+function ActionDeck({ compact, props }: { compact?: boolean; props: ViewProps }) {
   return (
-    <section className="flex min-h-0 flex-col rounded-lg border bg-card p-4">
-      <div className="flex items-center justify-between gap-2 border-b pb-3"><div className="flex items-center gap-2"><Terminal className="size-4 text-primary" /><span className="text-sm font-semibold">{t("labels.operationChamber", "Operation chamber")}</span></div><Badge variant="outline">{command ? t("badges.planned", "planned") : t("badges.idle", "idle")}</Badge></div>
-      <div className="min-h-0 flex-1 overflow-auto py-4 font-mono text-xs leading-6">
-        {command ? <><div className="text-muted-foreground">{t("labels.commandPlan", "; TYPESCRIPT WORKFLOW PLAN")}</div><div className="mt-2 break-words text-primary">$ {command.command} {command.args.join(" ")}</div><div className="mt-6 border-t pt-4 text-muted-foreground">{t("labels.queuedArchives", "; QUEUED ARCHIVES")}</div>{result?.selectedPaths.map((path) => <div key={path} className="truncate">{path}</div>)}</> : <div className="text-muted-foreground">{t("labels.runCommandHint", "Run an action to produce the TypeScript SmartZip workflow plan.")}</div>}
-      </div>
-    </section>
+    <div
+      data-testid="smartzip-action-deck"
+      className={compact
+        ? "flex min-w-0 gap-1.5 overflow-x-auto pb-0.5"
+        : "grid min-w-0 grid-cols-2 gap-2 @5xl/smartzip:grid-cols-3"}
+    >
+      {ACTIONS.map((action) => (
+        <DirectActionButton key={action.value} action={action.value} compact={compact} props={props} />
+      ))}
+    </div>
+  )
+}
+
+function DirectActionButton({ action, compact, props }: {
+  action: SmartZipAction
+  compact?: boolean
+  props: ViewProps
+}) {
+  const { t } = useNodeI18n("smartzip")
+  const meta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
+  const label = actionLabel(action)
+  const shortLabel = t(`actions.${actionI18nKey(action)}.shortLabel`, meta.shortLabel)
+  const destructive = isDestructiveAction(action) && !(props.data.dryRun ?? true)
+  const activeRunning = props.running && props.action === action
+  const Icon = activeRunning ? LoaderCircle : meta.icon
+  const button = (
+    <Button
+      aria-label={label}
+      className={cn(
+        compact && "h-8 shrink-0 px-2.5",
+        !compact && "h-auto min-h-10 min-w-0 justify-start px-3 py-2",
+      )}
+      disabled={props.running}
+      size="sm"
+      variant={activeRunning ? "secondary" : "outline"}
+      onClick={destructive ? undefined : () => props.onExecute(action)}
+    >
+      <Icon className={cn(activeRunning && "animate-spin")} />
+      <span className="truncate">{compact ? shortLabel : label}</span>
+      {!compact && action === "extract_codepage" && (
+        <Badge className="ml-auto shrink-0 px-1.5 font-mono text-[10px]" variant="secondary">CP{props.data.codePage ?? 936}</Badge>
+      )}
+    </Button>
+  )
+
+  if (!destructive) return button
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("confirm.title", "确认{{action}}？", { action: label })}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("confirm.description", "当前已关闭预演，TypeScript SmartZip 工作流会通过自动检测的 7-Zip 执行{{action}}，可能修改磁盘文件。", { action: label })}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("actions.cancel", "取消")}</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => props.onExecute(action)}>{t("actions.confirm", "确认执行")}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

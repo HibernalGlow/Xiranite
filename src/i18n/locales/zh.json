@@ -3967,6 +3967,7 @@
         }
       },
       "fields": {
+        "workbench": "归档工作台",
         "paths": "路径",
         "codePage": "旧 ZIP 文件名编码",
         "executables": "运行配置 · 自动检测 7-Zip",
@@ -4070,6 +4071,7 @@
         "stats": "{{paths}} 路径 / {{archives}} 归档 / {{errors}} 错误"
       },
       "hints": {
+        "directActions": "输入路径后直接选择动作，不需要先切换模式。",
         "codePage": "旧归档没有 UTF-8 文件名元数据时，会通过 -mcp 把该代码页传给 7-Zip。",
         "pathsHelp": "归档或目录，每行一条。状态查看不需要路径。",
         "pathsDescription": "每行一条路径，支持 .zip .7z .rar .tar 等。"

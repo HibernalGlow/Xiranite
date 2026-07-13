@@ -63,9 +63,10 @@ describe("app-owned smartzip Component", () => {
       } else {
         expect(screen.getByTestId("smartzip-full-view")).toBeTruthy()
         expect(screen.getByTestId("smartzip-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("路径")).toBeTruthy()
-        expect(screen.getByText("运行配置 · 自动检测 7-Zip")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByText("归档工作台")).toBeTruthy()
+        expect(screen.getByTestId("smartzip-action-deck")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "解压归档" })).toBeTruthy()
+        expect(screen.getByRole("button", { name: "创建归档" })).toBeTruthy()
       }
     },
   )
@@ -118,6 +119,19 @@ describe("app-owned smartzip Component", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.action).toBe("extract")
     expect(host.runCalls[0]?.input.dryRun).toBe(false)
+  })
+
+  test("runs a direct action without selecting a mode first", async () => {
+    setSurface("regular")
+    const host = createHost({ action: "status", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    render(<Component compId="comp-smartzip" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "解压归档" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.action).toBe("extract")
+    expect(host.cardState.action).toBe("extract")
   })
 
   test("marks the card as error when extract has no paths", async () => {

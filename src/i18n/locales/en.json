@@ -3967,6 +3967,7 @@
         }
       },
       "fields": {
+        "workbench": "Archive workbench",
         "paths": "Paths",
         "codePage": "Legacy ZIP filename encoding",
         "executables": "Runtime config · auto-detect 7-Zip",
@@ -4070,6 +4071,7 @@
         "stats": "{{paths}} paths / {{archives}} archives / {{errors}} errors"
       },
       "hints": {
+        "directActions": "Enter paths and run an action directly—there is no mode-selection step.",
         "codePage": "For legacy archives without UTF-8 filename metadata, this code page is passed to 7-Zip with -mcp.",
         "pathsHelp": "Archives or directories, one per line. Status does not need paths.",
         "pathsDescription": "One path per line, supports .zip .7z .rar .tar etc."

@@ -64,8 +64,10 @@ describe("app-owned gifu Component", () => {
       } else {
         expect(screen.getByTestId("gifu-full-view")).toBeTruthy()
         expect(screen.getByTestId("gifu-header-toolbar")).toBeTruthy()
-        expect(screen.getByText("输出")).toBeTruthy()
-        expect(screen.getByText("运行")).toBeTruthy()
+        expect(screen.getByText("动画编译台")).toBeTruthy()
+        expect(screen.getByTestId("gifu-action-deck")).toBeTruthy()
+        expect(screen.getByRole("button", { name: "检查归档" })).toBeTruthy()
+        expect(screen.getByRole("button", { name: "生成动画" })).toBeTruthy()
       }
     },
   )
@@ -84,7 +86,7 @@ describe("app-owned gifu Component", () => {
     render(<Component compId="comp-gifu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "运行计划" }))
+    await user.click(screen.getByRole("button", { name: "生成计划" }))
 
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toEqual({
@@ -115,7 +117,7 @@ describe("app-owned gifu Component", () => {
     render(<Component compId="comp-gifu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "运行生成" }))
+    await user.click(screen.getByRole("button", { name: "生成动画" }))
     expect(host.runCalls).toHaveLength(0)
     expect(screen.getByText("确认真实生成动画？")).toBeTruthy()
 
@@ -132,11 +134,24 @@ describe("app-owned gifu Component", () => {
     render(<Component compId="comp-gifu" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "运行计划" }))
+    await user.click(screen.getByRole("button", { name: "生成计划" }))
 
     expect(host.runCalls).toHaveLength(0)
     await waitFor(() => expect(host.cardState.phase).toBe("error"))
     expect(host.cardState.progressText).toContain("至少一个归档或目录")
+  })
+
+  test("runs a direct action without selecting it first", async () => {
+    setSurface("regular")
+    const host = createHost({ action: "plan", pathsText: "D:/archives/a.zip", dryRun: true, logs: [] })
+    render(<Component compId="comp-gifu" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "检查归档" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.action).toBe("inspect")
+    expect(host.cardState.action).toBe("inspect")
   })
 })
 
