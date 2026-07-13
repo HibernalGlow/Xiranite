@@ -4,7 +4,11 @@ import { availableParallelism, freemem } from "node:os"
 const GIB = 1024 ** 3
 const RESERVED_MEMORY_GIB = 8
 const MEMORY_PER_TASK_GIB = 5
-const MAX_CONCURRENCY = 3
+// TypeScript 7 native builds are individually cheap but dozens of concurrent
+// compiler processes can exhaust the Windows commit limit. Keep repository-wide
+// tasks sequential by default; developers with more headroom may opt in.
+const requestedConcurrency = Number.parseInt(process.env.XIRANITE_TASK_CONCURRENCY ?? "1", 10)
+const MAX_CONCURRENCY = Number.isFinite(requestedConcurrency) && requestedConcurrency > 0 ? requestedConcurrency : 1
 
 const [task, ...args] = process.argv.slice(2)
 if (!task) {
