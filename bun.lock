@@ -152,6 +152,14 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/arcthumb-native": {
+      "name": "@xiranite/arcthumb-native",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/backend": {
       "name": "@xiranite/backend",
       "version": "0.1.0",
@@ -261,9 +269,21 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/czkawka-native": {
+      "name": "@xiranite/czkawka-native",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/image-native": {
       "name": "@xiranite/image-native",
       "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/arcthumb-native": "workspace:*",
+        "@xiranite/czkawka-native": "workspace:*",
+      },
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
@@ -1956,6 +1976,8 @@
 
     "@xiranite/api": ["@xiranite/api@workspace:packages/api"],
 
+    "@xiranite/arcthumb-native": ["@xiranite/arcthumb-native@workspace:packages/arcthumb-native"],
+
     "@xiranite/backend": ["@xiranite/backend@workspace:packages/backend"],
 
     "@xiranite/cli": ["@xiranite/cli@workspace:packages/cli"],
@@ -1965,6 +1987,8 @@
     "@xiranite/config": ["@xiranite/config@workspace:packages/config"],
 
     "@xiranite/contract": ["@xiranite/contract@workspace:packages/contract"],
+
+    "@xiranite/czkawka-native": ["@xiranite/czkawka-native@workspace:packages/czkawka-native"],
 
     "@xiranite/image-native": ["@xiranite/image-native@workspace:packages/image-native"],
 

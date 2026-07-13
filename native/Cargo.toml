@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "node"]
+members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node"]
 exclude = ["vendor/czkawka_core"]
 resolver = "3"
 

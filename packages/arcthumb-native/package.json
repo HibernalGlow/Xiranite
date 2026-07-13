@@ -1,9 +1,9 @@
 {
-  "name": "@xiranite/image-native",
+  "name": "@xiranite/arcthumb-native",
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Compatibility facade for Xiranite's split ArcThumb and Czkawka Node-API modules.",
+  "description": "Typed Node-API loader for Xiranite's ArcThumb Rust core.",
   "license": "MIT",
   "exports": {
     ".": {
@@ -16,11 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
-    "test": "bun run build && bun test src"
-  },
-  "dependencies": {
-    "@xiranite/arcthumb-native": "workspace:*",
-    "@xiranite/czkawka-native": "workspace:*"
+    "smoke:native": "bun run build && bun scripts/smoke-native.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

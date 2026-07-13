@@ -1,32 +1,45 @@
-# Image native core
+# Split native image APIs
 
-The native image integration is intentionally split into two layers:
+ArcThumb and Czkawka are compiled as independent Node-API modules. They do not share a Rust core crate or a dynamic library:
 
-- `native/core`: pure Rust business logic. It does not depend on Node, Bun, N-API, Tauri, Wails, or a C ABI.
-- `native/node`: a thin N-API adapter that converts JavaScript values and runs blocking core work on the N-API worker pool.
+- `native/arcthumb-core`: pure Rust archive/ebook cover extraction and thumbnail generation.
+- `native/arcthumb-node`: thin asynchronous N-API adapter for ArcThumb.
+- `native/czkawka-core`: pure Rust duplicate-file scanning API.
+- `native/czkawka-node`: thin asynchronous N-API adapter for Czkawka.
 
-The published `czkawka_core` 10.0.0 source is vendored under `native/vendor/czkawka_core` because that crate contains the actual Czkawka algorithms. The vendored manifest adds an Xiranite build split: a dependency with `default-features = false` compiles only the duplicate finder, while the `full` default feature retains all upstream tools and optional heavy dependencies. Source for every upstream tool remains vendored for later API expansion.
+The TypeScript loaders follow the same boundary:
 
-The ArcThumb 0.10.1 source was reduced to its archive/ebook detection, cover selection, bounded image decode, and resize pipeline. Its WIC AVIF/JXL backend is enabled for Windows Node builds. Explorer COM handlers, registry integration, overlays, logging, and the Slint UI are not included.
+- `@xiranite/arcthumb-native` loads `xiranite-arcthumb.<platform>-<arch>.node`.
+- `@xiranite/czkawka-native` loads `xiranite-czkawka.<platform>-<arch>.node`.
+- `@xiranite/image-native` is a compatibility facade that re-exports both packages. New code should import the specific package it uses.
+
+The published `czkawka_core` 10.0.0 source is vendored under `native/vendor/czkawka_core` because that crate contains the actual Czkawka algorithms. An Xiranite dependency with `default-features = false` compiles only the duplicate finder. The remaining upstream source stays vendored for later expansion.
+
+The ArcThumb 0.10.1 source is reduced to archive/ebook detection, cover selection, bounded image decode, and resize logic. WIC remains enabled only in the Windows ArcThumb Node build for AVIF/JXL decoding. Explorer COM handlers, registry integration, overlays, logging, and the Slint UI are not included.
 
 ## Build
 
 ```powershell
-bun --cwd packages/image-native run build:native
-bun --cwd packages/image-native run build
+bun run --cwd packages/arcthumb-native build:native
+bun run --cwd packages/czkawka-native build:native
+bun run --cwd packages/arcthumb-native build
+bun run --cwd packages/czkawka-native build
+bun run --cwd packages/image-native build
 ```
 
-The first command builds `native/node` and copies the platform-specific dynamic library to the package as a `.node` file. Generated binaries and Cargo targets are ignored; all Rust source needed to rebuild them is tracked.
+For compatibility, `bun run --cwd packages/image-native build:native` builds both native modules. Generated `.node` binaries and Cargo targets are ignored; all Rust source required to rebuild them is tracked.
 
 ## API boundary
 
-- `getCoreInfo()` reports embedded upstream versions and supported archive families.
-- `createArchiveThumbnail(options)` returns encoded bytes plus source metadata.
-- `scanDuplicateFiles(options)` exposes the first Czkawka core operation without importing the Tauri command/state layer.
+- ArcThumb: `getArcThumbInfo()` and `createArchiveThumbnail(options)`.
+- Czkawka: `getCzkawkaInfo()` and `scanDuplicateFiles(options)`.
+- Compatibility facade: deprecated `getCoreInfo()` and `loadNativeBinding()` plus all direct exports.
 
-An optional future `native/ffi` crate can depend on `native/core` and export a C ABI `cdylib`. It should own all returned allocations and provide matching free functions. It must not move Node-specific types or runtime callbacks into the core crate.
+The independent environment overrides are `XIRANITE_ARCTHUMB_NATIVE_PATH` and `XIRANITE_CZKAWKA_NATIVE_PATH`.
+
+Future C ABI crates should remain independent as well: `arcthumb-ffi` can depend on `arcthumb-core`, while `czkawka-ffi` can depend on `czkawka-core`.
 
 ## Upstream licenses
 
 - Czkawka core 10.0.0: MIT (`native/vendor/czkawka_core/LICENSE_MIT`).
-- ArcThumb 0.10.1: MIT OR Apache-2.0 (`native/core/ARCTHUMB-LICENSE-*`).
+- ArcThumb 0.10.1: MIT OR Apache-2.0 (`native/arcthumb-core/ARCTHUMB-LICENSE-*`).

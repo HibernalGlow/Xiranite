@@ -1,0 +1,17 @@
+[package]
+name = "xiranite-czkawka-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+czkawka_core = { path = "../vendor/czkawka_core", default-features = false }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

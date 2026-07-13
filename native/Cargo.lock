@@ -2624,12 +2624,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "xiranite-image-core"
+name = "xiranite-arcthumb-core"
 version = "0.1.0"
 dependencies = [
  "base64",
  "crc32fast",
- "czkawka_core",
  "image",
  "jpeg-decoder",
  "mobi",
@@ -2644,13 +2643,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "xiranite-image-node"
+name = "xiranite-arcthumb-node"
 version = "0.1.0"
 dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
- "xiranite-image-core",
+ "xiranite-arcthumb-core",
+]
+
+[[package]]
+name = "xiranite-czkawka-core"
+version = "0.1.0"
+dependencies = [
+ "czkawka_core",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "xiranite-czkawka-node"
+version = "0.1.0"
+dependencies = [
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "xiranite-czkawka-core",
 ]
 
 [[package]]
