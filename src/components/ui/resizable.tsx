@@ -19,8 +19,23 @@ function ResizablePanelGroup({
   )
 }
 
-function ResizablePanel({ ...props }: ResizablePrimitive.PanelProps) {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />
+function ResizablePanel({ collapsedSize, defaultSize, maxSize, minSize, ...props }: ResizablePrimitive.PanelProps) {
+  return (
+    <ResizablePrimitive.Panel
+      data-slot="resizable-panel"
+      collapsedSize={normalizePanelSize(collapsedSize)}
+      defaultSize={normalizePanelSize(defaultSize)}
+      maxSize={normalizePanelSize(maxSize)}
+      minSize={normalizePanelSize(minSize)}
+      {...props}
+    />
+  )
+}
+
+// Keep the project wrapper's pre-v4 contract: bare numbers are percentages.
+// Callers that need fixed sizing can pass an explicit unit such as "240px".
+function normalizePanelSize(size: number | string | undefined) {
+  return typeof size === "number" ? `${size}%` : size
 }
 
 function ResizableHandle({

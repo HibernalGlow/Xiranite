@@ -60,8 +60,12 @@ describe("app-owned classf Component", () => {
       } else {
         expect(screen.getByTestId("classf-full-view")).toBeTruthy()
         expect(screen.getByTestId("classf-header-toolbar")).toBeTruthy()
-        expect(screen.getByTestId("classf-scan-sources")).toBeTruthy()
+        const scanSources = screen.getByTestId("classf-scan-sources")
+        expect(scanSources).toBeTruthy()
+        expect(within(scanSources.parentElement!).getByTestId("classf-execution-gate")).toBeTruthy()
         expect(screen.getByTestId("classf-classification-matrix")).toBeTruthy()
+        expect(screen.getByTestId("classf-analysis")).toBeTruthy()
+        expect(screen.getByRole("tab", { name: "文件树" }).getAttribute("aria-selected")).toBe("true")
         expect(screen.getByRole("button", { name: "生成计划" })).toBeTruthy()
       }
     },
@@ -127,9 +131,8 @@ describe("app-owned classf Component", () => {
     })
     render(<Component compId="comp-classf" host={host} />)
 
-    await userEvent.setup().click(screen.getByRole("tab", { name: "文件树" }))
-
-    expect(screen.getByText("already")).toBeTruthy()
+    expect(screen.getByRole("tab", { name: "文件树" }).getAttribute("aria-selected")).toBe("true")
+    expect(within(screen.getByTestId("classf-classification-matrix")).getByText("already")).toBeTruthy()
     expect(screen.getByText("a.zip · 待执行")).toBeTruthy()
   })
 
@@ -176,8 +179,41 @@ describe("app-owned classf Component", () => {
     const host = createHost({ pathsText: "D:/set", placementMode: "root" })
     render(<Component compId="comp-classf" host={host} />)
     expect(screen.getByLabelText("classf target")).toBeTruthy()
-    await userEvent.setup().click(screen.getByText("就地分流"))
+    await userEvent.setup().click(screen.getByRole("radio", { name: "就地分流" }))
     expect(host.patches).toContainEqual(expect.objectContaining({ placementMode: "local" }))
+  })
+  test("keeps full-view panel resizing behind a node-level switch", async () => {
+    setSurface("regular")
+    const host = createHost({ pathsText: "D:/set/a.zip" })
+    render(<Component compId="comp-classf" host={host} />)
+
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(0)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await user.click(screen.getByRole("switch", { name: "面板拖拽" }))
+
+    expect(host.patches).toContainEqual(expect.objectContaining({ panelResizeEnabled: true }))
+  })
+
+  test("uses shared resizable panel handles when panel resizing is enabled", () => {
+    setSurface("regular")
+    const host = createHost({
+      pathsText: "D:/set/a.zip",
+      panelResizeEnabled: true,
+      panelLayouts: {
+        "classf-main-v1": { "classf-sources": 30, "classf-matrix": 45, "classf-analysis-panel": 25 },
+        "classf-source-v1": { "classf-sources-inputs": 60, "classf-execution": 40 },
+      },
+    })
+    render(<Component compId="comp-classf" host={host} />)
+
+    expect(screen.getByTestId("classf-main-v1")).toBeTruthy()
+    expect(screen.getByTestId("classf-source-v1")).toBeTruthy()
+    expect(document.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(3)
+    expect(screen.getByTestId("classf-scan-sources")).toBeTruthy()
+    expect(screen.getByTestId("classf-classification-matrix")).toBeTruthy()
+    expect(screen.getByTestId("classf-analysis")).toBeTruthy()
   })
 })
 
