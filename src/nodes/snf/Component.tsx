@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -221,7 +221,7 @@ function ModeToggle(props: { disabled?: boolean; value: SnfMode; onChange: (valu
 }
 
 function PathInput(props: { compact?: boolean; data: SnfCardState; disabled?: boolean; onPaste: () => void; onPatch: (patch: Partial<SnfCardState>) => void; t: TranslateFn }) {
-  return <div className="grid gap-1.5">{!props.compact && <Label htmlFor="snf-paths" className="text-xs">{props.t("fields.pathsLabel", "库目录或作者目录")}</Label>}<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5"><Textarea id="snf-paths" aria-label="snf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={props.t("placeholder.paths", "每行一个目录\nD:/archives")} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} /><div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.pastePaths", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div></div></div>
+  return <div className="grid gap-1.5">{!props.compact && <Label htmlFor="snf-paths" className="text-xs">{props.t("fields.pathsLabel", "库目录或作者目录")}</Label>}<div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5"><PathTextarea id="snf-paths" aria-label="snf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={props.t("placeholder.paths", "每行一个目录\nD:/archives")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} /><div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.pastePaths", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div></div></div>
 }
 
 function SwitchPanel(props: { compact?: boolean; data: SnfCardState; disabled?: boolean; onPatch: (patch: Partial<SnfCardState>) => void; t: TranslateFn }) {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type DragEventHandler } from "react"
+import { createContext, useContext, useEffect, useId, useRef, useState, type DragEventHandler, type ReactNode } from "react"
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
 
 type SubscribeDrops = NodeLocalFilesCapability["subscribeDrops"]
@@ -10,6 +10,12 @@ export interface LocalFileDropOptions {
   subscribeDrops?: SubscribeDrops
 }
 
+const LocalFilesContext = createContext<NodeLocalFilesCapability | undefined>(undefined)
+
+export function LocalFilesProvider(props: { children: ReactNode; value?: NodeLocalFilesCapability }) {
+  return <LocalFilesContext.Provider value={props.value}>{props.children}</LocalFilesContext.Provider>
+}
+
 /**
  * Framework-neutral file-drop target for node UIs.
  *
@@ -18,31 +24,36 @@ export interface LocalFileDropOptions {
  * intentionally contained here so node components never import its runtime.
  */
 export function useLocalFileDrop(options: LocalFileDropOptions) {
+  const localFiles = useContext(LocalFilesContext)
   const targetId = `local-file-drop-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
+  const [dragging, setDragging] = useState(false)
   const latestRef = useRef(options)
   latestRef.current = options
+  const subscribeDrops = options.subscribeDrops ?? localFiles?.subscribeDrops
 
   useEffect(() => {
-    if (!options.subscribeDrops) return
+    if (!subscribeDrops) return
     let disposed = false
     let unsubscribe: (() => void) | undefined
-    void options.subscribeDrops(targetId, (paths) => {
+    void subscribeDrops(targetId, (paths) => {
       if (!disposed && !latestRef.current.disabled && paths.length) latestRef.current.onDropPaths(paths)
     }).then((release) => {
       if (disposed) release()
       else unsubscribe = release
     })
     return () => { disposed = true; unsubscribe?.() }
-  }, [options.subscribeDrops, targetId])
+  }, [subscribeDrops, targetId])
 
   const onDragOver: DragEventHandler<HTMLElement> = (event) => {
     event.preventDefault()
     event.stopPropagation()
     event.dataTransfer.dropEffect = "copy"
+    setDragging(true)
   }
   const onDrop: DragEventHandler<HTMLElement> = (event) => {
     event.preventDefault()
     event.stopPropagation()
+    setDragging(false)
     if (latestRef.current.disabled) return
     const paths = Array.from(event.dataTransfer.files).flatMap((file) => {
       const path = (file as File & { path?: string }).path?.trim()
@@ -55,11 +66,12 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
   return {
     targetId,
     targetProps: {
-      id: targetId,
       "data-file-drop-target": "local-files",
-      "data-local-file-drop-target": "true",
+      "data-local-file-drop-target": targetId,
       onDragOver,
+      onDragLeave: () => setDragging(false),
       onDrop,
     },
+    dragging,
   }
 }

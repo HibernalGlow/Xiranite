@@ -14,7 +14,7 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
@@ -119,7 +119,7 @@ function Header(props: ViewProps) {
 }
 function SourceControl(props: ViewProps) {
   const { t } = useNodeI18n("samea")
-  return <section className="flex min-h-0 flex-1 flex-col border bg-card p-3"><SectionTitle icon={FolderInput} title={t("sections.sourceControl", "来源控制")} /><label className="mt-3 text-xs text-muted-foreground">{t("source.ingestionLabel", "摄入路径（按行分隔）")}</label><div className="mt-1 flex min-h-24 flex-1 gap-1"><Textarea aria-label="samea paths" className="min-h-24 resize-none font-mono text-xs" placeholder={t("source.placeholder", "D:/Archives/Unsorted\nE:/Staging/New")} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} /><Tooltip><TooltipTrigger asChild><Button aria-label={t("source.pastePaths", "粘贴路径")} size="icon-sm" variant="outline" onClick={props.onPaste}><Clipboard /></Button></TooltipTrigger><TooltipContent>{t("source.pastePaths", "粘贴路径")}</TooltipContent></Tooltip></div><Field className="mt-3 border px-2 py-1.5"><FieldContent><FieldTitle className="text-xs">{t("source.ignorePathBlacklist", "忽略路径黑名单")}</FieldTitle></FieldContent><Switch checked={props.data.ignorePathBlacklist ?? false} size="sm" onCheckedChange={(ignorePathBlacklist) => props.onPatch({ ignorePathBlacklist })} /></Field></section>
+  return <section className="flex min-h-0 flex-1 flex-col border bg-card p-3"><SectionTitle icon={FolderInput} title={t("sections.sourceControl", "来源控制")} /><label className="mt-3 text-xs text-muted-foreground">{t("source.ingestionLabel", "摄入路径（按行分隔）")}</label><div className="mt-1 flex min-h-24 flex-1 gap-1"><PathTextarea aria-label="samea paths" className="min-h-24 resize-none font-mono text-xs" placeholder={t("source.placeholder", "D:/Archives/Unsorted\nE:/Staging/New")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} /><Tooltip><TooltipTrigger asChild><Button aria-label={t("source.pastePaths", "粘贴路径")} size="icon-sm" variant="outline" onClick={props.onPaste}><Clipboard /></Button></TooltipTrigger><TooltipContent>{t("source.pastePaths", "粘贴路径")}</TooltipContent></Tooltip></div><Field className="mt-3 border px-2 py-1.5"><FieldContent><FieldTitle className="text-xs">{t("source.ignorePathBlacklist", "忽略路径黑名单")}</FieldTitle></FieldContent><Switch checked={props.data.ignorePathBlacklist ?? false} size="sm" onCheckedChange={(ignorePathBlacklist) => props.onPatch({ ignorePathBlacklist })} /></Field></section>
 }
 function OperationGate(props: ViewProps) {
   const { t } = useNodeI18n("samea")

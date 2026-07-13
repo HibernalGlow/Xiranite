@@ -18,7 +18,7 @@ describe("useLocalFileDrop", () => {
     await waitFor(() => expect(handlers.size).toBe(2))
 
     const second = screen.getByTestId("second")
-    handlers.get(second.id)?.(["D:/images/second.png"])
+    handlers.get(second.getAttribute("data-local-file-drop-target")!)?.(["D:/images/second.png"])
 
     expect(screen.getByTestId("first-value").textContent).toBe("")
     await waitFor(() => expect(screen.getByTestId("second-value").textContent).toBe("D:/images/second.png"))

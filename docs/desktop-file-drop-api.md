@@ -20,6 +20,11 @@ const drop = useLocalFileDrop({
 return <div {...drop.targetProps}>Drop files here</div>
 ```
 
+Ordinary path fields should use `PathInput` or `PathTextarea` instead of the
+hook directly. These controls support manual editing, native path drops,
+append/replace behavior, deduplication, extension filters, and drag feedback.
+`ModuleRenderer` provides the active local-files capability automatically.
+
 When adding another desktop shell, implement `NativeFileDropRuntime` in its adapter. Do not add shell detection or runtime imports to node components.
 
 ## Audit

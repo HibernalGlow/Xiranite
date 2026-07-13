@@ -7,11 +7,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { PathInput, PathTextarea } from "@/components/ui/path-input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -487,27 +486,28 @@ function PathsInput(props: {
     <div className="flex min-w-0 flex-col gap-1.5">
       {props.compact ? (
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-          <Input
+          <PathInput
             id="audiov-paths-compact"
             aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
             disabled={props.disabled}
             className="font-mono text-xs"
             placeholder={props.t("paths.compactPlaceholder", "每行一个视频文件路径")}
             value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+            dropMode="append"
+            onValueChange={(pathsText) => props.onPatch({ pathsText })}
           />
           <ActionIconButton disabled={props.disabled} icon={Clipboard} label={props.t("buttons.pastePaths", "粘贴路径")} onClick={props.onPaste} />
         </div>
       ) : (
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-          <Textarea
+          <PathTextarea
             id="audiov-paths-compact"
             aria-label={props.t("aria.videoPaths", "audiov 视频路径")}
             disabled={props.disabled}
             className="min-h-20 font-mono text-xs"
             placeholder={props.t("paths.placeholder", "每行一个视频文件路径，例如：\nD:/Video/clip1.mp4\nD:/Video/clip2.mkv")}
             value={props.data.pathsText ?? ""}
-            onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+            onValueChange={(pathsText) => props.onPatch({ pathsText })}
           />
           <ActionIconButton disabled={props.disabled} icon={Clipboard} label={props.t("buttons.pastePaths", "粘贴路径")} onClick={props.onPaste} />
         </div>

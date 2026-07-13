@@ -218,9 +218,10 @@ describe("app-owned lorat Component", () => {
     render(<Component compId="comp-lorat" host={host} />)
     await userEvent.setup().click(screen.getByRole("tab", { name: "收集" }))
     const target = screen.getByTestId("lorat-collection-model-drop")
-    await waitFor(() => expect(handlers.has(target.id)).toBe(true))
+    const targetId = target.getAttribute("data-local-file-drop-target")!
+    await waitFor(() => expect(handlers.has(targetId)).toBe(true))
 
-    handlers.get(target.id)?.(["D:/Downloads/native_style.safetensors"])
+    handlers.get(targetId)?.(["D:/Downloads/native_style.safetensors"])
 
     await waitFor(() => expect(screen.getByText("native_style.safetensors")).toBeTruthy())
     expect(host.state.collectionItems?.[0]?.sourcePath).toBe("D:/Downloads/native_style.safetensors")

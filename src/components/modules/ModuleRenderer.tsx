@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
 import { packageModuleLoaders } from "./packageModules.generated"
+import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -122,7 +123,9 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
   return (
     <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden">
       <NodeRenderBoundary moduleId={moduleId}>
-        <Component compId={compId} host={host} />
+        <LocalFilesProvider value={host.localFiles}>
+          <Component compId={compId} host={host} />
+        </LocalFilesProvider>
       </NodeRenderBoundary>
     </div>
   )

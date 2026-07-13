@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -322,7 +322,7 @@ function PathInput(props: { compact?: boolean; data: SynctCardState; disabled?: 
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="synct-paths" className="text-xs">{tNode("synct", "labels.sourcePaths", "源路径")}</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea id="synct-paths" aria-label="synct paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={tNode("synct", "placeholder.paths", "每行一个文件或文件夹\nD:/downloads")} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+        <PathTextarea id="synct-paths" aria-label="synct paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={tNode("synct", "placeholder.paths", "每行一个文件或文件夹\nD:/downloads")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={tNode("synct", "actions.pastePaths", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={tNode("synct", "actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
     </div>

@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
@@ -356,7 +356,7 @@ function PathInput(props: { compact?: boolean; data: NameuCardState; disabled?: 
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="nameu-paths" className="text-xs">库目录或艺术家目录</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea id="nameu-paths" aria-label="nameu paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"每行一个目录\nD:/archives"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+        <PathTextarea id="nameu-paths" aria-label="nameu paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"每行一个目录\nD:/archives"} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label="粘贴路径" onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="清空路径" onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
     </div>

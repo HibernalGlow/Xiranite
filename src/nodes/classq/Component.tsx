@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tree, type TreeViewElement } from "@/components/ui/file-tree"
@@ -464,7 +464,7 @@ function RootInput(props: { compact?: boolean; data: ClassqCardState; disabled?:
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="classq-roots" className="text-xs">Root directories</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea id="classq-roots" aria-label="classq roots" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"One root directory per line\nD:/set"} value={props.data.pathsText ?? ""} onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })} />
+        <PathTextarea id="classq-roots" aria-label="classq roots" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={"One root directory per line\nD:/set"} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label="Paste roots" onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label="Clear roots" onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
     </div>

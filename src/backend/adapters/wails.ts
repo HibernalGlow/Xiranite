@@ -195,9 +195,15 @@ class WailsFileDropRuntime implements NativeFileDropRuntime {
       const files = Array.isArray(rawFiles)
         ? rawFiles.filter((path): path is string => typeof path === "string" && path.length > 0)
         : []
-      const targetId = details && typeof details === "object" && typeof (details as { id?: unknown }).id === "string"
-        ? (details as { id: string }).id
+      const attributes = details && typeof details === "object" ? (details as { attributes?: unknown }).attributes : undefined
+      const localTarget = attributes && typeof attributes === "object"
+        ? (attributes as Record<string, unknown>)["data-local-file-drop-target"]
         : undefined
+      const targetId = typeof localTarget === "string"
+        ? localTarget
+        : details && typeof details === "object" && typeof (details as { id?: unknown }).id === "string"
+          ? (details as { id: string }).id
+          : undefined
       if (files.length) handler({ files, targetId })
     })
   }

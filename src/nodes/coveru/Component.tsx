@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { PathTextarea } from "@/components/ui/path-input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -366,14 +366,14 @@ function PathInput(props: { compact?: boolean; data: CoveruCardState; disabled?:
     <div className="grid gap-1.5">
        {!props.compact && <Label htmlFor="coveru-paths" className="text-xs">{tNode("coveru", "fields.paths.label", "归档、图片或目录")}</Label>}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <Textarea
+        <PathTextarea
           id="coveru-paths"
            aria-label={tNode("coveru", "aria.paths", "coveru paths")}
           className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")}
           disabled={props.disabled}
            placeholder={tNode("coveru", "fields.paths.placeholder", "每行一个 ZIP/CBZ、图片或目录\nD:/archives/book.zip")}
           value={props.data.pathsText ?? ""}
-          onChange={(event) => props.onPatch({ pathsText: event.currentTarget.value })}
+          onValueChange={(pathsText) => props.onPatch({ pathsText })}
         />
         <div className="grid content-start gap-1.5">
            <IconButton disabled={props.disabled} icon={Clipboard} label={tNode("coveru", "actions.pastePaths", "粘贴路径")} onClick={props.onPaste} />
