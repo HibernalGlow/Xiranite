@@ -11,7 +11,7 @@ import {
   writeLine,
   runGuidedInteraction,
 } from "@xiranite/cli-runtime"
-import type { CliHost } from "@xiranite/cli-runtime"
+import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
@@ -22,6 +22,7 @@ import { createGitalsoInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 
 const CLI_NAME = "also"
+export const cli: CliCommand = { name: CLI_NAME, description: "Repository workbench and commit-message assistant.", run: (args, host) => runProgram(args, host) }
 
 interface DinyNodeConfig extends CliInteractionPreferencesSource {
   diny_path?: string

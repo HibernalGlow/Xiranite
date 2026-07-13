@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { runJellyPot } from "./core.js"
 import { createNodeJellyPotRuntime } from "./platform.js"
-import { createCliHost, runGuidedInteraction, writeLine, type CliHost } from "@xiranite/cli-runtime"
+import { createCliHost, runGuidedInteraction, writeLine, type CliCommand, type CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
@@ -42,6 +42,7 @@ async function runPipeProgram(args = process.argv.slice(2)): Promise<void> {
   else console.log(result.message)
   if (!result.success) process.exitCode = 1
 }
+export const cli: CliCommand = { name: "xjellypot", description: "Jellyfin and PotPlayer media bridge.", run: (args, host) => runProgram(args, host) }
 
 export async function runProgram(args=process.argv.slice(2),host:CliHost=createCliHost()):Promise<void>{
   await runInteractionCli({args,host,cliName:"xjellypot",

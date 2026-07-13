@@ -42,6 +42,7 @@
     "audit:node-tests": "bun scripts/audit-node-tests.ts",
     "audit:node-ui-quality": "bun scripts/audit-node-ui-quality.ts",
     "audit:node-runtime-risks": "bun scripts/audit-node-runtime-risks.ts",
+    "audit:tui": "node --experimental-strip-types scripts/audit-node-tuis.ts",
     "audit:build-chunks": "bun scripts/audit-build-chunks.ts",
     "qa:card": "bun scripts/qa-card.ts",
     "qa:node-baselines": "bun scripts/capture-node-gui-baselines.ts",

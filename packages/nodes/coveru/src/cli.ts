@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { hasPipedInput, readStdinLines, runGuidedInteraction } from "@xiranite/cli-runtime"
+import { hasPipedInput, readStdinLines, runGuidedInteraction, writeJson, writeLine } from "@xiranite/cli-runtime"
+import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints } from "@xiranite/config"
@@ -17,31 +18,33 @@ interface CoveruNodeConfig extends CliInteractionPreferencesSource {
   dry_run?: boolean
   preferred_names?: string[]
 }
+const CLI_NAME = "xcoveru"
+export const cli: CliCommand = { name: CLI_NAME, description: "Archive cover scanner and extractor.", run: (args, host) => runProgram(args, host) }
 
-export async function runProgram(args = process.argv.slice(2)): Promise<void> {
+export async function runProgram(args = process.argv.slice(2), host: CliHost = defaultHost()): Promise<void> {
   await runInteractionCli({
     args,
-    host: { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr },
-    cliName: "xcoveru",
-    loadContext: async () => { const { config } = await loadNodeConfigWithHints<CoveruNodeConfig>("coveru", { hintSink: { stderr: process.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
+    host,
+    cliName: CLI_NAME,
+    loadContext: async () => { const { config } = await loadNodeConfigWithHints<CoveruNodeConfig>("coveru", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
     createDefinition: (defaults, language) => ({ schema: createCoveruInteractionSchema({ outputDir: defaults.output_dir, outputMode: defaults.output_mode, overwrite: defaults.overwrite, recursive: defaults.recursive, dryRun: defaults.dry_run, preferred: defaults.preferred_names?.join(", ") }, language), run: (input, event) => runCoveru(input, createNodeCoveruRuntime(), event) }),
-    runPipe: async (pipeArgs) => await runLegacy(pipeArgs), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).CoveruTui,
+    runPipe: async (pipeArgs, pipeHost) => await runLegacy(pipeArgs, pipeHost), runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).CoveruTui,
     createPreferences: (_d, current) => coveruPreferences(current), reexecEntrypoint: process.argv[1], help,
   })
 }
 
-async function runLegacy(args: string[]): Promise<void> {
+async function runLegacy(args: string[], host: CliHost): Promise<void> {
   const json = args.includes("--json")
   const action = args.includes("extract") ? "extract" : args.includes("plan") ? "plan" : "scan"
   const { config } = await loadNodeConfigWithHints<CoveruNodeConfig>("coveru", {
-    hintSink: { stderr: process.stderr },
+    env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr },
     jsonMode: json,
   })
   let paths = pathArgs(args)
   if (paths.includes("-")) {
-    paths = paths.filter((p) => p !== "-").concat(await readStdinLines())
-  } else if (paths.length === 0 && hasPipedInput()) {
-    paths = await readStdinLines()
+    paths = paths.filter((p) => p !== "-").concat(await readStdinLines(host.stdin))
+  } else if (paths.length === 0 && hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)) {
+    paths = await readStdinLines(host.stdin)
   }
   const input: CoveruInput = {
     action,
@@ -54,8 +57,8 @@ async function runLegacy(args: string[]): Promise<void> {
     preferredNames: listValue(valueFor(args, "--preferred")) ?? config?.preferred_names,
   }
   const result = await runCoveru(input, createNodeCoveruRuntime())
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else console.log(result.message)
+  if (json) writeJson(host, result)
+  else writeLine(host, result.message)
   if (!result.success) process.exitCode = 1
 }
 
@@ -78,3 +81,4 @@ function listValue(value: string | undefined): string[] | undefined {
   const items = value?.split(",").map((item) => item.trim()).filter(Boolean)
   return items?.length ? items : undefined
 }
+function defaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
