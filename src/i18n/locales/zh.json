@@ -3991,6 +3991,11 @@
           "shortLabel": "状态",
           "description": "加载 SmartZip 配置，列出归档扩展名和密码。"
         },
+        "inspectCodepage": {
+          "label": "预检文件名编码",
+          "shortLabel": "预检编码",
+          "description": "读取 ZIP 原始文件名字节，展示候选代码页、置信度和对应预览。"
+        },
         "extract": {
           "label": "解压归档",
           "shortLabel": "解压",
@@ -4047,6 +4052,8 @@
       },
       "tabs": {
         "command": "命令",
+        "encoding": "编码预检",
+        "tree": "文件树",
         "config": "配置",
         "logs": "日志"
       },
@@ -4118,9 +4125,31 @@
       },
       "hints": {
         "directActions": "输入路径后直接选择动作，不需要先切换模式。",
-        "codePage": "旧归档没有 UTF-8 文件名元数据时，会通过 -mcp 把该代码页传给 7-Zip。",
+        "codePage": "自动模式会预检原始文件名字节并推荐代码页；也可以根据候选预览手动覆盖。",
         "pathsHelp": "归档或目录，每行一条。状态查看不需要路径。",
         "pathsDescription": "每行一条路径，支持 .zip .7z .rar .tar 等。"
+      },
+      "encoding": {
+        "recommended": "推荐",
+        "empty": "等待编码预检",
+        "emptyDescription": "点击“预检文件名编码”后，这里会显示各代码页对应的文件名预览。"
+      },
+      "tree": {
+        "expand": "展开",
+        "empty": "等待文件树",
+        "emptyDescription": "运行编码预检后会读取归档成员并显示目录结构。"
+      },
+      "passwords": {
+        "title": "密码列表",
+        "show": "显示密码",
+        "hide": "隐藏密码",
+        "add": "添加密码",
+        "item": "归档密码 {{index}}",
+        "remove": "删除密码 {{index}}",
+        "moveUp": "上移密码 {{index}}",
+        "moveDown": "下移密码 {{index}}",
+        "empty": "暂无额外密码；仍会读取 SmartZip.ini 的 [password]。",
+        "hint": "按顺序尝试。新增、修改、删除和排序会自动保存；密码不会写入日志或结果。"
       }
     },
     "snf": {

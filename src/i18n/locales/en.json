@@ -3964,6 +3964,11 @@
           "shortLabel": "Status",
           "description": "Load SmartZip config, list archive extensions and passwords."
         },
+        "inspectCodepage": {
+          "label": "Inspect filename encoding",
+          "shortLabel": "Inspect encoding",
+          "description": "Read raw ZIP filename bytes and preview every candidate codepage with confidence."
+        },
         "extract": {
           "label": "Extract archives",
           "shortLabel": "Extract",
@@ -4020,6 +4025,8 @@
       },
       "tabs": {
         "command": "Command",
+        "encoding": "Encoding preview",
+        "tree": "File tree",
         "config": "Config",
         "logs": "Logs"
       },
@@ -4091,9 +4098,31 @@
       },
       "hints": {
         "directActions": "Enter paths and run an action directly—there is no mode-selection step.",
-        "codePage": "For legacy archives without UTF-8 filename metadata, this code page is passed to 7-Zip with -mcp.",
+        "codePage": "Auto mode inspects raw filename bytes and recommends a codepage; choose another candidate after reviewing its preview.",
         "pathsHelp": "Archives or directories, one per line. Status does not need paths.",
         "pathsDescription": "One path per line, supports .zip .7z .rar .tar etc."
+      },
+      "encoding": {
+        "recommended": "Recommended",
+        "empty": "Waiting for encoding inspection",
+        "emptyDescription": "Run “Inspect filename encoding” to compare filename previews for each candidate codepage."
+      },
+      "tree": {
+        "expand": "Expand",
+        "empty": "Waiting for file tree",
+        "emptyDescription": "Run encoding inspection to list archive members and show their directory structure."
+      },
+      "passwords": {
+        "title": "Password list",
+        "show": "Show passwords",
+        "hide": "Hide passwords",
+        "add": "Add password",
+        "item": "Archive password {{index}}",
+        "remove": "Remove password {{index}}",
+        "moveUp": "Move password {{index}} up",
+        "moveDown": "Move password {{index}} down",
+        "empty": "No extra passwords; SmartZip.ini [password] entries are still loaded.",
+        "hint": "Tried in order. Create, update, delete, and reorder operations save automatically; passwords are never written to logs or results."
       }
     },
     "snf": {
