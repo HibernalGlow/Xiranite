@@ -11,13 +11,14 @@
     "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
     "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
     "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
+    "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
     "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }
   },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src"
+    "test": "vitest run src --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",
