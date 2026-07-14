@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract";
 import type {
   ScoolpAction,
@@ -80,10 +80,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const action = data.action ?? "status";
   const actionMeta = getActionMeta(action);
   const dryRun = data.dryRun ?? true;
-  const packagesArray = useMemo(
-    () => splitPackages(data.packages),
-    [data.packages],
-  );
+  const packagesArray = splitPackages(data.packages);
   const status = statusFromState(data, running);
   const compactSurface =
     surface.mode === "compact" || surface.mode === "portrait";

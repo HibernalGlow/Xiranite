@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SameaAction, SameaData, SameaInput, SameaPlanItem } from "@xiranite/node-samea/core"
 import { AlertTriangle, Archive, Bot, CheckCircle2, Clipboard, Copy, FileArchive, FolderInput, ListTree, Play, RotateCcw, ScanSearch, ShieldAlert, SlidersHorizontal, Terminal, Trash2, UserRound, X, XCircle } from "lucide-react"
@@ -39,7 +39,7 @@ export function Component({ compId, host }: NodeComponentProps<SameaCardState>) 
   const [filterTab, setFilterTab] = useState<SameaFilterTab>("artist")
   const [draftFilter, setDraftFilter] = useState("")
   const [defaults, setDefaults] = useState<Partial<SameaCardState>>()
-  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const paths = splitLines(data.pathsText)
   const result = data.result ?? null
   const action = data.action ?? "plan"
   const compact = surface.mode === "compact" || surface.mode === "portrait"

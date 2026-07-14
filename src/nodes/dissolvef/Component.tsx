@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { DissolvefConflictMode, DissolvefData, DissolvefInput } from "@xiranite/node-dissolvef/core"
 import { Eye, History, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
@@ -42,13 +42,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   const direct = data.direct ?? false
   const preview = data.preview ?? true
   const threshold = data.similarityThreshold ?? DEFAULT_THRESHOLD
-  const selectedModes = useMemo(() => {
-    const modes: string[] = []
-    if (nested && !direct) modes.push("nested")
-    if (media && !direct) modes.push("media")
-    if (archive && !direct) modes.push("archive")
-    return modes
-  }, [nested, media, archive, direct])
+  const selectedModes: string[] = []
+  if (nested && !direct) selectedModes.push("nested")
+  if (media && !direct) selectedModes.push("media")
+  if (archive && !direct) selectedModes.push("archive")
   const status = statusFromState(data, running, result)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
