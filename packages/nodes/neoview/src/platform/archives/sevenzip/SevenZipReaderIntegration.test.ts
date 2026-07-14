@@ -20,6 +20,7 @@ const ONE_PIXEL_PNG = Buffer.from(
 )
 let directory = ""
 let archivePath = ""
+let solidArchivePath = ""
 
 beforeAll(async () => {
   if (!executable) return
@@ -29,8 +30,12 @@ beforeAll(async () => {
   await writeFile(join(directory, "pages", "2.png"), ONE_PIXEL_PNG)
   await writeFile(join(directory, "pages", "readme.txt"), "not a page")
   archivePath = join(directory, "reader-fixture.cb7")
+  solidArchivePath = join(directory, "reader-solid.cb7")
   await execFileAsync(executable.path, [
     "a", "-t7z", "-mx=1", "-ms=off", "-bd", "-bb0", "--", archivePath, "pages",
+  ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
+  await execFileAsync(executable.path, [
+    "a", "-t7z", "-mx=1", "-ms=on", "-bd", "-bb0", "--", solidArchivePath, "pages",
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
 })
 
@@ -65,6 +70,32 @@ describe.skipIf(!executable)("CB7 reader system integration", () => {
       expect(response.status).toBe(200)
       expect(response.headers.get("content-type")).toBe("image/png")
       expect(response.headers.has("accept-ranges")).toBe(false)
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+    } finally {
+      route.close()
+      await service[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.sevenzip.solid-reader-e2e] reads a solid CB7 through the same Reader Core route", async () => {
+    const service = new CoreReaderService(
+      createPlatformReaderBookLoader(),
+      new StreamingImageMetadataProbe(),
+    )
+    const route = new ReaderAssetRoute(service, {
+      baseUrl: "http://127.0.0.1:41000",
+      token: "route-token",
+    })
+    try {
+      const session = await service.openViewSource({ kind: "path", path: solidArchivePath })
+      expect(session.book.pages.map((page) => page.entryPath)).toEqual([
+        "pages/2.png",
+        "pages/10.png",
+      ])
+      expect(session.book.pages[0]?.dimensions).toEqual({ width: 1, height: 1 })
+      const page = session.book.pages[1]!
+      const response = (await route.handle(new Request(route.pageUrl(session.id, page.id))))!
+      expect(response.status).toBe(200)
       expect(Buffer.from(await response.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
     } finally {
       route.close()

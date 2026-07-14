@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process"
+import { createReadStream } from "node:fs"
 import { Readable } from "node:stream"
 
 import type {
@@ -9,6 +10,7 @@ import type {
 } from "../../../ports/ArchiveProvider.js"
 import type { ResourceLease, ResourceScheduler } from "../../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../../scheduler/PriorityResourceScheduler.js"
+import { SolidArchiveMaterializer } from "./SolidArchiveMaterializer.js"
 import {
   resolveSevenZipExecutable,
   runSevenZipTextCommand,
@@ -24,6 +26,8 @@ export interface SevenZipArchiveProviderOptions {
   resolveExecutable?: () => Promise<SevenZipExecutable>
   maxListingBytes?: number
   resourceScheduler?: ResourceScheduler
+  solidTempDirectory?: string
+  maxSolidMaterializedBytes?: number
 }
 
 interface ActiveExtraction {
@@ -45,13 +49,17 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
   readonly #resolveExecutable: () => Promise<SevenZipExecutable>
   readonly #maxListingBytes: number
   readonly #resourceScheduler: ResourceScheduler
+  readonly #solidTempDirectory?: string
+  readonly #maxSolidMaterializedBytes?: number
   readonly #lifecycle = new AbortController()
   readonly #active = new Map<number, ActiveExtraction>()
+  readonly #activeFileReads = new Set<Promise<void>>()
   #nextExtractionId = 1
   #entries: ArchiveEntry[] = []
   #entriesById = new Map<string, ArchiveEntry>()
   #executable?: SevenZipExecutable
   #initializing?: Promise<void>
+  #solidMaterializer?: SolidArchiveMaterializer
   #initialized = false
   #closed = false
 
@@ -62,6 +70,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       : options.resolveExecutable ?? (() => resolveSevenZipExecutable())
     this.#maxListingBytes = options.maxListingBytes ?? 64 * 1024 * 1024
     this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
+    this.#solidTempDirectory = options.solidTempDirectory
+    this.#maxSolidMaterializedBytes = options.maxSolidMaterializedBytes
   }
 
   async list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]> {
@@ -83,7 +93,10 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.path}`)
     if (this.capabilities.solid) {
-      throw new Error("Solid RAR/7z streaming requires the sequential pre-extraction provider.")
+      if (this.#entries.some((candidate) => candidate.encrypted) || options.password || options.rawPassword) {
+        throw new Error("Encrypted solid RAR/7z extraction is not available until secure password transport is implemented.")
+      }
+      return this.#openSolidEntry(entry, options.signal)
     }
     if (entry.encrypted || options.password || options.rawPassword) {
       throw new Error("Encrypted RAR/7z streaming is not available until secure password transport is implemented.")
@@ -110,6 +123,8 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     await Promise.allSettled(active.map((extraction) => extraction.cancel(reason)))
     await Promise.allSettled(active.map((extraction) => extraction.completion))
     this.#active.clear()
+    await Promise.allSettled(this.#activeFileReads)
+    await this.#solidMaterializer?.close()
     await this.#initializing?.catch(() => undefined)
     this.#entries = []
     this.#entriesById.clear()
@@ -151,6 +166,25 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     } finally {
       this.#initializing = undefined
     }
+  }
+
+  async #openSolidEntry(entry: ArchiveEntry, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    const combinedSignal = combineSignals(signal, this.#lifecycle.signal)
+    this.#solidMaterializer ??= new SolidArchiveMaterializer({
+      sourcePath: this.sourcePath,
+      executable: this.#executable!,
+      entries: this.#entries,
+      resourceScheduler: this.#resourceScheduler,
+      tempDirectory: this.#solidTempDirectory,
+      maxMaterializedBytes: this.#maxSolidMaterializedBytes,
+    })
+    const path = await this.#solidMaterializer.pathFor(entry.id, combinedSignal)
+    combinedSignal.throwIfAborted()
+    const file = createReadStream(path, { highWaterMark: 64 * 1024, signal: combinedSignal })
+    const completion = new Promise<void>((resolve) => file.once("close", resolve))
+    this.#activeFileReads.add(completion)
+    void completion.finally(() => this.#activeFileReads.delete(completion))
+    return Readable.toWeb(file) as ReadableStream<Uint8Array>
   }
 
   #streamEntry(entry: ArchiveEntry, signal: AbortSignal | undefined, lease: ResourceLease): ReadableStream<Uint8Array> {
@@ -256,4 +290,8 @@ function waitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T
       (error) => { cleanup(); reject(error) },
     )
   })
+}
+
+function combineSignals(first: AbortSignal | undefined, second: AbortSignal): AbortSignal {
+  return first ? AbortSignal.any([first, second]) : second
 }

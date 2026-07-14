@@ -1,0 +1,283 @@
+import { spawn, type ChildProcessByStdio } from "node:child_process"
+import { open, mkdtemp, rm, type FileHandle } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { Readable } from "node:stream"
+
+import type { ArchiveEntry } from "../../../ports/ArchiveProvider.js"
+import type { ResourceScheduler } from "../../../ports/ResourceScheduler.js"
+import { appendCrc32 } from "./incremental-crc32.js"
+import type { SevenZipExecutable } from "./SevenZipExecutable.js"
+
+const MAX_STDERR_BYTES = 256 * 1024
+type SevenZipChild = ChildProcessByStdio<null, Readable, Readable>
+
+interface DeferredPath {
+  promise: Promise<string>
+  resolve(path: string): void
+  reject(error: unknown): void
+  settled: boolean
+}
+
+export interface SolidArchiveMaterializerOptions {
+  sourcePath: string
+  executable: SevenZipExecutable
+  entries: readonly ArchiveEntry[]
+  resourceScheduler: ResourceScheduler
+  tempDirectory?: string
+  maxMaterializedBytes?: number
+}
+
+export class SolidArchiveMaterializer implements AsyncDisposable {
+  readonly #sourcePath: string
+  readonly #executable: SevenZipExecutable
+  readonly #entries: readonly ArchiveEntry[]
+  readonly #resourceScheduler: ResourceScheduler
+  readonly #tempDirectory?: string
+  readonly #lifecycle = new AbortController()
+  readonly #paths = new Map<string, DeferredPath>()
+  readonly #awaitingProcessVerification: Array<{ entryId: string; path: string }> = []
+  #run?: Promise<void>
+  #root?: string
+  #child?: SevenZipChild
+  #closed = false
+
+  constructor(options: SolidArchiveMaterializerOptions) {
+    this.#sourcePath = options.sourcePath
+    this.#executable = options.executable
+    this.#entries = options.entries.filter((entry) => entry.kind === "file")
+    this.#resourceScheduler = options.resourceScheduler
+    this.#tempDirectory = options.tempDirectory
+    const maxMaterializedBytes = options.maxMaterializedBytes ?? 64 * 1024 * 1024 * 1024
+    if (!Number.isSafeInteger(maxMaterializedBytes) || maxMaterializedBytes < 0) {
+      throw new RangeError(`Invalid solid archive materialization budget: ${maxMaterializedBytes}`)
+    }
+    const totalBytes = this.#entries.reduce((total, entry) => total + entry.uncompressedSize, 0)
+    if (totalBytes > maxMaterializedBytes) {
+      throw new Error(`Solid archive requires ${totalBytes} materialized bytes, exceeding the ${maxMaterializedBytes} byte budget.`)
+    }
+    for (const entry of this.#entries) this.#paths.set(entry.id, deferredPath())
+  }
+
+  async pathFor(entryId: string, signal?: AbortSignal): Promise<string> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const target = this.#paths.get(entryId)
+    if (!target) throw new Error(`Solid archive entry was not indexed: ${entryId}`)
+    this.#start()
+    return waitWithSignal(target.promise, signal)
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return
+    this.#closed = true
+    const reason = new Error(`Solid archive materializer is closed: ${this.#sourcePath}`)
+    this.#lifecycle.abort(reason)
+    this.#child?.kill()
+    await this.#run?.catch(() => undefined)
+    this.#rejectPending(reason)
+    if (this.#root) await rm(this.#root, { recursive: true, force: true })
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close()
+  }
+
+  #start(): void {
+    if (this.#run) return
+    this.#run = this.#extract().catch((error) => {
+      this.#rejectPending(error)
+      throw error
+    })
+    void this.#run.catch(() => undefined)
+  }
+
+  async #extract(): Promise<void> {
+    const signal = this.#lifecycle.signal
+    const lease = await this.#resourceScheduler.acquire({
+      resource: "cpu",
+      kind: "neoview.archive-solid-extract",
+      priority: "interactive",
+    }, signal)
+    try {
+      const parent = this.#tempDirectory ?? tmpdir()
+      this.#root = await mkdtemp(join(parent, "xiranite-neoview-solid-"))
+      signal.throwIfAborted()
+      const child = spawn(this.#executable.path, [
+        "x", "-so", "-bd", "-bb0", "-sccUTF-8", "-spd", "--", this.#sourcePath,
+      ], {
+        shell: false,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      })
+      this.#child = child
+      const onAbort = () => child.kill()
+      signal.addEventListener("abort", onAbort, { once: true })
+      try {
+        const [exit, stderr] = await Promise.all([
+          processExit(child),
+          readStderr(child),
+          this.#demultiplex(child.stdout, signal),
+        ]).then(([exit, stderr]) => [exit, stderr] as const)
+        signal.throwIfAborted()
+        if (exit.error) throw exit.error
+        if (exit.code !== 0) throw new Error(stderr.trim() || `7-Zip solid extraction exited with code ${exit.code}.`)
+        for (const pending of this.#awaitingProcessVerification) this.#resolve(pending.entryId, pending.path)
+        this.#awaitingProcessVerification.length = 0
+      } finally {
+        signal.removeEventListener("abort", onAbort)
+        this.#child = undefined
+      }
+    } finally {
+      lease.release()
+    }
+  }
+
+  async #demultiplex(stdout: Readable, signal: AbortSignal): Promise<void> {
+    let entryIndex = 0
+    let handle: FileHandle | undefined
+    let remaining = 0
+    let crc32 = 0
+
+    const finishEntry = async () => {
+      const entry = this.#entries[entryIndex]!
+      const path = join(this.#root!, `${entryIndex.toString().padStart(8, "0")}.entry`)
+      await handle?.close()
+      handle = undefined
+      if (entry.crc32 !== undefined) {
+        if (crc32 !== entry.crc32) {
+          throw new Error(`Solid archive CRC mismatch for ${entry.path}: expected ${hexCrc32(entry.crc32)}, received ${hexCrc32(crc32)}.`)
+        }
+        this.#resolve(entry.id, path)
+      } else {
+        this.#awaitingProcessVerification.push({ entryId: entry.id, path })
+      }
+      entryIndex += 1
+    }
+
+    const prepareEntry = async () => {
+      while (entryIndex < this.#entries.length) {
+        signal.throwIfAborted()
+        const entry = this.#entries[entryIndex]!
+        const path = join(this.#root!, `${entryIndex.toString().padStart(8, "0")}.entry`)
+        handle = await open(path, "wx")
+        remaining = entry.uncompressedSize
+        crc32 = 0
+        if (remaining > 0) return
+        await finishEntry()
+      }
+    }
+
+    try {
+      await prepareEntry()
+      for await (const chunk of stdout) {
+        signal.throwIfAborted()
+        const bytes = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk as Uint8Array
+        let offset = 0
+        while (offset < bytes.byteLength) {
+          if (!handle || entryIndex >= this.#entries.length) {
+            throw new Error("7-Zip solid extraction emitted more bytes than its index declares.")
+          }
+          const length = Math.min(remaining, bytes.byteLength - offset)
+          const slice = bytes.subarray(offset, offset + length)
+          await writeAll(handle, slice)
+          if (this.#entries[entryIndex]!.crc32 !== undefined) crc32 = appendCrc32(slice, crc32)
+          offset += length
+          remaining -= length
+          if (remaining === 0) {
+            await finishEntry()
+            await prepareEntry()
+          }
+        }
+      }
+      if (entryIndex !== this.#entries.length || remaining !== 0) {
+        throw new Error(`7-Zip solid extraction ended before entry ${entryIndex + 1} of ${this.#entries.length}.`)
+      }
+    } catch (error) {
+      this.#child?.kill()
+      throw error
+    } finally {
+      await handle?.close().catch(() => undefined)
+    }
+  }
+
+  #resolve(entryId: string, path: string): void {
+    const deferred = this.#paths.get(entryId)
+    if (!deferred || deferred.settled) return
+    deferred.settled = true
+    deferred.resolve(path)
+  }
+
+  #rejectPending(error: unknown): void {
+    for (const deferred of this.#paths.values()) {
+      if (deferred.settled) continue
+      deferred.settled = true
+      deferred.reject(error)
+    }
+  }
+
+  #assertOpen(): void {
+    if (this.#closed) throw new Error(`Solid archive materializer is closed: ${this.#sourcePath}`)
+  }
+}
+
+function deferredPath(): DeferredPath {
+  let resolve!: (path: string) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<string>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  void promise.catch(() => undefined)
+  return { promise, resolve, reject, settled: false }
+}
+
+function hexCrc32(value: number): string {
+  return value.toString(16).toUpperCase().padStart(8, "0")
+}
+
+async function writeAll(handle: FileHandle, bytes: Uint8Array): Promise<void> {
+  let offset = 0
+  while (offset < bytes.byteLength) {
+    const { bytesWritten } = await handle.write(bytes, offset)
+    if (bytesWritten <= 0) throw new Error("Solid archive materialization could not make forward write progress.")
+    offset += bytesWritten
+  }
+}
+
+function processExit(child: SevenZipChild): Promise<{ code: number | null; error?: Error }> {
+  return new Promise((resolve) => {
+    child.once("error", (error) => resolve({ code: null, error }))
+    child.once("close", (code) => resolve({ code }))
+  })
+}
+
+async function readStderr(child: SevenZipChild): Promise<string> {
+  const decoder = new TextDecoder()
+  let bytes = 0
+  let output = ""
+  for await (const chunk of child.stderr) {
+    const data = typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk as Uint8Array
+    bytes += data.byteLength
+    if (bytes > MAX_STDERR_BYTES) {
+      child.kill()
+      throw new Error(`7-Zip stderr exceeded ${MAX_STDERR_BYTES} bytes.`)
+    }
+    output += decoder.decode(data, { stream: true })
+  }
+  return output + decoder.decode()
+}
+
+function waitWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  signal.throwIfAborted()
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => { cleanup(); reject(signal.reason) }
+    const cleanup = () => signal.removeEventListener("abort", onAbort)
+    signal.addEventListener("abort", onAbort, { once: true })
+    promise.then(
+      (value) => { cleanup(); resolve(value) },
+      (error) => { cleanup(); reject(error) },
+    )
+  })
+}
