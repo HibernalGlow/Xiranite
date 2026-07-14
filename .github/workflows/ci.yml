@@ -58,6 +58,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck:app
 
+      - name: Build node packages
+        run: bun run build:nodes
+
       - name: Build packages
         run: bun run build:packages:turbo
 

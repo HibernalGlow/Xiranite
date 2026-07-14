@@ -62,6 +62,9 @@ jobs:
       - name: Generate node registries
         run: bun run generate:node-registries
 
+      - name: Build node packages
+        run: bun run build:nodes
+
       - name: Build packages
         run: bun run build:packages:turbo
 
