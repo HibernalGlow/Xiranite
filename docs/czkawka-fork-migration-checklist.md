@@ -214,7 +214,7 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | D03 | `[x]` | 格式体积分布 | bar chart 与过滤后数据联动 |
 | D04 | `[-]` | 相似度分布 | 图片等级/差异区间已完成；native 视频 DTO 尚无距离值 |
 | D05 | `[x]` | 选择统计 | 数量、体积、回收空间实时联动 |
-| D06 | `[ ]` | 浮动分析面板 | 可移动/缩放且不超出节点卡片可视区域 |
+| D06 | `[x]` | 浮动分析面板 | 可移动/缩放且不超出节点卡片可视区域 |
 | D07 | `[x]` | 统一卡片注册表 | 设置、预览、分析、日志可由 registry 组合 |
 | D08 | `[x]` | 卡片可见/折叠/高度 | 配置持久化 |
 | D09 | `[x]` | 卡片拖动排序和跨面板移动 | 键盘/鼠标可访问，顺序持久化 |
@@ -225,6 +225,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 活动日志证据（2026-07-15）：`packages/nodes/czkawka/src/activity-log.ts` 定义与 UI 无关的扫描/进度/操作/系统日志、四级状态、200 条有界历史、过滤、序列化和跨端文本格式。GUI 将扫描开始、所有 progress/log 事件、停止/完成/错误以及删除/移动/导出结果写入节点 `activityLog`，查看器支持按工具/级别/操作/消息过滤、复制全文和清空；CLI 与 OpenTUI 复用同一消息格式化函数。Czkawka 包 46 项 Vitest、1 项 OpenTUI Bun 测试、GUI 日志/节点 11 项测试和 TS 构建通过。
 
 卡片系统证据（2026-07-15）：`packages/nodes/czkawka/src/card-layout.ts` 提供六张卡片的注册表、`source`/`analysis` 面板、版本 1 布局、缺失卡片迁移、可见/折叠/高度边界、顺序与跨面板移动；不依赖 React 或 dnd 库。GUI 的 `CzkawkaCardStack` 实际组合扫描设置、固定预览、统计、日志、选择和文件操作卡片；头部管理器可切换可见性、面板归属和恢复默认布局。卡片原生 drag/drop 支持同面板排序和跨面板移动，同时提供上移/下移按钮；高度 range、折叠标题、管理器操作均具备可访问名称。所有变化同步写入节点 `cardLayout`，纯模型 4 项测试和 GUI/宿主持久化测试覆盖顺序、高度、折叠、隐藏及跨面板拖动。
+
+浮动面板证据（2026-07-15）：`packages/nodes/czkawka/src/floating-panel.ts` 以节点 surface 而非浏览器窗口作为 viewport，纯函数处理默认位置、持久化状态归一化、移动、八方向缩放、正常最小/最大尺寸以及小节点降级。`CzkawkaFloatingAnalysisPanel` 复用 analysis 卡片栈，打开时固定分析列让出空间；标题支持指针拖动和方向键移动，八个可访问 separator 支持缩放，Alt+方向键提供键盘缩放。状态写入 `floatingAnalysisPanel`，节点尺寸缩小时渲染期重新约束；4 项几何测试及 GUI/宿主测试覆盖四边裁剪、东南/西北缩放、小 surface、持久化移动/缩放与关闭。除 D04 的视频距离字段外，M5 其余项目均已完成。
 
 ## 11. 布局、设置与桌面体验
 

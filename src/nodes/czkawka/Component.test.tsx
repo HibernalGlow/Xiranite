@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CzkawkaData, CzkawkaInput } from "@xiranite/node-czkawka/core"
@@ -149,6 +149,31 @@ describe("Czkawka node", () => {
     fireEvent.click(screen.getByRole("button", { name: "管理卡片" }))
     fireEvent.click(screen.getByRole("button", { name: "隐藏统计分析" }))
     expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.visible).toBe(false)
+  })
+
+  test("persists a movable and resizable analysis panel inside the node surface", () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开浮动分析面板" }))
+    expect(host.stateValue.floatingAnalysisPanel?.open).toBe(true)
+    const panel = screen.getByTestId("czkawka-floating-analysis")
+    const controls = within(panel)
+    const moveHandle = controls.getByLabelText("移动浮动分析面板")
+    const initialX = host.stateValue.floatingAnalysisPanel!.rect.x
+    fireEvent.keyDown(moveHandle, { key: "ArrowLeft" })
+    expect(host.stateValue.floatingAnalysisPanel!.rect.x).toBe(initialX - 12)
+
+    const resize = controls.getByRole("separator", { name: "从se方向调整浮动分析面板" })
+    fireEvent.pointerDown(resize, { pointerId: 9, clientX: 0, clientY: 0 })
+    fireEvent.pointerMove(resize, { pointerId: 9, clientX: 5000, clientY: 5000 })
+    fireEvent.pointerUp(resize, { pointerId: 9 })
+    const rect = host.stateValue.floatingAnalysisPanel!.rect
+    expect(rect.x + rect.width).toBeLessThanOrEqual(1192)
+    expect(rect.y + rect.height).toBeLessThanOrEqual(752)
+
+    fireEvent.click(controls.getByRole("button", { name: "关闭浮动分析面板" }))
+    expect(host.stateValue.floatingAnalysisPanel?.open).toBe(false)
+    expect(screen.queryByTestId("czkawka-floating-analysis")).toBeNull()
   })
 
   test("keeps per-tool selection history synchronized with the result table", async () => {
