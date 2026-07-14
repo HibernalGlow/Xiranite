@@ -71,6 +71,41 @@ bun run migrate:tauri -- generate `
 
 319 个命令暴露了当前边界过碎和版本并存的问题。目标公开接口应收敛到约 10～15 个稳定的 reader 操作，其余成为包内服务调用。
 
+### 3.1 AST 迁移工具是开工第一步
+
+真正开始迁移时，第一项动作必须是运行 `packages/tauri-migrate`，而不是先手工创建 React 组件或凭印象重写 Rust。当前已经生成过 `artifacts/tauri-migration/neoview-baseline`，但正式实现前仍要对冻结的 NeoView 源版本重新生成并审计：
+
+```powershell
+bun run migrate:tauri -- generate `
+  "D:\1VSCODE\Projects\ImageAll\NeeWaifu\neoview\neoview-tauri" `
+  --out "artifacts\tauri-migration\neoview-baseline" `
+  --force
+```
+
+使用 `--force` 前必须确认目标确实是工具生成目录。Phase 0 同时记录源仓库 commit、dirty diff hash、迁移工具版本和生成时间，保证后续可以判断源项目又新增了哪些 command 或能力。
+
+AST 阶段的交付物用途：
+
+| 产物 | 迁移用途 |
+| --- | --- |
+| `inventory.json` | 319 个 command、参数、返回值、state、事件、调用和 native evidence 的机器清单 |
+| `commands.ts` | 旧 Tauri 边界的 TS 类型草稿，用于兼容 adapter 和测试 fixture，不直接作为最终公开 API |
+| `adapter.ts` | 隔离旧 invoke 调用，辅助前端结构迁移和行为对照 |
+| `REPORT.md` | 人工审计 native/manual-review、未注册 command、事件和高风险依赖 |
+
+正确顺序是：
+
+1. AST 生成并冻结旧系统事实；
+2. 人工审查 `typescript-portable/native-required/manual-review`，补 project override；
+3. 将 command、UI、设置和数据模块归并进 `feature-compatibility.json`；
+4. 基于旧契约建立 characterization/conformance tests；
+5. 把 319 个旧 command 收口为约 10～15 个 ReaderService 操作；
+6. 再实现 TS application/platform 和最小 React 纵切。
+
+`applyStructuralRewrites` 只用于同语言的确定性改写，例如前端 Tauri import、调用入口和 API 名称替换。它不负责 Rust 到 TypeScript 的业务语义翻译；自动逐函数翻译会把旧版多主链、重复缓存和 319 个碎 command 一起永久保留下来。
+
+AST inventory 是迁移证据源，架构文档和 feature matrix 是决策源，两者都不能互相替代。CI 后续应提供 `verify-neoview-inventory-drift`：源项目或保留的 legacy snapshot 中出现新增/删除 command 时，要求同步更新 disposition、feature mapping 和测试，而不是静默漂移。
+
 ## 4. Xiranite 现状与约束
 
 Xiranite 当前已经是懒加载架构：
@@ -1062,15 +1097,175 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - 回滚 TOML 备份后可以恢复导入前状态；
 - 功能兼容矩阵没有 `pending` 项。
 
+### 18.7 原项目每项功能必须补齐细致测试
+
+当前 NeoView 的功能数量远多于已有自动化测试。迁移不能把“原项目能运行”当作行为规范，也不能只为新架构的快乐路径补测试。每个原功能在标记为 `preserved` 或 `host-replaced` 前，必须建立以下可追踪链：
+
+```text
+legacy source/UI/command
+  -> feature id
+  -> observable behavior contract
+  -> settings/data mapping
+  -> unit/conformance/integration/component/e2e test ids
+  -> optional performance gate
+```
+
+`feature-compatibility.json` 每项至少包含：
+
+```ts
+interface FeatureCompatibilityEntry {
+  id: string
+  title: string
+  legacySources: string[]
+  legacyCommands: string[]
+  settingsKeys: string[]
+  dataStores: string[]
+  surfaces: Array<"gui" | "cli" | "tui">
+  status: "pending" | "preserved" | "host-replaced" | "import-only" | "removed-with-approval"
+  behaviorCases: string[]
+  testIds: string[]
+  benchmarkIds: string[]
+  knownDifferences: string[]
+}
+```
+
+强制规则：
+
+- 原项目已有测试：迁移为等价 contract/golden test，不能只复制测试名称；
+- 原项目缺少测试：先从源码、UI 和真实样本建立 characterization test，再实现新版本；
+- 无法自动化的行为先记录可重复人工步骤和证据，但最终切换前关键路径必须自动化；
+- 旧 command 可以合并，新测试按用户行为而不是按 command 数量组织；
+- 一个 feature 没有关联测试 ID 时不能从 `pending` 改为完成；
+- 修复迁移中发现的旧 bug 时，先增加能复现旧错误的回归测试，再记录新行为差异；
+- 不允许用总体覆盖率掩盖某个功能完全没有测试。
+
+### 18.8 分层测试结构
+
+```text
+packages/nodes/neoview/
+  src/core/**/*.test.ts
+  src/application/**/*.test.ts
+  src/platform/**/*.test.ts
+  src/platform/archives/archive-provider.conformance.ts
+  src/migration/**/*.test.ts
+  test/fixtures/
+  test/fixture-builders/
+
+src/nodes/neoview/
+  Component.test.tsx
+  ReaderView.test.tsx
+  controls.test.tsx
+
+tests/e2e/neoview/
+  open-and-read.spec.ts
+  navigation.spec.ts
+  settings-migration.spec.ts
+  lifecycle.spec.ts
+
+scripts/
+  benchmark-neoview.ts
+  verify-neoview-feature-matrix.ts
+```
+
+| 层级 | 目的 | 主要工具 | 必须验证 |
+| --- | --- | --- | --- |
+| Characterization | 固定旧行为 | 旧版运行记录、golden fixture | 输入、输出、排序、默认值、错误与边界行为 |
+| Core unit | 验证纯领域逻辑 | Vitest/Bun test | 导航、布局、排序、策略、映射，无 FS/React |
+| Provider conformance | 所有适配器遵守同一契约 | 共享 test suite | list/open/abort/dispose、错误、安全和资源释放 |
+| Application integration | 验证 ReaderService/Session | fake clock + 真实小 fixture | generation、取消、singleflight、缓存、事件顺序 |
+| Backend HTTP | 验证数据面 | 启动测试 backend | token、MIME、ETag、背压、取消、Range 和错误码 |
+| Component | 验证 React 交互 | Vitest + Testing Library | selector 粒度、控件、键盘、状态切换和清理 |
+| E2E | 验证真实用户流程 | Playwright/WebView QA | 打开、阅读、设置、重启恢复和多节点共存 |
+| Performance | 阻止性能回归 | benchmark + browser trace | TTFB、frame-ready、RSS、CPU、commit 和资源残留 |
+
+### 18.9 功能测试矩阵最低要求
+
+下表是最低测试集合。实现时继续从 319 个 command、现有 UI、设置 schema 和数据模块扩充，不能把表中大类当作一个测试用例完成。
+
+| 功能域 | 必须覆盖的细致场景 |
+| --- | --- |
+| Archive 识别与索引 | 目录、Store/Deflate/ZIP64、RAR/7z solid/non-solid、嵌套、加密、空包、损坏包、重复文件名、非 UTF-8/Unicode 名、超大 entry 数 |
+| Archive 数据面 | 当前页优先、首 chunk、背压、客户端取消、CRC 错误、singleflight、无整页 Buffer、无意外临时写入、solid 不重复解码 |
+| 图片格式 | JPEG/PNG/WebP/GIF/AVIF/JXL/SVG、动画、透明度、ICC/EXIF 方向、超大图、坏图、浏览器直出与 sharp fallback |
+| 书籍构建与排序 | 自然排序、文件夹层级、压缩包内目录、媒体优先级、排除路径、横页识别、空页与不支持文件 |
+| 单/双页布局 | LTR/RTL、封面单页、末页单页、宽页拆分、不同尺寸对齐、旋转后方向、窗口 resize、页数奇偶 |
+| 导航 | 上/下一页、首尾页、随机跳转、快速连翻、尾页五种行为、跨书切换、恢复旧 frame、旧 generation 零回写 |
+| 连续阅读 | 虚拟窗口、overscan、滚动定位、长图模式、方向改变、快速滚动、图片高度修正、DOM 数不随总页数增长 |
+| 缩放与视觉 | fit/fill/宽/高/原始、左右对齐、拖动、滚轮/捏合、放大镜、旋转、背景色、ambient/aurora/spotlight、旧 frame 到 ready frame 过渡 |
+| 动图/视频/字幕 | 自动播放、暂停、速度上下限、切页停止、恢复、字幕样式与位置、资源释放、浏览器不支持时降级 |
+| 预读与调度 | View/Ahead 优先级、前一/后一顺序、方向切换、内存不足停止预读、其他节点占用 CPU、取消延迟、Worker 空闲退出 |
+| 内存/磁盘缓存 | byte budget、pin、方向淘汰、deep cleanup、mtime 失效、ETag、80% hysteresis、损坏缓存恢复、关闭 session 后释放 |
+| 缩略图数据库 | 原库只读命中、写入、分类/key/mtime、批量读取、统计、vacuum、损坏恢复、WAL/SHM、EMM 同步、旧 V1/V3/V4 记录兼容 |
+| 历史与书籍数据 | 最近文件、目录历史、阅读进度、书签、评分、最后文件/文件夹、自动清理、文件移动/mtime 改变后的匹配 |
+| EMM/元数据 | 多数据库、翻译库、评分、标签、缺字段、锁/损坏 DB、批量查询、取消、路径规范化和导入兼容 |
+| 文件操作 | 允许/禁止、确认、删除、重命名、复制/移动、冲突、只读、处理中取消、部分失败、恢复/撤销、archive 内能力限制 |
+| 设置迁移 | 直接对象、NeoView/1.0、FullExportPayload、备份、Gist、merge/overwrite、旧字段、未知字段、非法值、幂等、TOML 回滚 |
+| 主题接管 | 旧主题字段明确跳过、Xiranite 主题生效、Reader 不创建第二套主题状态、阅读画布背景效果仍恢复 |
+| 输入绑定 | 键盘、鼠标、滚轮、触摸、区域绑定、冲突、禁用、焦点在输入框时不误触、GUI/TUI 对应命令 |
+| 面板与通知 | 左右/底部面板、自动隐藏、透明度/模糊、信息层、toast 类型/时长/位置、窗口 resize 和重启恢复 |
+| 启动与生命周期 | 打开上次文件/目录、空启动、懒加载、多个 session、close、hibernate/resume、宿主退出、fd/Worker/子进程/临时文件零泄漏 |
+| GUI/CLI/TUI 共用 | 相同输入得到相同排序、页数、FrameSnapshot、设置解析、错误码和导出结果；presentation 不复制业务规则 |
+| 安全与失败恢复 | zip bomb、路径逃逸、设备路径、密码泄漏、超大尺寸、OOM 模拟、进程崩溃、磁盘满、权限错误、网络/远程源中断 |
+
+缩略图数据库测试绝不能直接修改用户 `%APPDATA%\NeoView\thumbnails.db`。从脱敏 schema/fixture 创建临时副本，测试 WAL、升级和恢复后删除临时目录。大型性能漫画不提交进 Git；仓库保存可生成的小 fixture、外部 corpus manifest、hash 和生成脚本。
+
+### 18.10 测试完成定义
+
+一个 feature 只有同时满足以下条件才能标记完成：
+
+1. behavior cases 已从旧实现或明确的新产品决策固定；
+2. core/application 测试覆盖正常、错误、取消和边界路径；
+3. 涉及平台能力时通过 provider/backend integration；
+4. 涉及 UI 时通过 Component 和关键 E2E；
+5. 涉及设置/数据时通过旧 fixture 导入、重启恢复和幂等测试；
+6. 涉及热路径时通过专项 benchmark；
+7. 测试没有依赖执行顺序、真实用户目录或未清理的全局状态；
+8. `feature-compatibility.json` 中的 test IDs 全部存在并在 CI 执行。
+
+最终 CI 执行 `verify-neoview-feature-matrix.ts`：拒绝不存在的 test ID、完成状态下的空 behavior cases、无批准的 removed feature，以及最终发布阶段残留的 `pending`/skip/todo。
+
 ## 19. 迁移阶段与性能门槛
 
-### Phase 0：冻结基线
+### 开工决策：后端主链先行，按纵切交付
 
+现在具备开始迁移的架构条件，但第一批工作不是 React 视觉重写。顺序为：
+
+1. **AST 工具先行**：冻结源版本，重新生成 inventory、旧 TS contract、adapter 和报告，完成人工 disposition 审计；
+2. **测试和契约收口**：由 AST 证据生成 feature matrix、fixture builders 和 characterization tests，再定义小型 ReaderService API；
+3. **后端主链先行**：实现 Reader Core、ReaderSession、ZIP provider、asset route、取消和资源生命周期；
+4. **最小前端纵切**：只实现“打开一个 CBZ、显示当前页、上一页/下一页、关闭 session”，用于端到端验证；
+5. **按功能纵切扩展**：每个 slice 同时完成 core/platform、GUI、CLI/TUI 可用部分、设置映射和测试；
+6. **最后完成视觉重构和旧链删除**：避免 UI 先行产生临时 page loader、Blob cache 和第二套状态源。
+
+不是“后端全部完成后才允许写前端”。第一个 CBZ 数据面跑通后立即接最小 React viewer，以便早期暴露 HTTP、WebView decode、取消和生命周期问题；但前端不得先于 application contract 自行发明资源策略。
+
+第一批实现提交应限定为：
+
+- 刷新并审计 `neoview-baseline` AST 产物，记录源 fingerprint；
+- 建立 inventory drift 检查和 command -> feature mapping；
+- 创建 `@xiranite/node-neoview` 包骨架和测试目录；
+- 定义 Page/Frame/ArchiveProvider/ReaderService 契约；
+- 建立 `feature-compatibility.json` 与验证脚本；
+- 建立可生成的 Store/Deflate CBZ fixture；
+- 建立 ArchiveProvider conformance suite；
+- 实现只读 ZIP index + entry stream；
+- 实现最小 ReaderSession 与受保护 asset route；
+- 最后接一个无设计负担的最小 React smoke viewer。
+
+这一纵切通过流式、取消、dispose 和首屏基准后，再开始迁移完整前端。
+
+### Phase 0：AST 迁移与冻结基线
+
+- 冻结 NeoView 源 commit/diff，使用 `packages/tauri-migrate` 重新生成并审计全部产物；
+- 复核 296 个 portable、16 个 native、7 个 manual-review disposition，任何变化都要解释；
+- 将 AST command、事件和 state 映射到 feature matrix，建立 inventory drift verifier；
 - 固定真实样本：图片目录、Store/Deflate CBZ、solid/non-solid RAR/7z、嵌套包、PDF、超长图、动图；
 - 记录当前 NeoView 的首屏、连续翻页、随机跳页、缩略图、峰值内存和关闭后残留；
 - 记录 archive index、entry TTFB、临时写入量、完整 Buffer 次数和取消延迟；
 - 记录 Xiranite 同时运行其他 CPU/I/O 节点时的延迟；
 - 建立可重复的 `xreader benchmark` 和结果 JSON 格式。
+- 生成全功能矩阵，为原项目缺失覆盖的功能建立 characterization tests；
+- 建立小型 fixture generator 与外部大型 corpus manifest。
 
 没有基线，不允许声称迁移“没有性能损失”。
 
@@ -1079,7 +1274,8 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - 建立 Page/Content/Source/ViewSource、ReaderSession 和 FrameSnapshot；
 - 实现自然排序、单双页、阅读方向、generation/abort；
 - 建立全功能兼容矩阵、旧设置 codec 和 TOML schema mapping；
-- 用 fake adapters 完成纯 TS 单元测试；
+- 用 fake adapters 完成纯 TS 单元测试和 ReaderSession integration tests；
+- 建立 ArchiveProvider conformance suite 和 feature matrix CI verifier；
 - 公开 API 先收口，不迁移 UI。
 
 ### Phase 2：目录、ZIP 与唯一数据主链
@@ -1090,7 +1286,8 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
 - 实现 loopback asset route；
 - GUI/CLI 使用相同 `openViewSource()`；
-- 验证流式读取、取消、ETag 和 session close。
+- 验证流式读取、背压、取消、ETag、错误恢复和 session close；
+- 接入最小 React smoke viewer，完成首条真实 E2E。
 
 ### Phase 3：React Reader 重构
 
@@ -1101,6 +1298,7 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - 删除被替代的前端队列、Blob/Base64 和缓存主链；
 - 验证 Reader 操作不会引发 workspace 级重渲染；
 - 保存 React Profiler、Compiler 对照和浏览器 trace 基准。
+- 每个交互功能同时提交 Component test 和关键 E2E，不接受 UI-only 提交。
 
 ### Phase 4：复杂格式与 TUI
 
@@ -1119,6 +1317,7 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - 主题改由 Xiranite 接管，阅读画布效果保持兼容；
 - 对照用户行为而不是旧 command 名称验收；
 - 删除全部旧版本和临时兼容层；
+- feature matrix 中所有 test ID 在 CI 存在并通过，不允许残留 skip/todo；
 - 更新文档、许可证、安装包和故障诊断。
 
 ### 19.1 阻断式性能门槛
@@ -1142,6 +1341,18 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 | 图片传输 | 编码、复制、JS heap | 主链无 Base64；HTTP 支持流与取消 |
 
 5%/10% 是初始工程门槛，Phase 0 根据测量方差修订。绝对值应按图片尺寸、存储介质和机器级别分组，不能混在一个平均数里。
+
+### 19.2 功能测试阻断门槛
+
+- feature matrix 对原功能、设置键和数据模块的追踪覆盖率必须为 100%；
+- `preserved`/`host-replaced` 功能必须至少有一项自动化行为测试，关键功能必须覆盖多层；
+- Core、Application、Migration 的关键分支必须有正常、失败、取消和 dispose 测试；
+- ArchiveProvider 每个实现必须通过同一 conformance suite；
+- GUI 入口必须有 Component test，主阅读流程必须有真实 backend E2E；
+- 设置/数据库迁移必须使用不可变旧 fixture，并验证原文件未被测试修改；
+- 性能敏感 feature 没有关联 benchmark ID 时不能标记完成；
+- 最终发布不允许 NeoView 测试中存在未批准的 `.skip`、`.todo`、`test.only` 或仅人工验证的关键路径；
+- 新增或修复任何行为 bug 必须附带能在修复前失败的回归测试。
 
 ## 20. 取舍与风险
 
