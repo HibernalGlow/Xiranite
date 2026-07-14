@@ -2,6 +2,7 @@ import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderGeneration, type ReaderLayout } from "../../domain/frame/frame.js"
 import type { ReadingDirection, TailOverflowBehavior } from "../../domain/navigation/navigation.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
+import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 
 export type ReaderSessionId = string
 
@@ -40,6 +41,7 @@ export interface ReaderSession extends AsyncDisposable {
 export interface OpenViewSourceOptions extends Partial<ReaderSessionOptions> {
   initialPage?: number
   signal?: AbortSignal
+  archivePasswords?: readonly ArchivePasswordInput[]
 }
 
 export interface ReaderService extends AsyncDisposable {

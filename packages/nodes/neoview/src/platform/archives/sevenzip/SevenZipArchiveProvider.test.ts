@@ -18,6 +18,7 @@ let nonSolidPath = ""
 let solidPath = ""
 let largePath = ""
 let solidLargePath = ""
+let encryptedPath = ""
 
 beforeAll(async () => {
   if (!executable) return
@@ -32,10 +33,12 @@ beforeAll(async () => {
   solidPath = join(directory, "solid.7z")
   largePath = join(directory, "large.7z")
   solidLargePath = join(directory, "solid-large.7z")
+  encryptedPath = join(directory, "encrypted.7z")
   await createArchive(nonSolidPath, false, ["pages/001.jpg", "pages/002.jpg", "empty"])
   await createArchive(solidPath, true, ["pages/001.jpg", "pages/002.jpg", "pages/003.jpg"])
   await createArchive(largePath, false, ["large.jpg"])
   await createArchive(solidLargePath, true, ["large.jpg", "pages/001.jpg"])
+  await createArchive(encryptedPath, false, ["pages/001.jpg"], "fixture-secret")
 })
 
 afterAll(async () => {
@@ -195,6 +198,25 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     expect(await readdir(tempDirectory)).toEqual([])
   })
 
+  it("[neoview.sevenzip.encrypted-boundary] rejects encrypted CLI extraction before spawning and clears raw passwords", async () => {
+    const scheduler = new RecordingScheduler()
+    const provider = createProvider(encryptedPath, scheduler)
+    try {
+      const first = (await provider.list()).find((entry) => entry.kind === "file")!
+      expect(first.encrypted).toBe(true)
+      const streamPassword = new TextEncoder().encode("fixture-secret")
+      await expect(provider.openEntry(first.id, { rawPassword: streamPassword })).rejects.toThrow("secure password transport")
+      expect(streamPassword.every((byte) => byte === 0)).toBe(true)
+      const materializePassword = new TextEncoder().encode("fixture-secret")
+      await expect(provider.materializeEntry(first.id, { rawPassword: materializePassword })).rejects.toThrow("secure password transport")
+      expect(materializePassword.every((byte) => byte === 0)).toBe(true)
+      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-extract")).toBe(false)
+      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-materialize")).toBe(false)
+    } finally {
+      await provider.close()
+    }
+  })
+
   it("[neoview.sevenzip.cancellation] rejects pre-cancelled extraction without spawning stdout", async () => {
     const provider = createProvider(nonSolidPath)
     try {
@@ -276,9 +298,9 @@ class RecordingScheduler implements ResourceScheduler {
   }
 }
 
-async function createArchive(path: string, solid: boolean, entries: string[]): Promise<void> {
+async function createArchive(path: string, solid: boolean, entries: string[], password?: string): Promise<void> {
   await execFileAsync(executable!.path, [
-    "a", "-t7z", "-mx=1", solid ? "-ms=on" : "-ms=off", "-bd", "-bb0", "--", path, ...entries,
+    "a", "-t7z", "-mx=1", solid ? "-ms=on" : "-ms=off", ...(password ? [`-p${password}`, "-mhe=off"] : []), "-bd", "-bb0", "--", path, ...entries,
   ], { cwd: directory, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
 }
 

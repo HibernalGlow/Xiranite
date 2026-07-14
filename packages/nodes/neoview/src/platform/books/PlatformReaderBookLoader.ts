@@ -1,5 +1,6 @@
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
+import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 export interface PlatformReaderBookLoaderOptions {
@@ -10,11 +11,12 @@ export interface PlatformReaderBookLoaderOptions {
 }
 
 export function createPlatformReaderBookLoader(options: PlatformReaderBookLoaderOptions = {}): ReaderBookLoader {
-  const load: ReaderBookLoader = async (source: ViewSource, signal?: AbortSignal) => {
+  const load: ReaderBookLoader = async (source: ViewSource, loadOptions: ReaderBookLoadOptions = {}) => {
+    const signal = loadOptions.signal
     switch (source.kind) {
       case "path": {
         const { detectViewSource } = await import("../filesystem/detectViewSource.js")
-        return load(await detectViewSource(source.path, signal), signal)
+        return load(await detectViewSource(source.path, signal), loadOptions)
       }
       case "directory": {
         const { loadDirectoryBook } = await import("../filesystem/DirectoryBookLoader.js")
@@ -30,7 +32,7 @@ export function createPlatformReaderBookLoader(options: PlatformReaderBookLoader
       }
       case "archive": {
         const { loadArchiveBook } = await import("../archives/ArchiveBookLoader.js")
-        return loadArchiveBook(source, signal, options)
+        return loadArchiveBook(source, loadOptions, options)
       }
       case "document":
         throw new Error(`Document provider is not available yet: ${source.format}`)

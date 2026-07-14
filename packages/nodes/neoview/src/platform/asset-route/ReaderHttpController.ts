@@ -3,6 +3,7 @@ import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession } from "../../application/reader/contracts.js"
+import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
@@ -104,13 +105,17 @@ export class ReaderHttpController implements AsyncDisposable {
     if (entryPaths === "invalid") {
       return jsonResponse({ error: "entryPath/entryPaths must contain non-empty archive paths and cannot be combined" }, 400)
     }
+    const archivePasswords = parseArchivePasswords(body)
+    if (archivePasswords === "invalid") {
+      return jsonResponse({ error: "password/archivePasswords must contain valid, uniquely scoped password entries and cannot be combined" }, 400)
+    }
     try {
       const source: ViewSource = entryPaths
         ? { kind: "archive", path: body.path, entryPaths }
         : { kind: "path", path: body.path }
       const session = await this.#service.openViewSource(
         source,
-        { initialPage, signal: request.signal },
+        { initialPage, signal: request.signal, archivePasswords },
       )
       return jsonResponse(this.#sessionDto(session), 201)
     } catch (error) {
@@ -227,6 +232,35 @@ function parseEntryPaths(body: Record<string, unknown>): readonly string[] | und
   return body.entryPaths.every((path) => typeof path === "string" && path.trim())
     ? body.entryPaths as string[]
     : "invalid"
+}
+
+function parseArchivePasswords(body: Record<string, unknown>): readonly ArchivePasswordInput[] | undefined | "invalid" {
+  if (body.password !== undefined && body.archivePasswords !== undefined) return "invalid"
+  if (body.password !== undefined) {
+    return typeof body.password === "string" && body.password.length > 0 ? [{ password: body.password }] : "invalid"
+  }
+  if (body.archivePasswords === undefined) return undefined
+  if (!Array.isArray(body.archivePasswords) || body.archivePasswords.length === 0 || body.archivePasswords.length > 16) {
+    return "invalid"
+  }
+  const scopes = new Set<string>()
+  const inputs: ArchivePasswordInput[] = []
+  for (const value of body.archivePasswords) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "invalid"
+    const record = value as Record<string, unknown>
+    if (typeof record.password !== "string" || record.password.length === 0) return "invalid"
+    if (record.entryPaths !== undefined && (
+      !Array.isArray(record.entryPaths)
+      || record.entryPaths.length > 16
+      || !record.entryPaths.every((path) => typeof path === "string" && path.trim())
+    )) return "invalid"
+    const entryPaths = record.entryPaths as string[] | undefined
+    const key = entryPaths?.join("\0") ?? ""
+    if (scopes.has(key)) return "invalid"
+    scopes.add(key)
+    inputs.push({ password: record.password, entryPaths })
+  }
+  return inputs
 }
 
 function boundedInteger(value: string | null, minimum: number, maximum: number, fallback: number): number {

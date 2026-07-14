@@ -1,12 +1,14 @@
 import { realpath, stat } from "node:fs/promises"
 import { basename } from "node:path"
 
+import { ArchiveCredentialStore } from "../../application/reader/ArchiveCredentialStore.js"
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import { normalizeArchivePath } from "../../domain/archive/archive-path.js"
 import { pageMediaType, pathExtension } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ArchiveEntry, ArchiveProvider, MaterializedEntryLease } from "../../ports/ArchiveProvider.js"
+import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
@@ -18,9 +20,10 @@ const DEFAULT_MAX_MATERIALIZED_BYTES = 64 * 1024 * 1024 * 1024
 
 export async function loadArchiveBook(
   source: Extract<ViewSource, { kind: "archive" }>,
-  signal?: AbortSignal,
+  loadOptions: ReaderBookLoadOptions = {},
   options: PlatformReaderBookLoaderOptions = {},
 ): Promise<ReaderBook> {
+  const signal = loadOptions.signal
   signal?.throwIfAborted()
   const entryPaths = normalizeEntryPaths(source)
   const maxDepth = boundedOption(options.maxArchiveDepth ?? DEFAULT_MAX_ARCHIVE_DEPTH, "maxArchiveDepth", 0, 16)
@@ -33,20 +36,22 @@ export async function loadArchiveBook(
     0,
     Number.MAX_SAFE_INTEGER,
   )
-  const archivePath = await realpath(source.path)
-  const extension = pathExtension(archivePath)
-  if (!ARCHIVE_EXTENSIONS.has(extension)) {
-    throw new Error(`Archive format is not available yet: .${extension || "unknown"}`)
-  }
-  const archiveStats = await stat(archivePath)
-  if (!archiveStats.isFile()) throw new Error(`Reader source is not an archive file: ${source.path}`)
-  signal?.throwIfAborted()
-  const resources: Array<() => Promise<void>> = []
+  const credentials = new ArchiveCredentialStore(loadOptions.archivePasswords)
+  const resources: Array<() => Promise<void>> = [credentials.close.bind(credentials)]
   try {
+    const archivePath = await realpath(source.path)
+    const extension = pathExtension(archivePath)
+    if (!ARCHIVE_EXTENSIONS.has(extension)) {
+      throw new Error(`Archive format is not available yet: .${extension || "unknown"}`)
+    }
+    const archiveStats = await stat(archivePath)
+    if (!archiveStats.isFile()) throw new Error(`Reader source is not an archive file: ${source.path}`)
+    signal?.throwIfAborted()
     let provider = await createArchiveProvider(archivePath, extension, options, maxMaterializedBytes)
     resources.push(provider.close.bind(provider))
     let materializedBytes = 0
     const chainVersions: string[] = []
+    const providerEntryPaths: string[] = []
     for (const entryPath of entryPaths) {
       signal?.throwIfAborted()
       const providerEntries = await provider.list(signal)
@@ -63,9 +68,16 @@ export async function loadArchiveBook(
         throw new Error(`Nested archives require ${materializedBytes} materialized bytes, exceeding the ${maxMaterializedBytes} byte budget.`)
       }
       const layerBudget = maxMaterializedBytes - (materializedBytes - layerMaterializedBytes)
-      const lease = await materializeNestedEntry(provider, entry, signal, options, layerBudget)
+      const rawPassword = credentials.copyRawPassword(providerEntryPaths)
+      let lease: MaterializedEntryLease
+      try {
+        lease = await materializeNestedEntry(provider, entry, signal, options, layerBudget, rawPassword)
+      } finally {
+        credentials.clearRawPassword(rawPassword)
+      }
       resources.push(() => lease.release())
       chainVersions.push(entry.crc32?.toString(16) ?? entry.id)
+      providerEntryPaths.push(entryPath)
       provider = await createArchiveProvider(
         lease.path,
         nestedExtension,
@@ -95,7 +107,14 @@ export async function loadArchiveBook(
         mimeType: media.mimeType,
         byteLength: entry.uncompressedSize,
         contentVersion: [archiveVersion, ...chainVersions, entry.crc32?.toString(16) ?? entry.id].join("-"),
-        content: new ArchivePageContent(provider, entry.id, entry.uncompressedSize, media.mimeType),
+        content: new ArchivePageContent(
+          provider,
+          entry.id,
+          entry.uncompressedSize,
+          media.mimeType,
+          credentials,
+          providerEntryPaths,
+        ),
       }
     })
     return createReaderBook({
@@ -139,14 +158,20 @@ async function materializeNestedEntry(
   signal: AbortSignal | undefined,
   options: PlatformReaderBookLoaderOptions,
   maxBytes: number,
+  rawPassword: Uint8Array | undefined,
 ): Promise<MaterializedEntryLease> {
-  if (provider.materializeEntry) return provider.materializeEntry(entry.id, signal)
-  return materializeArchiveEntry(provider, entry, {
-    signal,
-    tempDirectory: options.archiveTempDirectory,
-    maxBytes,
-    resourceScheduler: options.resourceScheduler,
-  })
+  try {
+    if (provider.materializeEntry) return await provider.materializeEntry(entry.id, { signal, rawPassword })
+    return await materializeArchiveEntry(provider, entry, {
+      signal,
+      tempDirectory: options.archiveTempDirectory,
+      maxBytes,
+      resourceScheduler: options.resourceScheduler,
+      rawPassword,
+    })
+  } finally {
+    rawPassword?.fill(0)
+  }
 }
 
 function normalizeEntryPaths(source: Extract<ViewSource, { kind: "archive" }>): string[] {

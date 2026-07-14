@@ -63,4 +63,8 @@ export {
   type MaterializedEntryLease,
   type OpenArchiveEntryOptions,
 } from "./ports/ArchiveProvider.js"
-export type { ReaderBookLoader } from "./ports/ReaderBookLoader.js"
+export type {
+  ArchivePasswordInput,
+  ReaderBookLoader,
+  ReaderBookLoadOptions,
+} from "./ports/ReaderBookLoader.js"

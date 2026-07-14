@@ -71,6 +71,15 @@ describe("ReaderHttpController", () => {
         entryPath: "inner.cbz",
         entryPaths: ["inner.cbz"],
       })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest("/reader/sessions", {
+        path: directory,
+        password: "a",
+        archivePasswords: [{ password: "b" }],
+      })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest("/reader/sessions", {
+        path: directory,
+        archivePasswords: [{ password: "a" }, { password: "b" }],
+      })))?.status).toBe(400)
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
       const { sessionId } = await opened.json() as ReaderSessionDto
       expect((await controller.handle(jsonRequest(`/reader/s/${sessionId}/navigate`, { action: "goTo" })))?.status).toBe(400)
@@ -80,9 +89,10 @@ describe("ReaderHttpController", () => {
   })
 
   it("[neoview.control.nested-archive] opens and streams an inner archive without exposing materialized paths", async () => {
+    const nestedPassword = "nested-session-secret"
     const inner = await createZipFixture({
       name: "inner.cbz",
-      entries: [{ path: "pages/1.png", bytes: ONE_PIXEL_PNG, level: 0 }],
+      entries: [{ path: "pages/1.png", bytes: ONE_PIXEL_PNG, level: 0, password: nestedPassword }],
     })
     const outer = await createZipFixture({
       name: "outer.cbz",
@@ -100,15 +110,55 @@ describe("ReaderHttpController", () => {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", {
         path: outer.path,
         entryPaths: ["nested/inner.cbz"],
+        archivePasswords: [{ entryPaths: ["nested/inner.cbz"], password: nestedPassword }],
       })))!
       expect(opened.status).toBe(201)
       const session = await opened.json() as ReaderSessionDto
       expect(session.book).toMatchObject({ displayName: "inner.cbz", pageCount: 1 })
       expect(JSON.stringify(session)).not.toContain(tempDirectory)
+      expect(JSON.stringify(session)).not.toContain(nestedPassword)
+      expect(session.visiblePages[0]!.assetUrl).not.toContain(nestedPassword)
       const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
       expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
       await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))
       expect(await readdir(tempDirectory)).toEqual([])
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.control.encrypted-archive] keeps a root ZIP password session-scoped and out of asset URLs", async () => {
+    const password = "root-session-secret"
+    const archive = await createZipFixture({
+      name: "encrypted.cbz",
+      entries: [{ path: "pages/1.png", bytes: ONE_PIXEL_PNG, level: 6, password }],
+    })
+    cleanupArchives.push(archive)
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", {
+        path: archive.path,
+        password,
+      })))!
+      expect(opened.status).toBe(201)
+      const session = await opened.json() as ReaderSessionDto
+      const serialized = JSON.stringify(session)
+      expect(serialized).not.toContain(password)
+      expect(session.visiblePages[0]!.assetUrl).not.toContain(password)
+      const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
+      expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+      await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))
+
+      const wrongPassword = "wrong-password-must-not-leak"
+      const wrongOpened = (await controller.handle(jsonRequest("/reader/sessions", {
+        path: archive.path,
+        password: wrongPassword,
+      })))!
+      const wrongSession = await wrongOpened.json() as ReaderSessionDto
+      expect(JSON.stringify(wrongSession)).not.toContain(wrongPassword)
+      const wrongAsset = (await controller.handle(new Request(wrongSession.visiblePages[0]!.assetUrl)))!
+      await expect(wrongAsset.arrayBuffer()).rejects.not.toThrow(wrongPassword)
+      await controller.handle(authorizedRequest(`/reader/s/${wrongSession.sessionId}`, { method: "DELETE" }))
     } finally {
       await controller[Symbol.asyncDispose]()
     }

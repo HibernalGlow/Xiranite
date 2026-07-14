@@ -99,12 +99,14 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.path}`)
     if (this.capabilities.solid) {
-      if (this.#entries.some((candidate) => candidate.encrypted) || options.password || options.rawPassword) {
+      if (this.#entries.some((candidate) => candidate.encrypted)) {
+        options.rawPassword?.fill(0)
         throw new Error("Encrypted solid RAR/7z extraction is not available until secure password transport is implemented.")
       }
       return this.#openSolidEntry(entry, options.signal)
     }
-    if (entry.encrypted || options.password || options.rawPassword) {
+    if (entry.encrypted) {
+      options.rawPassword?.fill(0)
       throw new Error("Encrypted RAR/7z streaming is not available until secure password transport is implemented.")
     }
     const lease = await this.#resourceScheduler.acquire({
@@ -120,7 +122,11 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     }
   }
 
-  async materializeEntry(entryId: string, signal?: AbortSignal): Promise<MaterializedEntryLease> {
+  async materializeEntry(
+    entryId: string,
+    options: Pick<OpenArchiveEntryOptions, "signal" | "password" | "rawPassword"> = {},
+  ): Promise<MaterializedEntryLease> {
+    const signal = options.signal
     this.#assertOpen()
     signal?.throwIfAborted()
     await waitWithSignal(this.#ensureInitialized(), signal)
@@ -129,6 +135,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.path}`)
     if (entry.encrypted || (this.capabilities.solid && this.#entries.some((candidate) => candidate.encrypted))) {
+      options.rawPassword?.fill(0)
       throw new Error("Encrypted RAR/7z materialization is not available until secure password transport is implemented.")
     }
     if (this.capabilities.solid) {
@@ -148,6 +155,7 @@ export class SevenZipArchiveProvider implements ArchiveProvider {
       tempDirectory: this.#tempDirectory,
       maxBytes: this.#maxMaterializedBytes,
       resourceScheduler: this.#resourceScheduler,
+      rawPassword: options.rawPassword,
     })
   }
 

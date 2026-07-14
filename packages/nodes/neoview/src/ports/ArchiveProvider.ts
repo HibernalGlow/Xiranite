@@ -41,6 +41,9 @@ export interface ArchiveProvider extends AsyncDisposable {
   readonly capabilities: ArchiveCapabilities
   list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]>
   openEntry(entryId: string, options?: OpenArchiveEntryOptions): Promise<ReadableStream<Uint8Array>>
-  materializeEntry?(entryId: string, signal?: AbortSignal): Promise<MaterializedEntryLease>
+  materializeEntry?(
+    entryId: string,
+    options?: Pick<OpenArchiveEntryOptions, "signal" | "password" | "rawPassword">,
+  ): Promise<MaterializedEntryLease>
   close(): Promise<void>
 }

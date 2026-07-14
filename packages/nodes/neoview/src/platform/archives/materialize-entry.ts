@@ -11,12 +11,25 @@ export interface MaterializeArchiveEntryOptions {
   tempDirectory?: string
   maxBytes?: number
   resourceScheduler?: ResourceScheduler
+  rawPassword?: Uint8Array
 }
 
 export async function materializeArchiveEntry(
   provider: ArchiveProvider,
   entry: ArchiveEntry,
   options: MaterializeArchiveEntryOptions = {},
+): Promise<MaterializedEntryLease> {
+  try {
+    return await materializeArchiveEntryCore(provider, entry, options)
+  } finally {
+    options.rawPassword?.fill(0)
+  }
+}
+
+async function materializeArchiveEntryCore(
+  provider: ArchiveProvider,
+  entry: ArchiveEntry,
+  options: MaterializeArchiveEntryOptions,
 ): Promise<MaterializedEntryLease> {
   const signal = options.signal
   signal?.throwIfAborted()
@@ -40,7 +53,7 @@ export async function materializeArchiveEntry(
     root = await mkdtemp(join(parent, "xiranite-neoview-entry-"))
     const path = join(root, "materialized.entry")
     handle = await open(path, "wx")
-    const stream = await provider.openEntry(entry.id, { signal })
+    const stream = await provider.openEntry(entry.id, { signal, rawPassword: options.rawPassword })
     const reader = stream.getReader()
     let written = 0
     try {

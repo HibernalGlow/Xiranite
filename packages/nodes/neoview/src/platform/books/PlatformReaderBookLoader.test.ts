@@ -167,6 +167,30 @@ describe("PlatformReaderBookLoader", () => {
     })).rejects.toThrow("materialized bytes")
   })
 
+  it("[neoview.archive.encrypted-nested-entry] decrypts an outer entry only within its archive scope", async () => {
+    const password = "outer-entry-secret"
+    const inner = await createZipFixture({
+      name: "inner.cbz",
+      entries: [{ path: "pages/1.jpg", bytes: Uint8Array.of(7, 8, 9), level: 0 }],
+    })
+    const outer = await createZipFixture({
+      name: "outer-encrypted.cbz",
+      entries: [{ path: "inner.cbz", bytes: inner.bytes, level: 6, password }],
+    })
+    cleanupArchives.push(inner, outer)
+    const book = await createPlatformReaderBookLoader()({
+      kind: "archive",
+      path: outer.path,
+      entryPath: "inner.cbz",
+    }, {
+      archivePasswords: [{ password }],
+    })
+    const source = await book.pages[0]!.content.load()
+    expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(7, 8, 9))
+    await source.close()
+    await book.close()
+  })
+
   it("[neoview.book.detect] detects directories, archives, images and standalone video from one path entry", async () => {
     const directory = await createDirectoryFixture()
     const loader = createPlatformReaderBookLoader()
@@ -191,7 +215,7 @@ describe("PlatformReaderBookLoader", () => {
     const controller = new AbortController()
     controller.abort(new Error("cancelled"))
     const loader = createPlatformReaderBookLoader()
-    await expect(loader({ kind: "directory", path: "missing" }, controller.signal)).rejects.toThrow("cancelled")
+    await expect(loader({ kind: "directory", path: "missing" }, { signal: controller.signal })).rejects.toThrow("cancelled")
     await expect(loader({ kind: "document", path: "book.pdf", format: "pdf" })).rejects.toThrow("not available")
     await expect(loader({ kind: "archive", path: "book.rar" })).rejects.toThrow()
   })

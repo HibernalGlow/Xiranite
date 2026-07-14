@@ -44,11 +44,14 @@ describe("materializeArchiveEntry", () => {
     const provider = new MemoryArchiveProvider([{ path: "nested/book.cbz", bytes: Uint8Array.of(1, 2, 3) }])
     const [entry] = await provider.list()
     const scheduler = new RecordingScheduler()
+    const overBudgetPassword = Uint8Array.of(9, 8, 7)
     await expect(materializeArchiveEntry(provider, entry!, {
       tempDirectory: directory,
       maxBytes: 2,
       resourceScheduler: scheduler,
+      rawPassword: overBudgetPassword,
     })).rejects.toThrow("exceeding the 2 byte budget")
+    expect(overBudgetPassword).toEqual(Uint8Array.of(0, 0, 0))
     expect(scheduler.requests).toEqual([])
     await expect(materializeArchiveEntry(provider, { ...entry!, uncompressedSize: 2 }, {
       tempDirectory: directory,
@@ -56,6 +59,14 @@ describe("materializeArchiveEntry", () => {
     })).rejects.toThrow("more than its declared 2 bytes")
     expect(scheduler.active).toBe(0)
     expect(await readdir(directory)).toEqual([])
+    const preCancelled = new AbortController()
+    preCancelled.abort(new Error("pre-cancelled"))
+    const cancelledPassword = Uint8Array.of(6, 5, 4)
+    await expect(materializeArchiveEntry(provider, entry!, {
+      signal: preCancelled.signal,
+      rawPassword: cancelledPassword,
+    })).rejects.toThrow("pre-cancelled")
+    expect(cancelledPassword).toEqual(Uint8Array.of(0, 0, 0))
     await provider.close()
   })
 

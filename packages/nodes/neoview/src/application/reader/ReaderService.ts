@@ -18,7 +18,10 @@ export class CoreReaderService implements ReaderService {
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
     this.#assertOpen()
     options.signal?.throwIfAborted()
-    const book = await this.loadBook(source, options.signal)
+    const book = await this.loadBook(source, {
+      signal: options.signal,
+      archivePasswords: options.archivePasswords,
+    })
     try {
       options.signal?.throwIfAborted()
       this.#assertOpen()
@@ -30,7 +33,11 @@ export class CoreReaderService implements ReaderService {
     const session = new CoreReaderSession(
       id,
       book,
-      options,
+      {
+        direction: options.direction,
+        layout: options.layout,
+        tailOverflow: options.tailOverflow,
+      },
       (sessionId) => this.#sessions.delete(sessionId),
       this.metadataProbe,
     )
