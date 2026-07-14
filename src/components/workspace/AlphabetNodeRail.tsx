@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react"
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
@@ -54,6 +54,7 @@ export function AlphabetNodeRail() {
   const [open, setOpen] = useState(false)
   const [announce, setAnnounce] = useState("")
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressDeployForModuleRef = useRef<string | null>(null)
   const activeInitial = ALPHABET[activeIndex] ?? "A"
   const matchingModules = useMemo(() => getModulesForInitial(activeInitial), [activeInitial])
   const popoverAlign = activeIndex <= 8 ? "start" : activeIndex >= 17 ? "end" : "center"
@@ -95,9 +96,25 @@ export function AlphabetNodeRail() {
     setOpen(false)
   }, [appearance.viewMode, workspaceActions])
 
+  const selectModule = useCallback((module: ModuleDef) => {
+    if (suppressDeployForModuleRef.current === module.id) {
+      suppressDeployForModuleRef.current = null
+      return
+    }
+    deployModule(module)
+  }, [deployModule])
+
+  const suppressModuleDeploy = useCallback((moduleId: string, event: ReactPointerEvent<HTMLButtonElement>) => {
+    suppressDeployForModuleRef.current = moduleId
+    event.stopPropagation()
+  }, [])
+
   const openModuleInWindow = useCallback((module: ModuleDef, event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
     event.stopPropagation()
+    window.setTimeout(() => {
+      if (suppressDeployForModuleRef.current === module.id) suppressDeployForModuleRef.current = null
+    }, 0)
 
     const now = Date.now()
     const componentId = `alphabet-window-${module.id}-${now}`
@@ -228,7 +245,7 @@ export function AlphabetNodeRail() {
                     key={module.id}
                     value={`${module.name} ${module.id}`}
                     className="group/result h-8 min-h-8 items-center py-1 text-xs"
-                    onSelect={() => deployModule(module)}
+                    onSelect={() => selectModule(module)}
                     data-testid={`alphabet-node-result-${module.id}`}
                   >
                     <ModuleIcon icon={module.icon} />
@@ -241,7 +258,7 @@ export function AlphabetNodeRail() {
                         className="size-6 shrink-0 opacity-0 transition-opacity group-hover/result:opacity-100 group-focus-within/result:opacity-100 focus-visible:opacity-100"
                         aria-label={t("common:openFloatingWindow", { name: module.name })}
                         title={t("common:openFloatingWindow")}
-                        onPointerDown={(event) => event.stopPropagation()}
+                        onPointerDown={(event) => suppressModuleDeploy(module.id, event)}
                         onClick={(event) => openModuleInWindow(module, event)}
                         data-testid={`alphabet-node-open-window-${module.id}`}
                       >
