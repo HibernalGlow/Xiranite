@@ -78,7 +78,7 @@ describe("Czkawka shared filter engine", () => {
     const extended = [...groups, group(2, [entry("D:/README", 1)])]
     const state = createDefaultCzkawkaFilterState()
     state.extension = { enabled: true, mode: "exclude", extensions: ["png", "mp3"], excludedCategories: [] }
-    state.text = { enabled: true, pattern: "^(a|c|README)", regex: true, caseSensitive: true }
+    state.text = { enabled: true, pattern: "^(a|c|README)", regex: true, caseSensitive: true, fields: ["name"] }
     state.showAllInFilteredGroups = false
     expect(applyCzkawkaFilters(extended, [], state, now).groups.flatMap((group) => group.entries.map((item) => item.name))).toEqual(["a.jpg", "c.jpg", "README"])
     state.extension = { enabled: true, mode: "include", extensions: ["(无扩展名)"], excludedCategories: [] }
@@ -129,6 +129,21 @@ describe("Czkawka shared filter engine", () => {
     expect(applyCzkawkaBuiltinFilterPreset("recently-modified", now).modifiedDate.preset).toBe("last-30-days")
     expect(applyCzkawkaBuiltinFilterPreset("old-files", now).modifiedDate.end).toBe(now - 365 * 86_400_000)
     expect(() => parseCzkawkaFilterPresets('{"version":2,"presets":[]}')).toThrow(/Unsupported/)
+  })
+
+  test("limits quick text matching to selected field families", () => {
+    const searchable = [group(0, [entry("D:/folder/plain.bin", 1, { title: "Needle Title", detail: "Needle Detail" })])]
+    const state = createDefaultCzkawkaFilterState()
+    state.text = { enabled: true, pattern: "Needle", regex: false, caseSensitive: true, fields: ["name"] }
+    state.showAllInFilteredGroups = false
+    expect(applyCzkawkaFilters(searchable, [], state, now).groups).toEqual([])
+    state.text.fields = ["metadata"]
+    expect(applyCzkawkaFilters(searchable, [], state, now).groups).toHaveLength(1)
+    state.text.fields = ["detail"]
+    expect(applyCzkawkaFilters(searchable, [], state, now).groups).toHaveLength(1)
+    state.text.pattern = "D:/folder"
+    state.text.fields = ["path"]
+    expect(applyCzkawkaFilters(searchable, [], state, now).groups).toHaveLength(1)
   })
 })
 

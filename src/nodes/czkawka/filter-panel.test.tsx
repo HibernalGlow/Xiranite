@@ -30,6 +30,9 @@ describe("CzkawkaFilterPanel", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "快速文本模式" }), { target: { value: "archive" } })
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ text: expect.objectContaining({ enabled: true, pattern: "archive" }) }))
 
+    fireEvent.click(screen.getByRole("button", { name: "路径字段" }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ text: expect.objectContaining({ fields: ["name", "metadata", "detail"] }) }))
+
     fireEvent.click(screen.getByRole("button", { name: /jpg 2\/5/ }))
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ extension: expect.objectContaining({ enabled: true, extensions: ["jpg"] }) }))
 

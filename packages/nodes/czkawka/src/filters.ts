@@ -6,6 +6,7 @@ export type CzkawkaPathMatchMode = "contains" | "not-contains" | "starts-with" |
 export type CzkawkaDatePreset = "today" | "last-7-days" | "last-30-days" | "last-year" | "custom"
 export type CzkawkaAspectRatio = "any" | "16:9" | "4:3" | "1:1"
 export type CzkawkaFormatCategory = "images" | "videos" | "audio" | "documents" | "archives" | "folders" | "other"
+export type CzkawkaTextField = "name" | "path" | "metadata" | "detail"
 export type CzkawkaBuiltinFilterPreset = "none" | "large-files" | "small-files" | "recently-modified" | "old-files"
 
 export interface CzkawkaStoredFilterPreset {
@@ -22,7 +23,7 @@ export interface CzkawkaRangeFilter {
 }
 
 export interface CzkawkaFilterState {
-  text: { enabled: boolean; pattern: string; regex: boolean; caseSensitive: boolean }
+  text: { enabled: boolean; pattern: string; regex: boolean; caseSensitive: boolean; fields: CzkawkaTextField[] }
   mark: CzkawkaMarkFilter
   groupCount: CzkawkaRangeFilter
   groupSize: CzkawkaRangeFilter
@@ -71,7 +72,7 @@ export interface CzkawkaFilterResult {
 
 export function createDefaultCzkawkaFilterState(): CzkawkaFilterState {
   return {
-    text: { enabled: false, pattern: "", regex: false, caseSensitive: false },
+    text: { enabled: false, pattern: "", regex: false, caseSensitive: false, fields: ["name", "path", "metadata", "detail"] },
     mark: "all",
     groupCount: { enabled: false, min: 2, max: 100 },
     groupSize: { enabled: false, min: 0, max: 100, unit: "GB" },
@@ -100,7 +101,7 @@ export function normalizeCzkawkaFilterState(value: Partial<CzkawkaFilterState> |
   return {
     ...defaults,
     ...value,
-    text: { ...defaults.text, ...value.text },
+    text: { ...defaults.text, ...value.text, fields: [...(value.text?.fields ?? defaults.text.fields)] },
     groupCount: { ...defaults.groupCount, ...value.groupCount },
     groupSize: { ...defaults.groupSize, ...value.groupSize },
     fileSize: { ...defaults.fileSize, ...value.fileSize },
@@ -181,7 +182,7 @@ function matchesEntry(entry: CzkawkaEntry, selected: Set<string>, state: Czkawka
   if (state.mark === "selected" && !selected.has(entry.path)) return false
   if (state.mark === "unselected" && (entry.isReference || selected.has(entry.path))) return false
   if (state.mark === "reference" && !entry.isReference) return false
-  if (state.text.enabled && state.text.pattern && !textMatch(entrySearchText(entry))) return false
+  if (state.text.enabled && state.text.pattern && !textMatch(entrySearchText(entry, state.text.fields))) return false
   if (state.fileSize.enabled && !inRange(entry.size, sizeBoundary(state.fileSize.min, state.fileSize.unit), sizeBoundary(state.fileSize.max, state.fileSize.unit))) return false
   if (state.extension.enabled && state.extension.excludedCategories.includes(categoryOf(entry, tool))) return false
   if (state.extension.enabled && state.extension.extensions.length > 0) {
@@ -278,7 +279,14 @@ function createRegexMatcher(pattern: string, caseSensitive: boolean): { match: (
   catch (error) { return { match: () => false, error: error instanceof Error ? error.message : String(error) } }
 }
 
-function entrySearchText(entry: CzkawkaEntry): string { return [entry.name, entry.path, entry.title, entry.artist, entry.genre, entry.detail, entry.properExtension, entry.secondaryPath].filter(Boolean).join("\n") }
+function entrySearchText(entry: CzkawkaEntry, fields: CzkawkaTextField[]): string {
+  const values: unknown[] = []
+  if (fields.includes("name")) values.push(entry.name)
+  if (fields.includes("path")) values.push(entry.path)
+  if (fields.includes("metadata")) values.push(entry.title, entry.artist, entry.genre, entry.year, entry.length, entry.bitrate, entry.width, entry.height, entry.similarity)
+  if (fields.includes("detail")) values.push(entry.detail, entry.error, entry.properExtension, entry.secondaryPath, entry.status)
+  return values.filter((value) => value !== undefined && value !== "").join("\n")
+}
 function sizeBoundary(value: number | undefined, unit: CzkawkaSizeUnit | undefined): number | undefined { return value === undefined ? undefined : value * ({ B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }[unit ?? "B"]) }
 function inRange(value: number, min?: number, max?: number): boolean { return (min === undefined || value >= min) && (max === undefined || value <= max) }
 function extensionOf(path: string): string { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? ""; const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLocaleLowerCase() : "" }
