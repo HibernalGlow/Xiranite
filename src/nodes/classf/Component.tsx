@@ -396,9 +396,10 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
   return (
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="classf-paths" className="text-xs">{props.t("fields.sameaRoots", "SameA 归档来源")}</Label>}
-      <ToggleGroup type="single" value={props.data.workItemMode ?? "files"} disabled={props.disabled} onValueChange={(value) => value && props.onPatch({ workItemMode: value as ClassfWorkItemMode })} className="grid grid-cols-2" size="sm">
+      <ToggleGroup type="single" value={props.data.workItemMode ?? "files"} disabled={props.disabled} onValueChange={(value) => value && props.onPatch({ workItemMode: value as ClassfWorkItemMode })} className="grid grid-cols-3" size="sm">
         <ToggleGroupItem value="files" className="gap-1"><Archive /><span className="text-xs">{props.t("workItemModes.files", "压缩包文件")}</span></ToggleGroupItem>
         <ToggleGroupItem value="folders" className="gap-1"><Folder /><span className="text-xs">{props.t("workItemModes.folders", "已解压文件夹")}</span></ToggleGroupItem>
+        <ToggleGroupItem value="mixed" className="gap-1"><Layers3 /><span className="text-xs">{props.t("workItemModes.mixed", "混合")}</span></ToggleGroupItem>
       </ToggleGroup>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <PathTextarea id="classf-paths" aria-label="classf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={props.t("placeholders.sameaRoots", "每行一个文件或文件夹\nD:/set/reviewed.zip")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />

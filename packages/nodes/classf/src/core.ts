@@ -2,14 +2,14 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CrashuData, CrashuInput, CrashuResult } from "@xiranite/node-crashu/core"
 import type { MigratefData, MigratefInput, MigratefResult, MigratePlanItem } from "@xiranite/node-migratef/core"
 import type { SameaData, SameaInput, SameaResult } from "@xiranite/node-samea/core"
-import { selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
+import { isArchiveFile, selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"
 export type ClassfClassifyMode = "off" | "auto" | "only"
 export type ClassfPlacementMode = "local" | "root"
 export type ClassfExistingPolicy = "merge" | "skip"
-export type ClassfWorkItemMode = "files" | "folders"
+export type ClassfWorkItemMode = "files" | "folders" | "mixed"
 export type ClassfPlanStatus = "ready" | "skipped" | "moved" | "copied" | "conflict" | "error"
 export type ClassfStage = "samea" | "crashu" | "already" | "wait"
 
@@ -65,7 +65,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     if (normalized.placementMode === "root" && !normalized.targetDir) return failure("Root placement requires a target directory.", normalized)
     const crashuSourcePaths = normalized.crashuSourcePaths.length ? normalized.crashuSourcePaths : [DEFAULT_CRASHU_SOURCE_PATH]
     onEvent({ type: "progress", progress: 5, message: "SameA: building the source plan.", data: { kind: "classf-stage", stage: "samea", status: "running" } satisfies ClassfProgressData })
-    const sameaPlan = await runtime.runSamea({ action: "plan", paths: sameaPaths, ignorePathBlacklist: normalized.sameaIgnorePathBlacklist, minOccurrences: normalized.sameaMinOccurrences, centralize: normalized.sameaCentralize, includeDirectories: normalized.workItemMode === "folders", skipGroupedDirectories: normalized.workItemMode === "folders", dryRun: true }, (event) => forward(event, 5, 15, onEvent))
+    const sameaPlan = await runtime.runSamea({ action: "plan", paths: sameaPaths, ignorePathBlacklist: normalized.sameaIgnorePathBlacklist, minOccurrences: normalized.sameaMinOccurrences, centralize: normalized.sameaCentralize, includeDirectories: normalized.workItemMode !== "files", skipGroupedDirectories: normalized.workItemMode !== "files", dryRun: true }, (event) => forward(event, 5, 15, onEvent))
     if (!sameaPlan.success || !sameaPlan.data) return failure(sameaPlan.message, normalized, { samea: sameaPlan.data })
     const groups = sameaPlan.data.groups.filter((group) => group.status === "ready")
     let crashuData: CrashuData | undefined
@@ -149,7 +149,7 @@ async function runPostTransferSamea(
       ignorePathBlacklist: input.sameaIgnorePathBlacklist,
       minOccurrences: input.sameaGroupMinOccurrences,
       centralize: input.sameaGroupCentralize,
-      includeDirectories: input.workItemMode === "folders",
+      includeDirectories: input.workItemMode !== "files",
       skipGroupedDirectories: true,
       dryRun: false,
     }, (event) => forward(event, stage === "already" ? 90 : 94, 5, onEvent))
@@ -197,13 +197,17 @@ async function findClassificationDirectories(
 
 async function collectInputItems(paths: string[], mode: ClassfWorkItemMode, runtime: Pick<ClassfRuntime, "pathInfo" | "listDir">): Promise<ClassfDirEntry[]> {
   const items: ClassfDirEntry[] = []
-  if (mode === "folders") {
+  if (mode !== "files") {
     for (const path of paths) {
       const info = await runtime.pathInfo(path)
       if (!info.exists || !info.isDirectory) continue
-      for (const entry of selectSinglePackFolderSources(await runtime.listDir(info.path))) {
+      const entries = await runtime.listDir(info.path)
+      for (const entry of selectSinglePackFolderSources(entries)) {
         if (isClassificationDirectory(entry.name) || isArtistGroupDirectory(entry.name)) continue
         items.push({ name: entry.name, path: entry.path, isFile: false, isDirectory: true })
+      }
+      if (mode === "mixed") {
+        for (const entry of entries) if (entry.isFile && isArchiveFile(entry.name)) items.push(entry)
       }
     }
     return [...new Map(items.map((item) => [normalizePath(item.path), item])).values()]

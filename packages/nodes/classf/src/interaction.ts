@@ -18,7 +18,7 @@ export function createClassfInteractionSchema(defaults: Partial<ClassfInteractio
       { id: "transferMode", label: text("迁移方式", "Transfer mode"), kind: "select", options: [{ value: "move", label: text("移动", "Move") }, { value: "copy", label: text("复制", "Copy") }] },
       { id: "classifyMode", label: text("分类模式", "Classify mode"), kind: "select", options: [{ value: "auto", label: text("already + wait", "Already + wait") }, { value: "only", label: text("仅 already", "Already only") }] },
       { id: "existingPolicy", label: text("现有项目策略", "Existing policy"), kind: "select", options: [{ value: "merge", label: text("合并", "Merge") }, { value: "skip", label: text("跳过", "Skip") }] },
-      { id: "workItemMode", label: text("作品类型", "Work item type"), kind: "select", options: [{ value: "files", label: text("压缩包文件", "Archive files") }, { value: "folders", label: text("已解压文件夹", "Extracted folders") }] },
+      { id: "workItemMode", label: text("作品类型", "Work item type"), kind: "select", options: [{ value: "files", label: text("压缩包文件", "Archive files") }, { value: "folders", label: text("已解压文件夹", "Extracted folders") }, { value: "mixed", label: text("压缩包 + 文件夹", "Archives + folders") }] },
       { id: "dryRun", label: text("预演", "Dry run"), kind: "boolean" },
       { id: "sameaGroupEnabled", label: text("already / wait 画师分组", "Group artists after transfer"), kind: "boolean" },
       { id: "sameaGroupMinOccurrences", label: text("画师最少文件数", "Minimum files per artist group"), kind: "number", min: 1, max: 100, step: 1 },
