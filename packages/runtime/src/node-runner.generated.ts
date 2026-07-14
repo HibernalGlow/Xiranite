@@ -199,6 +199,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-nameu/platform"), { nodeId: "nameu", entry: "platform" }),
     createRuntime: "createNodeNameuRuntime",
   },
+  neoview: {
+    packageName: "@xiranite/node-neoview",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-neoview/core"), { nodeId: "neoview", entry: "core" }),
+    run: "runNeoview",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-neoview/platform"), { nodeId: "neoview", entry: "platform" }),
+    createRuntime: "createNodeNeoviewRuntime",
+  },
   owithu: {
     packageName: "@xiranite/node-owithu",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-owithu/core"), { nodeId: "owithu", entry: "core" }),

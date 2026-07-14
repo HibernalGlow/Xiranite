@@ -1,0 +1,40 @@
+{
+  "name": "@xiranite/node-neoview",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "NeoView reader core and shared GUI/CLI/TUI contracts.",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./frame": {
+      "types": "./dist/frame.d.ts",
+      "default": "./dist/frame.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src --environment node"
+  },
+  "dependencies": {
+    "@xiranite/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

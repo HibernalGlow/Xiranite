@@ -57,6 +57,7 @@
         "@xiranite/node-movea": "workspace:*",
         "@xiranite/node-mvz": "workspace:*",
         "@xiranite/node-nameu": "workspace:*",
+        "@xiranite/node-neoview": "workspace:*",
         "@xiranite/node-owithu": "workspace:*",
         "@xiranite/node-rawfilter": "workspace:*",
         "@xiranite/node-recycleu": "workspace:*",
@@ -764,6 +765,18 @@
       "dependencies": {
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/nodes/neoview": {
+      "name": "@xiranite/node-neoview",
+      "version": "0.1.0",
+      "dependencies": {
         "@xiranite/contract": "workspace:*",
       },
       "devDependencies": {
@@ -2105,6 +2118,8 @@
     "@xiranite/node-mvz": ["@xiranite/node-mvz@workspace:packages/nodes/mvz"],
 
     "@xiranite/node-nameu": ["@xiranite/node-nameu@workspace:packages/nodes/nameu"],
+
+    "@xiranite/node-neoview": ["@xiranite/node-neoview@workspace:packages/nodes/neoview"],
 
     "@xiranite/node-owithu": ["@xiranite/node-owithu@workspace:packages/nodes/owithu"],
 
