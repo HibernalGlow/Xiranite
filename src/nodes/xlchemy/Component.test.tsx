@@ -299,6 +299,14 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.pathsText).toBe("D:/images/z.png")
   })
 
+  test("virtualizes large table-mode input lists", () => {
+    const paths = Array.from({ length: 500 }, (_, index) => `D:/images/image-${index}.png`)
+    render(<Component compId="xlchemy-card" host={createHost({ pathsText: paths.join("\n"), inputViewMode: "list" })} />)
+    const table = screen.getByTestId("xlchemy-niko-table")
+    expect(table.getAttribute("data-virtualized")).toBe("true")
+    expect(table.querySelectorAll("tbody tr").length).toBeLessThan(paths.length)
+  })
+
   test("keeps input formats as toggle tags and sends selected files to the runner", async () => {
     const host = createHost({ pathsText: "D:/images/a.png\nD:/images/b.png", selectedPaths: ["D:/images/b.png"] })
     render(<Component compId="xlchemy-card" host={host} />)

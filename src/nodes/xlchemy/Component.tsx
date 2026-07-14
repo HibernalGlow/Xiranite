@@ -33,6 +33,7 @@ import { InputFilesWorkbench } from "./InputFilesWorkbench"
 import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./ProgressAndLogs"
 import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
+import { parseEfuBytes } from "./efu"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
   "use no memo"
@@ -70,6 +71,30 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       }
       if (presetResponse) setCustomPresets(normalizeCustomPresets(presetResponse.presets))
     } catch { /* browser preview */ }
+  }
+
+  async function importEfuLists() {
+    const picked = await host.localFiles?.pickFiles?.({
+      title: "导入 Everything EFU 文件列表",
+      filters: [{ displayName: "Everything 文件列表 (*.efu)", pattern: "*.efu" }],
+    })
+    if (!picked?.length || !host.localFiles?.getUrl) return
+    const imported: string[] = []
+    const errors: string[] = []
+    for (const filePath of picked) {
+      try {
+        const response = await fetch(host.localFiles.getUrl(filePath), { cache: "no-store" })
+        if (!response.ok) throw new Error(`读取失败（${response.status}）`)
+        imported.push(...parseEfuBytes(await response.arrayBuffer()))
+      } catch (error) {
+        errors.push(`${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+    const next = [...new Set([...splitLines(dataRef.current.pathsText), ...imported])]
+    const message = errors.length
+      ? `EFU 导入完成：${imported.length} 个路径，${errors.length} 个文件失败。`
+      : `EFU 导入完成：${imported.length} 个路径。`
+    patch({ pathsText: next.join("\n"), selectedPaths: next, progressText: message, logs: [...(dataRef.current.logs ?? []), message, ...errors].slice(-120) })
   }
 
   useEffect(() => { void reloadDefaults() }, [host])
@@ -222,7 +247,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   const props: ViewProps = {
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
-    onCancel: cancelCurrentRun, onExecute: execute, onPatch: patch, onSelectPreset: selectPreset,
+    onCancel: cancelCurrentRun, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
   }
@@ -289,7 +314,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
+  onCancel: () => void; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -364,7 +389,7 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
