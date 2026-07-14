@@ -35,6 +35,7 @@
     "lint": "oxlint .",
     "lint:all": "bun run lint && bun run audit:node-architecture",
     "migrate:node-ui": "bun scripts/migrate-node-ui-to-app.ts",
+    "migrate:tauri": "bun packages/tauri-migrate/src/cli.ts",
     "sync:cli-bins": "bun scripts/sync-cli-bin-names.ts",
     "sync:ui-registries": "bun scripts/sync-ui-registries.ts",
     "audit:node-architecture": "bun scripts/validate-node-architecture.ts",
