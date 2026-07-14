@@ -73,7 +73,7 @@ bun run migrate:tauri -- generate `
 
 ### 3.1 AST 迁移工具是开工第一步
 
-真正开始迁移时，第一项动作必须是运行 `packages/tauri-migrate`，而不是先手工创建 React 组件或凭印象重写 Rust。当前已经生成过 `artifacts/tauri-migration/neoview-baseline`，但正式实现前仍要对冻结的 NeoView 源版本重新生成并审计：
+真正开始迁移时，第一组动作必须是分别运行后端 Tauri AST 和前端 Svelte AST 工具，而不是先手工创建 React 组件或凭印象重写 Rust/Svelte。当前已经生成过 `artifacts/tauri-migration/neoview-baseline`，但正式实现前仍要对冻结的 NeoView 源版本重新生成并审计：
 
 ```powershell
 bun run migrate:tauri -- generate `
@@ -101,11 +101,49 @@ AST 阶段的交付物用途：
 3. 将 command、UI、设置和数据模块归并进 `feature-compatibility.json`；
 4. 基于旧契约建立 characterization/conformance tests；
 5. 把 319 个旧 command 收口为约 10～15 个 ReaderService 操作；
-6. 再实现 TS application/platform 和最小 React 纵切。
+6. 由 Svelte AST 生成可追踪 React scaffold，再实现 TS application/platform 和最小 React 纵切。
 
 `applyStructuralRewrites` 只用于同语言的确定性改写，例如前端 Tauri import、调用入口和 API 名称替换。它不负责 Rust 到 TypeScript 的业务语义翻译；自动逐函数翻译会把旧版多主链、重复缓存和 319 个碎 command 一起永久保留下来。
 
 AST inventory 是迁移证据源，架构文档和 feature matrix 是决策源，两者都不能互相替代。当前 v2 inventory 会记录迁移器版本、源 commit、dirty 状态和 dirty diff hash；跨平台 `#[cfg]` 同名实现保留为多条证据，但生成一个联合 TS 契约。Phase 0 资料先放在不参与节点发现的 `migration/neoview/`，避免未完成节点进入运行时；复核后的紧凑基线保存在 `migration/neoview/inventory-baseline.json`。执行 `bun run audit:neoview-inventory` 检查当前生成物；只有审查 REPORT 和 disposition 后才允许用 `--update` 刷新基线。源项目出现新增/删除 command、签名、事件、state、调用证据或 native evidence 变化时，要求同步更新 disposition、feature mapping 和测试，而不是静默漂移。
+
+### 3.2 前端同样必须先走 Svelte AST，不允许全部手写
+
+前端迁移工具与 `packages/tauri-migrate` 地位相同。可以扩展现有迁移包，也可以建立独立的 `packages/svelte-migrate`，但必须使用 `svelte/compiler` 读取 Svelte 5 AST，并用 OXC/TypeScript AST 处理 `<script lang="ts">`；禁止用正则替换冒充结构化转换。工具先扫描最新冻结 HEAD 的全部 `.svelte`、`.svelte.ts` 和相关 TS 模块，再生成 React scaffold 与人工审计报告。
+
+前端 AST 产物至少包括：
+
+| 产物 | 迁移用途 |
+| --- | --- |
+| `component-inventory.json` | 组件、props、事件、snippet/slot、context、action、transition、样式和源码 hash |
+| `store-inventory.json` | `$state/$derived/$effect`、Svelte store 订阅、localStorage key 和跨组件写入关系 |
+| `component-graph.json` | 同步/动态组件依赖、入口 chunk、面板/卡片注册和循环依赖 |
+| `tauri-usage.json` | `invoke`、Tauri event/plugin、`convertFileSrc` 和旧数据面调用位置 |
+| `tsx-scaffold/` | 可重复生成的 React TSX/TS 草稿，不直接视为完成实现 |
+| `REPORT.md` | 自动转换、需要 adapter、必须人工重构、被新架构替代和阻塞项 |
+
+每个生成文件必须带来源追踪，至少记录原文件、源 hash、关联 feature id、迁移器版本和状态：
+
+```ts
+/**
+ * @migrated-from src/lib/components/layout/MainLayout.svelte
+ * @source-hash sha256:...
+ * @features panels-toolbar-shell,page-layout-modes
+ * @migration-status scaffold
+ */
+```
+
+转换分级固定为：
+
+- `converted`：静态 markup、props、普通 TypeScript、`{#if}`/`{#each}`、基础事件、class 和简单 `bind:value` 可确定性生成 TSX；
+- `adapter-needed`：Tauri 调用、host capability、store 订阅和跨窗口事件必须接到新 contract/provider；
+- `manual`：Svelte runes 的复杂响应图、action、transition、gesture、drag/drop、context、snippet/slot 和命令式 DOM 由人审查收口；
+- `replaced`：旧 Blob/Base64/IPC 图片链、多套 loader/cache、普通 Reader Canvas、旧主题状态和 PyO3/sr-vulkan 控制链只记录行为，不生成等价旧实现；
+- `blocked`：依赖 ReaderService/ArchiveProvider/asset route 等尚未完成契约的组件只生成 typed shell，禁止自行发明临时数据主链。
+
+AST 的目标是减少机械手写，同时保留新架构边界，不是逐行翻译旧技术债。纯展示组件、设置卡片、工具栏、面板和类型/工具模块应优先批量转换；核心 Viewer、store、IPC、拖拽和手势允许生成 scaffold，但必须按新 Reader Core 重构。人工修改生成结果后，要么移出 generated 区并记录 provenance，要么通过受控 override/patch 层保留；禁止直接编辑可再生成目录后失去差异。
+
+前后端迁移都必须有 drift verifier：源 hash、组件/command 数量、依赖图、Tauri 使用或分类发生变化时 CI 失败，并要求同步更新 feature matrix、adapter 和测试。大规模手写实现如果没有对应 AST evidence、source mapping 和 characterization test，不得合并；人工编码只负责 AST 无法可靠决定的业务语义、架构收口、性能优化和视觉设计。
 
 ## 4. Xiranite 现状与约束
 
@@ -1375,10 +1413,10 @@ scripts/
 
 现在具备开始迁移的架构条件，但第一批工作不是 React 视觉重写。顺序为：
 
-1. **AST 工具先行**：冻结源版本，重新生成 inventory、旧 TS contract、adapter 和报告，完成人工 disposition 审计；
+1. **前后端 AST 工具先行**：冻结源版本，后端生成 command inventory/旧 TS contract/adapter，前端生成 component/store/Tauri usage inventory 和 TSX scaffold，分别完成人工 disposition 审计；
 2. **测试和契约收口**：由 AST 证据生成 feature matrix、fixture builders 和 characterization tests，再定义小型 ReaderService API；
 3. **后端主链先行**：实现 Reader Core、ReaderSession、ZIP provider、asset route、取消和资源生命周期；
-4. **最小前端纵切**：只实现“打开一个 CBZ、显示当前页、上一页/下一页、关闭 session”，用于端到端验证；
+4. **最小前端纵切**：由 Svelte AST scaffold 接入新 contract，只实现“打开一个 CBZ、显示当前页、上一页/下一页、关闭 session”，用于端到端验证；
 5. **按功能纵切扩展**：每个 slice 同时完成 core/platform、GUI、CLI/TUI 可用部分、设置映射和测试；
 6. **最后完成视觉重构和旧链删除**：避免 UI 先行产生临时 page loader、Blob cache 和第二套状态源。
 
@@ -1387,6 +1425,7 @@ scripts/
 第一批实现提交应限定为：
 
 - 刷新并审计 `neoview-baseline` AST 产物，记录源 fingerprint；
+- 生成并审计 Svelte component/store/依赖/Tauri usage inventory 和 React scaffold，记录所有源 hash；
 - 建立 inventory drift 检查和 command -> feature mapping；
 - 创建 `@xiranite/node-neoview` 包骨架和测试目录；
 - 定义 Page/Frame/ArchiveProvider/ReaderService 契约；
@@ -1395,15 +1434,16 @@ scripts/
 - 建立 ArchiveProvider conformance suite；
 - 实现只读 ZIP index + entry stream；
 - 实现最小 ReaderSession 与受保护 asset route；
-- 最后接一个无设计负担的最小 React smoke viewer。
+- 最后从可追踪 scaffold 收口一个无设计负担的最小 React smoke viewer。
 
 这一纵切通过流式、取消、dispose 和首屏基准后，再开始迁移完整前端。
 
 ### Phase 0：AST 迁移与冻结基线
 
-- 冻结 NeoView 源 commit/diff，使用 `packages/tauri-migrate` 重新生成并审计全部产物；
-- 复核 296 个 portable、16 个 native、7 个 manual-review disposition，任何变化都要解释；
+- 冻结 NeoView 源 commit/diff，使用后端 Tauri AST 和前端 Svelte AST 工具重新生成并审计全部产物；
+- 复核当前基线的 309 个 portable、10 个 native、0 个 manual-review command disposition，任何变化都要解释；
 - 将 AST command、事件和 state 映射到 feature matrix，建立 inventory drift verifier；
+- 将 Svelte component、store、Tauri usage、localStorage key 和组件依赖映射到 feature matrix，建立前端 drift verifier；
 - 固定真实样本：图片目录、Store/Deflate CBZ、solid/non-solid RAR/7z、嵌套包、PDF、超长图、动图；
 - 记录当前 NeoView 的首屏、连续翻页、随机跳页、缩略图、峰值内存和关闭后残留；
 - 记录 archive index、entry TTFB、临时写入量、完整 Buffer 次数和取消延迟；
@@ -1436,6 +1476,7 @@ scripts/
 
 ### Phase 3：React Reader 重构
 
+- 先运行 Svelte AST codemod，批量生成带 provenance 的 TSX/TS scaffold；纯展示、设置卡片、面板和工具栏优先自动转换，禁止无清单的整页手写；
 - 以 FrameSnapshot 重写显示层；
 - 建立唯一 `PageImage <img>` 主链，以 `FrameLayoutEngine` 统一生成单页、双页、宽页拆分、全景、RTL、旋转和 fit rect；
 - 删除 `CanvasImage`、`renderMode: img | canvas` 和普通 Reader 的 Canvas fallback；仅保留独立、动态导入的 Canvas capability；
@@ -1443,6 +1484,7 @@ scripts/
 - 接入细粒度 selector、虚拟化、稳定布局和方向预读；
 - 高频拖动/缩放使用 ref、rAF 和 CSS transform，不逐帧提交 React state；
 - 删除被替代的前端队列、Blob/Base64 和缓存主链；
+- 清除 scaffold 中所有 `adapter-needed/manual/blocked` 标记；源码未映射、临时兼容链或直接编辑 generated 目录均阻断合并；
 - 验证 Reader 操作不会引发 workspace 级重渲染；
 - 保存 React Profiler、Compiler 对照和浏览器 trace 基准。
 - 每个交互功能同时提交 Component test 和关键 E2E，不接受 UI-only 提交。
@@ -1533,6 +1575,7 @@ TS 源文件本身不会导致严重膨胀；真正的体积来源是 `sharp/lib
 只有同时满足以下条件，才算迁移完成：
 
 - NeoView 作为标准节点通过生成注册表接入，未使用时保持懒加载；
+- Rust/Tauri 与 Svelte 前端都具有冻结 AST inventory、source hash、迁移分类和 drift verifier；生产实现可追踪到旧源码与 feature，未采用无证据的整套手写替换；
 - 原有用户功能全部保留或由已记录的 Xiranite 等价能力接管，兼容矩阵无 `pending`；
 - 除主题外的旧设置、完整导出与备份均可导入，且没有静默丢失字段；
 - NeoView 设置以 `[nodes.neoview]` TOML 为唯一配置真相源，GUI/CLI/TUI 共用；
@@ -1570,4 +1613,5 @@ TS 源文件本身不会导致严重膨胀；真正的体积来源是 `sharp/lib
 8. Reader 设置统一进入 Xiranite TOML，缩略图数据库沿用原版路径；
 9. 普通页面统一以 DOM `<img>` 显示，Canvas 只作为可懒加载的 overlay/离屏/tile capability；
 10. 以真实数据和多工具并发基准决定优化，而不是以“Rust/TS/IPC”标签决定性能；
-11. 超分采用 OpenComic TS 调度 + 系统 `upscayl-bin`/`waifu2x`/`realcugan` CLI；不嵌入 exe、不捆 Python，缺失时只降级该 capability。
+11. 超分采用 OpenComic TS 调度 + 系统 `upscayl-bin`/`waifu2x`/`realcugan` CLI；不嵌入 exe、不捆 Python，缺失时只降级该 capability；
+12. 前后端都以 AST inventory/codemod 减少机械手写；自动转换保留来源追踪，人工工作只处理语义、架构、性能和设计收口。
