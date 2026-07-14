@@ -42,6 +42,8 @@ rg -n --glob '*.{ts,tsx}' 'useMemo\(|useCallback\(|React\.memo\(|\bmemo\(' src p
 
 这些候选中，`classf`、`classq` 和 `xlchemy` 包含较重的树/列表计算：先删除 memo 并通过测试，再用 Profiler 验证交互路径；不要以“保留 useMemo”作为默认预防措施。
 
+`findz` 已从首批实际改动中暂缓：其现有组件测试在保留原始 memo 时仍会失败，测试期待“打开配置文件”而实际控件文案为“打开文件”。应先单独修复该测试，再继续移除该组件的 3 处纯派生 memo，避免将不相关的回归混入优化提交。
+
 ## 第二批：需要逐项核实（中风险）
 
 | 范围 | 原因 | 建议 |

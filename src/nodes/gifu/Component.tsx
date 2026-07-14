@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { GifuAction, GifuData, GifuInput } from "@xiranite/node-gifu/core"
 import { Film, LoaderCircle, Play, RotateCcw, Square } from "lucide-react"
@@ -43,7 +43,7 @@ export function Component({ compId, host }: NodeComponentProps<GifuCardState>) {
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
-  const pathCount = useMemo(() => parseLines(data.pathsText).length, [data.pathsText])
+  const pathCount = parseLines(data.pathsText).length
 
   useEffect(() => {
     const loadConfig = host.config?.get?.<Partial<GifuCardState>>() ?? host.getNodeConfig?.<Partial<GifuCardState>>()

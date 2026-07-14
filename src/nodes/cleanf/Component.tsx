@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { CleanfData, CleanfInput, CleanfPresetId } from "@xiranite/node-cleanf/core"
 import { parseCleanfPaths } from "@xiranite/node-cleanf/core"
@@ -35,7 +35,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const pathCount = useMemo(() => parseCleanfPaths(data.pathText ?? "").length, [data.pathText])
+  const pathCount = parseCleanfPaths(data.pathText ?? "").length
   const selectedPresets = data.selectedPresets ?? DEFAULT_SELECTED_PRESETS
   const previewMode = data.previewMode ?? true
   const phase = phaseFromState(data, running)

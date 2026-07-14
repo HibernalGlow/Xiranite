@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { FormatvAction, FormatvData, FormatvInput } from "@xiranite/node-formatv/core"
 import { Copy, Minus, Plus, RotateCcw, Search, Square, Video } from "lucide-react"
@@ -34,7 +34,7 @@ export function Component({ compId, host }: NodeComponentProps) {
 
   const logs = data.logs ?? []
   const result = data.result ?? null
-  const pathCount = useMemo(() => splitLines(data.pathText ?? "").length, [data.pathText])
+  const pathCount = splitLines(data.pathText ?? "").length
   const prefixName = data.prefixName || DEFAULT_PREFIX_NAME
   const recursive = data.recursive ?? false
   const dryRun = data.dryRun ?? false
