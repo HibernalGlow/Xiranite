@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode, ClassfWorkItemMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
@@ -43,7 +43,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
 
   const action = data.action ?? "plan"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
-  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const paths = splitLines(data.pathsText)
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0

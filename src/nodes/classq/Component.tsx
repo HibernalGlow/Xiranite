@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { ClassqAction, ClassqData, ClassqInput, ClassqPlanItem, ClassqTransferMode } from "@xiranite/node-classq/core"
 import type { LucideIcon } from "lucide-react"
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassqCardState>)
   const persistedAction = data.action ?? "plan"
   const [action, setAction] = useState<ClassqAction>(persistedAction)
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
-  const roots = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const roots = splitLines(data.pathsText)
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
