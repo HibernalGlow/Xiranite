@@ -101,7 +101,15 @@ try {
   const ignoredSameSizeVideos = await scan("similar-videos", similarVideos, ["--no-cache", "--similarity", "20", "--video-skip", "0", "--video-duration", "2", "--video-crop", "none", "--video-ignore-same-size"])
   if (strictVideos.data?.groupCount !== 0 || alternateWindowVideos.data?.groupCount !== 1 || ignoredSameSizeVideos.data?.groupCount !== 0) throw new Error(`Similar-video tolerance, window, or same-size filter was ignored: ${JSON.stringify({ strictVideos, alternateWindowVideos, ignoredSameSizeVideos })}`)
 
-  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, similarVideoCropModes: 3, similarVideoDistance: true, similarVideoTolerance: true, similarVideoIgnoreSameSize: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
+  const brokenFiles = await createBrokenFiles(fixture)
+  for (const [kind, filename] of [["audio", "broken.mp3"], ["pdf", "broken.pdf"], ["archive", "broken.zip"], ["image", "broken.png"]]) {
+    const flags = ["audio", "pdf", "archive", "image"].map((candidate) => candidate === kind ? `--broken-${candidate}` : `--no-broken-${candidate}`)
+    const result = await scan("broken-files", brokenFiles, ["--no-cache", ...flags])
+    const found = result.data?.entries.find((entry) => entry.name === filename)
+    if (!found?.detail || result.data?.entries.some((entry) => entry.name !== filename)) throw new Error(`Broken ${kind} scanner did not isolate a detailed result: ${JSON.stringify(result)}`)
+  }
+
+  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, similarVideoCropModes: 3, similarVideoDistance: true, similarVideoTolerance: true, similarVideoIgnoreSameSize: true, brokenFileTypes: 4, brokenFileDetails: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
 } finally {
   await rm(fixture, { recursive: true, force: true })
 }
@@ -167,6 +175,18 @@ async function createSimilarVideos(root) {
   await mkdir(directory, { recursive: true })
   runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=15", "-t", "6", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(directory, "a.mp4")])
   runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=15", "-vf", "eq=brightness=0.02", "-t", "6", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(directory, "b.mp4")])
+  return directory
+}
+
+async function createBrokenFiles(root) {
+  const directory = join(root, "broken-files-matrix")
+  await mkdir(directory, { recursive: true })
+  await Promise.all([
+    writeFile(join(directory, "broken.mp3"), Buffer.concat([Buffer.from("ID3"), Buffer.alloc(2048, 0xff)])),
+    writeFile(join(directory, "broken.pdf"), Buffer.from("%PDF-1.7\nthis is not a valid PDF body")),
+    writeFile(join(directory, "broken.zip"), Buffer.concat([Buffer.from("PK\x03\x04"), Buffer.alloc(2048, 0xaa)])),
+    writeFile(join(directory, "broken.png"), Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n"), Buffer.alloc(2048, 0xbb)])),
+  ])
   return directory
 }
 
