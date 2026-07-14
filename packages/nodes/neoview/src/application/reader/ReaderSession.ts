@@ -2,6 +2,7 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
 import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
+import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
   type ReaderSession,
@@ -20,13 +21,17 @@ export class CoreReaderSession implements ReaderSession {
   #listeners = new Set<(event: ReaderSessionEvent) => void>()
   #closed = false
   #closing: Promise<void> | undefined
+  #metadataResolved = new Set<PageId>()
+  #metadataProbes = new Map<PageId, Promise<void>>()
   #onClose?: (sessionId: ReaderSessionId) => void
+  readonly #metadataProbe?: ImageMetadataProbe
 
   constructor(
     id: ReaderSessionId,
     book: ReaderBook,
     options: Partial<ReaderSessionOptions> = {},
     onClose?: (sessionId: ReaderSessionId) => void,
+    metadataProbe?: ImageMetadataProbe,
   ) {
     assertBook(book)
     this.id = id
@@ -34,6 +39,7 @@ export class CoreReaderSession implements ReaderSession {
     this.#pagesById = new Map(book.pages.map((page) => [page.id, page]))
     this.#options = mergeOptions(DEFAULT_READER_SESSION_OPTIONS, options)
     this.#onClose = onClose
+    this.#metadataProbe = metadataProbe
   }
 
   get generation(): ReaderGeneration {
@@ -56,12 +62,24 @@ export class CoreReaderSession implements ReaderSession {
     return this.#pagesById.get(pageId)
   }
 
+  async initialize(pageIndex = 0, signal?: AbortSignal): Promise<FrameSnapshot> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const target = clamp(pageIndex, this.book.pages.length)
+    await this.#prepareFrameMetadata(target, this.#options, signal)
+    signal?.throwIfAborted()
+    this.#anchorPageIndex = target
+    return this.snapshot()
+  }
+
   async goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot> {
     this.#assertOpen()
     signal?.throwIfAborted()
-    this.#anchorPageIndex = clamp(pageIndex, this.book.pages.length)
-    this.#generation += 1
+    const target = clamp(pageIndex, this.book.pages.length)
+    await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
+    this.#anchorPageIndex = target
+    this.#generation += 1
     return this.#publishFrame()
   }
 
@@ -88,9 +106,13 @@ export class CoreReaderSession implements ReaderSession {
     return this.goTo(current.anchorPageIndex - Math.max(current.pages.length, 1), signal)
   }
 
-  updateOptions(options: Partial<ReaderSessionOptions>): FrameSnapshot {
+  async updateOptions(options: Partial<ReaderSessionOptions>, signal?: AbortSignal): Promise<FrameSnapshot> {
     this.#assertOpen()
-    this.#options = mergeOptions(this.#options, options)
+    signal?.throwIfAborted()
+    const nextOptions = mergeOptions(this.#options, options)
+    await this.#prepareFrameMetadata(this.#anchorPageIndex, nextOptions, signal)
+    signal?.throwIfAborted()
+    this.#options = nextOptions
     this.#generation += 1
     return this.#publishFrame()
   }
@@ -122,6 +144,47 @@ export class CoreReaderSession implements ReaderSession {
     const snapshot = this.snapshot()
     this.#emit({ type: "frame", snapshot })
     return snapshot
+  }
+
+  async #prepareFrameMetadata(
+    anchorPageIndex: number,
+    options: ReaderSessionOptions,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    if (!this.#metadataProbe) return
+    const pages = [this.book.pages[anchorPageIndex]]
+    if (options.layout.pageMode === "double") pages.push(this.book.pages[anchorPageIndex + 1])
+    await Promise.all(pages.filter((page): page is ReaderPage => Boolean(page)).map((page) => this.#probePage(page, signal)))
+  }
+
+  async #probePage(page: ReaderPage, signal?: AbortSignal): Promise<void> {
+    if (
+      page.dimensions
+      || this.#metadataResolved.has(page.id)
+      || (page.mediaKind !== "image" && page.mediaKind !== "animated-image")
+    ) return
+    const active = this.#metadataProbes.get(page.id)
+    if (active) return active
+    const probe = (async () => {
+      try {
+        const metadata = await this.#metadataProbe!.probe(page.content, page.mimeType, signal)
+        if (metadata) page.dimensions = metadata.dimensions
+        this.#metadataResolved.add(page.id)
+      } catch (error) {
+        if (signal?.aborted) throw error
+        this.#metadataResolved.add(page.id)
+        this.#emit({
+          type: "error",
+          code: "IMAGE_METADATA_PROBE_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+          recoverable: true,
+        })
+      } finally {
+        this.#metadataProbes.delete(page.id)
+      }
+    })()
+    this.#metadataProbes.set(page.id, probe)
+    return probe
   }
 
   #emit(event: ReaderSessionEvent): void {

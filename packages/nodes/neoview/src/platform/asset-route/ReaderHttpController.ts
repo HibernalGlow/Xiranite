@@ -3,6 +3,7 @@ import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession } from "../../application/reader/contracts.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
+import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -34,7 +35,7 @@ export interface ReaderSessionDto {
 }
 
 export class ReaderHttpController implements AsyncDisposable {
-  readonly #service = new CoreReaderService(createPlatformReaderBookLoader())
+  readonly #service = new CoreReaderService(createPlatformReaderBookLoader(), new StreamingImageMetadataProbe())
   readonly #assets: ReaderAssetRoute
   readonly #token: string
 

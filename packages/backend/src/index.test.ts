@@ -416,10 +416,11 @@ describe("backend", () => {
       const session = await opened.json() as {
         sessionId: string
         book: { pageCount: number }
-        visiblePages: Array<{ assetUrl: string }>
+        visiblePages: Array<{ assetUrl: string; dimensions?: { width: number; height: number } }>
       }
       expect(opened.status).toBe(201)
       expect(session.book.pageCount).toBe(1)
+      expect(session.visiblePages[0]?.dimensions).toEqual({ width: 1, height: 1 })
 
       const image = await fetch(session.visiblePages[0]!.assetUrl)
       expect(image.status).toBe(200)

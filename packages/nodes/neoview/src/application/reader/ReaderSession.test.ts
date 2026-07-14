@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { PageContent } from "../../domain/page/page-content.js"
+import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import { CoreReaderService } from "./ReaderService.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 
@@ -90,6 +92,29 @@ describe("CoreReaderService", () => {
     expect(loaded.close).toHaveBeenCalledOnce()
     await disposal
   })
+
+  it("[neoview.image.probe-layout] probes only frame candidates before applying wide and double-page layout", async () => {
+    const { sourceBook, dimensions } = bookWithoutDimensions()
+    const probe: ImageMetadataProbe = {
+      probe: vi.fn(async (content) => ({
+        format: "png",
+        dimensions: dimensions.get(content)!,
+        bytesRead: 24,
+      })),
+    }
+    const service = new CoreReaderService(async () => sourceBook, probe)
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" }, {
+      layout: { pageMode: "double", panorama: false, singleFirstPage: false, singleLastPage: false, treatWidePageAsSingle: true },
+    })
+    expect(session.snapshot().pages.map((page) => page.pageIndex)).toEqual([0])
+    expect(probe.probe).toHaveBeenCalledTimes(2)
+    expect(session.book.pages[0]?.dimensions).toEqual({ width: 1600, height: 900 })
+
+    const next = await session.next()
+    expect(next.pages.map((page) => page.pageIndex)).toEqual([1, 2])
+    expect(probe.probe).toHaveBeenCalledTimes(3)
+    await service[Symbol.asyncDispose]()
+  })
 })
 
 function book(pageCount: number): ReaderBook {
@@ -114,5 +139,39 @@ function book(pageCount: number): ReaderBook {
     })),
     close,
     [Symbol.asyncDispose]: close,
+  }
+}
+
+function bookWithoutDimensions(): { sourceBook: ReaderBook; dimensions: Map<PageContent, { width: number; height: number }> } {
+  const dimensions = new Map<PageContent, { width: number; height: number }>()
+  const pages = [
+    { width: 1600, height: 900 },
+    { width: 800, height: 1200 },
+    { width: 800, height: 1200 },
+  ].map((size, index): ReaderPage => {
+    const content: PageContent = { async load() { throw new Error("Fake metadata probe owns this content.") } }
+    dimensions.set(content, size)
+    return {
+      id: `probe-page-${index}`,
+      index,
+      name: `${index}.png`,
+      sourcePath: `C:/book/${index}.png`,
+      mediaKind: "image",
+      mimeType: "image/png",
+      contentVersion: "fixture-v1",
+      content,
+    }
+  })
+  const close = vi.fn(async () => undefined)
+  return {
+    dimensions,
+    sourceBook: {
+      id: "probe-book",
+      displayName: "Probe Book",
+      source: { kind: "directory", path: "C:/book" },
+      pages,
+      close,
+      [Symbol.asyncDispose]: close,
+    },
   }
 }

@@ -5,6 +5,7 @@ import type { ZipArchiveProviderOptions } from "./platform/archives/zip/ZipArchi
 import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset-route/ReaderAssetRoute.js"
 import type { ReaderHttpController } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
+import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
@@ -45,4 +46,9 @@ export async function createReaderHttpController(
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
   return new ReaderHttpController(options)
+}
+
+export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
+  const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
+  return new StreamingImageMetadataProbe()
 }

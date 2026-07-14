@@ -1,5 +1,6 @@
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
+import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 import type { OpenViewSourceOptions, ReaderService, ReaderSession, ReaderSessionId } from "./contracts.js"
 
@@ -9,7 +10,10 @@ export class CoreReaderService implements ReaderService {
   #closed = false
   #disposing: Promise<void> | undefined
 
-  constructor(private readonly loadBook: ReaderBookLoader) {}
+  constructor(
+    private readonly loadBook: ReaderBookLoader,
+    private readonly metadataProbe?: ImageMetadataProbe,
+  ) {}
 
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
     this.#assertOpen()
@@ -23,10 +27,18 @@ export class CoreReaderService implements ReaderService {
       throw error
     }
     const id = `reader-${this.#nextSessionId++}`
-    const session = new CoreReaderSession(id, book, options, (sessionId) => this.#sessions.delete(sessionId))
-    this.#sessions.set(id, session)
+    const session = new CoreReaderSession(
+      id,
+      book,
+      options,
+      (sessionId) => this.#sessions.delete(sessionId),
+      this.metadataProbe,
+    )
     try {
-      if (options.initialPage !== undefined && options.initialPage !== 0) await session.goTo(options.initialPage, options.signal)
+      await session.initialize(options.initialPage ?? 0, options.signal)
+      options.signal?.throwIfAborted()
+      this.#assertOpen()
+      this.#sessions.set(id, session)
       return session
     } catch (error) {
       await session.close()

@@ -32,7 +32,7 @@ export interface ReaderSession extends AsyncDisposable {
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>
   previous(signal?: AbortSignal): Promise<FrameSnapshot>
-  updateOptions(options: Partial<ReaderSessionOptions>): FrameSnapshot
+  updateOptions(options: Partial<ReaderSessionOptions>, signal?: AbortSignal): Promise<FrameSnapshot>
   subscribe(listener: (event: ReaderSessionEvent) => void): () => void
   close(): Promise<void>
 }

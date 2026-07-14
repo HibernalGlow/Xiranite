@@ -44,7 +44,11 @@ test("[neoview.react.cbz-e2e] decodes and navigates a real CBZ through React img
     response.url() === `${backend.url}/reader/sessions` && response.request().method() === "POST"
   ))
   await page.getByRole("button", { name: "打开书籍" }).click()
-  const opened = await (await openedResponse).json() as { sessionId: string }
+  const opened = await (await openedResponse).json() as {
+    sessionId: string
+    visiblePages: Array<{ dimensions?: { width: number; height: number } }>
+  }
+  expect(opened.visiblePages[0]?.dimensions).toEqual({ width: 1, height: 1 })
 
   const first = page.getByRole("img", { name: "001.png" })
   await expect(first).toBeVisible()

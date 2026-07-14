@@ -1009,7 +1009,19 @@ entry stream -> sharp/libvips -> output stream -> HTTP/cache
 entry -> full Buffer -> sharp -> full Buffer -> IPC
 ```
 
-图片尺寸探测只读取足够的解压后头部字节：PNG 通常只需固定头部，JPEG 扫描到 SOF marker，WebP/AVIF 读取必要 chunk/box。设置明确上限（初始可取 256 KiB），得到尺寸后 abort ZIP stream 或终止 `7zz -so`。不能像 OpenComic 当前批量尺寸路径一样，为了尺寸把每张图片完整解压为 Buffer。
+图片尺寸探测只读取足够的解压后头部字节：PNG 通常只需固定头部，JPEG 扫描到 SOF marker，WebP/AVIF 读取必要 chunk/box。不能像 OpenComic 当前批量尺寸路径一样，为了尺寸把每张图片完整解压为 Buffer。
+
+当前已实现纯 TS `StreamingImageMetadataProbe`，并接入 `ReaderSession` 的打开、跳页与布局选项更新链：
+
+- 采用固定的 256 KiB header budget 和预分配 `Uint8Array`，不使用 `Buffer.concat()`；
+- 支持 PNG、GIF、JPEG、WebP（VP8/VP8L/VP8X）、BMP、TIFF 与 AVIF `ispe` 尺寸；
+- JPEG/TIFF 读取 EXIF orientation，方向为 5～8 时在布局前交换宽高；
+- 普通文件只请求头部 Range；ZIP/CBZ 即使 entry 不支持解压后 Range，也会在找到尺寸后立刻取消 entry stream，因此 Store 大图不会继续被完整读取；
+- 解析错误通过 session recoverable error 上报，不阻止原图继续显示；同一页的并发探测使用 singleflight 去重；
+- 单页模式只探测当前页，双页模式探测当前页与候选相邻页，真实尺寸直接参与宽页单独成帧判断；
+- 测试覆盖格式、方向、损坏输入、预算、取消、fallback、真实 archive entry 与布局行为。
+
+JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp fallback，不能为了探测尺寸引入常驻 sidecar。AVIF 已有有界 BMFF box 遍历与 `ispe` 支持，但 `irot`/`imir` 等 item property 关联和色彩/解码能力仍由后续转换 fallback 收口。RAR/7z 接入后同一 probe 必须把成功后的取消继续传递到 `7zz -so` 子进程。
 
 ### 11.8 并发、缓存和背压
 
@@ -1792,6 +1804,7 @@ scripts/
 
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；后续接可选 sharp transform；
+- 已接入 256 KiB 有界的纯 TS 流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL 与 AVIF 变换属性留给惰性 native fallback；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
