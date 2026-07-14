@@ -48,10 +48,27 @@ describe("samea core", () => {
     expect(result.scannedCount).toBe(1)
     expect(result.items.map((item) => item.sourcePath)).toEqual(["/archive/[New Artist] new.zip"])
   })
+
+  test("treats extracted work directories as movable artist items", async () => {
+    const moves: Array<[string, string]> = []
+    const runtime = fakeRuntime({
+      "/archive": [
+        { name: "[Artist] first work", path: "/archive/[Artist] first work", isFile: false, isDirectory: true },
+        { name: "[Artist] second work", path: "/archive/[Artist] second work", isFile: false, isDirectory: true },
+      ],
+    }, moves)
+    const result = await runSamea({ action: "classify", paths: ["/archive"], includeDirectories: true, minOccurrences: 2, dryRun: false }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(moves).toEqual([
+      ["/archive/[Artist] first work", "/archive/[Artist]/[Artist] first work"],
+      ["/archive/[Artist] second work", "/archive/[Artist]/[Artist] second work"],
+    ])
+  })
 })
 
 const baseInput = {
-  action: "plan" as const, path: "", listText: "", ignorePathBlacklist: false, minOccurrences: 1, centralize: false, skipGroupedDirectories: false, dryRun: true,
+  action: "plan" as const, path: "", listText: "", ignorePathBlacklist: false, minOccurrences: 1, centralize: false, includeDirectories: false, skipGroupedDirectories: false, dryRun: true,
   artistBlacklist: ["various"], pathBlacklist: ["[00画师分类]"], regexBlacklist: [], archiveExtensions: [".zip", ".rar", ".7z"],
 }
 function file(name: string): SameaDirEntry { return { name, path: `/archive/${name}`, isFile: true, isDirectory: false } }

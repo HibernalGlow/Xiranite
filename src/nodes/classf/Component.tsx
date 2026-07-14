@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode, ClassfWorkItemMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, Archive, ArrowRight, BarChart3, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Layers3, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -85,7 +85,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
+  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.workItemMode, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
 
   function patch(patchData: Partial<ClassfCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -396,6 +396,10 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
   return (
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="classf-paths" className="text-xs">{props.t("fields.sameaRoots", "SameA 归档来源")}</Label>}
+      <ToggleGroup type="single" value={props.data.workItemMode ?? "files"} disabled={props.disabled} onValueChange={(value) => value && props.onPatch({ workItemMode: value as ClassfWorkItemMode })} className="grid grid-cols-2" size="sm">
+        <ToggleGroupItem value="files" className="gap-1"><Archive /><span className="text-xs">{props.t("workItemModes.files", "压缩包文件")}</span></ToggleGroupItem>
+        <ToggleGroupItem value="folders" className="gap-1"><Folder /><span className="text-xs">{props.t("workItemModes.folders", "已解压文件夹")}</span></ToggleGroupItem>
+      </ToggleGroup>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
         <PathTextarea id="classf-paths" aria-label="classf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={props.t("placeholders.sameaRoots", "每行一个文件或文件夹\nD:/set/reviewed.zip")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.paste", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
@@ -788,6 +792,7 @@ function buildInput(action: ClassfAction, data: ClassfCardState): ClassfInput {
     placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
     dryRun: data.dryRun ?? true,
+    workItemMode: data.workItemMode ?? "files",
     sameaGroupEnabled: data.sameaGroupEnabled ?? false,
     sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
     sameaGroupCentralize: data.sameaGroupCentralize ?? false,
@@ -803,6 +808,7 @@ function planFingerprint(data: ClassfCardState): string {
     classifyMode: data.classifyMode ?? "auto",
     placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
+    workItemMode: data.workItemMode ?? "files",
     sameaGroupEnabled: data.sameaGroupEnabled ?? false,
     sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
     sameaGroupCentralize: data.sameaGroupCentralize ?? false,

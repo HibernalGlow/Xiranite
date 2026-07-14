@@ -1,12 +1,12 @@
 import type { InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { ClassfAction, ClassfInput, ClassfResult } from "./core.js"
 
-export type ClassfInteractionValues = InteractionValues & { action: ClassfAction; pathsText: string; crashuSourcesText: string; targetDir: string; transferMode: string; classifyMode: string; placementMode: string; existingPolicy: string; dryRun: boolean; sameaGroupEnabled: boolean; sameaGroupMinOccurrences: number }
+export type ClassfInteractionValues = InteractionValues & { action: ClassfAction; pathsText: string; crashuSourcesText: string; targetDir: string; transferMode: string; classifyMode: string; placementMode: string; existingPolicy: string; workItemMode: string; dryRun: boolean; sameaGroupEnabled: boolean; sameaGroupMinOccurrences: number }
 
 export function createClassfInteractionSchema(defaults: Partial<ClassfInteractionValues> = {}, language: "zh" | "en" = "zh"): TerminalInteractionSchema<ClassfInput, ClassfResult> {
   const zh = language === "zh"
   const text = (zhText: string, enText: string) => zh ? zhText : enText
-  const initialValues: ClassfInteractionValues = { action: "plan", pathsText: "", crashuSourcesText: "", targetDir: "", transferMode: "move", classifyMode: "auto", placementMode: "local", existingPolicy: "merge", dryRun: true, sameaGroupEnabled: false, sameaGroupMinOccurrences: 1, ...defaults }
+  const initialValues: ClassfInteractionValues = { action: "plan", pathsText: "", crashuSourcesText: "", targetDir: "", transferMode: "move", classifyMode: "auto", placementMode: "local", existingPolicy: "merge", workItemMode: "files", dryRun: true, sameaGroupEnabled: false, sameaGroupMinOccurrences: 1, ...defaults }
   return {
     id: "classf", title: "ClassF", description: text("编排 SameA、CrashU 和 MigrateF 分类管道。", "Orchestrate the SameA, CrashU, and MigrateF classification pipeline."), initialValues,
     fields: [
@@ -18,11 +18,12 @@ export function createClassfInteractionSchema(defaults: Partial<ClassfInteractio
       { id: "transferMode", label: text("迁移方式", "Transfer mode"), kind: "select", options: [{ value: "move", label: text("移动", "Move") }, { value: "copy", label: text("复制", "Copy") }] },
       { id: "classifyMode", label: text("分类模式", "Classify mode"), kind: "select", options: [{ value: "auto", label: text("already + wait", "Already + wait") }, { value: "only", label: text("仅 already", "Already only") }] },
       { id: "existingPolicy", label: text("现有项目策略", "Existing policy"), kind: "select", options: [{ value: "merge", label: text("合并", "Merge") }, { value: "skip", label: text("跳过", "Skip") }] },
+      { id: "workItemMode", label: text("作品类型", "Work item type"), kind: "select", options: [{ value: "files", label: text("压缩包文件", "Archive files") }, { value: "folders", label: text("已解压文件夹", "Extracted folders") }] },
       { id: "dryRun", label: text("预演", "Dry run"), kind: "boolean" },
       { id: "sameaGroupEnabled", label: text("already / wait 画师分组", "Group artists after transfer"), kind: "boolean" },
       { id: "sameaGroupMinOccurrences", label: text("画师最少文件数", "Minimum files per artist group"), kind: "number", min: 1, max: 100, step: 1 },
     ],
-    toInput: (values) => ({ action: String(values.action ?? "plan") as ClassfAction, paths: split(values.pathsText), crashuSourcePaths: split(values.crashuSourcesText), targetDir: String(values.targetDir ?? "").trim() || undefined, transferMode: String(values.transferMode ?? "move") as ClassfInput["transferMode"], classifyMode: String(values.classifyMode ?? "auto") as ClassfInput["classifyMode"], placementMode: String(values.placementMode ?? "local") as ClassfInput["placementMode"], existingPolicy: String(values.existingPolicy ?? "merge") as ClassfInput["existingPolicy"], dryRun: values.dryRun !== false, sameaGroupEnabled: values.sameaGroupEnabled === true, sameaGroupMinOccurrences: Number(values.sameaGroupMinOccurrences ?? 1) }),
+    toInput: (values) => ({ action: String(values.action ?? "plan") as ClassfAction, paths: split(values.pathsText), crashuSourcePaths: split(values.crashuSourcesText), targetDir: String(values.targetDir ?? "").trim() || undefined, transferMode: String(values.transferMode ?? "move") as ClassfInput["transferMode"], classifyMode: String(values.classifyMode ?? "auto") as ClassfInput["classifyMode"], placementMode: String(values.placementMode ?? "local") as ClassfInput["placementMode"], existingPolicy: String(values.existingPolicy ?? "merge") as ClassfInput["existingPolicy"], workItemMode: String(values.workItemMode ?? "files") as ClassfInput["workItemMode"], dryRun: values.dryRun !== false, sameaGroupEnabled: values.sameaGroupEnabled === true, sameaGroupMinOccurrences: Number(values.sameaGroupMinOccurrences ?? 1) }),
     validate: (values) => values.placementMode === "root" && !String(values.targetDir ?? "").trim() ? text("根目录分流必须填写目标根目录。", "Target root is required for root placement.") : null,
     preview: (input) => [text("默认从剪贴板读取 SameA 根目录。", "SameA roots are read from the clipboard by default."), input.placementMode === "root" ? text("根目录分流：完整保留来源相对路径。", "Root placement preserves complete source-relative paths.") : text("就地分流：每个文件进入当前目录下的 already 或 wait。", "Local placement uses already or wait beside each file."), `Transfer: ${input.transferMode ?? "move"}`, input.dryRun !== false ? text("预演：不写入文件。", "Dry run: no files will change.") : text("真实执行：MigrateF 会按已确认计划移动或复制文件。", "Live: MigrateF applies the reviewed file transfers.")],
     isDangerous: (input) => input.action === "classify" && input.dryRun === false,

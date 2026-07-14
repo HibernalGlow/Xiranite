@@ -101,6 +101,10 @@ describe("app-owned classf Component", () => {
         placementMode: "local",
         existingPolicy: "merge",
         dryRun: true,
+        workItemMode: "files",
+        sameaGroupEnabled: false,
+        sameaGroupMinOccurrences: 1,
+        sameaGroupCentralize: false,
       },
     })
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))

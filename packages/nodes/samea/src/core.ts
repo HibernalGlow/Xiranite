@@ -11,6 +11,8 @@ export interface SameaInput {
   ignorePathBlacklist?: boolean
   minOccurrences?: number
   centralize?: boolean
+  /** Treat first-level directories as archive-like work items by directory name. */
+  includeDirectories?: boolean
   /** Do not recurse into existing [artist] group directories. */
   skipGroupedDirectories?: boolean
   dryRun?: boolean
@@ -84,6 +86,7 @@ export function normalizeSameaInput(input: SameaInput): Required<SameaInput> {
     ignorePathBlacklist: input.ignorePathBlacklist ?? false,
     minOccurrences: clampInt(input.minOccurrences, 1, 100, 1),
     centralize: input.centralize ?? false,
+    includeDirectories: input.includeDirectories ?? false,
     skipGroupedDirectories: input.skipGroupedDirectories ?? false,
     dryRun: input.dryRun ?? true,
     artistBlacklist: uniqueClean(input.artistBlacklist?.length ? input.artistBlacklist : DEFAULT_ARTIST_BLACKLIST),
@@ -171,6 +174,15 @@ async function collectArchives(root: string, directory: string, input: Required<
   for (const entry of await runtime.listDir(directory)) {
     if (entry.isDirectory) {
       if (input.skipGroupedDirectories && isArtistGroupDirectory(entry.name)) continue
+      if (input.includeDirectories) {
+        if (!input.ignorePathBlacklist && isPathBlacklisted(entry.path, input)) {
+          collected.push({ rootPath: root, entry, artist: undefined, ignored: "path_blacklisted" })
+          continue
+        }
+        const artist = extractArtist(entry.name, input)
+        collected.push({ rootPath: root, entry, artist, ...(artist && isArtistBlacklisted(artist.label, input) ? { ignored: "artist_blacklisted" } : {}) })
+        continue
+      }
       collected.push(...await collectArchives(root, entry.path, input, runtime))
       continue
     }

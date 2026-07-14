@@ -6,7 +6,7 @@ import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-ru
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import { runClassf } from "./core.js"
-import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode } from "./core.js"
+import type { ClassfAction, ClassfClassifyMode, ClassfExistingPolicy, ClassfInput, ClassfPlacementMode, ClassfResult, ClassfTransferMode, ClassfWorkItemMode } from "./core.js"
 import { createNodeClassfRuntime } from "./platform.js"
 import { createClassfInteractionSchema, type ClassfInteractionValues } from "./interaction.js"
 import { help } from "./help.js"
@@ -25,6 +25,7 @@ interface ClassfNodeConfig {
   classify_mode?: ClassfClassifyMode
   placement_mode?: ClassfPlacementMode
   existing_policy?: ClassfExistingPolicy
+  work_item_mode?: ClassfWorkItemMode
   dry_run?: boolean
 }
 
@@ -50,7 +51,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true, sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", workItemMode: defaults.work_item_mode ?? "files", dryRun: defaults.dry_run ?? true, sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -84,6 +85,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,
     placementMode: valueFor(args, "--placement") as ClassfPlacementMode | undefined ?? config?.placement_mode,
     existingPolicy: valueFor(args, "--existing") as ClassfExistingPolicy | undefined ?? config?.existing_policy,
+    workItemMode: valueFor(args, "--items") as ClassfWorkItemMode | undefined ?? config?.work_item_mode,
     dryRun: action !== "classify" || args.includes("--dry-run") || config?.dry_run === true,
   }
   const result = await runClassf(input, createNodeClassfRuntime())
@@ -99,7 +101,7 @@ if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
-  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--crashu-source", "--similarity", "--samea-min", "--samea-group-min"])
+  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--items", "--crashu-source", "--similarity", "--samea-min", "--samea-group-min"])
   return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
 }
 

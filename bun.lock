@@ -359,6 +359,7 @@
         "@xiranite/contract": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-migratef": "workspace:*",
+        "@xiranite/node-repacku": "workspace:*",
         "@xiranite/node-samea": "workspace:*",
         "react": "^19.2.4",
       },

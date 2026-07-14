@@ -1,4 +1,4 @@
-import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfPlacementMode, ClassfStage, ClassfTransferMode } from "@xiranite/node-classf/core"
+import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfExistingPolicy, ClassfPlacementMode, ClassfStage, ClassfTransferMode, ClassfWorkItemMode } from "@xiranite/node-classf/core"
 
 export type ClassfPhase = "idle" | "running" | "completed" | "error"
 
@@ -12,6 +12,7 @@ export interface ClassfCardState {
   placementMode?: ClassfPlacementMode
   existingPolicy?: ClassfExistingPolicy
   dryRun?: boolean
+  workItemMode?: ClassfWorkItemMode
   sameaGroupEnabled?: boolean
   sameaGroupMinOccurrences?: number
   sameaGroupCentralize?: boolean
@@ -41,6 +42,7 @@ export const CONFIG_FIELDS = [
   "placementMode",
   "existingPolicy",
   "dryRun",
+  "workItemMode",
   "sameaGroupEnabled",
   "sameaGroupMinOccurrences",
   "sameaGroupCentralize",

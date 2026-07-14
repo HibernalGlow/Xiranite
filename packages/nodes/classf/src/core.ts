@@ -2,12 +2,14 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CrashuData, CrashuInput, CrashuResult } from "@xiranite/node-crashu/core"
 import type { MigratefData, MigratefInput, MigratefResult, MigratePlanItem } from "@xiranite/node-migratef/core"
 import type { SameaData, SameaInput, SameaResult } from "@xiranite/node-samea/core"
+import { selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"
 export type ClassfClassifyMode = "off" | "auto" | "only"
 export type ClassfPlacementMode = "local" | "root"
 export type ClassfExistingPolicy = "merge" | "skip"
+export type ClassfWorkItemMode = "files" | "folders"
 export type ClassfPlanStatus = "ready" | "skipped" | "moved" | "copied" | "conflict" | "error"
 export type ClassfStage = "samea" | "crashu" | "already" | "wait"
 
@@ -15,6 +17,7 @@ export interface ClassfInput {
   action?: ClassfAction; path?: string; paths?: string[]; listText?: string
   crashuSourcePaths?: string[]; crashuSimilarityThreshold?: number
   targetDir?: string; transferMode?: ClassfTransferMode; classifyMode?: ClassfClassifyMode; placementMode?: ClassfPlacementMode; existingPolicy?: ClassfExistingPolicy; dryRun?: boolean
+  workItemMode?: ClassfWorkItemMode
   sameaIgnorePathBlacklist?: boolean; sameaMinOccurrences?: number; sameaCentralize?: boolean
   /** Run SameA again inside the generated already/wait directories after transfer. */
   sameaGroupEnabled?: boolean; sameaGroupMinOccurrences?: number; sameaGroupCentralize?: boolean
@@ -27,7 +30,7 @@ export type ClassfProgressData =
   | { kind: "classf-stage"; stage: ClassfStage; status: "running" | "completed" }
   | { kind: "classf-item"; sourcePath: string; stage: ClassfStage; status: ClassfPlanStatus | "running"; reason?: string }
 export interface ClassfData {
-  action: ClassfAction; transferMode: ClassfTransferMode; classifyMode: ClassfClassifyMode; placementMode: ClassfPlacementMode; targetDir?: string; baseDir?: string; items: ClassfPlanItem[]
+  action: ClassfAction; transferMode: ClassfTransferMode; classifyMode: ClassfClassifyMode; placementMode: ClassfPlacementMode; workItemMode?: ClassfWorkItemMode; targetDir?: string; baseDir?: string; items: ClassfPlanItem[]
   selectedCount: number; readyCount: number; movedCount: number; copiedCount: number; waitCount: number; conflictCount: number; errorCount: number; errors: string[]
   samea?: SameaData; crashu?: CrashuData; migrateAlready?: MigratefData; migrateWait?: MigratefData
   sameaGroupAlready?: SameaData; sameaGroupWait?: SameaData
@@ -48,7 +51,7 @@ export function normalizeClassfInput(input: ClassfInput) {
   return {
     action: input.action ?? "plan", path: clean(input.path), paths: uniqueClean([input.path, ...(input.paths ?? []), ...parseList(input.listText)]), listText: input.listText ?? "",
     crashuSourcePaths: uniqueClean(input.crashuSourcePaths ?? []), crashuSimilarityThreshold: clamp01(input.crashuSimilarityThreshold ?? DEFAULT_CRASHU_THRESHOLD), targetDir: optional(input.targetDir),
-    transferMode: input.transferMode ?? "move", classifyMode: input.classifyMode ?? "auto", placementMode: input.placementMode ?? "local", existingPolicy: input.existingPolicy ?? "merge", dryRun: input.dryRun ?? true,
+    transferMode: input.transferMode ?? "move", classifyMode: input.classifyMode ?? "auto", placementMode: input.placementMode ?? "local", existingPolicy: input.existingPolicy ?? "merge", workItemMode: input.workItemMode ?? "files", dryRun: input.dryRun ?? true,
     sameaIgnorePathBlacklist: input.sameaIgnorePathBlacklist ?? false, sameaMinOccurrences: clampInt(input.sameaMinOccurrences ?? 1, 1, 100), sameaCentralize: input.sameaCentralize ?? false,
     sameaGroupEnabled: input.sameaGroupEnabled ?? false, sameaGroupMinOccurrences: clampInt(input.sameaGroupMinOccurrences ?? 1, 1, 100), sameaGroupCentralize: input.sameaGroupCentralize ?? false,
   }
@@ -62,7 +65,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     if (normalized.placementMode === "root" && !normalized.targetDir) return failure("Root placement requires a target directory.", normalized)
     const crashuSourcePaths = normalized.crashuSourcePaths.length ? normalized.crashuSourcePaths : [DEFAULT_CRASHU_SOURCE_PATH]
     onEvent({ type: "progress", progress: 5, message: "SameA: building the source plan.", data: { kind: "classf-stage", stage: "samea", status: "running" } satisfies ClassfProgressData })
-    const sameaPlan = await runtime.runSamea({ action: "plan", paths: sameaPaths, ignorePathBlacklist: normalized.sameaIgnorePathBlacklist, minOccurrences: normalized.sameaMinOccurrences, centralize: normalized.sameaCentralize, dryRun: true }, (event) => forward(event, 5, 15, onEvent))
+    const sameaPlan = await runtime.runSamea({ action: "plan", paths: sameaPaths, ignorePathBlacklist: normalized.sameaIgnorePathBlacklist, minOccurrences: normalized.sameaMinOccurrences, centralize: normalized.sameaCentralize, includeDirectories: normalized.workItemMode === "folders", skipGroupedDirectories: normalized.workItemMode === "folders", dryRun: true }, (event) => forward(event, 5, 15, onEvent))
     if (!sameaPlan.success || !sameaPlan.data) return failure(sameaPlan.message, normalized, { samea: sameaPlan.data })
     const groups = sameaPlan.data.groups.filter((group) => group.status === "ready")
     let crashuData: CrashuData | undefined
@@ -73,8 +76,8 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
       crashuData = crashu.data
     }
 
-    const sourceFiles = await collectInputFiles(sameaPaths, runtime)
-    const transfers = buildFileTransfers(sourceFiles, sameaPaths, sameaPlan.data, crashuData, normalized, runtime)
+    const sourceItems = await collectInputItems(sameaPaths, normalized.workItemMode, runtime)
+    const transfers = buildFileTransfers(sourceItems, sameaPaths, sameaPlan.data, crashuData, normalized, runtime)
     const baseDir = normalized.placementMode === "root" ? normalized.targetDir : inferInputBase(sameaPaths, runtime)
     onEvent({ type: "progress", progress: 35, message: "MigrateF: building the complete per-directory transfer plan.", data: { kind: "classf-stage", stage: "already", status: "running" } satisfies ClassfProgressData })
     const alreadyPlan = await runTransferGroups(transfers.filter((item) => item.stage === "already"), "plan", normalized, runtime, (event) => forward(event, 35, 5, onEvent))
@@ -99,7 +102,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
   } catch (error) { return failure(errorMessage(error), normalized) }
 }
 
-interface FileTransfer { sourcePath: string; targetDir: string; targetPath: string; stage: "already" | "wait" }
+interface FileTransfer { sourcePath: string; targetDir: string; targetPath: string; kind: "file" | "folder"; stage: "already" | "wait" }
 
 type PostTransferSameaData = Pick<ClassfData, "sameaGroupAlready" | "sameaGroupWait">
 
@@ -146,6 +149,7 @@ async function runPostTransferSamea(
       ignorePathBlacklist: input.sameaIgnorePathBlacklist,
       minOccurrences: input.sameaGroupMinOccurrences,
       centralize: input.sameaGroupCentralize,
+      includeDirectories: input.workItemMode === "folders",
       skipGroupedDirectories: true,
       dryRun: false,
     }, (event) => forward(event, stage === "already" ? 90 : 94, 5, onEvent))
@@ -191,20 +195,31 @@ async function findClassificationDirectories(
   return found
 }
 
-async function collectInputFiles(paths: string[], runtime: Pick<ClassfRuntime, "pathInfo" | "listDir">): Promise<ClassfDirEntry[]> {
-  const files: ClassfDirEntry[] = []
+async function collectInputItems(paths: string[], mode: ClassfWorkItemMode, runtime: Pick<ClassfRuntime, "pathInfo" | "listDir">): Promise<ClassfDirEntry[]> {
+  const items: ClassfDirEntry[] = []
+  if (mode === "folders") {
+    for (const path of paths) {
+      const info = await runtime.pathInfo(path)
+      if (!info.exists || !info.isDirectory) continue
+      for (const entry of selectSinglePackFolderSources(await runtime.listDir(info.path))) {
+        if (isClassificationDirectory(entry.name) || isArtistGroupDirectory(entry.name)) continue
+        items.push({ name: entry.name, path: entry.path, isFile: false, isDirectory: true })
+      }
+    }
+    return [...new Map(items.map((item) => [normalizePath(item.path), item])).values()]
+  }
   async function visit(path: string) {
     const info = await runtime.pathInfo(path)
     if (!info.exists) return
-    if (info.isFile) { files.push({ name: pathName(path), path: info.path, isFile: true, isDirectory: false }); return }
+    if (info.isFile) { items.push({ name: pathName(path), path: info.path, isFile: true, isDirectory: false }); return }
     if (!info.isDirectory) return
     for (const entry of await runtime.listDir(info.path)) {
-      if (entry.isFile) files.push(entry)
+      if (entry.isFile) items.push(entry)
       else if (entry.isDirectory && !isClassificationDirectory(entry.name)) await visit(entry.path)
     }
   }
   for (const path of paths) await visit(path)
-  return [...new Map(files.map((file) => [normalizePath(file.path), file])).values()]
+  return [...new Map(items.map((item) => [normalizePath(item.path), item])).values()]
 }
 
 function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: SameaData, crashu: CrashuData | undefined, input: ReturnType<typeof normalizeClassfInput>, runtime: Pick<ClassfRuntime, "join" | "dirname" | "basename" | "relative">): FileTransfer[] {
@@ -218,7 +233,7 @@ function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: Sam
     const targetDir = input.placementMode === "local"
       ? runtime.join(runtime.dirname(file.path), stage)
       : rootTargetDirectory(file.path, roots, input.targetDir!, stage, runtime)
-    transfers.push({ sourcePath: file.path, targetDir, targetPath: runtime.join(targetDir, runtime.basename(file.path)), stage })
+    transfers.push({ sourcePath: file.path, targetDir, targetPath: runtime.join(targetDir, runtime.basename(file.path)), kind: file.isDirectory ? "folder" : "file", stage })
   }
   return transfers
 }
@@ -259,7 +274,7 @@ function transferItems(plan: MigratePlanItem[], transfers: FileTransfer[], roots
     const stage = transfer?.stage ?? "wait"
     return {
       sourcePath: item.sourcePath, targetPath: item.targetPath, sourceName: runtime.basename(item.sourcePath),
-      targetRelative: displayTarget(item.targetPath, item.sourcePath, roots, input, runtime), kind: "file", stage,
+      targetRelative: displayTarget(item.targetPath, item.sourcePath, roots, input, runtime), kind: transfer?.kind ?? (item.kind === "directory" ? "folder" : "file"), stage,
       status: item.status === "pending" ? "ready" : item.status === "success" ? item.action === "copy" ? "copied" : "moved" : item.status === "error" ? "error" : "skipped",
       reason: item.reason,
     }
@@ -285,13 +300,14 @@ function inferInputBase(paths: string[], runtime: Pick<ClassfRuntime, "dirname">
 function parentRelative(path: string): string { const normalized = path.replace(/\\/g, "/"); const index = normalized.lastIndexOf("/"); return index > 0 ? normalized.slice(0, index) : "" }
 function pathName(path: string): string { return path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path }
 function isClassificationDirectory(name: string): boolean { return name.toLocaleLowerCase() === "already" || name.toLocaleLowerCase() === "wait" }
+function isArtistGroupDirectory(name: string): boolean { return /^\[[^\[\]]+\]$/.test(name.trim()) }
 function classificationStage(name: string): "already" | "wait" | undefined { const normalized = name.toLocaleLowerCase(); return normalized === "already" || normalized === "wait" ? normalized : undefined }
 function sum(items: MigratefData[], key: "migratedCount" | "skippedCount" | "errorCount" | "totalCount" | "successCount" | "failedCount"): number { return items.reduce((total, item) => total + item[key], 0) }
 
 export function inferCommonParent(paths: string[], runtime: Pick<ClassfRuntime, "dirname">): string | undefined { const parents = new Set(paths.map((path) => normalizePath(runtime.dirname(path)))); return parents.size === 1 ? runtime.dirname(paths[0]!) : undefined }
 export async function collectWaitCandidates(baseDir: string, selected: Set<string>, runtime: Pick<ClassfRuntime, "listDir">): Promise<ClassfDirEntry[]> { return (await runtime.listDir(baseDir)).filter((entry) => !selected.has(normalizePath(entry.path)) && entry.name !== "already" && entry.name !== "wait" && (entry.isFile || entry.isDirectory)) }
 
-function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
+function summarize(input: ReturnType<typeof normalizeClassfInput>, items: ClassfPlanItem[], baseDir: string | undefined, stages: Pick<ClassfData, "samea" | "crashu" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfData { const errors = items.filter((item) => item.status === "error" || item.status === "conflict").map((item) => `${item.sourcePath}: ${item.reason ?? item.status}`); const groupingErrors = [stages.sameaGroupAlready, stages.sameaGroupWait].flatMap((data) => data?.errors ?? []).map((error) => `SameA grouping: ${error}`); return { action: input.action, transferMode: input.transferMode, classifyMode: input.classifyMode, placementMode: input.placementMode, workItemMode: input.workItemMode, targetDir: input.targetDir, baseDir, items, selectedCount: input.paths.length, readyCount: items.filter((item) => item.status === "ready").length, movedCount: items.filter((item) => item.status === "moved").length, copiedCount: items.filter((item) => item.status === "copied").length, waitCount: items.filter((item) => item.stage === "wait").length, conflictCount: items.filter((item) => item.status === "conflict").length, errorCount: items.filter((item) => item.status === "error").length + groupingErrors.length, errors: [...errors, ...groupingErrors], ...stages } }
 function failure(message: string, input: ReturnType<typeof normalizeClassfInput>, stages: Pick<ClassfData, "samea" | "crashu" | "migrateAlready" | "migrateWait" | "sameaGroupAlready" | "sameaGroupWait"> = {}): ClassfResult { return { success: false, message, data: summarize(input, [{ sourcePath: "", targetPath: "", sourceName: "", targetRelative: "", kind: "file", stage: "samea", status: "error", reason: message }], undefined, stages) } }
 function forward(event: NodeRunEvent, offset: number, span: number, sink: (event: NodeRunEvent) => void) { sink(event.type === "progress" ? { ...event, progress: offset + Math.round(((event.progress ?? 0) / 100) * span) } : event) }
 function forwardMigrate(event: NodeRunEvent, offset: number, span: number, stage: "already" | "wait", planned: ClassfPlanItem[], runtime: Pick<ClassfRuntime, "basename">, sink: (event: NodeRunEvent) => void) {

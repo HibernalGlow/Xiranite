@@ -619,7 +619,7 @@ async function planSinglePackOperations(rootPath: string, runtime: RepackuRuntim
   const entries = await runtime.listDir(rootPath)
   const operations: RepackuOperation[] = []
 
-  for (const entry of entries.filter((item) => item.isDirectory).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }))) {
+  for (const entry of selectSinglePackFolderSources(entries)) {
     if (await hasInternalArchive(entry.path, runtime)) {
       operations.push({
         mode: "entire",
@@ -661,6 +661,15 @@ async function planSinglePackOperations(rootPath: string, runtime: RepackuRuntim
   }
 
   return operations
+}
+
+/** Select first-level folder units using the same ordering as single-pack. */
+export function selectSinglePackFolderSources(
+  entries: Array<{ name: string; path: string; isDirectory: boolean }>,
+): Array<{ name: string; path: string; isDirectory: boolean }> {
+  return entries
+    .filter((entry) => entry.isDirectory)
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" }))
 }
 
 async function hasInternalArchive(path: string, runtime: RepackuRuntime): Promise<boolean> {

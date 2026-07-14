@@ -57,4 +57,40 @@ describe("classf real filesystem", () => {
     await expect(readFile(archive, "utf8")).rejects.toBeTruthy()
     await expect(readFile(notes, "utf8")).rejects.toBeTruthy()
   })
+
+  test("moves extracted work folders as units and groups them by artist", async () => {
+    const fixture = await mkdtemp(join(tmpdir(), "xiranite-classf-folders-"))
+    fixtures.push(fixture)
+    const source = join(fixture, "source")
+    const library = join(fixture, "library")
+    const first = join(source, "[Artist] first work")
+    const second = join(source, "[Artist] second work")
+    await mkdir(first, { recursive: true })
+    await mkdir(second, { recursive: true })
+    await mkdir(join(library, "[Artist]"), { recursive: true })
+    await writeFile(join(first, "001.jpg"), "first", "utf8")
+    await writeFile(join(second, "001.png"), "second", "utf8")
+
+    const applied = await runClassf({
+      action: "classify",
+      paths: [source],
+      crashuSourcePaths: [library],
+      placementMode: "local",
+      workItemMode: "folders",
+      transferMode: "move",
+      sameaGroupEnabled: true,
+      sameaGroupMinOccurrences: 2,
+      sameaIgnorePathBlacklist: true,
+      dryRun: false,
+    }, createNodeClassfRuntime())
+
+    expect(applied.success).toBe(true)
+    expect(applied.data?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceName: "[Artist] first work", kind: "folder", stage: "already", status: "moved" }),
+      expect.objectContaining({ sourceName: "[Artist] second work", kind: "folder", stage: "already", status: "moved" }),
+    ]))
+    await expect(readFile(join(source, "already", "[Artist]", "[Artist] first work", "001.jpg"), "utf8")).resolves.toBe("first")
+    await expect(readFile(join(source, "already", "[Artist]", "[Artist] second work", "001.png"), "utf8")).resolves.toBe("second")
+    await expect(readFile(join(first, "001.jpg"), "utf8")).rejects.toBeTruthy()
+  })
 })
