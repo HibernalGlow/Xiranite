@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
 import { DEFAULT_FILENAME_RULES, DEFAULT_RAM_OPTIMIZER_RULES, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
@@ -48,7 +48,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const [configPath, setConfigPath] = useState<string>()
   const [configDirty, setConfigDirty] = useState(false)
 
-  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const paths = splitLines(data.pathsText)
   const result = data.result ?? null
   const progress = data.progress ?? 0
   const format = data.format ?? "JPEG XL"

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { BarChart3, FolderOpen } from "lucide-react"
 import type { XlchemyData } from "@xiranite/node-xlchemy/core"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,8 +8,8 @@ type InputEntry = { ext: string; folder: string; size: number }
 type Distribution = { key: string; count: number; size: number }
 
 export function DataAnalysis(props: { paths: string[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
-  const input = useMemo(() => buildInputStats(props.paths, props.result), [props.paths, props.result])
-  const output = useMemo(() => buildOutputStats(props.result), [props.result])
+  const input = buildInputStats(props.paths, props.result)
+  const output = buildOutputStats(props.result)
   return <Tabs defaultValue="input" value={props.activeTab} className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis" onValueChange={(tab) => props.onTabChange?.(tab as "input" | "output")}>
     <TabsList className="grid w-full grid-cols-2">
       <TabsTrigger value="input"><FolderOpen data-icon="inline-start" />输入分析</TabsTrigger>
