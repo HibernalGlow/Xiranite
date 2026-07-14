@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { PathTextarea } from "@/components/ui/path-input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 
 interface DirectoryEditorProps {
   kind: "included" | "excluded"
@@ -20,6 +21,7 @@ interface DirectoryEditorProps {
 }
 
 export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
+  const { t } = useNodeI18n("czkawka")
   const [manual, setManual] = useState("")
   const [selected, setSelected] = useState<string[]>([])
   const paths = parseCzkawkaList(value)
@@ -51,18 +53,18 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, referenceVa
 
   return <section aria-label={label} data-kind={kind} className="grid gap-2 rounded-md border bg-background/40 p-2">
     <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-xs font-medium"><span>{label}</span><Badge variant="outline">{paths.length}</Badge></div><div className="flex items-center gap-1">
-      {onReferenceChange ? <Button aria-label={allReferences ? "取消全部参考目录" : "全部设为参考目录"} size="icon-sm" variant={allReferences ? "secondary" : "ghost"} onClick={() => onReferenceChange(serializeCzkawkaPaths(setAllCzkawkaReferences(paths, !allReferences)))}><CheckCheck /></Button> : null}
-      <Button aria-label={`浏览添加${label}`} disabled={!pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
-      <Button aria-label={`移除选中的${label}`} disabled={!selectedSet.size} size="icon-sm" variant="outline" onClick={() => remove(selectedSet)}><Trash2 /></Button>
-      <Button aria-label={`清空${label}`} disabled={!paths.length} size="icon-sm" variant="ghost" onClick={() => remove(paths)}><FolderMinus /></Button>
+      {onReferenceChange ? <Button aria-label={allReferences ? t("sources.cancelAllReferences", "取消全部参考目录") : t("sources.setAllReferences", "全部设为参考目录")} size="icon-sm" variant={allReferences ? "secondary" : "ghost"} onClick={() => onReferenceChange(serializeCzkawkaPaths(setAllCzkawkaReferences(paths, !allReferences)))}><CheckCheck /></Button> : null}
+      <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
+      <Button aria-label={t("sources.removeSelected", "移除选中的{{label}}", { label })} disabled={!selectedSet.size} size="icon-sm" variant="outline" onClick={() => remove(selectedSet)}><Trash2 /></Button>
+      <Button aria-label={t("sources.clear", "清空{{label}}", { label })} disabled={!paths.length} size="icon-sm" variant="ghost" onClick={() => remove(paths)}><FolderMinus /></Button>
     </div></div>
     <div className="grid max-h-40 gap-1 overflow-auto">{paths.length ? paths.map((path) => <div key={path} className="flex items-center gap-2 rounded border px-2 py-1 text-xs">
-      <Checkbox aria-label={`选择目录 ${path}`} checked={selectedSet.has(path)} onCheckedChange={(checked) => setSelected((current) => checked ? [...new Set([...current, path])] : current.filter((item) => item !== path))} />
+      <Checkbox aria-label={t("sources.selectDirectory", "选择目录 {{path}}", { path })} checked={selectedSet.has(path)} onCheckedChange={(checked) => setSelected((current) => checked ? [...new Set([...current, path])] : current.filter((item) => item !== path))} />
       <span className="min-w-0 flex-1 truncate font-mono" title={path}>{path}</span>
-      {onReferenceChange ? <Button aria-label={`${references.includes(path) ? "取消参考" : "设为参考"} ${path}`} size="icon-sm" variant="ghost" onClick={() => onReferenceChange(serializeCzkawkaPaths(toggleCzkawkaReference(paths, references, path)))}><Star className={cn(references.includes(path) && "fill-amber-400 text-amber-500")} /></Button> : null}
-      <Button aria-label={`移除目录 ${path}`} size="icon-sm" variant="ghost" onClick={() => remove([path])}><X /></Button>
-    </div>) : <div className="rounded border border-dashed p-3 text-center text-xs text-muted-foreground">尚未添加目录</div>}</div>
-    <div className="flex items-end gap-1"><PathTextarea aria-label={`批量粘贴${label}`} autoResize={{ minHeight: 36, maxHeight: 96 }} className="font-mono text-xs" placeholder={'可粘贴多行、逗号或分号分隔路径\n也可拖放目录'} value={manual} onValueChange={setManual} /><Button aria-label={`添加粘贴的${label}`} disabled={!parseCzkawkaList(manual).length} size="icon-sm" onClick={() => add(manual)}><Plus /></Button></div>
+      {onReferenceChange ? <Button aria-label={t(references.includes(path) ? "sources.cancelReference" : "sources.setReference", references.includes(path) ? "取消参考 {{path}}" : "设为参考 {{path}}", { path })} size="icon-sm" variant="ghost" onClick={() => onReferenceChange(serializeCzkawkaPaths(toggleCzkawkaReference(paths, references, path)))}><Star className={cn(references.includes(path) && "fill-amber-400 text-amber-500")} /></Button> : null}
+      <Button aria-label={t("sources.removeDirectory", "移除目录 {{path}}", { path })} size="icon-sm" variant="ghost" onClick={() => remove([path])}><X /></Button>
+    </div>) : <div className="rounded border border-dashed p-3 text-center text-xs text-muted-foreground">{t("sources.empty", "尚未添加目录")}</div>}</div>
+    <div className="flex items-end gap-1"><PathTextarea aria-label={t("sources.pasteMany", "批量粘贴{{label}}", { label })} autoResize={{ minHeight: 36, maxHeight: 96 }} className="font-mono text-xs" placeholder={t("sources.pasteHint", "可粘贴多行、逗号或分号分隔路径\n也可拖放目录")} value={manual} onValueChange={setManual} /><Button aria-label={t("sources.addPasted", "添加粘贴的{{label}}", { label })} disabled={!parseCzkawkaList(manual).length} size="icon-sm" onClick={() => add(manual)}><Plus /></Button></div>
   </section>
 }
 
@@ -75,14 +77,15 @@ interface TokenEditorProps {
 }
 
 export function CzkawkaTokenEditor({ kind, label, placeholder, value = "", onChange }: TokenEditorProps) {
+  const { t } = useNodeI18n("czkawka")
   const tokens = kind === "extensions" ? parseCzkawkaExtensionTokens(value) : parseCzkawkaList(value)
   function remove(token: string) {
     const next = tokens.filter((item) => item !== token)
     onChange(kind === "extensions" ? serializeCzkawkaExtensionTokens(next) : serializeCzkawkaPaths(next))
   }
   return <section aria-label={label} className="grid gap-1.5">
-    <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{label}</span><Button aria-label={`重置${label}`} disabled={!tokens.length} size="icon-sm" variant="ghost" onClick={() => onChange("")}><RotateCcw /></Button></div>
-    <Textarea aria-label={`${label}输入`} className="min-h-16 resize-y font-mono text-xs" placeholder={placeholder} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
-    {tokens.length ? <div className="flex flex-wrap gap-1">{tokens.map((token) => { const invalid = kind === "extensions" ? !isValidCzkawkaExtensionToken(token) : !isValidCzkawkaExcludedItem(token); return <Badge key={token} variant={invalid ? "destructive" : "secondary"} className="gap-1 font-mono" title={invalid ? kind === "rules" ? "Czkawka 排除规则必须包含 *，或使用 DEFAULT" : "扩展名不能包含点号或空格" : undefined}><span>{token}</span><button type="button" aria-label={`移除 ${token}`} onClick={() => remove(token)}><X className="size-3" /></button></Badge> })}</div> : null}
+    <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{label}</span><Button aria-label={t("sources.reset", "重置{{label}}", { label })} disabled={!tokens.length} size="icon-sm" variant="ghost" onClick={() => onChange("")}><RotateCcw /></Button></div>
+    <Textarea aria-label={t("sources.input", "{{label}}输入", { label })} className="min-h-16 resize-y font-mono text-xs" placeholder={placeholder} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+    {tokens.length ? <div className="flex flex-wrap gap-1">{tokens.map((token) => { const invalid = kind === "extensions" ? !isValidCzkawkaExtensionToken(token) : !isValidCzkawkaExcludedItem(token); return <Badge key={token} variant={invalid ? "destructive" : "secondary"} className="gap-1 font-mono" title={invalid ? kind === "rules" ? t("sources.invalidRule", "Czkawka 排除规则必须包含 *，或使用 DEFAULT") : t("sources.invalidExtension", "扩展名不能包含点号或空格") : undefined}><span>{token}</span><button type="button" aria-label={t("sources.removeToken", "移除 {{token}}", { token })} onClick={() => remove(token)}><X className="size-3" /></button></Badge> })}</div> : null}
   </section>
 }

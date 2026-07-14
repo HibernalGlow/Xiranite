@@ -50,6 +50,10 @@ describe("Czkawka node", () => {
     expect(screen.getByRole("button", { name: "Duplicate Files" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Start scan" })).toBeTruthy()
     expect(screen.getByText("Scan conditions")).toBeTruthy()
+    expect(screen.getByText("Scan settings")).toBeTruthy()
+    expect(screen.getAllByText("No directories added").length).toBe(2)
+    expect(screen.getByText("Format share")).toBeTruthy()
+    expect(screen.getAllByText("Activity log").length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: "开始扫描" })).toBeNull()
   })
 

@@ -905,7 +905,7 @@
       "sections": { "scanners": "扫描工具", "conditions": "扫描条件", "analysisOperations": "分析与操作" },
       "views": { "images": "图片", "folders": "文件夹" },
       "metrics": { "files": "文件", "groups": "分组", "totalSize": "总大小", "reclaimable": "可回收" },
-      "sources": { "included": "包含目录", "excluded": "排除目录", "excludedItems": "排除项目", "excludedItemsPlaceholder": "*/cache/*; *.part；每条规则需包含 *", "allowedExtensions": "允许扩展名", "excludedExtensions": "排除扩展名", "allowedPriority": "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。", "minimumSize": "最小文件大小（B）", "maximumSize": "最大文件大小（B）", "threads": "扫描线程（0 = 自动）", "threadsHint": "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。", "recursive": "递归扫描", "useCache": "使用缓存" },
+      "sources": { "included": "包含目录", "excluded": "排除目录", "excludedItems": "排除项目", "excludedItemsPlaceholder": "*/cache/*; *.part；每条规则需包含 *", "allowedExtensions": "允许扩展名", "excludedExtensions": "排除扩展名", "allowedPriority": "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。", "minimumSize": "最小文件大小（B）", "maximumSize": "最大文件大小（B）", "threads": "扫描线程（0 = 自动）", "threadsHint": "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。", "recursive": "递归扫描", "useCache": "使用缓存", "cancelAllReferences": "取消全部参考目录", "setAllReferences": "全部设为参考目录", "browseAdd": "浏览添加{{label}}", "removeSelected": "移除选中的{{label}}", "clear": "清空{{label}}", "selectDirectory": "选择目录 {{path}}", "cancelReference": "取消参考 {{path}}", "setReference": "设为参考 {{path}}", "removeDirectory": "移除目录 {{path}}", "empty": "尚未添加目录", "pasteMany": "批量粘贴{{label}}", "pasteHint": "可粘贴多行、逗号或分号分隔路径\n也可拖放目录", "addPasted": "添加粘贴的{{label}}", "reset": "重置{{label}}", "input": "{{label}}输入", "invalidRule": "Czkawka 排除规则必须包含 *，或使用 DEFAULT", "invalidExtension": "扩展名不能包含点号或空格", "removeToken": "移除 {{token}}" },
       "common": { "unlimited": "不限", "cancel": "取消" },
       "presets": { "title": "扫描配置预设", "active": "活动预设", "choose": "选择预设", "name": "预设名称", "create": "新建", "overwrite": "覆盖", "delete": "删除", "transfer": "导入 / 导出 JSON", "export": "导出", "importMerge": "导入合并", "persistHint": "活动预设及已应用字段随节点状态持久化，重新打开时自动恢复。" },
       "preview": { "fixed": "固定媒体预览", "currentTool": "当前工具：{{tool}}", "hint": "。启用后图片、视频和音频在结果侧栏中打开。" },
@@ -930,7 +930,12 @@
         "date": { "title": "修改日期", "enabled": "启用日期筛选", "range": "日期范围", "today": "今天", "last7": "最近 7 天", "last30": "最近 30 天", "lastYear": "最近一年", "custom": "自定义", "start": "开始日期", "end": "结束日期" },
         "path": { "title": "路径", "enabled": "启用路径筛选", "mode": "路径匹配模式", "contains": "包含", "notContains": "不包含", "startsWith": "开头是", "endsWith": "结尾是", "pattern": "路径模式" },
         "resolution": { "title": "分辨率 / 宽高比", "enabled": "启用分辨率筛选", "minWidth": "最小宽度", "minHeight": "最小高度", "maxWidth": "最大宽度", "maxHeight": "最大高度", "aspectRatio": "宽高比", "any": "任意宽高比" }
-      }
+      },
+      "analysis": { "formatShare": "格式占比", "formatDonut": "格式体积环形图", "noFormat": "当前结果没有格式数据", "formatBytes": "格式体积分布", "similarity": "相似度分布", "noSimilarity": "当前结果没有相似度数据", "selected": "已选", "volume": "体积", "estimated": "预计", "levels": { "original": "原始/相同", "very-high": "极高", "high": "高", "medium": "中等", "small": "较小", "very-small": "很小", "minimal": "最低" } },
+      "activity": { "title": "活动日志", "copy": "复制活动日志", "clear": "清空活动日志", "filter": "过滤活动日志", "placeholder": "工具、级别、操作或消息", "result": "{{affected}} 成功 / {{errors}} 错误", "empty": "没有匹配的日志" },
+      "folders": { "title": "相似文件夹", "summary": "按图片数量、体积和涉及分组汇总", "images": "{{count}} 张", "groups": "{{count}} 组", "copy": "复制文件夹路径 {{path}}", "open": "打开文件夹 {{path}}", "reveal": "定位文件夹 {{path}}", "empty": "当前阈值和筛选条件下没有相似文件夹。" },
+      "floating": { "move": "移动浮动分析面板", "title": "浮动分析工作区", "close": "关闭浮动分析面板", "resize": "从{{direction}}方向调整浮动分析面板" },
+      "cards": { "empty": "该面板没有可见卡片", "moveUp": "上移{{title}}", "moveDown": "下移{{title}}", "resize": "调整{{title}}高度", "resizeHint": "拖动调整高度，双击恢复默认", "manage": "管理卡片", "managerTitle": "卡片管理", "managerDescription": "配置卡片可见性、面板归属和顺序。拖动卡片也可跨面板移动。", "collapsed": "已折叠", "panel": "{{title}}面板", "analysisOperations": "分析操作", "hide": "隐藏{{title}}", "show": "显示{{title}}", "restore": "恢复默认布局", "titles": { "source-settings": "扫描设置", "preview": "预览设置", "analysis": "统计分析", "logs": "活动日志", "selection": "选择与规则", "operations": "文件操作" } }
     },
     "scratch": {
       "name": "SCRATCH",
