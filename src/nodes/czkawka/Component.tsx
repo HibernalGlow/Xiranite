@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { PathTextarea } from "@/components/ui/path-input"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -34,6 +33,8 @@ import { createDefaultCzkawkaFloatingPanel, normalizeCzkawkaFloatingPanel, type 
 import { CzkawkaFloatingAnalysisPanel } from "./floating-analysis-panel"
 import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations"
 import { czkawkaScanPresetFromValues, czkawkaScanPresetToValues, deleteCzkawkaScanPreset, exportCzkawkaScanPresets, importCzkawkaScanPresets } from "@xiranite/node-czkawka/scan-presets"
+import { parseCzkawkaList } from "@xiranite/node-czkawka/source-inputs"
+import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "./source-inputs"
 
 const TOOLS: Array<{ id: CzkawkaTool; label: string; short: string; icon: typeof Copy }> = [
   { id: "duplicate-files", label: "重复文件", short: "重复", icon: Copy },
@@ -128,7 +129,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
 
   async function executeScan() {
     if (running) return
-    const includedDirectories = lines(data.includedDirectoriesText)
+    const includedDirectories = parseCzkawkaList(data.includedDirectoriesText)
     if (!includedDirectories.length) { const text = t("errors.noRoots", "请至少添加一个包含目录。"); patch({ phase: "error", progressText: text }); addActivityLog({ kind: "system", level: "error", message: text }); return }
     const run = host.runner?.run ?? host.actions?.run
     if (!run) { const text = t("errors.noRuntime", "当前环境没有本地运行能力。"); patch({ phase: "error", progressText: text }); addActivityLog({ kind: "system", level: "error", message: text }); return }
@@ -188,7 +189,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   function invertSelection() { setSelectedPaths(invertCzkawkaSelection(filterResult.groups, selectedPaths)) }
   function selectAllVisible() { setSelectedPaths(selectAllCzkawkaEntries(filterResult.groups)) }
 
-  const view = { data, tool, result, filterState, filterResult, filterPresets, selectionConfig, selectionStats, selectionHistory, selectionAssistantOpen, activityLog, cardLayout, previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false, floatingAnalysisPanel, floatingViewport, floatingAvailable: !compact, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, clearActivityLog, setCardLayout, setPreviewPanelEnabled, setFloatingAnalysisPanel, setPanel, setSelectedPaths, setFilterState, setFilterPresets, setFilterText, setSelectionConfig, setSelectionAssistantOpen, applySelectionRule, undoSelection, redoSelection, invertSelection, selectAllVisible, executeScan, cancelScan, executeOperation, applySmartSelection }
+  const view = { data, tool, result, filterState, filterResult, filterPresets, selectionConfig, selectionStats, selectionHistory, selectionAssistantOpen, activityLog, cardLayout, previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false, floatingAnalysisPanel, floatingViewport, floatingAvailable: !compact, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, pickDirectory: host.localFiles?.pickDirectory, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, clearActivityLog, setCardLayout, setPreviewPanelEnabled, setFloatingAnalysisPanel, setPanel, setSelectedPaths, setFilterState, setFilterPresets, setFilterText, setSelectionConfig, setSelectionAssistantOpen, applySelectionRule, undoSelection, redoSelection, invertSelection, selectAllVisible, executeScan, cancelScan, executeOperation, applySmartSelection }
   return <TooltipProvider><div ref={surface.ref} data-testid="czkawka-surface" className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
     {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
   </div></TooltipProvider>
@@ -197,6 +198,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
 type View = {
   data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; filterState: CzkawkaFilterState; filterResult: CzkawkaFilterResult; filterPresets: CzkawkaStoredFilterPreset[]; selectionConfig: CzkawkaSelectionAssistantConfig; selectionStats: CzkawkaSelectionStats; selectionHistory: CzkawkaSelectionHistory; selectionAssistantOpen: boolean; activityLog: CzkawkaActivityLogEntry[]; cardLayout: CzkawkaCardLayout; previewPanelEnabled: boolean; floatingAnalysisPanel: CzkawkaFloatingPanelState; floatingViewport: CzkawkaFloatingViewport; floatingAvailable: boolean; running: boolean; selectedPaths: string[]; filterText: string; panel: CzkawkaPanel
   getFileUrl?: (path: string) => string
+  pickDirectory?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
   openPath?: (path: string) => Promise<void>
   revealPath?: (path: string) => Promise<void>
@@ -261,7 +263,19 @@ function CzkawkaCardContent({ id, props }: { id: CzkawkaCardId; props: View }) {
 }
 
 function SourceSettingsCard(props: View) {
-  return <div className="grid gap-3"><ScanPresetManager {...props} /><Field label="包含目录"><PathTextarea aria-label="czkawka included directories" className="min-h-28 resize-none font-mono text-xs" placeholder="D:/Media\nE:/Archive" value={props.data.includedDirectoriesText ?? ""} onValueChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} /></Field><Field label="参考目录"><PathTextarea aria-label="czkawka reference directories" className="min-h-16 resize-none font-mono text-xs" placeholder="只保留这些目录中的文件" value={props.data.includedDirectoriesReferencedText ?? ""} onValueChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} /></Field><Field label="排除目录"><PathTextarea aria-label="czkawka excluded directories" className="min-h-20 resize-none font-mono text-xs" value={props.data.excludedDirectoriesText ?? ""} onValueChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} /></Field><Field label="排除项目"><Input value={props.data.excludedItemsText ?? ""} placeholder="*/cache/*; *.part" onChange={(event) => props.patch({ excludedItemsText: event.currentTarget.value })} /></Field><div className="grid grid-cols-2 gap-2"><Field label="允许扩展名"><Input value={props.data.allowedExtensions ?? ""} placeholder="jpg,png" onChange={(event) => props.patch({ allowedExtensions: event.currentTarget.value })} /></Field><Field label="排除扩展名"><Input value={props.data.excludedExtensions ?? ""} placeholder="tmp,bak" onChange={(event) => props.patch({ excludedExtensions: event.currentTarget.value })} /></Field></div><div className="grid grid-cols-2 gap-2"><Field label="最小文件大小（B）"><Input type="number" min={0} value={props.data.minimumFileSize ?? "1"} onChange={(event) => props.patch({ minimumFileSize: event.currentTarget.value })} /></Field><Field label="最大文件大小（B）"><Input type="number" min={1} value={props.data.maximumFileSize ?? ""} placeholder="不限" onChange={(event) => props.patch({ maximumFileSize: event.currentTarget.value })} /></Field></div><Field label="扫描线程（0 = 自动）"><Input aria-label="czkawka scan threads" type="number" min={0} max={256} value={props.data.threadCount ?? "0"} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。</p></Field><SwitchLine label="递归扫描" checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} /><SwitchLine label="使用缓存" checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} /><AlgorithmFields {...props} /></div>
+  return <div className="grid gap-3">
+    <ScanPresetManager {...props} />
+    <CzkawkaDirectoryEditor kind="included" label="包含目录" value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} pickDirectory={props.pickDirectory} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
+    <CzkawkaDirectoryEditor kind="excluded" label="排除目录" value={props.data.excludedDirectoriesText} pickDirectory={props.pickDirectory} onChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} />
+    <CzkawkaTokenEditor kind="rules" label="排除项目" value={props.data.excludedItemsText} placeholder="*/cache/*; *.part；每条规则需包含 *" onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
+    <div className="grid grid-cols-2 gap-2"><CzkawkaTokenEditor kind="extensions" label="允许扩展名" value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} /><CzkawkaTokenEditor kind="extensions" label="排除扩展名" value={props.data.excludedExtensions} placeholder="tmp,bak" onChange={(excludedExtensions) => props.patch({ excludedExtensions })} /></div>
+    {props.data.allowedExtensions?.trim() && props.data.excludedExtensions?.trim() ? <p className="text-[11px] text-amber-600 dark:text-amber-400">Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。</p> : null}
+    <div className="grid grid-cols-2 gap-2"><Field label="最小文件大小（B）"><Input type="number" min={0} value={props.data.minimumFileSize ?? "1"} onChange={(event) => props.patch({ minimumFileSize: event.currentTarget.value })} /></Field><Field label="最大文件大小（B）"><Input type="number" min={1} value={props.data.maximumFileSize ?? ""} placeholder="不限" onChange={(event) => props.patch({ maximumFileSize: event.currentTarget.value })} /></Field></div>
+    <Field label="扫描线程（0 = 自动）"><Input aria-label="czkawka scan threads" type="number" min={0} max={256} value={props.data.threadCount ?? "0"} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。</p></Field>
+    <SwitchLine label="递归扫描" checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
+    <SwitchLine label="使用缓存" checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
+    <AlgorithmFields {...props} />
+  </div>
 }
 
 function ScanPresetManager(props: View) {
@@ -324,7 +338,6 @@ function SectionTitle({ icon: Icon, title }: { icon: typeof Search; title: strin
 
 export function scanInput(tool: CzkawkaTool, data: CzkawkaCardState): CzkawkaInput { return createCzkawkaScanInput(tool, data as Record<string, unknown>) }
 function toolMeta(tool: CzkawkaTool) { return TOOLS.find((item) => item.id === tool) ?? TOOLS[0]! }
-function lines(value: unknown) { return String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
 function message(error: unknown) { return error instanceof Error ? error.message : String(error) }
 function formatBytes(bytes: number) { if (bytes < 1024) return `${bytes} B`; const units = ["KB", "MB", "GB", "TB"]; let value = bytes / 1024, unit = units[0]!; for (let index = 1; index < units.length && value >= 1024; index += 1) { value /= 1024; unit = units[index]! } return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}` }
 function getData(host: NodeComponentProps<CzkawkaCardState>["host"], compId: string): CzkawkaCardState { return host.state?.getData?.() ?? host.getData<CzkawkaCardState>(compId) ?? {} }

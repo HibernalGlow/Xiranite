@@ -16,7 +16,7 @@ try {
     writeFile(join(fixture, "image.bin"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64")),
   ])
 
-  const duplicate = await scan("duplicate-files", fixture, ["--no-cache", "--hash", "blake3"])
+  const duplicate = await scan("duplicate-files", fixture, ["--no-cache", "--threads", "0", "--hash", "blake3", "--allow", ".txt;png", "--exclude-dir", "Z:/never", "--exclude-item", "*/never/*,*.part"])
   if (duplicate.data?.tool !== "duplicate-files" || duplicate.data.groupCount < 1) throw new Error(`Unexpected duplicate CLI result: ${JSON.stringify(duplicate)}`)
 
   const basic = await scan("empty-files", fixture, ["--no-cache"])

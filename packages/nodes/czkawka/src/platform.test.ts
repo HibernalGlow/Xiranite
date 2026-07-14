@@ -10,7 +10,7 @@ import { createCzkawkaScanInput } from "./tool-options.js"
 describe("Czkawka native DTO mapping", () => {
   test.each(CZKAWKA_TOOLS)("maps shared scan fields for %s", (tool) => {
     const input = normalizeCzkawkaInput(createCzkawkaScanInput(tool, {
-      includedDirectories: ["D:/library"],
+      includedDirectories: ["D:/library", "D:/reference"],
       includedDirectoriesReferenced: ["D:/reference"],
       excludedDirectories: ["D:/excluded"],
       excludedItems: ["*/cache/*"],
@@ -22,7 +22,7 @@ describe("Czkawka native DTO mapping", () => {
       useCache: false,
     }))
     expect(nativeOptions(tool, input)).toMatchObject({
-      includedDirectories: ["D:/library"],
+      includedDirectories: ["D:/library", "D:/reference"],
       referenceDirectories: ["D:/reference"],
       excludedDirectories: ["D:/excluded"],
       excludedItems: ["*/cache/*"],

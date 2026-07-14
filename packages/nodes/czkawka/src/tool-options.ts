@@ -3,6 +3,7 @@ import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import type { NodeHelpField } from "@xiranite/contract"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
+import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
 
 type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun">
 type OptionValue = string | number | boolean
@@ -110,15 +111,16 @@ export function valuesToCzkawkaOptions(values: Record<string, unknown>): Partial
  * translate display values into the core scan contract here.
  */
 export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string, unknown>): CzkawkaInput {
+  const includedDirectories = parseCzkawkaList(values.includedDirectoriesText ?? values.includedDirectories)
   return {
     action: "scan",
     tool,
-    includedDirectories: lines(values.includedDirectoriesText ?? values.includedDirectories),
-    includedDirectoriesReferenced: lines(values.includedDirectoriesReferencedText ?? values.includedDirectoriesReferenced),
-    excludedDirectories: lines(values.excludedDirectoriesText ?? values.excludedDirectories),
-    excludedItems: items(values.excludedItemsText ?? values.excludedItems),
-    allowedExtensions: text(values.allowedExtensions),
-    excludedExtensions: text(values.excludedExtensions),
+    includedDirectories,
+    includedDirectoriesReferenced: reconcileCzkawkaReferences(includedDirectories, values.includedDirectoriesReferencedText ?? values.includedDirectoriesReferenced),
+    excludedDirectories: parseCzkawkaList(values.excludedDirectoriesText ?? values.excludedDirectories),
+    excludedItems: parseCzkawkaList(values.excludedItemsText ?? values.excludedItems),
+    allowedExtensions: extensionText(values.allowedExtensions),
+    excludedExtensions: extensionText(values.excludedExtensions),
     minimumFileSize: optionalNumber(values.minimumFileSize),
     maximumFileSize: optionalNumber(values.maximumFileSize),
     recursive: values.recursive !== false,
@@ -175,7 +177,7 @@ function booleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, 
 function coerceOptionValue(definition: CzkawkaOptionDefinition, value: unknown): OptionValue { const candidate = value ?? definition.defaultValue; return typeof definition.defaultValue === "number" ? Number(candidate) : typeof definition.defaultValue === "boolean" ? candidate !== false && candidate !== "false" : String(candidate) }
 function human(value: string) { return value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") }
 function lines(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
-function items(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/[;\r\n]/).map((item) => item.trim()).filter(Boolean) }
 function optionalNumber(value: unknown): number | undefined { if (value === undefined || value === null || String(value).trim() === "") return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }
 function text(value: unknown): string | undefined { return value === undefined || value === null ? undefined : String(value) }
+function extensionText(value: unknown): string | undefined { const tokens = parseCzkawkaExtensionTokens(value); return tokens.length ? serializeCzkawkaExtensionTokens(tokens) : undefined }
 function parseRenameItems(value: unknown): NonNullable<CzkawkaInput["renameItems"]> { return lines(value).map((line) => { const separator = line.lastIndexOf("\t"); if (separator < 0) return null; const path = line.slice(0, separator).trim(), properExtension = line.slice(separator + 1).trim(); return path && properExtension ? { path, properExtension } : null }).filter((item): item is NonNullable<typeof item> => item !== null) }

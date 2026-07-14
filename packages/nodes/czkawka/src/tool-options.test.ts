@@ -54,7 +54,7 @@ describe("shared Czkawka option schema", () => {
 
   test("builds the same core scan contract for every surface", () => {
     expect(createCzkawkaScanInput("similar-images", {
-      includedDirectoriesText: "D:/Images\nE:/Archive",
+      includedDirectoriesText: "D:/Images\nE:/Archive\nF:/Reference",
       includedDirectoriesReferencedText: "F:/Reference",
       excludedItemsText: "*/cache/*; *.part",
       minimumFileSize: "100",
@@ -62,11 +62,29 @@ describe("shared Czkawka option schema", () => {
     })).toMatchObject({
       action: "scan",
       tool: "similar-images",
-      includedDirectories: ["D:/Images", "E:/Archive"],
+      includedDirectories: ["D:/Images", "E:/Archive", "F:/Reference"],
       includedDirectoriesReferenced: ["F:/Reference"],
       excludedItems: ["*/cache/*", "*.part"],
       minimumFileSize: 100,
       similarImagesHashSize: 64,
+    })
+  })
+
+  test("preserves fork list syntax for paths, rules, references, and extension tokens", () => {
+    expect(createCzkawkaScanInput("duplicate-files", {
+      includedDirectoriesText: '\u2068"D:/Photos"\u2069;E:/Archive,D:/Photos',
+      includedDirectoriesReferencedText: "E:/Archive;Z:/missing",
+      excludedDirectoriesText: '"D:/Photos/cache",E:/Archive/tmp',
+      excludedItemsText: "*/cache/*,*.part;DEFAULT",
+      allowedExtensions: ".jpg;png\nIMAGE,jpg",
+      excludedExtensions: ".tmp;bak",
+    })).toMatchObject({
+      includedDirectories: ["D:/Photos", "E:/Archive"],
+      includedDirectoriesReferenced: ["E:/Archive"],
+      excludedDirectories: ["D:/Photos/cache", "E:/Archive/tmp"],
+      excludedItems: ["*/cache/*", "*.part", "DEFAULT"],
+      allowedExtensions: "jpg,png,IMAGE",
+      excludedExtensions: "tmp,bak",
     })
   })
 

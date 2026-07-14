@@ -38,6 +38,55 @@ describe("Czkawka node", () => {
     await waitFor(() => expect(host.stateValue.phase).toBe("stopped"))
   })
 
+  test("manages fork-compatible source lists, references, rules, and extension tokens", async () => {
+    const host = createHost({
+      tool: "duplicate-files",
+      includedDirectoriesText: "D:/one\nD:/two",
+      includedDirectoriesReferencedText: "D:/two",
+      excludedDirectoriesText: "E:/skip",
+      excludedItemsText: "*/cache/*",
+      allowedExtensions: ".jpg;png",
+      excludedExtensions: "tmp,bak",
+    })
+    host.pickedDirectory = "F:/picked"
+    const view = render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.change(screen.getByRole("textbox", { name: "批量粘贴包含目录" }), { target: { value: '\u2068"G:/quoted"\u2069;D:/one,H:/comma' } })
+    fireEvent.click(screen.getByRole("button", { name: "添加粘贴的包含目录" }))
+    expect(host.stateValue.includedDirectoriesText).toBe("G:/quoted\nD:/one\nH:/comma\nD:/two")
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "浏览添加包含目录" }))
+    await waitFor(() => expect(host.stateValue.includedDirectoriesText?.startsWith("F:/picked\n")).toBe(true))
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "全部设为参考目录" }))
+    expect(host.stateValue.includedDirectoriesReferencedText).toBe(host.stateValue.includedDirectoriesText)
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "移除目录 D:/two" }))
+    expect(host.stateValue.includedDirectoriesReferencedText).not.toContain("D:/two")
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择目录 E:/skip" }))
+    fireEvent.click(screen.getByRole("button", { name: "移除选中的排除目录" }))
+    expect(host.stateValue.excludedDirectoriesText).toBe("")
+    fireEvent.click(screen.getByRole("button", { name: "移除 jpg" }))
+    expect(host.stateValue.allowedExtensions).toBe("png")
+    fireEvent.change(screen.getByRole("textbox", { name: "排除项目输入" }), { target: { value: "*/cache/*,*.part;DEFAULT" } })
+    expect(host.stateValue.excludedItemsText).toBe("*/cache/*,*.part;DEFAULT")
+    fireEvent.click(screen.getByRole("button", { name: "重置排除扩展名" }))
+    expect(host.stateValue.excludedExtensions).toBe("")
+
+    expect(scanInput("duplicate-files", host.stateValue)).toMatchObject({
+      includedDirectories: ["F:/picked", "G:/quoted", "D:/one", "H:/comma"],
+      includedDirectoriesReferenced: ["F:/picked", "G:/quoted", "D:/one", "H:/comma"],
+      excludedDirectories: [],
+      excludedItems: ["*/cache/*", "*.part", "DEFAULT"],
+      allowedExtensions: "png",
+      excludedExtensions: undefined,
+    })
+  })
+
   test("maps fork-specific media settings into the shared scan contract", () => {
     expect(scanInput("similar-videos", {
       similarity: "7",
@@ -292,7 +341,7 @@ describe("Czkawka node", () => {
   })
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number }
+type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number; pickedDirectory?: string }
 function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample): TestHost {
   const host: TestHost = {
     stateValue: initial,
@@ -300,6 +349,7 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     cancelCalls: 0,
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["contract", "state", "runner"], hasCapability: () => true },
     env: { theme: "light", platform: "web" },
+    localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
     runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,

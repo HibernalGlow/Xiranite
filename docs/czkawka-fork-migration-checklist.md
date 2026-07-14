@@ -81,11 +81,11 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 
 | ID | 状态 | 能力 | 验收标准 |
 | --- | --- | --- | --- |
-| S01 | `[-]` | 包含目录 | 目录选择器、粘贴多路径、移除、去重、持久化 |
-| S02 | `[-]` | 参考目录 | 可逐项/全选标记 reference，供相似图片与选择规则使用 |
-| S03 | `[-]` | 排除目录 | 独立管理表、批量增加/移除、持久化 |
-| S04 | `[-]` | 排除项目 | 支持多规则输入并保持 fork 语义 |
-| S05 | `[-]` | 扩展名过滤 | allowed/excluded 双向过滤、格式 token、重置 |
+| S01 | `[x]` | 包含目录 | 目录选择器、粘贴多路径、移除、去重、持久化 |
+| S02 | `[x]` | 参考目录 | 可逐项/全选标记 reference，供相似图片与选择规则使用 |
+| S03 | `[x]` | 排除目录 | 独立管理表、批量增加/移除、持久化 |
+| S04 | `[x]` | 排除项目 | 支持多规则输入并保持 fork 语义 |
+| S05 | `[x]` | 扩展名过滤 | allowed/excluded 双向过滤、格式 token、重置 |
 | S06 | `[x]` | 文件大小范围 | 最小/最大值校验并进入所有适用 scanner |
 | S07 | `[x]` | 递归扫描 | GUI/CLI/TUI 统一默认值和开关 |
 | S08 | `[x]` | 缓存开关 | GUI/CLI/TUI 统一默认值和开关 |
@@ -93,6 +93,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | S10 | `[x]` | 扫描停止 | core 支持取消令牌；GUI/CLI/TUI 可停止并得到 stopped 状态 |
 | S11 | `[x]` | 进度 | 至少阶段进度、总体进度、步骤文本；不能只有 5%/100% 合成进度 |
 | S12 | `[x]` | 扫描配置预设 | 新建、覆盖、删除、导入、导出、启动时恢复 |
+
+来源输入证据（2026-07-15）：`packages/nodes/czkawka/src/source-inputs.ts` 复刻 fork 的 `splitStr` 语义，统一处理换行/逗号/分号、Unicode 方向隔离符、Windows 双引号路径和精确去重；GUI、OpenTUI/guided contract、扫描预设及 pipe CLI 共用该纯 TS 边界。GUI 的包含/排除目录均为独立持久化列表，支持宿主目录选择器、拖放、批量粘贴、逐项删除、勾选后批量删除和清空；包含目录支持逐项星标及全选/取消 reference，删除目录会同步清理悬空 reference。排除项目以多规则 token 显示，缺少 `*` 且非 `DEFAULT` 的规则明确标红；allowed/excluded 扩展名按 token 去点、去重、删除和重置，并提示 core 的 allowed 优先语义。CLI 新增可重复的 `--reference`、`--exclude-dir`、`--exclude-item`、`--allow`、`--exclude-ext` 和 `--threads`，OpenTUI 使用相同 parser。纯模型 4 项、包级 110 项、OpenTUI 1 项及 GUI 19 项 Vitest 通过，GUI 测试覆盖选择器、混合分隔粘贴、去重、reference 全选/删除联动、规则和扩展名重置后的最终扫描 DTO。
 
 验证证据（2026-07-15）：Node-API v3 为三类 scanner 建立一次性 `scanId` session，直接把同一个 `AtomicBool` 交给 `czkawka_core::Search::search`，并把 core 的 `ProgressData` 连续转发为阶段、阶段序号、条目数和字节数；扫描结束即清理 session。TS platform 每 100ms 查询进度并在宿主取消令牌触发时调用 native cancel，core 将连续 native 进度映射为 3%–98% 的节点事件并保留停止时的部分结果。线程数进入 GUI、CLI、OpenTUI、扫描预设和统一 input contract，Rust 线程池仅在进程首次扫描时初始化；GUI 明示改变后需重启。GUI 主视图和折叠视图均在运行期间切换为停止动作，CLI 捕获 SIGINT/SIGTERM，OpenTUI 使用共享 definition 的 `cancel`。81 项包级 Vitest、18 项 GUI Vitest、TS build/typecheck 和 React Compiler 边界审计通过；release native smoke 实测 `CollectingFiles` 连续进度、取消返回 `stopped: true` 且 session 释放。
 
