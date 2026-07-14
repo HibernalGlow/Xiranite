@@ -37,15 +37,13 @@
     "test": "node ../../../node_modules/vitest/vitest.mjs run src --environment node --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
-    "@opentui/react": "0.4.3",
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",
     "@xiranite/node-repacku": "workspace:*",
-    "@xiranite/node-samea": "workspace:*",
-    "react": "^19.2.4"
+    "@xiranite/node-samea": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
