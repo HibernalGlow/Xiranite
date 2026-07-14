@@ -89,7 +89,7 @@ describe("CzkawkaResultTable", () => {
     render(<CzkawkaResultTable tool="similar-videos" groups={[mediaGroup]} running={false} selectedPaths={[]} getFileUrl={(path) => `http://local/${path}`} onSelectionChange={vi.fn()} />)
 
     expect(screen.getByRole("button", { name: "预览 cover.jpg" })).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "播放 track.flac" })).toBeNull()
+    expect(screen.getByRole("button", { name: "播放 track.flac" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "播放 a.mp4" }))
     const dialog = within(screen.getByRole("dialog"))
     expect(dialog.getByRole("heading", { name: "a.mp4" })).toBeTruthy()
@@ -98,6 +98,34 @@ describe("CzkawkaResultTable", () => {
 
     fireEvent.click(dialog.getByRole("button", { name: "下一个视频" }))
     expect(dialog.getByRole("heading", { name: "b.webm" })).toBeTruthy()
+    expect(dialog.getByText("2 / 2")).toBeTruthy()
+  })
+
+  test("plays duplicate audio with tag and fingerprint scan metadata", () => {
+    const audioGroup: CzkawkaGroup = {
+      ...group,
+      entries: [
+        { ...entry("a.flac", "Song A"), genre: "Rock", year: "2025" },
+        { ...entry("b.mp3", "Song B"), genre: "Jazz", year: "2024" },
+      ],
+    }
+    render(<CzkawkaResultTable tool="duplicate-music" groups={[audioGroup]} running={false} selectedPaths={[]} musicCheckType="fingerprint" musicMaximumDifference="7.5" musicMinimumFragmentDuration="20" musicCompareFingerprintsOnlyWithSimilarTitles getFileUrl={(path) => `http://local/${path}`} onSelectionChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "播放 a.flac" }))
+    const dialog = within(screen.getByRole("dialog"))
+    expect(dialog.getByRole("heading", { name: "a.flac" })).toBeTruthy()
+    expect(dialog.getByText("音频指纹")).toBeTruthy()
+    expect(dialog.getByText("7.5")).toBeTruthy()
+    expect(dialog.getByText("20 s")).toBeTruthy()
+    expect(dialog.getByText("仅相似标题")).toBeTruthy()
+    expect(dialog.getByText("Song A")).toBeTruthy()
+    expect(dialog.getByText("Artist")).toBeTruthy()
+    expect(dialog.getByText("Rock")).toBeTruthy()
+    expect(dialog.getByText("320 kbps")).toBeTruthy()
+    expect(dialog.getByText("03:00")).toBeTruthy()
+
+    fireEvent.click(dialog.getByRole("button", { name: "下一个音频" }))
+    expect(dialog.getByRole("heading", { name: "b.mp3" })).toBeTruthy()
     expect(dialog.getByText("2 / 2")).toBeTruthy()
   })
 

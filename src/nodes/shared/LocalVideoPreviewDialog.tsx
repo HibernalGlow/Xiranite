@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, ArrowRight, Maximize, Minimize, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { formatMediaTime } from "./LocalMediaPreview"
 
 export interface LocalVideoPreviewItem {
   path: string
@@ -80,11 +81,4 @@ function LocalVideoPlayer({ item, source, position, canNavigate, onPrevious, onN
   }
 
   return <><div ref={containerRef} data-testid="local-video-player" className="relative min-h-0 flex-1 overflow-hidden rounded-lg border bg-black"><video ref={videoRef} src={source} className="size-full object-contain" playsInline preload="metadata" onClick={togglePlayback} onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)} onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)} onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} onVolumeChange={(event) => { setMuted(event.currentTarget.muted); setVolume(event.currentTarget.volume) }} /><div className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-3 pt-10 text-white"><input aria-label="播放进度" className="h-1 w-full cursor-pointer accent-primary" type="range" min={0} max={duration || 0} step="any" value={Math.min(currentTime, duration || 0)} onChange={(event) => seek(event.currentTarget.value)} /><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Button aria-label={playing ? "暂停视频" : "播放视频"} size="icon-sm" variant="ghost" className="text-white hover:bg-white/20 hover:text-white" onClick={togglePlayback}>{playing ? <Pause /> : <Play />}</Button><Button aria-label={muted ? "取消静音" : "静音"} size="icon-sm" variant="ghost" className="text-white hover:bg-white/20 hover:text-white" onClick={toggleMuted}>{muted ? <VolumeX /> : <Volume2 />}</Button><input aria-label="音量" className="hidden w-24 cursor-pointer accent-primary sm:block" type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(event) => changeVolume(event.currentTarget.value)} /><span className="font-mono text-xs">{formatMediaTime(currentTime)} / {formatMediaTime(duration)}</span></div><Button aria-label={fullscreen ? "退出全屏" : "进入全屏"} size="icon-sm" variant="ghost" className="text-white hover:bg-white/20 hover:text-white" onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize /> : <Maximize />}</Button></div></div><div className="absolute inset-x-2 top-1/2 flex -translate-y-1/2 justify-between"><Button aria-label="上一个视频" disabled={!canNavigate} size="icon" variant="secondary" onClick={onPrevious}><ArrowLeft /></Button><Button aria-label="下一个视频" disabled={!canNavigate} size="icon" variant="secondary" onClick={onNext}><ArrowRight /></Button></div></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border bg-muted/20 p-2 text-xs sm:grid-cols-4">{item.metadata?.map((field) => <div key={field.label} className="min-w-0"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{field.label}</div><div className="truncate font-mono" title={field.value}>{field.value}</div></div>)}</div><div className="flex justify-between text-[10px] text-muted-foreground"><span>{position}</span><span>← / → 切换视频</span></div></>
-}
-
-export function formatMediaTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
-  const minutes = Math.floor(seconds / 60)
-  const remainder = Math.floor(seconds % 60)
-  return `${minutes}:${String(remainder).padStart(2, "0")}`
 }
