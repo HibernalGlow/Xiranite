@@ -197,6 +197,10 @@ export interface NodeRunnerCapability {
 export interface NodeClipboardCapability {
   readText?: () => Promise<string>
   writeText?: (text: string) => Promise<void>
+  /** Read the first image item from the system clipboard. */
+  readImage?: () => Promise<{ base64: string; mimeType: string } | undefined>
+  /** Write encoded image bytes back to the system clipboard. */
+  writeImage?: (image: { base64: string; mimeType: string }) => Promise<void>
 }
 
 export interface NodeDownloadsCapability {

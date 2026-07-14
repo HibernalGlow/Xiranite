@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { compressionRatio, discoverImages, normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "./core.js"
 
 describe("xlchemy core contract", () => {
@@ -255,6 +255,29 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(result.data?.files[0]).toMatchObject({ outputPath: "/photos/a.jxl", outputBytes: 200, status: "converted" })
     expect(runtime.commands.slice(0, 3).map((command) => command.command)).toEqual(["/bin/magick", "/bin/cwebp", "/bin/cjxl"])
+  })
+
+  test("materializes, converts and cleans up an inline clipboard image", async () => {
+    const runtime = fakeRuntime()
+    const cleanup = vi.fn(async () => undefined)
+    runtime.createTemporaryFile = async (extension, base64) => {
+      expect(extension).toBe(".png")
+      expect(base64).toBe("cG5n")
+      return "/photos/a.png"
+    }
+    runtime.readFileBase64 = async (path) => {
+      expect(path).toBe("/photos/output/a.png")
+      return "d2VicA=="
+    }
+    runtime.cleanupTemporaryFile = cleanup
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: [], format: "PNG", quality: 72, outputMode: "source", overwrite: false, preserveMetadata: false }), runtime)
+    const clipboardResult = await runXlchemy({ ...normalizeXlchemyInput({ action: "convert", paths: [], format: "PNG", quality: 72, outputMode: "source", preserveMetadata: false }), inlineSource: { base64: "cG5n", mimeType: "image/png" } }, runtime)
+
+    expect(result.success).toBe(false)
+    expect(clipboardResult.success).toBe(true)
+    expect(clipboardResult.data?.clipboardOutput).toEqual({ base64: "d2VicA==", mimeType: "image/png" })
+    expect(cleanup).toHaveBeenCalledWith("/photos/a.png")
   })
 })
 

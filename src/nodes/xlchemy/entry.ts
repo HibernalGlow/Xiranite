@@ -10,6 +10,8 @@ const dataSchema = z.object({
   format: z.enum(["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG", "Lossless JPEG Transcoding", "JPEG Reconstruction", "Smallest Lossless"]).optional(),
   lossless: z.boolean().optional(),
   quality: z.number().optional(),
+  clipboardFormat: z.enum(["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG"]).optional(),
+  clipboardQuality: z.number().optional(),
   effort: z.number().optional(),
   maxCompression: z.boolean().optional(),
   threads: z.number().optional(),

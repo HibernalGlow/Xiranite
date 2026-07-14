@@ -1,8 +1,9 @@
-import { access, copyFile, mkdir, readdir, rm, stat, utimes } from "node:fs/promises"
+import { access, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs/promises"
 import { createReadStream } from "node:fs"
 import { createHash } from "node:crypto"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
 import { delimiter } from "node:path"
+import { tmpdir } from "node:os"
 import type { XlchemyRuntime } from "./core.js"
 import { runXlchemyCommand } from "./command.js"
 import { convertWithSlimg, probeSlimg } from "./slimg.js"
@@ -29,6 +30,14 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     basename,
     extname,
     relative,
+    createTemporaryFile: async (extension, base64) => {
+      const workspace = await mkdtemp(join(tmpdir(), "xlchemy-clipboard-"))
+      const path = join(workspace, `clipboard${/^\.[a-z0-9]+$/i.test(extension) ? extension : ".png"}`)
+      await writeFile(path, Buffer.from(base64, "base64"))
+      return path
+    },
+    readFileBase64: async (path) => (await readFile(path)).toString("base64"),
+    cleanupTemporaryFile: async (path) => { await rm(dirname(path), { recursive: true, force: true }) },
   }
 }
 

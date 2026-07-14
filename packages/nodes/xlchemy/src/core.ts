@@ -78,6 +78,8 @@ export interface XlchemyInput {
   processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormats?: string[]
   downscale?: XlchemyDownscaleSettings
+  /** Browser clipboard image materialized by the Node runtime for one conversion. */
+  inlineSource?: { base64: string; mimeType: string }
 }
 
 export interface XlchemyFileResult {
@@ -111,6 +113,7 @@ export interface XlchemyData {
   elapsedMs?: number
   errors: string[]
   environment?: XlchemyToolStatus[]
+  clipboardOutput?: { base64: string; mimeType: string }
 }
 
 export interface XlchemyPathInfo { path: string; exists: boolean; isFile: boolean; isDirectory: boolean; size: number; atimeMs: number; mtimeMs: number }
@@ -138,6 +141,9 @@ export interface XlchemyRuntime {
   basename: (path: string) => string
   extname: (path: string) => string
   relative: (from: string, to: string) => string
+  createTemporaryFile?: (extension: string, base64: string) => Promise<string>
+  readFileBase64?: (path: string) => Promise<string>
+  cleanupTemporaryFile?: (path: string) => Promise<void>
 }
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
@@ -196,10 +202,44 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     processingOrder: input.processingOrder ?? "original",
     excludedFormats: input.excludedFormats ?? ["avif", "jxl", "webp", "gif"],
     downscale: { enabled: input.downscale?.enabled ?? false, mode: input.downscale?.mode ?? "resolution", width: input.downscale?.width ?? 1920, height: input.downscale?.height ?? 1080, percent: input.downscale?.percent ?? 50, fileSizeKb: input.downscale?.fileSizeKb ?? 500, shortestSide: input.downscale?.shortestSide ?? 1080, longestSide: input.downscale?.longestSide ?? 1920, megapixels: input.downscale?.megapixels ?? 2.1, resample: input.downscale?.resample ?? "default" },
+    inlineSource: input.inlineSource,
   }
 }
 
 export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<XlchemyResult> {
+  if (!input.inlineSource) return runXlchemyFiles(input, runtime, onEvent)
+  if (!runtime.createTemporaryFile || !runtime.readFileBase64 || !runtime.cleanupTemporaryFile) return failure("Clipboard image conversion is not supported by the current runtime.")
+  let sourcePath: string | undefined
+  try {
+    sourcePath = await runtime.createTemporaryFile(extensionForMime(input.inlineSource.mimeType), input.inlineSource.base64)
+    const result = await runXlchemyFiles({
+      ...input,
+      inlineSource: undefined,
+      paths: [sourcePath],
+      action: "convert",
+      outputMode: "directory",
+      outputDir: runtime.join(runtime.dirname(sourcePath), "output"),
+      overwrite: true,
+      existingPolicy: "replace",
+      preserveStructure: false,
+      preserveTimestamps: false,
+      keepIfLarger: false,
+      copyIfLarger: false,
+      deleteOriginal: false,
+      processingOrder: "original",
+      excludedFormats: [],
+    }, runtime, onEvent)
+    const outputPath = result.data?.files.find((file) => file.status === "converted")?.outputPath
+    if (!result.success || !result.data || !outputPath) return result
+    return { ...result, data: { ...result.data, clipboardOutput: { base64: await runtime.readFileBase64(outputPath), mimeType: mimeForFormat(input.format) } } }
+  } catch (error) {
+    return failure(error instanceof Error ? error.message : String(error))
+  } finally {
+    if (sourcePath) await runtime.cleanupTemporaryFile(sourcePath).catch(() => undefined)
+  }
+}
+
+async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyResult> {
   const options = normalizeXlchemyInput(input)
   const started = Date.now()
   try {
@@ -245,6 +285,18 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
   }
+}
+
+function extensionForMime(mimeType: string): string {
+  const extensions: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/avif": ".avif", "image/tiff": ".tiff", "image/jxl": ".jxl" }
+  return extensions[mimeType.toLowerCase()] ?? ".png"
+}
+
+function mimeForFormat(format: XlchemyFormat): string {
+  const mimeTypes: Partial<Record<XlchemyFormat, string>> = { "JPEG XL": "image/jxl", AVIF: "image/avif", WebP: "image/webp", PNG: "image/png", TIFF: "image/tiff", JPEG: "image/jpeg" }
+  const mimeType = mimeTypes[format]
+  if (!mimeType) throw new Error(`${format} 不能作为固定格式写入剪贴板。`)
+  return mimeType
 }
 
 function emitLiveResult(onEvent: (event: NodeRunEvent) => void, files: XlchemyFileResult[], total: number, started: number) {

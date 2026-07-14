@@ -136,6 +136,25 @@ export function useNodeHostApi(
     const clipboardCapability = {
       readText: () => navigator.clipboard.readText(),
       writeText: (text: string) => navigator.clipboard.writeText(text),
+      readImage: async () => {
+        if (!navigator.clipboard?.read) throw new Error("当前运行环境不支持读取剪贴板图片。")
+        const items = await navigator.clipboard.read()
+        for (const item of items) {
+          const mimeType = item.types.find((type) => type.startsWith("image/"))
+          if (!mimeType) continue
+          const blob = await item.getType(mimeType)
+          return { base64: await blobToBase64(blob), mimeType }
+        }
+        return undefined
+      },
+      writeImage: async ({ base64, mimeType }: { base64: string; mimeType: string }) => {
+        if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") throw new Error("当前运行环境不支持写入剪贴板图片。")
+        const encoded = await (await fetch(`data:${mimeType};base64,${base64}`)).blob()
+        const supported = !ClipboardItem.supports || ClipboardItem.supports(mimeType)
+        const blob = supported ? encoded : await encodedImageToPng(encoded)
+        const clipboardMime = supported ? mimeType : "image/png"
+        await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: blob })])
+      },
     }
 
     const downloadsCapability = {
@@ -284,6 +303,28 @@ export function useNodeHostApi(
 
 function isComponentVisibilityMode(mode: string): mode is ComponentVisibilityMode {
   return viewModes.has(mode as ComponentVisibilityMode)
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error("读取剪贴板图片失败。"))
+    reader.onload = () => resolve(String(reader.result ?? "").replace(/^data:[^,]*,/, ""))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function encodedImageToPng(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob)
+  try {
+    const canvas = document.createElement("canvas")
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("无法创建剪贴板图片画布。")
+    context.drawImage(bitmap, 0, 0)
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((png) => png ? resolve(png) : reject(new Error("无法生成剪贴板 PNG 图像。")), "image/png"))
+  } finally { bitmap.close() }
 }
 
 export function parentLocalPath(value: string): string {
