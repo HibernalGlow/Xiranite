@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from "react"
+import { ExternalLink } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { MODULE_REGISTRY } from "@/components/modules/registry"
 import { resolveModuleIcon } from "@/components/modules/moduleIconRegistry"
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useWindowControls } from "@/hooks/useWindowControls"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
-import type { ModuleDef } from "@/types/workspace"
+import type { ComponentInstance, ModuleDef } from "@/types/workspace"
 
 export const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
 
@@ -35,13 +38,17 @@ export function getNextAlphabetIndex(index: number, direction: number): number {
 }
 
 export function AlphabetNodeRail() {
+  const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
+  const { openComponent } = useWindowControls()
   const appearance = useWorkspaceShallowSelector((state) => ({
+    activeWorkspaceId: state.activeWorkspaceId,
     viewMode: state.viewMode,
     visible: state.alphabetIndexVisible,
     opacity: state.alphabetIndexOpacity,
     style: state.alphabetIndexStyle,
     waveIntensity: state.alphabetIndexWaveIntensity,
+    zCounter: state.zCounter,
   }))
   const [activeIndex, setActiveIndex] = useState(DEFAULT_INITIAL_INDEX)
   const [open, setOpen] = useState(false)
@@ -87,6 +94,48 @@ export function AlphabetNodeRail() {
     setAnnounce(`${module.name} was added to the current view.`)
     setOpen(false)
   }, [appearance.viewMode, workspaceActions])
+
+  const openModuleInWindow = useCallback((module: ModuleDef, event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const now = Date.now()
+    const componentId = `alphabet-window-${module.id}-${now}`
+    const floatingComponent: ComponentInstance = {
+      id: componentId,
+      moduleId: module.id,
+      state: "floating",
+      position: { x: 20, y: 20 },
+      size: { w: 460, h: 380 },
+      z: appearance.zCounter + 1,
+      collapsed: false,
+      workspaceId: appearance.activeWorkspaceId,
+      flowPosition: { x: 100, y: 100 },
+      flowSize: { width: 384, height: 320 },
+      dockPanel: "default",
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    workspaceActions.ensureComponent(floatingComponent)
+    void openComponent({
+      componentId,
+      moduleId: module.id,
+      title: module.name,
+      width: floatingComponent.size?.w,
+      height: floatingComponent.size?.h,
+    }).then((result) => {
+      if (result.success) {
+        setAnnounce(t("common:openedInNewWindow", { name: module.name }))
+        return
+      }
+      workspaceActions.removeComponent(componentId)
+      setAnnounce(result.message)
+    }).catch(() => {
+      workspaceActions.removeComponent(componentId)
+      setAnnounce(t("common:unableToOpenInNewWindow", { name: module.name }))
+    })
+  }, [appearance.activeWorkspaceId, appearance.zCounter, openComponent, t, workspaceActions])
 
   if (!appearance.visible) return null
 
@@ -178,7 +227,7 @@ export function AlphabetNodeRail() {
                   <CommandItem
                     key={module.id}
                     value={`${module.name} ${module.id}`}
-                    className="h-8 min-h-8 items-center py-1 text-xs"
+                    className="group/result h-8 min-h-8 items-center py-1 text-xs"
                     onSelect={() => deployModule(module)}
                     data-testid={`alphabet-node-result-${module.id}`}
                   >
@@ -187,7 +236,22 @@ export function AlphabetNodeRail() {
                       <span className="shrink-0 text-xs font-medium">{module.name}</span>
                       <span className="min-w-0 truncate text-[10px] font-normal text-muted-foreground">{module.description}</span>
                     </span>
-                    <CommandShortcut className="max-w-16 truncate text-[9px]">{module.id}</CommandShortcut>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <CommandShortcut className="max-w-16 truncate text-[9px]">{module.id}</CommandShortcut>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-6 opacity-0 transition-opacity group-hover/result:opacity-100 group-focus-within/result:opacity-100 focus-visible:opacity-100"
+                        aria-label={t("common:openFloatingWindow", { name: module.name })}
+                        title={t("common:openFloatingWindow")}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => openModuleInWindow(module, event)}
+                        data-testid={`alphabet-node-open-window-${module.id}`}
+                      >
+                        <ExternalLink data-icon="inline-start" />
+                      </Button>
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

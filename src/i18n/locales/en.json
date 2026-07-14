@@ -28,6 +28,8 @@
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit fullscreen",
     "openFloatingWindow": "Open floating window",
+    "openedInNewWindow": "{{name}} was opened in a new window.",
+    "unableToOpenInNewWindow": "Unable to open {{name}} in a new window.",
     "moveToView": "Move to view",
     "hideIn": "Hide in {{view}}",
     "live": "live",

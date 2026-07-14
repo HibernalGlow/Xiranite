@@ -28,6 +28,8 @@
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏",
     "openFloatingWindow": "打开浮动窗口",
+    "openedInNewWindow": "已在新窗口打开 {{name}}。",
+    "unableToOpenInNewWindow": "无法在新窗口打开 {{name}}。",
     "moveToView": "移动到视图",
     "hideIn": "在{{view}}中隐藏",
     "live": "运行中",
