@@ -49,6 +49,7 @@
     "audit:react-compiler-boundaries": "bun scripts/validate-react-compiler-boundaries.ts",
     "audit:tui": "node --experimental-strip-types scripts/audit-node-tuis.ts",
     "audit:build-chunks": "bun scripts/audit-build-chunks.ts",
+    "audit:neoview-inventory": "bun scripts/verify-neoview-inventory-drift.ts",
     "qa:card": "bun scripts/qa-card.ts",
     "qa:node-baselines": "bun scripts/capture-node-gui-baselines.ts",
     "benchmark:react-compiler": "bun scripts/benchmark-react-compiler.ts",
