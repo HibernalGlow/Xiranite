@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
@@ -39,7 +39,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [configFilePath, setConfigFilePath] = useState<string | undefined>(undefined)
   const [configDirty, setConfigDirty] = useState(false)
 
-  const paths = useMemo(() => parseEncodebPaths(data.pathText ?? ""), [data.pathText])
+  const paths = parseEncodebPaths(data.pathText ?? "")
   const logs = data.logs ?? []
   const mappings = data.mappings ?? []
   const matches = data.matches ?? []

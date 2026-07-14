@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { MigratefAction, MigratefData, MigratefInput, MigratefMode } from "@xiranite/node-migratef/core"
 import { Copy, FolderSync, History, Play, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
@@ -45,7 +45,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const modeMeta = MODES.find((item) => item.value === mode) ?? MODES[0]!
   const action = data.action ?? "move"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[0]!
-  const sources = useMemo(() => splitPaths(data.sourceText), [data.sourceText])
+  const sources = splitPaths(data.sourceText)
   const dryRun = data.dryRun ?? true
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0

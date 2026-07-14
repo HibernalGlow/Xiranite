@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { MoveaAction, MoveaData, MoveaInput } from "@xiranite/node-movea/core"
 import { matchMoveaArchiveToFolders } from "@xiranite/node-movea/core"
@@ -34,7 +34,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const result = data.result ?? null
   const matchedFolders = data.matchedFolders ?? []
-  const scanResults = useMemo(() => Object.values(result?.scanResults ?? {}), [result])
+  const scanResults = Object.values(result?.scanResults ?? {})
   const dryRun = data.dryRun ?? true
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
