@@ -12,8 +12,10 @@ test("Czkawka TUI renders eleven scanners and responds to mouse", async () => {
     await act(async () => screen.renderOnce())
     expect(screen.captureCharFrame()).toContain("CZKAWKA // FILE FORENSICS")
     expect(screen.captureCharFrame()).toContain("相似图片")
+    expect(screen.captureCharFrame()).toContain("扫描")
     const tabs = screen.renderer.root.findDescendantById("czkawka-input-tabs")
     expect(tabs).toBeDefined()
     await act(async () => screen.mockMouse.click(tabs!.x + Math.max(1, Math.floor(tabs!.width / 2)), tabs!.y))
+    expect(createCzkawkaInteractionSchema({ action: "move", selectedPathsText: "D:/a.bin", destinationDirectory: "E:/Review", copyMode: true }, "zh").toInput({ action: "move", tool: "duplicate-files", selectedPathsText: "D:/a.bin", destinationDirectory: "E:/Review", copyMode: true })).toMatchObject({ action: "move", copyMode: true, selectedPaths: ["D:/a.bin"] })
   } finally { await act(async () => screen.renderer.destroy()) }
 })

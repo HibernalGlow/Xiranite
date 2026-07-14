@@ -1,10 +1,11 @@
 import type { InteractionField, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
-import { createCzkawkaOptionFields, createCzkawkaScanInput, czkawkaOptionDefaults } from "./tool-options.js"
+import { createCzkawkaOperationInput, createCzkawkaOptionFields, createCzkawkaScanInput, czkawkaOptionDefaults } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 
 export type CzkawkaInteractionValues = InteractionValues & {
+  action: "scan" | "delete" | "move" | "save"
   tool: CzkawkaTool
   includedDirectoriesText: string
   excludedDirectoriesText: string
@@ -16,6 +17,14 @@ export type CzkawkaInteractionValues = InteractionValues & {
   recursive: boolean
   useCache: boolean
   filterText: string
+  selectedPathsText: string
+  destinationDirectory: string
+  deleteMode: "trash" | "permanent"
+  copyMode: boolean
+  preserveStructure: boolean
+  conflictPolicy: "skip" | "overwrite" | "rename" | "error"
+  outputPath: string
+  dryRun: boolean
 }
 
 const LABELS_ZH: Record<CzkawkaTool, string> = {
@@ -34,20 +43,29 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {
   const zh = language === "zh"
-  const initialValues = { tool: "duplicate-files", includedDirectoriesText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, filterText: "", ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
+  const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
   const fields: InteractionField[] = [
-    { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", role: "action", options: CZKAWKA_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
-    { id: "includedDirectoriesText", label: zh ? "包含目录" : "Included directories", kind: "path-list", lines: 4 },
-    { id: "excludedDirectoriesText", label: zh ? "排除目录" : "Excluded directories", kind: "path-list", lines: 3 },
-    { id: "excludedItemsText", label: zh ? "排除项目/通配模式" : "Excluded items / patterns", kind: "multiline", lines: 3 },
-    { id: "allowedExtensions", label: zh ? "允许扩展名" : "Allowed extensions", kind: "text" },
-    { id: "excludedExtensions", label: zh ? "排除扩展名" : "Excluded extensions", kind: "text" },
-    { id: "minimumFileSize", label: zh ? "最小字节" : "Minimum bytes", kind: "number", min: 0, step: 1 },
-    { id: "maximumFileSize", label: zh ? "最大字节" : "Maximum bytes", kind: "number", min: 1, step: 1 },
-    { id: "recursive", label: zh ? "递归扫描" : "Recursive", kind: "boolean" },
-    { id: "useCache", label: zh ? "使用缓存" : "Use cache", kind: "boolean" },
+    { id: "action", label: zh ? "命令" : "Command", kind: "select", role: "action", options: [{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }, { value: "delete", label: zh ? "♲ 删除" : "♲ Delete" }, { value: "move", label: zh ? "⇄ 移动/复制" : "⇄ Move/copy" }, { value: "save", label: zh ? "⇩ 导出" : "⇩ Export" }] },
+    { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", options: CZKAWKA_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
+    { id: "includedDirectoriesText", label: zh ? "包含目录" : "Included directories", kind: "path-list", lines: 4, visibleWhen: scanOnly },
+    { id: "excludedDirectoriesText", label: zh ? "排除目录" : "Excluded directories", kind: "path-list", lines: 3, visibleWhen: scanOnly },
+    { id: "excludedItemsText", label: zh ? "排除项目/通配模式" : "Excluded items / patterns", kind: "multiline", lines: 3, visibleWhen: scanOnly },
+    { id: "allowedExtensions", label: zh ? "允许扩展名" : "Allowed extensions", kind: "text", visibleWhen: scanOnly },
+    { id: "excludedExtensions", label: zh ? "排除扩展名" : "Excluded extensions", kind: "text", visibleWhen: scanOnly },
+    { id: "minimumFileSize", label: zh ? "最小字节" : "Minimum bytes", kind: "number", min: 0, step: 1, visibleWhen: scanOnly },
+    { id: "maximumFileSize", label: zh ? "最大字节" : "Maximum bytes", kind: "number", min: 1, step: 1, visibleWhen: scanOnly },
+    { id: "recursive", label: zh ? "递归扫描" : "Recursive", kind: "boolean", visibleWhen: scanOnly },
+    { id: "useCache", label: zh ? "使用缓存" : "Use cache", kind: "boolean", visibleWhen: scanOnly },
     ...createCzkawkaOptionFields(language),
-    { id: "filterText", label: zh ? "结果过滤" : "Result filter", kind: "text" },
+    { id: "filterText", label: zh ? "结果过滤" : "Result filter", kind: "text", visibleWhen: scanOnly },
+    { id: "selectedPathsText", label: zh ? "操作路径" : "Operation paths", kind: "path-list", lines: 5, visibleWhen: (values) => values.action !== "scan" },
+    { id: "destinationDirectory", label: zh ? "目标目录" : "Destination", kind: "text", visibleWhen: moveOnly },
+    { id: "deleteMode", label: zh ? "删除方式" : "Delete mode", kind: "select", visibleWhen: deleteOnly, options: [{ value: "trash", label: zh ? "回收站" : "Trash" }, { value: "permanent", label: zh ? "永久删除" : "Permanent" }] },
+    { id: "copyMode", label: zh ? "复制而非移动" : "Copy instead of move", kind: "boolean", visibleWhen: moveOnly },
+    { id: "preserveStructure", label: zh ? "保留目录结构" : "Preserve structure", kind: "boolean", visibleWhen: moveOnly },
+    { id: "conflictPolicy", label: zh ? "目标冲突" : "Target conflict", kind: "select", visibleWhen: moveOnly, options: [{ value: "skip", label: zh ? "跳过" : "Skip" }, { value: "overwrite", label: zh ? "覆盖" : "Overwrite" }, { value: "rename", label: zh ? "自动改名" : "Auto rename" }, { value: "error", label: zh ? "报告错误" : "Error" }] },
+    { id: "outputPath", label: zh ? "导出路径" : "Export path", kind: "text", visibleWhen: saveOnly },
+    { id: "dryRun", label: zh ? "仅预演" : "Dry run", kind: "boolean", visibleWhen: (values) => values.action === "delete" || values.action === "move" },
   ]
   return {
     id: "czkawka",
@@ -56,10 +74,11 @@ export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteract
     initialValues,
     fields,
     view: { sections: [{ id: "tool", title: zh ? "工具与目录" : "Tool and directories", fieldIds: ["tool", "includedDirectoriesText", "excludedDirectoriesText", "recursive", "useCache"] }, { id: "filters", title: zh ? "过滤与算法" : "Filters and algorithms", fieldIds: fields.slice(3).map((field) => field.id) }], dashboard: { title: "Czkawka", display: (values) => ({ primary: lines(values.includedDirectoriesText)[0] ?? "Czkawka", secondary: zh ? LABELS_ZH[values.tool as CzkawkaTool] : human(String(values.tool)), metrics: [] }) } },
-    toInput: (values) => createCzkawkaScanInput(values.tool as CzkawkaTool, values),
-    validate: (_values, input) => input.includedDirectories?.length ? null : zh ? "请至少添加一个包含目录。" : "Add at least one included directory.",
-    preview: (input) => [`${input.includedDirectories?.length ?? 0} root(s)`, human(input.tool ?? "duplicate-files")],
-    isDangerous: () => false,
+    toInput: (values) => values.action === "scan" ? createCzkawkaScanInput(values.tool as CzkawkaTool, values) : createCzkawkaOperationInput(values.action as "delete" | "move" | "save", values),
+    validate: (_values, input) => input.action === "scan" ? input.includedDirectories?.length ? null : zh ? "请至少添加一个包含目录。" : "Add at least one included directory." : !input.selectedPaths?.length ? zh ? "请至少添加一个操作路径。" : "Add at least one operation path." : input.action === "move" && !input.destinationDirectory ? zh ? "请选择目标目录。" : "Choose a destination directory." : input.action === "save" && !input.outputPath ? zh ? "请输入导出路径。" : "Enter an export path." : null,
+    preview: (input) => input.action === "scan" ? [`${input.includedDirectories?.length ?? 0} root(s)`, human(input.tool ?? "duplicate-files")] : [`${input.selectedPaths?.length ?? 0} path(s)`, input.dryRun === false ? "LIVE" : "DRY RUN"],
+    isDangerous: (input) => (input.action === "delete" || input.action === "move") && input.dryRun === false,
+    dangerPrompt: (input) => ({ title: zh ? "确认真实文件操作" : "Confirm live file operation", body: zh ? `将对 ${input.selectedPaths?.length ?? 0} 个路径执行真实${input.action === "delete" ? "删除" : input.copyMode ? "复制" : "移动"}。` : `This will ${input.action === "delete" ? "delete" : input.copyMode ? "copy" : "move"} ${input.selectedPaths?.length ?? 0} path(s).`, confirmLabel: zh ? "确认执行" : "Execute" }),
     result: (result) => ({ success: result.success, message: result.message, lines: result.data ? analysisLines(result.data) : [] }),
   }
 }
@@ -69,3 +88,7 @@ function analysisLines(data: NonNullable<CzkawkaResult["data"]>): string[] { con
 const defined = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
 const lines = (value: unknown) => String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
 const human = (value: string) => value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ")
+const scanOnly = (values: InteractionValues) => values.action === "scan"
+const moveOnly = (values: InteractionValues) => values.action === "move"
+const deleteOnly = (values: InteractionValues) => values.action === "delete"
+const saveOnly = (values: InteractionValues) => values.action === "save"

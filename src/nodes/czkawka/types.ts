@@ -1,4 +1,4 @@
-import type { CzkawkaCheckMethod, CzkawkaData, CzkawkaHashType, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
+import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaHashType, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
 import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-log"
@@ -66,6 +66,10 @@ export interface CzkawkaCardState {
   descending?: boolean
   dryRun?: boolean
   destinationDirectory?: string
+  deleteMode?: CzkawkaDeleteMode
+  copyMode?: boolean
+  preserveStructure?: boolean
+  conflictPolicy?: CzkawkaConflictPolicy
   outputPath?: string
   phase?: CzkawkaPhase
   progress?: number

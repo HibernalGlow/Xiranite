@@ -189,8 +189,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | ID | 状态 | 能力 | 验收标准 |
 | --- | --- | --- | --- |
 | O01 | `[x]` | dry-run 默认开启 | GUI/CLI/TUI 均不得默认真实修改文件 |
-| O02 | `[-]` | 删除 | 当前支持永久删除；补回收站模式、空目录语义和详细结果 |
-| O03 | `[-]` | 移动 | 当前单目标扁平移动；补复制模式、保留结构、覆盖策略、冲突提示 |
+| O02 | `[x]` | 删除 | 当前支持永久删除；补回收站模式、空目录语义和详细结果 |
+| O03 | `[x]` | 移动 | 当前单目标扁平移动；补复制模式、保留结构、覆盖策略、冲突提示 |
 | O04 | `[ ]` | 分组归档到多目标 | 每组/每项独立 destination，一次执行 |
 | O05 | `[ ]` | 相似组自动整理 | 按组生成目录并预览目标路径 |
 | O06 | `[-]` | 导出结果 | 当前 JSON/CSV 路径列表；补当前视图/选择/全部范围和完整字段 |
@@ -199,9 +199,11 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | O09 | `[x]` | 复制路径/名称 | 使用 clipboard host API |
 | O10 | `[ ]` | 复制文件到剪贴板 | 平台支持时使用通用 host；能力缺失时显式禁用 |
 | O11 | `[x]` | 删除确认 | GUI 有破坏性确认；CLI/TUI 需要 `--live`/显式确认 |
-| O12 | `[ ]` | 操作结果详情 | 成功、跳过、错误、源/目标路径可展开查看 |
+| O12 | `[x]` | 操作结果详情 | 成功、跳过、错误、源/目标路径可展开查看 |
 
 验证证据（2026-07-14）：通用 `NodeLocalFilesCapability` 暴露 `openPath`/`revealPath`，Wails 桌面端通过系统 `file:` URL 打开文件或父目录，浏览器模式回退到本地文件服务；Czkawka 只消费 Host 回调，不引入 Rust 文件操作。`hostApi.test.ts` 覆盖 Windows 盘符、UNC、POSIX 路径与父目录转换；结果表组件测试覆盖路径/名称剪贴板和打开/定位调用。真实文件对象剪贴板仍未实现，因此 O10 保持未完成并在菜单中显式禁用。
+
+验证证据（2026-07-15）：文件操作控制面全部位于 `@xiranite/node-czkawka` TypeScript core/platform。删除默认进入 Windows 回收站，永久删除必须显式选择；空文件夹执行前会递归确认目录树只含空目录，避免扫描后状态变化导致误删。移动支持复制模式、根目录相对结构、`skip`/`overwrite`/`rename`/`error` 四种冲突策略、批次内目标占用检测和跨卷 `copy + remove` 回退。dry-run 与 live 共用逐项结果契约，记录 operation/status/source/target/error；GUI 提供完整设置和可展开详情，CLI 输出逐项状态，OpenTUI 通过共享 interaction schema 执行同一契约。包级 66 项 Vitest、真实文件原语测试、OpenTUI Bun 测试、GUI 13 项组件测试、应用 typecheck、React Compiler boundary audit 与 node architecture audit 均通过。
 
 ## 10. 分析、统计和卡片系统
 

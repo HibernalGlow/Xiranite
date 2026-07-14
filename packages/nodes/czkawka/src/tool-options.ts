@@ -1,9 +1,9 @@
 import type { InteractionField, InteractionValues } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
-import type { CzkawkaInput, CzkawkaTool } from "./core.js"
+import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "outputPath" | "outputFormat" | "dryRun">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "dryRun">
 type OptionValue = string | number | boolean
 
 export interface CzkawkaOptionDefinition {
@@ -79,7 +79,7 @@ export function createCzkawkaOptionFields(language: TerminalLanguage): Interacti
     max: definition.max,
     step: definition.kind === "number" ? 1 : undefined,
     options: definition.choices?.map((choice) => ({ value: choice.value, label: choice.label ?? human(choice.value) })),
-    visibleWhen: (values: InteractionValues) => definition.tools.includes(values.tool as CzkawkaTool),
+    visibleWhen: (values: InteractionValues) => values.action === "scan" && definition.tools.includes(values.tool as CzkawkaTool),
   }))
 }
 
@@ -107,6 +107,23 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     useCache: values.useCache !== false,
     filterText: text(values.filterText),
     ...valuesToCzkawkaOptions(values),
+  }
+}
+
+export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan">, values: Record<string, unknown>): CzkawkaInput {
+  const outputPath = text(values.outputPath)
+  return {
+    action,
+    tool: values.tool as CzkawkaTool | undefined,
+    selectedPaths: lines(values.selectedPathsText ?? values.selectedPaths),
+    destinationDirectory: text(values.destinationDirectory),
+    deleteMode: values.deleteMode === "permanent" ? "permanent" : "trash",
+    copyMode: values.copyMode === true,
+    preserveStructure: values.preserveStructure === true,
+    conflictPolicy: ["skip", "overwrite", "rename", "error"].includes(String(values.conflictPolicy)) ? values.conflictPolicy as NonNullable<CzkawkaInput["conflictPolicy"]> : "skip",
+    outputPath,
+    outputFormat: outputPath?.toLowerCase().endsWith(".csv") || values.outputFormat === "csv" ? "csv" : "json",
+    dryRun: values.dryRun !== false,
   }
 }
 

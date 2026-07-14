@@ -104,6 +104,19 @@ describe("Czkawka node", () => {
     expect(screen.getByText("没有匹配的日志")).toBeTruthy()
   })
 
+  test("sends shared safe move options and renders detailed per-item results", async () => {
+    const operationData: CzkawkaData = { action: "move", tool: "similar-images", groups: [{ id: 0, totalBytes: 0, reclaimableBytes: 0, entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }] }], entries: [{ id: "op:0", groupId: 0, path: "D:/album/a.jpg", name: "a.jpg", size: 0, modifiedDate: 0, secondaryPath: "E:/Review/album/a (1).jpg", operation: "copy", conflictPolicy: "rename", status: "planned" }], messages: "", stopped: false, groupCount: 1, fileCount: 1, totalBytes: 0, reclaimableBytes: 0, affectedCount: 1, errorCount: 0 }
+    const initialResult = resultFor({ tool: "similar-images" })
+    const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/album", result: initialResult, destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true }, (input) => input.action === "move" ? operationData : initialResult)
+    const view = render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 similar-images-result.dat" }))
+    fireEvent.click(screen.getByRole("button", { name: "move selected" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "move", tool: "similar-images", selectedPaths: ["similar-images-result.dat"], destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true }))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect(screen.getByText("上次操作详情")).toBeTruthy()
+    expect(screen.getByText(/E:\/Review\/album\/a \(1\)\.jpg/)).toBeTruthy()
+  })
+
   test("persists custom filter presets in node state", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

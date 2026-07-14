@@ -8,7 +8,7 @@ import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaTool } from "
 import { createNodeCzkawkaRuntime } from "./platform.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
-import { CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
+import { createCzkawkaOperationInput, CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 import { formatCzkawkaActivityMessage } from "./activity-log.js"
 
@@ -47,13 +47,13 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     if (roots.includes("-")) roots = roots.filter((path) => path !== "-").concat(await readStdinLines(host.stdin))
     else if (!roots.length && hasPipedInput(host.stdin) && Symbol.asyncIterator in Object(host.stdin)) roots = await readStdinLines(host.stdin)
     input = { action: "scan", tool, includedDirectories: roots, recursive: !args.includes("--no-recursive") && config?.recursive !== false, useCache: !args.includes("--no-cache") && config?.use_cache !== false, checkMethod: config?.check_method, hashType: config?.hash_type, similarity: config?.similarity, allowedExtensions: valueFor(args, "--allow"), excludedExtensions: valueFor(args, "--exclude-ext"), minimumFileSize: numberFor(args, "--min-size"), maximumFileSize: numberFor(args, "--max-size"), filterText: valueFor(args, "--filter"), ...parseCzkawkaCliOptions(args) }
-  } else if (command === "delete") input = { action: "delete", selectedPaths: positional(args.slice(1), new Set()), dryRun: !args.includes("--live") }
-  else if (command === "move") input = { action: "move", destinationDirectory: args[1], selectedPaths: positional(args.slice(2), new Set()), dryRun: !args.includes("--live") }
-  else if (command === "save") input = { action: "save", outputPath: args[1], selectedPaths: positional(args.slice(2), new Set()), outputFormat: args.includes("--csv") ? "csv" : "json", dryRun: false }
+  } else if (command === "delete") input = createCzkawkaOperationInput("delete", { selectedPaths: positional(args.slice(1), OPERATION_VALUE_FLAGS), deleteMode: args.includes("--permanent") ? "permanent" : "trash", dryRun: !args.includes("--live") })
+  else if (command === "move") input = createCzkawkaOperationInput("move", { destinationDirectory: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), copyMode: args.includes("--copy"), preserveStructure: args.includes("--preserve-structure"), conflictPolicy: valueFor(args, "--conflict"), dryRun: !args.includes("--live") })
+  else if (command === "save") input = createCzkawkaOperationInput("save", { outputPath: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), outputFormat: args.includes("--csv") ? "csv" : "json", dryRun: false })
   else { writeLine(host, `Unknown command: ${command}`); process.exitCode = 2; return }
   const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) })
   if (json) writeJson(host, result)
-  else { writeLine(host, result.message); if (result.data) { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
+  else { writeLine(host, result.message); if (result.data?.action === "scan") { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, entry.status ? `${entry.status}\t${entry.path}${entry.secondaryPath ? `\t→ ${entry.secondaryPath}` : ""}${entry.error ? `\t${entry.error}` : ""}` : `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
   if (!result.success) process.exitCode = 1
 }
 
@@ -63,6 +63,7 @@ function preferences(host: CliHost, current: TerminalPreferenceValues): Terminal
 }
 
 const SCAN_VALUE_FLAGS = new Set([...CZKAWKA_CLI_VALUE_FLAGS, "--allow", "--exclude-ext", "--min-size", "--max-size", "--filter"])
+const OPERATION_VALUE_FLAGS = new Set(["--conflict"])
 function positional(args: string[], valueFlags: Set<string>): string[] { return args.filter((arg, index) => !arg.startsWith("--") && !valueFlags.has(args[index - 1] ?? "")) }
 function valueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index >= 0 ? args[index + 1] : undefined }
 function numberFor(args: string[], flag: string): number | undefined { const value = valueFor(args, flag); if (value === undefined) return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }

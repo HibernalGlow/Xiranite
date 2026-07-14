@@ -24,6 +24,9 @@ export type CzkawkaVideoCropDetect = "letterbox" | "motion" | "none"
 export type CzkawkaMusicCheckType = "tags" | "fingerprint"
 export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
+export type CzkawkaDeleteMode = "trash" | "permanent"
+export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
+export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "saved" | "skipped" | "error"
 
 export interface CzkawkaInput {
   action?: CzkawkaAction
@@ -76,6 +79,10 @@ export interface CzkawkaInput {
   descending?: boolean
   selectedPaths?: string[]
   destinationDirectory?: string
+  deleteMode?: CzkawkaDeleteMode
+  copyMode?: boolean
+  preserveStructure?: boolean
+  conflictPolicy?: CzkawkaConflictPolicy
   outputPath?: string
   outputFormat?: "json" | "csv"
   dryRun?: boolean
@@ -101,13 +108,16 @@ export interface CzkawkaRuntime {
   scanDuplicates: (input: Required<CzkawkaInput>) => Promise<NativeDuplicateResult>
   scanBasic: (input: Required<CzkawkaInput>) => Promise<NativeBasicResult>
   scanMedia: (input: Required<CzkawkaInput>) => Promise<NativeMediaResult>
-  removePath: (path: string) => Promise<void>
+  pathExists: (path: string) => Promise<boolean>
+  removePath: (path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }) => Promise<void>
+  copyPath: (source: string, target: string) => Promise<void>
   movePath: (source: string, target: string) => Promise<void>
   writeText: (path: string, content: string) => Promise<void>
   ensureDirectory: (path: string) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
   basename: (path: string) => string
+  relativeDirectoryFromRoot: (path: string) => string
 }
 
 export interface CzkawkaEntry {
@@ -131,7 +141,9 @@ export interface CzkawkaEntry {
   genre?: string
   bitrate?: number
   isReference?: boolean
-  status?: "planned" | "deleted" | "moved" | "saved" | "error"
+  status?: CzkawkaOperationStatus
+  operation?: "delete" | "trash" | "move" | "copy" | "save"
+  conflictPolicy?: CzkawkaConflictPolicy
   error?: string
 }
 
@@ -214,6 +226,10 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     descending: input.descending ?? false,
     selectedPaths: unique(input.selectedPaths ?? []),
     destinationDirectory: clean(input.destinationDirectory),
+    deleteMode: oneOf(input.deleteMode, ["trash", "permanent"] as const, "trash"),
+    copyMode: input.copyMode ?? false,
+    preserveStructure: input.preserveStructure ?? false,
+    conflictPolicy: oneOf(input.conflictPolicy, ["skip", "overwrite", "rename", "error"] as const, "skip"),
     outputPath: clean(input.outputPath),
     outputFormat: input.outputFormat ?? "json",
     dryRun: input.dryRun ?? true,
@@ -317,20 +333,57 @@ export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionSt
 
 async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, action: "delete" | "move", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   const entries: CzkawkaEntry[] = []
+  const claimedTargets = new Set<string>()
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
-    const target = action === "move" ? runtime.join(value.destinationDirectory, runtime.basename(path)) : undefined
-    onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${action} ${runtime.basename(path)}` })
-    if (value.dryRun) { entries.push({ id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, secondaryPath: target, status: "planned" }); continue }
+    const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : value.copyMode ? "copy" : "move"
+    let target = action === "move" ? operationTarget(value, runtime, path) : undefined
+    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, operation, conflictPolicy: action === "move" ? value.conflictPolicy : undefined }
+    onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${operation} ${runtime.basename(path)}` })
     try {
-      if (action === "delete") await runtime.removePath(path)
-      else { await runtime.ensureDirectory(value.destinationDirectory); await runtime.movePath(path, target!) }
-      entries.push({ id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, secondaryPath: target, status: action === "delete" ? "deleted" : "moved" })
-    } catch (error) { entries.push({ id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, secondaryPath: target, status: "error", error: errorMessage(error) }) }
+      if (!await runtime.pathExists(path)) throw new Error("Source path no longer exists.")
+      const claimed = target ? claimedTargets.has(target.toLocaleLowerCase()) : false
+      if (target && (claimed || await runtime.pathExists(target))) {
+        if (claimed && value.conflictPolicy === "overwrite") throw new Error("Another selected item uses the same target path.")
+        if (value.conflictPolicy === "skip") { entries.push({ ...base, secondaryPath: target, status: "skipped", error: "Target already exists." }); continue }
+        if (value.conflictPolicy === "error") throw new Error("Target already exists.")
+        if (value.conflictPolicy === "rename") target = await availableTarget(target, runtime, claimedTargets)
+      }
+      if (target) claimedTargets.add(target.toLocaleLowerCase())
+      if (value.dryRun) { entries.push({ ...base, secondaryPath: target, status: "planned" }); continue }
+      if (action === "delete") {
+        await runtime.removePath(path, { trash: value.deleteMode === "trash", emptyFoldersOnly: value.tool === "empty-folders" })
+      } else {
+        await runtime.ensureDirectory(runtime.dirname(target!))
+        if (value.conflictPolicy === "overwrite" && await runtime.pathExists(target!)) await runtime.removePath(target!, { trash: false })
+        if (value.copyMode) await runtime.copyPath(path, target!)
+        else await runtime.movePath(path, target!)
+      }
+      const status: CzkawkaOperationStatus = action === "delete" ? value.deleteMode === "trash" ? "trashed" : "deleted" : value.copyMode ? "copied" : "moved"
+      entries.push({ ...base, secondaryPath: target, status })
+    } catch (error) { entries.push({ ...base, secondaryPath: target, status: "error", error: errorMessage(error) }) }
   }
   const group = makeGroup(0, entries, runtime, false)
   const data = summarize(value, [group], "", false)
-  return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${entries.length} ${action} operation(s).` : `${action === "delete" ? "Deleted" : "Moved"} ${data.affectedCount} item(s).`, data }
+  return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
+}
+
+function operationTarget(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, source: string): string {
+  const relativeDirectory = value.preserveStructure ? runtime.relativeDirectoryFromRoot(source) : ""
+  return relativeDirectory ? runtime.join(value.destinationDirectory, relativeDirectory, runtime.basename(source)) : runtime.join(value.destinationDirectory, runtime.basename(source))
+}
+
+async function availableTarget(target: string, runtime: CzkawkaRuntime, claimedTargets: ReadonlySet<string>): Promise<string> {
+  const directory = runtime.dirname(target)
+  const filename = runtime.basename(target)
+  const dot = filename.lastIndexOf(".")
+  const stem = dot > 0 ? filename.slice(0, dot) : filename
+  const extension = dot > 0 ? filename.slice(dot) : ""
+  for (let suffix = 1; suffix < 100_000; suffix += 1) {
+    const candidate = runtime.join(directory, `${stem} (${suffix})${extension}`)
+    if (!claimedTargets.has(candidate.toLocaleLowerCase()) && !await runtime.pathExists(candidate)) return candidate
+  }
+  throw new Error(`No available target name for ${target}.`)
 }
 
 async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
@@ -344,7 +397,7 @@ async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEv
 
 function summarize(value: Required<CzkawkaInput>, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "moved", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }

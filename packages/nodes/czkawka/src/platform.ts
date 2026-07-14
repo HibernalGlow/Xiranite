@@ -1,9 +1,12 @@
-import { mkdir, rename, rm, writeFile } from "node:fs/promises"
-import { basename, dirname, join } from "node:path"
+import { execFile } from "node:child_process"
+import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { basename, dirname, join, parse, relative } from "node:path"
+import { promisify } from "node:util"
 import { scanBasicFiles, scanDuplicateFiles, scanMediaFiles, type BasicScanOptions, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
 import type { CzkawkaInput, CzkawkaRuntime } from "./core.js"
 
 type NormalizedInput = Required<CzkawkaInput>
+const execFileAsync = promisify(execFile)
 
 export function toDuplicateScanOptions(input: NormalizedInput): DuplicateScanOptions {
   return {
@@ -89,12 +92,66 @@ export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
     scanDuplicates: (input) => scanDuplicateFiles(toDuplicateScanOptions(input)),
     scanBasic: (input) => scanBasicFiles(toBasicScanOptions(input)),
     scanMedia: (input) => scanMediaFiles(toMediaScanOptions(input)),
-    removePath: async (path) => { await rm(path, { force: true, recursive: false }) },
-    movePath: async (source, target) => { await mkdir(dirname(target), { recursive: true }); await rename(source, target) },
+    pathExists,
+    removePath,
+    copyPath,
+    movePath,
     writeText: async (path, content) => { await writeFile(path, content, "utf8") },
     ensureDirectory: async (path) => { if (path) await mkdir(path, { recursive: true }) },
     join,
     dirname,
     basename,
+    relativeDirectoryFromRoot: (path) => relative(parse(path).root, dirname(path)),
   }
 }
+
+async function pathExists(path: string): Promise<boolean> {
+  try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }
+}
+
+async function removePath(path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }): Promise<void> {
+  if (options?.emptyFoldersOnly && !await containsOnlyDirectories(path)) throw new Error("Folder contains files and is no longer empty.")
+  if (options?.trash) {
+    if (process.platform !== "win32") throw new Error("Moving files to trash is currently supported only on Windows.")
+    const item = await lstat(path)
+    await recycleOnWindows(path, item.isDirectory())
+    return
+  }
+  await rm(path, { force: true, recursive: true })
+}
+
+async function containsOnlyDirectories(path: string): Promise<boolean> {
+  const item = await lstat(path)
+  if (!item.isDirectory()) return false
+  for (const child of await readdir(path, { withFileTypes: true })) {
+    if (!child.isDirectory() || !await containsOnlyDirectories(join(path, child.name))) return false
+  }
+  return true
+}
+
+async function copyPath(source: string, target: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true })
+  await cp(source, target, { recursive: true, force: false, errorOnExist: true })
+}
+
+async function movePath(source: string, target: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true })
+  try { await rename(source, target) } catch (error) {
+    if (errorCode(error) !== "EXDEV") throw error
+    await copyPath(source, target)
+    await rm(source, { recursive: true, force: true })
+  }
+}
+
+async function recycleOnWindows(path: string, isDirectory: boolean): Promise<void> {
+  const method = isDirectory ? "DeleteDirectory" : "DeleteFile"
+  const script = [
+    "$ProgressPreference = 'SilentlyContinue'",
+    "Add-Type -AssemblyName Microsoft.VisualBasic",
+    `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
+  ].join("; ")
+  await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true })
+}
+
+function quotePowerShell(value: string): string { return `'${value.replaceAll("'", "''")}'` }
+function errorCode(error: unknown): string | undefined { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined }
