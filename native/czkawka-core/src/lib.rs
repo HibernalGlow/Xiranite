@@ -688,13 +688,13 @@ pub fn scan_media_files_controlled(options: MediaScanOptions, control: &ScanCont
             search_with_control(&mut tool, control);
             let groups = if tool.get_use_reference() {
                 tool.get_similar_videos_referenced().iter().map(|(reference, others)| MediaGroup {
-                    entries: std::iter::once(video_media_entry(reference, true))
-                        .chain(others.iter().map(|entry| video_media_entry(entry, false)))
+                    entries: std::iter::once(video_media_entry(reference, true, 0.0))
+                        .chain(others.iter().map(|entry| video_media_entry(entry, false, normalized_video_distance(reference, entry))))
                         .collect(),
                 }).collect()
             } else {
                 tool.get_similar_videos().iter().map(|group| MediaGroup {
-                    entries: group.iter().map(|entry| video_media_entry(entry, false)).collect(),
+                    entries: group.first().map(|baseline| group.iter().map(|entry| video_media_entry(entry, false, normalized_video_distance(baseline, entry))).collect()).unwrap_or_default(),
                 }).collect()
             };
             Ok(media_result(&tool, groups))
@@ -809,13 +809,18 @@ fn image_media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
     }
 }
 
-fn video_media_entry(entry: &VideosEntry, is_reference: bool) -> MediaEntry {
+fn video_media_entry(entry: &VideosEntry, is_reference: bool, normalized_distance: f64) -> MediaEntry {
     MediaEntry {
         path: entry.path.clone(), size: entry.size, modified_date: entry.modified_date,
-        width: None, height: None, similarity: None, title: None, artist: None, year: None,
+        width: None, height: None, similarity: Some(format!("{:.2}", normalized_distance * 100.0)), title: None, artist: None, year: None,
         length: None, genre: None, bitrate: None, is_reference,
         detail: (!entry.error.is_empty()).then(|| entry.error.clone()), proper_extension: None,
     }
+}
+
+fn normalized_video_distance(baseline: &VideosEntry, entry: &VideosEntry) -> f64 {
+    // vid_dup_finder_lib 0.4 uses a fixed 10x10x10-bit hash; its normalized helper is test-feature-only.
+    f64::from(baseline.vhash.hamming_distance(&entry.vhash)) / 1000.0
 }
 
 fn music_media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {

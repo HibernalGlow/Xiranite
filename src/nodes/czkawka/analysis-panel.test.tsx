@@ -18,9 +18,16 @@ describe("CzkawkaAnalysisView", () => {
     expect(screen.getByText("预计")).toBeTruthy()
   })
 
-  test("makes the missing similar-video distance explicit", () => {
-    render(<CzkawkaAnalysisView tool="similar-videos" groups={[{ ...group, entries: group.entries.map((item) => ({ ...item, similarity: undefined })) }]} selectedPaths={[]} />)
-    expect(screen.getByText("核心未返回视频距离值")).toBeTruthy()
+  test("renders normalized similar-video distance intervals", () => {
+    render(<CzkawkaAnalysisView tool="similar-videos" groups={[{ ...group, entries: [entry("a.mp4", 10, "0.00"), entry("b.mp4", 20, "2.80")] }]} selectedPaths={[]} />)
+    expect(screen.getByText("原始/相同")).toBeTruthy()
+    expect(screen.getByText("高")).toBeTruthy()
+    expect(screen.getByText(/1 · ≤ 5/)).toBeTruthy()
+  })
+
+  test("uses a neutral empty state when no distance exists", () => {
+    render(<CzkawkaAnalysisView tool="similar-videos" groups={[]} selectedPaths={[]} />)
+    expect(screen.getByText("当前结果没有相似度数据")).toBeTruthy()
   })
 })
 

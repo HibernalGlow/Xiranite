@@ -35,7 +35,7 @@ export function buildCzkawkaAnalysis(groups: CzkawkaGroup[], selectedPaths: Iter
   const entries = groups.flatMap((group) => group.entries)
   return {
     formats: buildFormatStats(entries, tool),
-    similarities: buildSimilarityStats(entries, hashSize),
+    similarities: buildSimilarityStats(entries, hashSize, tool),
     selection: calculateCzkawkaSelectionStats(groups, selectedPaths),
     fileCount: entries.length,
     totalBytes: entries.reduce((sum, entry) => sum + entry.size, 0),
@@ -54,9 +54,9 @@ export function buildFormatStats(entries: CzkawkaEntry[], tool?: CzkawkaTool): C
   return [...totals].map(([format, value]) => ({ format, ...value, countPercent: entries.length ? value.count / entries.length * 100 : 0, bytesPercent: totalBytes ? value.bytes / totalBytes * 100 : 0 })).sort((left, right) => right.bytes - left.bytes || right.count - left.count || left.format.localeCompare(right.format))
 }
 
-export function buildSimilarityStats(entries: CzkawkaEntry[], hashSize = 16): CzkawkaSimilarityStat[] {
+export function buildSimilarityStats(entries: CzkawkaEntry[], hashSize = 16, tool?: CzkawkaTool): CzkawkaSimilarityStat[] {
   const normalizedHashSize = ([8, 16, 32, 64] as const).find((value) => value === hashSize) ?? 16
-  const thresholds = THRESHOLDS[normalizedHashSize]
+  const thresholds = tool === "similar-videos" ? [2.5, 5, 10, 20, 30, 40] : THRESHOLDS[normalizedHashSize]
   const counts = new Map<CzkawkaSimilarityLevel, number>()
   let total = 0
   for (const entry of entries) {

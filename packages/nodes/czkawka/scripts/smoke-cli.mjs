@@ -90,7 +90,18 @@ try {
   const ignoredSameSize = await scan("similar-images", similarImages, ["--no-cache", "--image-ignore-same-size"])
   if (ignoredSameSize.data?.groupCount !== 0) throw new Error(`Similar-image same-size filter was ignored: ${JSON.stringify(ignoredSameSize)}`)
 
-  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
+  const similarVideos = await createSimilarVideos(fixture)
+  for (const crop of ["letterbox", "motion", "none"]) {
+    const result = await scan("similar-videos", similarVideos, ["--no-cache", "--similarity", "20", "--video-skip", "0", "--video-duration", "2", "--video-crop", crop])
+    const distances = result.data?.entries.map((entry) => Number(entry.similarity)) ?? []
+    if (result.data?.groupCount !== 1 || !distances.includes(0) || !distances.some((distance) => distance > 0)) throw new Error(`Similar-video ${crop} scan did not expose real distances: ${JSON.stringify(result)}`)
+  }
+  const strictVideos = await scan("similar-videos", similarVideos, ["--no-cache", "--similarity", "0", "--video-skip", "0", "--video-duration", "2", "--video-crop", "none"])
+  const alternateWindowVideos = await scan("similar-videos", similarVideos, ["--no-cache", "--similarity", "20", "--video-skip", "2", "--video-duration", "4", "--video-crop", "none"])
+  const ignoredSameSizeVideos = await scan("similar-videos", similarVideos, ["--no-cache", "--similarity", "20", "--video-skip", "0", "--video-duration", "2", "--video-crop", "none", "--video-ignore-same-size"])
+  if (strictVideos.data?.groupCount !== 0 || alternateWindowVideos.data?.groupCount !== 1 || ignoredSameSizeVideos.data?.groupCount !== 0) throw new Error(`Similar-video tolerance, window, or same-size filter was ignored: ${JSON.stringify({ strictVideos, alternateWindowVideos, ignoredSameSizeVideos })}`)
+
+  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, similarVideoCropModes: 3, similarVideoDistance: true, similarVideoTolerance: true, similarVideoIgnoreSameSize: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
 } finally {
   await rm(fixture, { recursive: true, force: true })
 }
@@ -149,6 +160,19 @@ async function createSimilarImages(root) {
 async function assertSimilarImages(root, flags, expectedFolders) {
   const result = await scan("similar-images", root, ["--no-cache", "--similarity", "10", ...flags])
   if (result.data?.groupCount !== 1 || expectedFolders !== undefined && result.data.similarFolders?.length !== expectedFolders) throw new Error(`Similar-image options failed (${flags.join(" ")}): ${JSON.stringify(result)}`)
+}
+
+async function createSimilarVideos(root) {
+  const directory = join(root, "similar-videos-matrix")
+  await mkdir(directory, { recursive: true })
+  runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=15", "-t", "6", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(directory, "a.mp4")])
+  runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=15", "-vf", "eq=brightness=0.02", "-t", "6", "-c:v", "libx264", "-pix_fmt", "yuv420p", join(directory, "b.mp4")])
+  return directory
+}
+
+function runExternal(command) {
+  const result = Bun.spawnSync(command, { stdout: "pipe", stderr: "pipe" })
+  if (!result.success) throw new Error(`${command[0]} failed (${result.exitCode}): ${result.stderr.toString()}`)
 }
 
 function createBmp(size, variant) {

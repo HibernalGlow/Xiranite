@@ -36,6 +36,15 @@ describe("Czkawka shared analysis", () => {
       formats: [{ format: "png", count: 2, bytes: 30 }],
     })
   })
+
+  test("classifies normalized video hash distances with video intervals", () => {
+    const stats = buildSimilarityStats([{ ...entry("a.mp4", 1), similarity: "0.00" }, { ...entry("b.mp4", 1), similarity: "2.80" }, { ...entry("c.mp4", 1), similarity: "18.50" }], 16, "similar-videos")
+    expect(stats.map(({ level, count, range }) => ({ level, count, range }))).toEqual([
+      { level: "original", count: 1, range: "= 0" },
+      { level: "high", count: 1, range: "≤ 5" },
+      { level: "small", count: 1, range: "≤ 20" },
+    ])
+  })
 })
 
 function entry(path: string, size: number): CzkawkaEntry { return { id: path, groupId: 0, path, name: path, size, modifiedDate: 1 } }
