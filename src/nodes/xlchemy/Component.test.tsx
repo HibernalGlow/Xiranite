@@ -33,7 +33,9 @@ describe("app-owned xlchemy Component", () => {
     }
     if (mode !== "collapsed") {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
-      expect(screen.getAllByRole("button", { name: "添加文件" }).length).toBeGreaterThan(0)
+      expect(screen.getByRole("button", { name: "添加输入" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "排序方式" })).toBeTruthy()
+      expect(within(screen.getByTestId("xlchemy-header")).getByText("1 项")).toBeTruthy()
       expect(screen.getByRole("radio", { name: "文件树视图" })).toBeTruthy()
       expect(screen.getByRole("radio", { name: "列表视图" })).toBeTruthy()
       expect(screen.getByTestId("xlchemy-progress-workbench")).toBeTruthy()
@@ -45,6 +47,28 @@ describe("app-owned xlchemy Component", () => {
       expect(screen.getByRole("tab", { name: "问题" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
     }
+  })
+
+  test("uses compact menus for adding inputs and choosing the sort field", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", inputSortField: "name" })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "添加输入" }))
+    expect(screen.getByRole("menuitem", { name: "添加文件" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "添加文件夹" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "导入 EFU 文件列表" })).toBeTruthy()
+    await user.keyboard("{Escape}")
+
+    await user.click(screen.getByRole("button", { name: "排序方式" }))
+    expect(screen.getByRole("menuitemradio", { name: "名称" }).getAttribute("aria-checked")).toBe("true")
+    expect(screen.getByRole("menuitemradio", { name: "扩展名" })).toBeTruthy()
+    expect(screen.getByRole("menuitemradio", { name: "大小" })).toBeTruthy()
+    await user.click(screen.getByRole("menuitemradio", { name: "目录" }))
+    expect(host.cardState.inputSortField).toBe("dir")
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.getByRole("button", { name: "排序方式" }).querySelector(".lucide-folder")).toBeTruthy()
+    expect(within(screen.getByTestId("xlchemy-header")).getByText("1 项")).toBeTruthy()
   })
 
   test("uses quality 60 by default and exposes only global presets", async () => {
@@ -219,7 +243,8 @@ describe("app-owned xlchemy Component", () => {
     expect(screen.getByText("alpha.png")).toBeTruthy()
     expect(screen.getByText("beta.jpg")).toBeTruthy()
     expect(screen.getByText("246 B")).toBeTruthy()
-    await user.click(screen.getAllByRole("button", { name: "添加文件夹" })[0]!)
+    await user.click(screen.getByRole("button", { name: "添加输入" }))
+    await user.click(screen.getByRole("menuitem", { name: "添加文件夹" }))
     await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.jp2"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
