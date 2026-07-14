@@ -888,6 +888,33 @@
   },
   "module": {
     "unknown": "// unknown module: {{id}}",
+    "czkawka": {
+      "name": "Czkawka",
+      "description": "Eleven file-analysis tools with safe result management.",
+      "tools": {
+        "duplicateFiles": "Duplicate Files", "emptyFolders": "Empty Folders", "bigFiles": "Big Files", "emptyFiles": "Empty Files", "temporaryFiles": "Temporary Files", "similarImages": "Similar Images", "similarVideos": "Similar Videos", "duplicateMusic": "Music Duplicates", "invalidSymlinks": "Invalid Symlinks", "brokenFiles": "Broken Files", "badExtensions": "Bad Extensions",
+        "short": { "duplicateFiles": "Duplicates", "emptyFolders": "Empty dirs", "bigFiles": "Big files", "emptyFiles": "Empty files", "temporaryFiles": "Temporary", "similarImages": "Images", "similarVideos": "Videos", "duplicateMusic": "Audio", "invalidSymlinks": "Links", "brokenFiles": "Broken", "badExtensions": "Extensions" }
+      },
+      "errors": { "noRoots": "Add at least one included directory.", "noRuntime": "Local execution is unavailable in this environment." },
+      "progress": { "starting": "Starting the Czkawka scan.", "stopping": "Requesting Czkawka scan cancellation…", "ready": "Czkawka is ready." },
+      "workspace": { "restoreTools": "Restore scanners", "resizeTools": "Resize scanner rail", "restoreConditions": "Restore scan conditions", "resizeConditions": "Resize scan conditions", "resizeAnalysis": "Resize analysis panel", "restoreAnalysis": "Restore analysis and operations", "minimizeTools": "Minimize scanners", "minimizeConditions": "Minimize scan conditions", "minimizeAnalysis": "Minimize analysis and operations" },
+      "tabs": { "conditions": "Conditions", "results": "Results", "analysis": "Analysis" },
+      "summary": { "resultCount": "{{count}} results", "selected": "{{count}} selected" },
+      "actions": { "startScan": "Start scan", "stopScan": "Stop scan", "openFloatingAnalysis": "Open floating analysis panel", "closeFloatingAnalysis": "Close floating analysis panel" },
+      "filters": { "global": "Czkawka global filter", "searchCurrent": "Search current scanner results", "search": "Search results", "clearSearch": "Clear result search" },
+      "sections": { "scanners": "Scanners", "conditions": "Scan conditions", "analysisOperations": "Analysis and operations" },
+      "views": { "images": "Images", "folders": "Folders" },
+      "metrics": { "files": "Files", "groups": "Groups", "totalSize": "Total size", "reclaimable": "Reclaimable" },
+      "sources": { "included": "Included directories", "excluded": "Excluded directories", "excludedItems": "Excluded items", "excludedItemsPlaceholder": "*/cache/*; *.part; each rule must contain *", "allowedExtensions": "Allowed extensions", "excludedExtensions": "Excluded extensions", "allowedPriority": "When the allow list is not empty, Czkawka core gives it priority; excluded extensions do not participate in matching.", "minimumSize": "Minimum file size (B)", "maximumSize": "Maximum file size (B)", "threads": "Scan threads (0 = auto)", "threadsHint": "The thread pool initializes on the first native scan in this process; restart the desktop app after changing it.", "recursive": "Recursive scan", "useCache": "Use cache" },
+      "common": { "unlimited": "Unlimited", "cancel": "Cancel" },
+      "presets": { "title": "Scan presets", "active": "Active preset", "choose": "Choose a preset", "name": "Preset name", "create": "Create", "overwrite": "Overwrite", "delete": "Delete", "transfer": "Import / export JSON", "export": "Export", "importMerge": "Import and merge", "persistHint": "The active preset and applied fields persist with node state and restore when reopened." },
+      "preview": { "fixed": "Pinned media preview", "currentTool": "Current scanner: {{tool}}", "hint": ". When enabled, images, videos, and audio open in the result sidebar." },
+      "selection": { "selectedPrefix": "Selected", "pathSuffix": "paths.", "smart": "Smart selection", "allButFirst": "All but first in each group", "keepNewest": "Keep newest", "keepLargest": "Keep largest", "clear": "Clear operation" },
+      "operations": {
+        "deletePermanentDescription": "Permanently delete {{count}} paths. This cannot be undone.", "deleteTrashDescription": "Move {{count}} paths to the system trash.", "dryRunHint": "Delete, move, and rename create an inspectable itemized plan by default.", "dryRun": "Dry run only", "deleteMode": "Delete mode", "trash": "Move to trash", "permanent": "Permanently delete", "destination": "Move or copy to", "planMoveTitle": "Create a move/copy plan?", "executeMoveTitle": "Execute move/copy?", "target": "Target: {{path}}. ", "noChanges": "No files will be changed.", "liveMoveDescription": "This will {{action}} {{count}} items.", "copyVerb": "copy", "moveVerb": "move", "confirmMove": "Confirm move", "copyInstead": "Copy instead of move", "preserveStructure": "Preserve directory structure", "conflict": "Target conflict", "skip": "Skip", "overwrite": "Overwrite", "autoRename": "Auto rename", "reportError": "Report error",
+        "organizeTemplate": "Similar-group subdirectory template", "skipSingleFolder": "Skip source directories with one file", "organizeGroups": "Organize similar groups ({{count}})", "planOrganizeTitle": "Create a similar-group organization plan?", "executeOrganizeTitle": "Organize similar groups?", "organizeDescription": "Organize {{items}} items from {{groups}} groups into {{folders}} subdirectories.", "confirmOrganize": "Confirm organization", "fixExtensions": "Fix extensions ({{count}})", "planRenameTitle": "Create an extension-fix plan?", "executeRenameTitle": "Fix extensions now?", "renameDescription": "Fix {{count}} items from scan results. To undo afterward, reverse the source/target paths in operation details.", "confirmRename": "Confirm rename", "exportResults": "Export results", "scopeSelected": "Selected", "scopeVisible": "Current view", "scopeAll": "All results", "deleteSelected": "Delete selected", "planDeleteTitle": "Create a delete plan?", "deletePermanentTitle": "Permanently delete selected files?", "deleteTrashTitle": "Move selected files to trash?", "dryRunDescription": "Dry-run mode is active; no files will be changed.", "confirmDelete": "Confirm delete", "lastDetails": "Last operation details", "resultSummary": "{{affected}} successful or planned / {{errors}} errors"
+      }
+    },
     "scratch": {
       "name": "SCRATCH",
       "description": "Ephemeral text buffer. Temporary storage for quick notes, variables, or copy-paste ops.",

@@ -28,7 +28,7 @@ export function tNode(nodeId: string, key: string, fallback: string, vars?: Reco
  * 支持插值变量：`t("summary.stats", "{{count}} 项", { count: 5 })`
  */
 export function useNodeI18n(nodeId: string) {
-  const { t } = useTranslation("module")
+  const { t, i18n } = useTranslation("module")
   const prefix = nodeId
   const translate = (key: string, fallback: string, vars?: Record<string, unknown>) =>
     t(`${prefix}.${key}`, { defaultValue: fallback, ...(vars ?? {}) })
@@ -38,5 +38,6 @@ export function useNodeI18n(nodeId: string) {
     tc: (key: string, fallback: string) => t(key, { defaultValue: fallback }),
     name: t(`${prefix}.name`, { defaultValue: nodeId }),
     description: t(`${prefix}.description`, { defaultValue: "" }),
+    language: i18n.resolvedLanguage?.toLowerCase().startsWith("zh") ? "zh" as const : "en" as const,
   }
 }

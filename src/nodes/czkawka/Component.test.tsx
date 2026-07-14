@@ -5,6 +5,7 @@ import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contrac
 import type { CzkawkaData, CzkawkaInput } from "@xiranite/node-czkawka/core"
 import { Component, scanInput } from "./Component"
 import type { CzkawkaCardState } from "./types"
+import i18n from "@/i18n"
 
 const surface = vi.hoisted(() => ({ width: 1200, height: 760, mode: "regular" }))
 const NODE_SURFACE_TEST_MODES = [
@@ -16,7 +17,7 @@ const NODE_SURFACE_TEST_MODES = [
   ["workspace", 1440, 860, "czkawka-full-view"],
 ] as const
 vi.mock("@/nodes/shared/useNodeSurface", () => ({ useNodeSurface: () => ({ ref: { current: null }, ...surface }) }))
-afterEach(() => { cleanup(); Object.assign(surface, { width: 1200, height: 760, mode: "regular" }) })
+afterEach(async () => { cleanup(); Object.assign(surface, { width: 1200, height: 760, mode: "regular" }); await i18n.changeLanguage("zh") })
 
 describe("Czkawka node", () => {
   test.each([
@@ -41,6 +42,15 @@ describe("Czkawka node", () => {
     expect(root.classList.contains("bg-background")).toBe(false)
     expect(root.classList.contains("text-foreground")).toBe(true)
     expect(screen.queryByRole("button", { name: /(?:minimize|maximize|close|最小化窗口|最大化窗口|关闭窗口)/i })).toBeNull()
+  })
+
+  test("reacts to the Xiranite language and renders the shared English scanner copy", async () => {
+    await i18n.changeLanguage("en")
+    render(<Component compId="czkawka-en" host={createHost({ tool: "duplicate-files" })} />)
+    expect(screen.getByRole("button", { name: "Duplicate Files" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Start scan" })).toBeTruthy()
+    expect(screen.getByText("Scan conditions")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "开始扫描" })).toBeNull()
   })
 
   test.each(NODE_SURFACE_TEST_MODES)("renders the %s surface without losing the primary action", (mode, width, height, testId) => {
@@ -167,7 +177,7 @@ describe("Czkawka node", () => {
     const duplicate = resultFor({ tool: "duplicate-files" })
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: duplicate })
     const view = render(<Component compId="czkawka" host={host} />)
-    const headerSearch = screen.getByRole("textbox", { name: "czkawka global filter" })
+    const headerSearch = screen.getByRole("textbox", { name: "Czkawka 全局筛选" })
     fireEvent.change(headerSearch, { target: { value: "not-present" } })
     expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("not-present")
     expect(host.stateValue.filterStatesByTool?.["duplicate-files"]?.text.pattern).toBe("not-present")
@@ -175,11 +185,11 @@ describe("Czkawka node", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "空文件" }))
     view.rerender(<Component compId="czkawka" host={host} />)
-    expect((screen.getByRole("textbox", { name: "czkawka global filter" }) as HTMLInputElement).value).toBe("")
+    expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("")
 
     fireEvent.click(screen.getByRole("button", { name: "重复文件" }))
     view.rerender(<Component compId="czkawka" host={host} />)
-    expect((screen.getByRole("textbox", { name: "czkawka global filter" }) as HTMLInputElement).value).toBe("not-present")
+    expect((screen.getByRole("textbox", { name: "Czkawka 全局筛选" }) as HTMLInputElement).value).toBe("not-present")
   })
 
   test("maps a stopped core result to a recoverable stopped GUI state", async () => {
