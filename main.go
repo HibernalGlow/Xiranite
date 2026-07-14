@@ -52,6 +52,11 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		Windows: application.WindowsOptions{
+			AdditionalBrowserArgs: []string{
+				"--enable-features=JXLImageFormat",
+			},
+		},
 	})
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
