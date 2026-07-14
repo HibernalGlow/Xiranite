@@ -9,6 +9,11 @@ import { defineConfig } from "vitest/config"
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
+const reactCompilerMode = process.env.XIRANITE_REACT_COMPILER_MODE ?? "infer"
+
+if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer") {
+  throw new Error("XIRANITE_REACT_COMPILER_MODE must be either annotation or infer")
+}
 
 /**
  * Tailwind v4 normally watches every source file and re-emits the generated
@@ -69,7 +74,7 @@ export default defineConfig({
     react({
       babel: {
         plugins: [
-          ["babel-plugin-react-compiler", { compilationMode: "infer" }],
+          ["babel-plugin-react-compiler", { compilationMode: reactCompilerMode }],
         ],
       },
     }),
