@@ -193,8 +193,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | O03 | `[x]` | 移动 | 当前单目标扁平移动；补复制模式、保留结构、覆盖策略、冲突提示 |
 | O04 | `[x]` | 分组归档到多目标 | 每组/每项独立 destination，一次执行 |
 | O05 | `[x]` | 相似组自动整理 | 按组生成目录并预览目标路径 |
-| O06 | `[-]` | 导出结果 | 当前 JSON/CSV 路径列表；补当前视图/选择/全部范围和完整字段 |
-| O07 | `[ ]` | 不正确扩展名重命名 | 单项/批量、冲突检测、撤销提示 |
+| O06 | `[x]` | 导出结果 | 当前 JSON/CSV 路径列表；补当前视图/选择/全部范围和完整字段 |
+| O07 | `[x]` | 不正确扩展名重命名 | 单项/批量、冲突检测、撤销提示 |
 | O08 | `[x]` | 系统打开/定位 | 使用 Xiranite host API，不新增 Rust |
 | O09 | `[x]` | 复制路径/名称 | 使用 clipboard host API |
 | O10 | `[ ]` | 复制文件到剪贴板 | 平台支持时使用通用 host；能力缺失时显式禁用 |
@@ -206,6 +206,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 验证证据（2026-07-15）：文件操作控制面全部位于 `@xiranite/node-czkawka` TypeScript core/platform。删除默认进入 Windows 回收站，永久删除必须显式选择；空文件夹执行前会递归确认目录树只含空目录，避免扫描后状态变化导致误删。移动支持复制模式、根目录相对结构、`skip`/`overwrite`/`rename`/`error` 四种冲突策略、批次内目标占用检测和跨卷 `copy + remove` 回退。dry-run 与 live 共用逐项结果契约，记录 operation/status/source/target/error；GUI 提供完整设置和可展开详情，CLI 输出逐项状态，OpenTUI 通过共享 interaction schema 执行同一契约。包级 70 项 Vitest、真实文件原语测试、OpenTUI Bun 测试、GUI 14 项组件测试、应用 typecheck、React Compiler boundary audit 与 node architecture audit 均通过。
 
 验证证据（2026-07-15）：共享 move 输入新增 `destinationItems`，可在一次 dry-run/live 调用中为每项指定独立目标目录，仍复用相同复制、移动、冲突和结果详情实现。纯 TS `buildCzkawkaGroupOrganizePlan` 按 fork 行为从任一选中项扩展整组、排除参考项、按“组 + 原父目录”生成目标子目录、支持 `{groupId}` 模板/非法字符清理/跳过单文件来源目录。GUI 相似图片操作卡展示组数、项目数和目标目录数并在确认后发送多目标计划；包级计划/执行测试和 GUI 组件测试覆盖完整链路。
+
+验证证据（2026-07-15）：导出不再依赖 Rust scanner 的 `PrintResults`，由 TypeScript core 对 `CzkawkaEntry` 完整字段生成结构化 JSON 或固定列 CSV；GUI 支持选择项、当前过滤视图、全部结果三种范围，CLI/OpenTUI 使用相同 `exportScope`/`exportEntries` 契约。扩展名修正同样完全由 TS 计划和文件系统原语执行，支持每项不同 `properExtension`、单项/批量、默认 dry-run、`skip`/`overwrite`/`rename`/`error` 冲突策略、逐项源/目标/错误详情，以及 GUI 反向改名撤销提示；CLI 提供 `rename <extension> <paths...>`，OpenTUI 接受 Tab 分隔的路径与扩展名。包级 74 项 Vitest、OpenTUI Bun 测试、GUI 16 项组件测试、应用 typecheck、React Compiler boundary audit 与 node architecture audit 均通过。
 
 ## 10. 分析、统计和卡片系统
 

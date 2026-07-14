@@ -35,7 +35,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = d
 }
 
 async function runPipe(args: string[], host: CliHost): Promise<void> {
-  if (!args.length) { writeLine(host, `${CLI_NAME} ui | gd | scan <tool> <directories...> | delete <paths...> | move <destination> <paths...> | save <output> <paths...>`); return }
+  if (!args.length) { writeLine(host, `${CLI_NAME} ui | gd | scan <tool> <directories...> | delete <paths...> | move <destination> <paths...> | rename <extension> <paths...> | save <output> <paths...>`); return }
   const command = args[0] ?? "scan", json = args.includes("--json")
   const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: json })
   let input: CzkawkaInput
@@ -49,7 +49,8 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     input = { action: "scan", tool, includedDirectories: roots, recursive: !args.includes("--no-recursive") && config?.recursive !== false, useCache: !args.includes("--no-cache") && config?.use_cache !== false, checkMethod: config?.check_method, hashType: config?.hash_type, similarity: config?.similarity, allowedExtensions: valueFor(args, "--allow"), excludedExtensions: valueFor(args, "--exclude-ext"), minimumFileSize: numberFor(args, "--min-size"), maximumFileSize: numberFor(args, "--max-size"), filterText: valueFor(args, "--filter"), ...parseCzkawkaCliOptions(args) }
   } else if (command === "delete") input = createCzkawkaOperationInput("delete", { selectedPaths: positional(args.slice(1), OPERATION_VALUE_FLAGS), deleteMode: args.includes("--permanent") ? "permanent" : "trash", dryRun: !args.includes("--live") })
   else if (command === "move") input = createCzkawkaOperationInput("move", { destinationDirectory: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), copyMode: args.includes("--copy"), preserveStructure: args.includes("--preserve-structure"), conflictPolicy: valueFor(args, "--conflict"), dryRun: !args.includes("--live") })
-  else if (command === "save") input = createCzkawkaOperationInput("save", { outputPath: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), outputFormat: args.includes("--csv") ? "csv" : "json", dryRun: false })
+  else if (command === "rename") input = createCzkawkaOperationInput("rename", { renameItems: positional(args.slice(2), OPERATION_VALUE_FLAGS).map((path) => ({ path, properExtension: args[1] ?? "" })), conflictPolicy: valueFor(args, "--conflict"), dryRun: !args.includes("--live") })
+  else if (command === "save") input = createCzkawkaOperationInput("save", { outputPath: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), outputFormat: args.includes("--csv") ? "csv" : "json", exportScope: valueFor(args, "--scope"), dryRun: false })
   else { writeLine(host, `Unknown command: ${command}`); process.exitCode = 2; return }
   const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) })
   if (json) writeJson(host, result)
@@ -63,7 +64,7 @@ function preferences(host: CliHost, current: TerminalPreferenceValues): Terminal
 }
 
 const SCAN_VALUE_FLAGS = new Set([...CZKAWKA_CLI_VALUE_FLAGS, "--allow", "--exclude-ext", "--min-size", "--max-size", "--filter"])
-const OPERATION_VALUE_FLAGS = new Set(["--conflict"])
+const OPERATION_VALUE_FLAGS = new Set(["--conflict", "--scope"])
 function positional(args: string[], valueFlags: Set<string>): string[] { return args.filter((arg, index) => !arg.startsWith("--") && !valueFlags.has(args[index - 1] ?? "")) }
 function valueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index >= 0 ? args[index + 1] : undefined }
 function numberFor(args: string[], flag: string): number | undefined { const value = valueFor(args, flag); if (value === undefined) return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }

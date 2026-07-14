@@ -45,6 +45,7 @@ describe("shared Czkawka option schema", () => {
       selectedPathsText: "D:/one/a.jpg\nD:/two/b.jpg",
       destinationDirectory: "E:/Review",
       destinationItems: [],
+      renameItems: [],
       copyMode: true,
       preserveStructure: true,
       conflictPolicy: "rename",
@@ -55,12 +56,15 @@ describe("shared Czkawka option schema", () => {
       selectedPaths: ["D:/one/a.jpg", "D:/two/b.jpg"],
       destinationDirectory: "E:/Review",
       destinationItems: [],
+      renameItems: [],
       deleteMode: "trash",
       copyMode: true,
       preserveStructure: true,
       conflictPolicy: "rename",
       outputPath: undefined,
       outputFormat: "json",
+      exportScope: "selected",
+      exportEntries: [],
       dryRun: false,
     })
   })
@@ -73,5 +77,10 @@ describe("shared Czkawka option schema", () => {
     expect(schema.validate(values, input)).toBeNull()
     expect(schema.isDangerous?.(input)).toBe(false)
     expect(schema.isDangerous?.({ ...input, dryRun: false })).toBe(true)
+  })
+
+  test("parses TUI rename rows and makes export an immediate non-destructive write", () => {
+    expect(createCzkawkaOperationInput("rename", { renameItemsText: "D:/photo.bin\t.jpg\nD:/audio.raw\tflac" })).toMatchObject({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }, { path: "D:/audio.raw", properExtension: "flac" }], dryRun: true })
+    expect(createCzkawkaOperationInput("save", { selectedPaths: ["D:/photo.bin"], outputPath: "D:/result.csv", exportScope: "all", dryRun: true })).toMatchObject({ action: "save", outputFormat: "csv", exportScope: "all", dryRun: false })
   })
 })

@@ -15,7 +15,7 @@ export const CZKAWKA_TOOLS = [
 ] as const
 
 export type CzkawkaTool = typeof CZKAWKA_TOOLS[number]
-export type CzkawkaAction = "scan" | "delete" | "move" | "save"
+export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "save"
 export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
 export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
@@ -26,8 +26,10 @@ export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
 export type CzkawkaDeleteMode = "trash" | "permanent"
 export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
-export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "saved" | "skipped" | "error"
+export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "renamed" | "saved" | "skipped" | "error"
 export interface CzkawkaDestinationItem { path: string; destination: string }
+export interface CzkawkaRenameItem { path: string; properExtension: string }
+export type CzkawkaExportScope = "selected" | "visible" | "all"
 
 export interface CzkawkaInput {
   action?: CzkawkaAction
@@ -81,12 +83,15 @@ export interface CzkawkaInput {
   selectedPaths?: string[]
   destinationDirectory?: string
   destinationItems?: CzkawkaDestinationItem[]
+  renameItems?: CzkawkaRenameItem[]
   deleteMode?: CzkawkaDeleteMode
   copyMode?: boolean
   preserveStructure?: boolean
   conflictPolicy?: CzkawkaConflictPolicy
   outputPath?: string
   outputFormat?: "json" | "csv"
+  exportScope?: CzkawkaExportScope
+  exportEntries?: CzkawkaEntry[]
   dryRun?: boolean
 }
 
@@ -144,7 +149,7 @@ export interface CzkawkaEntry {
   bitrate?: number
   isReference?: boolean
   status?: CzkawkaOperationStatus
-  operation?: "delete" | "trash" | "move" | "copy" | "save"
+  operation?: "delete" | "trash" | "move" | "copy" | "rename" | "save"
   conflictPolicy?: CzkawkaConflictPolicy
   error?: string
 }
@@ -178,6 +183,8 @@ const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "d
 
 export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInput> {
   const destinationItems = normalizeDestinationItems(input.destinationItems)
+  const renameItems = normalizeRenameItems(input.renameItems)
+  const exportEntries = input.exportEntries?.map((entry) => ({ ...entry })) ?? []
   return {
     action: input.action ?? "scan",
     tool: input.tool ?? "duplicate-files",
@@ -227,15 +234,18 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
-    selectedPaths: unique([...(input.selectedPaths ?? []), ...destinationItems.map((item) => item.path)]),
+    selectedPaths: unique([...(input.selectedPaths ?? []), ...destinationItems.map((item) => item.path), ...renameItems.map((item) => item.path), ...exportEntries.map((entry) => entry.path)]),
     destinationDirectory: clean(input.destinationDirectory),
     destinationItems,
+    renameItems,
     deleteMode: oneOf(input.deleteMode, ["trash", "permanent"] as const, "trash"),
     copyMode: input.copyMode ?? false,
     preserveStructure: input.preserveStructure ?? false,
     conflictPolicy: oneOf(input.conflictPolicy, ["skip", "overwrite", "rename", "error"] as const, "skip"),
     outputPath: clean(input.outputPath),
     outputFormat: input.outputFormat ?? "json",
+    exportScope: oneOf(input.exportScope, ["selected", "visible", "all"] as const, "selected"),
+    exportEntries,
     dryRun: input.dryRun ?? true,
   }
 }
@@ -249,6 +259,10 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
     if (value.action === "move") {
       if (!value.destinationDirectory && !value.destinationItems.length) return fail(value, "A destination directory or per-item destinations are required.")
       return await mutate(value, runtime, "move", onEvent)
+    }
+    if (value.action === "rename") {
+      if (!value.renameItems.length) return fail(value, "At least one path and proper extension are required.")
+      return await mutate(value, runtime, "rename", onEvent)
     }
     if (!value.outputPath) return fail(value, "An output path is required.")
     return await save(value, runtime, onEvent)
@@ -335,18 +349,21 @@ export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionSt
   return [...selection]
 }
 
-async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, action: "delete" | "move", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   const entries: CzkawkaEntry[] = []
   const claimedTargets = new Set<string>()
   const destinations = new Map(value.destinationItems.map((item) => [item.path, item.destination]))
+  const extensions = new Map(value.renameItems.map((item) => [item.path, item.properExtension]))
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
-    const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : value.copyMode ? "copy" : "move"
+    const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : action === "rename" ? "rename" : value.copyMode ? "copy" : "move"
     let target = action === "move" ? operationTarget(value, runtime, path, destinations.get(path)) : undefined
-    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, operation, conflictPolicy: action === "move" ? value.conflictPolicy : undefined }
+    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, properExtension: extensions.get(path), operation, conflictPolicy: action === "move" || action === "rename" ? value.conflictPolicy : undefined }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${operation} ${runtime.basename(path)}` })
     try {
+      if (action === "rename") target = renameTarget(path, extensions.get(path), runtime)
       if (!await runtime.pathExists(path)) throw new Error("Source path no longer exists.")
+      if (target === path) { entries.push({ ...base, secondaryPath: target, status: "skipped", error: "Path already uses the proper extension." }); continue }
       const claimed = target ? claimedTargets.has(target.toLocaleLowerCase()) : false
       if (target && (claimed || await runtime.pathExists(target))) {
         if (claimed && value.conflictPolicy === "overwrite") throw new Error("Another selected item uses the same target path.")
@@ -361,16 +378,25 @@ async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, ac
       } else {
         await runtime.ensureDirectory(runtime.dirname(target!))
         if (value.conflictPolicy === "overwrite" && await runtime.pathExists(target!)) await runtime.removePath(target!, { trash: false })
-        if (value.copyMode) await runtime.copyPath(path, target!)
+        if (action === "move" && value.copyMode) await runtime.copyPath(path, target!)
         else await runtime.movePath(path, target!)
       }
-      const status: CzkawkaOperationStatus = action === "delete" ? value.deleteMode === "trash" ? "trashed" : "deleted" : value.copyMode ? "copied" : "moved"
+      const status: CzkawkaOperationStatus = action === "delete" ? value.deleteMode === "trash" ? "trashed" : "deleted" : action === "rename" ? "renamed" : value.copyMode ? "copied" : "moved"
       entries.push({ ...base, secondaryPath: target, status })
     } catch (error) { entries.push({ ...base, secondaryPath: target, status: "error", error: errorMessage(error) }) }
   }
   const group = makeGroup(0, entries, runtime, false)
   const data = summarize(value, [group], "", false)
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
+}
+
+function renameTarget(source: string, extension: string | undefined, runtime: Pick<CzkawkaRuntime, "basename" | "dirname" | "join">): string {
+  const properExtension = clean(extension).replace(/^\.+/, "")
+  if (!properExtension || /[\\/:*?"<>|]/.test(properExtension)) throw new Error("Invalid proper extension.")
+  const filename = runtime.basename(source)
+  const dot = filename.lastIndexOf(".")
+  const stem = dot > 0 ? filename.slice(0, dot) : filename
+  return runtime.join(runtime.dirname(source), `${stem}.${properExtension}`)
 }
 
 function operationTarget(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
@@ -393,8 +419,9 @@ async function availableTarget(target: string, runtime: CzkawkaRuntime, claimedT
 }
 
 async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
-  const rows = value.selectedPaths.map((path, index) => ({ id: `save:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, status: "saved" as const }))
-  const content = value.outputFormat === "csv" ? `path\n${rows.map((row) => csv(row.path)).join("\n")}\n` : `${JSON.stringify(rows.map((row) => row.path), null, 2)}\n`
+  const sourceRows = value.exportEntries.length ? value.exportEntries : value.selectedPaths.map((path, index) => ({ id: `save:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0 }))
+  const rows: CzkawkaEntry[] = sourceRows.map((entry, index) => ({ ...entry, id: entry.id || `save:${index}`, status: "saved", operation: "save" }))
+  const content = value.outputFormat === "csv" ? exportCsv(rows) : `${JSON.stringify({ tool: value.tool, scope: value.exportScope, entries: rows }, null, 2)}\n`
   onEvent({ type: "progress", progress: 50, message: `Writing ${runtime.basename(value.outputPath)}.` })
   if (!value.dryRun) { await runtime.ensureDirectory(runtime.dirname(value.outputPath)); await runtime.writeText(value.outputPath, content) }
   const data = summarize(value, [makeGroup(0, rows, runtime, false)], "", false)
@@ -403,15 +430,18 @@ async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEv
 
 function summarize(value: Required<CzkawkaInput>, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
 function fail(value: Required<CzkawkaInput>, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
 function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
+function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""); if (path && properExtension) result.set(path, properExtension) } return [...result].map(([path, properExtension]) => ({ path, properExtension })) }
 function clean(value: unknown): string { return String(value ?? "").trim() }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.round(parsed))) : fallback }
 function oneOf<const Values extends readonly (string | number)[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }
 function csv(value: string): string { return `"${value.replaceAll('"', '""')}"` }
+const EXPORT_FIELDS = ["groupId", "path", "name", "size", "modifiedDate", "hash", "secondaryPath", "detail", "properExtension", "width", "height", "similarity", "title", "artist", "year", "length", "genre", "bitrate", "isReference", "status", "operation", "conflictPolicy", "error"] as const satisfies readonly (keyof CzkawkaEntry)[]
+function exportCsv(entries: CzkawkaEntry[]): string { return `${EXPORT_FIELDS.join(",")}\n${entries.map((entry) => EXPORT_FIELDS.map((field) => csv(String(entry[field] ?? ""))).join(",")).join("\n")}\n` }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error) }

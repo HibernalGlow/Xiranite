@@ -3,7 +3,7 @@ import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "dryRun">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun">
 type OptionValue = string | number | boolean
 
 export interface CzkawkaOptionDefinition {
@@ -118,13 +118,16 @@ export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan
     selectedPaths: lines(values.selectedPathsText ?? values.selectedPaths),
     destinationDirectory: text(values.destinationDirectory),
     destinationItems: Array.isArray(values.destinationItems) ? values.destinationItems as NonNullable<CzkawkaInput["destinationItems"]> : [],
+    renameItems: Array.isArray(values.renameItems) ? values.renameItems as NonNullable<CzkawkaInput["renameItems"]> : parseRenameItems(values.renameItemsText),
     deleteMode: values.deleteMode === "permanent" ? "permanent" : "trash",
     copyMode: values.copyMode === true,
     preserveStructure: values.preserveStructure === true,
     conflictPolicy: ["skip", "overwrite", "rename", "error"].includes(String(values.conflictPolicy)) ? values.conflictPolicy as NonNullable<CzkawkaInput["conflictPolicy"]> : "skip",
     outputPath,
     outputFormat: outputPath?.toLowerCase().endsWith(".csv") || values.outputFormat === "csv" ? "csv" : "json",
-    dryRun: values.dryRun !== false,
+    exportScope: ["selected", "visible", "all"].includes(String(values.exportScope)) ? values.exportScope as NonNullable<CzkawkaInput["exportScope"]> : "selected",
+    exportEntries: Array.isArray(values.exportEntries) ? values.exportEntries as NonNullable<CzkawkaInput["exportEntries"]> : [],
+    dryRun: action === "save" ? false : values.dryRun !== false,
   }
 }
 
@@ -156,3 +159,4 @@ function lines(value: unknown): string[] { return Array.isArray(value) ? value.m
 function items(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/[;\r\n]/).map((item) => item.trim()).filter(Boolean) }
 function optionalNumber(value: unknown): number | undefined { if (value === undefined || value === null || String(value).trim() === "") return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }
 function text(value: unknown): string | undefined { return value === undefined || value === null ? undefined : String(value) }
+function parseRenameItems(value: unknown): NonNullable<CzkawkaInput["renameItems"]> { return lines(value).map((line) => { const separator = line.lastIndexOf("\t"); if (separator < 0) return null; const path = line.slice(0, separator).trim(), properExtension = line.slice(separator + 1).trim(); return path && properExtension ? { path, properExtension } : null }).filter((item): item is NonNullable<typeof item> => item !== null) }

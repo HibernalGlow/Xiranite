@@ -120,6 +120,39 @@ describe("czkawka TypeScript orchestration", () => {
     ])
   })
 
+  test("plans and executes per-item extension corrections with conflict checks", async () => {
+    const adapter = runtime()
+    vi.mocked(adapter.pathExists).mockImplementation(async (path) => path === "D:/photo.bin")
+    const planned = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: ".jpg" }] }, adapter)
+    expect(planned.data?.entries[0]).toMatchObject({ path: "D:/photo.bin", secondaryPath: "D:/photo.jpg", properExtension: "jpg", operation: "rename", status: "planned" })
+    const executed = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: false }, adapter)
+    expect(executed.data?.entries[0]?.status).toBe("renamed")
+    expect(adapter.movePath).toHaveBeenCalledWith("D:/photo.bin", "D:/photo.jpg")
+  })
+
+  test("reports extension target conflicts and invalid extensions per item", async () => {
+    const conflictRuntime = runtime()
+    vi.mocked(conflictRuntime.pathExists).mockResolvedValue(true)
+    const conflict = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }] }, conflictRuntime)
+    expect(conflict.data?.entries[0]).toMatchObject({ status: "skipped", error: "Target already exists." })
+    const invalid = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "bad/ext" }] }, runtime())
+    expect(invalid.data?.entries[0]).toMatchObject({ status: "error", error: "Invalid proper extension." })
+  })
+
+  test("exports full result fields to structured JSON and CSV", async () => {
+    const entry = { id: "media:1", groupId: 4, path: "D:/photo.bin", name: "photo.bin", size: 42, modifiedDate: 123, properExtension: "jpg", width: 800, height: 600, similarity: "2", detail: "bad extension" }
+    const jsonRuntime = runtime()
+    await runCzkawka({ action: "save", tool: "bad-extensions", outputPath: "D:/result.json", exportScope: "visible", exportEntries: [entry], dryRun: false }, jsonRuntime)
+    const json = JSON.parse(vi.mocked(jsonRuntime.writeText).mock.calls[0]![1]) as { tool: string; scope: string; entries: Array<Record<string, unknown>> }
+    expect(json).toMatchObject({ tool: "bad-extensions", scope: "visible", entries: [{ path: "D:/photo.bin", size: 42, properExtension: "jpg", width: 800, operation: "save", status: "saved" }] })
+    const csvRuntime = runtime()
+    await runCzkawka({ action: "save", outputPath: "D:/result.csv", outputFormat: "csv", exportEntries: [entry], dryRun: false }, csvRuntime)
+    const csvContent = vi.mocked(csvRuntime.writeText).mock.calls[0]![1]
+    expect(csvContent).toContain("groupId,path,name,size,modifiedDate")
+    expect(csvContent).toContain('"jpg"')
+    expect(csvContent).toContain('"bad extension"')
+  })
+
   test("filters and sorts in TypeScript", () => {
     const groups = [{ id: 0, totalBytes: 3, reclaimableBytes: 1, entries: [
       { id: "a", groupId: 0, path: "D:/z.jpg", name: "z.jpg", size: 1, modifiedDate: 2 },

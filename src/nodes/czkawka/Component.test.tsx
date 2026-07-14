@@ -96,7 +96,7 @@ describe("Czkawka node", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
     fireEvent.click(screen.getByRole("button", { name: /删除已选/ }))
-    fireEvent.click(screen.getByRole("button", { name: "确认" }))
+    fireEvent.click(screen.getByRole("button", { name: "确认删除" }))
     await waitFor(() => expect(host.stateValue.activityLog?.some((entry) => entry.action === "delete" && entry.level === "success")).toBe(true))
 
     fireEvent.click(screen.getByRole("button", { name: "清空活动日志" }))
@@ -111,6 +111,7 @@ describe("Czkawka node", () => {
     const view = render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 similar-images-result.dat" }))
     fireEvent.click(screen.getByRole("button", { name: "move selected" }))
+    fireEvent.click(screen.getByRole("button", { name: "确认移动" }))
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "move", tool: "similar-images", selectedPaths: ["similar-images-result.dat"], destinationDirectory: "E:/Review", copyMode: true, preserveStructure: true, conflictPolicy: "rename", dryRun: true }))
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getByText("上次操作详情")).toBeTruthy()
@@ -126,6 +127,27 @@ describe("Czkawka node", () => {
     fireEvent.click(screen.getByRole("button", { name: "整理相似组（2）" }))
     fireEvent.click(screen.getByRole("button", { name: "确认整理" }))
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "move", selectedPaths: ["D:/photos/a.jpg", "D:/photos/b.jpg"], destinationItems: [{ path: "D:/photos/a.jpg", destination: "D:/photos/variants_0007" }, { path: "D:/photos/b.jpg", destination: "D:/photos/variants_0007" }], dryRun: true }))
+  })
+
+  test("exports all full result rows independently from the current selection", async () => {
+    const entries = [{ id: "a", groupId: 0, path: "D:/a.jpg", name: "a.jpg", size: 10, modifiedDate: 1, width: 100, height: 80 }, { id: "b", groupId: 0, path: "D:/b.jpg", name: "b.jpg", size: 11, modifiedDate: 2, similarity: "3" }]
+    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries, totalBytes: 21, reclaimableBytes: 10 }], entries, groupCount: 1, fileCount: 2, totalBytes: 21, reclaimableBytes: 10 }
+    const host = createHost({ tool: "similar-images", result, exportScope: "all", outputPath: "D:/result.json" })
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "save selected" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "save", exportScope: "all", selectedPaths: ["D:/a.jpg", "D:/b.jpg"], exportEntries: entries, outputPath: "D:/result.json", dryRun: false }))
+  })
+
+  test("builds a selected bad-extension rename plan with an undo hint", async () => {
+    const entry = { id: "bad", groupId: 0, path: "D:/photo.bin", name: "photo.bin", size: 10, modifiedDate: 1, properExtension: "jpg" }
+    const result: CzkawkaData = { ...sample, tool: "bad-extensions", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const host = createHost({ tool: "bad-extensions", result, dryRun: true })
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.bin" }))
+    fireEvent.click(screen.getByRole("button", { name: "修正扩展名（1）" }))
+    expect(screen.getByText(/反向改名/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "确认改名" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "rename", selectedPaths: ["D:/photo.bin"], renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: true }))
   })
 
   test("persists custom filter presets in node state", () => {
