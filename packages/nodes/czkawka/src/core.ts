@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./similar-folders.js"
 
 export const CZKAWKA_TOOLS = [
   "duplicate-files",
@@ -179,6 +180,7 @@ export interface CzkawkaData {
   reclaimableBytes: number
   affectedCount: number
   errorCount: number
+  similarFolders?: CzkawkaSimilarFolderStat[]
 }
 
 export type CzkawkaResult = NodeRunResult<CzkawkaData>
@@ -445,7 +447,7 @@ async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEv
 
 function summarize(value: Required<CzkawkaInput>, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }

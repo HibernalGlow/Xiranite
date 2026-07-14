@@ -76,6 +76,13 @@ describe("czkawka TypeScript orchestration", () => {
     expect(media.scanMedia).toHaveBeenCalledOnce()
   })
 
+  test("attaches thresholded similar-folder statistics to the shared result", async () => {
+    const result = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 2 }, runtime())
+    expect(result.data?.similarFolders).toEqual([{ path: "D:", count: 2, bytes: 41, groupCount: 1, previewPath: "D:/a.jpg" }])
+    const hidden = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 3 }, runtime())
+    expect(hidden.data?.similarFolders).toEqual([])
+  })
+
   test("keeps destructive actions dry-run by default", async () => {
     const adapter = runtime()
     const result = await runCzkawka({ action: "delete", selectedPaths: ["D:/a.bin"] }, adapter)

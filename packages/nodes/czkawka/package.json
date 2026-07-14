@@ -18,6 +18,7 @@
     "./operations": { "types": "./dist/operations.d.ts", "default": "./dist/operations.js" },
     "./scan-presets": { "types": "./dist/scan-presets.d.ts", "default": "./dist/scan-presets.js" },
     "./source-inputs": { "types": "./dist/source-inputs.d.ts", "default": "./dist/source-inputs.js" },
+    "./similar-folders": { "types": "./dist/similar-folders.d.ts", "default": "./dist/similar-folders.js" },
     "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
     "./tool-options": { "types": "./dist/tool-options.d.ts", "default": "./dist/tool-options.js" },
     "./workspace-layout": { "types": "./dist/workspace-layout.d.ts", "default": "./dist/workspace-layout.js" },

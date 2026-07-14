@@ -92,7 +92,7 @@ export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteract
 }
 
 export function czkawkaToolLabel(tool: CzkawkaTool, language: TerminalLanguage = "zh"): string { return language === "zh" ? LABELS_ZH[tool] : human(tool) }
-function analysisLines(data: NonNullable<CzkawkaResult["data"]>): string[] { const analysis = buildCzkawkaAnalysis(data.groups, [], data.tool); return [`Files: ${data.fileCount}`, `Groups: ${data.groupCount}`, `Reclaimable: ${data.reclaimableBytes} B`, `Formats: ${analysis.formats.slice(0, 5).map((item) => `${item.format}=${item.count}`).join(", ") || "none"}`] }
+function analysisLines(data: NonNullable<CzkawkaResult["data"]>): string[] { const analysis = buildCzkawkaAnalysis(data.groups, [], data.tool); return [`Files: ${data.fileCount}`, `Groups: ${data.groupCount}`, `Reclaimable: ${data.reclaimableBytes} B`, `Formats: ${analysis.formats.slice(0, 5).map((item) => `${item.format}=${item.count}`).join(", ") || "none"}`, ...(data.tool === "similar-images" ? [`Similar folders: ${data.similarFolders?.map((item) => `${item.path}=${item.count}`).join(", ") || "none"}`] : [])] }
 const defined = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
 const lines = (value: unknown) => String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
 const human = (value: string) => value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ")
