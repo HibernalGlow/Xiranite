@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { runNeoview } from "./core.js"
+import { runNeoview } from "./runNeoview.js"
 
 describe("runNeoview", () => {
   it("reports migration state without pretending the reader execution path is complete", async () => {

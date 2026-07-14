@@ -1,46 +1,12 @@
-export type ArchiveEntryKind = "file" | "directory"
-
-export interface ArchiveEntry {
-  id: string
-  path: string
-  kind: ArchiveEntryKind
-  uncompressedSize: number
-  compressedSize?: number
-  compressionMethod?: string
-  crc32?: number
-  modifiedAt?: string
-}
-
-export interface ArchiveCapabilities {
-  solid: boolean
-  randomAccess: boolean
-  entryRange: boolean
-  materialization: "never" | "optional" | "required"
-}
-
-export interface ArchiveByteRange {
-  start: number
-  endExclusive?: number
-}
-
-export interface OpenArchiveEntryOptions {
-  signal?: AbortSignal
-  range?: ArchiveByteRange
-}
-
-export interface MaterializedEntryLease extends AsyncDisposable {
-  readonly path: string
-  release(): Promise<void>
-}
-
-export interface ArchiveProvider extends AsyncDisposable {
-  readonly sourcePath: string
-  readonly capabilities: ArchiveCapabilities
-  list(signal?: AbortSignal): Promise<readonly ArchiveEntry[]>
-  openEntry(entryId: string, options?: OpenArchiveEntryOptions): Promise<ReadableStream<Uint8Array>>
-  materializeEntry?(entryId: string, signal?: AbortSignal): Promise<MaterializedEntryLease>
-  close(): Promise<void>
-}
+import { normalizeArchivePath } from "../domain/archive/archive-path.js"
+import { normalizeArchiveRange } from "../domain/archive/archive-range.js"
+import {
+  type ArchiveCapabilities,
+  type ArchiveEntry,
+  type ArchiveEntryKind,
+  type ArchiveProvider,
+  type OpenArchiveEntryOptions,
+} from "../ports/ArchiveProvider.js"
 
 export interface MemoryArchiveEntryInput {
   path: string
@@ -118,7 +84,7 @@ export class MemoryArchiveProvider implements ArchiveProvider {
     if (!entry) throw new Error(`Archive entry not found: ${entryId}`)
     if (entry.descriptor.kind !== "file") throw new Error(`Archive entry is not a file: ${entry.descriptor.path}`)
     if (options.range && !this.capabilities.entryRange) throw new Error("Archive provider does not support entry ranges.")
-    const { start, endExclusive } = normalizeRange(options.range, entry.bytes.byteLength)
+    const { start, endExclusive } = normalizeArchiveRange(options.range, entry.bytes.byteLength)
     const bytes = entry.bytes.subarray(start, endExclusive)
     const chunkSize = this.#chunkSize
     const signal = options.signal
@@ -177,23 +143,4 @@ export class MemoryArchiveProvider implements ArchiveProvider {
   #assertOpen(): void {
     if (this.#closed) throw new Error(`Archive provider is closed: ${this.sourcePath}`)
   }
-}
-
-export function normalizeArchivePath(path: string): string {
-  const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "")
-  const parts = normalized.split("/").filter(Boolean)
-  if (!parts.length || normalized.startsWith("/") || parts.some((part) => part === "." || part === "..")) {
-    throw new Error(`Unsafe archive entry path: ${path}`)
-  }
-  return parts.join("/")
-}
-
-function normalizeRange(range: ArchiveByteRange | undefined, length: number): { start: number; endExclusive: number } {
-  if (!range) return { start: 0, endExclusive: length }
-  const start = Math.trunc(range.start)
-  const endExclusive = Math.trunc(range.endExclusive ?? length)
-  if (start < 0 || start > length || endExclusive < start || endExclusive > length) {
-    throw new RangeError(`Invalid archive byte range: ${start}-${endExclusive}/${length}`)
-  }
-  return { start, endExclusive }
 }

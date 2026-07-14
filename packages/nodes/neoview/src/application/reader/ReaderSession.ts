@@ -1,18 +1,13 @@
+import type { ReaderBook } from "../../domain/book/book.js"
+import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
+import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
-  type OpenViewSourceOptions,
-  type ReaderBook,
-  type ReaderGeneration,
-  type ReaderService,
   type ReaderSession,
   type ReaderSessionEvent,
   type ReaderSessionId,
   type ReaderSessionOptions,
-  type ViewSource,
-} from "./core.js"
-import { buildFrameSnapshot, type FrameSnapshot } from "./frame.js"
-
-export type ReaderBookLoader = (source: ViewSource, signal?: AbortSignal) => Promise<ReaderBook>
+} from "./contracts.js"
 
 export class CoreReaderSession implements ReaderSession {
   readonly id: ReaderSessionId
@@ -122,46 +117,6 @@ export class CoreReaderSession implements ReaderSession {
 
   #assertOpen(): void {
     if (this.#closed) throw new Error(`Reader session ${this.id} is closed.`)
-  }
-}
-
-export class CoreReaderService implements ReaderService {
-  #sessions = new Map<ReaderSessionId, CoreReaderSession>()
-  #nextSessionId = 1
-  #closed = false
-
-  constructor(private readonly loadBook: ReaderBookLoader) {}
-
-  async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
-    this.#assertOpen()
-    options.signal?.throwIfAborted()
-    const book = await this.loadBook(source, options.signal)
-    options.signal?.throwIfAborted()
-    const id = `reader-${this.#nextSessionId++}`
-    const session = new CoreReaderSession(id, book, options, (sessionId) => this.#sessions.delete(sessionId))
-    this.#sessions.set(id, session)
-    if (options.initialPage !== undefined && options.initialPage !== 0) await session.goTo(options.initialPage, options.signal)
-    return session
-  }
-
-  getSession(sessionId: ReaderSessionId): ReaderSession | undefined {
-    return this.#sessions.get(sessionId)
-  }
-
-  async closeSession(sessionId: ReaderSessionId): Promise<void> {
-    await this.#sessions.get(sessionId)?.close()
-  }
-
-  async [Symbol.asyncDispose](): Promise<void> {
-    if (this.#closed) return
-    this.#closed = true
-    const sessions = [...this.#sessions.values()]
-    await Promise.all(sessions.map((session) => session.close()))
-    this.#sessions.clear()
-  }
-
-  #assertOpen(): void {
-    if (this.#closed) throw new Error("Reader service is closed.")
   }
 }
 

@@ -14,8 +14,5 @@ export const def = {
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>
 
 export { core }
-export * from "./archive.js"
 export * from "./core.js"
-export * from "./frame.js"
-export * from "./session.js"
 export default entry

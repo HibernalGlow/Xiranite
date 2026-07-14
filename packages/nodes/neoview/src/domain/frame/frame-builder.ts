@@ -1,31 +1,6 @@
-import type { PageId, ReaderGeneration, ReaderPage, ReadingDirection } from "./core.js"
-
-export type PageMode = "single" | "double"
-
-export interface ReaderLayout {
-  pageMode: PageMode
-  panorama: boolean
-  singleFirstPage: boolean
-  singleLastPage: boolean
-  treatWidePageAsSingle: boolean
-}
-
-export interface FramePage {
-  pageId: PageId
-  pageIndex: number
-  side: "single" | "left" | "right"
-}
-
-export interface FrameSnapshot {
-  generation: ReaderGeneration
-  anchorPageIndex: number
-  direction: ReadingDirection
-  layout: ReaderLayout
-  pages: readonly FramePage[]
-  pageCount: number
-  atStart: boolean
-  atEnd: boolean
-}
+import type { ReadingDirection } from "../navigation/navigation.js"
+import type { ReaderPage } from "../page/page.js"
+import type { FramePage, FrameSnapshot, ReaderGeneration, ReaderLayout } from "./frame.js"
 
 export interface BuildFrameInput {
   pages: readonly ReaderPage[]
@@ -33,14 +8,6 @@ export interface BuildFrameInput {
   generation: ReaderGeneration
   direction: ReadingDirection
   layout: ReaderLayout
-}
-
-export const DEFAULT_READER_LAYOUT: ReaderLayout = {
-  pageMode: "single",
-  panorama: false,
-  singleFirstPage: true,
-  singleLastPage: true,
-  treatWidePageAsSingle: true,
 }
 
 export function buildFrameSnapshot(input: BuildFrameInput): FrameSnapshot {

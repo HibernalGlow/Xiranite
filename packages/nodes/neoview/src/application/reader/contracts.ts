@@ -1,0 +1,47 @@
+import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
+import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderGeneration, type ReaderLayout } from "../../domain/frame/frame.js"
+import type { ReadingDirection, TailOverflowBehavior } from "../../domain/navigation/navigation.js"
+
+export type ReaderSessionId = string
+
+export interface ReaderSessionOptions {
+  direction: ReadingDirection
+  layout: ReaderLayout
+  tailOverflow: TailOverflowBehavior
+}
+
+export const DEFAULT_READER_SESSION_OPTIONS: ReaderSessionOptions = {
+  direction: "left-to-right",
+  layout: { ...DEFAULT_READER_LAYOUT },
+  tailOverflow: "stay-on-last-page",
+}
+
+export type ReaderSessionEvent =
+  | { type: "frame"; snapshot: FrameSnapshot }
+  | { type: "pages-changed"; pages: ReaderBook["pages"]; generation: ReaderGeneration }
+  | { type: "error"; code: string; message: string; recoverable: boolean }
+  | { type: "closed"; sessionId: ReaderSessionId }
+
+export interface ReaderSession extends AsyncDisposable {
+  readonly id: ReaderSessionId
+  readonly book: ReaderBook
+  readonly generation: ReaderGeneration
+  snapshot(): FrameSnapshot
+  goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
+  next(signal?: AbortSignal): Promise<FrameSnapshot>
+  previous(signal?: AbortSignal): Promise<FrameSnapshot>
+  updateOptions(options: Partial<ReaderSessionOptions>): FrameSnapshot
+  subscribe(listener: (event: ReaderSessionEvent) => void): () => void
+  close(): Promise<void>
+}
+
+export interface OpenViewSourceOptions extends Partial<ReaderSessionOptions> {
+  initialPage?: number
+  signal?: AbortSignal
+}
+
+export interface ReaderService extends AsyncDisposable {
+  openViewSource(source: ViewSource, options?: OpenViewSourceOptions): Promise<ReaderSession>
+  getSession(sessionId: ReaderSessionId): ReaderSession | undefined
+  closeSession(sessionId: ReaderSessionId): Promise<void>
+}

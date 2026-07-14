@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import type { ReaderPage } from "./core.js"
-import { buildFrameSnapshot, DEFAULT_READER_LAYOUT } from "./frame.js"
+import type { ReaderPage } from "../page/page.js"
+import { buildFrameSnapshot } from "./frame-builder.js"
+import { DEFAULT_READER_LAYOUT } from "./frame.js"
 
 const pages: ReaderPage[] = [
   page(0, 800, 1200),

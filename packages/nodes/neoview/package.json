@@ -10,25 +10,17 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./archive": {
-      "types": "./dist/archive.d.ts",
-      "default": "./dist/archive.js"
-    },
     "./core": {
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
-    "./frame": {
-      "types": "./dist/frame.d.ts",
-      "default": "./dist/frame.js"
-    },
-    "./session": {
-      "types": "./dist/session.d.ts",
-      "default": "./dist/session.js"
-    },
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "files": ["dist"],

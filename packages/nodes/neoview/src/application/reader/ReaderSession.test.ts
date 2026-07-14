@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
-import type { ReaderBook, ReaderPage } from "./core.js"
-import { CoreReaderService, CoreReaderSession } from "./session.js"
+import type { ReaderBook } from "../../domain/book/book.js"
+import type { ReaderPage } from "../../domain/page/page.js"
+import { CoreReaderService } from "./ReaderService.js"
+import { CoreReaderSession } from "./ReaderSession.js"
 
 describe("CoreReaderSession", () => {
   it("[neoview.session.navigation] advances by frames and increments generation", async () => {

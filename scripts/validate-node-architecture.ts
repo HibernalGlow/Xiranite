@@ -58,6 +58,7 @@ async function main() {
     await collectPackageFindings(join(nodeDir.path, "package.json"), findings)
     await collectCliFindings(join(nodeDir.path, "src", "cli.ts"), findings)
     await collectCoreFindings(join(nodeDir.path, "src", "core.ts"), findings)
+    if (nodeDir.name === "neoview") await collectNeoViewLayerFindings(nodeDir.path, findings)
   }
 
   if (findings.length) {
@@ -269,6 +270,78 @@ async function collectCoreFindings(file: string, findings: Finding[]): Promise<v
       addNodeFinding(source, node, "core must not directly use Node/Bun platform APIs", nodeText(source, node), findings)
     }
   })
+}
+
+async function collectNeoViewLayerFindings(nodeDir: string, findings: Finding[]): Promise<void> {
+  const sourceRoot = join(nodeDir, "src")
+  const allowedRootFiles = new Set(["index.ts", "core.ts", "platform.ts", "cli.ts", "Tui.tsx", "help.ts"])
+  const sourceFiles = await listSourceFiles(sourceRoot)
+
+  for (const file of sourceFiles) {
+    const source = await parseSourceIfExists(file)
+    if (!source) continue
+    const localPath = file.slice(sourceRoot.length + 1).replace(/\\/g, "/")
+    if (!localPath.includes("/") && !allowedRootFiles.has(localPath)) {
+      findings.push({
+        file,
+        line: 1,
+        label: "NeoView heavy node implementation must not remain flat",
+        text: `${localPath} must move under domain/application/ports/platform/testing`,
+      })
+    }
+
+    for (const statement of [...importDeclarations(source), ...exportDeclarations(source)]) {
+      const specifier = importSource(statement)
+      if (!specifier) continue
+      const normalized = specifier.replace(/\\/g, "/")
+      const isTestingDependency = /(?:^|\/)testing(?:\/|$|\.[cm]?[jt]sx?$)/.test(normalized)
+      if (!localPath.startsWith("testing/") && isTestingDependency) {
+        addNodeFinding(source, statement, "NeoView production code must not depend on testing", specifier, findings)
+      }
+      if (localPath.startsWith("domain/") && isForbiddenLayer(normalized, ["application", "ports", "platform", "testing"])) {
+        addNodeFinding(source, statement, "NeoView domain must remain platform and use-case independent", specifier, findings)
+      }
+      if (localPath.startsWith("application/") && isForbiddenLayer(normalized, ["platform", "testing"])) {
+        addNodeFinding(source, statement, "NeoView application must depend on ports instead of implementations", specifier, findings)
+      }
+      if (localPath.startsWith("ports/") && isForbiddenLayer(normalized, ["application", "platform", "testing"])) {
+        addNodeFinding(source, statement, "NeoView ports must not depend on application or implementations", specifier, findings)
+      }
+      if (localPath === "core.ts" && isForbiddenLayer(normalized, ["platform", "testing"])) {
+        addNodeFinding(source, statement, "NeoView core facade must not expose platform or testing implementations", specifier, findings)
+      }
+    }
+  }
+
+  const packageFile = join(nodeDir, "package.json")
+  const parsed = await parseJsonIfExists(packageFile)
+  if (!parsed) return
+  const exports = (parsed.value as { exports?: Record<string, unknown> }).exports ?? {}
+  const allowedExports = new Set([".", "./core", "./platform", "./testing"])
+  for (const name of Object.keys(exports)) {
+    if (!allowedExports.has(name)) {
+      findings.push({
+        file: packageFile,
+        line: lineForText(parsed.content, `"${name}"`) ?? 1,
+        label: "NeoView package must keep a narrow stable export surface",
+        text: `unexpected export ${name}`,
+      })
+    }
+  }
+  for (const name of allowedExports) {
+    if (!(name in exports)) {
+      findings.push({
+        file: packageFile,
+        line: 1,
+        label: "NeoView package is missing a required stable export",
+        text: `missing export ${name}`,
+      })
+    }
+  }
+}
+
+function isForbiddenLayer(specifier: string, layers: string[]): boolean {
+  return layers.some((layer) => new RegExp(`(?:^|/)${layer}(?:/|$|\\.[cm]?[jt]sx?$)`).test(specifier))
 }
 
 async function parseSourceIfExists(file: string): Promise<SourceFile | null> {
@@ -508,6 +581,17 @@ async function listNodeDirs(nodesRoot: string): Promise<Array<{ name: string; pa
   return dirs.sort((left, right) => left.name.localeCompare(right.name))
 }
 
+async function listSourceFiles(root: string): Promise<string[]> {
+  const output: string[] = []
+  const entries = await readdir(root, { withFileTypes: true })
+  for (const entry of entries) {
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) output.push(...await listSourceFiles(path))
+    else if (/\.[cm]?[jt]sx?$/.test(entry.name)) output.push(path)
+  }
+  return output
+}
+
 async function readTextIfExists(file: string): Promise<string | null> {
   try {
     return await readFile(file, "utf8")
@@ -547,6 +631,7 @@ function printHelp(): void {
     "- index.ts and package exports keep demo shells private",
     "- cli.ts does not import the React UI component",
     "- core.ts avoids obvious UI/app/native platform imports",
+    "- NeoView keeps its heavy-node layers, test boundary, and public exports narrow",
   ].join("\n"))
 }
 
