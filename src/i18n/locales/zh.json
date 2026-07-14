@@ -470,7 +470,7 @@
       "flags": {
         "jxl": {
           "label": "JPEG XL",
-          "description": "启用 Chromium 的 JPEG XL 图片解码，适合图片工具和文件预览。"
+          "description": "尝试启用 Chromium 的 JPEG XL 图片解码；仅在当前 WebView2 Runtime 编译了 JXL 解码器时生效。"
         },
         "codeCache": {
           "label": "WebView2 Code Cache",

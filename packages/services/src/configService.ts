@@ -121,8 +121,8 @@ default = "ws-default"
 
 # WebView2 启动参数（修改后需完全重启桌面应用）
 [webview2]
-features = ["JXLImageFormat", "msWebView2CodeCache", "msWebView2NativeEventDispatch", "CanvasOopRasterization"]
-switches = ["--enable-gpu-rasterization", "--enable-zero-copy"]
+features = []
+switches = ["--msWebView2CodeCache", "--msWebView2NativeEventDispatch", "--enable-gpu-rasterization", "--enable-zero-copy"]
 
 # 节点配置示例 (详见 docs/node-config-toml-strategy.md):
 #

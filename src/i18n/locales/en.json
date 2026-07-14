@@ -470,7 +470,7 @@
       "flags": {
         "jxl": {
           "label": "JPEG XL",
-          "description": "Enable Chromium JPEG XL decoding for image tools and file previews."
+          "description": "Attempt to enable Chromium JPEG XL decoding; this only works when the current WebView2 Runtime was built with the JXL decoder."
         },
         "codeCache": {
           "label": "WebView2 Code Cache",

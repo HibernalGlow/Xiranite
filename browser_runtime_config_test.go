@@ -37,14 +37,14 @@ func TestLoadBrowserRuntimeConfigDefaultsWhenSectionMissing(t *testing.T) {
 func TestLoadBrowserRuntimeConfigSanitizesConfiguredFlags(t *testing.T) {
 	path := filepath.Join(t.TempDir(), xiraniteConfigFilename)
 	content := `[webview2]
-features = ["JXLImageFormat", "UnknownFeature", "JXLImageFormat"]
+features = ["ParallelDownloading", "UnknownFeature", "ParallelDownloading"]
 switches = ["--enable-zero-copy", "--unsafe-switch"]
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	result := loadBrowserRuntimeConfigFromPath(path)
-	want := BrowserRuntimeConfig{Features: []string{"JXLImageFormat"}, Switches: []string{"--enable-zero-copy"}}
+	want := BrowserRuntimeConfig{Features: []string{"ParallelDownloading"}, Switches: []string{"--enable-zero-copy"}}
 	if !reflect.DeepEqual(result.Config, want) {
 		t.Fatalf("config = %#v, want %#v", result.Config, want)
 	}
