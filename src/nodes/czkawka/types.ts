@@ -70,6 +70,8 @@ export interface CzkawkaCardState {
   copyMode?: boolean
   preserveStructure?: boolean
   conflictPolicy?: CzkawkaConflictPolicy
+  organizeSubfolderTemplate?: string
+  organizeSkipSingleFileFolders?: boolean
   outputPath?: string
   phase?: CzkawkaPhase
   progress?: number

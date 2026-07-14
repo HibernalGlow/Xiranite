@@ -27,6 +27,7 @@ export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" 
 export type CzkawkaDeleteMode = "trash" | "permanent"
 export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
 export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "saved" | "skipped" | "error"
+export interface CzkawkaDestinationItem { path: string; destination: string }
 
 export interface CzkawkaInput {
   action?: CzkawkaAction
@@ -79,6 +80,7 @@ export interface CzkawkaInput {
   descending?: boolean
   selectedPaths?: string[]
   destinationDirectory?: string
+  destinationItems?: CzkawkaDestinationItem[]
   deleteMode?: CzkawkaDeleteMode
   copyMode?: boolean
   preserveStructure?: boolean
@@ -175,6 +177,7 @@ const BASIC_TOOLS = new Set<CzkawkaTool>(["empty-folders", "big-files", "empty-f
 const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"])
 
 export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInput> {
+  const destinationItems = normalizeDestinationItems(input.destinationItems)
   return {
     action: input.action ?? "scan",
     tool: input.tool ?? "duplicate-files",
@@ -224,8 +227,9 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
-    selectedPaths: unique(input.selectedPaths ?? []),
+    selectedPaths: unique([...(input.selectedPaths ?? []), ...destinationItems.map((item) => item.path)]),
     destinationDirectory: clean(input.destinationDirectory),
+    destinationItems,
     deleteMode: oneOf(input.deleteMode, ["trash", "permanent"] as const, "trash"),
     copyMode: input.copyMode ?? false,
     preserveStructure: input.preserveStructure ?? false,
@@ -243,7 +247,7 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
     if (!value.selectedPaths.length) return fail(value, "Select at least one result path.")
     if (value.action === "delete") return await mutate(value, runtime, "delete", onEvent)
     if (value.action === "move") {
-      if (!value.destinationDirectory) return fail(value, "A destination directory is required.")
+      if (!value.destinationDirectory && !value.destinationItems.length) return fail(value, "A destination directory or per-item destinations are required.")
       return await mutate(value, runtime, "move", onEvent)
     }
     if (!value.outputPath) return fail(value, "An output path is required.")
@@ -334,10 +338,11 @@ export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionSt
 async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, action: "delete" | "move", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   const entries: CzkawkaEntry[] = []
   const claimedTargets = new Set<string>()
+  const destinations = new Map(value.destinationItems.map((item) => [item.path, item.destination]))
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
     const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : value.copyMode ? "copy" : "move"
-    let target = action === "move" ? operationTarget(value, runtime, path) : undefined
+    let target = action === "move" ? operationTarget(value, runtime, path, destinations.get(path)) : undefined
     const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, operation, conflictPolicy: action === "move" ? value.conflictPolicy : undefined }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${operation} ${runtime.basename(path)}` })
     try {
@@ -368,7 +373,8 @@ async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, ac
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
 }
 
-function operationTarget(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, source: string): string {
+function operationTarget(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
+  if (itemDestination) return runtime.join(itemDestination, runtime.basename(source))
   const relativeDirectory = value.preserveStructure ? runtime.relativeDirectoryFromRoot(source) : ""
   return relativeDirectory ? runtime.join(value.destinationDirectory, relativeDirectory, runtime.basename(source)) : runtime.join(value.destinationDirectory, runtime.basename(source))
 }
@@ -403,6 +409,7 @@ function summarize(value: Required<CzkawkaInput>, groups: CzkawkaGroup[], messag
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
 function fail(value: Required<CzkawkaInput>, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
+function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
 function clean(value: unknown): string { return String(value ?? "").trim() }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.round(parsed))) : fallback }
 function oneOf<const Values extends readonly (string | number)[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }

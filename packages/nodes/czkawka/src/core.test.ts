@@ -101,6 +101,14 @@ describe("czkawka TypeScript orchestration", () => {
     expect(result.data?.entries.map((entry) => entry.secondaryPath)).toEqual(["E:/archive/a.bin", "E:/archive/a (1).bin"])
   })
 
+  test("executes one shared move plan with per-item destination folders", async () => {
+    const adapter = runtime()
+    const result = await runCzkawka({ action: "move", destinationItems: [{ path: "D:/one/a.bin", destination: "E:/group-1" }, { path: "D:/two/b.bin", destination: "F:/group-2" }], copyMode: true, dryRun: false }, adapter)
+    expect(result.data?.entries.map((entry) => entry.secondaryPath)).toEqual(["E:/group-1/a.bin", "F:/group-2/b.bin"])
+    expect(adapter.copyPath).toHaveBeenNthCalledWith(1, "D:/one/a.bin", "E:/group-1/a.bin")
+    expect(adapter.copyPath).toHaveBeenNthCalledWith(2, "D:/two/b.bin", "F:/group-2/b.bin")
+  })
+
   test("keeps detailed per-item success and error results", async () => {
     const adapter = runtime()
     vi.mocked(adapter.movePath).mockRejectedValueOnce(new Error("locked")).mockResolvedValueOnce(undefined)

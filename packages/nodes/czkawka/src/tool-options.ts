@@ -3,7 +3,7 @@ import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "dryRun">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "dryRun">
 type OptionValue = string | number | boolean
 
 export interface CzkawkaOptionDefinition {
@@ -117,6 +117,7 @@ export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan
     tool: values.tool as CzkawkaTool | undefined,
     selectedPaths: lines(values.selectedPathsText ?? values.selectedPaths),
     destinationDirectory: text(values.destinationDirectory),
+    destinationItems: Array.isArray(values.destinationItems) ? values.destinationItems as NonNullable<CzkawkaInput["destinationItems"]> : [],
     deleteMode: values.deleteMode === "permanent" ? "permanent" : "trash",
     copyMode: values.copyMode === true,
     preserveStructure: values.preserveStructure === true,

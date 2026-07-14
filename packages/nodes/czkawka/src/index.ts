@@ -21,4 +21,5 @@ export * from "./analysis.js"
 export * from "./activity-log.js"
 export * from "./card-layout.js"
 export * from "./floating-panel.js"
+export * from "./operations.js"
 export default entry

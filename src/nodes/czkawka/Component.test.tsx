@@ -117,6 +117,17 @@ describe("Czkawka node", () => {
     expect(screen.getByText(/E:\/Review\/album\/a \(1\)\.jpg/)).toBeTruthy()
   })
 
+  test("expands a selected similar-image row into a shared multi-destination group plan", async () => {
+    const entries = [{ id: "a", groupId: 7, path: "D:/photos/a.jpg", name: "a.jpg", size: 1, modifiedDate: 1 }, { id: "b", groupId: 7, path: "D:/photos/b.jpg", name: "b.jpg", size: 1, modifiedDate: 1 }]
+    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 7, entries, totalBytes: 2, reclaimableBytes: 1 }], entries, groupCount: 1, fileCount: 2, totalBytes: 2, reclaimableBytes: 1 }
+    const host = createHost({ tool: "similar-images", result, dryRun: true }, () => ({ ...sample, action: "move", tool: "similar-images" }))
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 a.jpg" }))
+    fireEvent.click(screen.getByRole("button", { name: "整理相似组（2）" }))
+    fireEvent.click(screen.getByRole("button", { name: "确认整理" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "move", selectedPaths: ["D:/photos/a.jpg", "D:/photos/b.jpg"], destinationItems: [{ path: "D:/photos/a.jpg", destination: "D:/photos/variants_0007" }, { path: "D:/photos/b.jpg", destination: "D:/photos/variants_0007" }], dryRun: true }))
+  })
+
   test("persists custom filter presets in node state", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)
