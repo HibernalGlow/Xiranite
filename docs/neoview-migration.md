@@ -243,7 +243,7 @@ NeeView 的价值不是 UI，而是成熟的阅读器领域模型。以下结论
 
 | NeeView 模型 | 源码证据 | Xiranite 映射 |
 | --- | --- | --- |
-| 可见页 `View` 与预读 `Ahead` 分队列 | `BookPageLoader/BookPageLoader.cs` | `interactive` 与 `prefetch` 两种任务类别 |
+| 可见页 `View` 与预读 `Ahead` 分队列 | `BookPageLoader/BookPageLoader.cs` | `interactive`、`view` 与 `ahead` 分级任务 |
 | 最新加载请求替代并取消旧请求 | `BookPageLoader.LoadAsync()` | session generation + `AbortController` |
 | 先加载可见页，再“前 1、后 1、前方剩余、后方剩余” | `BookPageLoader.LoadAsync()` | 默认方向感知预读策略 |
 | 预读前检查内存预算 | `LoadAheadCoreAsync()` | scheduler admission + byte budget |
@@ -1025,7 +1025,7 @@ JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp 
 
 可选 sharp 变换现已接入同一 asset route。无变换参数时仍走原始 `PageSource`、Range、原始 `Content-Length` 和原图 ETag，且不会加载 sharp；只有 URL 明确携带有界的 `width`/`height`/`dpr`/`fit`/`format`/`quality` 时，才动态导入 `SharpImageTransformer`。参数先规范化并进入变体 ETag，重复参数、非法组合、超限尺寸在打开 page source 和 native 模块前返回 400。变换链为 `PageSource stream -> sharp Duplex -> Web ReadableStream -> HTTP`，不调用 `toBuffer()`，转换响应不谎报 Range 或预先物化以计算 `Content-Length`。当前支持 JPEG、PNG、WebP、AVIF 输出，默认缩放结果为 `inside` WebP，并通过 `AbortSignal` 将客户端断开传到输入流与 sharp pipeline。
 
-`sharp@0.34.5` 已被 CLI runtime 使用，NeoView 声明相同直接依赖，lockfile 仍只有一个版本；模块与 libvips 初始化保持二级懒加载。当前 `PriorityResourceScheduler` 为 NeoView 进程内共享的过渡实现：最多两个交互变换，并为 interactive 保留一个槽位，队列支持取消。它解决 Reader 自身无界并发，但尚不能证明与其他节点共享总配额；后续必须把同一 `ResourceScheduler` port 由 backend 宿主注入，缩略图、归档、超分及其他高负载节点都从宿主调度器取得 lease。
+`sharp@0.34.5` 已被 CLI runtime 使用，NeoView 声明相同直接依赖，lockfile 仍只有一个版本；模块与 libvips 初始化保持二级懒加载。backend 现已拥有单例 `ResourceSchedulerService`，按 CPU/I/O/GPU 分池，并支持 interactive/view/ahead/background 优先级、交互保留槽、排队取消和状态快照；它通过 `ResourceScheduler` contract 注入懒加载的 NeoView controller，真实 loopback 转码测试会验证 sharp 从宿主 CPU 池取得 lease。独立 CLI/TUI 没有 backend 时使用相同 port 后面的本地 `PriorityResourceScheduler` fallback。宿主总配额基础设施已经唯一，但其他高负载节点、缩略图、归档和超分仍需逐个改为取得宿主 lease，接入完成前不能声称所有工具已受全局配额约束。
 
 ### 11.8 并发、缓存和背压
 
@@ -1143,6 +1143,8 @@ Reader 需要局部队列，但资源配额必须由 Xiranite 进程级调度器
 - Worker 和 7-Zip helper 懒创建，空闲超时后退出。
 
 ReaderService 应支持多个 session，但不能让 session 数量线性乘以 Worker 数和缓存上限。多个 session 共享执行器与内容寻址磁盘缓存，各自拥有取消域和可见页 pin。
+
+当前宿主实现位于 `packages/services/src/resourceScheduler.ts`，契约位于 `@xiranite/contract`。backend 为每个进程只创建一个实例并注入 NeoView；CPU 默认 2、I/O 默认 4、GPU 默认 1 个并发槽，各池可独立配置。默认值只是安全起点，后续必须由 `scheduler-contention` 基准按硬件修订。服务快照公开 active、queued 和各优先级排队数，后续诊断页面与 benchmark 直接读取该状态，节点不得另建不可观测的全局队列。
 
 ## 14. 会话生命周期和休眠
 
@@ -1809,7 +1811,7 @@ scripts/
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；可选 sharp transform 复用同一响应链；
 - 已接入 256 KiB 有界的纯 TS 流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL 与 AVIF 变换属性留给惰性 native fallback；
-- 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。当前 NeoView 内部调度上限已生效，宿主级跨节点总配额仍待接入；
+- 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；

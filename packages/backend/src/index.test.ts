@@ -1,8 +1,9 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
+import { ResourceSchedulerService } from "@xiranite/services"
 import type { NodeRunEventDTO } from "@xiranite/shared"
 import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, resolveBackendDatabaseConfig, resolveBackendDataDir, startBackend } from "./index.js"
 
@@ -395,14 +396,17 @@ describe("backend", () => {
     }
   })
 
-  test("[neoview.http.e2e] lazily mounts the reader control and streaming asset routes", async () => {
+  test("[neoview.http.e2e] [neoview.scheduler.host-injection] lazily mounts the reader control and streaming asset routes", async () => {
     const dataDir = await createTempDataDir()
     const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-book-"))
     await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
+    const resourceScheduler = new ResourceSchedulerService()
+    const acquireResource = vi.spyOn(resourceScheduler, "acquire")
     const backend = await startBackend({
       token: "test-token",
       repository: createMemoryWorkspaceRepository(),
       dataDir,
+      resourceScheduler,
     })
     try {
       const opened = await fetch(`${backend.url}/reader/sessions`, {
@@ -438,6 +442,11 @@ describe("backend", () => {
       expect(transformed.headers.has("accept-ranges")).toBe(false)
       expect(transformedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
       expect(transformedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
+      expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
+        resource: "cpu",
+        kind: "neoview.image-transform",
+        priority: "interactive",
+      }), expect.any(AbortSignal))
 
       const closed = await fetch(`${backend.url}/reader/s/${session.sessionId}`, {
         method: "DELETE",

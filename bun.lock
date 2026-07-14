@@ -1126,6 +1126,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
         "@xiranite/repository": "workspace:*",
         "@xiranite/shared": "workspace:*",
       },

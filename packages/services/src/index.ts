@@ -1,6 +1,7 @@
 import type { NodeRunHistoryRepository, WorkspaceRepository } from "@xiranite/repository"
 import { ConfigService } from "./configService.js"
 import { NodeRunHistoryService } from "./historyService.js"
+import { ResourceSchedulerService } from "./resourceScheduler.js"
 import {
   createWorkspaceInputSchema,
   type NodeOperationCleanupResponseDTO,
@@ -515,6 +516,7 @@ export interface XiraniteServices {
   nodes: NodeRunnerService
   config: ConfigService
   history?: NodeRunHistoryService
+  resources: ResourceSchedulerService
   system?: XiraniteSystemService
 }
 
@@ -542,6 +544,7 @@ export interface CreateXiraniteServicesOptions {
   databasePath?: string
   dataDir?: string
   historyRepository?: NodeRunHistoryRepository
+  resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
 }
 
@@ -560,6 +563,7 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
       kvRepository: repository,
     }),
     history,
+    resources: options.resourceScheduler ?? new ResourceSchedulerService(),
     system: options.system,
   }
 }
@@ -567,6 +571,19 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
 export { ConfigService } from "./configService.js"
 export type { BackgroundImageResult, CustomThemesResult, NodePreset, NodePresetResult, NodePresetsResult, SerializableTheme } from "./configService.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
+export { ResourceSchedulerService } from "./resourceScheduler.js"
+export type {
+  ResourcePoolOptions,
+  ResourcePoolSnapshot,
+  ResourceSchedulerServiceOptions,
+} from "./resourceScheduler.js"
+export type {
+  ResourceClass,
+  ResourceLease,
+  ResourcePriority,
+  ResourceScheduler,
+  ResourceTaskRequest,
+} from "@xiranite/contract"
 export type {
   EnsureConfigFileResult,
   GetAppConfigResult,

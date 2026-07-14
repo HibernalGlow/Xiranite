@@ -104,7 +104,7 @@
       "settingsKeys": ["performance.preLoadSize", "performance.adaptivePreload", "performance.preDecodeCacheSize", "performance.progressiveLoad", "image.preloadCount", "book.preloadPages"],
       "dataStores": ["priority queues", "request dedup"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["View/Ahead/Background 优先级", "方向感知预读", "渐进批次", "背压", "快速翻页取消", "多节点资源配额"],
-      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.image.transform-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
+      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
     },
     {
       "id": "thumbnail-system",

@@ -6,7 +6,13 @@ import {
   type LibsqlNodeRunHistoryRepository,
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
-import { createXiraniteServices, type NodeRunner, type XiraniteSystemService } from "@xiranite/services"
+import {
+  createXiraniteServices,
+  type NodeRunner,
+  type ResourceScheduler,
+  type ResourceSchedulerService,
+  type XiraniteSystemService,
+} from "@xiranite/services"
 import { randomBytes } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { mkdir, readdir, stat } from "node:fs/promises"
@@ -31,6 +37,7 @@ export interface CreateDefaultBackendOptions {
   databaseAuthToken?: string
   dataDir?: string
   nodeRunner?: NodeRunner
+  resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
 }
 
@@ -55,6 +62,7 @@ export interface XiraniteBackendApp {
   repository: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
   database?: BackendDatabaseConfig
+  resources: ResourceSchedulerService
   close(): void
 }
 
@@ -75,6 +83,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     databasePath: database?.path,
     dataDir: options.dataDir,
     historyRepository,
+    resourceScheduler: options.resourceScheduler,
     system: {
       ...options.system,
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
@@ -88,6 +97,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     repository,
     historyRepository,
     database,
+    resources: services.resources,
     close() {
       closeRepository(repository)
       closeHistoryRepository(historyRepository)
@@ -144,7 +154,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname.startsWith("/reader/")) {
-        readerController ??= createReaderController(backendUrl, token).catch((error) => {
+        readerController ??= createReaderController(backendUrl, token, backend.resources).catch((error) => {
           readerController = undefined
           throw error
         })
@@ -192,13 +202,22 @@ interface BackendRequestController extends AsyncDisposable {
   handle(request: Request): Promise<Response | undefined>
 }
 
-async function createReaderController(baseUrl: string, token: string): Promise<BackendRequestController> {
+async function createReaderController(
+  baseUrl: string,
+  token: string,
+  resourceScheduler: ResourceScheduler,
+): Promise<BackendRequestController> {
   const platform = await loadNodePlatformModule("neoview")
   const factory = platform.createReaderHttpController
   if (typeof factory !== "function") throw new Error("NeoView platform is missing createReaderHttpController().")
-  return await (factory as (options: { baseUrl: string; token: string }) => Promise<BackendRequestController>)({
+  return await (factory as (options: {
+    baseUrl: string
+    token: string
+    resourceScheduler: ResourceScheduler
+  }) => Promise<BackendRequestController>)({
     baseUrl,
     token,
+    resourceScheduler,
   })
 }
 

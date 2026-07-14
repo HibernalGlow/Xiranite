@@ -3,7 +3,7 @@ import type { ArchiveProvider } from "./ports/ArchiveProvider.js"
 import type { ReaderBookLoader } from "./ports/ReaderBookLoader.js"
 import type { ZipArchiveProviderOptions } from "./platform/archives/zip/ZipArchiveProvider.js"
 import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset-route/ReaderAssetRoute.js"
-import type { ReaderHttpController } from "./platform/asset-route/ReaderHttpController.js"
+import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 
@@ -47,7 +47,7 @@ export async function createReaderAssetRoute(
 }
 
 export async function createReaderHttpController(
-  options: ReaderAssetRouteOptions,
+  options: ReaderHttpControllerOptions,
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
   return new ReaderHttpController(options)

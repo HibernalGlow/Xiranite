@@ -1,9 +1,10 @@
 import type {
+  ResourceClass,
   ResourceLease,
   ResourcePriority,
   ResourceScheduler,
   ResourceTaskRequest,
-} from "../../ports/ResourceScheduler.js"
+} from "@xiranite/contract"
 
 interface WaitingTask {
   request: ResourceTaskRequest
@@ -13,12 +14,52 @@ interface WaitingTask {
   abort?: () => void
 }
 
-export interface PriorityResourceSchedulerOptions {
-  maxConcurrent?: number
+export interface ResourcePoolOptions {
+  maxConcurrent: number
   reservedInteractive?: number
 }
 
-export class PriorityResourceScheduler implements ResourceScheduler {
+export interface ResourceSchedulerServiceOptions {
+  pools?: Partial<Record<ResourceClass, ResourcePoolOptions>>
+}
+
+export interface ResourcePoolSnapshot {
+  active: number
+  queued: number
+  queuedByPriority: Readonly<Record<ResourcePriority, number>>
+}
+
+const DEFAULT_POOLS: Record<ResourceClass, ResourcePoolOptions> = {
+  cpu: { maxConcurrent: 2, reservedInteractive: 1 },
+  io: { maxConcurrent: 4, reservedInteractive: 1 },
+  gpu: { maxConcurrent: 1, reservedInteractive: 0 },
+}
+
+export class ResourceSchedulerService implements ResourceScheduler {
+  readonly #pools: Record<ResourceClass, PriorityResourcePool>
+
+  constructor(options: ResourceSchedulerServiceOptions = {}) {
+    this.#pools = {
+      cpu: new PriorityResourcePool(options.pools?.cpu ?? DEFAULT_POOLS.cpu),
+      io: new PriorityResourcePool(options.pools?.io ?? DEFAULT_POOLS.io),
+      gpu: new PriorityResourcePool(options.pools?.gpu ?? DEFAULT_POOLS.gpu),
+    }
+  }
+
+  acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
+    return this.#pools[request.resource].acquire(request, signal)
+  }
+
+  snapshot(): Readonly<Record<ResourceClass, ResourcePoolSnapshot>> {
+    return {
+      cpu: this.#pools.cpu.snapshot(),
+      io: this.#pools.io.snapshot(),
+      gpu: this.#pools.gpu.snapshot(),
+    }
+  }
+}
+
+class PriorityResourcePool {
   readonly #maxConcurrent: number
   readonly #reservedInteractive: number
   readonly #queues: Record<ResourcePriority, WaitingTask[]> = {
@@ -29,23 +70,14 @@ export class PriorityResourceScheduler implements ResourceScheduler {
   }
   #active = 0
 
-  constructor(options: PriorityResourceSchedulerOptions = {}) {
-    this.#maxConcurrent = boundedInteger(options.maxConcurrent ?? 2, "maxConcurrent", 1, 64)
+  constructor(options: ResourcePoolOptions) {
+    this.#maxConcurrent = boundedInteger(options.maxConcurrent, "maxConcurrent", 1, 64)
     this.#reservedInteractive = boundedInteger(
       options.reservedInteractive ?? Math.min(1, this.#maxConcurrent - 1),
       "reservedInteractive",
       0,
       this.#maxConcurrent - 1,
     )
-  }
-
-  get active(): number {
-    return this.#active
-  }
-
-  get queued(): number {
-    return this.#queues.interactive.length + this.#queues.view.length
-      + this.#queues.ahead.length + this.#queues.background.length
   }
 
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
@@ -64,6 +96,20 @@ export class PriorityResourceScheduler implements ResourceScheduler {
       this.#queues[request.priority].push(waiting)
       this.#drain()
     })
+  }
+
+  snapshot(): ResourcePoolSnapshot {
+    return {
+      active: this.#active,
+      queued: this.#queues.interactive.length + this.#queues.view.length
+        + this.#queues.ahead.length + this.#queues.background.length,
+      queuedByPriority: {
+        interactive: this.#queues.interactive.length,
+        view: this.#queues.view.length,
+        ahead: this.#queues.ahead.length,
+        background: this.#queues.background.length,
+      },
+    }
   }
 
   #drain(): void {
@@ -98,11 +144,6 @@ export class PriorityResourceScheduler implements ResourceScheduler {
     })
   }
 }
-
-export const defaultImageTransformScheduler = new PriorityResourceScheduler({
-  maxConcurrent: 2,
-  reservedInteractive: 1,
-})
 
 function boundedInteger(value: number, name: string, minimum: number, maximum: number): number {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {

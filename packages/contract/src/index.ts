@@ -149,6 +149,24 @@ export interface HostComponentRef {
 
 export type { NodeRunEvent, NodeRunResult }
 
+export type ResourceClass = "cpu" | "io" | "gpu"
+export type ResourcePriority = "interactive" | "view" | "ahead" | "background"
+
+export interface ResourceTaskRequest {
+  resource: ResourceClass
+  kind: string
+  priority: ResourcePriority
+  ownerId?: string
+}
+
+export interface ResourceLease {
+  release(): void
+}
+
+export interface ResourceScheduler {
+  acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease>
+}
+
 /**
  * Fine-grained capability domains surfaced by the host to nodes.
  * Mirrors the `vscode.commands` / `vscode.workspace` split: a node opts into

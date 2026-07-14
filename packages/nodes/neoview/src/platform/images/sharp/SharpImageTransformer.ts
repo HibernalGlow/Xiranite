@@ -18,7 +18,11 @@ export class SharpImageTransformer implements ImageTransformer {
     signal?: AbortSignal,
   ): Promise<ImageTransformResult> {
     signal?.throwIfAborted()
-    const lease = await this.scheduler.acquire({ kind: "image-transform", priority: "interactive" }, signal)
+    const lease = await this.scheduler.acquire({
+      resource: "cpu",
+      kind: "neoview.image-transform",
+      priority: "interactive",
+    }, signal)
     try {
       const sharp = await loadSharp()
       signal?.throwIfAborted()

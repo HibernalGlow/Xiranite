@@ -4,6 +4,7 @@ import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession } from "../../application/reader/contracts.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
+import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -34,16 +35,20 @@ export interface ReaderSessionDto {
   visiblePages: ReaderPageDto[]
 }
 
+export interface ReaderHttpControllerOptions extends ReaderAssetRouteOptions {
+  resourceScheduler?: ResourceScheduler
+}
+
 export class ReaderHttpController implements AsyncDisposable {
   readonly #service = new CoreReaderService(createPlatformReaderBookLoader(), new StreamingImageMetadataProbe())
   readonly #assets: ReaderAssetRoute
   readonly #token: string
 
-  constructor(options: ReaderAssetRouteOptions) {
+  constructor(options: ReaderHttpControllerOptions) {
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       loadImageTransformer: async () => {
         const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-        return new SharpImageTransformer()
+        return new SharpImageTransformer(options.resourceScheduler)
       },
     })
     this.#token = options.token

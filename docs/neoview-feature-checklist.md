@@ -153,7 +153,7 @@
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.image.transform-cancellation`
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`
 - 性能基准：`scheduler-contention`、`cancel-latency`
 - 已知差异：无
 
