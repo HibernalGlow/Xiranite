@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
@@ -38,8 +38,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   const phase = data.phase ?? "idle"
   const caseSensitive = data.caseSensitive ?? true
   const sort = data.sort ?? true
-  const sourceLines = useMemo(() => splitLines(sourceText).filter((line) => line.trim()), [sourceText])
-  const filterTokens = useMemo(() => splitLines(filterText).filter((line) => line.trim()), [filterText])
+  const sourceLines = splitLines(sourceText).filter((line) => line.trim())
+  const filterTokens = splitLines(filterText).filter((line) => line.trim())
   const status = statusFromState(phase, result, sourceLines.length, filterTokens.length)
   const progress = phase === "completed" ? 100 : result ? 100 : 0
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"

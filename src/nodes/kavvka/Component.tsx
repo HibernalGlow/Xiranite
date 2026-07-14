@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { KavvkaAction, KavvkaData, KavvkaInput } from "@xiranite/node-kavvka/core"
 import { parseKavvkaKeywords, parseKavvkaPaths } from "@xiranite/node-kavvka/core"
@@ -40,9 +40,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const sourcePaths = useMemo(() => parseKavvkaPaths(data.sourceText), [data.sourceText])
-  const scanRoots = useMemo(() => parseKavvkaPaths(data.scanRootText), [data.scanRootText])
-  const keywords = useMemo(() => parseKavvkaKeywords(data.keywordText), [data.keywordText])
+  const sourcePaths = parseKavvkaPaths(data.sourceText)
+  const scanRoots = parseKavvkaPaths(data.scanRootText)
+  const keywords = parseKavvkaKeywords(data.keywordText)
   const dryRun = data.dryRun ?? true
   const action = data.action ?? "process"
   const actionMeta = ActionMeta(action)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { ArchiveEntry, MvzAction, MvzData, MvzInput } from "@xiranite/node-mvz/core"
 import { parseMvzEntries } from "@xiranite/node-mvz/core"
@@ -44,8 +44,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   const action = data.action ?? "extract"
   const actionMeta = findActionMeta(action)
   const separator = data.separator || "//"
-  const entries = useMemo(() => parseMvzEntries(data.entryText ?? "", separator), [data.entryText, separator])
-  const archiveCount = useMemo(() => new Set(entries.map((entry) => entry.archivePath)).size, [entries])
+  const entries = parseMvzEntries(data.entryText ?? "", separator)
+  const archiveCount = new Set(entries.map((entry) => entry.archivePath)).size
   const dryRun = data.dryRun ?? true
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
