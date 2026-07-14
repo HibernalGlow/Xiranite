@@ -24,7 +24,7 @@ export function LocalVideoPreviewDialog(props: LocalVideoPreviewDialogProps) {
   return <Dialog open={Boolean(item)} onOpenChange={(open) => { if (!open) props.onActivePathChange(undefined) }}><DialogContent showCloseButton={false} className="flex h-[min(90vh,900px)] max-w-[min(94vw,1200px)] flex-col gap-3" onKeyDown={(event) => { if (event.key === "ArrowLeft") { event.preventDefault(); move(-1) } else if (event.key === "ArrowRight") { event.preventDefault(); move(1) } }}><DialogHeader><DialogTitle className="pr-8">{item?.name ?? "视频预览"}</DialogTitle><DialogDescription className="break-all font-mono text-xs">{item?.path}</DialogDescription></DialogHeader>{item ? <LocalVideoPlayer key={item.path} item={item} source={props.getFileUrl?.(item.path)} position={`${index + 1} / ${props.items.length}`} canNavigate={props.items.length > 1} onPrevious={() => move(-1)} onNext={() => move(1)} /> : null}<Button aria-label="关闭视频预览" className="absolute right-4 top-4" size="icon-sm" variant="ghost" onClick={() => props.onActivePathChange(undefined)}><X /></Button></DialogContent></Dialog>
 }
 
-function LocalVideoPlayer({ item, source, position, canNavigate, onPrevious, onNext }: { item: LocalVideoPreviewItem; source?: string; position: string; canNavigate: boolean; onPrevious: () => void; onNext: () => void }) {
+export function LocalVideoPlayer({ item, source, position, canNavigate, onPrevious, onNext }: { item: LocalVideoPreviewItem; source?: string; position: string; canNavigate: boolean; onPrevious: () => void; onNext: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [playing, setPlaying] = useState(false)

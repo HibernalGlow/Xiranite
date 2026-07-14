@@ -95,6 +95,23 @@ describe("Czkawka node", () => {
     expect(host.stateValue.filterPresets).toEqual([expect.objectContaining({ name: "我的筛选" })])
   })
 
+  test("persists the fixed preview switch independently for every tool", () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    const view = render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "启用固定预览" }))
+    expect(host.stateValue.previewPanelEnabledByTool).toEqual({ "duplicate-files": true })
+
+    fireEvent.click(screen.getByRole("button", { name: "空文件" }))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect(screen.getByRole("button", { name: "启用固定预览" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "启用固定预览" }))
+    expect(host.stateValue.previewPanelEnabledByTool).toEqual({ "duplicate-files": true, "empty-files": true })
+
+    fireEvent.click(screen.getByRole("button", { name: "重复文件" }))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect(screen.getByRole("button", { name: "禁用固定预览" })).toBeTruthy()
+  })
+
   test("keeps per-tool selection history synchronized with the result table", async () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

@@ -106,6 +106,39 @@ describe("CzkawkaResultTable", () => {
     expect(dialog.getByText("2 / 2")).toBeTruthy()
   })
 
+  test("renders an inline persistent preview mode without opening a dialog", () => {
+    const onPreviewPanelEnabledChange = vi.fn()
+    const imageGroup: CzkawkaGroup = { ...group, entries: [entry("a.jpg", "Alpha"), entry("b.avif", "Beta")] }
+    const props = { tool: "similar-images" as const, groups: [imageGroup], running: false, selectedPaths: [], getFileUrl: (path: string) => `http://local/${path}`, onPreviewPanelEnabledChange, onSelectionChange: vi.fn() }
+    const view = render(<CzkawkaResultTable {...props} previewPanelEnabled />)
+
+    fireEvent.click(screen.getByRole("button", { name: "预览 a.jpg" }))
+    expect(screen.getByTestId("local-media-preview-panel")).toBeTruthy()
+    expect(screen.getByText("固定预览 · a.jpg")).toBeTruthy()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "下一张固定预览" }))
+    expect(screen.getByText("固定预览 · b.avif")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "关闭固定预览" }))
+    expect(screen.queryByTestId("local-media-preview-panel")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "禁用固定预览" }))
+    expect(onPreviewPanelEnabledChange).toHaveBeenCalledWith(false)
+    view.rerender(<CzkawkaResultTable {...props} previewPanelEnabled={false} />)
+    fireEvent.click(screen.getByRole("button", { name: "预览 a.jpg" }))
+    expect(screen.getByRole("dialog")).toBeTruthy()
+  })
+
+  test("routes fixed preview mode to reusable video and audio players", () => {
+    const mediaGroup: CzkawkaGroup = { ...group, entries: [entry("clip.mp4", "Clip"), entry("track.flac", "Track")] }
+    render(<CzkawkaResultTable tool="duplicate-music" groups={[mediaGroup]} running={false} selectedPaths={[]} previewPanelEnabled getFileUrl={(path) => `http://local/${path}`} onPreviewPanelEnabledChange={vi.fn()} onSelectionChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "播放 clip.mp4" }))
+    expect(screen.getByTestId("local-media-preview-panel").querySelector("video")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "关闭固定预览" }))
+    fireEvent.click(screen.getByRole("button", { name: "播放 track.flac" }))
+    expect(screen.getByTestId("local-media-preview-panel").querySelector("audio")).toBeTruthy()
+  })
+
   test("uses the shared media cell and navigates visible video results", () => {
     const mediaGroup: CzkawkaGroup = {
       ...group,

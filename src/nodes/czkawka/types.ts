@@ -55,6 +55,7 @@ export interface CzkawkaCardState {
   filterPresets?: CzkawkaStoredFilterPreset[]
   selectionAssistantConfig?: CzkawkaSelectionAssistantConfig
   selectionAssistantOpen?: boolean
+  previewPanelEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
   sortBy?: CzkawkaSort
   descending?: boolean
   dryRun?: boolean
