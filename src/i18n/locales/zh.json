@@ -918,6 +918,18 @@
         "columns": { "name": "名称", "path": "路径", "size": "大小", "groupSize": "组大小", "modified": "修改时间", "similarity": "相似度", "dimensions": "分辨率", "title": "标题", "artist": "艺术家", "year": "年份", "bitrate": "码率", "length": "时长", "target": "目标路径", "error": "错误类型", "currentExtension": "当前扩展名", "properExtension": "正确扩展名" },
         "scanFailedHint": "扫描失败，请检查扫描条件后重试。", "scanStoppedWithResults": "扫描已停止，已保留返回的结果。", "analyzing": "正在分析文件…", "noFilterMatch": "没有匹配当前筛选的结果。", "scanFailed": "扫描失败，请重试。", "scanStoppedEmpty": "扫描已停止，没有返回结果。", "scanCompletedEmpty": "扫描完成，未发现匹配项。", "addDirectory": "添加目录并开始扫描。", "rescan": "重新扫描", "groups": "结果组", "disablePinnedPreview": "禁用固定预览", "enablePinnedPreview": "启用固定预览", "filterLabel": "筛选结果", "filterPlaceholder": "过滤当前工具结果", "preview": "预览", "resizePreview": "调整预览列宽", "group": "组", "resizeColumn": "调整{{column}}列宽", "selectEntry": "选择 {{name}}", "previewEntry": "预览 {{name}}", "playEntry": "播放 {{name}}", "reference": "参考", "selectGroup": "选中该组", "unselectGroup": "取消选中该组", "copyPath": "复制路径", "copyName": "复制名称", "copyFileUnsupported": "当前宿主不支持复制本地文件对象", "copyFile": "复制文件", "open": "打开", "reveal": "在文件管理器中定位",
         "audio": { "checkType": "判断方式", "fingerprint": "音频指纹", "tags": "标签", "maximumDifference": "最大指纹差异", "minimumFragment": "最小片段", "titleConstraint": "标题限制", "similarTitles": "仅相似标题", "anyTitle": "不限标题", "genre": "流派" }
+      },
+      "filter": {
+        "open": "打开多维筛选", "filter": "筛选", "title": "多维筛选", "stats": "{{filtered}}/{{total}} 文件 · {{filteredGroups}}/{{totalGroups}} 组 · {{bytes}}", "reset": "重置", "enterPresetName": "请输入预设名称。", "regex": "正则表达式", "caseSensitive": "区分大小写", "invalidRegex": "正则无效：{{error}}", "groupCount": "组内数量", "groupSize": "组总体积", "fileSize": "文件大小", "similarity": "相似度（%）", "showWholeGroup": "命中组显示全部文件", "shortcuts": "快捷键：Ctrl/Cmd+F 打开 · Ctrl/Cmd+Shift+F 切换 · Ctrl/Cmd+R 刷新 · Esc 重置",
+        "presets": { "title": "筛选预设", "none": "无预设", "large": "大文件（≥100 MB）", "small": "小文件（≤1 MB）", "recent": "最近 30 天", "old": "一年以前", "delete": "删除当前预设", "newName": "新预设名称", "name": "预设名称", "save": "保存", "export": "导出 JSON", "import": "导入 JSON", "json": "预设 JSON" },
+        "text": { "title": "快速文本", "enabled": "启用文本筛选", "pattern": "快速文本模式", "placeholder": "名称、路径和媒体字段", "fieldLabel": "{{field}}字段", "fields": { "name": "名称", "path": "路径", "metadata": "媒体元数据", "detail": "详情" } },
+        "mark": { "title": "标记状态", "all": "全部", "selected": "已选", "unselected": "未选", "some": "组内部分已选", "allSelected": "组内全部已选", "noneSelected": "组内均未选", "reference": "仅参考项" },
+        "range": { "enabled": "{{label}}筛选", "minimum": "{{label}}最小", "maximum": "{{label}}最大", "unit": "单位", "unitLabel": "{{label}}单位" },
+        "extension": { "title": "扩展名", "enabled": "启用扩展名筛选", "mode": "扩展名模式", "include": "仅包含", "exclude": "排除", "list": "扩展名列表" },
+        "categories": { "images": "图片", "videos": "视频", "audio": "音频", "documents": "文档", "archives": "压缩包", "folders": "文件夹", "other": "其他" },
+        "date": { "title": "修改日期", "enabled": "启用日期筛选", "range": "日期范围", "today": "今天", "last7": "最近 7 天", "last30": "最近 30 天", "lastYear": "最近一年", "custom": "自定义", "start": "开始日期", "end": "结束日期" },
+        "path": { "title": "路径", "enabled": "启用路径筛选", "mode": "路径匹配模式", "contains": "包含", "notContains": "不包含", "startsWith": "开头是", "endsWith": "结尾是", "pattern": "路径模式" },
+        "resolution": { "title": "分辨率 / 宽高比", "enabled": "启用分辨率筛选", "minWidth": "最小宽度", "minHeight": "最小高度", "maxWidth": "最大宽度", "maxHeight": "最大高度", "aspectRatio": "宽高比", "any": "任意宽高比" }
       }
     },
     "scratch": {
