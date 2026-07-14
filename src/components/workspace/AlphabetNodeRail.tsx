@@ -232,17 +232,13 @@ export function AlphabetNodeRail() {
                     data-testid={`alphabet-node-result-${module.id}`}
                   >
                     <ModuleIcon icon={module.icon} />
-                    <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="flex min-w-0 flex-1 items-center gap-1">
                       <span className="shrink-0 text-xs font-medium">{module.name}</span>
-                      <span className="min-w-0 truncate text-[10px] font-normal text-muted-foreground">{module.description}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <CommandShortcut className="max-w-16 truncate text-[9px]">{module.id}</CommandShortcut>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="size-6 opacity-0 transition-opacity group-hover/result:opacity-100 group-focus-within/result:opacity-100 focus-visible:opacity-100"
+                        className="size-6 shrink-0 opacity-0 transition-opacity group-hover/result:opacity-100 group-focus-within/result:opacity-100 focus-visible:opacity-100"
                         aria-label={t("common:openFloatingWindow", { name: module.name })}
                         title={t("common:openFloatingWindow")}
                         onPointerDown={(event) => event.stopPropagation()}
@@ -251,7 +247,9 @@ export function AlphabetNodeRail() {
                       >
                         <ExternalLink data-icon="inline-start" />
                       </Button>
+                      <span className="min-w-0 truncate text-[10px] font-normal text-muted-foreground">{module.description}</span>
                     </span>
+                    <CommandShortcut className="max-w-16 shrink-0 truncate text-[9px]">{module.id}</CommandShortcut>
                   </CommandItem>
                 ))}
               </CommandGroup>
