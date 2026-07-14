@@ -81,6 +81,26 @@ describe("CzkawkaResultTable", () => {
     expect(dialog.getByText("2 / 2")).toBeTruthy()
   })
 
+  test("uses the shared media cell and navigates visible video results", () => {
+    const mediaGroup: CzkawkaGroup = {
+      ...group,
+      entries: [entry("a.mp4", "Alpha"), entry("cover.jpg", "Cover"), entry("b.webm", "Beta"), entry("track.flac", "Track")],
+    }
+    render(<CzkawkaResultTable tool="similar-videos" groups={[mediaGroup]} running={false} selectedPaths={[]} getFileUrl={(path) => `http://local/${path}`} onSelectionChange={vi.fn()} />)
+
+    expect(screen.getByRole("button", { name: "预览 cover.jpg" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "播放 track.flac" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "播放 a.mp4" }))
+    const dialog = within(screen.getByRole("dialog"))
+    expect(dialog.getByRole("heading", { name: "a.mp4" })).toBeTruthy()
+    expect(dialog.getByText("1 / 2")).toBeTruthy()
+    expect(dialog.getByText("1920×1080")).toBeTruthy()
+
+    fireEvent.click(dialog.getByRole("button", { name: "下一个视频" }))
+    expect(dialog.getByRole("heading", { name: "b.webm" })).toBeTruthy()
+    expect(dialog.getByText("2 / 2")).toBeTruthy()
+  })
+
   test("selects virtual rows by dragging a box", () => {
     const onSelectionChange = vi.fn()
     const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={onSelectionChange} />)
