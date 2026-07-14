@@ -10,7 +10,9 @@ publish = false
 crate-type = ["rlib"]
 
 [dependencies]
-czkawka_core = { path = "../vendor/czkawka_core", default-features = false }
+czkawka_core = { path = "../vendor/czkawka_core", default-features = false, features = ["libavif"] }
+image_hasher = { version = "3.0", features = ["fast_resize_unstable"] }
+vid_dup_finder_lib = "0.4"
 thiserror = "2"
 
 [dev-dependencies]
