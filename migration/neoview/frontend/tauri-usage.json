@@ -23,19 +23,20 @@
     "unmappedComponents": 0,
     "unmappedModules": 0,
     "dispositions": {
-      "converted": 124,
-      "adapter-needed": 22,
-      "manual": 114,
+      "converted": 10,
+      "adapter-needed": 3,
+      "manual": 247,
       "replaced": 282,
       "blocked": 9
     },
     "moduleDispositions": {
-      "converted": 246,
-      "adapter-needed": 45,
-      "manual": 75,
+      "converted": 214,
+      "adapter-needed": 39,
+      "manual": 113,
       "replaced": 77,
       "blocked": 4
-    }
+    },
+    "reactScaffolds": 10
   },
   "tauriUsage": [
     {

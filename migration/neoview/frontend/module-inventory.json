@@ -23,19 +23,20 @@
     "unmappedComponents": 0,
     "unmappedModules": 0,
     "dispositions": {
-      "converted": 124,
-      "adapter-needed": 22,
-      "manual": 114,
+      "converted": 10,
+      "adapter-needed": 3,
+      "manual": 247,
       "replaced": 282,
       "blocked": 9
     },
     "moduleDispositions": {
-      "converted": 246,
-      "adapter-needed": 45,
-      "manual": 75,
+      "converted": 214,
+      "adapter-needed": 39,
+      "manual": 113,
       "replaced": 77,
       "blocked": 4
-    }
+    },
+    "reactScaffolds": 10
   },
   "modules": [
     {
@@ -3606,7 +3607,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "complex rune graph: $derived, $effect, $state",
+        "state/reactivity requires React review: $derived, $effect, $state",
         "Svelte context lifecycle: <dynamic>",
         "store coordination: activeTabId, allTabs, tabDeleteMode, tabInlineTreeMode, tabMultiSelectMode, tabShowMigrationBar, tabShowSearchBar, navigationCommand"
       ],
@@ -3840,6 +3841,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $derived, $state",
         "store coordination: activeTabId, allTabs, navigationCommand"
       ],
       "parseErrors": []
@@ -4020,10 +4022,11 @@
           "line": 55
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -4381,10 +4384,11 @@
           "line": 52
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -5367,10 +5371,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -6440,14 +6444,16 @@
       "storePrimitives": [
         "derived"
       ],
-      "subscriptions": [],
+      "subscriptions": [
+        "store"
+      ],
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "store coordination: store"
       ],
       "parseErrors": []
     },
@@ -6908,7 +6914,9 @@
       "storePrimitives": [
         "get"
       ],
-      "subscriptions": [],
+      "subscriptions": [
+        "store"
+      ],
       "storageKeys": [],
       "writes": [
         "store"
@@ -6917,7 +6925,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "store coordination: store"
+        "store coordination: store, store"
       ],
       "parseErrors": []
     },
@@ -7025,7 +7033,9 @@
       ],
       "runes": [],
       "storePrimitives": [],
-      "subscriptions": [],
+      "subscriptions": [
+        "store"
+      ],
       "storageKeys": [],
       "writes": [
         "store"
@@ -7034,7 +7044,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "store coordination: store"
+        "store coordination: store, store"
       ],
       "parseErrors": []
     },
@@ -9130,9 +9140,11 @@
         "mergeObjects"
       ],
       "runes": [
+        "$effect",
         "$state"
       ],
       "storePrimitives": [
+        "$effect",
         "$state"
       ],
       "subscriptions": [],
@@ -9616,9 +9628,11 @@
         "useEmojiPickerSkinToneSelector"
       ],
       "runes": [
+        "$derived",
         "$state"
       ],
       "storePrimitives": [
+        "$derived",
         "$state"
       ],
       "subscriptions": [],
@@ -10935,10 +10949,12 @@
         "useRenameSave"
       ],
       "runes": [
+        "$derived",
         "$effect",
         "$state"
       ],
       "storePrimitives": [
+        "$derived",
         "$effect",
         "$state"
       ],
@@ -11450,9 +11466,11 @@
         "useSidebar"
       ],
       "runes": [
+        "$derived",
         "$state"
       ],
       "storePrimitives": [
+        "$derived",
         "$state"
       ],
       "subscriptions": [],
@@ -14454,10 +14472,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -15162,10 +15180,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -16861,6 +16879,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: byUrl, preloadedWindowTimestamps"
       ],
       "parseErrors": []
@@ -16969,10 +16988,11 @@
           "line": 141
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -17153,6 +17173,7 @@
       "classificationSource": "heuristic",
       "classificationReasons": [
         "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state",
         "store coordination: newStatus"
       ],
       "parseErrors": []
@@ -17186,10 +17207,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -18126,10 +18147,11 @@
           "line": 132
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -18242,10 +18264,11 @@
           "line": 548
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -18544,6 +18567,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: appState, nextMap"
       ],
       "parseErrors": []
@@ -18705,10 +18729,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -18878,6 +18902,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: cache"
       ],
       "parseErrors": []
@@ -18932,6 +18957,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: bookCache, nextMap"
       ],
       "parseErrors": []
@@ -19046,10 +19072,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -19270,10 +19296,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -19329,6 +19355,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: tabStoreRegistry"
       ],
       "parseErrors": []
@@ -19376,10 +19403,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -19579,10 +19606,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -20477,10 +20504,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -20770,10 +20797,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -20873,10 +20900,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -20988,10 +21015,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -21364,10 +21391,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -21781,10 +21808,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -21841,10 +21868,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -21887,10 +21914,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -21939,10 +21966,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -22148,10 +22175,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -22179,10 +22206,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -22231,10 +22258,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -22471,10 +22498,11 @@
           "line": 348
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -23071,8 +23099,11 @@
         "sidebarLeftPanels",
         "sidebarRightPanels"
       ],
-      "runes": [],
+      "runes": [
+        "$state"
+      ],
       "storePrimitives": [
+        "$state",
         "derived",
         "get",
         "writable"
@@ -23096,6 +23127,7 @@
       "classificationSource": "heuristic",
       "classificationReasons": [
         "uses Tauri API and requires a host adapter",
+        "state/reactivity requires React review: $state",
         "store coordination: activePanel"
       ],
       "parseErrors": []
@@ -23137,10 +23169,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -23225,10 +23257,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -23965,10 +23997,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24010,10 +24042,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24047,6 +24079,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: dedupeCache"
       ],
       "parseErrors": []
@@ -24099,6 +24132,7 @@
       "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
+        "state/reactivity requires React review: $state",
         "store coordination: store"
       ],
       "parseErrors": []
@@ -24170,10 +24204,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24236,10 +24270,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24281,10 +24315,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24330,10 +24364,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24381,10 +24415,10 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },
@@ -24460,10 +24494,10 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "manual",
       "classificationSource": "heuristic",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "state/reactivity requires React review: $state"
       ],
       "parseErrors": []
     },

@@ -1,5 +1,5 @@
-import { access, mkdir, writeFile } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { access, mkdir, rm, writeFile } from "node:fs/promises"
+import { dirname, join, relative, resolve } from "node:path"
 
 import { analyzeSvelteFrontend } from "./analyze.js"
 import type { GenerateSvelteMigrationOptions, SvelteFrontendInventory } from "./types.js"
@@ -10,7 +10,12 @@ export async function generateSvelteMigrationArtifacts(
   const inventory = await analyzeSvelteFrontend(options)
   const outputDir = resolve(options.outputDir)
   const artifacts = renderSvelteMigrationArtifacts(inventory)
-  await mkdir(join(outputDir, "tsx-scaffold"), { recursive: true })
+  const scaffoldDir = join(outputDir, "tsx-scaffold")
+  if (options.force) {
+    if (relative(outputDir, scaffoldDir).replaceAll("\\", "/") !== "tsx-scaffold") throw new Error(`Unsafe scaffold path: ${scaffoldDir}`)
+    await rm(scaffoldDir, { recursive: true, force: true })
+  }
+  await mkdir(scaffoldDir, { recursive: true })
   if (!options.force) {
     for (const name of artifacts.keys()) {
       const target = join(outputDir, name)
@@ -18,7 +23,9 @@ export async function generateSvelteMigrationArtifacts(
     }
   }
   for (const [name, content] of artifacts) {
-    await writeFile(join(outputDir, name), content, "utf8")
+    const target = join(outputDir, name)
+    await mkdir(dirname(target), { recursive: true })
+    await writeFile(target, content, "utf8")
   }
   return inventory
 }
@@ -31,15 +38,19 @@ export function renderSvelteMigrationArtifacts(inventory: SvelteFrontendInventor
     sourceRoot: inventory.sourceRoot,
     summary: inventory.summary,
   }
-  return new Map([
+  const scaffoldManifest = inventory.reactScaffolds.map(({ content: _content, ...entry }) => entry)
+  const artifacts = new Map([
     ["component-inventory.json", json({ ...header, components: inventory.components })],
     ["module-inventory.json", json({ ...header, modules: inventory.modules })],
     ["store-inventory.json", json({ ...header, stores: inventory.stores })],
     ["component-graph.json", json({ ...header, graph: inventory.graph })],
     ["tauri-usage.json", json({ ...header, tauriUsage: inventory.tauriUsage })],
+    ["tsx-scaffold/manifest.json", json({ ...header, scaffolds: scaffoldManifest })],
     ["REPORT.md", renderReport(inventory)],
     ["tsx-scaffold/README.md", scaffoldReadme(inventory)],
   ])
+  for (const scaffold of inventory.reactScaffolds) artifacts.set(`tsx-scaffold/${scaffold.outputFile}`, scaffold.content)
+  return artifacts
 }
 
 function renderReport(inventory: SvelteFrontendInventory): string {
@@ -61,6 +72,7 @@ function renderReport(inventory: SvelteFrontendInventory): string {
     `- Unresolved component imports: ${inventory.summary.unresolvedComponentImports}\n` +
     `- Tauri-using files/calls: ${inventory.summary.tauriFiles}/${inventory.summary.tauriCalls}\n` +
     `- Unmapped components/modules: ${inventory.summary.unmappedComponents}/${inventory.summary.unmappedModules}\n` +
+    `- Generated React TSX scaffolds: ${inventory.summary.reactScaffolds}\n` +
     `- Component dispositions: ${Object.entries(inventory.summary.dispositions).map(([name, count]) => `${name}=${count}`).join(", ")}\n` +
     `- Module dispositions: ${Object.entries(inventory.summary.moduleDispositions).map(([name, count]) => `${name}=${count}`).join(", ")}\n\n` +
     `## Component review queue\n\n` +
@@ -72,7 +84,7 @@ function renderReport(inventory: SvelteFrontendInventory): string {
 
 function scaffoldReadme(inventory: SvelteFrontendInventory): string {
   return `# Generated TSX scaffold\n\n` +
-    `This directory is reserved for reproducible AST-generated React scaffolds from source commit \`${inventory.sourceRevision.commit ?? "unknown"}\`.\n\n` +
+    `This directory contains ${inventory.summary.reactScaffolds} reproducible AST-generated React scaffolds from source commit \`${inventory.sourceRevision.commit ?? "unknown"}\`.\n\n` +
     `Production code must not import this directory. Scaffold generation is enabled only after component dispositions and adapter boundaries are reviewed; do not hand-edit generated files.\n`
 }
 

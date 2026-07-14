@@ -36,8 +36,10 @@ export interface ComponentInventoryEntry {
   props: string[]
   events: string[]
   contexts: string[]
+  subscriptions: string[]
   registrations: string[]
   templateFeatures: Record<string, number>
+  templateNodeTypes: string[]
   scriptLanguages: string[]
   styleBlocks: number
   parseErrors: string[]
@@ -108,6 +110,15 @@ export interface FrontendInventorySummary {
   unmappedModules: number
   dispositions: Record<FrontendDisposition, number>
   moduleDispositions: Record<FrontendDisposition, number>
+  reactScaffolds: number
+}
+
+export interface ReactScaffoldEntry {
+  sourceFile: string
+  outputFile: string
+  sourceHash: string
+  featureIds: string[]
+  content: string
 }
 
 export interface SvelteFrontendInventory {
@@ -121,6 +132,7 @@ export interface SvelteFrontendInventory {
   stores: StoreInventoryEntry[]
   graph: { nodes: string[]; entries: string[]; edges: ComponentGraphEdge[]; cycles: string[][] }
   tauriUsage: TauriUsageEntry[]
+  reactScaffolds: ReactScaffoldEntry[]
 }
 
 export interface ClassificationOverride {

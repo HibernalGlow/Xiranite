@@ -7,12 +7,14 @@ import type { Node, Program } from "@oxc-project/types"
 import { parse as parseSvelte } from "svelte/compiler"
 
 import packageJson from "../package.json" with { type: "json" }
+import { generateReactScaffold } from "./react-scaffold.js"
 import type {
   AnalyzeSvelteFrontendOptions,
   ComponentGraphEdge,
   ComponentInventoryEntry,
   FrontendDisposition,
   ModuleInventoryEntry,
+  ReactScaffoldEntry,
   SourceImport,
   SourceRevision,
   StoreInventoryEntry,
@@ -78,6 +80,8 @@ interface SvelteAstShape {
 interface TemplateEvidence {
   features: Record<string, number>
   events: string[]
+  subscriptions: string[]
+  nodeTypes: string[]
 }
 
 export async function analyzeSvelteFrontend(
@@ -92,11 +96,13 @@ export async function analyzeSvelteFrontend(
   const componentFiles = sourceFiles.filter((file) => file.endsWith(".svelte") && !file.endsWith(".svelte.ts"))
   const componentSet = new Set(componentFiles.map((file) => projectPath(projectRoot, file)))
   const components: ComponentInventoryEntry[] = []
+  const componentSources = new Map<string, string>()
   const scriptRecords = new Map<string, ParsedScript>()
 
   for (const file of componentFiles) {
     const source = await readFile(file, "utf8")
     const projectFile = projectPath(projectRoot, file)
+    componentSources.set(projectFile, source)
     const parseErrors: string[] = []
     let ast: SvelteAstShape | null = null
     try {
@@ -109,11 +115,17 @@ export async function analyzeSvelteFrontend(
     const merged = mergeScripts(parsedScripts)
     parseErrors.push(...merged.errors)
     scriptRecords.set(projectFile, merged)
-    const template = ast ? collectTemplateEvidence(ast.fragment) : { features: {}, events: [] }
+    const template = ast ? collectTemplateEvidence(ast.fragment) : { features: {}, events: [], subscriptions: [], nodeTypes: [] }
+    if (ast?.css) template.features.StyleBlock = 1
+    merged.subscriptions = [...new Set([...merged.subscriptions, ...template.subscriptions])].sort()
     const componentImports = merged.imports.map((entry) => entry.source)
     const dynamicComponentImports = merged.dynamicImports
       .filter((specifier) => isPotentialComponentImport(projectFile, specifier, sourceRootName, componentSet, sourceSet))
     const classification = classify(projectFile, parseErrors, merged.tauriCalls, template.features, merged, options)
+    if (!source.trim() && classification.disposition === "converted") {
+      classification.disposition = "manual"
+      classification.reasons = ["empty legacy placeholder; no React scaffold emitted"]
+    }
     const featureIds = mapFeatureIds(projectFile, options)
     components.push({
       file: projectFile,
@@ -131,8 +143,10 @@ export async function analyzeSvelteFrontend(
       props: merged.props,
       events: template.events,
       contexts: merged.contexts,
+      subscriptions: merged.subscriptions,
       registrations: merged.registrations,
       templateFeatures: template.features,
+      templateNodeTypes: template.nodeTypes,
       scriptLanguages: [...new Set(scripts.map((script) => script.language))].sort(),
       styleBlocks: ast?.css ? 1 : 0,
       parseErrors,
@@ -210,6 +224,29 @@ export async function analyzeSvelteFrontend(
   deriveSourceFeaturesFromDependencies(components, modules, sourceDependencies)
   const modulesByFile = new Map(modules.map((entry) => [entry.file, entry]))
   for (const store of stores) store.featureIds = [...(modulesByFile.get(store.file)?.featureIds ?? [])]
+  for (const component of components) {
+    if (component.disposition !== "converted") continue
+    const storeDependencies = component.imports.flatMap((entry) => {
+      const moduleFile = resolveModuleImport(component.file, entry.source, sourceRootName, sourceSet)
+      return moduleFile && modulesByFile.get(moduleFile)?.kind === "store" ? [moduleFile] : []
+    })
+    if (!storeDependencies.length) continue
+    component.disposition = "manual"
+    component.classificationReasons.push(`React state adapter required for store dependencies: ${[...new Set(storeDependencies)].join(", ")}`)
+  }
+  const reactScaffolds: ReactScaffoldEntry[] = []
+  for (const component of components) {
+    if (component.disposition !== "converted") continue
+    const source = componentSources.get(component.file)
+    if (!source) continue
+    const result = generateReactScaffold(source, component)
+    if (!result.scaffold) {
+      component.disposition = "manual"
+      component.classificationReasons.push(`React scaffold unsupported: ${result.unsupported.join(", ")}`)
+      continue
+    }
+    reactScaffolds.push(result.scaffold)
+  }
   const featureIdsByFile = new Map([
     ...components.map((entry) => [entry.file, entry.featureIds] as const),
     ...modules.map((entry) => [entry.file, entry.featureIds] as const),
@@ -234,12 +271,14 @@ export async function analyzeSvelteFrontend(
       unmappedModules: modules.filter((entry) => !entry.featureIds.length).length,
       dispositions,
       moduleDispositions: dispositionCounts(modules),
+      reactScaffolds: reactScaffolds.length,
     },
     components,
     modules,
     stores,
     graph,
     tauriUsage,
+    reactScaffolds,
   }
 }
 
@@ -300,6 +339,15 @@ function parseScript(file: string, region: ScriptRegion): ParsedScript {
   const tauriCalls: TauriCall[] = []
   const starts = lineStarts(region.content)
   walkNode(program as unknown as Node, (node) => {
+    if (node.type === "Identifier") {
+      const identifier = identifierName(node)
+      if (identifier?.startsWith("$") && importedBindings.has(identifier.slice(1))) subscriptions.add(identifier.slice(1))
+      return
+    }
+    if (node.type === "LabeledStatement" && identifierName((node as unknown as { label?: Node }).label) === "$") {
+      runes.add("$legacy-reactive")
+      return
+    }
     if (node.type === "ImportExpression") {
       const specifier = literalString((node as unknown as { source?: Node }).source)
       if (specifier) dynamicImports.add(specifier)
@@ -317,8 +365,9 @@ function parseScript(file: string, region: ScriptRegion): ParsedScript {
     const name = calleeName(callee)
     if (!name) return
     calls.push({ name, node })
-    if (RUNES.has(name)) runes.add(name)
-    if (STORE_PRIMITIVES.has(name)) storePrimitives.add(name)
+    const callRoot = name.split(".")[0]!
+    if (RUNES.has(callRoot)) runes.add(callRoot)
+    if (STORE_PRIMITIVES.has(callRoot)) storePrimitives.add(callRoot)
     if (name.endsWith(".subscribe")) subscriptions.add(name.slice(0, -".subscribe".length))
     if (name.endsWith(".set") || name.endsWith(".update")) writes.add(name.slice(0, name.lastIndexOf(".")))
     if (/^(?:getContext|hasContext|setContext)$/.test(name)) {
@@ -516,9 +565,16 @@ function emptyParsedScript(errors: string[]): ParsedScript {
 function collectTemplateEvidence(fragment: unknown): TemplateEvidence {
   const counts = new Map<string, number>()
   const events = new Set<string>()
+  const subscriptions = new Set<string>()
+  const nodeTypes = new Set<string>()
   walkUnknown(fragment, (value) => {
     const type = typeof value.type === "string" ? value.type : null
-    if (type && ["AnimateDirective", "AttachTag", "Component", "OnDirective", "RenderTag", "SnippetBlock", "TransitionDirective", "UseDirective"].includes(type)) {
+    if (type) nodeTypes.add(type)
+    if (type && [
+      "AnimateDirective", "AttachTag", "AwaitBlock", "BindDirective", "ClassDirective", "Component", "KeyBlock",
+      "LetDirective", "OnDirective", "RenderTag", "SnippetBlock", "StyleDirective", "SvelteBody", "SvelteComponent",
+      "SvelteDocument", "SvelteElement", "SvelteHead", "SvelteWindow", "TransitionDirective", "UseDirective",
+    ].includes(type)) {
       counts.set(type, (counts.get(type) ?? 0) + 1)
     }
     if ((type === "RegularElement" || type === "Element") && typeof value.name === "string" && ["canvas", "img", "slot", "video"].includes(value.name)) {
@@ -527,10 +583,13 @@ function collectTemplateEvidence(fragment: unknown): TemplateEvidence {
     }
     if (type === "OnDirective" && typeof value.name === "string") events.add(value.name)
     if (type === "Attribute" && typeof value.name === "string" && /^on[a-z]/.test(value.name)) events.add(value.name.slice(2))
+    if (type === "Identifier" && typeof value.name === "string" && /^\$[A-Za-z_$][\w$]*$/.test(value.name)) subscriptions.add(value.name.slice(1))
   })
   return {
     features: Object.fromEntries([...counts.entries()].sort(([left], [right]) => left.localeCompare(right))),
     events: [...events].sort(),
+    subscriptions: [...subscriptions].sort(),
+    nodeTypes: [...nodeTypes].sort(),
   }
 }
 
@@ -550,16 +609,20 @@ function classify(
   if (errors.length) return { disposition: "blocked", source: "parse-error", reasons: ["AST parse failed"] }
   const reasons: string[] = []
   if (tauriCalls.length) reasons.push("uses Tauri API and requires a host adapter")
-  const manualFeatures = ["element:canvas", "AnimateDirective", "AttachTag", "TransitionDirective", "UseDirective"]
+  const manualFeatures = [
+    "element:canvas", "AnimateDirective", "AttachTag", "AwaitBlock", "BindDirective", "ClassDirective", "KeyBlock",
+    "LetDirective", "RenderTag", "SnippetBlock", "StyleBlock", "StyleDirective", "SvelteBody", "SvelteComponent",
+    "SvelteDocument", "SvelteElement", "SvelteHead", "SvelteWindow", "TransitionDirective", "UseDirective",
+  ]
     .filter((feature) => (templateFeatures[feature] ?? 0) > 0)
   if (manualFeatures.length) reasons.push(`complex template behavior: ${manualFeatures.join(", ")}`)
-  const complexRunes = script.runes.includes("$effect") && script.runes.length > 1
-  if (complexRunes) reasons.push(`complex rune graph: ${script.runes.join(", ")}`)
+  const nonPropRunes = script.runes.filter((rune) => rune !== "$props")
+  if (nonPropRunes.length) reasons.push(`state/reactivity requires React review: ${nonPropRunes.join(", ")}`)
   if (script.contexts.length) reasons.push(`Svelte context lifecycle: ${script.contexts.join(", ")}`)
   if (script.subscriptions.length || script.writes.length) {
     reasons.push(`store coordination: ${[...script.subscriptions, ...script.writes].join(", ")}`)
   }
-  if (manualFeatures.length || complexRunes || script.contexts.length || script.subscriptions.length || script.writes.length) {
+  if (manualFeatures.length || nonPropRunes.length || script.contexts.length || script.subscriptions.length || script.writes.length) {
     return { disposition: "manual", source: "heuristic", reasons }
   }
   if (tauriCalls.length) return { disposition: "adapter-needed", source: "heuristic", reasons }

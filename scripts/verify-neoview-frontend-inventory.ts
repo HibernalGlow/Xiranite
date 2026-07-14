@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
-import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { readdir, readFile } from "node:fs/promises"
+import { relative, resolve } from "node:path"
+import { parseSync } from "oxc-parser"
 
 import { analyzeSvelteFrontend } from "../packages/svelte-migrate/src/analyze.js"
 import { renderSvelteMigrationArtifacts } from "../packages/svelte-migrate/src/generate.js"
@@ -47,6 +48,18 @@ for (const entry of entries) {
   }
 }
 for (const usage of inventory.tauriUsage) if (!usage.featureIds.length) errors.push(`${usage.file}: Tauri usage has no feature mapping`)
+const convertedComponents = inventory.components.filter((component) => component.disposition === "converted")
+if (convertedComponents.length !== inventory.reactScaffolds.length) {
+  errors.push(`converted components (${convertedComponents.length}) differ from React scaffolds (${inventory.reactScaffolds.length})`)
+}
+for (const scaffold of inventory.reactScaffolds) {
+  const parsed = parseSync(scaffold.outputFile, scaffold.content, { lang: "tsx", sourceType: "module", astType: "ts" })
+  if (parsed.errors.length) errors.push(`${scaffold.outputFile}: invalid generated TSX: ${parsed.errors.map((error) => error.message).join("; ")}`)
+  if (!scaffold.content.includes(`@migrated-from ${scaffold.sourceFile}`)) errors.push(`${scaffold.outputFile}: missing source provenance`)
+  if (/from\s+["'](?:svelte|[^"']*\.svelte)["']|\$(?:bindable|derived|effect|props|state)\b/.test(scaffold.content)) {
+    errors.push(`${scaffold.outputFile}: generated React scaffold retains Svelte runtime syntax`)
+  }
+}
 for (const override of config.classificationOverrides ?? []) {
   const pattern = new RegExp(override.pattern)
   if (!entries.some((entry) => pattern.test(entry.file))) errors.push(`classification override matches no source: ${override.pattern}`)
@@ -58,6 +71,11 @@ for (const [name, expected] of artifacts) {
   const current = await readFile(resolve(outputDir, name), "utf8").catch(() => null)
   if (current === expected) continue
   drift.push(`${name}: committed=${digest(current ?? "<missing>")} generated=${digest(expected)}`)
+}
+const expectedFiles = new Set(artifacts.keys())
+for (const file of await walkFiles(outputDir)) {
+  const name = relative(outputDir, file).replaceAll("\\", "/")
+  if (!expectedFiles.has(name)) drift.push(`${name}: unexpected generated artifact`)
 }
 if (drift.length) {
   throw new Error(
@@ -74,4 +92,14 @@ process.stdout.write(
 
 function digest(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16)
+}
+
+async function walkFiles(root: string): Promise<string[]> {
+  const output: string[] = []
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const path = resolve(root, entry.name)
+    if (entry.isDirectory()) output.push(...await walkFiles(path))
+    else if (entry.isFile()) output.push(path)
+  }
+  return output
 }

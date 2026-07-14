@@ -1,4 +1,5 @@
 import { resolve } from "node:path"
+import { parseSync } from "oxc-parser"
 import { describe, expect, it } from "vitest"
 
 import { analyzeSvelteFrontend } from "./analyze.js"
@@ -41,6 +42,15 @@ describe("analyzeSvelteFrontend", () => {
       expect.objectContaining({ file: "src/lib/index.ts", kind: "utility" }),
       expect.objectContaining({ file: "src/lib/stores/reader.svelte.ts", kind: "store" }),
     ]))
+    expect(inventory.reactScaffolds).toHaveLength(1)
+    expect(inventory.reactScaffolds[0]).toMatchObject({
+      sourceFile: "src/Child.svelte",
+      outputFile: "src/Child.tsx",
+      featureIds: ["reader"],
+    })
+    expect(inventory.reactScaffolds[0]!.content).toContain("export function Child(props: ChildProps)")
+    expect(inventory.reactScaffolds[0]!.content).toContain("@migration-status scaffold")
+    expect(parseSync("Child.tsx", inventory.reactScaffolds[0]!.content, { lang: "tsx", sourceType: "module", astType: "ts" }).errors).toEqual([])
   })
 
   it("applies explicit review dispositions after collecting AST evidence", async () => {

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+    "dirty": false,
+    "dirtyDiffHash": null
+  },
+  "sourceRoot": "src",
+  "summary": {
+    "sourceFiles": 998,
+    "components": 551,
+    "modules": 447,
+    "stores": 142,
+    "graphEdges": 766,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 107,
+    "tauriCalls": 389,
+    "unmappedComponents": 0,
+    "unmappedModules": 0,
+    "dispositions": {
+      "converted": 10,
+      "adapter-needed": 3,
+      "manual": 247,
+      "replaced": 282,
+      "blocked": 9
+    },
+    "moduleDispositions": {
+      "converted": 214,
+      "adapter-needed": 39,
+      "manual": 113,
+      "replaced": 77,
+      "blocked": 4
+    },
+    "reactScaffolds": 10
+  },
+  "scaffolds": [
+    {
+      "sourceFile": "src/lib/cards/benchmark/ResultsCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/ResultsCard.tsx",
+      "sourceHash": "sha256:df4e627c6f6f88a02084fd8dae24da8be7633dd2ec6df620e649091a5848902e",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/benchmark/SummaryCard.svelte",
+      "outputFile": "src/lib/cards/benchmark/SummaryCard.tsx",
+      "sourceHash": "sha256:2e4579bc77b95feadca28e528f3166e402943a76a2816e3d4ff6f8a383d72d1c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/folder/FolderMainCard.svelte",
+      "outputFile": "src/lib/cards/folder/FolderMainCard.tsx",
+      "sourceHash": "sha256:d93869d9290513ffd008d0041f24bd040646e69bb5f10bcd683a6f29c843fc4b",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/monitor/components/GpuMonitor.svelte",
+      "outputFile": "src/lib/cards/monitor/components/GpuMonitor.tsx",
+      "sourceHash": "sha256:20f0396b77e255f837baced895e392f14652969757c3ee2c9dbcb345fe9415e4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/EmmConfigCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmConfigCard.tsx",
+      "sourceHash": "sha256:31aa9e3785d5fbac55a4a07944820b5912c398f644811044026247877dee38a4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/EmmSyncCard.svelte",
+      "outputFile": "src/lib/cards/properties/EmmSyncCard.tsx",
+      "sourceHash": "sha256:3ba07ed1c95f283dff66592d7b97962cd90b5fe698a57bcae96d875cd5442942",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
+      "outputFile": "src/lib/cards/properties/FileListTagDisplayCard.tsx",
+      "sourceHash": "sha256:372ef11a089413c212e2cfde37e77d7787dd2a4abe9e1ff42a42ca79ab776e33",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.svelte",
+      "outputFile": "src/lib/cards/properties/ThumbnailMaintenanceCard.tsx",
+      "sourceHash": "sha256:cf84c01530d011d23b609559c6b97a3ebc421d38fa000f744572b7d191481b72",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/browser/FileSystemBrowser.svelte",
+      "outputFile": "src/lib/components/browser/FileSystemBrowser.tsx",
+      "sourceHash": "sha256:035e1305dbafbb398e58ae6b64685208ee747551d70ba4a2f227ca64f95024eb",
+      "featureIds": [
+        "file-browser-navigation"
+      ]
+    },
+    {
+      "sourceFile": "src/lib/components/panels/PageListPanel.svelte",
+      "outputFile": "src/lib/components/panels/PageListPanel.tsx",
+      "sourceHash": "sha256:bf689199d9ef192fd9c1f6c00646a0ec55ac8843d19161579633831b0594ef05",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ]
+    }
+  ]
+}
