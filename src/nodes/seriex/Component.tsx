@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { SeriexAction, SeriexData, SeriexInput } from "@xiranite/node-seriex/core"
 import { Copy, FileText, FolderTree, RotateCcw, Square } from "lucide-react"
@@ -45,7 +45,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const action = data.action ?? "plan"
   const actionMeta = getActionMeta(action)
   const dryRun = data.dryRun ?? false
-  const knownSeriesArray = useMemo(() => splitLines(data.knownSeriesText), [data.knownSeriesText])
+  const knownSeriesArray = splitLines(data.knownSeriesText)
   const status = statusFromState(data, running)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160

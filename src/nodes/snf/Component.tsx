@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SnfAction, SnfData, SnfInput, SnfMode, SnfPlanItem } from "@xiranite/node-snf/core"
 import type { LucideIcon } from "lucide-react"
@@ -37,7 +37,7 @@ export function Component({ compId, host }: NodeComponentProps<SnfCardState>) {
 
   const action = data.action ?? "plan"
   const actionMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]!
-  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
+  const paths = splitLines(data.pathsText)
   const result = data.result ?? null
   const logs = data.logs ?? []
   const progress = data.progress ?? 0
