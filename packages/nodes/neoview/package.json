@@ -5,6 +5,9 @@
   "private": false,
   "description": "NeoView reader core and shared GUI/CLI/TUI contracts.",
   "license": "UNLICENSED",
+  "bin": {
+    "xneoview": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,15 +24,28 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
+    "./help": {
+      "types": "./dist/help.d.ts",
+      "default": "./dist/help.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "default": "./dist/interaction.js"
     }
   },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --environment node"
+    "test": "vitest run src --environment node --exclude src/testing/Tui.bun.test.tsx && bun test src/testing/Tui.bun.test.tsx"
   },
   "dependencies": {
+    "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@zip.js/zip.js": "^2.8.26",
     "sharp": "0.34.5"

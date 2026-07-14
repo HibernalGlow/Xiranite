@@ -172,6 +172,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Preview and apply archive filename cleanup for artist folders.",
   },
   {
+    id: "neoview",
+    packageName: "@xiranite/node-neoview",
+    bin: nodeCliName("neoview"),
+    description: "High-performance image and comic reader with shared GUI, CLI, and TUI core.",
+  },
+  {
     id: "owithu",
     packageName: "@xiranite/node-owithu",
     bin: nodeCliName("owithu"),

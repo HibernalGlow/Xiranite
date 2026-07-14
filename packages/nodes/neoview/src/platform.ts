@@ -7,6 +7,7 @@ import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platfo
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
+import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 
@@ -61,4 +62,16 @@ export async function createReaderHttpController(
 export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   return new StreamingImageMetadataProbe()
+}
+
+export async function createReaderHeadlessController(
+  options: PlatformReaderBookLoaderOptions = {},
+): Promise<ReaderHeadlessController> {
+  const { ReaderHeadlessController } = await import("./application/headless/ReaderHeadlessController.js")
+  const { CoreReaderService } = await import("./application/reader/ReaderService.js")
+  const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
+  const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
+  return new ReaderHeadlessController(
+    new CoreReaderService(createPlatformReaderBookLoader(options), new StreamingImageMetadataProbe()),
+  )
 }

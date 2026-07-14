@@ -347,6 +347,8 @@ packages/nodes/neoview/
         eviction-policy.ts
 
     application/               # 用例、会话、任务 generation 与生命周期
+      headless/
+        ReaderHeadlessController.ts # GUI 之外的共享 session/导航/页面流门面
       reader/
         ReaderService.ts
         ReaderSession.ts
@@ -1234,21 +1236,26 @@ stateDiagram-v2
 三端只实现 presentation adapter：
 
 - GUI：React 虚拟化、手势、动画、loopback HTTP 图片显示；
-- CLI：`inspect`、`list`、`export`、`benchmark`、`cache` 等自动化命令；
+- CLI：当前提供 `inspect`、`pages`、`frame`、`extract-page`；后续按 feature slice 增加 benchmark/cache 等自动化命令；
 - TUI：键盘导航、文本元数据、SIXEL/Kitty 图片输出；不支持图片协议时优雅降级；
 - 三端共同调用 ReaderService，不重复实现排序、页面布局、归档索引、预读、缓存、书签和格式能力判断。
 
-CLI 可提供两种模式：
+当前本地 CLI 已接入节点注册表，独立 bin 为 `xneoview`，也可以通过 `xiranite neoview` 调用：
 
 ```text
-xreader inspect book.cbz
+xneoview inspect book.cbz --json
   -> 独立进程内创建 ReaderService，命令结束后 dispose
 
-xreader --connect inspect book.cbz
+xneoview extract-page book.cbz --index 4 --output -
+  -> 原始页面以 ReadableStream 写入二进制 stdout，不混入日志
+
+xneoview --connect inspect book.cbz
   -> 连接已运行的 Xiranite 后端，共享 session/index/cache
 ```
 
-`--connect` 是后续能力，初版不应阻塞本地 CLI，但 application contract 从一开始就不能依赖 React 或 Wails。
+`--connect` 是后续能力，不阻塞当前本地 CLI。现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；CLI 与 OpenTUI React 工作台都调用这个 controller，不直接访问 provider。TUI 已支持路径打开、关闭、页面列表、当前 frame/元数据、上一页、下一页和页码跳转，并在退出或卸载时取消任务、关闭 session。SIXEL/Kitty 图片呈现、连接常驻 backend、设置与更多 feature 命令仍属于后续能力，不能把当前文本工作台描述成完整 TUI。
+
+CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`。不提供明文 `--password`，密码不会进入 URL、JSON、日志或 TOML；环境变量值会复制为每次 open 独立的 `Uint8Array`，在 open 返回后由 session credential store 接管副本，CLI 临时字节在命令结束时主动覆零。JSON DTO 不包含本地 source path、临时物化路径或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
 
 ### 15.1 超分统一使用 OpenComic TS 调度和系统 CLI
 
@@ -1907,7 +1914,7 @@ scripts/
 - 已实现 non-solid RAR/7z stdout stream、solid archive 单进程顺序预提取、嵌套 archive 物化 lease，以及 AES ZIP/CBZ session 密码通道；继续补 RAR/7z 无 argv native 密码 adapter、嵌套历史/UI 导航、方向取消与持久复用；
 - 基于真实兼容性测试选择 7-Zip、PDF、EPUB、特殊图片适配器；
 - 覆盖嵌套、加密、损坏和 zip bomb 安全边界；
-- 增加 TUI 和 CLI 输出，但不复制 application 逻辑；
+- 已增加共享 `ReaderHeadlessController`、`xneoview inspect/pages/frame/extract-page` 和持久 TUI Reader 工作台；继续补图片协议、`--connect`、设置和后续 feature 命令，不复制 application 逻辑；
 - 实现平台 capability 和缺失依赖的明确错误；
 - 按平台拆分可选二进制依赖。
 

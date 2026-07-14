@@ -131,6 +131,7 @@ export const nodeHelpLoaders = {
   movea: () => import("@xiranite/node-movea/help") as Promise<{ help: NodeHelp }>,
   mvz: () => import("@xiranite/node-mvz/help") as Promise<{ help: NodeHelp }>,
   nameu: () => import("@xiranite/node-nameu/help") as Promise<{ help: NodeHelp }>,
+  neoview: () => import("@xiranite/node-neoview/help") as Promise<{ help: NodeHelp }>,
   owithu: () => import("@xiranite/node-owithu/help") as Promise<{ help: NodeHelp }>,
   rawfilter: () => import("@xiranite/node-rawfilter/help") as Promise<{ help: NodeHelp }>,
   recycleu: () => import("@xiranite/node-recycleu/help") as Promise<{ help: NodeHelp }>,

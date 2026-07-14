@@ -28,8 +28,11 @@ for (const entry of (await readdir(nodesRoot, { withFileTypes: true })).filter((
   if (!/terminalIcon\(|[◉○◇◆■□▶✓×⌕▣▦⊘♙]/u.test(tui)) result.staticIssues.push("missing portable Unicode semantic icons")
   if (!/(WorkbenchPanel|ActionTabs|ActionLauncher|ExecutionActions|WorkbenchField|ClickTarget)/.test(tui)) result.staticIssues.push("does not use shared termcn/OpenTUI components")
   if (containsMojibake(tui)) result.staticIssues.push("contains mojibake/broken Chinese text")
-  const testPath = resolve(dir, "src", "Tui.bun.test.tsx")
-  if (!existsSync(testPath)) result.staticIssues.push("missing OpenTUI test")
+  const testPath = [
+    resolve(dir, "src", "Tui.bun.test.tsx"),
+    resolve(dir, "src", "testing", "Tui.bun.test.tsx"),
+  ].find((path) => existsSync(path))
+  if (!testPath) result.staticIssues.push("missing OpenTUI test")
   else {
     const test = await readFile(testPath, "utf8")
     if (!/mockMouse\.(click|drag|scroll)|runCliMouseScenario/.test(test)) result.staticIssues.push("test does not exercise mouse interaction")

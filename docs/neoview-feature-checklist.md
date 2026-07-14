@@ -54,7 +54,7 @@
 - 设置：`startup.openLastFile`、`startup.openLastFolder`
 - 数据：recent books、last file、last folder
 - 行为：目录、图片文件和压缩包自动识别；失败不破坏当前会话；reload 保留可恢复页；关闭释放书籍资源
-- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`、`neoview.control.session`、`neoview.control.validation`、`neoview.control.nested-archive`、`neoview.control.encrypted-archive`、`neoview.http.e2e`、`neoview.react.control`、`neoview.react.smoke`、`neoview.react.lifecycle`、`neoview.react.cbz-e2e`
+- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`、`neoview.control.session`、`neoview.control.validation`、`neoview.control.nested-archive`、`neoview.control.encrypted-archive`、`neoview.http.e2e`、`neoview.react.control`、`neoview.react.smoke`、`neoview.react.lifecycle`、`neoview.react.cbz-e2e`、`neoview.headless.session`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 性能基准：无专项
 - 已知差异：无
 
@@ -98,7 +98,7 @@
 - 设置：`book.readingDirection`、`book.tailOverflowBehavior`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：page index、current page、frame snapshot
 - 行为：自然排序与媒体优先级；LTR/RTL；首尾跳转和随机页；五种尾页行为；generation 取消和旧结果零回写
-- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.control.session`、`neoview.react.smoke`、`neoview.react.cbz-e2e`
+- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.control.session`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.headless.navigation`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.tui.navigation`
 - 性能基准：`reader-hot-page-turn`
 - 已知差异：无
 
@@ -197,7 +197,7 @@
 - 设置：无
 - 数据：dimension cache、folder size cache
 - 行为：尺寸/格式/大小/时间；批量尺寸扫描；归档 entry 属性；取消扫描；系统 shell 元数据 fallback
-- 测试：待补
+- 测试：`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 性能基准：`dimension-scan`
 - 已知差异：无
 
@@ -285,7 +285,7 @@
 - 设置：`startup`、`cardConfigs`
 - 数据：window state、card windows、tabs
 - 行为：CLI 路径打开；窗口大小/位置恢复；最小化托盘；卡片窗口恢复；单实例导航；宿主关闭释放所有进程
-- 测试：待补
+- 测试：`neoview.headless.session`、`neoview.cli.inspect`、`neoview.cli.pages`、`neoview.cli.frame`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 性能基准：`cold-start`、`idle-rss`
 - 已知差异：无
 
@@ -362,7 +362,7 @@
 - 设置：`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：blob registry、stream handles
 - 行为：控制面只传小对象；图片字节走 loopback HTTP；无 Base64/大 JSON 主链；批处理有界；取消和背压；旧协议设置可导入但不保留双实现
-- 测试：待补
+- 测试：`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.headless.page-stream`、`neoview.cli.extract-page`、`neoview.cli.reader-e2e`
 - 性能基准：`image-transport`、`ipc-batch`
 - 已知差异：Tauri custom protocol/IPC 被 loopback HTTP 和 TS service 替代
 

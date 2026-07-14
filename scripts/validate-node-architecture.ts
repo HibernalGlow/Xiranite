@@ -274,7 +274,7 @@ async function collectCoreFindings(file: string, findings: Finding[]): Promise<v
 
 async function collectNeoViewLayerFindings(nodeDir: string, findings: Finding[]): Promise<void> {
   const sourceRoot = join(nodeDir, "src")
-  const allowedRootFiles = new Set(["index.ts", "core.ts", "platform.ts", "cli.ts", "Tui.tsx", "help.ts"])
+  const allowedRootFiles = new Set(["index.ts", "core.ts", "platform.ts", "cli.ts", "Tui.tsx", "help.ts", "interaction.ts"])
   const sourceFiles = await listSourceFiles(sourceRoot)
 
   for (const file of sourceFiles) {
@@ -318,7 +318,7 @@ async function collectNeoViewLayerFindings(nodeDir: string, findings: Finding[])
   const parsed = await parseJsonIfExists(packageFile)
   if (!parsed) return
   const exports = (parsed.value as { exports?: Record<string, unknown> }).exports ?? {}
-  const allowedExports = new Set([".", "./core", "./platform", "./testing"])
+  const allowedExports = new Set([".", "./core", "./platform", "./testing", "./cli", "./help", "./interaction"])
   for (const name of Object.keys(exports)) {
     if (!allowedExports.has(name)) {
       findings.push({

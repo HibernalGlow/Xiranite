@@ -8,6 +8,14 @@ export {
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
+  ReaderHeadlessController,
+  type HeadlessPageStream,
+  type HeadlessReaderBookSnapshot,
+  type HeadlessReaderPageSnapshot,
+  type HeadlessReaderSnapshot,
+  type OpenHeadlessReaderInput,
+} from "./application/headless/ReaderHeadlessController.js"
+export {
   DEFAULT_READER_SESSION_OPTIONS,
   type OpenViewSourceOptions,
   type ReaderService,
