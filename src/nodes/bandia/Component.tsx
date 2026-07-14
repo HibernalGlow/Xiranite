@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { BandiaAction, BandiaData, BandiaInput, BandiaPathMapping } from "@xiranite/node-bandia/core"
 import { mappingsToText, parseBandiaPaths, parsePathMappings } from "@xiranite/node-bandia/core"
@@ -51,10 +51,10 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const archivePaths = useMemo(() => parseBandiaPaths(data.pathText ?? ""), [data.pathText])
-  const rawPaths = useMemo(() => parseRawPaths(data.pathText ?? ""), [data.pathText])
+  const archivePaths = parseBandiaPaths(data.pathText ?? "")
+  const rawPaths = parseRawPaths(data.pathText ?? "")
   const paths = mode === "extract" ? archivePaths : rawPaths
-  const mappings = useMemo(() => parsePathMappings(data.mappingText ?? ""), [data.mappingText])
+  const mappings = parsePathMappings(data.mappingText ?? "")
   const dryRun = data.dryRun ?? true
   const status = statusFromState(data, running)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { CrashuData, CrashuInput } from "@xiranite/node-crashu/core"
 import type { LucideIcon } from "lucide-react"
@@ -37,8 +37,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const sourcePaths = useMemo(() => splitLines(data.sourcePathsText), [data.sourcePathsText])
-  const targetNames = useMemo(() => splitLines(data.targetNamesText), [data.targetNamesText])
+  const sourcePaths = splitLines(data.sourcePathsText)
+  const targetNames = splitLines(data.targetNamesText)
   const threshold = data.similarityThreshold ?? DEFAULT_THRESHOLD
   const dryRun = data.dryRun ?? true
   const direction = data.moveDirection ?? "to_target"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CoveruAction, CoveruCandidate, CoveruData, CoveruInput, CoveruOutputMode } from "@xiranite/node-coveru/core"
 import type { LucideIcon } from "lucide-react"
@@ -42,8 +42,8 @@ export function Component({ compId, host }: NodeComponentProps<CoveruCardState>)
   const logs = data.logs ?? []
   const result = data.result ?? null
   const progress = data.progress ?? 0
-  const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
-  const candidates = useMemo(() => result?.candidates ?? paths.map((path) => placeholderCandidate(path)), [paths, result])
+  const paths = splitLines(data.pathsText)
+  const candidates = result?.candidates ?? paths.map((path) => placeholderCandidate(path))
   const status = statusFromState(data, running, result)
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
