@@ -101,9 +101,9 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | ID | 状态 | 能力 | 验收标准 |
 | --- | --- | --- | --- |
 | R01 | `[x]` | 工具专属列 | 11 个工具分别显示完整字段，不再共用“路径/大小/详情”最小列集 |
-| R02 | `[ ]` | 虚拟化 | 万级结果滚动流畅，DOM 行数受限 |
+| R02 | `[x]` | 虚拟化 | 万级结果滚动流畅，DOM 行数受限 |
 | R03 | `[x]` | 列排序 | 多工具排序状态隔离，表头可切换方向 |
-| R04 | `[ ]` | 列宽拖动 | 列宽可调且不会破坏缩略图行高 |
+| R04 | `[x]` | 列宽拖动 | 列宽可调且不会破坏缩略图行高 |
 | R05 | `[x]` | 行复选 | 单行选择与全选 |
 | R06 | `[x]` | Shift 范围选择 | Shift+Click 选择连续可见范围 |
 | R07 | `[x]` | Ctrl 切换选择 | Ctrl+Click 不丢失现有选择 |
@@ -115,7 +115,7 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | R13 | `[x]` | 每工具状态隔离 | 数据、排序、过滤、选择在切换工具后保留 |
 | R14 | `[ ]` | 空态/错误态/停止态 | 三类状态均有明确文案与恢复入口 |
 
-验证证据（2026-07-14）：`src/nodes/czkawka/result-table.tsx` 为 11 个工具定义独立列集，并以工具 ID 隔离排序、过滤和选择锚点；`result-table.test.ts` 覆盖列映射、列排序和 Shift/Ctrl 选择纯逻辑；`result-table.component.test.tsx` 覆盖真实表格列、Ctrl 交互以及跨工具过滤/排序恢复；`Component.test.tsx` 覆盖跨工具结果和选择恢复。
+验证证据（2026-07-14）：`src/nodes/czkawka/result-table.tsx` 为 11 个工具定义独立列集，并以工具 ID 隔离排序、过滤、列宽、滚动窗口和选择锚点；固定 52px 行高的纯 TS 虚拟窗口仅渲染可视范围加 overscan。`result-table.test.ts` 覆盖列映射、列排序、Shift/Ctrl 选择和 10,000 行窗口计算；`result-table.component.test.tsx` 覆盖 520,000px 总滚动高度、滚动后窗口由第 0 行更新至第 73 行且 DOM 始终少于 80 行、列宽由 160px 拖至 240px时行高不变、真实列与 Ctrl 交互以及跨工具过滤/排序恢复；`Component.test.tsx` 覆盖跨工具结果和选择恢复。
 
 ## 6. 多维筛选与格式筛选
 

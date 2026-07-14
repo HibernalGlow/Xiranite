@@ -1,13 +1,12 @@
-import { useState } from "react"
-import type { MouseEvent } from "react"
+import { useDeferredValue, useRef, useState } from "react"
+import type { MouseEvent, PointerEvent, UIEvent } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, ListFilter } from "lucide-react"
 import type { CzkawkaEntry, CzkawkaGroup, CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TableBody, TableCell, TableComponent, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { LocalImagePreview } from "@/nodes/shared/LocalImagePreview"
 
@@ -54,6 +53,18 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
 }
 
 type SortState = { id: CzkawkaResultColumnId; descending: boolean }
+type ColumnWidths = Partial<Record<CzkawkaResultColumnId, number>>
+type ResultRowItem = { entry: CzkawkaEntry; group: CzkawkaGroup; indexInGroup: number }
+type ResizeState = { tool: CzkawkaTool; id: CzkawkaResultColumnId; startX: number; startWidth: number }
+type ViewportState = { scrollTop: number; height: number }
+type GroupSelection = { paths: string[]; selected: boolean }
+
+const SELECT_WIDTH = 44
+const PREVIEW_WIDTH = 60
+const GROUP_WIDTH = 68
+const RESULT_ROW_HEIGHT = 52
+const MIN_COLUMN_WIDTH = 72
+const MAX_COLUMN_WIDTH = 640
 
 export interface CzkawkaResultTableProps {
   tool: CzkawkaTool
@@ -65,15 +76,27 @@ export interface CzkawkaResultTableProps {
 }
 
 export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
-  "use no memo"
+  const resizeRef = useRef<ResizeState | null>(null)
   const [filters, setFilters] = useState<Partial<Record<CzkawkaTool, string>>>({})
   const [sorts, setSorts] = useState<Partial<Record<CzkawkaTool, SortState>>>({})
   const [anchors, setAnchors] = useState<Partial<Record<CzkawkaTool, string>>>({})
+  const [widths, setWidths] = useState<Partial<Record<CzkawkaTool, ColumnWidths>>>({})
+  const [viewports, setViewports] = useState<Partial<Record<CzkawkaTool, ViewportState>>>({})
   const filter = filters[props.tool] ?? ""
+  const deferredFilter = useDeferredValue(filter)
   const sort = sorts[props.tool] ?? { id: defaultSort(props.tool), descending: false }
   const columns = CZKAWKA_RESULT_COLUMNS[props.tool]
-  const visibleGroups = filterAndSortResultGroups(props.groups, columns, filter, sort)
-  const visibleEntries = visibleGroups.flatMap((group) => group.entries).filter((entry) => !entry.isReference)
+  const visibleGroups = filterAndSortResultGroups(props.groups, columns, deferredFilter, sort)
+  const rows = flattenResultRows(visibleGroups)
+  const visibleEntries = selectableEntries(rows)
+  const selectedSet = new Set(props.selectedPaths)
+  const groupSelections = buildGroupSelections(visibleGroups, selectedSet)
+  const toolWidths = widths[props.tool] ?? {}
+  const gridTemplateColumns = [SELECT_WIDTH, PREVIEW_WIDTH, GROUP_WIDTH, ...columns.map((item) => toolWidths[item.id] ?? defaultColumnWidth(item.id))].map((width) => `${width}px`).join(" ")
+  const tableWidth = SELECT_WIDTH + PREVIEW_WIDTH + GROUP_WIDTH + columns.reduce((total, item) => total + (toolWidths[item.id] ?? defaultColumnWidth(item.id)), 0)
+  const viewport = viewports[props.tool] ?? { scrollTop: 0, height: 520 }
+  const window = calculateVirtualWindow(rows.length, viewport.scrollTop, viewport.height, RESULT_ROW_HEIGHT, 8)
+  const renderedRows = rows.slice(window.start, window.end).map((_row, offset) => ({ index: window.start + offset, start: (window.start + offset) * RESULT_ROW_HEIGHT }))
 
   function select(entry: CzkawkaEntry, checked: boolean, event: MouseEvent) {
     if (entry.isReference) return
@@ -82,17 +105,76 @@ export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
     setAnchors((current) => ({ ...current, [props.tool]: entry.path }))
   }
 
-  function selectGroup(group: CzkawkaGroup) {
-    const paths = group.entries.filter((entry) => !entry.isReference).map((entry) => entry.path)
-    const selected = paths.length > 0 && paths.every((path) => props.selectedPaths.includes(path))
-    props.onSelectionChange(selected ? props.selectedPaths.filter((path) => !paths.includes(path)) : unique([...props.selectedPaths, ...paths]))
+  function selectGroup(_group: CzkawkaGroup, selection: GroupSelection) {
+    props.onSelectionChange(selection.selected ? props.selectedPaths.filter((path) => !selection.paths.includes(path)) : unique([...props.selectedPaths, ...selection.paths]))
   }
 
   function changeSort(id: CzkawkaResultColumnId) {
     setSorts((current) => ({ ...current, [props.tool]: current[props.tool]?.id === id ? { id, descending: !current[props.tool]!.descending } : { id, descending: false } }))
   }
 
-  return <section className="flex min-h-0 flex-col rounded-md border bg-card" data-testid="czkawka-result-table"><div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><ListFilter className="size-3.5 text-primary" />结果组</div><Input aria-label="filter results" className="h-7 w-48 text-xs" placeholder="过滤当前工具结果" value={filter} onChange={(event) => setFilters((current) => ({ ...current, [props.tool]: event.currentTarget.value }))} /></div><ScrollArea className="min-h-0 flex-1"><Table className="text-xs"><TableHeader className="sticky top-0 z-10 bg-card"><TableRow><TableHead className="w-10" /><TableHead className="w-12">预览</TableHead><TableHead className="w-16">组</TableHead>{columns.map((item) => <TableHead key={item.id} className={cn(item.align === "right" && "text-right")}><Button className="h-7 px-1 text-xs" variant="ghost" onClick={() => changeSort(item.id)}>{item.label}{sort.id !== item.id ? <ChevronsUpDown className="size-3 opacity-40" /> : sort.descending ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}</Button></TableHead>)}</TableRow></TableHeader><TableBody>{visibleGroups.length ? visibleGroups.flatMap((group) => group.entries.map((entry, index) => { const selected = props.selectedPaths.includes(entry.path); const selectable = group.entries.filter((item) => !item.isReference); const groupSelected = selectable.length > 0 && selectable.every((item) => props.selectedPaths.includes(item.path)); return <TableRow key={entry.id} data-state={selected ? "selected" : undefined}><TableCell><Checkbox aria-label={`选择 ${entry.name}`} disabled={entry.isReference} checked={selected} onClick={(event) => { event.preventDefault(); select(entry, !selected, event) }} /></TableCell><TableCell><LocalImagePreview path={entry.path} getFileUrl={props.getFileUrl} className="size-9" /></TableCell><TableCell><button className="flex items-center gap-1 font-mono" onClick={() => selectGroup(group)}><span className={cn("size-2 rounded-full", groupSelected ? "bg-primary" : "bg-muted-foreground/40")} />{String(group.id + 1).padStart(2, "0")}{index === 0 && group.entries.length > 1 ? <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">{group.entries.length}</Badge> : null}</button></TableCell>{columns.map((item) => <TableCell key={item.id} className={cn("max-w-72 truncate", item.align === "right" && "text-right font-mono")} title={String(item.display?.(entry, group) ?? item.value(entry, group))}>{item.id === "path" ? <div className="flex items-center gap-1">{entry.isReference ? <Badge variant="secondary" className="h-4 px-1 text-[9px]">参考</Badge> : null}<span className="truncate font-mono">{entry.path}</span></div> : item.display?.(entry, group) ?? String(item.value(entry, group) || "—")}</TableCell>)}</TableRow> })) : <TableRow><TableCell colSpan={columns.length + 3} className="h-56 text-center text-muted-foreground">{props.running ? "正在分析文件…" : filter ? "没有匹配当前筛选的结果。" : "添加目录并开始扫描。"}</TableCell></TableRow>}</TableBody></Table></ScrollArea></section>
+  function startResize(event: PointerEvent<HTMLSpanElement>, id: CzkawkaResultColumnId) {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    resizeRef.current = { tool: props.tool, id, startX: event.clientX, startWidth: toolWidths[id] ?? defaultColumnWidth(id) }
+  }
+
+  function resizeColumn(event: PointerEvent<HTMLSpanElement>) {
+    const active = resizeRef.current
+    if (!active || active.tool !== props.tool) return
+    const width = clamp(active.startWidth + event.clientX - active.startX, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH)
+    setWidths((current) => ({ ...current, [props.tool]: { ...current[props.tool], [active.id]: width } }))
+  }
+
+  function finishResize(event: PointerEvent<HTMLSpanElement>) {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId)
+    resizeRef.current = null
+  }
+
+  function updateViewport(event: UIEvent<HTMLDivElement>) {
+    const scrollTop = event.currentTarget.scrollTop
+    const height = event.currentTarget.clientHeight || viewport.height
+    setViewports((current) => ({ ...current, [props.tool]: { scrollTop, height } }))
+  }
+
+  return <section className="flex min-h-0 flex-col rounded-md border bg-card" data-testid="czkawka-result-table" aria-busy={filter !== deferredFilter}><div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><ListFilter className="size-3.5 text-primary" />结果组</div><Input aria-label="filter results" className="h-7 w-48 text-xs" placeholder="过滤当前工具结果" value={filter} onChange={(event) => { const value = event.currentTarget.value; setFilters((current) => ({ ...current, [props.tool]: value })) }} /></div><div className="min-h-0 flex-1 overflow-auto" data-testid="czkawka-result-viewport" onScroll={updateViewport}><TableComponent className="grid text-xs" style={{ minWidth: tableWidth }}><TableHeader className="sticky top-0 z-10 grid bg-card"><TableRow className="grid" style={{ gridTemplateColumns }}><TableHead /><TableHead>预览</TableHead><TableHead>组</TableHead>{columns.map((item) => <TableHead key={item.id} className={cn("relative overflow-hidden", item.align === "right" && "text-right")} style={{ width: toolWidths[item.id] ?? defaultColumnWidth(item.id) }}><Button className="h-7 max-w-[calc(100%-6px)] px-1 text-xs" variant="ghost" onClick={() => changeSort(item.id)}>{item.label}{sort.id !== item.id ? <ChevronsUpDown className="size-3 opacity-40" /> : sort.descending ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}</Button><span role="separator" aria-label={`调整${item.label}列宽`} aria-orientation="vertical" className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/40" onPointerDown={(event) => startResize(event, item.id)} onPointerMove={resizeColumn} onPointerUp={finishResize} onPointerCancel={finishResize} /></TableHead>)}</TableRow></TableHeader><TableBody className="relative grid" style={{ height: rows.length * RESULT_ROW_HEIGHT }}>{renderedRows.map((virtualRow) => { const row = rows[virtualRow.index]!; return <VirtualResultRow key={row.entry.id} row={row} columns={columns} gridTemplateColumns={gridTemplateColumns} selectedSet={selectedSet} groupSelection={groupSelections.get(row.group)!} getFileUrl={props.getFileUrl} onSelect={select} onSelectGroup={selectGroup} start={virtualRow.start} /> })}</TableBody></TableComponent>{rows.length === 0 ? <div className="grid h-56 place-items-center text-xs text-muted-foreground">{props.running ? "正在分析文件…" : deferredFilter ? "没有匹配当前筛选的结果。" : "添加目录并开始扫描。"}</div> : null}</div></section>
+}
+
+function VirtualResultRow({ row, columns, gridTemplateColumns, selectedSet, groupSelection, getFileUrl, onSelect, onSelectGroup, start }: { row: ResultRowItem; columns: readonly CzkawkaResultColumn[]; gridTemplateColumns: string; selectedSet: Set<string>; groupSelection: GroupSelection; getFileUrl?: (path: string) => string; onSelect: (entry: CzkawkaEntry, checked: boolean, event: MouseEvent) => void; onSelectGroup: (group: CzkawkaGroup, selection: GroupSelection) => void; start: number }) {
+  const { entry, group, indexInGroup } = row
+  const selected = selectedSet.has(entry.path)
+  return <TableRow data-index={entry.id} data-state={selected ? "selected" : undefined} className="absolute left-0 grid w-full" style={{ gridTemplateColumns, height: RESULT_ROW_HEIGHT, transform: `translateY(${start}px)` }}><TableCell><Checkbox aria-label={`选择 ${entry.name}`} disabled={entry.isReference} checked={selected} onClick={(event) => { event.preventDefault(); onSelect(entry, !selected, event) }} /></TableCell><TableCell className="py-2"><LocalImagePreview path={entry.path} getFileUrl={getFileUrl} className="size-9" /></TableCell><TableCell><button className="flex items-center gap-1 font-mono" onClick={() => onSelectGroup(group, groupSelection)}><span className={cn("size-2 rounded-full", groupSelection.selected ? "bg-primary" : "bg-muted-foreground/40")} />{String(group.id + 1).padStart(2, "0")}{indexInGroup === 0 && group.entries.length > 1 ? <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">{group.entries.length}</Badge> : null}</button></TableCell>{columns.map((item) => <TableCell key={item.id} className={cn("min-w-0 truncate overflow-hidden", item.align === "right" && "text-right font-mono")} title={String(item.display?.(entry, group) ?? item.value(entry, group))}>{item.id === "path" ? <div className="flex min-w-0 items-center gap-1">{entry.isReference ? <Badge variant="secondary" className="h-4 px-1 text-[9px]">参考</Badge> : null}<span className="truncate font-mono">{entry.path}</span></div> : item.display?.(entry, group) ?? String(item.value(entry, group) || "—")}</TableCell>)}</TableRow>
+}
+
+export function flattenResultRows(groups: CzkawkaGroup[]): ResultRowItem[] {
+  return groups.flatMap((group) => group.entries.map((entry, indexInGroup) => ({ entry, group, indexInGroup })))
+}
+
+function selectableEntries(rows: ResultRowItem[]): CzkawkaEntry[] {
+  const entries: CzkawkaEntry[] = []
+  for (const row of rows) if (!row.entry.isReference) entries.push(row.entry)
+  return entries
+}
+
+function buildGroupSelections(groups: CzkawkaGroup[], selected: Set<string>): Map<CzkawkaGroup, GroupSelection> {
+  const selections = new Map<CzkawkaGroup, GroupSelection>()
+  for (const group of groups) {
+    const paths: string[] = []
+    let allSelected = true
+    for (const entry of group.entries) {
+      if (entry.isReference) continue
+      paths.push(entry.path)
+      if (!selected.has(entry.path)) allSelected = false
+    }
+    selections.set(group, { paths, selected: paths.length > 0 && allSelected })
+  }
+  return selections
+}
+
+export function calculateVirtualWindow(count: number, scrollTop: number, viewportHeight: number, rowHeight: number, overscan: number): { start: number; end: number } {
+  const start = clamp(Math.floor(scrollTop / rowHeight) - overscan, 0, count)
+  const end = clamp(Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan, start, count)
+  return { start, end }
 }
 
 export function applyResultSelection(current: string[], visible: CzkawkaEntry[], path: string, checked: boolean, mode: "replace" | "toggle" | "range", anchor?: string): string[] {
@@ -111,9 +193,18 @@ export function filterAndSortResultGroups(groups: CzkawkaGroup[], columns: reado
   return groups.map((group) => ({ ...group, entries: group.entries.filter((entry) => !needle || columns.some((item) => String(item.display?.(entry, group) ?? item.value(entry, group)).toLocaleLowerCase().includes(needle))).toSorted((left, right) => { const a = sortColumn.value(left, group); const b = sortColumn.value(right, group); const compared = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true }); return sort.descending ? -compared : compared }) })).filter((group) => group.entries.length > 0)
 }
 
+function defaultColumnWidth(id: CzkawkaResultColumnId): number {
+  if (id === "path" || id === "target") return 320
+  if (id === "name" || id === "title" || id === "artist" || id === "error") return 160
+  if (id === "modified") return 176
+  if (id === "currentExtension" || id === "properExtension") return 132
+  return 104
+}
+
 function defaultSort(tool: CzkawkaTool): CzkawkaResultColumnId { return tool === "big-files" ? "size" : "path" }
 function extension(name: string): string { const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1) : "" }
 function numeric(value: string | undefined): number { const parsed = Number.parseFloat(value ?? ""); return Number.isFinite(parsed) ? parsed : 0 }
 function unique(values: string[]): string[] { return [...new Set(values)] }
+function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)) }
 function formatDate(value: number): string { if (!value) return "—"; const milliseconds = value < 10_000_000_000 ? value * 1000 : value; return new Date(milliseconds).toLocaleString() }
 function formatBytes(bytes: number): string { if (bytes < 1024) return `${bytes} B`; const units = ["KB", "MB", "GB", "TB"]; let value = bytes / 1024; let unit = units[0]!; for (let index = 1; index < units.length && value >= 1024; index += 1) { value /= 1024; unit = units[index]! } return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}` }

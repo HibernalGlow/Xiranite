@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-czkawka/core"
-import { applyResultSelection, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups } from "./result-table"
+import { applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups } from "./result-table"
 
 const entries = [entry("a", 30), entry("b", 10), entry("c", 20)]
 const group: CzkawkaGroup = { id: 0, entries, totalBytes: 60, reclaimableBytes: 30 }
@@ -23,6 +23,11 @@ describe("Czkawka result table model", () => {
     expect(applyResultSelection(["a"], entries, "b", true, "replace")).toEqual(["b"])
     expect(applyResultSelection(["a"], entries, "b", true, "toggle")).toEqual(["a", "b"])
     expect(applyResultSelection(["a"], entries, "c", true, "range", "a")).toEqual(["a", "b", "c"])
+  })
+
+  test("calculates a bounded overscanned window for ten thousand rows", () => {
+    expect(calculateVirtualWindow(10_000, 0, 520, 52, 8)).toEqual({ start: 0, end: 18 })
+    expect(calculateVirtualWindow(10_000, 4_236, 520, 52, 8)).toEqual({ start: 73, end: 100 })
   })
 })
 
