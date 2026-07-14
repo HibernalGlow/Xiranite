@@ -746,7 +746,7 @@ route 必须具备：
 
 最小 React 纵切已接入 `src/nodes/neoview` 的 app/feature/adapter 边界：节点 `entry.ts` 与 `Component.tsx` 保持薄，`ReaderApp` 只持有 session/frame/交互小状态，HTTP client adapter 负责控制面；主显示链使用 DOM `<img decoding="async">`，不引入 Svelte runtime、Canvas 或 Base64。真实 CBZ Playwright E2E 会启动独立 loopback backend，在桌面与 `420×360` 卡片视口中验证有效 PNG 解码、前后翻页、零 Canvas 和关闭后 session 释放。
 
-`XIRANITE_CHUNK_REPORT=1 bunx vite build && bun run audit:neoview-build` 的 2026-07-15 生产构建证据为：NeoView React app 独立懒 chunk `12,174 bytes`，初始 chunk 中 NeoView 实现模块为 `0`，前端 `zip.js` 模块为 `0`。全仓通用 `audit:build-chunks` 同次仍因既有初始产物 `540,011 bytes > 520,000 bytes` 失败，但模块报告证明该初始 chunk 没有 NeoView 实现；NeoView 专属门禁独立限制 app chunk 不超过 40 KiB，并禁止 Reader/zip.js 泄漏到首屏。
+`XIRANITE_CHUNK_REPORT=1 bunx vite build && bun run audit:neoview-build` 的 2026-07-15 最新生产构建证据为：包含视口协商和失败回退的 NeoView React app 独立懒 chunk `17,488 bytes`，初始 chunk 中 NeoView 实现模块为 `0`，前端 `zip.js` 模块为 `0`。同次初始产物为 `528,647 bytes`，仍高于全仓通用 520,000 bytes 门槛，但模块报告证明超额不是 NeoView 实现泄漏；NeoView 专属门禁独立限制 app chunk 不超过 40 KiB，并禁止 Reader/zip.js 泄漏到首屏。sharp 只存在于 backend 二级动态 import，不参与前端构建。
 
 本地 HTTP 比 Tauri 内置协议多一层轻量 HTTP 解析，但在 loopback 上通常远小于图片解压、解码和 GPU 上传成本。它还能避免 Base64 的约 33% 体积膨胀、多次内存复制和 JS 堆压力。最终是否有净收益，以端到端基准为准。
 
@@ -1346,6 +1346,19 @@ export function Component(props: NodeComponentProps) {
 ### 16.3 状态模型与订阅粒度
 
 `ReaderView` 使用独立外部 store，并通过 selector 或 `useSyncExternalStore` 建立 React 可追踪的订阅。禁止把逐帧/逐页状态写入 workspace 全局 store，也禁止每次翻页替换包含全书内容的单一大对象。
+
+当前最小 React viewer 已接入视口感知的 `PageImage`，但仍保持唯一 DOM `<img>` 主链。viewer 容器在书籍打开前由 `useLayoutEffect + ResizeObserver` 测量；初始测量立即提交，后续连续 resize 延迟 120 ms 收敛，避免拖动窗口时产生大量 sharp 请求和缓存键。呈现 URL 的选择规则为：
+
+- 缺少可靠尺寸、动图、非目标原生格式和无需缩小的页面保持原 URL；
+- 按 `object-fit: contain`、当前可见页数和容器尺寸计算每页目标框，DPR 限制在 1～2；
+- 宽高向上量化到 64 CSS px，邻近视口尺寸复用相同 transform/cache key；
+- 源像素相对目标不足 2 倍时不转换；小于 512 KiB 的源还必须至少有 4 倍像素缩减才值得付出 native 解码成本；
+- 满足收益阈值时请求 `inside` WebP 82，不裁剪、不放大，保留 URL 中的 opaque token 与 content version；
+- 变换 URL 加载失败时同一个 `PageImage` 自动回退原始 asset URL；原图也失败时不重复切换，避免错误循环；
+- 双页模式按可见页数分配水平槽位，React 不重新判断页面配对，只消费 backend `FrameSnapshot`；
+- ResizeObserver 不存在或容器尚无有效尺寸时回退原 URL，不阻断显示。
+
+真实 CBZ Playwright 现在用 `2000×3000` JPEG 验证桌面/卡片视口都会生成 WebP URL且自然宽度低于原图，再翻到 1px PNG 验证小图保持原始直出；全程仍为零 Canvas。后续应把固定阈值纳入 `image-first-frame`/内存 benchmark，按真实硬件数据调整，而不是继续在组件里堆启发式分支。
 
 推荐规范化存储：
 

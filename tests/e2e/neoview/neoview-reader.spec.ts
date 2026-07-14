@@ -16,9 +16,14 @@ let backend: Awaited<ReturnType<typeof startBackend>>
 test.setTimeout(90_000)
 
 test.beforeAll(async () => {
+  const sharpModule = await import("sharp")
+  const sharp = (sharpModule as unknown as { default?: typeof import("sharp") }).default ?? sharpModule
+  const largeJpeg = await sharp({
+    create: { width: 2000, height: 3000, channels: 3, background: { r: 130, g: 85, b: 190 } },
+  }).jpeg({ quality: 90 }).toBuffer()
   fixture = await createZipFixture({
     entries: [
-      { path: "pages/001.png", bytes: ONE_PIXEL_PNG, level: 6 },
+      { path: "pages/001.jpg", bytes: largeJpeg, level: 6 },
       { path: "pages/002.png", bytes: ONE_PIXEL_PNG, level: 0 },
     ],
   })
@@ -48,12 +53,14 @@ test("[neoview.react.cbz-e2e] decodes and navigates a real CBZ through React img
     sessionId: string
     visiblePages: Array<{ dimensions?: { width: number; height: number } }>
   }
-  expect(opened.visiblePages[0]?.dimensions).toEqual({ width: 1, height: 1 })
+  expect(opened.visiblePages[0]?.dimensions).toEqual({ width: 2000, height: 3000 })
 
-  const first = page.getByRole("img", { name: "001.png" })
+  const first = page.getByRole("img", { name: "001.jpg" })
   await expect(first).toBeVisible()
-  await expect.poll(() => first.evaluate((image: HTMLImageElement) => ({ complete: image.complete, width: image.naturalWidth })))
-    .toEqual({ complete: true, width: 1 })
+  await expect.poll(() => first.getAttribute("src")).toContain("format=webp")
+  await expect.poll(() => first.evaluate((image: HTMLImageElement) => (
+    image.complete && image.naturalWidth > 1 && image.naturalWidth < 2000
+  ))).toBe(true)
   await expect(page.locator("canvas")).toHaveCount(0)
 
   await page.getByRole("button", { name: "下一页" }).click()

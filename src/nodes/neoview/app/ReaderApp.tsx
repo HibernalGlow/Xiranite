@@ -11,6 +11,8 @@ import {
   type ReaderNavigationDto,
   type ReaderSessionDto,
 } from "../adapters/reader-http-client"
+import { PageImage } from "../features/reader/PageImage"
+import { useReaderViewport } from "./useReaderViewport"
 
 export interface ReaderAppProps {
   initialPath?: string
@@ -32,6 +34,8 @@ export function ReaderApp({
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
+  const viewerRef = useRef<HTMLDivElement>(null)
+  const viewport = useReaderViewport(viewerRef)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
@@ -145,7 +149,7 @@ export function ReaderApp({
         </Button>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-black/95">
+      <div ref={viewerRef} className="relative min-h-0 flex-1 overflow-hidden bg-black/95">
         {!session ? (
           <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
             <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
@@ -153,13 +157,11 @@ export function ReaderApp({
         ) : (
           <div className={cn("flex h-full w-full items-center justify-center", session.visiblePages.length > 1 && "gap-1")}>
             {session.visiblePages.map((page) => (
-              <img
+              <PageImage
                 key={`${page.id}:${page.contentVersion}`}
-                src={page.assetUrl}
-                alt={page.name}
-                draggable={false}
-                decoding="async"
-                className="max-h-full min-h-0 max-w-full select-none object-contain"
+                page={page}
+                viewport={viewport}
+                visiblePageCount={session.visiblePages.length}
               />
             ))}
           </div>

@@ -64,7 +64,7 @@
       "settingsKeys": ["book.doublePageView", "view.pageLayout", "image.longImageScrollMode", "view.autoRotate"],
       "dataStores": ["view state", "per-book layout"], "surfaces": ["gui"], "status": "pending",
       "behaviorCases": ["封面和末页单页", "宽页拆分或成对", "不同尺寸双页对齐", "全景组合", "连续长图虚拟窗口", "旋转后重排"],
-      "testIds": ["neoview.frame.layout", "neoview.image.probe-layout", "neoview.image.probe-orientation"], "benchmarkIds": ["layout-switch", "continuous-scroll"], "knownDifferences": []
+      "testIds": ["neoview.frame.layout", "neoview.image.probe-layout", "neoview.image.probe-orientation", "neoview.react.presentation-double", "neoview.react.presentation-resize"], "benchmarkIds": ["layout-switch", "continuous-scroll"], "knownDifferences": []
     },
     {
       "id": "zoom-rotate-magnifier",
@@ -84,7 +84,7 @@
       "settingsKeys": ["image.supportedFormats", "image.nativeJxl", "performance.protocolDirectEnabled", "performance.directUrlThresholdMB"],
       "dataStores": ["dimension cache", "decoded image cache"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG", "EXIF 方向", "ICC/透明度", "坏图", "超大图", "浏览器直出和转换 fallback"],
-      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout", "neoview.image.transform-query", "neoview.image.transform-validation", "neoview.image.transform-route", "neoview.image.transform-sharp", "neoview.image.transform-cancellation", "neoview.image.transform-http"], "benchmarkIds": ["image-decode", "image-first-frame"], "knownDifferences": []
+      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.react.presentation-original", "neoview.react.presentation-transform", "neoview.react.presentation-stability", "neoview.react.presentation-double", "neoview.react.presentation-img", "neoview.react.presentation-resize", "neoview.react.presentation-fallback", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout", "neoview.image.transform-query", "neoview.image.transform-validation", "neoview.image.transform-route", "neoview.image.transform-sharp", "neoview.image.transform-cancellation", "neoview.image.transform-http"], "benchmarkIds": ["image-decode", "image-first-frame"], "knownDifferences": []
     },
     {
       "id": "animated-image-video",
@@ -124,7 +124,7 @@
       "settingsKeys": ["performance.cacheMemorySize"],
       "dataStores": ["memory LRU", "persistent cache", "cache index DB"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["真实字节预算", "pin 和方向淘汰", "mtime/hash 失效", "损坏恢复", "80% hysteresis", "session close/hibernate 回收"],
-      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.http.e2e"], "benchmarkIds": ["cache-memory-budget"], "knownDifferences": []
+      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.react.presentation-stability", "neoview.http.e2e"], "benchmarkIds": ["cache-memory-budget"], "knownDifferences": []
     },
     {
       "id": "super-resolution",

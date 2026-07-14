@@ -109,7 +109,7 @@
 - 设置：`book.doublePageView`、`view.pageLayout`、`image.longImageScrollMode`、`view.autoRotate`
 - 数据：view state、per-book layout
 - 行为：封面和末页单页；宽页拆分或成对；不同尺寸双页对齐；全景组合；连续长图虚拟窗口；旋转后重排
-- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`
+- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`、`neoview.react.presentation-double`、`neoview.react.presentation-resize`
 - 性能基准：`layout-switch`、`continuous-scroll`
 - 已知差异：无
 
@@ -131,7 +131,7 @@
 - 设置：`image.supportedFormats`、`image.nativeJxl`、`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：dimension cache、decoded image cache
 - 行为：JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG；EXIF 方向；ICC/透明度；坏图；超大图；浏览器直出和转换 fallback
-- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`、`neoview.image.transform-query`、`neoview.image.transform-validation`、`neoview.image.transform-route`、`neoview.image.transform-sharp`、`neoview.image.transform-cancellation`、`neoview.image.transform-http`
+- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.react.presentation-original`、`neoview.react.presentation-transform`、`neoview.react.presentation-stability`、`neoview.react.presentation-double`、`neoview.react.presentation-img`、`neoview.react.presentation-resize`、`neoview.react.presentation-fallback`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`、`neoview.image.transform-query`、`neoview.image.transform-validation`、`neoview.image.transform-route`、`neoview.image.transform-sharp`、`neoview.image.transform-cancellation`、`neoview.image.transform-http`
 - 性能基准：`image-decode`、`image-first-frame`
 - 已知差异：无
 
@@ -175,7 +175,7 @@
 - 设置：`performance.cacheMemorySize`
 - 数据：memory LRU、persistent cache、cache index DB
 - 行为：真实字节预算；pin 和方向淘汰；mtime/hash 失效；损坏恢复；80% hysteresis；session close/hibernate 回收
-- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.http.e2e`
+- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.react.presentation-stability`、`neoview.http.e2e`
 - 性能基准：`cache-memory-budget`
 - 已知差异：无
 
