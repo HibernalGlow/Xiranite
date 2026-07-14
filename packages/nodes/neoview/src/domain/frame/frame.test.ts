@@ -70,5 +70,11 @@ function page(index: number, width: number, height: number): ReaderPage {
     sourcePath: `C:/book/${index}.jpg`,
     mediaKind: "image",
     dimensions: { width, height },
+    contentVersion: "fixture-v1",
+    content: {
+      async load() {
+        throw new Error("Frame tests do not load page content.")
+      },
+    },
   }
 }

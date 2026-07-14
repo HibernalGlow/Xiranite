@@ -31,13 +31,15 @@ describe("CoreReaderSession", () => {
   })
 
   it("[neoview.session.lifecycle] rejects cancelled navigation and closes idempotently", async () => {
-    const session = new CoreReaderSession("reader-1", book(2))
+    const sourceBook = book(2)
+    const session = new CoreReaderSession("reader-1", sourceBook)
     const controller = new AbortController()
     controller.abort(new Error("cancelled"))
     await expect(session.goTo(1, controller.signal)).rejects.toThrow("cancelled")
     expect(session.generation).toBe(0)
     await session.close()
     await session.close()
+    expect(sourceBook.close).toHaveBeenCalledOnce()
     expect(() => session.snapshot()).toThrow("closed")
   })
 })
@@ -51,15 +53,47 @@ describe("CoreReaderService", () => {
     expect(service.getSession(first.id)).toBe(first)
     await service.closeSession(first.id)
     expect(service.getSession(first.id)).toBeUndefined()
+    expect(first.book.close).toHaveBeenCalledOnce()
 
     const second = await service.openViewSource({ kind: "image", path: "C:/book/1.jpg" })
     await service[Symbol.asyncDispose]()
     expect(service.getSession(second.id)).toBeUndefined()
     await expect(service.openViewSource({ kind: "image", path: "x" })).rejects.toThrow("closed")
   })
+
+  it("[neoview.session.lifecycle] disposes a loaded book when cancellation wins the post-load race", async () => {
+    const controller = new AbortController()
+    const loaded = book(1)
+    const service = new CoreReaderService(async () => {
+      controller.abort(new Error("cancelled after load"))
+      return loaded
+    })
+    await expect(service.openViewSource(
+      { kind: "image", path: "C:/book/1.jpg" },
+      { signal: controller.signal },
+    )).rejects.toThrow("cancelled after load")
+    expect(loaded.close).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.session.lifecycle] rejects an in-flight open when service disposal wins the load race", async () => {
+    let release!: (loaded: ReaderBook) => void
+    const pending = new Promise<ReaderBook>((resolve) => {
+      release = resolve
+    })
+    const loaded = book(1)
+    const service = new CoreReaderService(() => pending)
+    const opening = service.openViewSource({ kind: "path", path: "C:/book" })
+    const disposal = service[Symbol.asyncDispose]()
+    release(loaded)
+    await expect(opening).rejects.toThrow("closed")
+    expect(loaded.close).toHaveBeenCalledOnce()
+    await disposal
+  })
 })
 
 function book(pageCount: number): ReaderBook {
+  const close = vi.fn(async () => undefined)
   return {
     id: "book-1",
     displayName: "Book",
@@ -71,6 +105,14 @@ function book(pageCount: number): ReaderBook {
       sourcePath: `C:/book/${index}.jpg`,
       mediaKind: "image",
       dimensions: { width: 800, height: 1200 },
+      contentVersion: "fixture-v1",
+      content: {
+        async load() {
+          throw new Error("Reader session tests do not load page content.")
+        },
+      },
     })),
+    close,
+    [Symbol.asyncDispose]: close,
   }
 }

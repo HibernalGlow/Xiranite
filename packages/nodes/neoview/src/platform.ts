@@ -1,5 +1,6 @@
 import type { NeoViewMigrationStatus, NeoViewRuntime } from "./core.js"
 import type { ArchiveProvider } from "./ports/ArchiveProvider.js"
+import type { ReaderBookLoader } from "./ports/ReaderBookLoader.js"
 import type { ZipArchiveProviderOptions } from "./platform/archives/zip/ZipArchiveProvider.js"
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
@@ -21,4 +22,9 @@ export async function createZipArchiveProvider(
 ): Promise<ArchiveProvider> {
   const { ZipArchiveProvider } = await import("./platform/archives/zip/ZipArchiveProvider.js")
   return new ZipArchiveProvider(sourcePath, options)
+}
+
+export async function createReaderBookLoader(): Promise<ReaderBookLoader> {
+  const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
+  return createPlatformReaderBookLoader()
 }

@@ -17,6 +17,7 @@ export class CoreReaderSession implements ReaderSession {
   #options: ReaderSessionOptions
   #listeners = new Set<(event: ReaderSessionEvent) => void>()
   #closed = false
+  #closing: Promise<void> | undefined
   #onClose?: (sessionId: ReaderSessionId) => void
 
   constructor(
@@ -92,13 +93,17 @@ export class CoreReaderSession implements ReaderSession {
     return () => this.#listeners.delete(listener)
   }
 
-  async close(): Promise<void> {
-    if (this.#closed) return
+  close(): Promise<void> {
+    if (this.#closing) return this.#closing
     this.#closed = true
-    this.#emit({ type: "closed", sessionId: this.id })
-    this.#listeners.clear()
-    this.#onClose?.(this.id)
-    this.#onClose = undefined
+    this.#closing = Promise.resolve().then(async () => {
+      this.#emit({ type: "closed", sessionId: this.id })
+      this.#listeners.clear()
+      this.#onClose?.(this.id)
+      this.#onClose = undefined
+      await this.book.close()
+    })
+    return this.#closing
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -112,7 +117,7 @@ export class CoreReaderSession implements ReaderSession {
   }
 
   #emit(event: ReaderSessionEvent): void {
-    for (const listener of [...this.#listeners]) listener(event)
+    for (const listener of Array.from(this.#listeners)) listener(event)
   }
 
   #assertOpen(): void {

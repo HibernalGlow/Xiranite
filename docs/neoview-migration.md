@@ -678,6 +678,8 @@ interface ViewSource extends AsyncDisposable {
 - `ViewSource` 是与目标尺寸、格式、色彩空间相关的呈现产物；
 - React store 只保存 `sessionId`、当前 `FrameSnapshot`、控件和动画状态，不拥有压缩包句柄与大块二进制。
 
+当前第一条实现已落在 `domain/page/page-content.ts` 与 `platform/books|filesystem|archives|content`：统一 `{ kind: "path" }` 入口会自动识别目录、独立图片、独立视频和 ZIP/CBZ；目录仅索引直接子项并以 32 路有界 metadata 并发自然排序，AVIF/JXL 与旧版图片/视频扩展进入同一 `ReaderPage` 契约。`ReaderBook` 是资源所有者：session close/dispose 必须等待 book close，archive book 再关闭 provider 和活动 entry stream；取消若发生在 loader 返回之后、session 注册之前，也必须立即释放刚加载的 book。目录与单文件页通过 64 KiB 位置式 chunk 读取，ZIP 页复用同一 `PageContent -> PageSource` 数据入口，GUI/CLI/TUI 不再各自扫描或读取文件。
+
 这能避免“页面状态一变，全 workspace 重渲染”，也防止 GUI、CLI、TUI 各自实现一套页面逻辑。
 
 ## 9. ReaderService 与小型公开接口
@@ -1775,7 +1777,7 @@ scripts/
 
 ### Phase 2：目录、ZIP 与唯一数据主链
 
-- 已选定并实现 `@zip.js/zip.js` 随机文件 Reader 与 CBZ/ZIP 流式 provider，继续补真实漫画语料和目录 provider；
+- 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
 - 打通 `entry stream -> 可选 sharp -> HTTP Response` 端到端背压与取消；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；

@@ -1,3 +1,5 @@
+import type { PageContent } from "./page-content.js"
+
 export type PageId = string
 
 export type PageMediaKind = "image" | "animated-image" | "video" | "document-page"
@@ -17,4 +19,6 @@ export interface ReaderPage {
   mimeType?: string
   byteLength?: number
   dimensions?: PageDimensions
+  contentVersion: string
+  content: PageContent
 }

@@ -30,6 +30,7 @@ export {
 } from "./domain/frame/frame.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
+export type { PageContent, PageSource } from "./domain/page/page-content.js"
 export {
   type ArchiveByteRange,
   type ArchiveCapabilities,

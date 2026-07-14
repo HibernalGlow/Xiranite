@@ -7,6 +7,7 @@ export class CoreReaderService implements ReaderService {
   #sessions = new Map<ReaderSessionId, CoreReaderSession>()
   #nextSessionId = 1
   #closed = false
+  #disposing: Promise<void> | undefined
 
   constructor(private readonly loadBook: ReaderBookLoader) {}
 
@@ -14,12 +15,23 @@ export class CoreReaderService implements ReaderService {
     this.#assertOpen()
     options.signal?.throwIfAborted()
     const book = await this.loadBook(source, options.signal)
-    options.signal?.throwIfAborted()
+    try {
+      options.signal?.throwIfAborted()
+      this.#assertOpen()
+    } catch (error) {
+      await book.close()
+      throw error
+    }
     const id = `reader-${this.#nextSessionId++}`
     const session = new CoreReaderSession(id, book, options, (sessionId) => this.#sessions.delete(sessionId))
     this.#sessions.set(id, session)
-    if (options.initialPage !== undefined && options.initialPage !== 0) await session.goTo(options.initialPage, options.signal)
-    return session
+    try {
+      if (options.initialPage !== undefined && options.initialPage !== 0) await session.goTo(options.initialPage, options.signal)
+      return session
+    } catch (error) {
+      await session.close()
+      throw error
+    }
   }
 
   getSession(sessionId: ReaderSessionId): ReaderSession | undefined {
@@ -30,12 +42,17 @@ export class CoreReaderService implements ReaderService {
     await this.#sessions.get(sessionId)?.close()
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    if (this.#closed) return
+  [Symbol.asyncDispose](): Promise<void> {
+    if (this.#disposing) return this.#disposing
     this.#closed = true
-    const sessions = [...this.#sessions.values()]
-    await Promise.all(sessions.map((session) => session.close()))
-    this.#sessions.clear()
+    this.#disposing = Promise.resolve().then(async () => {
+      const sessions = [...this.#sessions.values()]
+      const results = await Promise.allSettled(sessions.map((session) => session.close()))
+      this.#sessions.clear()
+      const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      if (errors.length) throw new AggregateError(errors, "Failed to close one or more reader sessions.")
+    })
+    return this.#disposing
   }
 
   #assertOpen(): void {
