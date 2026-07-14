@@ -38,6 +38,13 @@ try {
       allowedExtensions: "jpg,png,IMAGE",
       phase: "idle",
       progressText: "Czkawka 已就绪。",
+      result: {
+        action: "scan", tool: "similar-images", messages: "", stopped: false,
+        groups: [{ id: 0, totalBytes: 30, reclaimableBytes: 10, entries: [{ id: "qa-a", groupId: 0, path: "D:/Photos/a.fixture", name: "a.fixture", size: 10, modifiedDate: 1, width: 100, height: 80, similarity: "2" }, { id: "qa-b", groupId: 0, path: "D:/Photos/b.fixture", name: "b.fixture", size: 20, modifiedDate: 2, width: 100, height: 80, similarity: "3" }] }],
+        entries: [{ id: "qa-a", groupId: 0, path: "D:/Photos/a.fixture", name: "a.fixture", size: 10, modifiedDate: 1, width: 100, height: 80, similarity: "2" }, { id: "qa-b", groupId: 0, path: "D:/Photos/b.fixture", name: "b.fixture", size: 20, modifiedDate: 2, width: 100, height: 80, similarity: "3" }],
+        groupCount: 1, fileCount: 2, totalBytes: 30, reclaimableBytes: 10, affectedCount: 0, errorCount: 0,
+        similarFolders: [{ path: "D:/Photos", count: 2, bytes: 30, groupCount: 1 }],
+      },
     },
   }))
   const componentId = staged.selected?.id
@@ -59,7 +66,9 @@ try {
   await page.keyboard.press("Escape")
   await root.getByRole("tab", { name: /结果/ }).click()
   console.log("[qa-czkawka] result tab")
-  await root.getByText("添加目录并开始扫描。").waitFor({ state: "visible" })
+  await root.getByRole("tab", { name: /文件夹/ }).click()
+  await root.getByTestId("czkawka-similar-folders").waitFor({ state: "visible" })
+  await root.getByText("D:/Photos", { exact: true }).waitFor({ state: "visible" })
 
   console.log("[qa-czkawka] measure")
   await primary.focus()
@@ -94,7 +103,7 @@ try {
 
   await mkdir(outputRoot, { recursive: true })
   await root.screenshot({ path: screenshotPath })
-  const report = { componentId, interaction: { switchedTool: "similar-images", referencesSelected: 2, tabsVisited: ["results"] }, measurements, consoleErrors, consoleWarnings, screenshotPath }
+  const report = { componentId, interaction: { switchedTool: "similar-images", referencesSelected: 2, tabsVisited: ["results", "similar-folders"] }, measurements, consoleErrors, consoleWarnings, screenshotPath }
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8")
   console.log(JSON.stringify(report, null, 2))
 } finally {

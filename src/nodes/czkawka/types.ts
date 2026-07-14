@@ -9,6 +9,7 @@ import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-la
 
 export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
 export type CzkawkaPanel = "source" | "results" | "analysis"
+export type CzkawkaSimilarImagesViewMode = "images" | "folders"
 
 export interface CzkawkaCardState {
   schemaVersion?: 1
@@ -38,6 +39,7 @@ export interface CzkawkaCardState {
   similarImagesResizeAlgorithm?: CzkawkaImageResizeAlgorithm
   similarImagesIgnoreSameSize?: boolean
   similarImagesFolderThreshold?: string
+  similarImagesViewMode?: CzkawkaSimilarImagesViewMode
   similarVideosIgnoreSameSize?: boolean
   similarVideosSkipForward?: string
   similarVideosHashDuration?: string

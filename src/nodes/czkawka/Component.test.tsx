@@ -285,6 +285,26 @@ describe("Czkawka node", () => {
     expect(screen.getByRole("button", { name: "禁用固定预览" })).toBeTruthy()
   })
 
+  test("switches and persists the similar-image folder result view", () => {
+    const entry = { id: "image", groupId: 0, path: "D:/photos/a.jpg", name: "a.jpg", size: 12, modifiedDate: 1, width: 100, height: 80, similarity: "2" }
+    const result: CzkawkaData = { ...sample, tool: "similar-images", groups: [{ id: 0, entries: [entry], totalBytes: 12, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 12, similarFolders: [{ path: "D:/photos", count: 3, bytes: 42, groupCount: 2, previewPath: entry.path }] }
+    const host = createHost({ tool: "similar-images", result })
+    render(<Component compId="czkawka" host={host} />)
+    const foldersTab = screen.getByRole("tab", { name: /文件夹/ })
+    fireEvent.pointerDown(foldersTab, { button: 0 })
+    fireEvent.mouseDown(foldersTab, { button: 0 })
+    fireEvent.click(foldersTab)
+    expect(host.stateValue.similarImagesViewMode).toBe("folders")
+    expect(screen.getByTestId("czkawka-similar-folders")).toBeTruthy()
+    expect(screen.getByText("D:/photos")).toBeTruthy()
+    const imagesTab = screen.getByRole("tab", { name: "图片" })
+    fireEvent.pointerDown(imagesTab, { button: 0 })
+    fireEvent.mouseDown(imagesTab, { button: 0 })
+    fireEvent.click(imagesTab)
+    expect(host.stateValue.similarImagesViewMode).toBe("images")
+    expect(screen.getByTestId("czkawka-result-table")).toBeTruthy()
+  })
+
   test("persists card order, height, collapse, visibility, and cross-panel moves", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { createCzkawkaOperationInput, createCzkawkaScanInput, getCzkawkaToolOptions, type CzkawkaOptionDefinition } from "@xiranite/node-czkawka/tool-options"
-import type { CzkawkaCardState, CzkawkaPanel } from "./types"
+import type { CzkawkaCardState, CzkawkaPanel, CzkawkaSimilarImagesViewMode } from "./types"
 import { CzkawkaResultTable } from "./result-table"
 import { CzkawkaFilterPanel } from "./filter-panel"
 import { CzkawkaSelectionAssistant } from "./selection-assistant"
@@ -37,6 +37,7 @@ import { parseCzkawkaList } from "@xiranite/node-czkawka/source-inputs"
 import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "./source-inputs"
 import { CZKAWKA_WORKSPACE_DEFAULTS, normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
+import { CzkawkaSimilarFoldersView } from "./similar-folders-view"
 
 const TOOLS: Array<{
   id: CzkawkaTool
@@ -94,6 +95,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   const floatingAnalysisPanel = normalizeCzkawkaFloatingPanel(floatingAnalysisPanelState, floatingViewport)
   const [filterNow] = useState(Date.now)
   const [panel, setPanel] = useState<CzkawkaPanel>("source")
+  const [similarImagesViewMode, setSimilarImagesViewModeState] = useState<CzkawkaSimilarImagesViewMode>(() => data.similarImagesViewMode ?? "images")
   const tool = data.tool ?? "duplicate-files"
   const result = resultsByTool[tool] ?? (data.result?.tool === tool ? data.result : null)
   const selectedPaths = selectedPathsByTool[tool] ?? []
@@ -147,6 +149,11 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     const next = { ...previewPanelEnabledByTool, [tool]: enabled }
     setPreviewPanelEnabledByTool(next)
     patch({ previewPanelEnabledByTool: next })
+  }
+
+  function setSimilarImagesViewMode(similarImagesViewMode: CzkawkaSimilarImagesViewMode) {
+    setSimilarImagesViewModeState(similarImagesViewMode)
+    patch({ similarImagesViewMode })
   }
 
   function setFloatingAnalysisPanel(next: CzkawkaFloatingPanelState) {
@@ -369,6 +376,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     activityLog,
     cardLayout,
     workspaceLayout,
+    similarImagesViewMode,
     previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false,
     floatingAnalysisPanel,
     floatingViewport,
@@ -387,6 +395,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     clearActivityLog,
     setCardLayout,
     setWorkspaceLayout,
+    setSimilarImagesViewMode,
     setPreviewPanelEnabled,
     setFloatingAnalysisPanel,
     setPanel,
@@ -429,6 +438,7 @@ type View = {
   activityLog: CzkawkaActivityLogEntry[]
   cardLayout: CzkawkaCardLayout
   workspaceLayout: CzkawkaWorkspaceLayout
+  similarImagesViewMode: CzkawkaSimilarImagesViewMode
   previewPanelEnabled: boolean
   floatingAnalysisPanel: CzkawkaFloatingPanelState
   floatingViewport: CzkawkaFloatingViewport
@@ -447,6 +457,7 @@ type View = {
   clearActivityLog: () => void
   setCardLayout: (layout: CzkawkaCardLayout) => void
   setWorkspaceLayout: (layout: CzkawkaWorkspaceLayout) => void
+  setSimilarImagesViewMode: (mode: CzkawkaSimilarImagesViewMode) => void
   setPreviewPanelEnabled: (enabled: boolean) => void
   setFloatingAnalysisPanel: (state: CzkawkaFloatingPanelState) => void
   setPanel: (panel: CzkawkaPanel) => void
@@ -840,7 +851,9 @@ function SchemaOptionField({ data, definition, patch }: View & { definition: Czk
 }
 
 function ResultTable(props: View) {
-  return <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  if (props.tool !== "similar-images") return table
+  return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">图片</TabsTrigger><TabsTrigger value="folders">文件夹 <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
 
 function AnalysisPanel(props: View) {

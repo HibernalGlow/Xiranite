@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url"
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const cli = join(packageRoot, "dist", "cli.js")
 const fixture = await mkdtemp(join(tmpdir(), "xiranite-czkawka-cli-"))
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64")
+const SIMILAR_BMP = createBmp(256, false)
+const SIMILAR_VARIANT_BMP = createBmp(256, true)
 
 try {
   await Promise.all([
@@ -13,7 +16,7 @@ try {
     writeFile(join(fixture, "duplicate-b.txt"), "same-content"),
     writeFile(join(fixture, "different.txt"), "different-content"),
     writeFile(join(fixture, "empty.txt"), ""),
-    writeFile(join(fixture, "image.bin"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64")),
+    writeFile(join(fixture, "image.bin"), PNG),
     writeFile(join(fixture, "large.dat"), Buffer.alloc(100, 1)),
     writeFile(join(fixture, "medium.dat"), Buffer.alloc(50, 2)),
     writeFile(join(fixture, "tiny.dat"), Buffer.alloc(1, 3)),
@@ -77,7 +80,17 @@ try {
   const referenced = await scanRoots("duplicate-files", [duplicateMatrix.reference, duplicateMatrix.referenceOther], ["--no-cache", "--check", "hash", "--reference", duplicateMatrix.reference])
   if (referenced.data?.groupCount !== 1 || referenced.data.groups[0]?.entries.filter((entry) => entry.isReference).length !== 1) throw new Error(`Reference duplicate group mismatch: ${JSON.stringify(referenced)}`)
 
-  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
+  const similarImages = await createSimilarImages(fixture)
+  for (const hashSize of ["8", "16", "32", "64"]) await assertSimilarImages(similarImages, ["--image-hash-size", hashSize])
+  for (const hash of ["mean", "gradient", "blockhash", "vert-gradient", "double-gradient", "median"]) await assertSimilarImages(similarImages, ["--image-hash", hash])
+  for (const resize of ["lanczos3", "gaussian", "catmull-rom", "triangle", "nearest"]) await assertSimilarImages(similarImages, ["--image-resize", resize])
+  await assertSimilarImages(similarImages, ["--similarity", "0", "--folder-threshold", "2"], 1)
+  const highFolderThreshold = await scan("similar-images", similarImages, ["--no-cache", "--similarity", "10", "--folder-threshold", "3"])
+  if (highFolderThreshold.data?.similarFolders?.length !== 0) throw new Error(`Similar-image folder threshold was ignored: ${JSON.stringify(highFolderThreshold)}`)
+  const ignoredSameSize = await scan("similar-images", similarImages, ["--no-cache", "--image-ignore-same-size"])
+  if (ignoredSameSize.data?.groupCount !== 0) throw new Error(`Similar-image same-size filter was ignored: ${JSON.stringify(ignoredSameSize)}`)
+
+  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
 } finally {
   await rm(fixture, { recursive: true, force: true })
 }
@@ -124,4 +137,23 @@ async function createDuplicateMatrix(root) {
     link(join(paths.hardLinks, "original.bin"), join(paths.hardLinks, "alias.bin")),
   ])
   return paths
+}
+
+async function createSimilarImages(root) {
+  const directory = join(root, "similar-images-matrix")
+  await mkdir(directory, { recursive: true })
+  await Promise.all([writeFile(join(directory, "a.bmp"), SIMILAR_BMP), writeFile(join(directory, "b.bmp"), SIMILAR_VARIANT_BMP)])
+  return directory
+}
+
+async function assertSimilarImages(root, flags, expectedFolders) {
+  const result = await scan("similar-images", root, ["--no-cache", "--similarity", "10", ...flags])
+  if (result.data?.groupCount !== 1 || expectedFolders !== undefined && result.data.similarFolders?.length !== expectedFolders) throw new Error(`Similar-image options failed (${flags.join(" ")}): ${JSON.stringify(result)}`)
+}
+
+function createBmp(size, variant) {
+  const rowSize = Math.ceil(size * 3 / 4) * 4, pixelBytes = rowSize * size, buffer = Buffer.alloc(54 + pixelBytes)
+  buffer.write("BM"); buffer.writeUInt32LE(buffer.length, 2); buffer.writeUInt32LE(54, 10); buffer.writeUInt32LE(40, 14); buffer.writeInt32LE(size, 18); buffer.writeInt32LE(size, 22); buffer.writeUInt16LE(1, 26); buffer.writeUInt16LE(24, 28); buffer.writeUInt32LE(pixelBytes, 34)
+  for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) { const offset = 54 + y * rowSize + x * 3; buffer[offset] = (x + y) % 256; buffer[offset + 1] = y; buffer[offset + 2] = variant && x === 128 && y === 128 ? 255 : x }
+  return buffer
 }
