@@ -21,9 +21,9 @@ export type EncodebInteractionValues = InteractionValues & {
 export const defaultEncodebInteractionValues: EncodebInteractionValues = {
   action: "preview",
   paths: "",
-  preset: "cn",
-  srcEncoding: "cp437",
-  dstEncoding: "cp936",
+  preset: "auto",
+  srcEncoding: "auto",
+  dstEncoding: "auto",
   strategy: "replace",
   limit: 200,
 }
@@ -40,14 +40,15 @@ export function createEncodebInteractionSchema(
     { id: "action", label: zh ? "修复任务" : "Recovery task", kind: "select", role: "action", options: [{ value: "find", label: zh ? "⌕ 查找乱码" : "Find" }, { value: "preview", label: zh ? "◉ 预览修复" : "Preview" }, { value: "recover", label: zh ? "↻ 执行修复" : "Recover" }] },
     { id: "paths", label: zh ? "输入路径" : "Input paths", kind: "path-list", lines: 6 },
     { id: "preset", label: zh ? "修复预设" : "Repair preset", kind: "select", options: [
-      { value: "cn", label: "CN · CP437 → CP936" },
-      { value: "jp", label: "JP · CP437 → CP932" },
-      { value: "kr", label: "KR · CP437 → CP949" },
-      { value: "jp_from_cn", label: "JP · CP936 → CP932" },
+      { value: "auto", label: zh ? "Auto · 自动判断（推荐）" : "Auto detect (recommended)" },
+      { value: "cn", label: "CN · ╓╨╬─ → 中文" },
+      { value: "jp", label: "JP · âeâXâg → テスト" },
+      { value: "kr", label: "KR · ╟╤▒█ → 한글" },
+      { value: "jp_from_cn", label: "JP · 僥僗僩 → テスト" },
       { value: "jp_iso2022_from_cn", label: "JP · CP936 → ISO-2022-JP" },
-      { value: "latin1_utf8", label: "Mojibake · CP1252 → UTF-8" },
-      { value: "hash_u", label: "#Uxxxx → Unicode" },
-      { value: "middle_dot", label: "・ → ·" },
+      { value: "latin1_utf8", label: "Mojibake · ã‚» → セ" },
+      { value: "hash_u", label: "#U30BB → セ" },
+      { value: "middle_dot", label: "魔法・少女 → 魔法·少女" },
       { value: "custom", label: zh ? "自定义" : "Custom" },
     ] },
     { id: "srcEncoding", label: zh ? "源编码" : "Source encoding", kind: "text" },
@@ -85,7 +86,7 @@ export function createEncodebInteractionSchema(
 }
 
 export function encodebInputFromInteractionValues(values: Readonly<InteractionValues>): EncodebInput {
-  const presetId = String(values.preset ?? "cn")
+  const presetId = String(values.preset ?? "auto")
   const preset = ENCODEB_PRESETS[presetId as keyof typeof ENCODEB_PRESETS] ?? ENCODEB_PRESETS.cn
   const custom = presetId === "custom"
   return {

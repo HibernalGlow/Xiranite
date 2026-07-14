@@ -11,9 +11,20 @@ export interface EncodebPresetMeta {
   dstEncoding?: string
   transform: EncodebTransform
   description: string
+  example: string
 }
 
 export const PRESETS: EncodebPresetMeta[] = [
+  {
+    value: "auto",
+    label: "自动判断",
+    shortLabel: "Auto",
+    srcEncoding: "auto",
+    dstEncoding: "auto",
+    transform: "auto",
+    description: "逐个名称保守判断；不确定时保持原样，建议优先使用。",
+    example: "ã‚» → セ；#U30BB → セ；╓╨╬─ → 中文",
+  },
   {
     value: "cn",
     label: "中文",
@@ -22,6 +33,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "cp936",
     transform: "recode",
     description: "ZIP 常见 cp437 字节按 GBK/CP936 还原。",
+    example: "╓╨╬─.txt → 中文.txt",
   },
   {
     value: "jp",
@@ -31,6 +43,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "cp932",
     transform: "recode",
     description: "ZIP 常见 cp437 字节按 Shift-JIS/CP932 还原。",
+    example: "âeâXâg.txt → テスト.txt",
   },
   {
     value: "kr",
@@ -40,6 +53,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "cp949",
     transform: "recode",
     description: "ZIP 常见 cp437 字节按 EUC-KR/CP949 还原。",
+    example: "╟╤▒█.txt → 한글.txt",
   },
   {
     value: "jp_from_cn",
@@ -49,6 +63,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "cp932",
     transform: "recode",
     description: "恢复被中文 GBK/CP936 错误解释的 Shift-JIS 文件名。",
+    example: "僥僗僩.txt → テスト.txt",
   },
   {
     value: "jp_iso2022_from_cn",
@@ -58,6 +73,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "iso-2022-jp",
     transform: "recode",
     description: "兼容旧工具的日文2模式：GBK 字节按 ISO-2022-JP 解码。",
+    example: "仅用于旧日文2来源；结果不确定时不要执行修复",
   },
   {
     value: "latin1_utf8",
@@ -67,6 +83,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "utf8",
     transform: "recode",
     description: "将 ã‚» 一类 Windows-1252/UTF-8 mojibake 恢复为原文字。",
+    example: "ã‚»ãƒ¼ãƒ©ãƒ¼.txt → セーラー.txt",
   },
   {
     value: "hash_u",
@@ -76,6 +93,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "unicode",
     transform: "decode-hash-u",
     description: "将 #U30BB 一类 Unicode 码点转义恢复成真实字符。",
+    example: "#U30BB#U30FC#U30E9#U30FC.txt → セーラー.txt",
   },
   {
     value: "middle_dot",
@@ -85,6 +103,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     dstEncoding: "U+00B7",
     transform: "normalize-middle-dot",
     description: "兼容旧工具：把日文间隔点“・”规范为中点“·”。",
+    example: "魔法・少女.txt → 魔法·少女.txt",
   },
   {
     value: "custom",
@@ -92,6 +111,7 @@ export const PRESETS: EncodebPresetMeta[] = [
     shortLabel: "Custom",
     transform: "recode",
     description: "手动指定源编码和目标编码。",
+    example: "已知乱码产生链路时，填写“当前显示编码 → 原始编码”",
   },
 ]
 

@@ -83,7 +83,7 @@ async function resolveEncodebDefaults(host: CliHost, json = false): Promise<Enco
       preset: config?.preset,
       srcEncoding: config?.src_encoding,
       dstEncoding: config?.dst_encoding,
-      transform: config?.transform === "decode-hash-u" || config?.transform === "normalize-middle-dot" ? config.transform : config?.transform === "recode" ? "recode" : undefined,
+      transform: config?.transform === "auto" || config?.transform === "decode-hash-u" || config?.transform === "normalize-middle-dot" ? config.transform : config?.transform === "recode" ? "recode" : undefined,
       strategy: config?.strategy === "copy" ? "copy" : config?.strategy === "replace" ? "replace" : undefined,
       limit: typeof config?.limit === "number" ? config.limit : undefined,
     }
@@ -214,14 +214,14 @@ function encodebArgs() {
 }
 
 function inputFromArgs(args: EncodebCliOptions, defaults: EncodebDefaults = {}): EncodebInput {
-  const presetId = args.preset ?? defaults.preset ?? "cn"
+  const presetId = args.preset ?? defaults.preset ?? "auto"
   const preset = ENCODEB_PRESETS[presetId as keyof typeof ENCODEB_PRESETS]
   const strategy = args.strategy ?? defaults.strategy ?? "replace"
   return {
     paths: parseEncodebPaths((args.paths ?? "").split(";")),
     srcEncoding: args.srcEncoding ?? defaults.srcEncoding ?? preset?.srcEncoding ?? "cp437",
     dstEncoding: args.dstEncoding ?? defaults.dstEncoding ?? preset?.dstEncoding ?? "cp936",
-    transform: args.transform === "decode-hash-u" || args.transform === "normalize-middle-dot" ? args.transform : args.transform === "recode" ? "recode" : defaults.transform ?? preset?.transform ?? "recode",
+    transform: args.transform === "auto" || args.transform === "decode-hash-u" || args.transform === "normalize-middle-dot" ? args.transform : args.transform === "recode" ? "recode" : defaults.transform ?? preset?.transform ?? "recode",
     strategy: strategy === "copy" ? "copy" : "replace",
     limit: Number(args.limit ?? defaults.limit ?? 200),
   }
@@ -428,6 +428,7 @@ async function resolvePreset(host: CliHost): Promise<GuidedPresetInfo | undefine
     host,
     "选择编码预设",
     [
+      { value: "auto", label: "auto", hint: "自动识别明显乱码（推荐，不确定时保持原样）" },
       { value: "cn", label: "cn", hint: "cp437 -> cp936（中文）" },
       { value: "jp", label: "jp", hint: "cp437 -> cp932（日文）" },
       { value: "kr", label: "kr", hint: "cp437 -> cp949（韩文）" },
@@ -439,7 +440,7 @@ async function resolvePreset(host: CliHost): Promise<GuidedPresetInfo | undefine
       { value: "custom", label: "custom", hint: "手动输入源/目标编码" },
       { value: "exit", label: "退出", hint: "不执行任何操作" },
     ],
-    { initialValue: "cn", maxItems: 10 },
+    { initialValue: "auto", maxItems: 11 },
   )
 
   if (presetId === "exit") {

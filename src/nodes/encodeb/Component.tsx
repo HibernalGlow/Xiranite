@@ -3,7 +3,7 @@ import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
 import type { LucideIcon } from "lucide-react"
-import { ArrowRight, Clipboard, Copy, DatabaseZap, Eraser, FileText, Gauge, Languages, Radar, RotateCcw, ScanSearch, ShieldAlert, Square, WandSparkles } from "lucide-react"
+import { ArrowRight, Clipboard, Copy, Eraser, FileText, Gauge, Languages, Radar, RotateCcw, ScanSearch, ShieldAlert, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { BorderBeam } from "@/components/ui/border-beam"
@@ -43,7 +43,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const logs = data.logs ?? []
   const mappings = data.mappings ?? []
   const matches = data.matches ?? []
-  const preset = data.preset ?? "cn"
+  const preset = data.preset ?? "auto"
   const presetMeta = PRESETS.find((item) => item.value === preset) ?? PRESETS[0]!
   const srcEncoding = data.srcEncoding ?? presetMeta.srcEncoding ?? "cp437"
   const dstEncoding = data.dstEncoding ?? presetMeta.dstEncoding ?? "cp936"
@@ -312,6 +312,7 @@ function CompactView(props: ViewProps) {
     <div data-testid="encodeb-compact-view" className="flex h-full min-h-0 flex-col gap-2 p-3">
       <HeaderBar compact props={props} />
       <CodecRail compact props={props} />
+      <CompactPresetSelect props={props} />
       <PathChamber compact props={props} />
       <CommandDeck compact props={props} />
       <MiniEvidence props={props} />
@@ -325,6 +326,7 @@ function PortraitView(props: ViewProps) {
       <HeaderBar compact props={props} />
       <StatusMeter compact props={props} />
       <CodecRail compact vertical props={props} />
+      <CompactPresetSelect props={props} />
       <PathChamber compact props={props} />
       <CommandDeck compact props={props} />
       <div className="min-h-0 flex-1">
@@ -343,7 +345,10 @@ function FullView(props: ViewProps) {
       </div>
       <CommandDeck props={props} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 @6xl/encodeb:grid-cols-[minmax(220px,0.72fr)_minmax(360px,1.45fr)_minmax(250px,0.82fr)]">
+      <div
+        className="grid min-h-0 flex-1 gap-3"
+        style={{ gridTemplateColumns: "minmax(190px, 0.72fr) minmax(300px, 1.45fr) minmax(220px, 0.82fr)" }}
+      >
         <MagicCard className="min-h-0 overflow-hidden rounded-xl border bg-background/78">
           <section className="flex h-full min-h-0 flex-col gap-3 p-3">
             <PanelTitle icon={Clipboard} title="输入路径" subtitle="添加需要检查或修复的文件和目录" />
@@ -495,24 +500,21 @@ function EncodingConsole({ props }: { props: ViewProps }) {
           <Label className="text-xs font-semibold">编码预设</Label>
           <span className="truncate text-[11px] text-muted-foreground">{props.presetMeta.description}</span>
         </div>
-        <ToggleGroup
+        <select
           aria-label="编码预设"
-          className="grid w-full grid-cols-3"
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           disabled={props.running}
-          size="sm"
-          type="single"
           value={props.preset}
-          variant="outline"
-          onValueChange={(value) => {
-            if (value) props.onPresetChange(value as EncodebPreset)
-          }}
+          onChange={(event) => props.onPresetChange(event.currentTarget.value as EncodebPreset)}
         >
           {PRESETS.map((item) => (
-            <ToggleGroupItem key={item.value} aria-label={item.label} className="min-w-0" value={item.value}>
-              <span className="truncate">{item.shortLabel}</span>
-            </ToggleGroupItem>
+            <option key={item.value} value={item.value}>{item.label}</option>
           ))}
-        </ToggleGroup>
+        </select>
+        <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+          <span className="font-medium">示例：</span>
+          <span className="ml-1 font-mono text-muted-foreground">{props.presetMeta.example}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
@@ -648,13 +650,8 @@ function DefaultsTools({ props }: { props: ViewProps }) {
         <div className="text-xs font-medium">默认配置</div>
         <div className="truncate text-[11px] text-muted-foreground">{props.configFilePath ?? "未连接配置文件"}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <ToolButton active={props.configDirty} disabled={props.running} icon={DatabaseZap} label="保存默认" onClick={props.onSaveDefault} />
-        <ToolButton disabled={props.running || !props.defaults} icon={WandSparkles} label="恢复默认" onClick={props.onRestoreDefault} />
-        <ToolButton disabled={props.running} icon={Eraser} label="清除覆盖" onClick={props.onResetOverride} />
-        <ToolButton disabled={!props.onOpenConfigFile} icon={FileText} label="打开配置" onClick={() => void props.onOpenConfigFile?.()} />
-      </div>
       <NodeConfigPopover
+        autoRestoreKey="encodeb"
         configPath={props.configFilePath}
         defaults={props.defaults}
         dirty={props.configDirty}
@@ -665,6 +662,31 @@ function DefaultsTools({ props }: { props: ViewProps }) {
         onRestore={props.onRestoreDefault}
         onSave={props.onSaveDefault}
       />
+    </div>
+  )
+}
+
+function CompactPresetSelect({ props }: { props: ViewProps }) {
+  return (
+    <div className="grid gap-1 rounded-lg border bg-background/70 px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <Label htmlFor="encodeb-compact-preset" className="shrink-0 text-[11px] font-medium">修复预设</Label>
+        <select
+          id="encodeb-compact-preset"
+          aria-label="快速选择编码预设"
+          className="h-7 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          disabled={props.running}
+          value={props.preset}
+          onChange={(event) => props.onPresetChange(event.currentTarget.value as EncodebPreset)}
+        >
+          {PRESETS.map((item) => (
+            <option key={item.value} value={item.value}>{item.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="truncate font-mono text-[10px] text-muted-foreground" title={props.presetMeta.example}>
+        示例：{props.presetMeta.example}
+      </div>
     </div>
   )
 }

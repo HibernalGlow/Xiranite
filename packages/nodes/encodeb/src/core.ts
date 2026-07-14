@@ -3,7 +3,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 export type EncodebAction = "find" | "preview" | "recover"
 export type EncodebStrategy = "replace" | "copy"
 export type EncodebEntryType = "file" | "dir"
-export type EncodebTransform = "recode" | "decode-hash-u" | "normalize-middle-dot"
+export type EncodebTransform = "auto" | "recode" | "decode-hash-u" | "normalize-middle-dot"
 
 export interface EncodebInput {
   action?: EncodebAction
@@ -50,6 +50,7 @@ export type NameTranscoder = (name: string, srcEncoding: string, dstEncoding: st
 export const SUSPICIOUS_CHARS = new Set("╘╙═╝║╧╞╫╔╚┌┐└┘├┤┬┴┼▓█▐▌▀▄╔╦╩╠╬")
 
 export const ENCODEB_PRESETS = {
+  auto: { label: "Auto detect", srcEncoding: "auto", dstEncoding: "auto", transform: "auto", example: "ã‚» / #U30BB / ╓╨╬─ → detected text" },
   cn: { label: "Chinese", srcEncoding: "cp437", dstEncoding: "cp936", transform: "recode" },
   jp: { label: "Japanese", srcEncoding: "cp437", dstEncoding: "cp932", transform: "recode" },
   kr: { label: "Korean", srcEncoding: "cp437", dstEncoding: "cp949", transform: "recode" },
@@ -85,6 +86,8 @@ export function isSuspiciousName(name: string): boolean {
   return [...name].some((char) => SUSPICIOUS_CHARS.has(char))
     || /#U[0-9a-fA-F]{4,6}/.test(name)
     || /[ÃÂâã]\S/.test(name)
+    || /[僋儖儞僗僥僼傾偺丄]/.test(name)
+    || ([...name].filter((char) => /[éâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥ƒáíóúñÑªº¿]/u.test(char)).length >= 2)
     || name.includes("\ufffd")
 }
 

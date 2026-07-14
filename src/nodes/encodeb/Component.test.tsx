@@ -54,7 +54,7 @@ describe("app-owned encodeb Component", () => {
 
       expect(screen.getByLabelText("encodeb source paths")).toBeTruthy()
       expect(screen.getAllByText(/输入/).length).toBeGreaterThan(0)
-      expect(screen.getAllByText(/cp437/).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/auto/i).length).toBeGreaterThan(0)
 
       if (mode === "compact" || mode === "regular") {
         expect(screen.getByTestId("encodeb-compact-view")).toBeTruthy()
@@ -100,6 +100,19 @@ describe("app-owned encodeb Component", () => {
     expect(host.state.pathText).toBe("D:/gallery")
   })
 
+  test("shows preset examples and switches presets in compact layouts", async () => {
+    setSurface("regular")
+    const host = createHost({ pathText: "D:/gallery" })
+    render(<Component compId="comp-encodeb" host={host} />)
+    const user = userEvent.setup()
+
+    expect(screen.getByText(/ã‚» → セ/)).toBeTruthy()
+    await user.selectOptions(screen.getByRole("combobox", { name: "快速选择编码预设" }), "hash_u")
+
+    expect(host.state.preset).toBe("hash_u")
+    expect(host.state.transform).toBe("decode-hash-u")
+  })
+
   test("runs find action through host.actions.run and stores matches", async () => {
     setSurface("regular")
     const host = createHost({ pathText: "D:/gallery", logs: [] })
@@ -114,9 +127,9 @@ describe("app-owned encodeb Component", () => {
       input: {
         action: "find",
         paths: ["D:/gallery"],
-        srcEncoding: "cp437",
-        dstEncoding: "cp936",
-        transform: "recode",
+        srcEncoding: "auto",
+        dstEncoding: "auto",
+        transform: "auto",
         strategy: "replace",
       },
     })

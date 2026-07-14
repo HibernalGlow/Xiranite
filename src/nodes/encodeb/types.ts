@@ -8,7 +8,7 @@ export type EncodebPhase =
   | "completed"
   | "error"
 
-export type EncodebPreset = "cn" | "jp" | "kr" | "jp_from_cn" | "jp_iso2022_from_cn" | "latin1_utf8" | "hash_u" | "middle_dot" | "custom"
+export type EncodebPreset = "auto" | "cn" | "jp" | "kr" | "jp_from_cn" | "jp_iso2022_from_cn" | "latin1_utf8" | "hash_u" | "middle_dot" | "custom"
 
 export type EncodebAction = "find" | "preview" | "recover"
 

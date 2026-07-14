@@ -173,6 +173,7 @@ export function OptionsPopover(props: {
   onPresetChange: (preset: EncodebPreset) => void
   onStrategyChange: (strategy: EncodebStrategy) => void
 }) {
+  const presetMeta = PRESETS.find((item) => item.value === props.preset) ?? PRESETS[0]!
   return (
     <Popover>
       <Tooltip>
@@ -195,6 +196,10 @@ export function OptionsPopover(props: {
           <div className="grid gap-1.5">
             <Label className="text-xs">编码预设</Label>
             <PresetPicker disabled={props.disabled} preset={props.preset} onPresetChange={props.onPresetChange} />
+            <div className="rounded-md border bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
+              <div>{presetMeta.description}</div>
+              <div className="mt-1 font-mono">示例：{presetMeta.example}</div>
+            </div>
           </div>
           <EncodingFields
             disabled={props.disabled}

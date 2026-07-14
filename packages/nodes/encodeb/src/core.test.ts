@@ -12,6 +12,8 @@ describe("encodeb core", () => {
   test("detects suspicious names", () => {
     expect(isSuspiciousName("╘.txt")).toBe(true)
     expect(isSuspiciousName("ã‚»ãƒ¼ãƒ©ãƒ¼.txt")).toBe(true)
+    expect(isSuspiciousName("âeâXâg.txt")).toBe(true)
+    expect(isSuspiciousName("僥僗僩.txt")).toBe(true)
     expect(isSuspiciousName("#U30BB#U30FC.txt")).toBe(true)
     expect(isSuspiciousName("正常な日本語.txt")).toBe(false)
     expect(findSuspicious(entries).map((entry) => entry.path)).toEqual(["root/╘.txt"])

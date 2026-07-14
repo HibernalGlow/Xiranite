@@ -55,8 +55,40 @@ async function runCommand(command: string, args: string[]): Promise<CommandResul
 }
 
 export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncoding, transform = "recode") => {
+  if (transform === "auto") return autoTranscodeName(name)
   if (transform === "decode-hash-u") return decodeHashUnicodeEscapes(name)
   if (transform === "normalize-middle-dot") return name.replaceAll("・", "·")
+
+  return safelyRecodeName(name, srcEncoding, dstEncoding)
+}
+
+export function autoTranscodeName(name: string): string {
+  const escaped = decodeHashUnicodeEscapes(name)
+  if (escaped !== name) return escaped
+
+  const candidates: Array<{ value: string; score: number }> = []
+  if (/[ÃÂâã]\S/.test(name)) {
+    addAutoCandidate(candidates, name, "windows-1252", "utf8", 40)
+  }
+
+  if (hasDosMojibake(name)) {
+    addAutoCandidate(candidates, name, "cp437", "cp936", 0)
+    addAutoCandidate(candidates, name, "cp437", "cp932", 0)
+    addAutoCandidate(candidates, name, "cp437", "cp949", 0)
+  }
+
+  // GBK -> Shift-JIS is ambiguous for ordinary Han text. Only attempt it
+  // when characteristic legacy Japanese mojibake glyphs are present.
+  if (/[僋儖儞僗僥僼傾偺丄]/.test(name)) {
+    const value = safelyRecodeName(name, "cp936", "cp932")
+    const kana = countMatches(value, /[\u3040-\u30ff]/u)
+    if (value !== name && kana >= 2) candidates.push({ value, score: 30 + kana })
+  }
+
+  return candidates.sort((left, right) => right.score - left.score)[0]?.value ?? name
+}
+
+function safelyRecodeName(name: string, srcEncoding: string, dstEncoding: string): string {
 
   try {
     const encoded = iconv.encode(name, srcEncoding)
@@ -70,6 +102,41 @@ export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncodin
   } catch {
     return name
   }
+}
+
+function addAutoCandidate(
+  candidates: Array<{ value: string; score: number }>,
+  name: string,
+  srcEncoding: string,
+  dstEncoding: string,
+  bonus: number,
+): void {
+  const value = safelyRecodeName(name, srcEncoding, dstEncoding)
+  if (value === name) return
+  const improvement = mojibakeWeight(name) - mojibakeWeight(value)
+  if (improvement <= 0 && bonus <= 0) return
+  candidates.push({ value, score: improvement * 20 + bonus + decodedScriptScore(value, dstEncoding) })
+}
+
+function hasDosMojibake(value: string): boolean {
+  if (/[\u2500-\u259f]/u.test(value)) return true
+  return countMatches(value, /[éâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥ƒáíóúñÑªº¿]/u) >= 2
+}
+
+function mojibakeWeight(value: string): number {
+  return countMatches(value, /[\u2500-\u259f\ufffd]/u) + countMatches(value, /[ÃÂâã]/u)
+}
+
+function decodedScriptScore(value: string, encoding: string): number {
+  if (encoding === "cp932") return countMatches(value, /[\u3040-\u30ff]/u) * 4 + countMatches(value, /[\u3400-\u9fff]/u)
+  if (encoding === "cp949") return countMatches(value, /[\uac00-\ud7a3]/u) * 4
+  if (encoding === "cp936") return countMatches(value, /[\u3400-\u9fff]/u)
+  return 0
+}
+
+function countMatches(value: string, pattern: RegExp): number {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+  return [...value.matchAll(new RegExp(pattern.source, flags))].length
 }
 
 export function decodeHashUnicodeEscapes(name: string): string {
