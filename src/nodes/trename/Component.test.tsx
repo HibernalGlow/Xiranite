@@ -197,7 +197,7 @@ describe("app-owned trename Component", () => {
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toEqual({ pathText: "D:/default", dryRun: false })
 
-    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
+    await user.click(screen.getByRole("button", { name: "打开文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 

@@ -90,7 +90,7 @@ describe("app-owned bandia Component", () => {
     await user.click(screen.getByRole("button", { name: "配置管理" }))
     expect(screen.getByRole("button", { name: "保存为默认" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "打开文件" })).toBeTruthy()
   })
 
   test("runs compress mode with real source paths and renders Dice data table results", async () => {

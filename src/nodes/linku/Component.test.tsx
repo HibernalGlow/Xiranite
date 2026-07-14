@@ -180,7 +180,7 @@ describe("app-owned linku Component", () => {
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
     expect(host.savedConfig).toEqual({ path: "D:/default", target: "D:/default-link", configPath: "D:/linku.toml" })
 
-    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
+    await user.click(screen.getByRole("button", { name: "打开文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })

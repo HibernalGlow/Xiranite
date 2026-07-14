@@ -222,7 +222,7 @@ describe("app-owned kavvka Component", () => {
     expect(host.savedConfig).toBeDefined()
 
     await user.click(screen.getByRole("button", { name: "重新读取" }))
-    await user.click(screen.getByRole("button", { name: "打开配置文件" }))
+    await user.click(screen.getByRole("button", { name: "打开文件" }))
     expect(host.openConfigFileCalls).toBe(1)
   })
 })

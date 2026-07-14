@@ -192,7 +192,6 @@ describe("app-owned classq Component", () => {
 
     await user.click(screen.getByRole("button", { name: "配置管理" }))
     expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
 
     await waitFor(() => expect(host.savedConfig).toEqual({

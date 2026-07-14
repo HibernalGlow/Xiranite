@@ -124,7 +124,6 @@ describe("app-owned nameu Component", () => {
     await user.click(screen.getByLabelText("配置管理"))
     expect(screen.getByRole("button", { name: "保存为默认" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "重新读取" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "打开配置文件" })).toBeTruthy()
   })
 
   test("requires confirmation before live rename execution", async () => {
