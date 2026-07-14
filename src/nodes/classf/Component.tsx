@@ -580,7 +580,7 @@ function PlanRows(props: { items: ClassfPlanItem[]; paths: string[]; planCurrent
 
 function PlanTree(props: { planCurrent: boolean; result: ClassfData | null; runningItem?: ClassfCardState["runningItem"]; t: ViewProps["tNode"] }) {
   const elements = useMemo(() => buildPlanTree(props.result, props.runningItem, props.t), [props.result, props.runningItem, props.t])
-  const expandedItems = useMemo(() => elements.flatMap(collectTreeFolderIds), [elements])
+  const expandedItems = elements.flatMap(collectTreeFolderIds)
   if (!elements.length) {
     return (
       <Empty className="h-full border-0 p-4 md:p-6">
