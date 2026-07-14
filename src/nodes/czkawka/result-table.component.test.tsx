@@ -4,10 +4,20 @@ import { cleanup } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-czkawka/core"
 import { CzkawkaResultTable } from "./result-table"
+import i18n from "@/i18n"
 
-afterEach(cleanup)
+afterEach(async () => { cleanup(); await i18n.changeLanguage("zh") })
 
 describe("CzkawkaResultTable", () => {
+  test("switches columns, states, and row actions with the Xiranite language", async () => {
+    await i18n.changeLanguage("en")
+    const { container } = render(<CzkawkaResultTable tool="duplicate-music" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
+    expect(screen.getByRole("button", { name: "Title" })).toBeTruthy()
+    expect(screen.getByRole("textbox", { name: "Filter results" })).toBeTruthy()
+    fireEvent.contextMenu(container.querySelector('[data-index="a.mp3"]') as HTMLElement)
+    expect(await screen.findByText("Copy file")).toBeTruthy()
+  })
+
   test("renders media-specific columns and keeps filters isolated by tool", () => {
     const props = { groups: [group], running: false, selectedPaths: [], onSelectionChange: vi.fn() }
     const view = render(<CzkawkaResultTable tool="duplicate-music" {...props} />)
@@ -17,15 +27,15 @@ describe("CzkawkaResultTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /标题/ }))
     fireEvent.click(screen.getByRole("button", { name: /标题/ }))
     expect(screen.getByRole("button", { name: /标题/ }).querySelector(".lucide-arrow-down")).toBeTruthy()
-    fireEvent.change(screen.getByRole("textbox", { name: "filter results" }), { target: { value: "needle" } })
+    fireEvent.change(screen.getByRole("textbox", { name: "筛选结果" }), { target: { value: "needle" } })
 
     view.rerender(<CzkawkaResultTable tool="similar-images" {...props} />)
-    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("")
+    expect((screen.getByRole("textbox", { name: "筛选结果" }) as HTMLInputElement).value).toBe("")
     expect(screen.getByRole("button", { name: /相似度/ })).toBeTruthy()
     expect(screen.getByRole("button", { name: /分辨率/ })).toBeTruthy()
 
     view.rerender(<CzkawkaResultTable tool="duplicate-music" {...props} />)
-    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("needle")
+    expect((screen.getByRole("textbox", { name: "筛选结果" }) as HTMLInputElement).value).toBe("needle")
     expect(screen.getByRole("button", { name: /标题/ }).querySelector(".lucide-arrow-down")).toBeTruthy()
   })
 
@@ -236,8 +246,8 @@ describe("CzkawkaResultTable", () => {
   test("keeps a controlled header filter synchronized with the table filter", () => {
     const onFilterTextChange = vi.fn()
     const view = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} filterText="Alpha" selectedPaths={[]} onFilterTextChange={onFilterTextChange} onSelectionChange={vi.fn()} />)
-    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("Alpha")
-    fireEvent.change(screen.getByRole("textbox", { name: "filter results" }), { target: { value: "b.mp3" } })
+    expect((screen.getByRole("textbox", { name: "筛选结果" }) as HTMLInputElement).value).toBe("Alpha")
+    fireEvent.change(screen.getByRole("textbox", { name: "筛选结果" }), { target: { value: "b.mp3" } })
     expect(onFilterTextChange).toHaveBeenCalledWith("b.mp3")
     view.rerender(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} filterText="b.mp3" selectedPaths={[]} onFilterTextChange={onFilterTextChange} onSelectionChange={vi.fn()} />)
     expect(view.container.textContent).toContain("b.mp3")

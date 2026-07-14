@@ -179,7 +179,7 @@ describe("Czkawka node", () => {
     const view = render(<Component compId="czkawka" host={host} />)
     const headerSearch = screen.getByRole("textbox", { name: "Czkawka 全局筛选" })
     fireEvent.change(headerSearch, { target: { value: "not-present" } })
-    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("not-present")
+    expect((screen.getByRole("textbox", { name: "筛选结果" }) as HTMLInputElement).value).toBe("not-present")
     expect(host.stateValue.filterStatesByTool?.["duplicate-files"]?.text.pattern).toBe("not-present")
     expect(screen.getByText("没有匹配当前筛选的结果。")).toBeTruthy()
 
