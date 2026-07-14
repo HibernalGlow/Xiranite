@@ -725,16 +725,14 @@ function RoutingTopology(props: {
   const targetRefs = [targetRefA, targetRefB, targetRefC]
   const waitItems = props.group?.items.filter((item) => item.stage === "wait") ?? []
   const sources = (waitItems.length ? waitItems : (props.group?.items ?? [])).slice(0, 3)
-  const targets = useMemo(() => {
-    const grouped = new Map<string, { label: string; path: string; count: number }>()
-    for (const item of props.group?.items ?? []) {
-      const key = item.targetPath || item.targetRelative
-      const current = grouped.get(key)
-      if (current) current.count += 1
-      else grouped.set(key, { label: item.targetRelative || baseName(item.targetPath), path: item.targetPath, count: 1 })
-    }
-    return [...grouped.values()].slice(0, 3)
-  }, [props.group])
+  const grouped = new Map<string, { label: string; path: string; count: number }>()
+  for (const item of props.group?.items ?? []) {
+    const key = item.targetPath || item.targetRelative
+    const current = grouped.get(key)
+    if (current) current.count += 1
+    else grouped.set(key, { label: item.targetRelative || baseName(item.targetPath), path: item.targetPath, count: 1 })
+  }
+  const targets = [...grouped.values()].slice(0, 3)
 
   return (
     <Card className="h-full min-h-0 gap-0 py-0" data-testid="classq-routing-topology">
