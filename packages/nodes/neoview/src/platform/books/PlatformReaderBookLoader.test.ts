@@ -50,7 +50,9 @@ describe("PlatformReaderBookLoader", () => {
       expect(first.done).toBe(false)
       expect(first.value?.byteLength).toBeLessThanOrEqual(64 * 1024)
       expect(first.value).toEqual(bytes.subarray(0, first.value?.byteLength))
-      await source.close()
+      const closing = source.close()
+      expect(source.close()).toBe(closing)
+      await closing
       await expect(reader.read()).rejects.toThrow("closed")
     } finally {
       await source.close()

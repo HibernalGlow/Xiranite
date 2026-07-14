@@ -1,6 +1,7 @@
 import type { ReaderBook } from "../../domain/book/book.js"
 import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
 import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
+import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
   type ReaderSession,
@@ -13,6 +14,7 @@ export class CoreReaderSession implements ReaderSession {
   readonly id: ReaderSessionId
   readonly book: ReaderBook
   #generation: ReaderGeneration = 0
+  readonly #pagesById: ReadonlyMap<PageId, ReaderPage>
   #anchorPageIndex = 0
   #options: ReaderSessionOptions
   #listeners = new Set<(event: ReaderSessionEvent) => void>()
@@ -29,6 +31,7 @@ export class CoreReaderSession implements ReaderSession {
     assertBook(book)
     this.id = id
     this.book = book
+    this.#pagesById = new Map(book.pages.map((page) => [page.id, page]))
     this.#options = mergeOptions(DEFAULT_READER_SESSION_OPTIONS, options)
     this.#onClose = onClose
   }
@@ -46,6 +49,11 @@ export class CoreReaderSession implements ReaderSession {
       direction: this.#options.direction,
       layout: this.#options.layout,
     })
+  }
+
+  getPage(pageId: PageId): ReaderPage | undefined {
+    this.#assertOpen()
+    return this.#pagesById.get(pageId)
   }
 
   async goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot> {

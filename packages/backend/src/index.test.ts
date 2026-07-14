@@ -26,27 +26,36 @@ describe("backend", () => {
   })
 
   test("manages node presets through database-backed config routes", async () => {
-    const app = await createDefaultBackendApp({ now: 100, repository: createMemoryWorkspaceRepository() })
-    const createdResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Archive", values: { format: "WebP", quality: 77 } }),
-    }))
-    const created = await createdResponse.json() as { preset: { id: string; name: string; values: Record<string, unknown> } }
-    const updatedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }),
-    }))
-    const listedResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets"))
-    const listed = await listedResponse.json() as { presets: Array<{ id: string; name: string; values: Record<string, unknown> }> }
-    const deletedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, { method: "DELETE" }))
+    const dataDir = await createTempDataDir()
+    try {
+      const app = await createDefaultBackendApp({
+        now: 100,
+        repository: createMemoryWorkspaceRepository(),
+        configPath: join(dataDir, "xiranite.config.toml"),
+      })
+      const createdResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Archive", values: { format: "WebP", quality: 77 } }),
+      }))
+      const created = await createdResponse.json() as { preset: { id: string; name: string; values: Record<string, unknown> } }
+      const updatedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }),
+      }))
+      const listedResponse = await app.handle(new Request("http://localhost/config/nodes/xlchemy/presets"))
+      const listed = await listedResponse.json() as { presets: Array<{ id: string; name: string; values: Record<string, unknown> }> }
+      const deletedResponse = await app.handle(new Request(`http://localhost/config/nodes/xlchemy/presets/${created.preset.id}`, { method: "DELETE" }))
 
-    expect(createdResponse.status).toBe(200)
-    expect(updatedResponse.status).toBe(200)
-    expect(listedResponse.status).toBe(200)
-    expect(listed.presets).toEqual([{ id: created.preset.id, name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }])
-    expect(await deletedResponse.json()).toEqual({ deleted: true })
+      expect(createdResponse.status).toBe(200)
+      expect(updatedResponse.status).toBe(200)
+      expect(listedResponse.status).toBe(200)
+      expect(listed.presets).toEqual([{ id: created.preset.id, name: "Archive v2", values: { format: "JPEG XL", quality: 91 } }])
+      expect(await deletedResponse.json()).toEqual({ deleted: true })
+    } finally {
+      await removeWithWindowsRetry(dataDir)
+    }
   })
 
   test("serves and persists workspace snapshots", async () => {
@@ -383,6 +392,48 @@ describe("backend", () => {
       expect(preflight.headers.get("access-control-allow-headers")).toContain("x-xiranite-token")
     } finally {
       backend.close()
+    }
+  })
+
+  test("[neoview.http.e2e] lazily mounts the reader control and streaming asset routes", async () => {
+    const dataDir = await createTempDataDir()
+    const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-book-"))
+    await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      dataDir,
+    })
+    try {
+      const opened = await fetch(`${backend.url}/reader/sessions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-xiranite-token": "test-token",
+        },
+        body: JSON.stringify({ path: bookDir }),
+      })
+      const session = await opened.json() as {
+        sessionId: string
+        book: { pageCount: number }
+        visiblePages: Array<{ assetUrl: string }>
+      }
+      expect(opened.status).toBe(201)
+      expect(session.book.pageCount).toBe(1)
+
+      const image = await fetch(session.visiblePages[0]!.assetUrl)
+      expect(image.status).toBe(200)
+      expect(image.headers.get("content-type")).toBe("image/jpeg")
+      expect(Buffer.from(await image.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+
+      const closed = await fetch(`${backend.url}/reader/s/${session.sessionId}`, {
+        method: "DELETE",
+        headers: { "x-xiranite-token": "test-token" },
+      })
+      expect(closed.status).toBe(204)
+    } finally {
+      await backend.close()
+      await Promise.all([removeWithWindowsRetry(dataDir), removeWithWindowsRetry(bookDir)])
     }
   })
 })

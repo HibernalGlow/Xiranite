@@ -47,6 +47,7 @@ if (head !== matrix.sourceRevision) errors.push(`NeoView HEAD ${head} differs fr
 const sourceFiles = git(["ls-files"]).split(/\r?\n/).filter(Boolean)
 const testCorpus = await readTestCorpus([
   resolve("packages/nodes/neoview"),
+  resolve("packages/backend/src"),
   resolve("src/nodes/neoview"),
   resolve("tests/e2e/neoview"),
 ])

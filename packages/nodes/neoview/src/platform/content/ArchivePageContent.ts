@@ -1,4 +1,4 @@
-import type { PageContent, PageSource } from "../../domain/page/page-content.js"
+import type { PageByteRange, PageContent, PageSource } from "../../domain/page/page-content.js"
 import type { ArchiveProvider } from "../../ports/ArchiveProvider.js"
 
 export class ArchivePageContent implements PageContent {
@@ -18,6 +18,7 @@ export class ArchivePageContent implements PageContent {
 class ArchivePageSource implements PageSource {
   readonly byteLength: number
   readonly contentType: string
+  readonly rangeSupported = false
   readonly #provider: ArchiveProvider
   readonly #entryId: string
   #opened = false
@@ -30,9 +31,10 @@ class ArchivePageSource implements PageSource {
     this.contentType = contentType
   }
 
-  async open(signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  async open(signal?: AbortSignal, range?: PageByteRange): Promise<ReadableStream<Uint8Array>> {
     if (this.#closed) throw new Error(`Archive page source is closed: ${this.#entryId}`)
     if (this.#opened) throw new Error(`Archive page source can only be opened once: ${this.#entryId}`)
+    if (range) throw new Error("Archive page source does not support decompressed byte ranges.")
     this.#opened = true
     return this.#provider.openEntry(this.#entryId, { signal })
   }

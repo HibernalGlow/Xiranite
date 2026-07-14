@@ -103,6 +103,13 @@ export async function runNodeFromMain(payload: unknown): Promise<NodeRunBridgeRe
   return { result, events }
 }
 
+export async function loadNodePlatformModule(nodeId: string): Promise<NodeModule> {
+  const spec = generatedNodeSpecs[nodeId]
+  if (!spec) throw new Error(`Unknown node platform "${nodeId}".`)
+  if (!isPlatformNode(spec)) throw new Error(`Node "${nodeId}" does not expose a platform module.`)
+  return loadModule(spec.loadPlatform)
+}
+
 export async function runNodeWithEvents(
   nodeId: unknown,
   input: unknown,

@@ -54,7 +54,7 @@
 - 设置：`startup.openLastFile`、`startup.openLastFolder`
 - 数据：recent books、last file、last folder
 - 行为：目录、图片文件和压缩包自动识别；失败不破坏当前会话；reload 保留可恢复页；关闭释放书籍资源
-- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`
+- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`、`neoview.control.session`、`neoview.control.validation`、`neoview.http.e2e`
 - 性能基准：无专项
 - 已知差异：无
 
@@ -87,7 +87,7 @@
 - 设置：`performance.archiveTempfileThresholdMB`、`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：archive index、materialization leases
 - 行为：ZIP/ZIP64/CBZ；RAR/7z solid 与 non-solid；嵌套与加密；当前页优先流；CRC/损坏包；条目删除后索引失效；取消无子进程残留
-- 测试：`neoview.archive.conformance`、`neoview.archive.security`、`neoview.archive.zip-metadata`、`neoview.archive.zip64`、`neoview.archive.streaming`、`neoview.archive.cancellation`、`neoview.archive.crc`、`neoview.archive.duplicates`、`neoview.archive.unicode`、`neoview.archive.encrypted`、`neoview.archive.empty-corrupt`、`neoview.archive.large-index`、`neoview.book.archive`
+- 测试：`neoview.archive.conformance`、`neoview.archive.security`、`neoview.archive.zip-metadata`、`neoview.archive.zip64`、`neoview.archive.streaming`、`neoview.archive.cancellation`、`neoview.archive.crc`、`neoview.archive.duplicates`、`neoview.archive.unicode`、`neoview.archive.encrypted`、`neoview.archive.empty-corrupt`、`neoview.archive.large-index`、`neoview.book.archive`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`
 - 性能基准：`archive-entry-ttfb`、`solid-adjacent-page`
 - 已知差异：无
 
@@ -98,7 +98,7 @@
 - 设置：`book.readingDirection`、`book.tailOverflowBehavior`、`book.lockedSortMode`、`book.lockedMediaPriority`
 - 数据：page index、current page、frame snapshot
 - 行为：自然排序与媒体优先级；LTR/RTL；首尾跳转和随机页；五种尾页行为；generation 取消和旧结果零回写
-- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`
+- 测试：`neoview.frame.boundaries`、`neoview.session.navigation`、`neoview.book.directory`、`neoview.book.archive`、`neoview.control.session`
 - 性能基准：`reader-hot-page-turn`
 - 已知差异：无
 
@@ -131,7 +131,7 @@
 - 设置：`image.supportedFormats`、`image.nativeJxl`、`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：dimension cache、decoded image cache
 - 行为：JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG；EXIF 方向；ICC/透明度；坏图；超大图；浏览器直出和转换 fallback
-- 测试：待补
+- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`
 - 性能基准：`image-decode`、`image-first-frame`
 - 已知差异：无
 

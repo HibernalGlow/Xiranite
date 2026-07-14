@@ -7,6 +7,7 @@ import {
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
 import { createXiraniteServices, type NodeRunner, type XiraniteSystemService } from "@xiranite/services"
+import { randomBytes } from "node:crypto"
 import { createReadStream } from "node:fs"
 import { mkdir, readdir, stat } from "node:fs/promises"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
@@ -18,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
 import { pickLocalPaths } from "./localFilePicker.js"
-import { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
+import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 
 export interface CreateDefaultBackendOptions {
   now?: number
@@ -98,9 +99,18 @@ export async function startBackend(options: StartBackendOptions = {}) {
   const backend = await createDefaultBackend(options)
   const hostname = options.hostname ?? "127.0.0.1"
   const token = options.token ?? randomToken()
+  let backendUrl = ""
+  let readerController: Promise<BackendRequestController> | undefined
   const server = createServer(async (incoming, outgoing) => {
+    const requestController = new AbortController()
+    const abortIncoming = () => requestController.abort(new Error("Client disconnected"))
+    const abortOutgoing = () => {
+      if (!outgoing.writableFinished) requestController.abort(new Error("Client disconnected"))
+    }
+    incoming.once("aborted", abortIncoming)
+    outgoing.once("close", abortOutgoing)
     try {
-      const request = toFetchRequest(incoming)
+      const request = toFetchRequest(incoming, requestController.signal)
       const url = new URL(request.url)
       if (request.method === "OPTIONS") {
         await writeNodeResponse(outgoing, new Response(null, { status: 204 }))
@@ -133,27 +143,63 @@ export async function startBackend(options: StartBackendOptions = {}) {
         return
       }
 
+      if (url.pathname.startsWith("/reader/")) {
+        readerController ??= createReaderController(backendUrl, token).catch((error) => {
+          readerController = undefined
+          throw error
+        })
+        const response = await (await readerController).handle(request)
+        if (response) {
+          await writeNodeResponse(outgoing, response)
+          return
+        }
+      }
+
       await writeNodeResponse(outgoing, await backend.app.handle(request))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await writeNodeResponse(outgoing, new Response(message, { status: 500 }))
+      if (!requestController.signal.aborted && !outgoing.destroyed) {
+        await writeNodeResponse(outgoing, new Response(message, { status: 500 }))
+      }
+    } finally {
+      incoming.removeListener("aborted", abortIncoming)
+      outgoing.removeListener("close", abortOutgoing)
     }
   })
   await new Promise<void>((resolveListen) => server.listen(options.port ?? 0, hostname, resolveListen))
   const address = server.address() as AddressInfo
+  backendUrl = `http://${hostname}:${address.port}`
 
   return {
     server,
     hostname,
     port: address.port,
-    url: `http://${hostname}:${address.port}`,
+    url: backendUrl,
     token,
     database: backend.database,
-    close() {
-      server.close()
+    close(): Promise<void> {
+      const serverClosed = new Promise<void>((resolveClose) => server.close(() => resolveClose()))
+      const readerClosed = readerController
+        ?.then((controller) => controller[Symbol.asyncDispose]())
+        .catch(() => undefined) ?? Promise.resolve()
       backend.close()
+      return Promise.all([serverClosed, readerClosed]).then(() => undefined)
     },
   }
+}
+
+interface BackendRequestController extends AsyncDisposable {
+  handle(request: Request): Promise<Response | undefined>
+}
+
+async function createReaderController(baseUrl: string, token: string): Promise<BackendRequestController> {
+  const platform = await loadNodePlatformModule("neoview")
+  const factory = platform.createReaderHttpController
+  if (typeof factory !== "function") throw new Error("NeoView platform is missing createReaderHttpController().")
+  return await (factory as (options: { baseUrl: string; token: string }) => Promise<BackendRequestController>)({
+    baseUrl,
+    token,
+  })
 }
 
 async function serveLocalFile(request: Request, url: URL): Promise<Response> {
@@ -449,10 +495,10 @@ function filePathFromDatabaseUrl(url: string): string | undefined {
 }
 
 function randomToken(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return randomBytes(32).toString("base64url")
 }
 
-function toFetchRequest(incoming: IncomingMessage): Request {
+function toFetchRequest(incoming: IncomingMessage, signal?: AbortSignal): Request {
   const host = incoming.headers.host ?? "127.0.0.1"
   const url = new URL(incoming.url ?? "/", `http://${host}`)
   const headers = new Headers()
@@ -465,7 +511,7 @@ function toFetchRequest(incoming: IncomingMessage): Request {
   }
 
   const method = incoming.method ?? "GET"
-  const init: RequestInit & { duplex?: "half" } = { method, headers }
+  const init: RequestInit & { duplex?: "half" } = { method, headers, signal }
   if (method !== "GET" && method !== "HEAD") {
     init.body = Readable.toWeb(incoming) as unknown as BodyInit
     init.duplex = "half"
@@ -483,20 +529,53 @@ async function writeNodeResponse(outgoing: ServerResponse, response: Response): 
   }
 
   const reader = response.body.getReader()
+  let completed = false
+  const cancelOnDisconnect = () => {
+    if (!completed) void reader.cancel(new Error("Client disconnected")).catch(() => undefined)
+  }
+  outgoing.once("close", cancelOnDisconnect)
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
       if (!outgoing.write(Buffer.from(value))) {
-        await new Promise<void>((resolveDrain) => outgoing.once("drain", resolveDrain))
+        await waitForDrain(outgoing)
       }
     }
+    completed = true
     outgoing.end()
   } catch (error) {
     outgoing.destroy(error instanceof Error ? error : new Error(String(error)))
   } finally {
+    outgoing.removeListener("close", cancelOnDisconnect)
+    if (!completed) await reader.cancel(new Error("Response terminated")).catch(() => undefined)
     reader.releaseLock()
   }
+}
+
+function waitForDrain(outgoing: ServerResponse): Promise<void> {
+  return new Promise((resolveDrain, rejectDrain) => {
+    const cleanup = () => {
+      outgoing.removeListener("drain", onDrain)
+      outgoing.removeListener("close", onClose)
+      outgoing.removeListener("error", onError)
+    }
+    const onDrain = () => {
+      cleanup()
+      resolveDrain()
+    }
+    const onClose = () => {
+      cleanup()
+      rejectDrain(new Error("Client disconnected"))
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      rejectDrain(error)
+    }
+    outgoing.once("drain", onDrain)
+    outgoing.once("close", onClose)
+    outgoing.once("error", onError)
+  })
 }
 
 function writeCorsHeaders(outgoing: ServerResponse): void {

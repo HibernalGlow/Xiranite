@@ -1,6 +1,7 @@
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderGeneration, type ReaderLayout } from "../../domain/frame/frame.js"
 import type { ReadingDirection, TailOverflowBehavior } from "../../domain/navigation/navigation.js"
+import type { PageId, ReaderPage } from "../../domain/page/page.js"
 
 export type ReaderSessionId = string
 
@@ -27,6 +28,7 @@ export interface ReaderSession extends AsyncDisposable {
   readonly book: ReaderBook
   readonly generation: ReaderGeneration
   snapshot(): FrameSnapshot
+  getPage(pageId: PageId): ReaderPage | undefined
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>
   previous(signal?: AbortSignal): Promise<FrameSnapshot>

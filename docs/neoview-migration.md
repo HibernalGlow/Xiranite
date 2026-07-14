@@ -735,6 +735,15 @@ route 必须具备：
 - 客户端断开时取消解压/缩放任务；
 - route 通过惰性 provider 获取 ReaderService，不让 Reader 进入宿主启动热路径。
 
+当前 loopback 纵切已实现为 `ReaderHttpController + ReaderAssetRoute`，挂载到 Xiranite 已有 backend server，不另起 NeoView 常驻端口：
+
+- backend 只通过 runtime 的生成节点注册表动态加载 `neoview/platform`；启动、健康检查和其他节点请求都不会 import Reader/ZIP；
+- 首次 `/reader/` 请求才创建 ReaderService，`POST /reader/sessions`、分页 pages、navigate、DELETE 与图片 GET 共用同一 session；
+- backend 启动 token 已改用 32-byte CSPRNG，`<img>` URL 带 token、session/page opaque id 与 content version，不包含本地路径或 archive entry path；
+- 文件页支持 HEAD、单 Range、206/416、ETag/304；Deflate ZIP 不错误声明解压后 Range，仍以 200 完整流响应；
+- HTTP writer 尊重 `drain` 背压，客户端断开会 abort Request 并 cancel Response body，继续传播到文件句柄或 ZIP extraction；
+- control DTO 只返回 book 摘要、FrameSnapshot、安全页字段和 asset URL；完整页表通过 cursor/limit 分页，默认 100、上限 500。
+
 本地 HTTP 比 Tauri 内置协议多一层轻量 HTTP 解析，但在 loopback 上通常远小于图片解压、解码和 GPU 上传成本。它还能避免 Base64 的约 33% 体积膨胀、多次内存复制和 JS 堆压力。最终是否有净收益，以端到端基准为准。
 
 GUI 使用 HTTP 不代表核心绑定 HTTP。平台层应先提供 `openViewSource()`；HTTP route、CLI 导出、TUI 图像协议只是它的三个消费者：
@@ -1778,7 +1787,7 @@ scripts/
 ### Phase 2：目录、ZIP 与唯一数据主链
 
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
-- 打通 `entry stream -> 可选 sharp -> HTTP Response` 端到端背压与取消；
+- 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；后续接可选 sharp transform；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
 - 实现 loopback asset route；

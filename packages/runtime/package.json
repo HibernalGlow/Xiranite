@@ -21,7 +21,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "bun test src/node-preparer.test.ts && bun run build"
+    "test": "bun test src && bun run build"
   },
   "dependencies": {
     "@xiranite/contract": "workspace:*"
