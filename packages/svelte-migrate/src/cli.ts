@@ -4,7 +4,7 @@ import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { generateSvelteMigrationArtifacts } from "./generate.js"
-import type { SvelteMigrationConfig } from "./types.js"
+import type { FeatureMappingRule, SvelteMigrationConfig } from "./types.js"
 
 export async function runSvelteMigrationCli(args = process.argv.slice(2)): Promise<void> {
   if (!args.length || args.includes("--help") || args.includes("-h")) {
@@ -17,11 +17,19 @@ export async function runSvelteMigrationCli(args = process.argv.slice(2)): Promi
   if (!projectRoot || !outputDir) throw new Error("Both <project-root> and --out <directory> are required.")
   const configPath = value(args, "--config")
   const config = configPath ? JSON.parse(await readFile(resolve(configPath), "utf8")) as SvelteMigrationConfig : {}
+  const featureMatrixPath = value(args, "--feature-matrix")
+  const featureMappings = [
+    ...(featureMatrixPath
+      ? featureMappingsFromMatrix(JSON.parse(await readFile(resolve(featureMatrixPath), "utf8")) as FeatureMatrixShape)
+      : []),
+    ...(config.featureMappings ?? []),
+  ]
   const inventory = await generateSvelteMigrationArtifacts({
     projectRoot: resolve(projectRoot),
     outputDir: resolve(outputDir),
     sourceRoot: config.sourceRoot,
     classificationOverrides: config.classificationOverrides,
+    featureMappings,
     force: args.includes("--force"),
   })
   process.stdout.write(
@@ -48,10 +56,19 @@ function help(): string {
     "",
     "Options:",
     "  --config <file>  Classification overrides and source-root settings",
+    "  --feature-matrix <file>  Map legacy source patterns to migration feature IDs",
     "  --force          Replace known generated artifacts",
     "  -h, --help       Show this help",
     "",
   ].join("\n")
+}
+
+interface FeatureMatrixShape {
+  features: Array<{ id: string; legacySourcePatterns: string[] }>
+}
+
+function featureMappingsFromMatrix(matrix: FeatureMatrixShape): FeatureMappingRule[] {
+  return matrix.features.map((feature) => ({ featureId: feature.id, sourcePatterns: feature.legacySourcePatterns }))
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

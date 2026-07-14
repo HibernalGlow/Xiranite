@@ -14,22 +14,36 @@
   "summary": {
     "sourceFiles": 998,
     "components": 551,
+    "modules": 447,
     "stores": 142,
     "graphEdges": 766,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
+    "unmappedComponents": 0,
+    "unmappedModules": 0,
     "dispositions": {
-      "converted": 392,
+      "converted": 124,
       "adapter-needed": 22,
-      "manual": 137,
-      "replaced": 0,
-      "blocked": 0
+      "manual": 114,
+      "replaced": 282,
+      "blocked": 9
+    },
+    "moduleDispositions": {
+      "converted": 246,
+      "adapter-needed": 45,
+      "manual": 75,
+      "replaced": 77,
+      "blocked": 4
     }
   },
   "tauriUsage": [
     {
       "file": "src/App.svelte",
+      "featureIds": [
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -103,6 +117,25 @@
     },
     {
       "file": "src/lib/ai/translationIntegration.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -129,6 +162,26 @@
     },
     {
       "file": "src/lib/api/archive.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "archive-index-stream-mutate",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -179,6 +232,9 @@
     },
     {
       "file": "src/lib/api/backgroundTasks.ts",
+      "featureIds": [
+        "preload-stream-scheduler"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -223,6 +279,27 @@
     },
     {
       "file": "src/lib/api/book.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -333,6 +410,26 @@
     },
     {
       "file": "src/lib/api/clipboard.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "platform-clipboard-shell",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "tauri-plugin-clipboard-x-api",
@@ -408,6 +505,10 @@
     },
     {
       "file": "src/lib/api/content.ts",
+      "featureIds": [
+        "metadata-dimensions-properties",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -440,6 +541,26 @@
     },
     {
       "file": "src/lib/api/dimensions.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -472,6 +593,28 @@
     },
     {
       "file": "src/lib/api/emm.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -534,6 +677,9 @@
     },
     {
       "file": "src/lib/api/file_index.ts",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -596,6 +742,9 @@
     },
     {
       "file": "src/lib/api/filesystem/archiveOperations.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -634,6 +783,9 @@
     },
     {
       "file": "src/lib/api/filesystem/fileOperations.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -769,6 +921,9 @@
     },
     {
       "file": "src/lib/api/filesystem/resourceRelease.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -807,6 +962,9 @@
     },
     {
       "file": "src/lib/api/filesystem/streamOperations.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -876,6 +1034,9 @@
     },
     {
       "file": "src/lib/api/filesystem/systemIntegration.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -908,6 +1069,9 @@
     },
     {
       "file": "src/lib/api/filesystem/trashOperations.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -952,6 +1116,9 @@
     },
     {
       "file": "src/lib/api/filesystem/utils.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -972,6 +1139,9 @@
     },
     {
       "file": "src/lib/api/filesystem/videoOperations.ts",
+      "featureIds": [
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1004,6 +1174,27 @@
     },
     {
       "file": "src/lib/api/frameApi.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1042,6 +1233,9 @@
     },
     {
       "file": "src/lib/api/fs.ts",
+      "featureIds": [
+        "ipc-protocol-transport"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1080,6 +1274,9 @@
     },
     {
       "file": "src/lib/api/image.ts",
+      "featureIds": [
+        "image-decode-formats"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1112,6 +1309,32 @@
     },
     {
       "file": "src/lib/api/imageProtocol.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1138,6 +1361,29 @@
     },
     {
       "file": "src/lib/api/pageManager.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1268,6 +1514,25 @@
     },
     {
       "file": "src/lib/api/performance.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "ipc-protocol-transport",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1294,6 +1559,27 @@
     },
     {
       "file": "src/lib/api/streaming.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "ipc-protocol-transport",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1340,6 +1626,24 @@
     },
     {
       "file": "src/lib/cards/ai/AiServiceConfigCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1374,6 +1678,9 @@
     },
     {
       "file": "src/lib/cards/ai/AiServiceConfigCard/serviceUtils.ts",
+      "featureIds": [
+        "ai-ollama-translation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1407,6 +1714,24 @@
     },
     {
       "file": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1427,6 +1752,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/ArchivesCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1466,6 +1809,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/DetailedCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1499,6 +1860,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/FilesCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1532,6 +1911,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/ImageSourceCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1590,6 +1987,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/LatencyCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1654,6 +2069,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/LoadModeCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1693,6 +2126,9 @@
     },
     {
       "file": "src/lib/cards/benchmark/ProtocolTestCard.svelte",
+      "featureIds": [
+        "performance-benchmark-diagnostics"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1726,6 +2162,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/RealWorldCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1759,6 +2213,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/RendererCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1798,6 +2270,25 @@
     },
     {
       "file": "src/lib/cards/benchmark/ThumbnailLatencyCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1836,6 +2327,24 @@
     },
     {
       "file": "src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1869,6 +2378,9 @@
     },
     {
       "file": "src/lib/cards/folder/hooks/useSearchActions.ts",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1901,6 +2413,9 @@
     },
     {
       "file": "src/lib/cards/folder/hooks/useTagActions.svelte.ts",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1921,6 +2436,24 @@
     },
     {
       "file": "src/lib/cards/monitor/SystemMonitorCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1941,6 +2474,24 @@
     },
     {
       "file": "src/lib/cards/pageList/PageContextMenu.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -1967,6 +2518,9 @@
     },
     {
       "file": "src/lib/cards/shared/FileListPanel.svelte",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/path",
@@ -1987,6 +2541,24 @@
     },
     {
       "file": "src/lib/cards/upscale/UpscaleCacheCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2013,6 +2585,24 @@
     },
     {
       "file": "src/lib/cards/upscale/UpscaleModelCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-dialog",
@@ -2033,6 +2623,29 @@
     },
     {
       "file": "src/lib/CardWindow.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "slideshow",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/webviewWindow",
@@ -2053,6 +2666,9 @@
     },
     {
       "file": "src/lib/commands.svelte.ts",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2079,6 +2695,9 @@
     },
     {
       "file": "src/lib/components/benchmark/LatencyCard.svelte",
+      "featureIds": [
+        "performance-benchmark-diagnostics"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2131,6 +2750,9 @@
     },
     {
       "file": "src/lib/components/layout/TitleBar.svelte",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/dpi",
@@ -2158,6 +2780,10 @@
     },
     {
       "file": "src/lib/components/layout/TitleBarSection.svelte",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/dpi",
@@ -2186,6 +2812,10 @@
     },
     {
       "file": "src/lib/components/layout/TopToolbar/TopToolbar.svelte",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/webviewWindow",
@@ -2206,6 +2836,11 @@
     },
     {
       "file": "src/lib/components/panels/AboutPanel.svelte",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-shell",
@@ -2226,6 +2861,10 @@
     },
     {
       "file": "src/lib/components/panels/BenchmarkCard.svelte",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2259,6 +2898,25 @@
     },
     {
       "file": "src/lib/components/panels/emm/EmmConfigCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-dialog",
@@ -2297,6 +2955,10 @@
     },
     {
       "file": "src/lib/components/panels/emm/EmmPanelSection/EmmPanelSection.svelte",
+      "featureIds": [
+        "emm-ratings-tags-translation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-dialog",
@@ -2335,6 +2997,25 @@
     },
     {
       "file": "src/lib/components/panels/emm/EmmSyncCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2355,6 +3036,26 @@
     },
     {
       "file": "src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2417,6 +3118,11 @@
     },
     {
       "file": "src/lib/components/panels/file/components/folderPreviewLoader.ts",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell",
+        "search-sort-filter-library"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2437,6 +3143,10 @@
     },
     {
       "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-dialog",
@@ -2457,6 +3167,10 @@
     },
     {
       "file": "src/lib/components/panels/IconSettingsPanel.svelte",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2503,6 +3217,24 @@
     },
     {
       "file": "src/lib/components/panels/SidebarManagementPanel.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -2523,6 +3255,24 @@
     },
     {
       "file": "src/lib/components/panels/StartupConfigPanel.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/path",
@@ -2543,6 +3293,24 @@
     },
     {
       "file": "src/lib/components/panels/theme/themeStore.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -2563,6 +3331,10 @@
     },
     {
       "file": "src/lib/components/panels/UpscalePanel.ts",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "super-resolution"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2583,6 +3355,28 @@
     },
     {
       "file": "src/lib/components/viewer/flow/imageReader.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2646,6 +3440,10 @@
     },
     {
       "file": "src/lib/components/viewer/VideoContainer.svelte",
+      "featureIds": [
+        "animated-image-video",
+        "page-layout-modes"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2773,6 +3571,24 @@
     },
     {
       "file": "src/lib/config/startupConfig.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2805,6 +3621,9 @@
     },
     {
       "file": "src/lib/core/ipc/ipcService.ts",
+      "featureIds": [
+        "ipc-protocol-transport"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2838,6 +3657,9 @@
     },
     {
       "file": "src/lib/core/tauriIntegration.ts",
+      "featureIds": [
+        "ipc-protocol-transport"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2888,6 +3710,11 @@
     },
     {
       "file": "src/lib/core/windows/cardWindowManager.ts",
+      "featureIds": [
+        "card-windows-tabs",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -2929,6 +3756,25 @@
     },
     {
       "file": "src/lib/core/windows/windowManager.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3001,6 +3847,27 @@
     },
     {
       "file": "src/lib/services/emmSyncService.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3093,6 +3960,10 @@
     },
     {
       "file": "src/lib/services/ipcBatcher.ts",
+      "featureIds": [
+        "performance-benchmark-diagnostics",
+        "preload-stream-scheduler"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3113,6 +3984,26 @@
     },
     {
       "file": "src/lib/services/metadataService.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3133,6 +4024,26 @@
     },
     {
       "file": "src/lib/services/ratingCache.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3165,6 +4076,25 @@
     },
     {
       "file": "src/lib/services/translationService.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3216,6 +4146,24 @@
     },
     {
       "file": "src/lib/services/upscaleConditionSync.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3236,6 +4184,29 @@
     },
     {
       "file": "src/lib/Settings.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "slideshow",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/webviewWindow",
@@ -3256,6 +4227,9 @@
     },
     {
       "file": "src/lib/stackview/StackView.svelte",
+      "featureIds": [
+        "page-layout-modes"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3289,6 +4263,25 @@
     },
     {
       "file": "src/lib/stackview/stores/panoramaStore.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3309,6 +4302,24 @@
     },
     {
       "file": "src/lib/stackview/stores/upscaleStore.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3416,6 +4427,9 @@
     },
     {
       "file": "src/lib/stackview/utils/imageReader.ts",
+      "featureIds": [
+        "page-layout-modes"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3436,6 +4450,26 @@
     },
     {
       "file": "src/lib/stores/animatedVideoMode.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3456,6 +4490,24 @@
     },
     {
       "file": "src/lib/stores/autoBackup.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3506,6 +4558,26 @@
     },
     {
       "file": "src/lib/stores/book/streamingLoader.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3519,6 +4591,11 @@
     },
     {
       "file": "src/lib/stores/dimensionScanListener.ts",
+      "featureIds": [
+        "metadata-dimensions-properties",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3546,6 +4623,12 @@
     },
     {
       "file": "src/lib/stores/emm/collectTagCountStore.ts",
+      "featureIds": [
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "panels-toolbar-shell",
+        "search-sort-filter-library"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3566,6 +4649,28 @@
     },
     {
       "file": "src/lib/stores/emm/folderRating.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3586,6 +4691,25 @@
     },
     {
       "file": "src/lib/stores/emm/manualTagStore.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3606,6 +4730,28 @@
     },
     {
       "file": "src/lib/stores/emm/ratingStore.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3656,6 +4802,27 @@
     },
     {
       "file": "src/lib/stores/emmMetadata.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3682,6 +4849,27 @@
     },
     {
       "file": "src/lib/stores/readerStore.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3708,6 +4896,24 @@
     },
     {
       "file": "src/lib/stores/sidebarConfig.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3729,6 +4935,29 @@
     },
     {
       "file": "src/lib/stores/unifiedThumbnailStore.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3769,6 +4998,24 @@
     },
     {
       "file": "src/lib/stores/upscale/PyO3UpscaleManager.svelte.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3867,6 +5114,11 @@
     },
     {
       "file": "src/lib/utils/appActionHandlers.ts",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/plugin-dialog",
@@ -3887,6 +5139,9 @@
     },
     {
       "file": "src/lib/utils/assetProxy.ts",
+      "featureIds": [
+        "image-decode-formats"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3907,6 +5162,24 @@
     },
     {
       "file": "src/lib/utils/fontManager.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3935,6 +5208,9 @@
     },
     {
       "file": "src/lib/utils/loaders/batchThumbnailLoader.ts",
+      "featureIds": [
+        "search-sort-filter-library"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3961,6 +5237,12 @@
     },
     {
       "file": "src/lib/utils/pathUtils.ts",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3981,6 +5263,12 @@
     },
     {
       "file": "src/lib/utils/runtimeTheme.ts",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "settings-import-export-backup",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -4002,6 +5290,13 @@
     },
     {
       "file": "src/lib/utils/systemCapabilities.ts",
+      "featureIds": [
+        "image-decode-formats",
+        "performance-benchmark-diagnostics",
+        "platform-clipboard-shell",
+        "preload-stream-scheduler",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -4022,6 +5317,24 @@
     },
     {
       "file": "src/lib/utils/themeManager.ts",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/path",
@@ -4068,6 +5381,10 @@
     },
     {
       "file": "src/lib/utils/thumbnail/FolderThumbnailLoader.ts",
+      "featureIds": [
+        "file-browser-navigation",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -4112,6 +5429,9 @@
     },
     {
       "file": "src/lib/utils/thumbnail/ipcTimeout.ts",
+      "featureIds": [
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -4132,6 +5452,29 @@
     },
     {
       "file": "src/routes/standalone/[id]/+page.svelte",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "slideshow",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/webviewWindow",

@@ -14,17 +14,27 @@
   "summary": {
     "sourceFiles": 998,
     "components": 551,
+    "modules": 447,
     "stores": 142,
     "graphEdges": 766,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
+    "unmappedComponents": 0,
+    "unmappedModules": 0,
     "dispositions": {
-      "converted": 392,
+      "converted": 124,
       "adapter-needed": 22,
-      "manual": 137,
-      "replaced": 0,
-      "blocked": 0
+      "manual": 114,
+      "replaced": 282,
+      "blocked": 9
+    },
+    "moduleDispositions": {
+      "converted": 246,
+      "adapter-needed": 45,
+      "manual": 75,
+      "replaced": 77,
+      "blocked": 4
     }
   },
   "graph": {

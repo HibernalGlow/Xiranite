@@ -23,6 +23,8 @@ export interface TauriCall {
 export interface ComponentInventoryEntry {
   file: string
   hash: string
+  featureIds: string[]
+  featureMappingSource: "direct" | "consumer-propagated" | "dependency-derived" | "unmapped"
   disposition: FrontendDisposition
   classificationSource: "heuristic" | "config-override" | "parse-error"
   classificationReasons: string[]
@@ -41,9 +43,32 @@ export interface ComponentInventoryEntry {
   parseErrors: string[]
 }
 
+export type FrontendModuleKind = "action" | "api" | "store" | "utility" | "worker"
+
+export interface ModuleInventoryEntry {
+  file: string
+  hash: string
+  kind: FrontendModuleKind
+  featureIds: string[]
+  featureMappingSource: "direct" | "consumer-propagated" | "dependency-derived" | "unmapped"
+  imports: SourceImport[]
+  exports: string[]
+  runes: string[]
+  storePrimitives: string[]
+  subscriptions: string[]
+  storageKeys: string[]
+  writes: string[]
+  tauriCalls: TauriCall[]
+  disposition: FrontendDisposition
+  classificationSource: "heuristic" | "config-override" | "parse-error"
+  classificationReasons: string[]
+  parseErrors: string[]
+}
+
 export interface StoreInventoryEntry {
   file: string
   hash: string
+  featureIds: string[]
   imports: SourceImport[]
   exports: string[]
   primitives: string[]
@@ -65,6 +90,7 @@ export interface ComponentGraphEdge {
 
 export interface TauriUsageEntry {
   file: string
+  featureIds: string[]
   imports: SourceImport[]
   calls: TauriCall[]
 }
@@ -72,12 +98,16 @@ export interface TauriUsageEntry {
 export interface FrontendInventorySummary {
   sourceFiles: number
   components: number
+  modules: number
   stores: number
   graphEdges: number
   unresolvedComponentImports: number
   tauriFiles: number
   tauriCalls: number
+  unmappedComponents: number
+  unmappedModules: number
   dispositions: Record<FrontendDisposition, number>
+  moduleDispositions: Record<FrontendDisposition, number>
 }
 
 export interface SvelteFrontendInventory {
@@ -87,6 +117,7 @@ export interface SvelteFrontendInventory {
   sourceRoot: string
   summary: FrontendInventorySummary
   components: ComponentInventoryEntry[]
+  modules: ModuleInventoryEntry[]
   stores: StoreInventoryEntry[]
   graph: { nodes: string[]; entries: string[]; edges: ComponentGraphEdge[]; cycles: string[][] }
   tauriUsage: TauriUsageEntry[]
@@ -98,9 +129,15 @@ export interface ClassificationOverride {
   reason: string
 }
 
+export interface FeatureMappingRule {
+  featureId: string
+  sourcePatterns: string[]
+}
+
 export interface SvelteMigrationConfig {
   sourceRoot?: string
   classificationOverrides?: ClassificationOverride[]
+  featureMappings?: FeatureMappingRule[]
 }
 
 export interface AnalyzeSvelteFrontendOptions extends SvelteMigrationConfig {

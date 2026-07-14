@@ -8,11 +8,14 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 - Dirty diff hash: -
 - Frontend source files: 998
 - Svelte components: 551
+- TypeScript/JavaScript modules: 447
 - Store/rune modules: 142
 - Component edges: 766
 - Unresolved component imports: 0
 - Tauri-using files/calls: 107/389
-- Dispositions: converted=392, adapter-needed=22, manual=137, replaced=0, blocked=0
+- Unmapped components/modules: 0/0
+- Component dispositions: converted=124, adapter-needed=22, manual=114, replaced=282, blocked=9
+- Module dispositions: converted=246, adapter-needed=45, manual=75, replaced=77, blocked=4
 
 ## Component review queue
 
@@ -103,7 +106,7 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 | src/lib/cards/settings/PanelManagementCard.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
 | src/lib/cards/settings/PerformanceSettingsCard.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
 | src/lib/cards/settings/SystemSettingsCard.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
-| src/lib/cards/settings/ThemeSettingsCard.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
+| src/lib/cards/settings/ThemeSettingsCard.svelte | replaced | config-override | 0 | - | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
 | src/lib/cards/settings/ViewSettingsCard.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
 | src/lib/cards/shared/FileListPanel.svelte | manual | heuristic | 1 | $effect, $props, $state | uses Tauri API and requires a host adapter; complex rune graph: $effect, $props, $state; store coordination: externalNavigationRequest, ctx.navigationCommand, externalNavigationRequest |
 | src/lib/cards/upscale/ConditionActionEditor.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
@@ -124,10 +127,10 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 | src/lib/components/cardwindow/CardWindowContent.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex rune graph: $derived, $effect, $props, $state; store coordination: componentCache |
 | src/lib/components/cardwindow/TabBar.svelte | converted | heuristic | 0 | $bindable, $props, $state | structurally convertible; requires review |
 | src/lib/components/cardwindow/TabContextMenu.svelte | converted | heuristic | 0 | $props, $state | structurally convertible; requires review |
-| src/lib/components/common/ButtonGroup.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/common/DropdownPanel.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/common/PanelBase.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/common/ToolbarBase.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex rune graph: $derived, $effect, $props, $state |
+| src/lib/components/common/ButtonGroup.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/common/DropdownPanel.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/common/PanelBase.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/common/ToolbarBase.svelte | replaced | config-override | 0 | $derived, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
 | src/lib/components/debug/PageFlipMonitorPanel.svelte | converted | heuristic | 0 | $state | structurally convertible; requires review |
 | src/lib/components/dialogs/AreaClickRecorder.svelte | converted | heuristic | 0 | $props, $state | structurally convertible; requires review |
 | src/lib/components/dialogs/GestureSettingsPanel.svelte | manual | heuristic | 0 | $derived, $state | store coordination: gestureBindings |
@@ -239,12 +242,12 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 | src/lib/components/panels/SidebarManagementPanel.svelte | adapter-needed | heuristic | 1 | $derived, $state | uses Tauri API and requires a host adapter |
 | src/lib/components/panels/StartupConfigPanel.svelte | adapter-needed | heuristic | 1 | $state | uses Tauri API and requires a host adapter |
 | src/lib/components/panels/SystemSettingsPanel.svelte | converted | heuristic | 0 | $derived, $state | structurally convertible; requires review |
-| src/lib/components/panels/theme/ColorSchemeTab.svelte | manual | heuristic | 0 | $props, $state | complex template behavior: TransitionDirective |
-| src/lib/components/panels/theme/FontTab.svelte | manual | heuristic | 0 | $effect, $state | complex rune graph: $effect, $state |
-| src/lib/components/panels/theme/ThemeModeTab.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/panels/theme/TransparencyTab.svelte | converted | heuristic | 0 | $state | structurally convertible; requires review |
-| src/lib/components/panels/ThemePanel.svelte | converted | heuristic | 0 | $state | structurally convertible; requires review |
-| src/lib/components/panels/ThemePreview.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
+| src/lib/components/panels/theme/ColorSchemeTab.svelte | replaced | config-override | 0 | $props, $state | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
+| src/lib/components/panels/theme/FontTab.svelte | replaced | config-override | 0 | $effect, $state | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
+| src/lib/components/panels/theme/ThemeModeTab.svelte | replaced | config-override | 0 | $props | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
+| src/lib/components/panels/theme/TransparencyTab.svelte | replaced | config-override | 0 | $state | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
+| src/lib/components/panels/ThemePanel.svelte | replaced | config-override | 0 | $state | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
+| src/lib/components/panels/ThemePreview.svelte | replaced | config-override | 0 | - | Legacy theme editors and previews are replaced by the Xiranite host theme and TOML settings. |
 | src/lib/components/panels/UpscalePanel.svelte | converted | heuristic | 0 | $derived | structurally convertible; requires review |
 | src/lib/components/panels/UpscalePanelCacheSection.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
 | src/lib/components/panels/UpscalePanelCurrentInfo.svelte | manual | heuristic | 0 | $effect, $props | complex rune graph: $effect, $props |
@@ -259,296 +262,296 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 | src/lib/components/settings/PanelItemManager.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
 | src/lib/components/SettingsContent.svelte | manual | heuristic | 0 | $derived, $state | store coordination: panelPromises |
 | src/lib/components/SettingsOverlay.svelte | converted | heuristic | 0 | $derived, $state | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-action.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-cancel.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-overlay.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-portal.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/alert-dialog/alert-dialog.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/AreaOverlay.svelte | manual | heuristic | 0 | $bindable, $effect, $props | complex rune graph: $bindable, $effect, $props |
-| src/lib/components/ui/avatar/avatar-fallback.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/avatar/avatar-image.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/avatar/avatar.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/badge/badge.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/BoxReveal.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/ui/breadcrumb/breadcrumb-ellipsis.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb-link.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb-list.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb-page.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/breadcrumb/breadcrumb.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/button/button.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-action.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/card/card.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/chart/chart-container.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/chart/chart-style.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/chart/chart-tooltip.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/checkbox/checkbox.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/collapsible-card/CollapsibleCard.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/collapsible/collapsible-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/collapsible/collapsible-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/collapsible/collapsible.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-dialog.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-empty.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-input.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-link-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-list.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command-shortcut.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/command/command.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/ConfirmDialog.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-checkbox-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-group-heading.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-item-icon.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-item-row.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-radio-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-radio-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-shortcut.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-sub-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-sub-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/context-menu-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/context-menu/FileContextMenu.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/copy-button/copy-button.svelte | manual | heuristic | 0 | $bindable, $derived, $props | complex template behavior: TransitionDirective |
-| src/lib/components/ui/data-table/flex-render.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-close.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-overlay.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-portal.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dialog/dialog.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/Dock.svelte | manual | heuristic | 0 | $derived, $props, $state | complex template behavior: UseDirective |
-| src/lib/components/ui/DockIcon.svelte | manual | heuristic | 0 | $derived, $effect, $props | complex template behavior: UseDirective; complex rune graph: $derived, $effect, $props; store coordination: mint |
-| src/lib/components/ui/draggable-list/DraggableListManager.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-checkbox-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-checkbox-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-group-heading.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-radio-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-radio-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-shortcut.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-sub-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-sub-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/dropdown-menu/dropdown-menu-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker-footer.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker-list.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker-search.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker-skin-tone-selector.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker-viewport.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/emoji-picker/emoji-picker.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty-media.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/empty/empty.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-error.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-legend.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-separator.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-set.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/field/field.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/FileTypeIcon.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-button.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-element-field.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-field-errors.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-field.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-fieldset.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/form/form-legend.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/GlobalConfirmDialog.svelte | converted | heuristic | 0 | - | structurally convertible; requires review |
-| src/lib/components/ui/hover-card/hover-card-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/hover-card/hover-card-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/HoverAreasOverlay.svelte | manual | heuristic | 0 | $bindable, $derived, $effect, $props, $state | complex rune graph: $bindable, $derived, $effect, $props, $state |
-| src/lib/components/ui/Icon.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/input/input.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-actions.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-media.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/item/item.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/label/label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/MagicCard.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-checkbox-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-group-heading.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-radio-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-shortcut.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-sub-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-sub-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/menubar/menubar.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/MetadataBadge.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/meter/meter.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/native-select/native-select-opt-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/native-select/native-select-option.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/native-select/native-select.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-indicator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-link.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-list.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu-viewport.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/navigation-menu/navigation-menu.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/PanelContextMenu.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
-| src/lib/components/ui/PathBar.svelte | manual | heuristic | 0 | $bindable, $effect, $props, $state | complex rune graph: $bindable, $effect, $props, $state |
-| src/lib/components/ui/popover/popover-close.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/popover/popover-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/popover/popover-portal.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/popover/popover-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/popover/popover.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/progress/progress.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/ProjectCard.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/rename/rename-cancel.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/rename/rename-edit.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/rename/rename-provider.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/rename/rename-save.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/rename/rename.svelte | converted | heuristic | 0 | $bindable, $props, $state | structurally convertible; requires review |
-| src/lib/components/ui/rename/RenameDialog.svelte | manual | heuristic | 0 | $bindable, $effect, $props, $state | complex rune graph: $bindable, $effect, $props, $state |
-| src/lib/components/ui/resizable/resizable-handle.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/resizable/resizable-pane-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/ResizablePanel.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/ui/scroll-area/scroll-area-scrollbar.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/scroll-area/scroll-area.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/SearchBar.svelte | manual | heuristic | 0 | $bindable, $derived, $effect, $props | complex rune graph: $bindable, $derived, $effect, $props |
-| src/lib/components/ui/select/select-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-group-heading.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-label.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-scroll-down-button.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-scroll-up-button.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/select/select-value.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/separator/separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-close.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-description.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-overlay.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-title.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sheet/sheet-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-group-action.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-group-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-group-label.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-group.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-input.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-inset.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-action.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-badge.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-button.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-skeleton.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-sub-button.svelte | converted | heuristic | 0 | $bindable, $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-sub-item.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu-sub.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-menu.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-provider.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-rail.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-separator.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/sidebar/sidebar.svelte | manual | heuristic | 0 | $bindable, $effect, $props, $state | complex rune graph: $bindable, $effect, $props, $state |
-| src/lib/components/ui/skeleton/skeleton.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/slider/slider.svelte | manual | heuristic | 0 | $bindable, $effect, $props, $state | complex rune graph: $bindable, $effect, $props, $state |
-| src/lib/components/ui/snippet/snippet.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/sonner/sonner.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/sort/BookmarkSortPanel.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/ui/sort/SortPanel.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/ui/switch/switch.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-body.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-caption.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-cell.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-footer.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-head.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-header.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table-row.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/table/table.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tabs/tabs-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tabs/tabs-list.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tabs/tabs-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tabs/tabs.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tag/ManualTagEditor.svelte | manual | heuristic | 0 | $bindable, $derived, $effect, $props, $state | complex rune graph: $bindable, $derived, $effect, $props, $state |
-| src/lib/components/ui/TagChip.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/components/ui/tags-input/tags-input-tag.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/tags-input/tags-input.svelte | manual | heuristic | 0 | $bindable, $effect, $props, $state | complex rune graph: $bindable, $effect, $props, $state |
-| src/lib/components/ui/terminal/terminal-animated-span.svelte | manual | heuristic | 0 | $derived, $props, $state | complex template behavior: TransitionDirective |
-| src/lib/components/ui/terminal/terminal-loading.svelte | manual | heuristic | 0 | $derived, $props, $state | complex template behavior: TransitionDirective |
-| src/lib/components/ui/terminal/terminal-loop.svelte | converted | heuristic | 0 | $props, $state | structurally convertible; requires review |
-| src/lib/components/ui/terminal/terminal-typing-animation.svelte | manual | heuristic | 0 | $props, $state | complex template behavior: TransitionDirective |
-| src/lib/components/ui/terminal/terminal.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/toast.svelte | manual | heuristic | 0 | $derived, $effect, $state | complex rune graph: $derived, $effect, $state |
-| src/lib/components/ui/tooltip/tooltip-content.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tooltip/tooltip-trigger.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tree-view/tree-view-file.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/tree-view/tree-view-folder.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/tree-view/tree-view.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/ui/VirtualSearchBar.svelte | converted | heuristic | 0 | $bindable, $props | structurally convertible; requires review |
-| src/lib/components/ui/window/window.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/viewer/AnimatedImagePlayer.svelte | manual | heuristic | 0 | $effect, $props, $state | complex template behavior: element:canvas; complex rune graph: $effect, $props, $state |
-| src/lib/components/viewer/BackgroundVideo.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state |
-| src/lib/components/viewer/Magnifier.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state; store coordination: pos |
-| src/lib/components/viewer/SlideshowControl.svelte | manual | heuristic | 0 | $derived, $props, $state | complex template behavior: TransitionDirective |
-| src/lib/components/viewer/VideoContainer.svelte | manual | heuristic | 16 | $effect, $props, $state | uses Tauri API and requires a host adapter; complex rune graph: $effect, $props, $state; store coordination: animatedWebpProbeCache |
-| src/lib/components/viewer/VideoPlayer.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex rune graph: $derived, $effect, $props, $state |
-| src/lib/components/viewer/VideoPlayer/MoreMenu.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/viewer/VideoPlayer/PlaybackRatePanel.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/viewer/VideoPlayer/SubtitlePanel.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/viewer/VideoPlayer/VideoControls.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/components/viewer/VideoPlayer/VideoProgressBar.svelte | manual | heuristic | 0 | $props, $state | complex template behavior: element:canvas |
-| src/lib/components/viewer/VideoPlayer/VolumePanel.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
+| src/lib/components/ui/alert-dialog/alert-dialog-action.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-cancel.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-overlay.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-portal.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/alert-dialog/alert-dialog.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/AreaOverlay.svelte | replaced | config-override | 0 | $bindable, $effect, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/avatar/avatar-fallback.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/avatar/avatar-image.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/avatar/avatar.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/badge/badge.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/BoxReveal.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-ellipsis.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-link.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-list.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-page.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/breadcrumb/breadcrumb.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/button/button.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-action.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/card/card.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/chart/chart-container.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/chart/chart-style.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/chart/chart-tooltip.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/checkbox/checkbox.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/collapsible-card/CollapsibleCard.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/collapsible/collapsible-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/collapsible/collapsible-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/collapsible/collapsible.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-dialog.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-empty.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-input.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-link-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-list.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command-shortcut.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/command/command.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/ConfirmDialog.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-checkbox-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-group-heading.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-item-icon.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-item-row.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-radio-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-radio-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-shortcut.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-sub-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-sub-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/context-menu-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/context-menu/FileContextMenu.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/copy-button/copy-button.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/data-table/flex-render.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-close.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-overlay.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-portal.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dialog/dialog.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/Dock.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/DockIcon.svelte | replaced | config-override | 0 | $derived, $effect, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/draggable-list/DraggableListManager.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-checkbox-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-checkbox-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-group-heading.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-radio-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-radio-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-shortcut.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-sub-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-sub-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/dropdown-menu/dropdown-menu-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker-footer.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker-list.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker-search.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker-skin-tone-selector.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker-viewport.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/emoji-picker/emoji-picker.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty-media.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/empty/empty.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-error.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-legend.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-separator.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-set.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/field/field.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/FileTypeIcon.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-button.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-element-field.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-field-errors.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-field.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-fieldset.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/form/form-legend.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/GlobalConfirmDialog.svelte | replaced | config-override | 0 | - | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/hover-card/hover-card-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/hover-card/hover-card-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/HoverAreasOverlay.svelte | replaced | config-override | 0 | $bindable, $derived, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/Icon.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/input/input.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-actions.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-media.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/item/item.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/label/label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/MagicCard.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-checkbox-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-group-heading.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-radio-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-shortcut.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-sub-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-sub-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/menubar/menubar.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/MetadataBadge.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/meter/meter.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/native-select/native-select-opt-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/native-select/native-select-option.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/native-select/native-select.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-indicator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-link.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-list.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu-viewport.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/navigation-menu/navigation-menu.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/PanelContextMenu.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/PathBar.svelte | replaced | config-override | 0 | $bindable, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/popover/popover-close.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/popover/popover-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/popover/popover-portal.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/popover/popover-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/popover/popover.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/progress/progress.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/ProjectCard.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/rename-cancel.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/rename-edit.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/rename-provider.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/rename-save.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/rename.svelte | replaced | config-override | 0 | $bindable, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/rename/RenameDialog.svelte | replaced | config-override | 0 | $bindable, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/resizable/resizable-handle.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/resizable/resizable-pane-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/ResizablePanel.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/scroll-area/scroll-area-scrollbar.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/scroll-area/scroll-area.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/SearchBar.svelte | replaced | config-override | 0 | $bindable, $derived, $effect, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-group-heading.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-label.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-scroll-down-button.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-scroll-up-button.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/select/select-value.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/separator/separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-close.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-description.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-overlay.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-title.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sheet/sheet-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-group-action.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-group-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-group-label.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-group.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-input.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-inset.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-action.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-badge.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-button.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-skeleton.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-sub-button.svelte | replaced | config-override | 0 | $bindable, $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-sub-item.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu-sub.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-menu.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-provider.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-rail.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-separator.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sidebar/sidebar.svelte | replaced | config-override | 0 | $bindable, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/skeleton/skeleton.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/slider/slider.svelte | replaced | config-override | 0 | $bindable, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/snippet/snippet.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sonner/sonner.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sort/BookmarkSortPanel.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/sort/SortPanel.svelte | replaced | config-override | 0 | $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/switch/switch.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-body.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-caption.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-cell.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-footer.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-head.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-header.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table-row.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/table/table.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tabs/tabs-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tabs/tabs-list.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tabs/tabs-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tabs/tabs.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tag/ManualTagEditor.svelte | replaced | config-override | 0 | $bindable, $derived, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/TagChip.svelte | replaced | config-override | 0 | $derived, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tags-input/tags-input-tag.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tags-input/tags-input.svelte | replaced | config-override | 0 | $bindable, $effect, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/terminal/terminal-animated-span.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/terminal/terminal-loading.svelte | replaced | config-override | 0 | $derived, $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/terminal/terminal-loop.svelte | replaced | config-override | 0 | $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/terminal/terminal-typing-animation.svelte | replaced | config-override | 0 | $props, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/terminal/terminal.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/toast.svelte | replaced | config-override | 0 | $derived, $effect, $state | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tooltip/tooltip-content.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tooltip/tooltip-trigger.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tree-view/tree-view-file.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tree-view/tree-view-folder.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/tree-view/tree-view.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/VirtualSearchBar.svelte | replaced | config-override | 0 | $bindable, $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/ui/window/window.svelte | replaced | config-override | 0 | $props | Replace Svelte UI primitives and old shell pieces with the Xiranite React design system. |
+| src/lib/components/viewer/AnimatedImagePlayer.svelte | manual | config-override | 0 | $effect, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/BackgroundVideo.svelte | manual | config-override | 0 | $effect, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/Magnifier.svelte | manual | config-override | 0 | $effect, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/SlideshowControl.svelte | manual | config-override | 0 | $derived, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoContainer.svelte | manual | config-override | 16 | $effect, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer.svelte | manual | config-override | 0 | $derived, $effect, $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/MoreMenu.svelte | manual | config-override | 0 | $props | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/PlaybackRatePanel.svelte | manual | config-override | 0 | $props | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/SubtitlePanel.svelte | manual | config-override | 0 | $props | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/VideoControls.svelte | manual | config-override | 0 | $props | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/VideoProgressBar.svelte | manual | config-override | 0 | $props, $state | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
+| src/lib/components/viewer/VideoPlayer/VolumePanel.svelte | manual | config-override | 0 | $props | Media controls, magnifier, slideshow, and animated playback require React capability-specific review. |
 | src/lib/Settings.svelte | adapter-needed | heuristic | 1 | - | uses Tauri API and requires a host adapter |
-| src/lib/stackview/components/CanvasImage.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex template behavior: element:canvas; complex rune graph: $derived, $effect, $props, $state |
-| src/lib/stackview/components/FrameImage.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex rune graph: $derived, $effect, $props, $state; store coordination: filterStore, imageTrimStore |
-| src/lib/stackview/components/FrameImageWithOverlay.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
-| src/lib/stackview/frames/DoubleFrame.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/stackview/frames/PanoramaFrame.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/stackview/frames/SingleFrame.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/stackview/frames/VideoFrame.svelte | converted | heuristic | 0 | $props, $state | structurally convertible; requires review |
+| src/lib/stackview/components/CanvasImage.svelte | replaced | config-override | 0 | $derived, $effect, $props, $state | Normal reading uses DOM img; Canvas remains an optional capability instead of the primary renderer. |
+| src/lib/stackview/components/FrameImage.svelte | blocked | config-override | 0 | $derived, $effect, $props, $state | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/components/FrameImageWithOverlay.svelte | blocked | config-override | 0 | $derived, $props, $state | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/frames/DoubleFrame.svelte | blocked | config-override | 0 | $props | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/frames/PanoramaFrame.svelte | blocked | config-override | 0 | $props | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/frames/SingleFrame.svelte | blocked | config-override | 0 | $props | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/frames/VideoFrame.svelte | blocked | config-override | 0 | $props, $state | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
 | src/lib/stackview/layers/BackgroundLayer.svelte | manual | heuristic | 0 | $derived, $effect, $props, $state | complex rune graph: $derived, $effect, $props, $state |
 | src/lib/stackview/layers/CurrentFrameLayer.svelte | manual | heuristic | 0 | $effect, $props, $state | complex rune graph: $effect, $props, $state; store coordination: pageTransitionStore |
 | src/lib/stackview/layers/GestureLayer.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
@@ -564,9 +567,9 @@ This report is generated from Svelte compiler and OXC AST evidence. A `converted
 | src/lib/stackview/layers/SidebarControlLayer.svelte | manual | heuristic | 0 | $state | store coordination: bottomBarLockState, bottomBarOpen, bottomThumbnailBarPinned, leftSidebarLockState, leftSidebarOpen, leftSidebarPinned, rightSidebarLockState, rightSidebarOpen, rightSidebarPinned, topToolbarLockState, topToolbarOpen, topToolbarPinned, bottomBarLockState, bottomBarOpen, bottomThumbnailBarPinned, leftSidebarLockState, leftSidebarOpen, leftSidebarPinned, rightSidebarLockState, rightSidebarOpen, rightSidebarPinned, topToolbarLockState, topToolbarOpen, topToolbarPinned |
 | src/lib/stackview/layers/TranslationOverlay.svelte | converted | heuristic | 0 | $props, $state | structurally convertible; requires review |
 | src/lib/stackview/layers/UpscaleLayer.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/stackview/renderers/ImageRenderer.svelte | converted | heuristic | 0 | $props | structurally convertible; requires review |
-| src/lib/stackview/renderers/SplitRenderer.svelte | converted | heuristic | 0 | $derived, $props | structurally convertible; requires review |
-| src/lib/stackview/StackView.svelte | manual | heuristic | 3 | $derived, $effect, $props, $state | uses Tauri API and requires a host adapter; complex rune graph: $derived, $effect, $props, $state; store coordination: appState, animatedWebpProbeCache, currentPageShouldSplit, subPageIndex |
+| src/lib/stackview/renderers/ImageRenderer.svelte | blocked | config-override | 0 | $props | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/renderers/SplitRenderer.svelte | blocked | config-override | 0 | $derived, $props | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
+| src/lib/stackview/StackView.svelte | blocked | config-override | 3 | $derived, $effect, $props, $state | Generate only a typed React shell until the archive provider and loopback asset route are implemented. |
 | src/lib/vendor/liquid-glass/LiquidGlass.svelte | converted | heuristic | 0 | $derived, $props, $state | structurally convertible; requires review |
 | src/routes/standalone/[id]/+page.svelte | manual | heuristic | 1 | $effect, $state | uses Tauri API and requires a host adapter; complex rune graph: $effect, $state |
 

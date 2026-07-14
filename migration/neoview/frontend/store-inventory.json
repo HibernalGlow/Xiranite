@@ -14,23 +14,37 @@
   "summary": {
     "sourceFiles": 998,
     "components": 551,
+    "modules": 447,
     "stores": 142,
     "graphEdges": 766,
     "unresolvedComponentImports": 0,
     "tauriFiles": 107,
     "tauriCalls": 389,
+    "unmappedComponents": 0,
+    "unmappedModules": 0,
     "dispositions": {
-      "converted": 392,
+      "converted": 124,
       "adapter-needed": 22,
-      "manual": 137,
-      "replaced": 0,
-      "blocked": 0
+      "manual": 114,
+      "replaced": 282,
+      "blocked": 9
+    },
+    "moduleDispositions": {
+      "converted": 246,
+      "adapter-needed": 45,
+      "manual": 75,
+      "replaced": 77,
+      "blocked": 4
     }
   },
   "stores": [
     {
       "file": "src/lib/actions/typewriter.svelte.ts",
       "hash": "sha256:0af539b4ad85155dbff0dafe74a90eca78f496dd04d2226163a2a5c8f11104b4",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "svelte/attachments",
@@ -66,6 +80,10 @@
     {
       "file": "src/lib/cards/folder/context/FolderContext.svelte.ts",
       "hash": "sha256:15d27dd6a83a6cf0ae2a0f5b5d866434539937ee0a1d75f56334c8acf8fc5fb4",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "../types",
@@ -178,6 +196,9 @@
     {
       "file": "src/lib/cards/folder/hooks/useFolderActions.ts",
       "hash": "sha256:85ab2556d8ebfad0b3e944cb3bb59369e137db7080854ca7adb5c2dfe94daf7a",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "../types",
@@ -281,6 +302,9 @@
     {
       "file": "src/lib/cards/folder/hooks/useFolderState.svelte.ts",
       "hash": "sha256:af1738419069a110afac22a3db3839eeef495a2d884a37b03c2174b5bdf78458",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "../types",
@@ -360,6 +384,9 @@
     {
       "file": "src/lib/cards/folder/hooks/useSearchActions.ts",
       "hash": "sha256:f38acc058f0c700221a905fca205cf8fd8b689473851c3e11b589144727bea8b",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "../types",
@@ -463,6 +490,9 @@
     {
       "file": "src/lib/cards/folder/hooks/useTagActions.svelte.ts",
       "hash": "sha256:3fa4554618b941c899d45fbee8e330ad6f444f6ca5d280cb2471bc7dc41ba8ca",
+      "featureIds": [
+        "file-browser-navigation"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -527,6 +557,10 @@
     {
       "file": "src/lib/cards/shared/useFileActions.ts",
       "hash": "sha256:3dc5ede3b7e2b93cd630cc5f0f7bb2d3e9aadbf6e8f227a51570d192168b230b",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations"
+      ],
       "imports": [
         {
           "source": "../folder/context/FolderContext.svelte",
@@ -672,6 +706,9 @@
     {
       "file": "src/lib/commands.svelte.ts",
       "hash": "sha256:d1814716159a8757f084e34cd4a22c08df050a2f1de9898d3d5fae531f5e1d80",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -715,6 +752,11 @@
     {
       "file": "src/lib/components/panels/file/components/scrollCache.svelte.ts",
       "hash": "sha256:9271e3d61c934fd6396fb6a1ce6eda53825290452fccccaa9faee5082c4546fd",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell",
+        "search-sort-filter-library"
+      ],
       "imports": [
         {
           "source": "svelte/reactivity",
@@ -742,6 +784,10 @@
     {
       "file": "src/lib/components/panels/folderPanel/components/FolderStack/FolderSelectionHandler.ts",
       "hash": "sha256:f5bf71bd12b534bf1a3a8263c21b63978554f43cfbb98fb4a8e0e0845f23da30",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "./folderStackEventHandlers",
@@ -802,6 +848,10 @@
     {
       "file": "src/lib/components/panels/folderPanel/components/FolderStack/FolderStackState.svelte.ts",
       "hash": "sha256:f2c4331e9624a5a6ab1e64d560a716b14e09392c1de103dc6f253d12acdb98b8",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "$lib/types",
@@ -835,6 +885,10 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/chainSelectStore.svelte.ts",
       "hash": "sha256:f9bbe0e10bc0176dabf35ecc40260a96a943719404edc811a6b9c10234a14491",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -878,6 +932,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderPanelStore/core.svelte.ts",
       "hash": "sha256:430a83be4b2782c1cbd1d3980de5603b1586c0abd9b54fc2eb492e516577563c",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./panelState.svelte",
@@ -1025,6 +1100,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderPanelStore/index.ts",
       "hash": "sha256:8b2caf69e106d7cc7561eacdccea91bf98a885e734d9ca7c6f820cba74da6e17",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./core.svelte",
@@ -1155,6 +1251,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderPanelStore/panelState.svelte.ts",
       "hash": "sha256:235e5f5faaee1fb792f8176ff8d239e377245b6d13e2f4dc66797fc056d063c7",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -1270,6 +1387,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderPanelStore/selectionState.svelte.ts",
       "hash": "sha256:82772f433f93b641fe47e136a6bdabe9b201e7cf710da78dd6a01e52cd3eefc1",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./panelState.svelte",
@@ -1337,6 +1475,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderPanelStore/types.ts",
       "hash": "sha256:31197086c0ab16094b34d5aeb35cc110a50596c22a519da88ea7a163f05c5c00",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/types",
@@ -1374,6 +1533,10 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/derivedStores.svelte.ts",
       "hash": "sha256:ea8f145e0352f456610099b2a4ea1a1fb5468fdaaea8297add0504aa65314894",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "./tabManagement.svelte",
@@ -1452,6 +1615,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/index.ts",
       "hash": "sha256:fba6cda2c0f6de491ffaabb6a7ba0b164d3981c4f39d240f4ab99a8882c9d5db",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./layoutSettings.svelte",
@@ -1686,6 +1870,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/layoutSettings.svelte.ts",
       "hash": "sha256:314ee084b14ec3f8eb550ace9e8385a19dad30ea19e241c122ac872e01530fc5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./tabManagement.svelte",
@@ -1763,6 +1968,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/navigationHistory.svelte.ts",
       "hash": "sha256:33812fdd0e0036331bd3d0a3795ff934cbcf8ad1b43d6bdec4acb55476c31f76",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./sortingFiltering.svelte",
@@ -1847,6 +2073,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/selectionFolderTree.svelte.ts",
       "hash": "sha256:101f210762bb42c30941243492c16f0fdb6ee06008f48ba1dc12f39ae13a1be4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./tabManagement.svelte",
@@ -1939,6 +2186,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/sortingFiltering.svelte.ts",
       "hash": "sha256:8d6ec3a2dc7329748e99144f8521ad16f0fe6d8615f688247e6cd256d84f75c7",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./tabManagement.svelte",
@@ -2045,6 +2313,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/tabManagement.svelte.ts",
       "hash": "sha256:23b18bec17127ffc5e94dda9e0fcc5f245f76bd4549f223d76bac962d82ed240",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -2150,6 +2439,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/types.ts",
       "hash": "sha256:c7dba4c0f5431adcfca3ee464888c152e80cc440d544b456037f1849d6726fa2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "../folderPanelStore",
@@ -2221,6 +2531,27 @@
     {
       "file": "src/lib/components/panels/folderPanel/stores/folderTabStore/utils.svelte.ts",
       "hash": "sha256:04fe9502990578f400b76264a07279c5a58ac0652b9b4f73c7b0911497eb050e",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -2296,6 +2627,11 @@
     {
       "file": "src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts",
       "hash": "sha256:1ca8468c1b540618049720c54890b11875e37dda3222549bf64c24e66e67f6e6",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "../stores/folderTabStore",
@@ -2371,6 +2707,9 @@
     {
       "file": "src/lib/components/ui/collapsible-card/cardManager.svelte.ts",
       "hash": "sha256:5f5a27a5469046912b445e4e44ea8c785a5aa0123346ed38568afa4c7cbeb924",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
       "imports": [],
       "exports": [
         "CardManager",
@@ -2386,15 +2725,18 @@
       ],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "converted",
+      "disposition": "replaced",
       "classificationReasons": [
-        "structurally convertible; requires review"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/components/ui/data-table/data-table.svelte.ts",
       "hash": "sha256:e6d6658578b209618a3646ed254ca3bbebb0a6b46e1cfcf7ec360de6a67512c3",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "@tanstack/table-core",
@@ -2421,15 +2763,18 @@
         "lookupCache"
       ],
       "tauriCalls": [],
-      "disposition": "manual",
+      "disposition": "replaced",
       "classificationReasons": [
-        "store coordination: lookupCache"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/components/ui/emoji-picker/emoji-picker.svelte.ts",
       "hash": "sha256:62fae734007fc69310947d6a6e8d8e57f6d2a6ee62631c59499462b251bc3565",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "../../../hooks/use-frecency.svelte",
@@ -2489,15 +2834,19 @@
         "ctx"
       ],
       "tauriCalls": [],
-      "disposition": "manual",
+      "disposition": "replaced",
       "classificationReasons": [
-        "store coordination: ctx"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/components/ui/rename/rename.svelte.ts",
       "hash": "sha256:9c0b91f58138b6870195f3fa44a2ef37f29750999cb47c3f50dd54fd281737fd",
+      "featureIds": [
+        "file-operations",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "runed",
@@ -2540,16 +2889,20 @@
         "providerCtx"
       ],
       "tauriCalls": [],
-      "disposition": "manual",
+      "disposition": "replaced",
       "classificationReasons": [
-        "complex rune graph: $effect, $state",
-        "store coordination: providerCtx"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/components/ui/sidebar/context.svelte.ts",
       "hash": "sha256:715dc6aec9655755641f5a5038970221da1aadb730fcf8b5de4da90eceae158b",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./constants.js",
@@ -2586,15 +2939,18 @@
       "storageKeys": [],
       "writes": [],
       "tauriCalls": [],
-      "disposition": "manual",
+      "disposition": "replaced",
       "classificationReasons": [
-        "Svelte context lifecycle: <dynamic>"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/components/ui/terminal/terminal.svelte.ts",
       "hash": "sha256:745c85c1fd02627bd9c5216c2e953ba821e7ba536c3cadb7a8c3ac00232cb6d7",
+      "featureIds": [
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "runed",
@@ -2633,15 +2989,19 @@
         "TerminalRootContext"
       ],
       "tauriCalls": [],
-      "disposition": "manual",
+      "disposition": "replaced",
       "classificationReasons": [
-        "store coordination: TerminalLoopContext, TerminalRootContext"
+        "Replace Svelte UI primitives and old shell pieces with the Xiranite React design system."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/core/tabs/tabManager.ts",
       "hash": "sha256:038cb9a6e610db0fca2cd2f7cd8e2c095cec4605b92cfe9830c71744fcf74a87",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle"
+      ],
       "imports": [
         {
           "source": "$lib/stores/book.svelte",
@@ -2678,6 +3038,11 @@
     {
       "file": "src/lib/hooks/is-mobile.svelte.ts",
       "hash": "sha256:bb8bdf1e649516a2cfc9ab04fc6e463131503363eaf5fad2ccacb0fb19c932cf",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/reactivity",
@@ -2704,6 +3069,10 @@
     {
       "file": "src/lib/hooks/use-clipboard.svelte.ts",
       "hash": "sha256:690ffd3e0d85e7bfb43c85d6e3dcbd64949356fbadf6cb6277e455413d639560",
+      "featureIds": [
+        "panels-toolbar-shell",
+        "platform-clipboard-shell"
+      ],
       "imports": [],
       "exports": [
         "UseClipboard"
@@ -2724,6 +3093,10 @@
     {
       "file": "src/lib/hooks/use-frecency.svelte.ts",
       "hash": "sha256:7a185f2044fecfb52c55eae3cff7df5317f4d60e367450c27d7d0113d98f890a",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "runed",
@@ -2750,6 +3123,27 @@
     {
       "file": "src/lib/services/emmSyncService.ts",
       "hash": "sha256:6b552b041f9b325c84f36d3ff5260e18115fdacfe8363784917a3042e64dc9bf",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -2901,6 +3295,24 @@
     {
       "file": "src/lib/stackview/stores/imageStore.svelte.ts",
       "hash": "sha256:a6396338c15a26fbb12e03f5d9db0f4e612eaef015aab29d64a0826664516bf5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "../types/frame",
@@ -3012,6 +3424,9 @@
     {
       "file": "src/lib/stackview/stores/index.ts",
       "hash": "sha256:e9f9029e5ab43826d511ea2079ecc17b5ac18cbb0a676ce71c26d4e3d130dc57",
+      "featureIds": [
+        "page-layout-modes"
+      ],
       "imports": [],
       "exports": [],
       "primitives": [],
@@ -3028,6 +3443,25 @@
     {
       "file": "src/lib/stackview/stores/panoramaStore.svelte.ts",
       "hash": "sha256:3545e6326edd5d3a062b3166f91be02295e2672790ab2e40aad39b21c4fbe389",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3091,6 +3525,24 @@
     {
       "file": "src/lib/stackview/stores/upscaleStore.svelte.ts",
       "hash": "sha256:a60c3bf4a2d01af9982529e308e62c24cc6078669040d6a911b648e613feabaf",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3248,6 +3700,9 @@
     {
       "file": "src/lib/stackview/stores/viewState.svelte.ts",
       "hash": "sha256:ba061d9a2c53a4c4888e680b4e560163bf680390daf94fb8babeff14c9dd0dc0",
+      "featureIds": [
+        "page-layout-modes"
+      ],
       "imports": [],
       "exports": [
         "Direction",
@@ -3275,6 +3730,9 @@
     {
       "file": "src/lib/stores/ai/tanstackStore.svelte.ts",
       "hash": "sha256:2340836ede7f1234af6a471410479d23a120cb190140248131e08989175584f7",
+      "featureIds": [
+        "ai-ollama-translation"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -3313,6 +3771,25 @@
     {
       "file": "src/lib/stores/ai/translationStore.svelte.ts",
       "hash": "sha256:0021f9e58c32cce37220d1c0fd9792ac4b198e3cc687f875f8ce94b5bef3333a",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -3356,6 +3833,25 @@
     {
       "file": "src/lib/stores/aiApiConfig.svelte.ts",
       "hash": "sha256:6c11826c4112b7f1b5b69d2063d990e010daaf400fac54ab127d99605cc475c5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/ai/errorHandler",
@@ -3415,6 +3911,26 @@
     {
       "file": "src/lib/stores/animatedVideoMode.svelte.ts",
       "hash": "sha256:061571fc1c529a5b3920558103a2c81cbe4894c807236e043e9d742315eeebff",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -3452,6 +3968,24 @@
     {
       "file": "src/lib/stores/autoBackup.svelte.ts",
       "hash": "sha256:8dc01061e110cd01f46179db0e644332611dcea8ace32149609e0764fe866db8",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./settingsManager",
@@ -3544,6 +4078,31 @@
     {
       "file": "src/lib/stores/book.svelte.ts",
       "hash": "sha256:53970f9f99cb6ffef9629f9f9a5e934a67ca06d059e35dccb1185558d1acd7a4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "slideshow",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "BookState",
@@ -3594,6 +4153,26 @@
     {
       "file": "src/lib/stores/book/core.svelte.ts",
       "hash": "sha256:73ed50ef78980f7e2f456247c1cb1e2f7c1ddae04ccb6e622616f748c656e5e4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "../emmMetadata.svelte",
@@ -3788,6 +4367,9 @@
     {
       "file": "src/lib/stores/book/index.ts",
       "hash": "sha256:2a725b26bbd1557431efdda90c5ea6f6a2bd19351cdb85a412659c15f45bed94",
+      "featureIds": [
+        "book-open-close-reload"
+      ],
       "imports": [],
       "exports": [
         "PageNavigationCallbacks",
@@ -3825,6 +4407,10 @@
     {
       "file": "src/lib/stores/book/pageNavigation.svelte.ts",
       "hash": "sha256:d4ae96b7ca2e9ef174ac98439d3a1652339ab3a200114b1f00e439945299fba4",
+      "featureIds": [
+        "book-open-close-reload",
+        "page-index-navigation"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -3878,6 +4464,26 @@
     {
       "file": "src/lib/stores/book/streamingLoader.svelte.ts",
       "hash": "sha256:346eb033feae615be55fcbe8e466f23c1df944879cd0893e7b99bd5f07a97e16",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/event",
@@ -3911,6 +4517,26 @@
     {
       "file": "src/lib/stores/book/toast.ts",
       "hash": "sha256:5a715f5f20765144b64565557e2194b89d76e2e1e9f873a3bc62f717f1cc4cdc",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -3942,6 +4568,26 @@
     {
       "file": "src/lib/stores/book/types.ts",
       "hash": "sha256:08dadd77bdd791198f74539d08392fdf4d4e19095d8e47a5f120a2978a6ef134",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/types",
@@ -3985,6 +4631,10 @@
     {
       "file": "src/lib/stores/book/upscale.ts",
       "hash": "sha256:f30060639da621074569bec8b80a77985721bc7325aa93fe083792c1245c749c",
+      "featureIds": [
+        "book-open-close-reload",
+        "super-resolution"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -4023,6 +4673,10 @@
     {
       "file": "src/lib/stores/book/upscaleManagement.svelte.ts",
       "hash": "sha256:29833c36716db91f3f263227623ebd35e4c6f0445720e6f394e71f1c375c1517",
+      "featureIds": [
+        "book-open-close-reload",
+        "super-resolution"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -4067,6 +4721,26 @@
     {
       "file": "src/lib/stores/book/utils.ts",
       "hash": "sha256:01f91e9f5c00879a3f220784ef26c2f5d32a373259b547abbf15a7db70ab9ea4",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api/emm",
@@ -4099,6 +4773,26 @@
     {
       "file": "src/lib/stores/bookContext.svelte.ts",
       "hash": "sha256:2dbb973e984cd4878a485a2777afca591f41856e079bee10349bf6c0cade4d03",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "svelte/reactivity",
@@ -4134,6 +4828,25 @@
     {
       "file": "src/lib/stores/bookmark.svelte.ts",
       "hash": "sha256:f6b6015b5442c511e1b19e4c3f9c0d8e5a722f05a8ca9491ab63e512035535ee",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./historySettings.svelte",
@@ -4189,6 +4902,26 @@
     {
       "file": "src/lib/stores/bookSettings.svelte.ts",
       "hash": "sha256:926349d4e2839aa4dbbeda8eac975dc2d4fd17ea8a23883d3be31106c955e68f",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/settings/settingsManager",
@@ -4227,6 +4960,24 @@
     {
       "file": "src/lib/stores/cardConfig.svelte.ts",
       "hash": "sha256:2fa2d45cd2914690eeea2c9416ee600144e17d52c36e2a9041278a062c1b3977",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./sidebarConfig.svelte",
@@ -4287,6 +5038,11 @@
     {
       "file": "src/lib/stores/cardWindowTabStore.svelte.ts",
       "hash": "sha256:e55a1be089d67310295e7df577cbf4ff11957e86f8b22a6ccfb966ff62ac7804",
+      "featureIds": [
+        "card-windows-tabs",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/cards/registry",
@@ -4332,6 +5088,25 @@
     {
       "file": "src/lib/stores/confirmDialog.svelte.ts",
       "hash": "sha256:658ecca53880e08bbbb909d36127fb0bf6c4115feb3ac98a8412413083e7ee7f",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "confirm",
@@ -4357,6 +5132,11 @@
     {
       "file": "src/lib/stores/dimensionScanListener.ts",
       "hash": "sha256:b09effcde57bbb402b56d2ba3acce81a07125f70b8a6b71709681c4fe30723e1",
+      "featureIds": [
+        "metadata-dimensions-properties",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./book.svelte",
@@ -4408,6 +5188,12 @@
     {
       "file": "src/lib/stores/emm/collectTagCountStore.ts",
       "hash": "sha256:32c2805c7e53ae99563d7d57ba7f58cf2c0e1be489e3b841f02c4596aa6e6fe0",
+      "featureIds": [
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "panels-toolbar-shell",
+        "search-sort-filter-library"
+      ],
       "imports": [
         {
           "source": "./favoriteTagStore.svelte",
@@ -4461,6 +5247,25 @@
     {
       "file": "src/lib/stores/emm/favoriteTagStore.svelte.ts",
       "hash": "sha256:b6cea7c5dc7e61b0b7aaf40154efe1d9475977a4198893b6db92dc10c98cda74",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./translation",
@@ -4516,6 +5321,28 @@
     {
       "file": "src/lib/stores/emm/folderRating.ts",
       "hash": "sha256:1cdd649814e725578621f7091dd8244b2d3d31e8194e92874785f13ef17b34c1",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./ratingStore",
@@ -4581,6 +5408,27 @@
     {
       "file": "src/lib/stores/emm/helpers.ts",
       "hash": "sha256:3102a1cd93db816431788f8de9ffa0cc891e94522e28153b4662c2294fe36ae2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api/emm",
@@ -4608,6 +5456,9 @@
     {
       "file": "src/lib/stores/emm/index.ts",
       "hash": "sha256:7f993e443a3938a8dff1999946b726008f83957020c8cf8a4ac9a9c2c4151a92",
+      "featureIds": [
+        "emm-ratings-tags-translation"
+      ],
       "imports": [],
       "exports": [
         "EMMCollectTag",
@@ -4636,6 +5487,25 @@
     {
       "file": "src/lib/stores/emm/manualTagStore.svelte.ts",
       "hash": "sha256:128d817671fa9def1554325a7428dd6932f182ecdf2ac5cffd562cdff99b4533",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -4708,6 +5578,28 @@
     {
       "file": "src/lib/stores/emm/ratingStore.ts",
       "hash": "sha256:ae4620b4d68a23b2808ab0200bb7dc66f80ed7936a63e2f5af6d40f1b8ba1288",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -4795,6 +5687,28 @@
     {
       "file": "src/lib/stores/emm/storage.ts",
       "hash": "sha256:103b82cbf54cdf4b2f8c8d34c25927f07266100608d80315195a562151598446",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "DEFAULT_RATING_VALUE",
@@ -4821,6 +5735,25 @@
     {
       "file": "src/lib/stores/emm/translation.ts",
       "hash": "sha256:c8116431d6e01efdafd2b608e0e322c199d8b2753330d1debfa860d7daf98d0a",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api/emm",
@@ -4847,6 +5780,28 @@
     {
       "file": "src/lib/stores/emm/types.ts",
       "hash": "sha256:040447c2e6e76e45055ea0fbf7e536b6f318ca2a086d5484caffa66de869d267",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api/emm",
@@ -4881,6 +5836,27 @@
     {
       "file": "src/lib/stores/emmMetadata.svelte.ts",
       "hash": "sha256:f7de26420c217e33caa752da8e4819c215e45de19c578448ae2cf9ba304c6ee8",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./emm/helpers",
@@ -4990,6 +5966,14 @@
     {
       "file": "src/lib/stores/excludedPaths.svelte.ts",
       "hash": "sha256:0ae156e880a40088829672adf7c0dbe9cc26eec08059793786c873ead7e057d8",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations",
+        "panels-toolbar-shell",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "svelte/reactivity",
@@ -5023,6 +6007,26 @@
     {
       "file": "src/lib/stores/fileBrowser.svelte.ts",
       "hash": "sha256:1d21f4b2349b5b489081be4cee17453f7f4fdc9c0577b78fb2feff7c1a743020",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api",
@@ -5123,6 +6127,25 @@
     {
       "file": "src/lib/stores/fileListTagSettings.svelte.ts",
       "hash": "sha256:f1fb357a491eaf98793a00ba7b04ffd4a9cd9ce88c6f7384915ae76b62b8dc99",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "FileListTagDisplayMode",
@@ -5146,6 +6169,25 @@
     {
       "file": "src/lib/stores/filterStore.svelte.ts",
       "hash": "sha256:916f4b5197319f09d324a54999c80e0e0c806b6444e45c2c46290cd6c75da5ed",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/utils/colorFilters",
@@ -5196,6 +6238,27 @@
     {
       "file": "src/lib/stores/folderSizeCache.svelte.ts",
       "hash": "sha256:14ba79dc390f0ae6d4c38a5d364e0a3be6c5c79b9a81784de425981d83468d04",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/api",
@@ -5241,6 +6304,10 @@
     {
       "file": "src/lib/stores/folderTreeCache.ts",
       "hash": "sha256:05d76f16d6259dbc3b908a85f740bda4c7492589b353666770e28414aad820d3",
+      "featureIds": [
+        "file-browser-navigation",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "idb",
@@ -5293,6 +6360,11 @@
     {
       "file": "src/lib/stores/folderTreePin.svelte.ts",
       "hash": "sha256:033a683f5702bc9b7ebcd8c211c5b71ec5ffe5e72cfd00e94009b142aeb19131",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations",
+        "panels-toolbar-shell"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -5323,6 +6395,24 @@
     {
       "file": "src/lib/stores/gistSync.svelte.ts",
       "hash": "sha256:d32193089c12daec097740e426377bb3db5d7fa498f25a20b8ed861ffe794bd2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "GistFile",
@@ -5350,6 +6440,9 @@
     {
       "file": "src/lib/stores/history.svelte.ts",
       "hash": "sha256:92ee30bb2de73c315a06e867426f5442bf6e37ddbb37a3631d8086ae9cb95f0a",
+      "featureIds": [
+        "history-bookmarks-progress"
+      ],
       "imports": [
         {
           "source": "./historySettings.svelte",
@@ -5396,6 +6489,28 @@
     {
       "file": "src/lib/stores/historySettings.svelte.ts",
       "hash": "sha256:cd3b8f500dce74c87d527a93d0c47928867d308a84355aba65f135ca5050a9d2",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "historySettingsStore"
@@ -5418,6 +6533,13 @@
     {
       "file": "src/lib/stores/hoverPreviewSettings.svelte.ts",
       "hash": "sha256:a880ba023a331025a324412da7e31196e8f6c2506cfd8da554706a5e1d5d7916",
+      "featureIds": [
+        "file-browser-navigation",
+        "image-effects-transitions",
+        "panels-toolbar-shell",
+        "search-sort-filter-library",
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -5459,6 +6581,24 @@
     {
       "file": "src/lib/stores/iconRegistry.svelte.ts",
       "hash": "sha256:6a7d26a79372b285b9ccb8256194a20b1f40b83ce6f2dfaef096dcbfb4300d6b",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/utils/iconMap",
@@ -5498,6 +6638,25 @@
     {
       "file": "src/lib/stores/imageTrimStore.svelte.ts",
       "hash": "sha256:bc243bacabdd055c1c5bb6bf7c2ed84750e12522ece937b51c89433be92d1f21",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -5542,6 +6701,17 @@
     {
       "file": "src/lib/stores/index.ts",
       "hash": "sha256:de3389ebbae1e286f16d5c98d57c7bb87c0e0d49e4a6cab7160e5b0ebeb6c263",
+      "featureIds": [
+        "animated-image-video",
+        "file-browser-navigation",
+        "input-bindings-radial-voice",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "AsyncState",
@@ -5609,6 +6779,29 @@
     {
       "file": "src/lib/stores/infoPanel.svelte.ts",
       "hash": "sha256:c03b52a5440ea2d8360ed20838d15361d1dd99a496908391263a0e844b339611",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -5641,6 +6834,9 @@
     {
       "file": "src/lib/stores/insightsPanel.svelte.ts",
       "hash": "sha256:06cc162344eba54d8625c36fdc60a6bd67afff54ff5f428d145fcbce3aa44b2c",
+      "featureIds": [
+        "history-bookmarks-progress"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -5674,6 +6870,9 @@
     {
       "file": "src/lib/stores/keybindings/constants.ts",
       "hash": "sha256:b4fef85c809b0562682b6939dca1d23626c67639adc6553af4277a94cb14b6e9",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -5706,6 +6905,9 @@
     {
       "file": "src/lib/stores/keybindings/core.svelte.ts",
       "hash": "sha256:500ada7e2ccda3d9eed18249259b64f0061d971f13ffff85fc1ad22d5f4f72d4",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./constants",
@@ -5786,6 +6988,25 @@
     {
       "file": "src/lib/stores/keybindings/index.ts",
       "hash": "sha256:e78abae7c3cf548ece00135cde5e9565436c40c9115112fe6b05063d0ccfcc60",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "ACTION_NAMES",
@@ -5848,6 +7069,9 @@
     {
       "file": "src/lib/stores/keybindings/keyCategories.svelte.ts",
       "hash": "sha256:177904474cb2333f857dbbbd51cf0eac3b37d308f7cfabad9b3323e4913f6934",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./constants",
@@ -5898,6 +7122,9 @@
     {
       "file": "src/lib/stores/keybindings/keyHandlers.svelte.ts",
       "hash": "sha256:c9f0d03b6f94402a2782a94ace28b8cfa01c4f913f99c8952baca0413dad5bf1",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./constants",
@@ -5950,6 +7177,9 @@
     {
       "file": "src/lib/stores/keybindings/keyMappings.svelte.ts",
       "hash": "sha256:67b1fdedcc52bf4b51b52fd1526aab5b6dd38f7e4e893a2222b4d3f68de83bd3",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -5986,6 +7216,14 @@
     {
       "file": "src/lib/stores/keybindings/types.ts",
       "hash": "sha256:0916096e648b078b7688c69048a5cc172c78686b3158fe7c34dc7c8944735dcf",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "page-layout-modes",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "ActionBinding",
@@ -6017,6 +7255,10 @@
     {
       "file": "src/lib/stores/keyboard.svelte.ts",
       "hash": "sha256:c278bccd43f45e9fe1a53f881e27276fc8ec0c6dce283250ede850df0d8213e5",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "page-layout-modes"
+      ],
       "imports": [
         {
           "source": "../types/keyboard",
@@ -6068,6 +7310,29 @@
     {
       "file": "src/lib/stores/loadModeStore.svelte.ts",
       "hash": "sha256:b21d2e2a3de2b6320f5d1d5e62ec7ec00fcfdb6e9a8a1a49f643060ed64b4703",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "$lib/api/pageManager",
@@ -6110,6 +7375,9 @@
     {
       "file": "src/lib/stores/pageFrame.svelte.ts",
       "hash": "sha256:99941b413deb52de0ba886a5782df0f0106e1c97e2c91702bb6248698b413b00",
+      "featureIds": [
+        "page-index-navigation"
+      ],
       "imports": [
         {
           "source": "$lib/core/pageFrame",
@@ -6161,6 +7429,9 @@
     {
       "file": "src/lib/stores/pageStore.svelte.ts",
       "hash": "sha256:24508e887d14cc9b3a589a9217f1941f391a99c6f66c9e003ed4c30bab636826",
+      "featureIds": [
+        "page-index-navigation"
+      ],
       "imports": [
         {
           "source": "$lib/api/pageManager",
@@ -6198,6 +7469,29 @@
     {
       "file": "src/lib/stores/pageTransferMode.svelte.ts",
       "hash": "sha256:e5fdb6f88371d616627df66c8207c8f038e4ac53cf0889f3ed085f9adaeff48d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "PageTransferMode",
@@ -6221,6 +7515,25 @@
     {
       "file": "src/lib/stores/pageTransitionStore.svelte.ts",
       "hash": "sha256:9287221d7515ad90003010d58c04798127897c22a35226cdb8eb5fecc5b9cdd0",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-effects-transitions",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -6260,6 +7573,9 @@
     {
       "file": "src/lib/stores/panorama.svelte.ts",
       "hash": "sha256:15c92bdd0acf63533e145e1f4bd2a06e2dc7144394724587cfaa5c4d4dd52d63",
+      "featureIds": [
+        "page-layout-modes"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -6295,6 +7611,24 @@
     {
       "file": "src/lib/stores/pathBlacklist.svelte.ts",
       "hash": "sha256:6400189fbd503bd9fbcdeb03cf93b791e9bd368bcf29a7218dcbf7e1f7c8dc6d",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/settings/settingsManager",
@@ -6329,6 +7663,28 @@
     {
       "file": "src/lib/stores/pipelineLatency.svelte.ts",
       "hash": "sha256:414a566283711fcb3109f802378421d5680c9051be279becb4053b1d0efa6bf5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "image-decode-formats",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "PipelineLatencyRecord",
@@ -6350,6 +7706,11 @@
     {
       "file": "src/lib/stores/quickLibrary.svelte.ts",
       "hash": "sha256:20444396a196c8438271b5b64354ca3fd5cf73f275c480a7fb68323a32f79cfb",
+      "featureIds": [
+        "file-browser-navigation",
+        "playlist-quick-library",
+        "search-sort-filter-library"
+      ],
       "imports": [],
       "exports": [
         "quickLibraryStore"
@@ -6370,6 +7731,9 @@
     {
       "file": "src/lib/stores/radialMenu/core.svelte.ts",
       "hash": "sha256:05f777b6afefc19f995f9498b6dff9445cfe2b7960e2e2fc59eaf14790ae1498",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [
         {
           "source": "./defaults",
@@ -6413,6 +7777,10 @@
     {
       "file": "src/lib/stores/radialMenu/defaults.ts",
       "hash": "sha256:2119711e04b1fa36c329f48933001b79fd081b48a9d27dd040945620c4205fe3",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "./types",
@@ -6443,6 +7811,9 @@
     {
       "file": "src/lib/stores/radialMenu/geometry.ts",
       "hash": "sha256:82e2fd9c7f0432de045456dab133b658a0394b4f817e4090b438b32dd892d362",
+      "featureIds": [
+        "input-bindings-radial-voice"
+      ],
       "imports": [],
       "exports": [
         "getMaxRadius",
@@ -6464,6 +7835,14 @@
     {
       "file": "src/lib/stores/radialMenu/index.ts",
       "hash": "sha256:9a89326084f3dd4a7e7396f5f8a7a3cc166c72c01d55f3b2836a33f946e0903c",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "RADIAL_MENU_STORAGE_KEY",
@@ -6490,6 +7869,10 @@
     {
       "file": "src/lib/stores/radialMenu/types.ts",
       "hash": "sha256:c9076fafec1f3679bfaae78a1d2368083a7de1b7340a9c2f00da7245bb08c4d8",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "settings-import-export-backup"
+      ],
       "imports": [],
       "exports": [
         "RadialMenuConfig",
@@ -6513,6 +7896,27 @@
     {
       "file": "src/lib/stores/readerStore.svelte.ts",
       "hash": "sha256:5b6605b2755d28a072cd2b019d26c98dd128b22e92cadd6ed4cfd94ceba3d820",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -6591,6 +7995,9 @@
     {
       "file": "src/lib/stores/settingsManager/core.svelte.ts",
       "hash": "sha256:5e7d7d2af65785312adb652d25f9728a09c9f59dbd89c18362a62e59e8fc0363",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "./settingsExport",
@@ -6640,6 +8047,24 @@
     {
       "file": "src/lib/stores/settingsManager/index.ts",
       "hash": "sha256:16f510ec5390dad9ac87310f2795c56801dae9696e4607c8431ff1fc8926b498",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "AppSettings",
@@ -6683,6 +8108,9 @@
     {
       "file": "src/lib/stores/settingsManager/settingsExport.ts",
       "hash": "sha256:7eb72044cc955da38f2b7dd9747321eed75e011b3c09adc7d4b2ff1934b3124b",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "../bookmark.svelte",
@@ -6785,6 +8213,9 @@
     {
       "file": "src/lib/stores/settingsManager/settingsImport.ts",
       "hash": "sha256:ddeaeea33a8a48362e4b2eb45c754ee2f0f1453b7635a424011c68650348efe7",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "../bookmark.svelte",
@@ -6902,6 +8333,9 @@
     {
       "file": "src/lib/stores/settingsManager/storageUtils.ts",
       "hash": "sha256:6fff69d20c3a9c3a5177a87ebe15186a8f2590b9dfa739b53b4c5db9c203b973",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [],
       "exports": [
         "findCardConfigsFromLocalStorage",
@@ -6930,6 +8364,9 @@
     {
       "file": "src/lib/stores/settingsManager/types.ts",
       "hash": "sha256:184790639635032c8ba8187a160718827ad35973897a0ae5b616ded05b47f233",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "$lib/api/performance",
@@ -6980,6 +8417,13 @@
     {
       "file": "src/lib/stores/settingsOverlay.svelte.ts",
       "hash": "sha256:5d23e6154803dbdee7e8de17da00ee6d1d3491ed0882c38d6c6341e28658d5ad",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "panels-toolbar-shell",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "svelte/store",
@@ -7013,6 +8457,24 @@
     {
       "file": "src/lib/stores/sidebarConfig.svelte.ts",
       "hash": "sha256:1680afb71b6e283189094e52657164937d1b8fafb080183b361091af883ee20a",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./iconRegistry.svelte",
@@ -7123,6 +8585,15 @@
     {
       "file": "src/lib/stores/slideshow.svelte.ts",
       "hash": "sha256:d80a421a6535a7d1619f156765121466401fb292fc2620e1b26b491a6a474551",
+      "featureIds": [
+        "input-bindings-radial-voice",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "slideshow",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "$lib/settings/settingsManager",
@@ -7152,6 +8623,9 @@
     {
       "file": "src/lib/stores/translation/index.ts",
       "hash": "sha256:2ce468a0a7d470797eb7a5ce25313df2224697c4bb3f0ed27e35d372c69232d2",
+      "featureIds": [
+        "emm-ratings-tags-translation"
+      ],
       "imports": [],
       "exports": [
         "TranslationOverlaySettings",
@@ -7174,6 +8648,25 @@
     {
       "file": "src/lib/stores/translation/translationStore.svelte.ts",
       "hash": "sha256:01bdd470f882f25e3f2d34e8fde25f81056678686f15a82ec6c8ad7949c50bdd",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "svelte/reactivity",
@@ -7208,6 +8701,25 @@
     {
       "file": "src/lib/stores/ui.svelte.ts",
       "hash": "sha256:cbc92086b67b574bd16d0e9e89ab09a8d1e0967a1d4e0bd1a4c7ff489d931e21",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "./book.svelte",
@@ -7394,6 +8906,28 @@
     {
       "file": "src/lib/stores/unifiedHistory.svelte.ts",
       "hash": "sha256:39e96d394ea1940d92fad7c1daddfe915f1780627827151ecd5addf8ab763469",
+      "featureIds": [
+        "ai-ollama-translation",
+        "animated-image-video",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./historySettings.svelte",
@@ -7452,6 +8986,29 @@
     {
       "file": "src/lib/stores/unifiedThumbnailStore.svelte.ts",
       "hash": "sha256:b1249939731bf04b18bf8ff4ed13f46051154811ff3899661d0e57a4d45b5eab",
+      "featureIds": [
+        "ai-ollama-translation",
+        "book-open-close-reload",
+        "card-windows-tabs",
+        "emm-ratings-tags-translation",
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "preload-stream-scheduler",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "thumbnail-system"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -7528,6 +9085,9 @@
     {
       "file": "src/lib/stores/universalTabStore.svelte.ts",
       "hash": "sha256:82ef74420045370e592c43877c215fc80c669e511a45ebc5a9aa84674f90eb2c",
+      "featureIds": [
+        "card-windows-tabs"
+      ],
       "imports": [
         {
           "source": "$lib/types",
@@ -7592,6 +9152,24 @@
     {
       "file": "src/lib/stores/upscale/PyO3UpscaleManager.svelte.ts",
       "hash": "sha256:e9b1a8c0102038c08968b7c17f485fde46f8a7817c3df3e98c99136cefe45759",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "@tauri-apps/api/core",
@@ -7699,15 +9277,33 @@
           "line": 401
         }
       ],
-      "disposition": "adapter-needed",
+      "disposition": "replaced",
       "classificationReasons": [
-        "uses Tauri API and requires a host adapter"
+        "Replace the PyO3 control chain with the system OpenComic upscaler provider."
       ],
       "parseErrors": []
     },
     {
       "file": "src/lib/stores/upscale/upscalePanelStore.svelte.ts",
       "hash": "sha256:c959e152f6ef8969262f27dd02966e03bc1cb474b0096fb3305ab94983fda610",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "./PyO3UpscaleManager.svelte",
@@ -7817,6 +9413,11 @@
     {
       "file": "src/lib/stores/upscale/upscaleState.svelte.ts",
       "hash": "sha256:25bba64e4795d0f914632f543f9dc97806a52d50a8896351b68a7454618e22d8",
+      "featureIds": [
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "super-resolution"
+      ],
       "imports": [
         {
           "source": "./PyO3UpscaleManager.svelte",
@@ -7851,6 +9452,9 @@
     {
       "file": "src/lib/stores/utils/createAsyncStore.svelte.ts",
       "hash": "sha256:02f6af5501d0eba31ddc7491f1cd0dd8fecad561ebb1dbe17961c06913eb1124",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [],
       "exports": [
         "AsyncState",
@@ -7876,6 +9480,25 @@
     {
       "file": "src/lib/stores/utils/createPersistedState.svelte.ts",
       "hash": "sha256:d61ae9871241fdc18768d7006176f900ad8c6a92af1bb9f6bcfc085b0e38015a",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "PersistedState",
@@ -7903,6 +9526,9 @@
     {
       "file": "src/lib/stores/utils/index.ts",
       "hash": "sha256:c4686462479e5d0f28ee1c8e608c8624f888cc02570a9b5444052047027dd0ad",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
       "imports": [],
       "exports": [
         "AsyncState",
@@ -7928,6 +9554,12 @@
     {
       "file": "src/lib/stores/video.svelte.ts",
       "hash": "sha256:cdafd023c1a36c97743994ae70222891e670cf40c3616ec87e9b0601ba0fe0c0",
+      "featureIds": [
+        "animated-image-video",
+        "page-layout-modes",
+        "startup-window-cli-lifecycle",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/settings/settingsManager",
@@ -7958,6 +9590,9 @@
     {
       "file": "src/lib/stores/viewContext.svelte.ts",
       "hash": "sha256:f70a5a40be4d53a9cc55415b5866e349807f612f2571e98442ad1853033c1d33",
+      "featureIds": [
+        "zoom-rotate-magnifier"
+      ],
       "imports": [
         {
           "source": "$lib/api/content",
@@ -8015,6 +9650,10 @@
     {
       "file": "src/lib/stores/viewState.svelte.ts",
       "hash": "sha256:23d0f0ab5e9790c283ef78782f162ce967bea34651711ea8ca1f557f560060cc",
+      "featureIds": [
+        "page-layout-modes",
+        "zoom-rotate-magnifier"
+      ],
       "imports": [],
       "exports": [
         "Direction",
@@ -8050,6 +9689,14 @@
     {
       "file": "src/lib/stores/virtualPanelSettings.svelte.ts",
       "hash": "sha256:f7072879d0856aaeb4fe58699a8f7a22409f104aa5553f12fd214ee7c27f74bd",
+      "featureIds": [
+        "file-browser-navigation",
+        "file-operations",
+        "history-bookmarks-progress",
+        "panels-toolbar-shell",
+        "search-sort-filter-library",
+        "settings-import-export-backup"
+      ],
       "imports": [
         {
           "source": "$lib/components/panels/folderPanel/stores/folderPanelStore",
@@ -8085,6 +9732,24 @@
     {
       "file": "src/lib/stores/visibilityMonitor.svelte.ts",
       "hash": "sha256:abbe5e6a330edd6e598ff86af149688e31235a5912e4a5c4476347635480ead5",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [],
       "exports": [
         "VisibilityInfo",
@@ -8112,6 +9777,24 @@
     {
       "file": "src/lib/stores/voice/voiceStore.svelte.ts",
       "hash": "sha256:0367e0dbf6886097072a30a622f36f5803d91dfe7ab5dfd45a34639a9b2075bb",
+      "featureIds": [
+        "ai-ollama-translation",
+        "card-windows-tabs",
+        "file-browser-navigation",
+        "history-bookmarks-progress",
+        "input-bindings-radial-voice",
+        "metadata-dimensions-properties",
+        "page-index-navigation",
+        "page-layout-modes",
+        "panels-toolbar-shell",
+        "performance-benchmark-diagnostics",
+        "playlist-quick-library",
+        "search-sort-filter-library",
+        "settings-import-export-backup",
+        "startup-window-cli-lifecycle",
+        "super-resolution",
+        "theme-background-empty-state"
+      ],
       "imports": [
         {
           "source": "$lib/services/voice/commandDict",

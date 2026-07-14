@@ -7,7 +7,10 @@ const fixture = resolve(import.meta.dirname, "__fixtures__/svelte-project")
 
 describe("analyzeSvelteFrontend", () => {
   it("uses Svelte and TypeScript ASTs to inventory components, stores, graph edges, and Tauri calls", async () => {
-    const inventory = await analyzeSvelteFrontend({ projectRoot: fixture })
+    const inventory = await analyzeSvelteFrontend({
+      projectRoot: fixture,
+      featureMappings: [{ featureId: "reader", sourcePatterns: ["src/App\\.svelte$"] }],
+    })
 
     expect(inventory.summary).toMatchObject({ components: 2, stores: 1, graphEdges: 1, tauriFiles: 1, tauriCalls: 1 })
     expect(inventory.graph.edges).toContainEqual({
@@ -18,6 +21,7 @@ describe("analyzeSvelteFrontend", () => {
     })
     expect(inventory.components.find((component) => component.file === "src/App.svelte")).toMatchObject({
       disposition: "manual",
+      featureIds: ["reader"],
       runes: ["$state"],
       tauriCalls: [{ api: "invoke", importedFrom: "@tauri-apps/api/core", command: "open_book", line: 6 }],
       templateFeatures: { "element:canvas": 1 },
@@ -28,7 +32,15 @@ describe("analyzeSvelteFrontend", () => {
       primitives: ["$state"],
       storageKeys: ["reader.page"],
     })
-    expect(inventory.components.find((component) => component.file === "src/Child.svelte")?.props).toEqual(["label"])
+    expect(inventory.components.find((component) => component.file === "src/Child.svelte")).toMatchObject({
+      props: ["label"],
+      featureIds: ["reader"],
+      featureMappingSource: "consumer-propagated",
+    })
+    expect(inventory.modules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ file: "src/lib/index.ts", kind: "utility" }),
+      expect.objectContaining({ file: "src/lib/stores/reader.svelte.ts", kind: "store" }),
+    ]))
   })
 
   it("applies explicit review dispositions after collecting AST evidence", async () => {

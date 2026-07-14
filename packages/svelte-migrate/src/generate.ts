@@ -33,6 +33,7 @@ export function renderSvelteMigrationArtifacts(inventory: SvelteFrontendInventor
   }
   return new Map([
     ["component-inventory.json", json({ ...header, components: inventory.components })],
+    ["module-inventory.json", json({ ...header, modules: inventory.modules })],
     ["store-inventory.json", json({ ...header, stores: inventory.stores })],
     ["component-graph.json", json({ ...header, graph: inventory.graph })],
     ["tauri-usage.json", json({ ...header, tauriUsage: inventory.tauriUsage })],
@@ -54,11 +55,14 @@ function renderReport(inventory: SvelteFrontendInventory): string {
     `- Dirty diff hash: ${inventory.sourceRevision.dirtyDiffHash ?? "-"}\n` +
     `- Frontend source files: ${inventory.summary.sourceFiles}\n` +
     `- Svelte components: ${inventory.summary.components}\n` +
+    `- TypeScript/JavaScript modules: ${inventory.summary.modules}\n` +
     `- Store/rune modules: ${inventory.summary.stores}\n` +
     `- Component edges: ${inventory.summary.graphEdges}\n` +
     `- Unresolved component imports: ${inventory.summary.unresolvedComponentImports}\n` +
     `- Tauri-using files/calls: ${inventory.summary.tauriFiles}/${inventory.summary.tauriCalls}\n` +
-    `- Dispositions: ${Object.entries(inventory.summary.dispositions).map(([name, count]) => `${name}=${count}`).join(", ")}\n\n` +
+    `- Unmapped components/modules: ${inventory.summary.unmappedComponents}/${inventory.summary.unmappedModules}\n` +
+    `- Component dispositions: ${Object.entries(inventory.summary.dispositions).map(([name, count]) => `${name}=${count}`).join(", ")}\n` +
+    `- Module dispositions: ${Object.entries(inventory.summary.moduleDispositions).map(([name, count]) => `${name}=${count}`).join(", ")}\n\n` +
     `## Component review queue\n\n` +
     `| Source | Disposition | Classification | Tauri calls | Runes | Reasons |\n` +
     `| --- | --- | --- | ---: | --- | --- |\n${rows.join("\n")}\n\n` +

@@ -12,6 +12,7 @@ import type {
   ComponentGraphEdge,
   ComponentInventoryEntry,
   FrontendDisposition,
+  ModuleInventoryEntry,
   SourceImport,
   SourceRevision,
   StoreInventoryEntry,
@@ -113,9 +114,12 @@ export async function analyzeSvelteFrontend(
     const dynamicComponentImports = merged.dynamicImports
       .filter((specifier) => isPotentialComponentImport(projectFile, specifier, sourceRootName, componentSet, sourceSet))
     const classification = classify(projectFile, parseErrors, merged.tauriCalls, template.features, merged, options)
+    const featureIds = mapFeatureIds(projectFile, options)
     components.push({
       file: projectFile,
       hash: hashText(source),
+      featureIds,
+      featureMappingSource: featureIds.length ? "direct" : "unmapped",
       disposition: classification.disposition,
       classificationSource: classification.source,
       classificationReasons: classification.reasons,
@@ -136,17 +140,40 @@ export async function analyzeSvelteFrontend(
   }
 
   const moduleFiles = sourceFiles.filter((file) => !componentFiles.includes(file))
+  const modules: ModuleInventoryEntry[] = []
   const stores: StoreInventoryEntry[] = []
   for (const file of moduleFiles) {
     const source = await readFile(file, "utf8")
     const projectFile = projectPath(projectRoot, file)
     const parsed = parseScript(projectFile, { content: source, language: languageFor(file), lineOffset: 0 })
     scriptRecords.set(projectFile, parsed)
-    if (!isStoreModule(projectFile, parsed)) continue
     const classification = classify(projectFile, parsed.errors, parsed.tauriCalls, {}, parsed, options)
+    const featureIds = mapFeatureIds(projectFile, options)
+    const moduleKind = classifyModuleKind(projectFile, parsed)
+    modules.push({
+      file: projectFile,
+      hash: hashText(source),
+      kind: moduleKind,
+      featureIds,
+      featureMappingSource: featureIds.length ? "direct" : "unmapped",
+      imports: parsed.imports,
+      exports: parsed.exports,
+      runes: parsed.runes,
+      storePrimitives: parsed.storePrimitives,
+      subscriptions: parsed.subscriptions,
+      storageKeys: parsed.storageKeys,
+      writes: parsed.writes,
+      tauriCalls: parsed.tauriCalls,
+      disposition: classification.disposition,
+      classificationSource: classification.source,
+      classificationReasons: classification.reasons,
+      parseErrors: parsed.errors,
+    })
+    if (moduleKind !== "store") continue
     stores.push({
       file: projectFile,
       hash: hashText(source),
+      featureIds,
       imports: parsed.imports,
       exports: parsed.exports,
       primitives: parsed.storePrimitives,
@@ -169,6 +196,7 @@ export async function analyzeSvelteFrontend(
   }
 
   components.sort(byFile)
+  modules.sort(byFile)
   stores.sort(byFile)
   const edges = buildGraph(components, sourceRootName, componentSet, sourceSet, scriptRecords)
   const graph = {
@@ -177,7 +205,16 @@ export async function analyzeSvelteFrontend(
     edges,
     cycles: findGraphCycles(components.map((component) => component.file), edges),
   }
-  const tauriUsage = buildTauriUsage(scriptRecords)
+  const sourceDependencies = buildSourceDependencies(scriptRecords, sourceRootName, componentSet, sourceSet)
+  propagateSourceFeatures(components, modules, sourceDependencies)
+  deriveSourceFeaturesFromDependencies(components, modules, sourceDependencies)
+  const modulesByFile = new Map(modules.map((entry) => [entry.file, entry]))
+  for (const store of stores) store.featureIds = [...(modulesByFile.get(store.file)?.featureIds ?? [])]
+  const featureIdsByFile = new Map([
+    ...components.map((entry) => [entry.file, entry.featureIds] as const),
+    ...modules.map((entry) => [entry.file, entry.featureIds] as const),
+  ])
+  const tauriUsage = buildTauriUsage(scriptRecords, featureIdsByFile)
   const dispositions = dispositionCounts(components)
   return {
     schemaVersion: 1,
@@ -187,14 +224,19 @@ export async function analyzeSvelteFrontend(
     summary: {
       sourceFiles: sourceFiles.length,
       components: components.length,
+      modules: modules.length,
       stores: stores.length,
       graphEdges: edges.length,
       unresolvedComponentImports: edges.filter((edge) => edge.to === null).length,
       tauriFiles: tauriUsage.length,
       tauriCalls: tauriUsage.reduce((count, entry) => count + entry.calls.length, 0),
+      unmappedComponents: components.filter((entry) => !entry.featureIds.length).length,
+      unmappedModules: modules.filter((entry) => !entry.featureIds.length).length,
       dispositions,
+      moduleDispositions: dispositionCounts(modules),
     },
     components,
+    modules,
     stores,
     graph,
     tauriUsage,
@@ -681,12 +723,12 @@ function resolveModuleImport(file: string, specifier: string, sourceRoot: string
   return candidates.find((path) => sourceSet.has(path))
 }
 
-function buildTauriUsage(records: Map<string, ParsedScript>): TauriUsageEntry[] {
+function buildTauriUsage(records: Map<string, ParsedScript>, featureIdsByFile: Map<string, string[]>): TauriUsageEntry[] {
   const usage: TauriUsageEntry[] = []
   for (const [file, script] of records) {
     const imports = script.imports.filter((entry) => isTauriModule(entry.source))
     if (!imports.length && !script.tauriCalls.length) continue
-    usage.push({ file, imports, calls: script.tauriCalls })
+    usage.push({ file, featureIds: featureIdsByFile.get(file) ?? [], imports, calls: script.tauriCalls })
   }
   return usage.sort(byFile)
 }
@@ -695,13 +737,98 @@ function isStoreModule(file: string, parsed: ParsedScript): boolean {
   return file.endsWith(".svelte.ts") || file.includes("/stores/") || parsed.storePrimitives.length > 0
 }
 
-function dispositionCounts(components: ComponentInventoryEntry[]): Record<FrontendDisposition, number> {
+function classifyModuleKind(file: string, parsed: ParsedScript): ModuleInventoryEntry["kind"] {
+  if (isStoreModule(file, parsed)) return "store"
+  if (file.includes("/workers/") || /(?:^|\/)worker\.[cm]?[jt]s$/.test(file)) return "worker"
+  if (file.includes("/api/")) return "api"
+  if (file.includes("/actions/")) return "action"
+  return "utility"
+}
+
+function mapFeatureIds(file: string, options: AnalyzeSvelteFrontendOptions): string[] {
+  const ids = new Set<string>()
+  for (const mapping of options.featureMappings ?? []) {
+    if (mapping.sourcePatterns.some((pattern) => new RegExp(pattern).test(file))) ids.add(mapping.featureId)
+  }
+  return [...ids].sort()
+}
+
+interface SourceDependencyEdge {
+  from: string
+  to: string
+}
+
+function buildSourceDependencies(
+  records: Map<string, ParsedScript>,
+  sourceRoot: string,
+  componentSet: Set<string>,
+  sourceSet: Set<string>,
+): SourceDependencyEdge[] {
+  const edges = new Map<string, SourceDependencyEdge>()
+  for (const [file, script] of records) {
+    const specifiers = [...script.imports.map((entry) => entry.source), ...script.dynamicImports]
+    for (const specifier of specifiers) {
+      const target = resolveComponentImport(file, specifier, sourceRoot, componentSet)
+        ?? resolveModuleImport(file, specifier, sourceRoot, sourceSet)
+      if (!target) continue
+      edges.set(`${file}:${target}`, { from: file, to: target })
+    }
+  }
+  return [...edges.values()].sort((left, right) => `${left.from}:${left.to}`.localeCompare(`${right.from}:${right.to}`))
+}
+
+function propagateSourceFeatures(
+  components: ComponentInventoryEntry[],
+  modules: ModuleInventoryEntry[],
+  edges: SourceDependencyEdge[],
+): void {
+  const entries = [...components, ...modules]
+  const byFile = new Map(entries.map((entry) => [entry.file, entry]))
+  const outgoing = new Map<string, string[]>()
+  for (const edge of edges) outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to])
+  const queue = entries.filter((entry) => entry.featureMappingSource === "direct")
+  for (let index = 0; index < queue.length; index += 1) {
+    const source = queue[index]!
+    for (const targetFile of outgoing.get(source.file) ?? []) {
+      const target = byFile.get(targetFile)
+      if (!target) continue
+      const next = [...new Set([...target.featureIds, ...source.featureIds])].sort()
+      if (next.length === target.featureIds.length) continue
+      target.featureIds = next
+      if (target.featureMappingSource === "unmapped") target.featureMappingSource = "consumer-propagated"
+      queue.push(target)
+    }
+  }
+}
+
+function deriveSourceFeaturesFromDependencies(
+  components: ComponentInventoryEntry[],
+  modules: ModuleInventoryEntry[],
+  edges: SourceDependencyEdge[],
+): void {
+  const entries = [...components, ...modules]
+  const byFile = new Map(entries.map((entry) => [entry.file, entry]))
+  const targetsBySource = new Map<string, string[]>()
+  for (const edge of edges) targetsBySource.set(edge.from, [...(targetsBySource.get(edge.from) ?? []), edge.to])
+  for (const entry of entries) {
+    if (entry.featureIds.length) continue
+    const ids = new Set<string>()
+    for (const targetFile of targetsBySource.get(entry.file) ?? []) {
+      for (const id of byFile.get(targetFile)?.featureIds ?? []) ids.add(id)
+    }
+    if (!ids.size) continue
+    entry.featureIds = [...ids].sort()
+    entry.featureMappingSource = "dependency-derived"
+  }
+}
+
+function dispositionCounts(entries: Array<{ disposition: FrontendDisposition }>): Record<FrontendDisposition, number> {
   return {
-    converted: components.filter((entry) => entry.disposition === "converted").length,
-    "adapter-needed": components.filter((entry) => entry.disposition === "adapter-needed").length,
-    manual: components.filter((entry) => entry.disposition === "manual").length,
-    replaced: components.filter((entry) => entry.disposition === "replaced").length,
-    blocked: components.filter((entry) => entry.disposition === "blocked").length,
+    converted: entries.filter((entry) => entry.disposition === "converted").length,
+    "adapter-needed": entries.filter((entry) => entry.disposition === "adapter-needed").length,
+    manual: entries.filter((entry) => entry.disposition === "manual").length,
+    replaced: entries.filter((entry) => entry.disposition === "replaced").length,
+    blocked: entries.filter((entry) => entry.disposition === "blocked").length,
   }
 }
 
