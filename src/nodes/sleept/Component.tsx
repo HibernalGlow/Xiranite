@@ -16,11 +16,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { POWER_MODES, TIMER_MODES } from "./constants"
 import {
   ActionIconButton,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   PrimarySwitches,
   PowerModePicker,
   StatsIconButton,
@@ -388,7 +388,7 @@ function FullView(props: ViewProps) {
                 <p className="mt-0.5 text-xs text-muted-foreground">动作、演练状态与启动在同一处确认。</p>
               </div>
               <PowerModePicker disabled={props.running} mode={props.powerMode} onModeChange={props.onPowerModeChange} />
-              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"><span className="text-xs font-medium">配置管理</span><ConfigDefaultsPopover configDirty={props.configDirty} configFilePath={props.configFilePath} defaults={props.defaults} disabled={props.running} onOpenConfigFile={props.onOpenConfigFile} onResetOverride={props.onResetOverride} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /></div>
+              <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"><span className="text-xs font-medium">配置管理</span><NodeConfigButton nodeKey="sleept" configDirty={props.configDirty} configFilePath={props.configFilePath} defaults={props.defaults} disabled={props.running} onOpenConfigFile={props.onOpenConfigFile} onResetOverride={props.onResetOverride} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /></div>
               <PrimaryActionButton props={props} />
             </div>
             </div>

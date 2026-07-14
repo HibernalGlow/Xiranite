@@ -10,10 +10,10 @@ import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, actionI18nKey, isDestructiveAction } from "./constants"
 import {
   ActionIconButton,
-  ConfigDefaultsPopover,
   OptionsPopover,
   PathFields,
   PathsInput,
@@ -355,7 +355,7 @@ function FullView(props: ViewProps) {
           <div data-testid="smartzip-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionIconButton disabled={props.running} icon={RotateCcw} label={t("actions.clear", "清空状态")} onClick={props.onReset} />
             <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            <ConfigDefaultsPopover
+              <NodeConfigButton nodeKey="smartzip"
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
               defaults={props.defaults}

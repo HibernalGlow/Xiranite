@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { RecycleuData, RecycleuInput, RecycleuResult } from "@xiranite/node-recycleu/core"
 import type { LucideIcon } from "lucide-react"
-import { Activity, Gauge, HardDrive, Infinity as InfinityIcon, Play, Settings2, ShieldCheck, Square, Trash2 } from "lucide-react"
+import { Activity, Gauge, HardDrive, Infinity as InfinityIcon, Play, RotateCcw, Settings2, ShieldCheck, Square, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -507,7 +507,7 @@ function HeaderLine(props: ViewProps) {
         <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-destructive text-destructive-foreground"><Trash2 /></div>
         <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">Recycleu</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{summaryText(props)}</p></div>
       </div>
-      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><SettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} t={props.t} /></div>
+      <div className="flex shrink-0 items-center gap-1"><ConfigManagement {...props} /><Button aria-label={props.t("actions.reset", "重置")} disabled={props.running} size="icon-sm" variant="outline" onClick={props.onReset}><RotateCcw /></Button><SettingsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} t={props.t} /></div>
     </div>
   )
 }

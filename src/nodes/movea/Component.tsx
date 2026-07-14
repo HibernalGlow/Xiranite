@@ -14,8 +14,9 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS } from "./constants"
-import { ActionIconButton, ConfigDefaultsPopover, OptionsPopover, PathField, PrimarySwitches, StatusStrip, TextAreaField } from "./controls"
+import { ActionIconButton, OptionsPopover, PathField, PrimarySwitches, StatusStrip, TextAreaField } from "./controls"
 import type { MoveaCardState, MoveaPhase, MoveaStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -376,7 +377,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={props.running || (!props.scanResults.length && !props.matchedFolders.length)} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
+          <NodeConfigButton nodeKey="movea"
           configDirty={props.configDirty}
           configFilePath={props.configFilePath}
           defaults={props.defaults}

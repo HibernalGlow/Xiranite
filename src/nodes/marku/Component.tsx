@@ -9,11 +9,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { findModuleMeta } from "./constants"
 import {
   ActionIconButton,
   AdvancedOptionsPopover,
-  ConfigDefaultsPopover,
   ConfigField,
   ModulePicker,
   PathInput,
@@ -401,7 +401,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.result?.outputText && !props.result?.diffText && !props.result?.diffs.length} icon={Copy} label="复制输出" onClick={props.onCopyOutput} />
       <ActionIconButton disabled={!props.logs.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
+        <NodeConfigButton nodeKey="marku"
           configDirty={props.configDirty}
           configFilePath={props.configFilePath}
           defaults={props.defaults}

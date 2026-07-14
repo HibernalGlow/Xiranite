@@ -18,11 +18,11 @@ import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, CONFIG_FIELDS, UI_CONFIG_FIELDS } from "./constants"
 import {
   ActionIconButton,
   EngineWorkflowTabs,
-  ConfigDefaultsPopover,
   FilterFields,
   FilterPopover,
   GallerySettingsPopover,
@@ -545,7 +545,7 @@ function WorkspaceView(props: ViewProps) {
 
         <div className="flex items-center justify-between gap-2">
           <HeaderStats selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} tNode={props.tNode} />
-          <ConfigDefaultsPopover
+          <NodeConfigButton nodeKey="enginev"
             configDirty={props.configDirty}
             configFilePath={props.configFilePath}
             defaults={props.defaults}
@@ -771,7 +771,7 @@ function FullView(props: ViewProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <HeaderStats selected={props.selectedIds.length} total={props.wallpapers.length} visible={props.galleryWallpapers.length} tNode={props.tNode} />
-          <ConfigDefaultsPopover
+          <NodeConfigButton nodeKey="enginev"
             configDirty={props.configDirty}
             configFilePath={props.configFilePath}
             defaults={props.defaults}

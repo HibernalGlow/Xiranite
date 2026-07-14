@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { BITV_DEFAULTS, type BitvAction, type BitvData, type BitvInput, type BitvVideoInfo } from "@xiranite/node-bitv/core"
 import { AlertTriangle, BarChart3, Clipboard, Copy, FileJson, FileVideo, Folder, FolderOutput, Gauge, Play, RotateCcw, Square, Terminal, Video, Waypoints } from "lucide-react"
@@ -17,8 +17,11 @@ import { PathInput, PathTextarea } from "@/components/ui/path-input"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, NODE_META, type BitvActionMeta } from "./constants"
 import type { BitvCardState, BitvStatusMeta } from "./types"
+
+const CONFIG_FIELDS = ["action", "pathsText", "reportPath", "targetPath", "outputPath", "recursive", "bitrateStepMbps", "maxLevels", "transferMode", "dryRun"] as const
 
 export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   const surface = useNodeSurface()
@@ -27,12 +30,16 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
   dataRef.current = data
   const [running, setRunning] = useState(false)
   const [resultTab, setResultTab] = useState("tree")
+  const [defaults, setDefaults] = useState<Partial<BitvCardState>>()
   const action = data.action ?? "analyze"
   const result = data.result ?? null
   const logs = data.logs ?? []
   const progress = data.progress ?? 0
   const status = statusFromState(data, running)
   const compact = surface.mode === "compact" || surface.mode === "portrait"
+  const configDirty = Boolean(defaults && CONFIG_FIELDS.some((field) => JSON.stringify(data[field]) !== JSON.stringify(defaults[field])))
+
+  useEffect(() => { (host.config?.get?.<Partial<BitvCardState>>() ?? host.getNodeConfig?.<Partial<BitvCardState>>())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
 
   function patch(patchData: Partial<BitvCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -51,6 +58,7 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
       ...current.errors,
     ].join("\n"))
   }
+  async function saveDefaults() { const next = Object.fromEntries(CONFIG_FIELDS.flatMap((field) => dataRef.current[field] === undefined ? [] : [[field, dataRef.current[field]]])) as Partial<BitvCardState>; if (host.config?.save) await host.config.save(next); else await host.saveNodeConfig?.(next); setDefaults(next) }
   async function execute(nextAction = action) {
     if (running) return
     const input = buildInput(nextAction, dataRef.current)
@@ -71,16 +79,16 @@ export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
     } catch (runError) { const message = runError instanceof Error ? runError.message : String(runError); patch({ phase: "error", progress: 0, progressText: message }); pushLog(message) }
     finally { setRunning(false) }
   }
-  const props: ViewProps = { action, data, logs, progress, result, resultTab, running, status, onCopyLogs: () => host.clipboard?.writeText?.(logs.join("\n")), onCopyResults: copyResults, onExecute: execute, onPatch: patch, onReset: () => { patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null }); setResultTab("tree") }, onResultTabChange: setResultTab }
+  const props: ViewProps = { action, configDirty, data, defaults, logs, progress, result, resultTab, running, status, onCopyLogs: () => host.clipboard?.writeText?.(logs.join("\n")), onCopyResults: copyResults, onExecute: execute, onPatch: patch, onReset: () => { patch({ logs: [], phase: "idle", progress: 0, progressText: "", result: null }); setResultTab("tree") }, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults, onResultTabChange: setResultTab }
   return <TooltipProvider><div ref={surface.ref} className="@container/bitv flex h-full min-h-0 w-full overflow-hidden">{surface.mode === "collapsed" || (compact && surface.height > 0 && surface.height < 150) ? <CollapsedView {...props} /> : surface.mode === "portrait" ? <PortraitView {...props} /> : surface.mode === "compact" ? <CompactView {...props} /> : <FullView {...props} />}</div></TooltipProvider>
 }
 
-type ViewProps = { action: BitvAction; data: BitvCardState; logs: string[]; progress: number; result: BitvData | null; resultTab: string; running: boolean; status: BitvStatusMeta; onCopyLogs: () => Promise<void> | void; onCopyResults: () => Promise<void> | void; onExecute: (action?: BitvAction) => void; onPastePaths: () => void; onPatch: (patch: Partial<BitvCardState>) => void; onReset: () => void; onResultTabChange: (value: string) => void }
+type ViewProps = { action: BitvAction; configDirty: boolean; data: BitvCardState; defaults?: Partial<BitvCardState>; logs: string[]; progress: number; result: BitvData | null; resultTab: string; running: boolean; status: BitvStatusMeta; onCopyLogs: () => Promise<void> | void; onCopyResults: () => Promise<void> | void; onExecute: (action?: BitvAction) => void; onPastePaths: () => void; onPatch: (patch: Partial<BitvCardState>) => void; onReset: () => void; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onResultTabChange: (value: string) => void }
 
 function CollapsedView(props: ViewProps) { const Icon = NODE_META.icon; return <div data-testid="bitv-collapsed-view" className="flex h-full min-h-0 w-full items-center gap-2 rounded-xl border bg-card px-3 py-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon className="size-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-xs font-semibold">BitV <Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.data.progressText || actionMeta(props.action).description}</p></div><RunButton compact props={props} /></div> }
 function CompactView(props: ViewProps) { return <div data-testid="bitv-compact-view" className="flex min-h-0 flex-1 flex-col gap-2 p-3"><Header {...props} /><OperationDesk compact props={props} /><ResultDesk compact props={props} /></div> }
 function PortraitView(props: ViewProps) { return <div data-testid="bitv-portrait-view" className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header {...props} /><OperationDesk compact props={props} /><ResultDesk compact props={props} /></div> }
-function FullView(props: ViewProps) { return <div data-testid="bitv-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><div className="flex shrink-0 items-center justify-between gap-3"><Header {...props} /><div data-testid="bitv-header-toolbar"><IconButton disabled={props.running} icon={RotateCcw} label="清空结果" onClick={props.onReset} /></div></div><Metrics progress={props.progress} result={props.result} /><div className="grid min-h-0 flex-1 gap-3 @5xl/bitv:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]"><OperationDesk props={props} /><ResultDesk props={props} /></div></div> }
+function FullView(props: ViewProps) { return <div data-testid="bitv-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><div className="flex shrink-0 items-center justify-between gap-3"><Header {...props} /><div data-testid="bitv-header-toolbar" className="flex gap-1"><NodeConfigButton nodeKey="bitv" configDirty={props.configDirty} defaults={props.defaults} disabled={props.running} onResetOverride={props.onRestoreDefaults} onRestoreDefault={props.onRestoreDefaults} onSaveDefault={props.onSaveDefaults} /><IconButton disabled={props.running} icon={RotateCcw} label="清空结果" onClick={props.onReset} /></div></div><Metrics progress={props.progress} result={props.result} /><div className="grid min-h-0 flex-1 gap-3 @5xl/bitv:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]"><OperationDesk props={props} /><ResultDesk props={props} /></div></div> }
 function Header(props: ViewProps) { const meta = actionMeta(props.action); const Icon = meta.icon; return <div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon className="size-4" /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="text-sm font-semibold">BitV</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-0.5 truncate text-xs text-muted-foreground">{props.data.progressText || meta.description}</p></div></div> }
 
 function OperationDesk({ compact, props }: { compact?: boolean; props: ViewProps }) {

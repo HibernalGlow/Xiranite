@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { LATA_ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ArgsInput,
-  ConfigDefaultsPopover,
   StatusStrip,
   TaskfileInput,
   TaskPicker,
@@ -292,7 +292,7 @@ function FullView(props: ViewProps) {
           <div data-testid="lata-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionIconButton disabled={!props.logs.length} icon={Copy} label={props.tNode("buttons.copyLogs", "复制日志")} onClick={props.onCopyLogs} />
             <ActionIconButton icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
-            <ConfigDefaultsPopover
+            <NodeConfigButton nodeKey="lata"
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
               defaults={props.defaults}

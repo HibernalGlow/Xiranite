@@ -10,13 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   GroupFields,
   OptionsPopover,
   RootsInput,
@@ -334,7 +334,7 @@ function FullView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || tNode("simiu", "summary.clusters", "{{groups}} 个分组 / {{images}} 张图片", { groups: props.result.groupCount, images: props.result.imageCount })} />
         <div data-testid="simiu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
           <ActionPicker action={props.action} disabled={props.running} onActionChange={props.onActionChange} />
-          <ConfigDefaultsPopover
+          <NodeConfigButton nodeKey="simiu"
             configDirty={props.configDirty}
             configFilePath={props.configFilePath}
             defaults={props.defaults}
@@ -400,7 +400,7 @@ function FullViewLegacy(props: ViewProps) {
             <ActionPicker action={props.action} disabled={props.running} triggerClassName="@4xl/simiu:w-80" onActionChange={props.onActionChange} />
             <RunActionButton props={props} />
             <ActionIconButton disabled={props.running} icon={RotateCcw} label={tNode("simiu", "actions.clear", "清空状态")} onClick={props.onReset} />
-            <ConfigDefaultsPopover
+            <NodeConfigButton nodeKey="simiu"
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
               defaults={props.defaults}

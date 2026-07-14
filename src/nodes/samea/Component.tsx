@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SameaAction, SameaData, SameaInput, SameaPlanItem } from "@xiranite/node-samea/core"
 import { AlertTriangle, Archive, Bot, CheckCircle2, Clipboard, Copy, FileArchive, FolderInput, ListTree, Play, RotateCcw, ScanSearch, ShieldAlert, SlidersHorizontal, Terminal, Trash2, UserRound, X, XCircle } from "lucide-react"
@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import type { SameaCardState, SameaFilterTab } from "./types"
 
 const FILTERS: Array<{ id: SameaFilterTab; label: string; key: keyof Pick<SameaCardState, "artistBlacklist" | "pathBlacklist" | "regexBlacklist"> }> = [
@@ -26,6 +27,7 @@ const FILTERS: Array<{ id: SameaFilterTab; label: string; key: keyof Pick<SameaC
   { id: "path", label: "Paths", key: "pathBlacklist" },
   { id: "regex", label: "Regex", key: "regexBlacklist" },
 ]
+const CONFIG_FIELDS = ["action", "pathsText", "ignorePathBlacklist", "minOccurrences", "centralize", "dryRun", "artistBlacklist", "pathBlacklist", "regexBlacklist"] as const
 
 export function Component({ compId, host }: NodeComponentProps<SameaCardState>) {
   const surface = useNodeSurface()
@@ -36,10 +38,14 @@ export function Component({ compId, host }: NodeComponentProps<SameaCardState>) 
   const [running, setRunning] = useState(false)
   const [filterTab, setFilterTab] = useState<SameaFilterTab>("artist")
   const [draftFilter, setDraftFilter] = useState("")
+  const [defaults, setDefaults] = useState<Partial<SameaCardState>>()
   const paths = useMemo(() => splitLines(data.pathsText), [data.pathsText])
   const result = data.result ?? null
   const action = data.action ?? "plan"
   const compact = surface.mode === "compact" || surface.mode === "portrait"
+  const configDirty = Boolean(defaults && CONFIG_FIELDS.some((field) => JSON.stringify(data[field]) !== JSON.stringify(defaults[field])))
+
+  useEffect(() => { (host.config?.get?.<Partial<SameaCardState>>() ?? host.getNodeConfig?.<Partial<SameaCardState>>())?.then((response) => setDefaults(response.config)).catch(() => undefined) }, [host])
 
   function patch(next: Partial<SameaCardState>) {
     dataRef.current = { ...dataRef.current, ...next }
@@ -76,15 +82,16 @@ export function Component({ compId, host }: NodeComponentProps<SameaCardState>) 
     const meta = FILTERS.find((filter) => filter.id === filterTab)!
     patch({ [meta.key]: (data[meta.key] ?? []).filter((item) => item !== value) })
   }
-  const props = { action, compact, data, filterTab, paths, result, running, onAction: execute, onAddFilter: addFilter, onDraftFilter: setDraftFilter, onFilterTab: setFilterTab, onPatch: patch, onPaste: paste, onRemoveFilter: removeFilter, draftFilter }
+  async function saveDefaults() { const next = Object.fromEntries(CONFIG_FIELDS.flatMap((field) => dataRef.current[field] === undefined ? [] : [[field, dataRef.current[field]]])) as Partial<SameaCardState>; if (host.config?.save) await host.config.save(next); else await host.saveNodeConfig?.(next); setDefaults(next) }
+  const props = { action, compact, configDirty, data, defaults, filterTab, paths, result, running, onAction: execute, onAddFilter: addFilter, onDraftFilter: setDraftFilter, onFilterTab: setFilterTab, onPatch: patch, onPaste: paste, onRemoveFilter: removeFilter, onRestoreDefaults: () => defaults && patch(defaults), onSaveDefaults: saveDefaults, draftFilter }
   return <TooltipProvider><div ref={surface.ref} data-testid="samea-surface" className="@container/samea flex h-full min-h-0 w-full overflow-hidden">
     {surface.mode === "collapsed" ? <Collapsed {...props} /> : compact ? <Compact {...props} /> : <Full {...props} />}
   </div></TooltipProvider>
 }
 
 type ViewProps = {
-  action: SameaAction; compact: boolean; data: SameaCardState; filterTab: SameaFilterTab; paths: string[]; result: SameaData | null; running: boolean; draftFilter: string
-  onAction: (action: SameaAction) => void; onAddFilter: () => void; onDraftFilter: (value: string) => void; onFilterTab: (tab: SameaFilterTab) => void; onPatch: (patch: Partial<SameaCardState>) => void; onPaste: () => Promise<void>; onRemoveFilter: (value: string) => void
+  action: SameaAction; compact: boolean; configDirty: boolean; data: SameaCardState; defaults?: Partial<SameaCardState>; filterTab: SameaFilterTab; paths: string[]; result: SameaData | null; running: boolean; draftFilter: string
+  onAction: (action: SameaAction) => void; onAddFilter: () => void; onDraftFilter: (value: string) => void; onFilterTab: (tab: SameaFilterTab) => void; onPatch: (patch: Partial<SameaCardState>) => void; onPaste: () => Promise<void>; onRemoveFilter: (value: string) => void; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>
 }
 
 function Full(props: ViewProps) {
@@ -115,7 +122,7 @@ function Collapsed(props: ViewProps) {
 function Header(props: ViewProps) {
   const { t } = useNodeI18n("samea")
   const phase = props.running ? "running" : props.data.phase ?? "idle"
-  return <header className="flex shrink-0 items-end justify-between gap-3 border-b-2 border-primary pb-2"><div><div className="flex items-center gap-2"><ScanSearch className="size-5 text-primary" /><h3 className="text-xl font-semibold tracking-tight">{t("header.title", "SameA：提取器协议")}</h3></div><p className="mt-1 font-mono text-xs tracking-wide text-muted-foreground">{t("header.sessionLabel", "工作区会话：")}<span className="text-primary">{phase.toUpperCase()}</span> | {t("header.targetLabel", "目标：归档分诊")}</p></div><div className="flex items-center gap-2"><Badge variant={phase === "error" ? "destructive" : "outline"} className="font-mono uppercase">{phase}</Badge><ActionButton {...props} /></div></header>
+  return <header className="flex shrink-0 items-end justify-between gap-3 border-b-2 border-primary pb-2"><div><div className="flex items-center gap-2"><ScanSearch className="size-5 text-primary" /><h3 className="text-xl font-semibold tracking-tight">{t("header.title", "SameA：提取器协议")}</h3></div><p className="mt-1 font-mono text-xs tracking-wide text-muted-foreground">{t("header.sessionLabel", "工作区会话：")}<span className="text-primary">{phase.toUpperCase()}</span> | {t("header.targetLabel", "目标：归档分诊")}</p></div><div className="flex items-center gap-2"><Badge variant={phase === "error" ? "destructive" : "outline"} className="font-mono uppercase">{phase}</Badge><NodeConfigButton nodeKey="samea" configDirty={props.configDirty} defaults={props.defaults} disabled={props.running} onResetOverride={props.onRestoreDefaults} onRestoreDefault={props.onRestoreDefaults} onSaveDefault={props.onSaveDefaults} /><Button aria-label={t("actions.reset", "重置")} size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", logs: [], result: null })}><RotateCcw /></Button><ActionButton {...props} /></div></header>
 }
 function SourceControl(props: ViewProps) {
   const { t } = useNodeI18n("samea")

@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, NODE_ICON } from "./constants"
 import type { TimeuCardState, TimeuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
@@ -272,8 +273,7 @@ function ActionTools(props: ViewProps & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 items-center gap-1">
       {!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} />}
-      <IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label={tNode("timeu", "actions.saveDefault", "保存默认")} onClick={props.onSaveDefault} />
-      <IconButton disabled={props.running || !props.defaults} icon={Settings2} label={tNode("timeu", "actions.restoreDefault", "恢复默认")} onClick={props.onRestoreDefault} />
+      <NodeConfigButton nodeKey="timeu" configDirty={props.configDirty} defaults={props.defaults} disabled={props.running} onResetOverride={props.onRestoreDefault} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} />
       <IconButton icon={RotateCcw} label={tNode("timeu", "actions.clearState", "清空状态")} onClick={props.onReset} />
     </div>
   )

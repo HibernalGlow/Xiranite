@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { STATUS_CODE_MAP } from "./constants"
 import type { DinyCardState, DinyPhase, DinyStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
@@ -376,6 +377,7 @@ export function Component({ compId, host }: NodeComponentProps) {
               {t("actions.reset", "重置")}
             </Button>
           )}
+          <NodeConfigButton nodeKey="gitalso" configDirty={configDirty} defaults={defaults} disabled={running} onResetOverride={() => defaults && patch(defaults)} onRestoreDefault={() => defaults && patch(defaults)} onSaveDefault={saveAsDefault} />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button className="h-7 gap-1 text-xs" disabled={running} size="sm" title="备用：会初始化 GitButler 工作区并创建临时分支" variant="ghost">
@@ -402,12 +404,6 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="text-xs text-muted-foreground truncate">{data.progressText}</div>
       )}
 
-      {/* Defaults save (hidden in compact) */}
-      {!compactSurface && configDirty && defaults !== undefined && (
-        <Button variant="ghost" size="sm" className="h-6 self-start text-xs text-muted-foreground" onClick={saveAsDefault}>
-          {t("actions.saveDefaults", "保存为默认配置")}
-        </Button>
-      )}
     </div>
   )
 }

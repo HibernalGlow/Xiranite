@@ -15,11 +15,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
   ActionPicker,
-  ConfigDefaultsPopover,
   ConfigTextInput,
   OptionsPopover,
   PathInput,
@@ -360,7 +360,7 @@ function FullView(props: ViewProps) {
         <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || `${props.result.entries.length} entries / ${props.result.plan.length} registry operations`} />
         <div data-testid="owithu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
           <ActionPicker disabled={props.running} value={props.action} onActionChange={(value) => props.onPatch({ action: value })} />
-          <ConfigDefaultsPopover
+            <NodeConfigButton nodeKey="owithu"
             configDirty={props.configDirty}
             configFilePath={props.configFilePath}
             defaults={props.defaults}
@@ -481,7 +481,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimary?: bo
       <ActionIconButton disabled={!props.logs.length} icon={ScrollText} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
+        <NodeConfigButton nodeKey="owithu"
           configDirty={props.configDirty}
           configFilePath={props.configFilePath}
           defaults={props.defaults}

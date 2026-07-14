@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, MODES, NODE_ICON } from "./constants"
 import type { SnfCardState, SnfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
@@ -209,7 +210,7 @@ function FullView(props: ViewProps) {
 }
 
 function ActionTools(props: ViewProps & { compact?: boolean }) {
-  return <div className="flex min-w-0 items-center gap-1">{!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} />}<IconButton disabled={props.running} active={props.configDirty} icon={DatabaseZap} label={props.t("actions.saveDefault", "保存默认")} onClick={props.onSaveDefault} /><IconButton disabled={props.running || !props.defaults} icon={Settings2} label={props.t("actions.restoreDefault", "恢复默认")} onClick={props.onRestoreDefault} /><IconButton icon={RotateCcw} label={props.t("actions.clearState", "清空状态")} onClick={props.onReset} /></div>
+  return <div className="flex min-w-0 items-center gap-1">{!props.compact && <ActionMode value={props.action} disabled={props.running} onChange={props.onActionChange} t={props.t} />}<NodeConfigButton nodeKey="snf" configDirty={props.configDirty} defaults={props.defaults} disabled={props.running} onResetOverride={props.onRestoreDefault} onRestoreDefault={props.onRestoreDefault} onSaveDefault={props.onSaveDefault} /><IconButton icon={RotateCcw} label={props.t("actions.clearState", "清空状态")} onClick={props.onReset} /></div>
 }
 
 function ActionMode(props: { disabled?: boolean; value: SnfAction; onChange: (value: SnfAction) => void; t: TranslateFn }) {

@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, DEFAULT_PREFIX_NAME } from "./constants"
-import { ActionIconButton, ConfigDefaultsPopover, OptionsPopover, PathInput, PrefixField, PrimarySwitches, StatusStrip } from "./controls"
+import { ActionIconButton, OptionsPopover, PathInput, PrefixField, PrimarySwitches, StatusStrip } from "./controls"
 import type { FormatvCardState, FormatvPhase, FormatvStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -355,7 +356,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={props.running || !props.pathCount} icon={Copy} label={props.tNode("buttons.checkDuplicates", "查重")} onClick={() => props.onExecute("check_duplicates")} />
       <ActionIconButton disabled={!props.result && !props.logs.length} icon={RotateCcw} label={props.tNode("buttons.reset", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
+        <NodeConfigButton nodeKey="formatv"
           configDirty={props.configDirty}
           configFilePath={props.configFilePath}
           defaults={props.defaults}

@@ -1,5 +1,5 @@
-import { useId, useState } from "react"
-import { DatabaseZap, Download, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react"
+import { useEffect, useId, useRef, useState } from "react"
+import { DatabaseZap, Download, Eraser, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -7,20 +7,23 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import type { useNodeI18n } from "./useNodeI18n"
+import { useNodeI18n } from "./useNodeI18n"
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
 
 export interface NodeConfigPopoverProps {
   configPath?: string
+  autoRestoreKey?: string
   defaults?: Record<string, unknown>
   fallbackDefaults?: Record<string, unknown>
   dirty: boolean
+  triggerLabel?: string
   disabled?: boolean
   loading?: boolean
   t: NodeT
@@ -28,6 +31,7 @@ export interface NodeConfigPopoverProps {
   onReload: () => Promise<void> | void
   onRestore: () => void
   onSave: () => Promise<void> | void
+  onClearOverride?: () => Promise<void> | void
   preset?: {
     value?: string
     options: Array<{ value: string; label: string; description?: string; editable?: boolean; values?: Record<string, unknown> }>
@@ -39,6 +43,41 @@ export interface NodeConfigPopoverProps {
     onExport?: () => Promise<void> | void
     onImport?: (serialized: string) => Promise<void> | void
   }
+}
+
+export interface NodeConfigButtonProps {
+  nodeKey: string
+  configDirty: boolean
+  configFilePath?: string
+  defaults?: Record<string, unknown>
+  uiDefaults?: Record<string, unknown>
+  disabled?: boolean
+  onOpenConfigFile?: () => Promise<void> | void
+    onResetOverride: () => Promise<void> | void
+  onRestoreDefault: () => Promise<void> | void
+  onSaveDefault: () => Promise<void> | void
+}
+
+/** Compatibility entry point for nodes that used the old duplicated config popovers. */
+export function NodeConfigButton(props: NodeConfigButtonProps) {
+  const { t } = useNodeI18n(props.nodeKey)
+  const defaults = props.defaults || props.uiDefaults
+    ? { ...(props.defaults ?? {}), ...(props.uiDefaults ?? {}) }
+    : undefined
+  return <NodeConfigPopover
+    configPath={props.configFilePath}
+    autoRestoreKey={props.nodeKey}
+    defaults={defaults}
+    dirty={props.configDirty}
+    triggerLabel={props.nodeKey === "owithu" ? `owithu ${t("defaults.title", "默认配置")}` : `${props.nodeKey} defaults`}
+    disabled={props.disabled}
+    t={t}
+    onOpenFile={props.onOpenConfigFile}
+    onReload={props.onResetOverride}
+    onRestore={props.onRestoreDefault}
+    onSave={props.onSaveDefault}
+    onClearOverride={props.onResetOverride}
+  />
 }
 
 /**
@@ -55,6 +94,9 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
   const [presetImportOpen, setPresetImportOpen] = useState(false)
   const [presetImportText, setPresetImportText] = useState("")
+  const autoRestoreKey = props.autoRestoreKey ?? (props.configPath ? `config:${props.configPath}` : undefined)
+  const [autoRestore, setAutoRestore] = useState(() => autoRestoreKey ? window.localStorage.getItem(`xiranite:auto-restore:${autoRestoreKey}`) === "1" : false)
+  const autoRestoredRef = useRef(false)
   const disabled = Boolean(props.disabled || props.loading || busy)
   const effectiveDefaults = props.defaults && Object.keys(props.defaults).length
     ? props.defaults
@@ -62,6 +104,18 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const hasDefaults = effectiveDefaults !== undefined
   const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
   const selectedPresetEditable = selectedPreset?.editable === true
+  const triggerLabel = props.triggerLabel ?? props.t("config.trigger", "配置管理")
+
+  useEffect(() => {
+    if (!autoRestore || !effectiveDefaults || autoRestoredRef.current) return
+    autoRestoredRef.current = true
+    void props.onRestore()
+  }, [autoRestore, effectiveDefaults, props.onRestore])
+
+  function setAutoRestoreDefaults(enabled: boolean) {
+    setAutoRestore(enabled)
+    if (autoRestoreKey) window.localStorage.setItem(`xiranite:auto-restore:${autoRestoreKey}`, enabled ? "1" : "0")
+  }
 
   async function perform(kind: NonNullable<typeof busy>, action: () => Promise<void> | void) {
     setBusy(kind)
@@ -103,7 +157,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button
-              aria-label={props.t("config.trigger", "配置管理")}
+              aria-label={triggerLabel}
               disabled={disabled}
               size="icon-sm"
               variant={props.dirty ? "secondary" : "outline"}
@@ -112,7 +166,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>{props.t("config.trigger", "配置管理")}</TooltipContent>
+        <TooltipContent>{triggerLabel}</TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-[min(92vw,360px)]">
         <div className="mb-4">
@@ -120,6 +174,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
           <p className="text-xs text-muted-foreground">{props.t("config.description", "保存可复用默认值，或恢复本节点的已保存配置。")}</p>
         </div>
         <div className="flex flex-col gap-2">
+          {autoRestoreKey && <Field orientation="horizontal" className="items-center justify-between rounded-md border px-2.5 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "启动时恢复默认配置")}</FieldLabel><Switch checked={autoRestore} onCheckedChange={setAutoRestoreDefaults} /></Field>}
           {props.preset && <>
             <Field className="gap-1.5">
               <FieldLabel htmlFor={presetId}>{props.t("config.preset", "预设")}</FieldLabel>
@@ -184,6 +239,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
           <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "保存为默认")}</Button>
           <Button disabled={disabled || !hasDefaults} size="sm" variant="outline" onClick={() => void perform("restore", props.onRestore)}><RotateCcw data-icon="inline-start" />{props.t("config.restore", "恢复默认")}</Button>
           <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("reload", props.onReload)}><RefreshCw data-icon="inline-start" />{props.t("config.reload", "重新读取")}</Button>
+          {props.onClearOverride && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("restore", props.onClearOverride!)}><Eraser data-icon="inline-start" />{props.t("config.clear", "清除覆盖")}</Button>}
           <Separator />
           <Dialog>
             <DialogTrigger asChild>
@@ -199,7 +255,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
               </ScrollArea>
             </DialogContent>
           </Dialog>
-          <Button disabled={disabled || !props.onOpenFile} size="sm" variant="ghost" onClick={() => void perform("open", () => props.onOpenFile?.())}><ExternalLink data-icon="inline-start" />{props.t("config.openFile", "打开配置文件")}</Button>
+          <Button disabled={disabled || !props.onOpenFile} size="sm" variant="ghost" onClick={() => void perform("open", () => props.onOpenFile?.())}><ExternalLink data-icon="inline-start" />{props.t("config.openFile", "打开文件")}</Button>
         </div>
         {props.dirty && <p className={cn("mt-3 text-xs text-muted-foreground")}>{props.t("config.dirty", "当前参数与已保存默认值不同。")}</p>}
       </PopoverContent>

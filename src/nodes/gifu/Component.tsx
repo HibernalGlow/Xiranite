@@ -9,10 +9,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS } from "./constants"
 import {
   ActionIconButton,
-  ConfigDefaultsPopover,
   OptionsPopover,
   OutputFields,
   PathsInput,
@@ -328,7 +328,7 @@ function FullView(props: ViewProps) {
           <div data-testid="gifu-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ActionIconButton disabled={props.running} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
             <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
-            <ConfigDefaultsPopover
+              <NodeConfigButton nodeKey="gifu"
               configDirty={props.configDirty}
               configFilePath={props.configFilePath}
               defaults={props.defaults}

@@ -16,8 +16,9 @@ import { NumberTicker } from "@/components/ui/number-ticker"
 import { cn } from "@/lib/utils"
 import { tNode, useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { DEFAULT_THRESHOLD, NODE_ICON } from "./constants"
-import { ActionIconButton, AdvancedOptionsPopover, ConfigDefaultsPopover, ConflictPicker, DirectionPicker, MatchPlanBoard, PrimarySwitches, RichLogPanel, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
+import { ActionIconButton, AdvancedOptionsPopover, ConflictPicker, DirectionPicker, MatchPlanBoard, PrimarySwitches, RichLogPanel, SourcePathsInput, StatusStrip, TargetNamesInput } from "./controls"
 import type { CrashuAction, CrashuCardState, CrashuPhase, CrashuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
@@ -565,7 +566,7 @@ function ToolbarActions(props: ViewProps & { compact?: boolean; hidePrimaryActio
       <ActionIconButton disabled={!props.result} icon={Copy} label={tNode("crashu", "copyResults", "复制结果")} onClick={props.onCopyResults} />
       <ActionIconButton icon={RotateCcw} label={tNode("crashu", "actions.clearState", "清空状态")} onClick={props.onReset} />
       {!props.compact && (
-        <ConfigDefaultsPopover
+        <NodeConfigButton nodeKey="crashu"
           configDirty={props.configDirty}
           configFilePath={props.configFilePath}
           defaults={props.defaults}
