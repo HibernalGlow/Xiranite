@@ -85,7 +85,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       try {
         const response = await fetch(host.localFiles.getUrl(filePath), { cache: "no-store" })
         if (!response.ok) throw new Error(`读取失败（${response.status}）`)
-        imported.push(...parseEfuBytes(await response.arrayBuffer()))
+        imported.push(...parseEfuBytes(await response.arrayBuffer()).filter((path) => inputFormatEnabled(path, dataRef.current.excludedFormatsText)))
       } catch (error) {
         errors.push(`${filePath}: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -95,6 +95,15 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       ? `EFU 导入完成：${imported.length} 个路径，${errors.length} 个文件失败。`
       : `EFU 导入完成：${imported.length} 个路径。`
     patch({ pathsText: next.join("\n"), selectedPaths: next, progressText: message, logs: [...(dataRef.current.logs ?? []), message, ...errors].slice(-120) })
+  }
+
+  async function pickInputFiles() {
+    const enabled = XL_INPUT_FORMATS.filter((format) => inputFormatEnabled(`file.${format}`, dataRef.current.excludedFormatsText))
+    if (!enabled.length) return []
+    return await host.localFiles?.pickFiles?.({
+      title: "选择已启用格式的输入文件",
+      filters: [{ displayName: "已启用的输入格式", pattern: enabled.map((format) => `*.${format}`).join(";") }],
+    }) ?? []
   }
 
   useEffect(() => { void reloadDefaults() }, [host])
@@ -246,7 +255,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: host.localFiles?.pickFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
@@ -541,6 +550,7 @@ function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
+function inputFormatEnabled(path: string, excludedFormatsText?: string) { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? path, dot = name.lastIndexOf("."); if (dot <= 0) return true; const extension = name.slice(dot + 1).toLowerCase(); const excluded = new Set(String(excludedFormatsText ?? DEFAULT_EXCLUDED_FORMATS).split(/[,;\s]+/).map((value) => value.replace(/^\./, "").toLowerCase()).filter(Boolean)); return !excluded.has(extension) }
 function readLiveResult(value: unknown): XlchemyData | undefined {
   if (!value || typeof value !== "object" || (value as { kind?: unknown }).kind !== "xlchemy-live-result") return undefined
   const result = (value as { result?: unknown }).result

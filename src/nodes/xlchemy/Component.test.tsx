@@ -225,6 +225,22 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
   })
 
+  test("applies enabled input formats while files are being added", async () => {
+    const host = createHost({ excludedFormatsText: "jxl,avif,webp,gif" })
+    let pickerPattern = ""
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async (options) => { pickerPattern = options?.filters?.[0]?.pattern ?? ""; return ["D:/images/blocked.jxl", "D:/images/accepted.png"] },
+      pickDirectory: async () => undefined,
+      list: async (path) => [{ name: path.split("/").at(-1)!, path, isDirectory: false, sizeBytes: 123, lastModified: 0, type: "image/test" }],
+    }
+    render(<Component compId="xlchemy-card" host={host} />)
+    await userEvent.setup().click(within(screen.getByTestId("xlchemy-input-empty")).getByRole("button", { name: "添加文件" }))
+    await waitFor(() => expect(host.cardState.pathsText).toBe("D:/images/accepted.png"))
+    expect(pickerPattern).toContain("*.png")
+    expect(pickerPattern).not.toContain("*.jxl")
+  })
+
   test("marks the input as a native drop target and ingests dropped desktop file paths", async () => {
     const host = createHost({})
     host.localFiles!.list = async (path) => [{ name: "dropped.png", path, isDirectory: false, sizeBytes: 321, lastModified: 0, type: "image/png" }]
