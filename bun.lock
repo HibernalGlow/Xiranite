@@ -120,6 +120,8 @@
         "zustand": "^5.0.10",
       },
       "devDependencies": {
+        "@opentui/core": "0.4.3",
+        "@opentui/react": "0.4.3",
         "@oxc-project/types": "^0.139.0",
         "@playwright/test": "^1.61.1",
         "@testing-library/react": "^16.3.2",
