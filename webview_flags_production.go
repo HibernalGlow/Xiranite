@@ -2,6 +2,6 @@
 
 package main
 
-func developmentWebviewBrowserArgs() []string {
-	return nil
+func developmentBrowserRuntimeConfig() BrowserRuntimeConfig {
+	return BrowserRuntimeConfig{}
 }

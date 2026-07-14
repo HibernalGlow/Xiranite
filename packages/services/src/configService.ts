@@ -2,6 +2,7 @@ import { access, copyFile, cp, mkdir, readdir, readFile, rename, rm, rmdir, stat
 import { dirname, extname, join } from "node:path"
 import {
   getAppConfig,
+  getWebview2Config,
   getNodeConfig,
   loadXiraniteConfig,
   parseToml,
@@ -11,9 +12,11 @@ import {
   saveXiraniteConfig,
   stripBom,
   updateAppConfig,
+  updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
   type XiraniteConfig,
+  type Webview2Config,
   type ResolveConfigPathOptions,
 } from "@xiranite/config"
 import type { NodeRunHistoryService } from "./historyService.js"
@@ -35,6 +38,11 @@ export interface GetAppConfigResult {
 
 export interface UpdateAppConfigResult {
   config: unknown
+  path: string
+}
+
+export interface Webview2ConfigResult {
+  config: Webview2Config | undefined
   path: string
 }
 
@@ -110,6 +118,11 @@ default = "ws-default"
 [paths]
 # data_dir = ""
 # database = "./xiranite.db"
+
+# WebView2 启动参数（修改后需完全重启桌面应用）
+[webview2]
+features = ["JXLImageFormat", "msWebView2CodeCache", "msWebView2NativeEventDispatch", "CanvasOopRasterization"]
+switches = ["--enable-gpu-rasterization", "--enable-zero-copy"]
 
 # 节点配置示例 (详见 docs/node-config-toml-strategy.md):
 #
@@ -283,6 +296,31 @@ export class ConfigService {
       finishedAt: Date.now(),
     })
     return { config: nextAppConfig, path }
+  }
+
+  async getWebview2Config(): Promise<Webview2ConfigResult> {
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    return { config: getWebview2Config(config), path }
+  }
+
+  async updateWebview2Config(nextConfig: Webview2Config): Promise<Webview2ConfigResult> {
+    const startedAt = Date.now()
+    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
+    const updated = updateWebview2Config(config, nextConfig)
+    await saveXiraniteConfig(updated, this.resolveOptions())
+    void this.history?.record({
+      kind: "config",
+      operation: "config.webview2.update",
+      title: "WebView2 experiments",
+      message: "Updated WebView2 startup configuration.",
+      target: { type: "config-file", id: path, label: path },
+      input: nextConfig,
+      result: { path },
+      resultSummary: path,
+      startedAt,
+      finishedAt: Date.now(),
+    })
+    return { config: getWebview2Config(updated), path }
   }
 
   getConfigPath(): string {

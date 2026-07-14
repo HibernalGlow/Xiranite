@@ -6,6 +6,11 @@ import { z } from "zod"
 
 export const XIRANITE_CONFIG_FILENAME = "xiranite.config.toml"
 
+export interface Webview2Config {
+  features: string[]
+  switches: string[]
+}
+
 export interface ResolveConfigPathOptions {
   /** Explicit override path (e.g. from --config). */
   configPath?: string
@@ -96,6 +101,10 @@ export const xiraniteConfigSchema = z.object({
     database: z.string().optional(),
   }).optional(),
   app: z.record(z.string(), z.unknown()).optional(),
+  webview2: z.object({
+    features: z.array(z.string()).default([]),
+    switches: z.array(z.string()).default([]),
+  }).optional(),
   nodes: z.record(z.string(), z.unknown()).optional(),
 }).passthrough()
 
@@ -154,6 +163,20 @@ export function updateAppConfig<AppConfig>(config: XiraniteConfig, section: stri
   app[section] = mergeConfigValue(app[section], patch)
   next.app = app
   return next
+}
+
+export function getWebview2Config(config: XiraniteConfig): Webview2Config | undefined {
+  return config.webview2
+}
+
+export function updateWebview2Config(config: XiraniteConfig, nextConfig: Webview2Config): XiraniteConfig {
+  return {
+    ...config,
+    webview2: {
+      features: [...new Set(nextConfig.features)],
+      switches: [...new Set(nextConfig.switches)],
+    },
+  }
 }
 
 export function stripBom(content: string): string {

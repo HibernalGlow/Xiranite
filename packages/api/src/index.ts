@@ -277,6 +277,21 @@ export function createXiraniteApp(services: XiraniteServices) {
         config: t.Any(),
       }),
     })
+    .get("/config/webview2", async () => {
+      const result = await services.config.getWebview2Config()
+      return { config: result.config, path: result.path }
+    })
+    .put("/config/webview2", async ({ body }) => {
+      const result = await services.config.updateWebview2Config(body.config)
+      return { config: result.config, path: result.path }
+    }, {
+      body: t.Object({
+        config: t.Object({
+          features: t.Array(t.String()),
+          switches: t.Array(t.String()),
+        }),
+      }),
+    })
     .get("/config/themes", async () => {
       return await services.config.getCustomThemes()
     })

@@ -445,6 +445,79 @@
       "copied": "已复制",
       "openFrontend": "打开前端"
     },
+    "webview2": {
+      "title": "WebView2 实验特性",
+      "description": "通过 xiranite.config.toml 管理 Chromium Feature 与启动 Switch。启动层保持框架无关，桌面壳只负责映射参数。",
+      "features": "FEATURES",
+      "switches": "SWITCHES",
+      "restartTitle": "重启后生效",
+      "restartDescription": "保存只会更新配置文件。请完全退出并重新启动 Xiranite；重载 WebView 或只重启本地后端不会应用这些参数。",
+      "unavailableTitle": "配置服务不可用",
+      "unavailable": "本地后端就绪后才能读取和保存 xiranite.config.toml。",
+      "errorTitle": "WebView2 配置操作失败",
+      "save": "保存配置",
+      "saving": "保存中",
+      "reset": "恢复推荐默认",
+      "openConfig": "打开配置文件",
+      "openingConfig": "正在打开",
+      "saved": "配置已保存",
+      "savedDescription": "新的浏览器启动参数将在下次完整启动 Xiranite 时应用。",
+      "tier": {
+        "recommended": "推荐",
+        "optional": "可选",
+        "experimental": "实验"
+      },
+      "flags": {
+        "jxl": {
+          "label": "JPEG XL",
+          "description": "启用 Chromium 的 JPEG XL 图片解码，适合图片工具和文件预览。"
+        },
+        "codeCache": {
+          "label": "WebView2 Code Cache",
+          "description": "缓存 JavaScript 编译结果，改善 React、Vite 等前端的二次启动速度。"
+        },
+        "nativeEventDispatch": {
+          "label": "Native Event Dispatch",
+          "description": "启用 WebView2 原生事件派发路径，减少宿主与页面交互的额外开销。"
+        },
+        "draggableRegions": {
+          "label": "Draggable Regions",
+          "description": "为无边框窗口启用 WebView2 可拖拽区域支持。"
+        },
+        "canvasOopRasterization": {
+          "label": "Canvas OOP Rasterization",
+          "description": "将 Canvas 光栅化移出渲染进程，适合画布、白板和图片编辑场景。"
+        },
+        "backForwardCache": {
+          "label": "Back/Forward Cache",
+          "description": "缓存路由历史页面，加快前进与后退；桌面单页应用中的收益通常有限。"
+        },
+        "vulkan": {
+          "label": "Vulkan",
+          "description": "实验性 Vulkan 图形后端；Windows 正式环境仍建议使用默认 D3D 路径。"
+        },
+        "skiaGraphite": {
+          "label": "Skia Graphite",
+          "description": "启用 Skia 的实验性新 GPU 后端，可能存在兼容性和渲染问题。"
+        },
+        "gpuRasterization": {
+          "label": "GPU Rasterization",
+          "description": "让更多页面绘制任务使用 GPU，对长列表、SVG 和复杂阴影可能有帮助。"
+        },
+        "zeroCopy": {
+          "label": "Zero Copy",
+          "description": "减少纹理上传过程中的内存复制，图片密集场景可能受益。"
+        },
+        "parallelDownloading": {
+          "label": "Parallel Downloading",
+          "description": "允许大文件使用并行分段下载，普通桌面页面收益有限。"
+        },
+        "accelerated2dCanvas": {
+          "label": "Accelerated 2D Canvas",
+          "description": "尽可能使用 GPU 加速 2D Canvas，适合 Pixi、Konva 与 Fabric 等图形应用。"
+        }
+      }
+    },
     "backendBanner": {
       "missingConfig": "Local Backend 未配置，工作区和节点运行已暂停。",
       "unreachable": "Local Backend 无法连接：{{url}}。工作区和节点运行已暂停。",

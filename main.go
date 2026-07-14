@@ -52,18 +52,7 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
-		Windows: application.WindowsOptions{
-			EnabledFeatures: []string{
-				"JXLImageFormat",
-				"msWebView2CodeCache",
-				"msWebView2NativeEventDispatch",
-				"CanvasOopRasterization",
-			},
-			AdditionalBrowserArgs: append([]string{
-				"--enable-gpu-rasterization",
-				"--enable-zero-copy",
-			}, developmentWebviewBrowserArgs()...),
-		},
+		Windows: wailsWindowsOptions(),
 	})
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{

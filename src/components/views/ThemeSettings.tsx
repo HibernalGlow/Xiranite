@@ -24,6 +24,7 @@ import { ChoiceControlField } from "@/components/ui/choice-control"
 import { MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
+import { Webview2ExperimentsPanel } from "@/components/views/Webview2ExperimentsPanel"
 import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, PanelBottom, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, type Language, LANGUAGES } from "@/i18n"
@@ -819,6 +820,10 @@ export function ThemeSettings() {
                 </Button>
               </div>
             </div>
+
+            {section === "runtime" && (
+              <Webview2ExperimentsPanel available={backendStatusKind === "ready"} />
+            )}
 
             {/* Atmospheric Effects */}
             <div className={cn("bg-card border border-border rounded-sm p-4", section !== "appearance" && "hidden")}>

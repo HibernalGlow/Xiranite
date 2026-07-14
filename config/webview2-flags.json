@@ -1,0 +1,18 @@
+{
+  "features": [
+    { "id": "JXLImageFormat", "key": "jxl", "default": true, "tier": "recommended" },
+    { "id": "msWebView2CodeCache", "key": "codeCache", "default": true, "tier": "recommended" },
+    { "id": "msWebView2NativeEventDispatch", "key": "nativeEventDispatch", "default": true, "tier": "recommended" },
+    { "id": "msWebView2EnableDraggableRegions", "key": "draggableRegions", "default": false, "tier": "optional" },
+    { "id": "CanvasOopRasterization", "key": "canvasOopRasterization", "default": true, "tier": "recommended" },
+    { "id": "BackForwardCache", "key": "backForwardCache", "default": false, "tier": "optional" },
+    { "id": "Vulkan", "key": "vulkan", "default": false, "tier": "experimental" },
+    { "id": "SkiaGraphite", "key": "skiaGraphite", "default": false, "tier": "experimental" }
+  ],
+  "switches": [
+    { "id": "--enable-gpu-rasterization", "key": "gpuRasterization", "default": true, "tier": "recommended" },
+    { "id": "--enable-zero-copy", "key": "zeroCopy", "default": true, "tier": "recommended" },
+    { "id": "--enable-parallel-downloading", "key": "parallelDownloading", "default": false, "tier": "optional" },
+    { "id": "--enable-accelerated-2d-canvas", "key": "accelerated2dCanvas", "default": false, "tier": "optional" }
+  ]
+}

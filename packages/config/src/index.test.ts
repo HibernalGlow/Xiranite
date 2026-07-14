@@ -7,6 +7,7 @@ import { tmpdir } from "node:os"
 const norm = (p: string): string => p.replace(/\\/g, "/")
 import {
   getAppConfig,
+  getWebview2Config,
   getNodeConfig,
   loadNodeConfigWithHints,
   loadXiraniteConfig,
@@ -16,6 +17,7 @@ import {
   saveXiraniteConfig,
   stripBom,
   updateAppConfig,
+  updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
 } from "./index.js"
@@ -135,6 +137,10 @@ describe("loadXiraniteConfig", () => {
       '[app.ui]',
       'theme = "wuling"',
       '',
+      '[webview2]',
+      'features = ["JXLImageFormat", "CanvasOopRasterization"]',
+      'switches = ["--enable-zero-copy"]',
+      '',
       '[nodes.linku]',
       'enabled = true',
       '',
@@ -149,6 +155,10 @@ describe("loadXiraniteConfig", () => {
     expect(config.workspace?.default).toBe("ws1")
     expect(config.paths?.data_dir).toBe("/data")
     expect(config.app?.ui).toEqual({ theme: "wuling" })
+    expect(config.webview2).toEqual({
+      features: ["JXLImageFormat", "CanvasOopRasterization"],
+      switches: ["--enable-zero-copy"],
+    })
     expect(config.nodes?.linku).toEqual({
       enabled: true,
       links: [{ name: "example", source: "E:/Source", target: "D:/Links/example" }],
@@ -179,6 +189,10 @@ describe("saveXiraniteConfig", () => {
           theme: "wuling",
           colorMode: "dark",
         },
+      },
+      webview2: {
+        features: ["JXLImageFormat", "msWebView2CodeCache"],
+        switches: ["--enable-gpu-rasterization"],
       },
       nodes: {
         linku: { enabled: true, links: [{ name: "a", source: "s", target: "t" }] },
@@ -219,6 +233,29 @@ describe("getAppConfig / updateAppConfig", () => {
     const updated = updateAppConfig(original, "ui", { colorMode: "dark" })
     expect(updated.app?.ui).toEqual({ theme: "spatial", colorMode: "dark" })
     expect(original.app?.ui).toEqual({ theme: "spatial", colorMode: "light" })
+  })
+})
+
+describe("getWebview2Config / updateWebview2Config", () => {
+  test("reads and replaces the top-level WebView2 startup config", () => {
+    const original = {
+      workspace: { default: "ws" },
+      webview2: {
+        features: ["JXLImageFormat"],
+        switches: ["--enable-zero-copy"],
+      },
+    }
+    expect(getWebview2Config(original)).toEqual(original.webview2)
+
+    const updated = updateWebview2Config(original, {
+      features: ["CanvasOopRasterization", "CanvasOopRasterization"],
+      switches: ["--enable-gpu-rasterization"],
+    })
+    expect(updated.webview2).toEqual({
+      features: ["CanvasOopRasterization"],
+      switches: ["--enable-gpu-rasterization"],
+    })
+    expect(original.webview2.features).toEqual(["JXLImageFormat"])
   })
 })
 

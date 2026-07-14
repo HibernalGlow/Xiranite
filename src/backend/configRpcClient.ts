@@ -1,5 +1,6 @@
 import { createXiraniteConfigClient } from "@xiranite/api/client"
 import type { XiraniteConfigClient } from "@xiranite/api/client"
+import type { Webview2Config } from "@xiranite/api/client"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 let configClient: XiraniteConfigClient | null = null
@@ -87,6 +88,14 @@ export async function saveAppConfigToBackend<T = unknown>(
   config: T,
 ): Promise<void> {
   await getConfigClient().updateAppConfig<T>(section, config)
+}
+
+export async function getWebview2ConfigFromBackend(): Promise<{ config: Webview2Config | undefined; path: string }> {
+  return getConfigClient().getWebview2Config()
+}
+
+export async function saveWebview2ConfigToBackend(config: Webview2Config): Promise<{ config: Webview2Config; path: string }> {
+  return getConfigClient().updateWebview2Config(config)
 }
 
 export async function getCustomThemesFromBackend<T = unknown>(): Promise<{ themes: T[]; path: string }> {

@@ -445,6 +445,79 @@
       "copied": "Copied",
       "openFrontend": "Open frontend"
     },
+    "webview2": {
+      "title": "WebView2 Experiments",
+      "description": "Manage Chromium features and startup switches through xiranite.config.toml. The startup configuration stays framework-neutral; the desktop shell only maps the arguments.",
+      "features": "FEATURES",
+      "switches": "SWITCHES",
+      "restartTitle": "Takes effect after restart",
+      "restartDescription": "Saving only updates the config file. Fully quit and restart Xiranite; reloading the WebView or restarting only the local backend will not apply these arguments.",
+      "unavailableTitle": "Configuration service unavailable",
+      "unavailable": "The local backend must be ready before xiranite.config.toml can be loaded or saved.",
+      "errorTitle": "WebView2 configuration failed",
+      "save": "Save configuration",
+      "saving": "Saving",
+      "reset": "Restore recommended defaults",
+      "openConfig": "Open config file",
+      "openingConfig": "Opening",
+      "saved": "Configuration saved",
+      "savedDescription": "The browser arguments will be applied the next time Xiranite starts from a fully closed state.",
+      "tier": {
+        "recommended": "Recommended",
+        "optional": "Optional",
+        "experimental": "Experimental"
+      },
+      "flags": {
+        "jxl": {
+          "label": "JPEG XL",
+          "description": "Enable Chromium JPEG XL decoding for image tools and file previews."
+        },
+        "codeCache": {
+          "label": "WebView2 Code Cache",
+          "description": "Cache compiled JavaScript to improve subsequent starts for React, Vite, and similar frontends."
+        },
+        "nativeEventDispatch": {
+          "label": "Native Event Dispatch",
+          "description": "Use WebView2's native event dispatch path to reduce host-to-page interaction overhead."
+        },
+        "draggableRegions": {
+          "label": "Draggable Regions",
+          "description": "Enable WebView2 draggable-region support for frameless windows."
+        },
+        "canvasOopRasterization": {
+          "label": "Canvas OOP Rasterization",
+          "description": "Move Canvas raster work outside the renderer process for canvases, whiteboards, and image editors."
+        },
+        "backForwardCache": {
+          "label": "Back/Forward Cache",
+          "description": "Cache navigation history pages for faster back and forward actions; desktop SPA gains are usually modest."
+        },
+        "vulkan": {
+          "label": "Vulkan",
+          "description": "Use the experimental Vulkan graphics backend; the default D3D path remains safer for Windows releases."
+        },
+        "skiaGraphite": {
+          "label": "Skia Graphite",
+          "description": "Enable Skia's experimental next-generation GPU backend, which may have compatibility or rendering issues."
+        },
+        "gpuRasterization": {
+          "label": "GPU Rasterization",
+          "description": "Move more paint work to the GPU, potentially helping long lists, SVG, and complex shadows."
+        },
+        "zeroCopy": {
+          "label": "Zero Copy",
+          "description": "Reduce memory copies during texture upload, which may help image-heavy views."
+        },
+        "parallelDownloading": {
+          "label": "Parallel Downloading",
+          "description": "Allow segmented parallel downloads for large files; ordinary desktop pages see limited benefit."
+        },
+        "accelerated2dCanvas": {
+          "label": "Accelerated 2D Canvas",
+          "description": "Prefer GPU acceleration for 2D Canvas workloads such as Pixi, Konva, and Fabric."
+        }
+      }
+    },
     "backendBanner": {
       "missingConfig": "Local Backend is not configured, so workspace and node execution are paused.",
       "unreachable": "Local Backend is unreachable: {{url}}. Workspace and node execution are paused.",

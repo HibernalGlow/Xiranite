@@ -26,6 +26,11 @@ export interface XiraniteClientOptions {
   token?: string
 }
 
+export interface Webview2Config {
+  features: string[]
+  switches: string[]
+}
+
 export interface LocalBackendRestartConfig {
   baseUrl: string
   token?: string
@@ -89,6 +94,8 @@ export interface XiraniteConfigClient {
   deleteNodePreset(nodeId: string, presetId: string): Promise<{ deleted: boolean }>
   getAppConfig<T = unknown>(section: string): Promise<{ config: T | undefined; path: string }>
   updateAppConfig<T = unknown>(section: string, config: T): Promise<{ config: T; path: string }>
+  getWebview2Config(): Promise<{ config: Webview2Config | undefined; path: string }>
+  updateWebview2Config(config: Webview2Config): Promise<{ config: Webview2Config; path: string }>
   getCustomThemes(): Promise<{ themes: unknown[]; path: string }>
   saveCustomThemes(themes: unknown[]): Promise<{ themes: unknown[]; path: string }>
   getBackgroundImage(): Promise<{ url: string | null; path: string }>
@@ -184,6 +191,20 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`App config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
+    },
+    async getWebview2Config() {
+      const response = await fetch(apiUrl(baseUrl, "/config/webview2"), { headers })
+      if (!response.ok) throw new Error(`WebView2 config load failed: ${response.status}`)
+      return await response.json() as { config: Webview2Config | undefined; path: string }
+    },
+    async updateWebview2Config(config: Webview2Config) {
+      const response = await fetch(apiUrl(baseUrl, "/config/webview2"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ config }),
+      })
+      if (!response.ok) throw new Error(`WebView2 config save failed: ${response.status}`)
+      return await response.json() as { config: Webview2Config; path: string }
     },
     async getCustomThemes() {
       const response = await fetch(apiUrl(baseUrl, "/config/themes"), { headers })

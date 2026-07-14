@@ -2,9 +2,11 @@
 
 package main
 
-func developmentWebviewBrowserArgs() []string {
-	return []string{
-		"--auto-open-devtools-for-tabs",
-		"--allow-insecure-localhost",
+func developmentBrowserRuntimeConfig() BrowserRuntimeConfig {
+	return BrowserRuntimeConfig{
+		Switches: []string{
+			"--auto-open-devtools-for-tabs",
+			"--allow-insecure-localhost",
+		},
 	}
 }
