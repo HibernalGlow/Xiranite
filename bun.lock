@@ -1130,7 +1130,7 @@
     },
     "packages/tauri-migrate": {
       "name": "@xiranite/tauri-migrate",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "xiranite-tauri-migrate": "./dist/cli.js",
       },

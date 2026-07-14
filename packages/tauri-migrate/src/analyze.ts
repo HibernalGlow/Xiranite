@@ -1,7 +1,10 @@
 import { parse, type SgNode } from "@ast-grep/napi"
+import { execFile } from "node:child_process"
+import { createHash } from "node:crypto"
 import { readdir, readFile, stat } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 
+import packageJson from "../package.json" with { type: "json" }
 import type {
   AnalyzeTauriProjectOptions,
   MigrationDisposition,
@@ -89,10 +92,8 @@ export async function analyzeTauriProject(
       const macroName = macro.child(0)?.text() ?? ""
       if (!macroName.endsWith("generate_handler")) continue
       const tokenTree = macro.children().find((child) => child.kind() === "token_tree")
-      for (const child of tokenTree?.children() ?? []) {
-        if (!child.isNamed()) continue
-        const commandName = child.text().split("::").at(-1)
-        if (commandName) registeredCommands.add(commandName)
+      for (const commandName of extractGenerateHandlerCommands(tokenTree?.text() ?? "")) {
+        registeredCommands.add(commandName)
       }
     }
 
@@ -172,8 +173,15 @@ export async function analyzeTauriProject(
     "manual-review": commands.filter((command) => command.disposition === "manual-review").length,
   }
 
+  const sourceRevision = await inspectSourceRevision(projectRoot)
+
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    generator: {
+      name: "@xiranite/tauri-migrate",
+      version: packageJson.version,
+    },
+    sourceRevision,
     projectRoot,
     sourceRoots,
     analyzedAt: new Date().toISOString(),
@@ -185,6 +193,71 @@ export async function analyzeTauriProject(
       .sort(),
     summary,
   }
+}
+
+function extractGenerateHandlerCommands(tokenTree: string): string[] {
+  const content = tokenTree
+    .replace(/^\s*[[(]/, "")
+    .replace(/[\])]\s*$/, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\r\n]*/g, "")
+
+  return content
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => entry.match(/(?:^|::)([A-Za-z_][A-Za-z0-9_]*)\s*$/)?.[1])
+    .filter((name): name is string => Boolean(name))
+}
+
+async function inspectSourceRevision(projectRoot: string): Promise<TauriMigrationInventory["sourceRevision"]> {
+  try {
+    const commit = (await runGit(projectRoot, ["rev-parse", "HEAD"])).toString("utf8").trim()
+    const status = await runGit(projectRoot, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      "--",
+      ".",
+    ])
+    const dirty = status.length > 0
+    if (!dirty) {
+      return { vcs: "git", commit, dirty: false, dirtyDiffHash: null }
+    }
+
+    const [trackedDiff, untrackedOutput] = await Promise.all([
+      runGit(projectRoot, ["diff", "--binary", "HEAD", "--", "."]),
+      runGit(projectRoot, ["ls-files", "--others", "--exclude-standard", "-z", "--", "."]),
+    ])
+    const hash = createHash("sha256").update(status).update(trackedDiff)
+    const untrackedFiles = untrackedOutput
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean)
+      .sort()
+    for (const file of untrackedFiles) {
+      hash.update(file)
+      hash.update(await readFile(resolve(projectRoot, file)))
+    }
+    return { vcs: "git", commit, dirty: true, dirtyDiffHash: `sha256:${hash.digest("hex")}` }
+  } catch {
+    return { vcs: "none", commit: null, dirty: false, dirtyDiffHash: null }
+  }
+}
+
+function runGit(cwd: string, args: string[]): Promise<Buffer> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    execFile(
+      "git",
+      ["-C", cwd, ...args],
+      { encoding: null, maxBuffer: 64 * 1024 * 1024, windowsHide: true },
+      (error, stdout) => {
+        if (error) rejectPromise(error)
+        else resolvePromise(stdout)
+      },
+    )
+  })
 }
 
 function extractParameters(node: SgNode): RustParameter[] {

@@ -17,10 +17,14 @@ bun run migrate:tauri -- generate D:\path\to\tauri-project `
 
 The generated directory contains:
 
-- `inventory.json`: machine-readable migration facts and decisions
+- `inventory.json`: machine-readable migration facts and decisions, including generator version and source Git fingerprint
 - `commands.ts`: command argument/result contracts
 - `adapter.ts`: Tauri-independent invocation boundary
-- `REPORT.md`: human review report with source locations and events
+- `REPORT.md`: human review report with source revision, declaration/name counts, source locations, and events
+
+The source fingerprint records the Git commit, dirty state, and a SHA-256 hash of tracked changes plus untracked file contents. A clean source has `dirty: false` and `dirtyDiffHash: null`. This makes a refreshed inventory traceable to the exact source state instead of relying on its generation timestamp.
+
+Conditional Rust implementations remain separate entries in `inventory.json`. For example, Windows and non-Windows `#[cfg]` variants of the same Tauri command retain their own native evidence and locations. `commands.ts` groups those variants under one command name, unions distinct public argument/result shapes, and retains every source location in `tauriCommandSources`.
 
 Output is protected by default. Use `--force` only for a generated directory.
 

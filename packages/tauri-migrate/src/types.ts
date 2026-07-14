@@ -38,7 +38,17 @@ export interface TauriCommand {
 }
 
 export interface TauriMigrationInventory {
-  schemaVersion: 1
+  schemaVersion: 2
+  generator: {
+    name: "@xiranite/tauri-migrate"
+    version: string
+  }
+  sourceRevision: {
+    vcs: "git" | "none"
+    commit: string | null
+    dirty: boolean
+    dirtyDiffHash: string | null
+  }
   projectRoot: string
   sourceRoots: string[]
   analyzedAt: string

@@ -10,6 +10,7 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "types": ["node"]

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { Lang, parse } from "@ast-grep/napi"
 import { afterEach, describe, expect, test } from "vitest"
 
 import { analyzeTauriProject } from "./analyze.js"
@@ -24,8 +25,14 @@ describe("Tauri Rust AST migration", () => {
 
     expect(inventory.rustFiles).toBe(2)
     expect(inventory.registeredCommands).toEqual(["ping", "scan"])
+    expect(inventory.unannotatedRegistrations).toEqual([])
+    expect(inventory).toMatchObject({
+      schemaVersion: 2,
+      generator: { name: "@xiranite/tauri-migrate", version: "0.2.0" },
+      sourceRevision: { vcs: "git" },
+    })
     expect(inventory.summary).toEqual({
-      "typescript-portable": 1,
+      "typescript-portable": 2,
       "native-required": 1,
       "manual-review": 1,
     })
@@ -74,7 +81,13 @@ describe("Tauri Rust AST migration", () => {
     const report = await readFile(join(outputDir, "REPORT.md"), "utf8")
     expect(commands).toContain("export interface TauriCommandArguments")
     expect(commands).toContain("paths: Array<string>")
+    expect(commands.match(/^  ping:/gm)).toHaveLength(3)
+    expect(commands).toContain('ping: ["src/main.rs:6","src/main.rs:12"]')
+    const syntaxErrors = parse(Lang.TypeScript, commands).root().findAll({ rule: { kind: "ERROR" } })
+    expect(syntaxErrors.map((node) => node.text())).toEqual([])
     expect(report).toContain("scan-finished")
+    expect(report).toContain("Generator: @xiranite/tauri-migrate 0.2.0")
+    expect(report).toContain("Source commit:")
     await expect(
       generateMigrationArtifacts({ projectRoot: fixtureRoot, outputDir }),
     ).rejects.toThrow("Refusing to overwrite")
