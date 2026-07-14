@@ -47,6 +47,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const presetMeta = PRESETS.find((item) => item.value === preset) ?? PRESETS[0]!
   const srcEncoding = data.srcEncoding ?? presetMeta.srcEncoding ?? "cp437"
   const dstEncoding = data.dstEncoding ?? presetMeta.dstEncoding ?? "cp936"
+  const transform = data.transform ?? presetMeta.transform
   const strategy = data.strategy ?? "replace"
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
@@ -74,7 +75,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathText, data.preset, data.srcEncoding, data.dstEncoding, data.strategy, defaults])
+  }, [data.pathText, data.preset, data.srcEncoding, data.dstEncoding, data.transform, data.strategy, defaults])
 
   function patch(patchData: Partial<EncodebCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -104,6 +105,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       preset: next,
       ...(meta?.srcEncoding ? { srcEncoding: meta.srcEncoding } : {}),
       ...(meta?.dstEncoding ? { dstEncoding: meta.dstEncoding } : {}),
+      ...(meta?.transform ? { transform: meta.transform } : {}),
     })
   }
 
@@ -127,6 +129,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       paths: nextPaths,
       srcEncoding,
       dstEncoding,
+      transform,
       strategy,
     }
 
@@ -186,7 +189,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function resetOverride() {
-    patch({ pathText: undefined, preset: undefined, srcEncoding: undefined, dstEncoding: undefined, strategy: undefined })
+    patch({ pathText: undefined, preset: undefined, srcEncoding: undefined, dstEncoding: undefined, transform: undefined, strategy: undefined })
   }
 
   const commonProps = createViewProps({
@@ -494,7 +497,7 @@ function EncodingConsole({ props }: { props: ViewProps }) {
         </div>
         <ToggleGroup
           aria-label="编码预设"
-          className="grid w-full grid-cols-4"
+          className="grid w-full grid-cols-3"
           disabled={props.running}
           size="sm"
           type="single"

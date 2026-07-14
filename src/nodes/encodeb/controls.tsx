@@ -51,7 +51,7 @@ export function PresetPicker(props: {
   return (
     <ToggleGroup
       aria-label="编码预设"
-      className="grid w-full grid-cols-4"
+      className="grid w-full grid-cols-3"
       disabled={props.disabled}
       size="sm"
       type="single"

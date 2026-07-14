@@ -116,6 +116,7 @@ describe("app-owned encodeb Component", () => {
         paths: ["D:/gallery"],
         srcEncoding: "cp437",
         dstEncoding: "cp936",
+        transform: "recode",
         strategy: "replace",
       },
     })

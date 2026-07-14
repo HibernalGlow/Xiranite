@@ -11,11 +11,14 @@ const entries: EncodebEntry[] = [
 describe("encodeb core", () => {
   test("detects suspicious names", () => {
     expect(isSuspiciousName("╘.txt")).toBe(true)
+    expect(isSuspiciousName("ã‚»ãƒ¼ãƒ©ãƒ¼.txt")).toBe(true)
+    expect(isSuspiciousName("#U30BB#U30FC.txt")).toBe(true)
+    expect(isSuspiciousName("正常な日本語.txt")).toBe(false)
     expect(findSuspicious(entries).map((entry) => entry.path)).toEqual(["root/╘.txt"])
   })
 
   test("creates changed mappings with injected transcoder", () => {
-    const mappings = createEncodebMappings(entries, { srcEncoding: "x", dstEncoding: "y", limit: 10 }, (name) => name.replace("garbled", "fixed"))
+    const mappings = createEncodebMappings(entries, { srcEncoding: "x", dstEncoding: "y", transform: "recode", limit: 10 }, (name) => name.replace("garbled", "fixed"))
 
     expect(mappings).toEqual([
       { src: "root/garbled", dst: "root/fixed", type: "dir", depth: 1 },
@@ -24,7 +27,7 @@ describe("encodeb core", () => {
   })
 
   test("sorts replace mappings deepest first", () => {
-    const mappings = createEncodebMappings(entries, { srcEncoding: "x", dstEncoding: "y", limit: 10 }, (name) => name.replace("garbled", "fixed"))
+    const mappings = createEncodebMappings(entries, { srcEncoding: "x", dstEncoding: "y", transform: "recode", limit: 10 }, (name) => name.replace("garbled", "fixed"))
     expect(sortReplaceMappings(mappings)[0]?.src).toBe("root/garbled/a.txt")
   })
 

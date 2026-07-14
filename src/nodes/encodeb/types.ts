@@ -1,4 +1,4 @@
-import type { EncodebMapping, EncodebStrategy } from "@xiranite/node-encodeb/core"
+import type { EncodebMapping, EncodebStrategy, EncodebTransform } from "@xiranite/node-encodeb/core"
 
 export type EncodebPhase =
   | "idle"
@@ -8,7 +8,7 @@ export type EncodebPhase =
   | "completed"
   | "error"
 
-export type EncodebPreset = "cn" | "jp" | "kr" | "custom"
+export type EncodebPreset = "cn" | "jp" | "kr" | "jp_from_cn" | "jp_iso2022_from_cn" | "latin1_utf8" | "hash_u" | "middle_dot" | "custom"
 
 export type EncodebAction = "find" | "preview" | "recover"
 
@@ -17,6 +17,7 @@ export interface EncodebCardState {
   preset?: EncodebPreset
   srcEncoding?: string
   dstEncoding?: string
+  transform?: EncodebTransform
   strategy?: EncodebStrategy
   phase?: EncodebPhase
   progress?: number
@@ -39,5 +40,6 @@ export const CONFIG_FIELDS: Array<keyof EncodebCardState> = [
   "preset",
   "srcEncoding",
   "dstEncoding",
+  "transform",
   "strategy",
 ]

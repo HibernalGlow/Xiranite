@@ -3,12 +3,14 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 export type EncodebAction = "find" | "preview" | "recover"
 export type EncodebStrategy = "replace" | "copy"
 export type EncodebEntryType = "file" | "dir"
+export type EncodebTransform = "recode" | "decode-hash-u" | "normalize-middle-dot"
 
 export interface EncodebInput {
   action?: EncodebAction
   paths?: string[]
   srcEncoding?: string
   dstEncoding?: string
+  transform?: EncodebTransform
   strategy?: EncodebStrategy
   limit?: number
 }
@@ -43,14 +45,19 @@ export interface EncodebRuntime {
 }
 
 export type EncodebResult = NodeRunResult<EncodebData>
-export type NameTranscoder = (name: string, srcEncoding: string, dstEncoding: string) => string
+export type NameTranscoder = (name: string, srcEncoding: string, dstEncoding: string, transform?: EncodebTransform) => string
 
 export const SUSPICIOUS_CHARS = new Set("╘╙═╝║╧╞╫╔╚┌┐└┘├┤┬┴┼▓█▐▌▀▄╔╦╩╠╬")
 
 export const ENCODEB_PRESETS = {
-  cn: { label: "Chinese", srcEncoding: "cp437", dstEncoding: "cp936" },
-  jp: { label: "Japanese", srcEncoding: "cp437", dstEncoding: "cp932" },
-  kr: { label: "Korean", srcEncoding: "cp437", dstEncoding: "cp949" },
+  cn: { label: "Chinese", srcEncoding: "cp437", dstEncoding: "cp936", transform: "recode" },
+  jp: { label: "Japanese", srcEncoding: "cp437", dstEncoding: "cp932", transform: "recode" },
+  kr: { label: "Korean", srcEncoding: "cp437", dstEncoding: "cp949", transform: "recode" },
+  jp_from_cn: { label: "Japanese from GBK mojibake", srcEncoding: "cp936", dstEncoding: "cp932", transform: "recode" },
+  jp_iso2022_from_cn: { label: "ISO-2022-JP from GBK mojibake", srcEncoding: "cp936", dstEncoding: "iso-2022-jp", transform: "recode" },
+  latin1_utf8: { label: "UTF-8 from Latin-1 mojibake", srcEncoding: "windows-1252", dstEncoding: "utf8", transform: "recode" },
+  hash_u: { label: "Decode #Uxxxx escapes", srcEncoding: "unicode-escape", dstEncoding: "unicode", transform: "decode-hash-u" },
+  middle_dot: { label: "Normalize Japanese middle dot", srcEncoding: "U+30FB", dstEncoding: "U+00B7", transform: "normalize-middle-dot" },
 } as const
 
 export function normalizeEncodebInput(input: EncodebInput): Required<EncodebInput> {
@@ -59,6 +66,7 @@ export function normalizeEncodebInput(input: EncodebInput): Required<EncodebInpu
     paths: parseEncodebPaths(input.paths),
     srcEncoding: input.srcEncoding ?? "cp437",
     dstEncoding: input.dstEncoding ?? "cp936",
+    transform: input.transform ?? "recode",
     strategy: input.strategy ?? "replace",
     limit: Math.max(1, Math.trunc(input.limit ?? 200)),
   }
@@ -75,6 +83,9 @@ export function defaultTranscodeName(name: string): string {
 
 export function isSuspiciousName(name: string): boolean {
   return [...name].some((char) => SUSPICIOUS_CHARS.has(char))
+    || /#U[0-9a-fA-F]{4,6}/.test(name)
+    || /[ÃÂâã]\S/.test(name)
+    || name.includes("\ufffd")
 }
 
 export function findSuspicious(entries: EncodebEntry[], limit = 200): EncodebEntry[] {
@@ -90,7 +101,7 @@ export function findSuspicious(entries: EncodebEntry[], limit = 200): EncodebEnt
 
 export function createEncodebMappings(
   entries: EncodebEntry[],
-  input: Pick<Required<EncodebInput>, "srcEncoding" | "dstEncoding" | "limit">,
+  input: Pick<Required<EncodebInput>, "srcEncoding" | "dstEncoding" | "transform" | "limit">,
   transcodeName: NameTranscoder = defaultTranscodeName,
   options: { changedOnly?: boolean; destRoot?: string } = {},
 ): EncodebMapping[] {
@@ -98,7 +109,7 @@ export function createEncodebMappings(
   const mappings: EncodebMapping[] = []
 
   for (const entry of entries) {
-    const newParts = entry.relativeParts.map((part) => transcodeName(part, input.srcEncoding, input.dstEncoding))
+    const newParts = entry.relativeParts.map((part) => transcodeName(part, input.srcEncoding, input.dstEncoding, input.transform))
     const changed = newParts.join("\0") !== entry.relativeParts.join("\0")
     if (changedOnly && !changed) continue
 

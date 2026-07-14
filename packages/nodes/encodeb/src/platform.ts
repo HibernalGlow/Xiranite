@@ -54,12 +54,46 @@ async function runCommand(command: string, args: string[]): Promise<CommandResul
   })
 }
 
-export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncoding) => {
+export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncoding, transform = "recode") => {
+  if (transform === "decode-hash-u") return decodeHashUnicodeEscapes(name)
+  if (transform === "normalize-middle-dot") return name.replaceAll("・", "·")
+
   try {
-    return iconv.decode(iconv.encode(name, srcEncoding), dstEncoding)
+    const encoded = iconv.encode(name, srcEncoding)
+    // iconv-lite silently substitutes unrepresentable characters. Refuse a
+    // conversion unless the source-side round trip is lossless.
+    if (iconv.decode(encoded, srcEncoding) !== name) return name
+
+    const decoded = decodeBytes(encoded, dstEncoding)
+    if (!decoded || replacementCount(decoded) > replacementCount(name) || hasUnsafeControls(decoded)) return name
+    return decoded
   } catch {
     return name
   }
+}
+
+export function decodeHashUnicodeEscapes(name: string): string {
+  return name.replace(/#U([0-9a-fA-F]{4,6})/g, (match, hex: string) => {
+    const codePoint = Number.parseInt(hex, 16)
+    if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return match
+    return String.fromCodePoint(codePoint)
+  })
+}
+
+function decodeBytes(bytes: Buffer, encoding: string): string {
+  if (iconv.encodingExists(encoding)) return iconv.decode(bytes, encoding)
+  return new TextDecoder(encoding, { fatal: true }).decode(bytes)
+}
+
+function replacementCount(value: string): number {
+  return [...value].filter((char) => char === "\ufffd").length
+}
+
+function hasUnsafeControls(value: string): boolean {
+  return [...value].some((char) => {
+    const code = char.codePointAt(0) ?? 0
+    return code < 0x20 && char !== "\t"
+  })
 }
 
 async function scanPath(path: string): Promise<EncodebEntry[]> {

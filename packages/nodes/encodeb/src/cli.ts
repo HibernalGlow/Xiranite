@@ -30,7 +30,7 @@ import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-ru
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 
-import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy } from "./core.js"
+import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy, EncodebTransform } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths, runEncodeb } from "./core.js"
 import { createNodeEncodebRuntime, readClipboardText } from "./platform.js"
 import { createEncodebInteractionSchema, type EncodebInteractionValues } from "./interaction.js"
@@ -44,6 +44,7 @@ interface EncodebCliOptions {
   preset?: string
   srcEncoding?: string
   dstEncoding?: string
+  transform?: string
   strategy?: string
   limit?: string
   json?: boolean
@@ -53,6 +54,7 @@ interface EncodebNodeConfig extends CliInteractionPreferencesSource {
   preset?: string
   src_encoding?: string
   dst_encoding?: string
+  transform?: string
   strategy?: string
   limit?: number
 }
@@ -61,6 +63,7 @@ interface EncodebDefaults {
   preset?: string
   srcEncoding?: string
   dstEncoding?: string
+  transform?: EncodebTransform
   strategy?: EncodebStrategy
   limit?: number
 }
@@ -80,6 +83,7 @@ async function resolveEncodebDefaults(host: CliHost, json = false): Promise<Enco
       preset: config?.preset,
       srcEncoding: config?.src_encoding,
       dstEncoding: config?.dst_encoding,
+      transform: config?.transform === "decode-hash-u" || config?.transform === "normalize-middle-dot" ? config.transform : config?.transform === "recode" ? "recode" : undefined,
       strategy: config?.strategy === "copy" ? "copy" : config?.strategy === "replace" ? "replace" : undefined,
       limit: typeof config?.limit === "number" ? config.limit : undefined,
     }
@@ -94,13 +98,14 @@ interface GuidedTask {
   action: EncodebAction
 }
 
-type GuidedPresetId = "cn" | "jp" | "jp_from_cn" | "custom"
+type GuidedPresetId = keyof typeof ENCODEB_PRESETS | "custom"
 type PathSource = "clipboard" | "manual" | "exit"
 type StrategyChoice = EncodebStrategy | "exit"
 
 interface GuidedPresetInfo {
   srcEncoding: string
   dstEncoding: string
+  transform: EncodebTransform
 }
 
 type ResolvedGuidedChoice =
@@ -116,11 +121,7 @@ const GUIDED_TASKS: GuidedTask[] = [
   { name: "recover", description: "执行原地重命名（或复制）", action: "recover" },
 ]
 
-const GUIDED_PRESETS: Record<Exclude<GuidedPresetId, "custom">, GuidedPresetInfo> = {
-  cn: { srcEncoding: "cp437", dstEncoding: "cp936" },
-  jp: { srcEncoding: "cp437", dstEncoding: "cp932" },
-  jp_from_cn: { srcEncoding: "cp936", dstEncoding: "cp932" },
-}
+const GUIDED_PRESETS = ENCODEB_PRESETS
 
 export const cli: CliCommand = {
   name: CLI_NAME,
@@ -202,9 +203,10 @@ function createProgram(host: CliHost = createDefaultHost()) {
 function encodebArgs() {
   return {
     paths: { type: "string", description: "Paths separated by semicolon or new lines." },
-    preset: { type: "string", description: "cn, jp, kr, or custom." },
+    preset: { type: "string", description: "Built-in repair preset or custom." },
     srcEncoding: { type: "string", description: "Source encoding, e.g. cp437." },
     dstEncoding: { type: "string", description: "Destination encoding, e.g. cp936." },
+    transform: { type: "string", description: "recode, decode-hash-u, or normalize-middle-dot." },
     strategy: { type: "string", description: "replace or copy." },
     limit: { type: "string", description: "Maximum preview/find results." },
     json: { type: "boolean", description: "Print JSON result." },
@@ -219,6 +221,7 @@ function inputFromArgs(args: EncodebCliOptions, defaults: EncodebDefaults = {}):
     paths: parseEncodebPaths((args.paths ?? "").split(";")),
     srcEncoding: args.srcEncoding ?? defaults.srcEncoding ?? preset?.srcEncoding ?? "cp437",
     dstEncoding: args.dstEncoding ?? defaults.dstEncoding ?? preset?.dstEncoding ?? "cp936",
+    transform: args.transform === "decode-hash-u" || args.transform === "normalize-middle-dot" ? args.transform : args.transform === "recode" ? "recode" : defaults.transform ?? preset?.transform ?? "recode",
     strategy: strategy === "copy" ? "copy" : "replace",
     limit: Number(args.limit ?? defaults.limit ?? 200),
   }
@@ -325,7 +328,7 @@ function renderGuidedIntro(host: CliHost, includeHeader: boolean): void {
   writeRichPanel(host, "Xiranite Encodeb", [
     `${rich(host, "入口", "cyan")}  名称修复工具，内置 TypeScript guided flow`,
     `${rich(host, "任务", "cyan")}  find 扫描疑似乱码名称 / preview 预览重编码 / recover 原地重命名或复制`,
-    `${rich(host, "预设", "cyan")}  cn / jp / jp_from_cn / custom，jp_from_cn 用于日文被中文 GBK 误解码的情况`,
+    `${rich(host, "预设", "cyan")}  支持 ZIP 中日韩、GBK→日文、1252→UTF-8、#Uxxxx 和日文间隔点`,
     `${rich(host, "路径", "cyan")}  剪贴板优先；手动输入仅作 fallback；recover 执行前需二次确认`,
   ], { color: "blue", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   writeLine(host)
@@ -427,11 +430,16 @@ async function resolvePreset(host: CliHost): Promise<GuidedPresetInfo | undefine
     [
       { value: "cn", label: "cn", hint: "cp437 -> cp936（中文）" },
       { value: "jp", label: "jp", hint: "cp437 -> cp932（日文）" },
+      { value: "kr", label: "kr", hint: "cp437 -> cp949（韩文）" },
       { value: "jp_from_cn", label: "jp_from_cn", hint: "cp936 -> cp932（日文被中文误解码）" },
+      { value: "jp_iso2022_from_cn", label: "jp_iso2022_from_cn", hint: "cp936 -> ISO-2022-JP（旧日文2模式）" },
+      { value: "latin1_utf8", label: "latin1_utf8", hint: "Windows-1252 -> UTF-8（ã‚» 类乱码）" },
+      { value: "hash_u", label: "hash_u", hint: "解码 #U30BB 一类转义" },
+      { value: "middle_dot", label: "middle_dot", hint: "日文间隔点 ・ -> ·" },
       { value: "custom", label: "custom", hint: "手动输入源/目标编码" },
       { value: "exit", label: "退出", hint: "不执行任何操作" },
     ],
-    { initialValue: "cn", maxItems: 5 },
+    { initialValue: "cn", maxItems: 10 },
   )
 
   if (presetId === "exit") {
@@ -442,7 +450,7 @@ async function resolvePreset(host: CliHost): Promise<GuidedPresetInfo | undefine
   if (presetId === "custom") {
     const srcEncoding = (await promptRich(host, "输入源编码", "cp437")).trim() || "cp437"
     const dstEncoding = (await promptRich(host, "输入目标编码", "cp936")).trim() || "cp936"
-    return { srcEncoding, dstEncoding }
+    return { srcEncoding, dstEncoding, transform: "recode" }
   }
 
   return GUIDED_PRESETS[presetId]
@@ -473,6 +481,7 @@ async function runGuidedTask(task: GuidedTask, paths: string[], preset: GuidedPr
     paths,
     srcEncoding: preset.srcEncoding,
     dstEncoding: preset.dstEncoding,
+    transform: preset.transform,
     limit: defaults.limit ?? 200,
   }
 
