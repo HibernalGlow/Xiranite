@@ -13,6 +13,7 @@ export interface VertInput {
   engine?: VertEnginePreference
   overwrite?: boolean
   quality?: number
+  deleteSourceAfterSuccess?: boolean
 }
 
 export interface VertCommandPlan {
@@ -28,6 +29,7 @@ export interface VertCommandResult {
   stdout: string
   stderr: string
   durationMs: number
+  outputPath?: string
 }
 
 export interface VertCapabilities {
@@ -52,18 +54,23 @@ export interface VertRuntime {
   discoverCommands: () => Promise<VertCapabilities>
   runCommand: (plan: VertCommandPlan) => Promise<VertCommandResult>
   pathExists: (path: string) => Promise<boolean>
+  removeFile?: (path: string) => Promise<void>
 }
 
 export type VertResult = NodeRunResult<VertData>
 
 export const VERT_IMAGE_FORMATS = [
-  "png", "jpeg", "jpg", "webp", "gif", "svg", "jxl", "avif", "heic", "heif", "ico", "bmp", "cur", "hdr", "tif", "tiff", "psd", "qoi", "dds", "exr", "jp2", "tga", "ppm", "pgm", "pbm", "pnm", "xcf", "dng", "raw",
+  "png", "jpeg", "jpg", "jpe", "jfif", "webp", "gif", "svg", "jxl", "avif", "ico", "bmp", "cur", "hdr", "tif", "tiff", "psd", "psb", "qoi", "dds", "exr", "jp2", "tga", "ppm", "pgm", "pbm", "pfm", "pnm", "pam", "mat", "fit", "fits", "eps",
+] as const
+export const VERT_IMAGE_INPUT_FORMATS = [
+  ...VERT_IMAGE_FORMATS, "heic", "heif", "ani", "icns", "nef", "cr2", "cr3", "crw", "arw", "dng", "xcf", "rw2", "raf", "orf", "pef", "mos", "raw", "dcr", "3fr", "erf", "mrw", "mef", "nrw", "srw", "sr2", "srf",
 ] as const
 export const VERT_AUDIO_FORMATS = [
-  "mp3", "wav", "flac", "ogg", "oga", "opus", "aac", "alac", "m4a", "wma", "amr", "ac3", "aiff", "aif", "mp2", "au", "m4b", "weba",
+  "mp3", "wav", "flac", "ogg", "oga", "opus", "aac", "alac", "m4a", "wma", "amr", "ac3", "aiff", "aifc", "aif", "mp2", "au", "m4b", "voc", "weba",
 ] as const
+export const VERT_AUDIO_INPUT_FORMATS = [...VERT_AUDIO_FORMATS, "mogg", "caf", "mp1", "mpc", "dsd", "dsf", "dff", "mqa"] as const
 export const VERT_VIDEO_FORMATS = [
-  "mkv", "mp4", "avi", "mov", "webm", "ts", "mts", "m2ts", "wmv", "mpg", "mpeg", "flv", "f4v", "vob", "m4v", "3gp", "mxf", "ogv",
+  "mkv", "mp4", "avi", "mov", "webm", "ts", "mts", "m2ts", "wmv", "mpg", "mpeg", "flv", "f4v", "vob", "m4v", "3gp", "3g2", "mxf", "ogv", "rm", "rmvb", "divx",
 ] as const
 export const VERT_DOCUMENT_FORMATS = ["docx", "doc", "md", "markdown", "html", "rtf", "csv", "tsv", "json", "rst", "epub", "odt", "docbook"] as const
 export const VERT_FORMAT_GROUPS = {
@@ -72,9 +79,15 @@ export const VERT_FORMAT_GROUPS = {
   video: VERT_VIDEO_FORMATS,
   document: VERT_DOCUMENT_FORMATS,
 } as const
+export const VERT_INPUT_FORMAT_GROUPS = {
+  image: VERT_IMAGE_INPUT_FORMATS,
+  audio: VERT_AUDIO_INPUT_FORMATS,
+  video: VERT_VIDEO_FORMATS,
+  document: VERT_DOCUMENT_FORMATS,
+} as const
 
-const imageFormats = new Set<string>(VERT_IMAGE_FORMATS)
-const audioFormats = new Set<string>(VERT_AUDIO_FORMATS)
+const imageFormats = new Set<string>(VERT_IMAGE_INPUT_FORMATS)
+const audioFormats = new Set<string>(VERT_AUDIO_INPUT_FORMATS)
 const videoFormats = new Set<string>(VERT_VIDEO_FORMATS)
 const mediaFormats = new Set<string>([...VERT_AUDIO_FORMATS, ...VERT_VIDEO_FORMATS])
 const documentFormats = new Set<string>(VERT_DOCUMENT_FORMATS)
@@ -108,15 +121,55 @@ export function createVertPlans(input: VertInput, capabilities: VertCapabilities
   return uniquePaths(input.paths).map((inputPath) => {
     const converter = chooseConverter(inputPath, target)
     const command = capabilities[converter] ?? converterCommand(converter)
-    const outputPath = deriveOutputPath(inputPath, target, input.outputDirectory)
+    const outputPath = deriveOutputPath(inputPath, target === "alac" ? "m4a" : target, input.outputDirectory)
     const args = converter === "ffmpeg"
-      ? [input.overwrite ? "-y" : "-n", "-i", inputPath, outputPath]
+      ? createFfmpegArgs(inputPath, outputPath, input.overwrite ?? false, target)
       : converter === "magick"
-        ? [inputPath, ...(Number.isFinite(input.quality) ? ["-quality", String(clampQuality(input.quality))] : []), outputPath]
-        : [inputPath, "-o", outputPath]
+        ? [inputPath, ...(Number.isFinite(input.quality) ? ["-quality", String(clampQuality(input.quality))] : []), ...(target === "ico" ? ["-resize", "256x256>"] : []), outputPath]
+        : [inputPath, "-o", outputPath, "--extract-media=."]
     return { converter, command, args, inputPath, outputPath }
   })
 }
+
+export function createFfmpegArgs(inputPath: string, outputPath: string, overwrite = false, requestedTarget?: string): string[] {
+  const sourceCategory = detectVertCategory(inputPath)
+  const outputContainer = extension(outputPath)
+  const target = normalizeFormat(requestedTarget) || extension(outputPath)
+  const targetCategory = detectVertCategory(target)
+  const codecs = ffmpegCodecs(target)
+  const overwriteArgs = [overwrite ? "-y" : "-n"]
+  if (sourceCategory === "video" && targetCategory === "audio") return [...overwriteArgs, "-i", inputPath, "-map", "0:a:0", "-vn", "-c:a", codecs.audio, ...(target === "opus" ? ["-ar", "48000"] : []), outputPath]
+  if (sourceCategory === "audio" && targetCategory === "video") return [...overwriteArgs, "-f", "lavfi", "-i", "color=c=black:s=512x512:rate=1", "-i", inputPath, "-shortest", "-pix_fmt", "yuv420p", "-r", "1", "-c:v", codecs.video, "-c:a", codecs.audio, ...ffmpegContainerArgs(target), outputPath]
+  if (targetCategory === "video") return [...overwriteArgs, "-i", inputPath, "-c:v", codecs.video, "-c:a", codecs.audio, ...ffmpegContainerArgs(target), outputPath]
+  return [...overwriteArgs, "-i", inputPath, ...(outputContainer === "m4a" ? ["-map", "0:a:0", "-map", "0:v?", "-c:v", "copy"] : []), "-c:a", codecs.audio, ...(target === "opus" ? ["-ar", "48000"] : []), outputPath]
+}
+
+export function withFfmpegCoverArt(args: string[], coverPath: string): string[] {
+  const colorIndex = args.indexOf("color=c=black:s=512x512:rate=1")
+  if (colorIndex < 0 || args[colorIndex - 1] !== "-i") return args
+  const inputFlagIndex = colorIndex + 1
+  if (args[inputFlagIndex] !== "-i" || !args[inputFlagIndex + 1]) return args
+  return [
+    ...args.slice(0, colorIndex - 3),
+    "-loop", "1", "-i", coverPath,
+    "-i", args[inputFlagIndex + 1],
+    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+    ...args.slice(inputFlagIndex + 2),
+  ]
+}
+
+function ffmpegCodecs(format: string): { video: string; audio: string } {
+  if (["mp4", "mkv", "mov", "mts", "ts", "m2ts", "flv", "f4v", "m4v", "3gp", "3g2"].includes(format)) return { video: "libx264", audio: "aac" }
+  if (format === "wmv") return { video: "wmv2", audio: "wmav2" }
+  if (format === "webm") return { video: "libvpx-vp9", audio: "libopus" }
+  if (format === "ogv") return { video: "libtheora", audio: "libvorbis" }
+  if (format === "avi" || format === "divx") return { video: "mpeg4", audio: "libmp3lame" }
+  if (["mpg", "mpeg", "vob"].includes(format)) return { video: "mpeg2video", audio: "mp2" }
+  if (format === "mxf") return { video: "mpeg2video", audio: "pcm_s16le" }
+  const audio = format === "mp3" ? "libmp3lame" : format === "flac" ? "flac" : format === "wav" ? "pcm_s16le" : format === "ogg" || format === "oga" ? "libvorbis" : format === "opus" ? "libopus" : format === "m4a" ? "aac" : format === "wma" ? "wmav2" : format === "alac" ? "alac" : "aac"
+  return { video: "libx264", audio }
+}
+function ffmpegContainerArgs(format: string): string[] { if (format === "mxf") return ["-ar", "48000", "-strict", "unofficial"]; if (format === "divx") return ["-f", "avi"]; return [] }
 
 export async function runVert(
   input: VertInput,
@@ -175,7 +228,13 @@ export async function runVert(
     }
     const result = await runtime.runCommand(plan)
     commandResults.push(result)
-    if (result.code === 0) outputPaths.push(plan.outputPath)
+    if (result.code === 0) {
+      const actualOutputPath = result.outputPath ?? plan.outputPath
+      outputPaths.push(actualOutputPath)
+      if (input.deleteSourceAfterSuccess && plan.inputPath !== actualOutputPath) {
+        try { if (!runtime.removeFile) throw new Error("runtime does not support source deletion"); await runtime.removeFile(plan.inputPath) } catch (error) { errors.push(`${fileName(plan.inputPath)}: converted but source deletion failed: ${error instanceof Error ? error.message : String(error)}`) }
+      }
+    }
     else errors.push(`${fileName(plan.inputPath)}: ${shortError(result)}`)
   }
   onEvent({ type: "progress", progress: 100, message: errors.length ? "Conversion finished with errors." : "Conversion completed." })

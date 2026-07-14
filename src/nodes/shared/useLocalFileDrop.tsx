@@ -29,14 +29,8 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
   const targetId = `local-file-drop-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
   const [dragging, setDragging] = useState(false)
   const latestRef = useRef(options)
-  const pendingBrowserDropRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   latestRef.current = options
   const subscribeDrops = options.subscribeDrops ?? localFiles?.subscribeDrops
-
-  function cancelPendingBrowserDrop() {
-    if (pendingBrowserDropRef.current) clearTimeout(pendingBrowserDropRef.current)
-    pendingBrowserDropRef.current = undefined
-  }
 
   useEffect(() => {
     if (!subscribeDrops) return
@@ -44,14 +38,13 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
     let unsubscribe: (() => void) | undefined
     void subscribeDrops(targetId, (paths) => {
       if (!disposed && !latestRef.current.disabled && paths.length) {
-        cancelPendingBrowserDrop()
         latestRef.current.onDropPaths(paths)
       }
     }).then((release) => {
       if (disposed) release()
       else unsubscribe = release
     })
-    return () => { disposed = true; cancelPendingBrowserDrop(); unsubscribe?.() }
+    return () => { disposed = true; unsubscribe?.() }
   }, [subscribeDrops, targetId])
 
   const onDragOver: DragEventHandler<HTMLElement> = (event) => {
@@ -72,15 +65,10 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
     if (paths.length) latestRef.current.onDropPaths(paths)
     else if (event.dataTransfer.files.length && latestRef.current.onDropFiles) {
       const files = Array.from(event.dataTransfer.files)
-      if (subscribeDrops) {
-        cancelPendingBrowserDrop()
-        // Wails sends the real absolute paths just after the DOM drop. Wait for
-        // that event before falling back to browser File objects and Wasm.
-        pendingBrowserDropRef.current = setTimeout(() => {
-          pendingBrowserDropRef.current = undefined
-          if (!latestRef.current.disabled) latestRef.current.onDropFiles?.(files)
-        }, 400)
-      } else latestRef.current.onDropFiles(files)
+      // Desktop hosts publish the authoritative absolute path through the
+      // native subscription. A pathless DOM File must never be mistaken for a
+      // browser/Wasm input merely because its native event arrives later.
+      if (!subscribeDrops) latestRef.current.onDropFiles(files)
     }
     else if (event.dataTransfer.files.length) latestRef.current.onUnsupported?.()
   }

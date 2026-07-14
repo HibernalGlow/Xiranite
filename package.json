@@ -137,6 +137,7 @@
     "@xiranite/packu-node-runtime": "workspace:*",
     "@xiranite/runtime": "workspace:*",
     "@xiranite/shared": "workspace:*",
+    "@xyflow/react": "^12.11.2",
     "chrono-node": "^2.9.0",
     "class-variance-authority": "^0.7.1",
     "client-zip": "^2.5.0",

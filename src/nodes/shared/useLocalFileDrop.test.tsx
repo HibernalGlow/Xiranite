@@ -50,6 +50,14 @@ describe("useLocalFileDrop", () => {
     await new Promise((resolve) => setTimeout(resolve, 450))
     expect(screen.getByTestId("native-first-value").textContent).toBe("D:/audio/track.flac")
   })
+
+  test("never routes a desktop pathless DOM file into the Wasm queue", async () => {
+    const subscribeDrops: NonNullable<NodeLocalFilesCapability["subscribeDrops"]> = async () => () => undefined
+    render(<Probe name="desktop-path" acceptBrowserFiles subscribeDrops={subscribeDrops} />)
+    fireEvent.drop(screen.getByTestId("desktop-path"), { dataTransfer: { files: [new File(["book"], "book.epub")] } })
+    await Promise.resolve()
+    expect(screen.getByTestId("desktop-path-value").textContent).toBe("")
+  })
 })
 
 function Probe(props: { name: string; acceptBrowserFiles?: boolean; subscribeDrops?: NodeLocalFilesCapability["subscribeDrops"] }) {
