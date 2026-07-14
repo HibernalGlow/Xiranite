@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type {
   RepackuAction,
@@ -52,7 +52,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const action = data.action ?? "full"
   const progress = data.progress ?? 0
   const modeMeta = ACTIONS.find((item) => item.value === action) ?? ACTIONS[1]!
-  const types = useMemo(() => parseTypes(data.typesText), [data.typesText])
+  const types = parseTypes(data.typesText)
   const status = statusFromState(data, running)
   const operationPreview = result?.operations.slice(0, 120) ?? []
 
