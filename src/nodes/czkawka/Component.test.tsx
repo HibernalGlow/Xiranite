@@ -150,6 +150,33 @@ describe("Czkawka node", () => {
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "rename", selectedPaths: ["D:/photo.bin"], renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: true }))
   })
 
+  test("creates, overwrites, exports, deletes, and reimports persistent scan presets", () => {
+    const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/photos", similarity: "7" })
+    const view = render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByText(/扫描配置预设/))
+    fireEvent.change(screen.getByRole("textbox", { name: "scan preset name" }), { target: { value: "照片库" } })
+    fireEvent.click(screen.getByRole("button", { name: "新建" }))
+    expect(host.stateValue.scanPresets).toEqual([expect.objectContaining({ name: "照片库", tool: "similar-images", input: expect.objectContaining({ includedDirectories: ["D:/photos"], similarity: 7 }) })])
+    expect(host.stateValue.activeScanPresetId).toBe(host.stateValue.scanPresets?.[0]?.id)
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.change(screen.getByRole("textbox", { name: "scan preset name" }), { target: { value: "照片库 HQ" } })
+    fireEvent.click(screen.getByRole("button", { name: "覆盖" }))
+    expect(host.stateValue.scanPresets).toHaveLength(1)
+    expect(host.stateValue.scanPresets?.[0]?.name).toBe("照片库 HQ")
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "导出" }))
+    const transfer = screen.getByRole("textbox", { name: "scan preset transfer" }) as HTMLTextAreaElement
+    expect(transfer.value).toContain("xiranite.czkawka.scan-presets")
+    fireEvent.click(screen.getByRole("button", { name: "删除" }))
+    expect(host.stateValue.scanPresets).toEqual([])
+
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "导入合并" }))
+    expect(host.stateValue.scanPresets?.[0]?.name).toBe("照片库 HQ")
+  })
+
   test("persists custom filter presets in node state", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

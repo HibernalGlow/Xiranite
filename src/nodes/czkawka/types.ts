@@ -4,6 +4,7 @@ import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/sel
 import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-log"
 import type { CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
 import type { CzkawkaFloatingPanelState } from "@xiranite/node-czkawka/floating-panel"
+import type { CzkawkaScanPreset } from "@xiranite/node-czkawka/scan-presets"
 
 export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
 export type CzkawkaPanel = "source" | "results" | "analysis"
@@ -62,6 +63,8 @@ export interface CzkawkaCardState {
   activityLog?: CzkawkaActivityLogEntry[]
   cardLayout?: CzkawkaCardLayout
   floatingAnalysisPanel?: CzkawkaFloatingPanelState
+  scanPresets?: CzkawkaScanPreset[]
+  activeScanPresetId?: string
   sortBy?: CzkawkaSort
   descending?: boolean
   dryRun?: boolean

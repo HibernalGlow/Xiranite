@@ -73,7 +73,7 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | T08 | `[-]` | 重复音频 | tags/fingerprint；近似标签；title/artist/bitrate/genre/year/length；指纹差异和片段时长 | 两种算法模式、字段列、音频预览/打开能力对等 |
 | T09 | `[x]` | 无效符号链接 | 通用过滤 | 显示 link/target/reason，操作不误处理 target |
 | T10 | `[-]` | 损坏文件 | audio/PDF/archive/image 类型开关 | 类型开关进入 native；结果显示错误类型与详情 |
-| T11 | `[-]` | 不正确扩展名 | 当前扩展名、正确扩展名、批量重命名 | 支持预览、冲突处理、dry-run 和真实重命名 |
+| T11 | `[x]` | 不正确扩展名 | 当前扩展名、正确扩展名、批量重命名 | 支持预览、冲突处理、dry-run 和真实重命名 |
 
 ## 4. 通用扫描配置
 
@@ -92,7 +92,7 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | S09 | `[ ]` | 线程数 | TS 设置持久化；必要时只通过现有 native 初始化入口 |
 | S10 | `[ ]` | 扫描停止 | core 支持取消令牌；GUI/CLI/TUI 可停止并得到 stopped 状态 |
 | S11 | `[-]` | 进度 | 至少阶段进度、总体进度、步骤文本；不能只有 5%/100% 合成进度 |
-| S12 | `[ ]` | 扫描配置预设 | 新建、覆盖、删除、导入、导出、启动时恢复 |
+| S12 | `[x]` | 扫描配置预设 | 新建、覆盖、删除、导入、导出、启动时恢复 |
 
 ## 5. 结果表基础设施
 
@@ -208,6 +208,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 验证证据（2026-07-15）：共享 move 输入新增 `destinationItems`，可在一次 dry-run/live 调用中为每项指定独立目标目录，仍复用相同复制、移动、冲突和结果详情实现。纯 TS `buildCzkawkaGroupOrganizePlan` 按 fork 行为从任一选中项扩展整组、排除参考项、按“组 + 原父目录”生成目标子目录、支持 `{groupId}` 模板/非法字符清理/跳过单文件来源目录。GUI 相似图片操作卡展示组数、项目数和目标目录数并在确认后发送多目标计划；包级计划/执行测试和 GUI 组件测试覆盖完整链路。
 
 验证证据（2026-07-15）：导出不再依赖 Rust scanner 的 `PrintResults`，由 TypeScript core 对 `CzkawkaEntry` 完整字段生成结构化 JSON 或固定列 CSV；GUI 支持选择项、当前过滤视图、全部结果三种范围，CLI/OpenTUI 使用相同 `exportScope`/`exportEntries` 契约。扩展名修正同样完全由 TS 计划和文件系统原语执行，支持每项不同 `properExtension`、单项/批量、默认 dry-run、`skip`/`overwrite`/`rename`/`error` 冲突策略、逐项源/目标/错误详情，以及 GUI 反向改名撤销提示；CLI 提供 `rename <extension> <paths...>`，OpenTUI 接受 Tab 分隔的路径与扩展名。包级 74 项 Vitest、OpenTUI Bun 测试、GUI 16 项组件测试、应用 typecheck、React Compiler boundary audit 与 node architecture audit 均通过。
+
+验证证据（2026-07-15）：`scan-presets.ts` 以 canonical `CzkawkaInput` 保存扫描配置，不绑定 GUI 控件状态；操作/导出字段在入库前剔除，全部工具专属字段由 `CZKAWKA_TOOL_OPTIONS` 自动双向映射。版本化 JSON 文档支持新建、覆盖、删除、合并/替换导入、导出和格式/大小校验。GUI 活动预设、已应用字段和预设集合写入节点状态，重开节点自动恢复；CLI/OpenTUI 可从相同 config 中的 `scan_presets`/`active_scan_preset_id` 恢复到共享 interaction schema。包级 78 项 Vitest和 GUI 17 项组件测试覆盖 canonical round-trip 与完整管理生命周期。
 
 ## 10. 分析、统计和卡片系统
 

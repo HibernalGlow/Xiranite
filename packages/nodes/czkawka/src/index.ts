@@ -22,4 +22,5 @@ export * from "./activity-log.js"
 export * from "./card-layout.js"
 export * from "./floating-panel.js"
 export * from "./operations.js"
+export * from "./scan-presets.js"
 export default entry

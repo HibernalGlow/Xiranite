@@ -11,9 +11,11 @@ import { help } from "./help.js"
 import { createCzkawkaOperationInput, CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 import { formatCzkawkaActivityMessage } from "./activity-log.js"
+import { czkawkaScanPresetToValues, type CzkawkaScanPreset } from "./scan-presets.js"
+import type { CzkawkaInteractionValues } from "./interaction.js"
 
 const CLI_NAME = nodeCliName("czkawka")
-interface CzkawkaConfig extends CliInteractionPreferencesSource { tool?: CzkawkaTool; recursive?: boolean; use_cache?: boolean; hash_type?: "crc32" | "xxh3" | "blake3"; check_method?: "name" | "size" | "size-and-name" | "hash"; similarity?: number }
+interface CzkawkaConfig extends CliInteractionPreferencesSource { tool?: CzkawkaTool; recursive?: boolean; use_cache?: boolean; hash_type?: "crc32" | "xxh3" | "blake3"; check_method?: "name" | "size" | "size-and-name" | "hash"; similarity?: number; scan_presets?: CzkawkaScanPreset[]; active_scan_preset_id?: string }
 
 export const cli: CliCommand = { name: CLI_NAME, description: help.short, run: (args, host) => runProgram(args, host) }
 
@@ -23,7 +25,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = d
     host,
     cliName: CLI_NAME,
     loadContext: async () => { const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
-    createDefinition: (defaults, language) => ({ schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity }, language), run: (input, onEvent) => runCzkawka(input, createNodeCzkawkaRuntime(), onEvent) }),
+    createDefinition: (defaults, language) => { const activePreset = defaults.scan_presets?.find((preset) => preset.id === defaults.active_scan_preset_id); const presetValues = activePreset ? czkawkaScanPresetToValues(activePreset) as Partial<CzkawkaInteractionValues> : {}; return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input, onEvent) => runCzkawka(input, createNodeCzkawkaRuntime(), onEvent) } },
     runPipe,
     runGuide: runGuidedInteraction,
     runUi: runTerminalUi,
