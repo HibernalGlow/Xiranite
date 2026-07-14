@@ -945,16 +945,16 @@ return new Response(source.stream, {
 
 ### 11.5 RAR/7z 非 solid：stdout 真流式
 
-`node-7z` 适合 list、进度事件和批量落盘提取；单页数据面应直接使用 `Bun.spawn()` 调用平台 `7zz`，把 stdout 作为流返回：
+`node-7z` 适合 list、进度事件和批量落盘提取；单页数据面直接使用 `node:child_process.spawn()` 调用系统 7-Zip，把 stdout 作为 Web `ReadableStream` 返回。这里采用 Node/Bun 都支持的标准 API，使 GUI backend、CLI 和 TUI 共用同一 provider，不维护 Bun 专属实现：
 
 ```ts
-const child = Bun.spawn(
-  [sevenZipPath, "x", "-so", "--", archivePath, indexedEntryName],
-  { stdout: "pipe", stderr: "pipe" },
-)
+const child = spawn(sevenZipPath, [
+  "x", "-so", "-bd", "-bb0", "-sccUTF-8", "-spd", "--",
+  archivePath, indexedEntryName,
+], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] })
 
 signal.addEventListener("abort", () => child.kill(), { once: true })
-return child.stdout
+return Readable.toWeb(child.stdout)
 ```
 
 实现时还必须：
@@ -969,6 +969,17 @@ return child.stdout
 - 密码不得写入日志；密码输入和进程参数暴露风险需要单独设计。
 
 进程启动存在固定成本，因此“当前页单 entry stdout 流”和“邻近页小批量落盘预提取”应由实测动态选择，而不是强制所有 RAR/7z 都走一种路径。
+
+当前实现位于 `packages/nodes/neoview/src/platform/archives/sevenzip/`，已具备：
+
+- `resolveSevenZipExecutable()` 按显式路径、`XIRANITE_7ZIP_PATH`、PATH 候选顺序发现系统 `7z`/`7zz`，解析版本 banner；缺失或版本无效会返回明确 capability 错误，不捆绑额外可执行文件；
+- `7z l -slt -sccUTF-8 -spd --` 的有界结构化索引，解析 Unicode 路径、大小、packed size、CRC、method、加密与 solid block，并拒绝 traversal、绝对路径、重复条目、控制字符和异常大小；
+- 非 solid RAR/CBR/7z/CB7 使用 `7z x -so` 单 entry 真流式读取，不经过 shell、整页 `Buffer`、Base64 或临时文件；stderr 上限为 256 KiB，退出码和 spawn 错误会传回调用方；
+- list 从宿主全局 I/O 池取得 `neoview.archive-index` lease，提取从 CPU 池取得 `neoview.archive-extract` lease；成功、失败、主动取消和 provider close 都释放 lease；独立 CLI/TUI 使用相同 port 的本地有界 scheduler fallback；
+- 客户端取消、尺寸探测提前结束和 session/provider close 会取消 stdout reader 并终止子进程；真实 8 MiB entry 测试验证活动取消，close 可幂等执行；
+- 真实系统 CB7 集成测试覆盖来源识别、自然排序、过滤非图片、PNG 尺寸探测、asset route MIME 与原始字节响应；系统没有 7-Zip 时显式 skip，不以 mock 冒充系统兼容性。
+
+当前边界也必须保持明确：solid archive 已能正确识别，并标记 `randomAccess=false`、`materialization=required`，但顺序 pre-extractor 尚未完成，因此会在 `openEntry` 明确拒绝而不是退化为昂贵的伪随机流；encrypted RAR/7z 在 session secret store 和安全密码通道完成前同样明确拒绝。相邻页 singleflight/批量预提取仍属于后续 Phase 4，不能把当前 non-solid provider 宣称为完整 RAR/7z 功能。
 
 ### 11.6 Solid archive：预提取优于伪随机流
 

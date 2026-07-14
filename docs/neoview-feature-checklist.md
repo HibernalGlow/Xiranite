@@ -87,7 +87,7 @@
 - 设置：`performance.archiveTempfileThresholdMB`、`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：archive index、materialization leases
 - 行为：ZIP/ZIP64/CBZ；RAR/7z solid 与 non-solid；嵌套与加密；当前页优先流；CRC/损坏包；条目删除后索引失效；取消无子进程残留
-- 测试：`neoview.archive.conformance`、`neoview.archive.security`、`neoview.archive.zip-metadata`、`neoview.archive.zip64`、`neoview.archive.streaming`、`neoview.archive.cancellation`、`neoview.archive.crc`、`neoview.archive.duplicates`、`neoview.archive.unicode`、`neoview.archive.encrypted`、`neoview.archive.empty-corrupt`、`neoview.archive.large-index`、`neoview.book.archive`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.image.probe-archive`
+- 测试：`neoview.archive.conformance`、`neoview.archive.security`、`neoview.archive.zip-metadata`、`neoview.archive.zip64`、`neoview.archive.streaming`、`neoview.archive.cancellation`、`neoview.archive.crc`、`neoview.archive.duplicates`、`neoview.archive.unicode`、`neoview.archive.encrypted`、`neoview.archive.empty-corrupt`、`neoview.archive.large-index`、`neoview.book.archive`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.image.probe-archive`、`neoview.sevenzip.capability`、`neoview.sevenzip.capability-errors`、`neoview.sevenzip.index`、`neoview.sevenzip.index-errors`、`neoview.sevenzip.security`、`neoview.sevenzip.system-index`、`neoview.sevenzip.provider`、`neoview.sevenzip.cancellation`、`neoview.sevenzip.solid-boundary`、`neoview.sevenzip.reader-e2e`
 - 性能基准：`archive-entry-ttfb`、`solid-adjacent-page`
 - 已知差异：无
 
@@ -153,7 +153,7 @@
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.sevenzip.scheduler`
 - 性能基准：`scheduler-contention`、`cancel-latency`
 - 已知差异：无
 

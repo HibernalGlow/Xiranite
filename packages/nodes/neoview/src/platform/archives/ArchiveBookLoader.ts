@@ -6,22 +6,30 @@ import { pageMediaType, pathExtension } from "../../domain/page/media.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ArchiveProvider } from "../../ports/ArchiveProvider.js"
+import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { createReaderBook, stableOpaqueId, versionFromFile } from "../books/book-utils.js"
 import { ArchivePageContent } from "../content/ArchivePageContent.js"
 
-export async function loadArchiveBook(source: Extract<ViewSource, { kind: "archive" }>, signal?: AbortSignal): Promise<ReaderBook> {
+export async function loadArchiveBook(
+  source: Extract<ViewSource, { kind: "archive" }>,
+  signal?: AbortSignal,
+  options: PlatformReaderBookLoaderOptions = {},
+): Promise<ReaderBook> {
   signal?.throwIfAborted()
   if (source.entryPath) throw new Error("Nested archive entry sources are not implemented yet.")
   const archivePath = await realpath(source.path)
   const extension = pathExtension(archivePath)
-  if (extension !== "zip" && extension !== "cbz") {
+  if (extension !== "zip" && extension !== "cbz" && extension !== "rar" && extension !== "cbr" && extension !== "7z" && extension !== "cb7") {
     throw new Error(`Archive format is not available yet: .${extension || "unknown"}`)
   }
   const archiveStats = await stat(archivePath)
   if (!archiveStats.isFile()) throw new Error(`Reader source is not an archive file: ${source.path}`)
   signal?.throwIfAborted()
-  const { ZipArchiveProvider } = await import("./zip/ZipArchiveProvider.js")
-  const provider: ArchiveProvider = new ZipArchiveProvider(archivePath)
+  const provider: ArchiveProvider = extension === "zip" || extension === "cbz"
+    ? new (await import("./zip/ZipArchiveProvider.js")).ZipArchiveProvider(archivePath)
+    : new (await import("./sevenzip/SevenZipArchiveProvider.js")).SevenZipArchiveProvider(archivePath, {
+      resourceScheduler: options.resourceScheduler,
+    })
   try {
     const entries = await provider.list(signal)
     const pageEntries = entries

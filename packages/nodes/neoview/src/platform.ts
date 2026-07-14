@@ -6,6 +6,7 @@ import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset
 import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
+import type { ResourceScheduler } from "./ports/ResourceScheduler.js"
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
   sourceRevision: "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
@@ -28,9 +29,9 @@ export async function createZipArchiveProvider(
   return new ZipArchiveProvider(sourcePath, options)
 }
 
-export async function createReaderBookLoader(): Promise<ReaderBookLoader> {
+export async function createReaderBookLoader(resourceScheduler?: ResourceScheduler): Promise<ReaderBookLoader> {
   const { createPlatformReaderBookLoader } = await import("./platform/books/PlatformReaderBookLoader.js")
-  return createPlatformReaderBookLoader()
+  return createPlatformReaderBookLoader({ resourceScheduler })
 }
 
 export async function createReaderAssetRoute(

@@ -41,11 +41,15 @@ export interface ReaderHttpControllerOptions extends ReaderAssetRouteOptions {
 }
 
 export class ReaderHttpController implements AsyncDisposable {
-  readonly #service = new CoreReaderService(createPlatformReaderBookLoader(), new StreamingImageMetadataProbe())
+  readonly #service: CoreReaderService
   readonly #assets: ReaderAssetRoute
   readonly #token: string
 
   constructor(options: ReaderHttpControllerOptions) {
+    this.#service = new CoreReaderService(
+      createPlatformReaderBookLoader({ resourceScheduler: options.resourceScheduler }),
+      new StreamingImageMetadataProbe(),
+    )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),
       loadImageTransformer: async () => {
