@@ -744,6 +744,10 @@ route 必须具备：
 - HTTP writer 尊重 `drain` 背压，客户端断开会 abort Request 并 cancel Response body，继续传播到文件句柄或 ZIP extraction；
 - control DTO 只返回 book 摘要、FrameSnapshot、安全页字段和 asset URL；完整页表通过 cursor/limit 分页，默认 100、上限 500。
 
+最小 React 纵切已接入 `src/nodes/neoview` 的 app/feature/adapter 边界：节点 `entry.ts` 与 `Component.tsx` 保持薄，`ReaderApp` 只持有 session/frame/交互小状态，HTTP client adapter 负责控制面；主显示链使用 DOM `<img decoding="async">`，不引入 Svelte runtime、Canvas 或 Base64。真实 CBZ Playwright E2E 会启动独立 loopback backend，在桌面与 `420×360` 卡片视口中验证有效 PNG 解码、前后翻页、零 Canvas 和关闭后 session 释放。
+
+`XIRANITE_CHUNK_REPORT=1 bunx vite build && bun run audit:neoview-build` 的 2026-07-15 生产构建证据为：NeoView React app 独立懒 chunk `12,174 bytes`，初始 chunk 中 NeoView 实现模块为 `0`，前端 `zip.js` 模块为 `0`。全仓通用 `audit:build-chunks` 同次仍因既有初始产物 `540,011 bytes > 520,000 bytes` 失败，但模块报告证明该初始 chunk 没有 NeoView 实现；NeoView 专属门禁独立限制 app chunk 不超过 40 KiB，并禁止 Reader/zip.js 泄漏到首屏。
+
 本地 HTTP 比 Tauri 内置协议多一层轻量 HTTP 解析，但在 loopback 上通常远小于图片解压、解码和 GPU 上传成本。它还能避免 Base64 的约 33% 体积膨胀、多次内存复制和 JS 堆压力。最终是否有净收益，以端到端基准为准。
 
 GUI 使用 HTTP 不代表核心绑定 HTTP。平台层应先提供 `openViewSource()`；HTTP route、CLI 导出、TUI 图像协议只是它的三个消费者：
@@ -1788,6 +1792,7 @@ scripts/
 
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；后续接可选 sharp transform；
+- 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
 - 实现 loopback asset route；

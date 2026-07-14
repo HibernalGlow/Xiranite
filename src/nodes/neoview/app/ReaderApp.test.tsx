@@ -1,0 +1,82 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { describe, expect, it, vi } from "vitest"
+
+import type { ReaderHttpClient, ReaderSessionDto } from "../adapters/reader-http-client"
+import { ReaderApp } from "./ReaderApp"
+
+describe("ReaderApp", () => {
+  it("[neoview.react.smoke] opens and navigates with DOM img elements over asset URLs", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const client: ReaderHttpClient = {
+      open: vi.fn(async () => opened),
+      navigate: vi.fn(async () => ({
+        frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
+        visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
+      })),
+      close: vi.fn(async () => undefined),
+    }
+    const committed = vi.fn()
+    const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} onPathCommitted={committed} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const firstImage = await screen.findByRole("img", { name: "001.jpg" })
+    expect(firstImage.tagName).toBe("IMG")
+    expect(firstImage.getAttribute("src")).toContain("page-1")
+    expect(document.querySelector("canvas")).toBeNull()
+    expect(committed).toHaveBeenCalledWith("D:/books/demo.cbz")
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "漫画、图片或目录路径" }), { key: "ArrowRight" })
+    expect(client.navigate).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }))
+    const secondImage = await screen.findByRole("img", { name: "002.jpg" })
+    expect(secondImage.getAttribute("src")).toContain("page-2")
+    expect(screen.getByText("2 / 2")).toBeTruthy()
+
+    view.unmount()
+    await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
+  })
+
+  it("[neoview.react.lifecycle] aborts superseded work and reports backend errors", async () => {
+    let rejectOpen!: (error: Error) => void
+    const client: ReaderHttpClient = {
+      open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
+        rejectOpen = reject
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+      })),
+      navigate: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    const view = render(<ReaderApp initialPath="D:/books/missing.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    view.unmount()
+    await act(async () => rejectOpen(new Error("missing")))
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+})
+
+function session(pageId: string, assetUrl: string, index: number): ReaderSessionDto {
+  return {
+    sessionId: "reader-1",
+    book: { id: "book-1", displayName: "demo.cbz", pageCount: 2 },
+    frame: {
+      generation: 0,
+      anchorPageIndex: index,
+      direction: "left-to-right",
+      layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
+      pages: [{ pageId, pageIndex: index, side: "single" }],
+      pageCount: 2,
+      atStart: index === 0,
+      atEnd: index === 1,
+    },
+    visiblePages: [{
+      id: pageId,
+      index,
+      name: "001.jpg",
+      mediaKind: "image",
+      mimeType: "image/jpeg",
+      byteLength: 10,
+      contentVersion: "v1",
+      assetUrl,
+    }],
+  }
+}
