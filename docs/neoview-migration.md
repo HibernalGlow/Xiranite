@@ -494,15 +494,132 @@ xreader --connect inspect book.cbz
 
 ## 16. 前端性能规则
 
-- `ReaderView` 使用独立 store 和 selector，禁止把逐帧/逐页状态写入 workspace 全局 store；
-- 连续滚动和缩略图必须虚拟化，并用 `IntersectionObserver` 报告窗口；
-- FrameSnapshot 先稳定布局，再异步填充图像，避免尺寸未知导致大面积 layout shift；
-- 新 frame `ready=false` 时保留旧 frame；`ready=true` 后一次切换；
-- 缩放过程优先使用 CSS transform，停止交互后再请求精确尺寸版本；
-- 不在 render 中扫描目录、排序全书、探测图片尺寸或构造大对象；
-- 页组件只订阅自己的 page/view 状态，翻页不能触发整个节点树更新；
+### 16.1 React 与 Svelte 的取舍
+
+Svelte 在细粒度局部状态更新和少量 DOM 变化的场景中通常有更低的框架开销；React 仍需经过组件执行、调度和 reconciliation。React Compiler 可以减少无效计算和重复渲染，但不会消除 reconciler，也不能自动优化图片解码、过量 DOM、外部 store 粗粒度订阅和逐帧状态写入。
+
+这不意味着迁移到 React 必然降低阅读性能。图片阅读器的主要成本通常依次来自：
+
+1. 文件读取与 archive entry 解压；
+2. 图片解码、缩放和 GPU 上传；
+3. 同时挂载的图片与 DOM 数量；
+4. 前后端重复缓存和二进制复制；
+5. React/Svelte 自身的状态更新开销。
+
+只要前四项按本设计收口，并控制 React 参与的更新频率，框架差异不会成为主要瓶颈。最终选择以相同数据面、相同样本和相同交互的端到端基准为准，不以微型组件 benchmark 代替阅读器实测。
+
+### 16.2 使用现有 React Compiler，不再重复建设
+
+Xiranite 当前已经使用 React 19.2，并在 `vite.config.ts` 中通过 `babel-plugin-react-compiler` 默认启用 `compilationMode: "infer"`。Reader 不需要新增另一套编译配置。
+
+但现有节点宿主有一个明确边界：节点入口在 render 中通过 `host.state.getData()` 读取最新 workspace 快照，这类命令式读取不是 Compiler 可追踪的 React 输入。因此：
+
+- `src/nodes/neoview/Component.tsx` 的导出入口必须遵循现有审计规则保留 `"use no memo"`；
+- 入口只读取宿主配置、创建/连接 session，并渲染内部组件；
+- `ReaderApplication`、`ReaderViewport`、`PageFrame`、`ThumbnailItem` 等拆到独立组件，由 Compiler 正常优化；
+- 不得因为入口 opt-out 而给整个 Reader 子树加入 `"use no memo"`；
+- 普通派生值和普通回调优先直接书写，不机械添加 `useMemo`、`useCallback` 和 `React.memo`；
+- 只有第三方 API 的引用稳定契约、Observer 注册、实测热点或 Compiler 兼容问题才保留手写 memo。
+
+推荐入口形态：
+
+```tsx
+export function Component(props: NodeComponentProps) {
+  "use no memo"
+
+  const config = props.host.state.getData()
+  return <ReaderApplication nodeId={props.nodeId} config={config} />
+}
+```
+
+需要通过 `bun run audit:react-compiler-boundaries` 保证入口约束，通过 `bun run benchmark:react-compiler` 对比 `annotation` 与 `infer`；后者还需要增加 NeoView 专属阅读场景，现有通用卡片 benchmark 不能代替 Reader 基准。
+
+### 16.3 状态模型与订阅粒度
+
+`ReaderView` 使用独立外部 store，并通过 selector 或 `useSyncExternalStore` 建立 React 可追踪的订阅。禁止把逐帧/逐页状态写入 workspace 全局 store，也禁止每次翻页替换包含全书内容的单一大对象。
+
+推荐规范化存储：
+
+```tsx
+const frame = useReaderStore((state) => state.frames[state.currentFrameId])
+const page = useReaderStore((state) => state.pages[pageId])
+```
+
+- page 组件只订阅自己的 page/view 状态；
+- 工具栏只订阅页码、模式、缩放等小型 primitive/derived value；
+- 高频事件回调若只需要最新值，应在回调时读取 store，不为此额外订阅组件；
+- 后端 ReaderSession 是书籍状态权威来源，React store 只保存呈现快照和交互状态；
+- 更新必须保留未变化实体的引用，翻页不能触发整个节点树或 workspace 重渲染。
+
+### 16.4 高频交互绕开 React commit
+
+拖拽、捏合缩放、滚轮缩放、惯性滚动和指针跟随不能每个事件都 `setState`。这些瞬态值使用：
+
+- `ref` 保存最新坐标与缩放；
+- `requestAnimationFrame` 合并一帧内的多次输入；
+- CSS custom properties 和 `transform: translate3d(...) scale(...)` 更新合成层；
+- passive scroll/wheel listener（不需要 `preventDefault` 时）；
+- 交互结束或达到低频采样点后，才把最终值提交到 React/store 并请求精确尺寸图片。
+
+`will-change` 只能在交互开始时短暂启用，结束后移除，避免长期占用合成层内存。普通图片优先使用 `<img>` 和浏览器解码管线，不为“绕开 React”默认改成 Canvas。
+
+### 16.5 虚拟化与稳定布局
+
+项目已经依赖 `@tanstack/react-virtual`，Reader 应直接复用：
+
+- 翻页模式只挂载当前 frame、必要的上一 frame 和下一 frame；
+- 连续滚动只挂载可视区和有界 overscan，不能把整本书的 `<img>` 留在 DOM；
+- 缩略图列表必须完全虚拟化；
+- 用 `IntersectionObserver` 报告视口，驱动后端预读提示而非前端私有队列；
+- 对远离视口的布局容器使用 `content-visibility: auto` 与合理的 `contain-intrinsic-size`；
+- FrameSnapshot 在图片到达前提供宽高和布局，避免 layout shift；
+- 新 frame `ready=false` 时保留旧 frame，`ready=true` 后一次切换。
+
+虚拟列表的数据、测量器和第三方配置可能依赖引用恒等性。这些位置不能为了“让 Compiler 全权处理”而盲目删除手写 memo，必须结合实际滚动 benchmark 验证。
+
+### 16.6 React 19 调度只用于非紧急更新
+
+- 当前页导航、点击反馈和当前 frame ready 属于紧急更新；
+- 缩略图补全、后台元数据、非关键统计可使用 `startTransition`；
+- 搜索、过滤或大列表派生结果可以使用 `useDeferredValue`；
+- 不得把当前页显示放入 transition 来掩盖后端延迟；
+- 独立异步请求应尽早并行启动，禁止形成“先读书籍信息，再串行读页，再串行取尺寸”的前端 waterfall；
+- Suspense 只能作为分块加载和占位边界，不能让页面级 fallback 清空仍可显示的旧 frame。
+
+### 16.7 图片与 bundle 规则
+
 - 图片 URL 稳定且带内容版本，不为同一资源重复创建随机 URL；
-- 所有 effect、observer、timer、subscription 和临时 URL 都必须清理。
+- 当前页可设置高请求优先级，邻近预读页保持低优先级；
+- 浏览器支持时使用 `HTMLImageElement.decode()` 在切换前确认可显示，但 ready 的业务权威仍在 ReaderService；
+- Reader 设置、高级元数据编辑器、PDF/EPUB 特有 UI 等通过动态 `import()` 按能力加载；
+- 禁止通过公共 barrel import 意外把所有格式适配 UI 打入 Reader 首块；
+- React 只持有 URL、尺寸和小型状态，不持有后端 archive buffer；
+- 所有 effect、observer、timer、subscription 和临时 Object URL 必须清理。
+
+### 16.8 最后的兜底：命令式 Viewer Island
+
+如果 Profiler 证明 React commit 或 reconciliation 在虚拟化和细粒度订阅后仍占据显著帧预算，可以采用“React 外壳 + 命令式 Viewer Island”：
+
+- React 继续管理工具栏、设置、书籍信息、session 和可访问性结构；
+- 一个独立的 imperative DOM/Web Component/Canvas viewer 只消费 FrameSnapshot；
+- 拖动、缩放和页面变换由 viewer 自己逐帧处理；
+- React 只在 frame、模式和持久化状态变化时同步。
+
+这个兜底仍复用相同 ReaderService，不引入第二套 Svelte runtime 和第二套业务逻辑。只有在真实火焰图证明 React 是瓶颈后才实施，不能作为前期架构复杂化的理由。
+
+### 16.9 React 专属观测指标
+
+除第 18 节端到端指标外，Phase 3 还必须用 React Profiler、Performance API 和浏览器 trace 记录：
+
+- 一次翻页产生的 commit 次数与 p95 commit duration；
+- 指针输入到 transform 生效的延迟；
+- 连续滚动时挂载的 page/image/DOM 数量；
+- 主线程超过 50 ms 的 long task 数量；
+- 快速翻页停止后，React 更新与网络请求队列的收敛时间；
+- Reader 操作引发的 workspace 非 Reader 组件 commit 数量；
+- React Compiler `infer` 相对 `annotation` 的生产构建体积和交互差异。
+
+60 Hz 下每帧总预算只有约 16.7 ms。React commit 不应长期占据主要预算，但具体阈值要在 Phase 0 根据目标硬件和 WebView 测量方差确定。
 
 ## 17. 不迁移或必须删除的旧系统
 
@@ -549,9 +666,12 @@ xreader --connect inspect book.cbz
 ### Phase 3：React Reader 重构
 
 - 以 FrameSnapshot 重写显示层；
-- 接入虚拟化、稳定布局和方向预读；
+- 使用“薄 opt-out 节点入口 + Compiler 优化内部子树”；
+- 接入细粒度 selector、虚拟化、稳定布局和方向预读；
+- 高频拖动/缩放使用 ref、rAF 和 CSS transform，不逐帧提交 React state；
 - 删除被替代的前端队列、Blob/Base64 和缓存主链；
-- 验证 Reader 操作不会引发 workspace 级重渲染。
+- 验证 Reader 操作不会引发 workspace 级重渲染；
+- 保存 React Profiler、Compiler 对照和浏览器 trace 基准。
 
 ### Phase 4：复杂格式与 TUI
 
@@ -576,6 +696,8 @@ xreader --connect inspect book.cbz
 | 未打开 Reader | XR 启动时间、idle RSS、加载模块 | 不加载 Reader chunk/native 库；整体回归不超过测量噪声或 5% |
 | 冷打开 | 首个可见 frame ready、首字节 | 不慢于 NeoView 5%；目标提升 10% |
 | 热翻页 | p50/p95 frame ready、掉帧 | p95 不慢于 NeoView 5%，无持续主线程长任务 |
+| React 更新 | commit 次数/p95 duration、非 Reader commit | 更新局限在 Reader 必要子树，不能触发 workspace 级提交 |
+| 连续滚动/缩放 | DOM 数、输入延迟、长任务 | DOM 数随虚拟窗口而非总页数增长；逐帧交互不依赖 React state |
 | 快速连续翻页 | 取消延迟、过时任务数 | 旧结果零回写；队列能在用户停止后快速收敛 |
 | 大压缩包 | 峰值 RSS、整包读取量 | 禁止整包进内存；峰值不高于 NeoView 基线 |
 | 多节点并发 | Reader p95、其他节点 p95 | 任一方相对单独运行退化超过 10% 时必须分析和限流 |
