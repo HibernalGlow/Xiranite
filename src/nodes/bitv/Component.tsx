@@ -24,6 +24,7 @@ import type { BitvCardState, BitvStatusMeta } from "./types"
 const CONFIG_FIELDS = ["action", "pathsText", "reportPath", "targetPath", "outputPath", "recursive", "bitrateStepMbps", "maxLevels", "transferMode", "dryRun"] as const
 
 export function Component({ compId, host }: NodeComponentProps<BitvCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
   const dataRef = useRef(data)

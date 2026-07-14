@@ -28,6 +28,7 @@ import type { JellyPotCardState, JellyPotStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<JellyPotCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("jellypot")
   const data = getHostData(host, compId)

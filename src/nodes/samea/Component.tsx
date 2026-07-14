@@ -30,6 +30,7 @@ const FILTERS: Array<{ id: SameaFilterTab; label: string; key: keyof Pick<SameaC
 const CONFIG_FIELDS = ["action", "pathsText", "ignorePathBlacklist", "minOccurrences", "centralize", "dryRun", "artistBlacklist", "pathBlacklist", "regexBlacklist"] as const
 
 export function Component({ compId, host }: NodeComponentProps<SameaCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("samea")
   const data = getHostData(host, compId)

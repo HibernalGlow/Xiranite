@@ -27,6 +27,7 @@ import type { SeriexCardState, SeriexStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("seriex")
   const data = host.getData<SeriexCardState>(compId) ?? {}

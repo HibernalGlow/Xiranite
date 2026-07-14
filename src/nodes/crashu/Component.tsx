@@ -23,6 +23,7 @@ import type { CrashuAction, CrashuCardState, CrashuPhase, CrashuStatusMeta } fro
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("crashu")
   const data = host.getData<CrashuCardState>(compId) ?? {}

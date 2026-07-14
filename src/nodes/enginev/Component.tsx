@@ -39,6 +39,7 @@ import { WallpaperGallery } from "./WallpaperGallery"
 type EngineVProps = NodeComponentProps<EngineVCardState, EngineVNodeConfig>
 
 export function Component({ host }: EngineVProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("enginev")
   const data = host.state.getData() ?? {}

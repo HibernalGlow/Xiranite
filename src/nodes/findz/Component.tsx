@@ -31,7 +31,7 @@ import { CONFIG_FIELDS } from "./types"
 type FindzProps = NodeComponentProps<FindzCardState, Partial<FindzCardState>>
 
 export function Component({ host }: FindzProps) {
-  "use memo"
+  "use no memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("findz")
   const data = host.state.getData() ?? {}

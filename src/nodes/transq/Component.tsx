@@ -20,6 +20,7 @@ import { ActionIconButton, LogStrip, PathsInput, QueueBoard, QueueEmptyState } f
 import type { TransqCardState, TransqStatusMeta } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<TransqCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("transq")
   const data = host.state?.getData?.() ?? host.getData<TransqCardState>(compId) ?? {}

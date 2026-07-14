@@ -21,6 +21,7 @@ import type { MoveaCardState, MoveaPhase, MoveaStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = host.getData<MoveaCardState>(compId) ?? {}
   const dataRef = useRef<MoveaCardState>(data)

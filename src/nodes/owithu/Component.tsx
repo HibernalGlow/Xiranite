@@ -29,6 +29,7 @@ import type { OwithuCardState, OwithuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = host.getData<OwithuCardState>(compId) ?? {}
   const dataRef = useRef<OwithuCardState>(data)

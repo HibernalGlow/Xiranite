@@ -30,6 +30,7 @@ import { CONFIG_FIELDS } from "./types"
 type SimiuProps = NodeComponentProps<SimiuCardState, Partial<SimiuCardState>>
 
 export function Component({ compId, host }: SimiuProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("simiu")
   const data = getHostData(host, compId)

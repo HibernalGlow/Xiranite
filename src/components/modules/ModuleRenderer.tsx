@@ -76,6 +76,10 @@ export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId:
  * the node component wrapped in {@link NodeRenderBoundary}.
  */
 function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
+  "use no memo"
+  // Node components read their controlled state through the stable host API.
+  // The host hook subscribes this boundary to workspace changes, so this
+  // boundary must recreate the child element even when its props are stable.
   const [entry, setEntry] = useState<PackageModuleEntry | null | undefined>(undefined)
   const host = useNodeHostApi(compId, moduleId, entry && isRenderableNodeEntry(entry) ? entry.schemas : undefined)
 

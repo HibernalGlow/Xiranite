@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { ComponentType } from "react"
 import type {
   AppNodeEntry,
@@ -15,6 +15,7 @@ import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 const testState = vi.hoisted(() => ({
   hostRequirements: undefined as NodeHostRequirements | undefined,
   childThrow: false,
+  controlledInput: false,
 }))
 
 const supportedCapabilities: readonly NodeCapabilityId[] = [
@@ -29,26 +30,53 @@ const supportedCapabilities: readonly NodeCapabilityId[] = [
   // require it and observe the diagnostic fallback.
 ]
 
-vi.mock("./hostApi", () => ({
-  useNodeHostApi: () => ({
-    contract: {
-      name: "xiranite.node-host",
-      version: NODE_HOST_CONTRACT_VERSION,
-      supportedCapabilities,
-      hasCapability: (cap: NodeCapabilityId) => supportedCapabilities.includes(cap),
+vi.mock("./hostApi", async () => {
+  const { useMemo, useRef, useState } = await import("react")
+  return {
+    useNodeHostApi: () => {
+      const dataRef = useRef<Record<string, unknown>>({})
+      const [, rerender] = useState(0)
+      return useMemo(() => {
+        const patchData = (patch: Record<string, unknown>) => {
+          dataRef.current = { ...dataRef.current, ...patch }
+          rerender((revision) => revision + 1)
+        }
+        return {
+          contract: {
+            name: "xiranite.node-host",
+            version: NODE_HOST_CONTRACT_VERSION,
+            supportedCapabilities,
+            hasCapability: (cap: NodeCapabilityId) => supportedCapabilities.includes(cap),
+          },
+          state: { getData: () => dataRef.current, patchData },
+          env: { theme: "light", platform: "web" },
+          // deprecated aliases kept so the mock satisfies NodeHostApi structurally
+          getData: () => dataRef.current,
+          patchData: (_compId: string, patch: Record<string, unknown>) => patchData(patch),
+          listComponents: () => [],
+          updateComponent: () => undefined,
+        }
+      }, [])
     },
-    state: { getData: () => ({}), patchData: () => undefined },
-    env: { theme: "light", platform: "web" },
-    // deprecated aliases kept so the mock satisfies NodeHostApi structurally
-    getData: () => ({}),
-    patchData: () => undefined,
-    listComponents: () => [],
-    updateComponent: () => undefined,
-  }),
-}))
+  }
+})
 
-function TestNodeComponent(_props: NodeComponentProps) {
+function TestNodeComponent(props: NodeComponentProps) {
+  "use no memo"
   if (testState.childThrow) throw new Error("child exploded")
+  if (testState.controlledInput) {
+    const value = String((props.host.state.getData() as { value?: string } | undefined)?.value ?? "")
+    return (
+      <div>
+        <input
+          aria-label="controlled node input"
+          value={value}
+          onChange={(event) => props.host.state.patchData({ value: event.currentTarget.value })}
+        />
+        <output data-testid="controlled-node-value">{value}</output>
+      </div>
+    )
+  }
   return <div data-testid="test-node-content">test node rendered</div>
 }
 
@@ -99,6 +127,7 @@ afterEach(() => {
   vi.clearAllMocks()
   testState.hostRequirements = undefined
   testState.childThrow = false
+  testState.controlledInput = false
 })
 
 describe("ModuleRenderer package node rendering", () => {
@@ -109,6 +138,16 @@ describe("ModuleRenderer package node rendering", () => {
     }
     render(<ModuleRenderer moduleId="test-node" compId="c1" />)
     expect(await screen.findByTestId("test-node-content")).toBeTruthy()
+  })
+
+  test("rerenders controlled node inputs when stable host state changes", async () => {
+    testState.controlledInput = true
+    render(<ModuleRenderer moduleId="test-node" compId="c1" />)
+
+    const input = await screen.findByRole("textbox", { name: "controlled node input" })
+    fireEvent.change(input, { target: { value: "typed value" } })
+
+    expect(screen.getByTestId("controlled-node-value").textContent).toBe("typed value")
   })
 
   test("renders diagnostic fallback when a required capability is missing", async () => {

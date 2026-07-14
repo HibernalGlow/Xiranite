@@ -18,6 +18,7 @@ type SoundwDefaults = Pick<SoundwCardState, "profileName" | "soundSwitchPath">
 const MAX_LOG_LINES = 60
 
 export function Component({ compId, host }: NodeComponentProps<SoundwCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = host.state?.getData?.() ?? host.getData<SoundwCardState>(compId) ?? {}
   const dataRef = useRef(data)

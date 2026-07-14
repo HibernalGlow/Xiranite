@@ -35,6 +35,7 @@ import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("xlchemy")
   const data = getHostData(host, compId)

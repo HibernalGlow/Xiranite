@@ -26,6 +26,7 @@ import type { LataCardState, LataPhase, LataStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("lata")
   const data = host.getData<LataCardState>(compId) ?? {}

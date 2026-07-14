@@ -24,6 +24,7 @@ import { CONFIG_FIELDS } from "./types"
 import { CommandPreview, OutputConsole, PathsColumn } from "./WorkbenchPanels"
 
 export function Component({ compId, host }: NodeComponentProps<AudiovCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("audiov")
   const data = getHostData(host, compId)

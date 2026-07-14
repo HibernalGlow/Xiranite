@@ -23,6 +23,7 @@ import type { NameuCardState, NameuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<NameuCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("nameu")
   const data = getHostData(host, compId)

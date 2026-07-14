@@ -29,6 +29,7 @@ import type { MvzCardState, MvzPhase, MvzStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = host.getData<MvzCardState>(compId) ?? {}
   const dataRef = useRef<MvzCardState>(data)

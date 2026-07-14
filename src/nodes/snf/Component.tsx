@@ -26,6 +26,7 @@ import { CONFIG_FIELDS } from "./types"
 type TranslateFn = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 
 export function Component({ compId, host }: NodeComponentProps<SnfCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("snf")
   const data = getHostData(host, compId)

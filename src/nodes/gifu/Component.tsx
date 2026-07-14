@@ -24,6 +24,7 @@ import type { GifuCardState, GifuStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<GifuCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
   const dataRef = useRef<GifuCardState>(data)

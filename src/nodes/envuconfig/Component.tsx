@@ -27,6 +27,7 @@ import type { EnvuConfigCardState, EnvuConfigStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<EnvuConfigCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("envuconfig")
   const data = getHostData(host, compId)

@@ -24,6 +24,7 @@ import type { SynctCardState, SynctStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<SynctCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("synct")
   const data = getHostData(host, compId)

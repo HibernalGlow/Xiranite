@@ -30,6 +30,7 @@ import type { RecycleuCardState, RecycleuStatusMeta } from "./types"
 const CONFIG_FIELDS = ["interval", "maxCycles", "driveLetter"] as const satisfies ReadonlyArray<keyof RecycleuCardState>
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("recycleu")
   const data = host.getData<RecycleuCardState>(compId) ?? {}

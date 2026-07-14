@@ -33,6 +33,7 @@ const VERT_PICKER_FILTERS = [
 ]
 
 export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const data = getHostData(host, compId)
   const dataRef = useRef(data); dataRef.current = data

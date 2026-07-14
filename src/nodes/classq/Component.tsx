@@ -33,6 +33,7 @@ import type { ClassqCardState, ClassqStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<ClassqCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("classq")
   const data = getHostData(host, compId)

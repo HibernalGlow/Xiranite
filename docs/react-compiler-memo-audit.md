@@ -78,3 +78,16 @@ rg -n --glob '*.{ts,tsx}' 'useMemo\(|useCallback\(|React\.memo\(|\bmemo\(' src p
 - 普通派生值、事件处理器和子组件：先直接写；由 Compiler 推断优化。
 - 只有明确的外部引用稳定性契约、实测热点，或 Compiler 兼容性诊断时，才引入手写 memo 或 `"use no memo"`。
 - 每次删除手写 memo 都应是可测试的小批次，不能与功能变更混合。
+
+## 2026-07-14：节点宿主边界策略
+
+Vite 继续以 `compilationMode: "infer"` 启用 React Compiler。节点 UI 不能直接套用这一默认策略：节点入口在渲染期通过稳定的 `host.state.getData()` 读取 workspace store，而该命令式读取不是 Compiler 可追踪的 React 输入。
+
+因此，以下边界必须保留 `"use no memo"`：
+
+- `src/components/modules/ModuleRenderer.tsx` 中的 `PackageNodeRenderer`；
+- 每个 `src/nodes/*/Component.tsx` 的导出节点入口 `Component`。
+
+这不是关闭整个项目的 Compiler：普通页面、节点内拆出的子组件、结果面板仍由 `infer` 自动编译。不要为恢复节点入口的 Compiler 优化而迁移 `NodeComponentProps` 或把 store data 改为 prop；当前契约继续保留 `getData()` 供渲染和异步回调读取最新快照。
+
+在这些 opt-out 入口中，停止机械删除手写 memo。尤其保留第三方库所要求的引用稳定性：TanStack Table 的 `columns` / sorting / row selection，虚拟列表的数据与测量配置，树结构与展开/选择映射，以及拖拽 sensors 和回调。只有普通页面或独立子组件中的纯派生值，才继续按小批次、带测试地移除 memo。

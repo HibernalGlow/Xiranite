@@ -30,6 +30,7 @@ import type { ClassfCardState, ClassfStatusMeta } from "./types"
 import { CONFIG_FIELDS } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t: tNode } = useNodeI18n("classf")
   const data = getHostData(host, compId)

@@ -23,6 +23,7 @@ import type { LinedupCardState, LinedupPhase, LinedupStatusMeta } from "./types"
 const CONFIG_FIELDS = ["caseSensitive", "sort"] as const satisfies ReadonlyArray<keyof LinedupCardState>
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("linedup")
   const data = host.getData<LinedupCardState>(compId) ?? {}
