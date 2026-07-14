@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { RawfilterAction, RawfilterData, RawfilterInput } from "@xiranite/node-rawfilter/core"
 import { Copy, FileSearch, Layers, ListChecks, Play, RotateCcw, Square } from "lucide-react"
@@ -480,8 +480,8 @@ function RawfilterResultTabs(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
-  const planLines = useMemo(() => (props.result?.plan ?? []).slice(0, 500).map((item) => `${item.status} ${item.destination} ${item.fileName}${item.targetPath ? ` -> ${item.targetPath}` : ` / ${item.reason}`}`), [props.result])
-  const groupLines = useMemo(() => (props.result?.groups ?? []).map((group) => `${group.files.length} ${group.label}`), [props.result])
+  const planLines = (props.result?.plan ?? []).slice(0, 500).map((item) => `${item.status} ${item.destination} ${item.fileName}${item.targetPath ? ` -> ${item.targetPath}` : ` / ${item.reason}`}`)
+  const groupLines = (props.result?.groups ?? []).map((group) => `${group.files.length} ${group.label}`)
   const hasPlan = planLines.length > 0
   const hasGroups = groupLines.length > 0
 
