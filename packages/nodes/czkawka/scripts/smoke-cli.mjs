@@ -109,7 +109,19 @@ try {
     if (!found?.detail || result.data?.entries.some((entry) => entry.name !== filename)) throw new Error(`Broken ${kind} scanner did not isolate a detailed result: ${JSON.stringify(result)}`)
   }
 
-  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, similarVideoCropModes: 3, similarVideoDistance: true, similarVideoTolerance: true, similarVideoIgnoreSameSize: true, brokenFileTypes: 4, brokenFileDetails: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
+  const music = await createMusicFiles(fixture)
+  const tags = await scan("duplicate-music", music.exact, ["--no-cache", "--music-check", "tags", "--music-title", "--music-artist", "--music-bitrate", "--music-genre", "--music-year", "--music-length"])
+  const tagged = tags.data?.entries[0]
+  if (tags.data?.groupCount !== 1 || !tagged?.title || !tagged.artist || !tagged.bitrate || !tagged.genre || tagged.year !== "2024" || !tagged.length) throw new Error(`Music tag scan did not return complete metadata: ${JSON.stringify(tags)}`)
+  const exactTags = await scan("duplicate-music", music.approximate, ["--no-cache", "--music-check", "tags", "--music-title", "--no-music-artist", "--no-music-bitrate", "--no-music-genre", "--no-music-year", "--no-music-length", "--no-music-approximate"])
+  const approximateTags = await scan("duplicate-music", music.approximate, ["--no-cache", "--music-check", "tags", "--music-title", "--no-music-artist", "--no-music-bitrate", "--no-music-genre", "--no-music-year", "--no-music-length", "--music-approximate"])
+  if (exactTags.data?.groupCount !== 0 || approximateTags.data?.groupCount !== 1) throw new Error(`Approximate music tags were not distinguished: ${JSON.stringify({ exactTags, approximateTags })}`)
+  for (const similarTitle of ["--music-similar-title", "--no-music-similar-title"]) {
+    const fingerprint = await scan("duplicate-music", music.exact, ["--no-cache", "--music-check", "fingerprint", "--music-difference", "10", "--music-fragment", "2", similarTitle])
+    if (fingerprint.data?.groupCount !== 1) throw new Error(`Music fingerprint scan failed (${similarTitle}): ${JSON.stringify(fingerprint)}`)
+  }
+
+  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, similarImageHashSizes: 4, similarImageHashes: 6, similarImageResizeAlgorithms: 5, similarImageFolderThreshold: true, similarImageIgnoreSameSize: true, similarVideoCropModes: 3, similarVideoDistance: true, similarVideoTolerance: true, similarVideoIgnoreSameSize: true, musicModes: 2, musicMetadataFields: 6, musicApproximate: true, musicFingerprintTitleConstraint: true, brokenFileTypes: 4, brokenFileDetails: true, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
 } finally {
   await rm(fixture, { recursive: true, force: true })
 }
@@ -189,6 +201,18 @@ async function createBrokenFiles(root) {
   ])
   return directory
 }
+
+async function createMusicFiles(root) {
+  const exact = join(root, "music-exact"), approximate = join(root, "music-approximate")
+  await Promise.all([mkdir(exact, { recursive: true }), mkdir(approximate, { recursive: true })])
+  createFlac(join(exact, "a.flac"), "Same Song")
+  await writeFile(join(exact, "b.flac"), await Bun.file(join(exact, "a.flac")).arrayBuffer())
+  createFlac(join(approximate, "a.flac"), "Near Song")
+  createFlac(join(approximate, "b.flac"), "Near Song (Live)")
+  return { exact, approximate }
+}
+
+function createFlac(path, title) { runExternal(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=8", "-c:a", "flac", "-metadata", `title=${title}`, "-metadata", "artist=Same Artist", "-metadata", "genre=Ambient", "-metadata", "date=2024", "-metadata", "year=2024", path]) }
 
 function runExternal(command) {
   const result = Bun.spawnSync(command, { stdout: "pipe", stderr: "pipe" })

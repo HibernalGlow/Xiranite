@@ -104,7 +104,8 @@ pub(crate) fn prepare_thread_handler_common(
                         max_stage_idx: tool_type.get_max_stage(checking_method),
                         entries_checked: progress_status
                             .items_counter
-                            .load(atomic::Ordering::Relaxed),
+                            .load(atomic::Ordering::Relaxed)
+                            .min(max_items),
                         entries_to_check: max_items,
                         bytes_checked: progress_status.size_counter.load(atomic::Ordering::Relaxed),
                         bytes_to_check: max_size,
