@@ -27,7 +27,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
-    "test": "vitest run src --exclude src/Tui.bun.test.tsx"
+    "test": "vitest run src --exclude src/Tui.test.tsx && bun --bun vitest run src/Tui.test.tsx",
+    "smoke:cli": "bun run build && bun scripts/smoke-cli.mjs"
   },
   "dependencies": {
     "@xiranite/cli-runtime": "workspace:*",

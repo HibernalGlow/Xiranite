@@ -22,6 +22,7 @@ describe("shared interaction CLI dispatcher", () => {
     const helpHost = createMemoryCliHost()
     await dispatch(["--help"], helpHost, adapters)
     expect(helpHost.stdoutText()).toContain("Demo shared help")
+    expect(helpHost.stdoutText()).toContain("--demo  [boolean, 默认=true]")
     expect(adapters.runPipe).not.toHaveBeenCalled()
 
     await dispatch(["gd"], createMemoryCliHost({ tty: true }), adapters)
@@ -78,6 +79,6 @@ async function dispatch(args: string[], host: ReturnType<typeof createMemoryCliH
     runPipe: adapters.runPipe,
     runUi: adapters.runUi,
     runGuide: adapters.runGuide,
-    help: { title: "Demo", short: "Demo shared help", workflows: [], commands: [] },
+    help: { title: "Demo", short: "Demo shared help", workflows: [], commands: [], fields: [{ name: "--demo", type: "boolean", description: "Demo option", defaultValue: "true" }] },
   })
 }

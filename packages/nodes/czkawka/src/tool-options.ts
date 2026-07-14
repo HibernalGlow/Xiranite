@@ -1,5 +1,6 @@
 import type { InteractionField, InteractionValues } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
+import type { NodeHelpField } from "@xiranite/contract"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 
@@ -81,6 +82,23 @@ export function createCzkawkaOptionFields(language: TerminalLanguage): Interacti
     options: definition.choices?.map((choice) => ({ value: choice.value, label: choice.label ?? human(choice.value) })),
     visibleWhen: (values: InteractionValues) => values.action === "scan" && definition.tools.includes(values.tool as CzkawkaTool),
   }))
+}
+
+export function createCzkawkaOptionHelpFields(language: TerminalLanguage): NodeHelpField[] {
+  const key = language === "zh" ? "zh" : "en"
+  return CZKAWKA_TOOL_OPTIONS.map((definition) => {
+    const flag = definition.kind === "boolean" ? `${definition.cliFlag} / --no-${definition.cliFlag.slice(2)}` : definition.cliFlag
+    const tools = definition.tools.join(", ")
+    const choices = definition.choices?.map((choice) => choice.value).join(" | ")
+    const bounds = definition.kind === "number" ? [definition.min, definition.max].filter((value) => value !== undefined).join("–") : undefined
+    const details = choices ? `${language === "zh" ? "可选值" : "Values"}: ${choices}` : bounds ? `${language === "zh" ? "范围" : "Range"}: ${bounds}` : undefined
+    return {
+      name: flag,
+      type: definition.kind,
+      description: `${definition.label[key]} · ${language === "zh" ? "适用于" : "Tools"}: ${tools}${details ? ` · ${details}` : ""}`,
+      defaultValue: String(definition.defaultValue),
+    }
+  })
 }
 
 export function valuesToCzkawkaOptions(values: Record<string, unknown>): Partial<CzkawkaInput> {

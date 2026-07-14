@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest"
 import type { CliHost } from "@xiranite/cli-runtime"
 import { runProgram } from "./cli.js"
 
+// @xiranite-real-run czkawka — scripts/smoke-cli.mjs executes duplicate, basic, and media scans through the built pipe CLI and release Node-API.
+
 describe("czkawka CLI", () => {
   test("prints usage without loading the native binding", async () => {
     let output = ""

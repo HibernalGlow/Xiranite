@@ -12,6 +12,13 @@ export function formatTerminalNodeHelp(help: NodeHelp, language: TerminalLanguag
     lines.push("", language === "zh" ? "命令" : "Commands")
     for (const command of value.commands) lines.push(`  ${command.command ?? command.title}`, `      ${command.description ?? ""}`, ...command.examples.map((example) => `      $ ${example.command}`))
   }
+  if (value.fields?.length) {
+    lines.push("", language === "zh" ? "参数" : "Fields")
+    for (const field of value.fields) {
+      const metadata = [field.type, field.required ? language === "zh" ? "必填" : "required" : undefined, field.defaultValue === undefined ? undefined : `${language === "zh" ? "默认" : "default"}=${field.defaultValue}`].filter(Boolean).join(", ")
+      lines.push(`  ${field.name}${metadata ? `  [${metadata}]` : ""}`, `      ${field.description}`)
+    }
+  }
   if (value.safety) lines.push("", `${language === "zh" ? "安全模式" : "Safety mode"}: ${value.safety.defaultMode ?? "-"}`, ...(value.safety.destructive ?? []).map((item) => `  ! ${item}`), ...(value.safety.notes ?? []).map((note) => `  • ${note}`))
   return lines.filter((line, index, all) => line !== "" || all[index - 1] !== "")
 }

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest"
 
 import { CZKAWKA_TOOLS } from "./core.js"
+import { help } from "./help.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
-import { createCzkawkaOperationInput, createCzkawkaScanInput, CZKAWKA_CLI_VALUE_FLAGS, CZKAWKA_TOOL_OPTIONS, getCzkawkaToolOptions, parseCzkawkaCliOptions } from "./tool-options.js"
+import { createCzkawkaOperationInput, createCzkawkaOptionHelpFields, createCzkawkaScanInput, CZKAWKA_CLI_VALUE_FLAGS, CZKAWKA_TOOL_OPTIONS, getCzkawkaToolOptions, parseCzkawkaCliOptions } from "./tool-options.js"
 
 describe("shared Czkawka option schema", () => {
   test("is the source for every GUI/CLI/TUI tool option", () => {
@@ -19,6 +20,36 @@ describe("shared Czkawka option schema", () => {
       similarImagesIgnoreSameSize: true,
       usePrehash: false,
     })
+  })
+
+  test("generates CLI help and TUI fields from the exact GUI option definitions", () => {
+    const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
+    const helpFields = createCzkawkaOptionHelpFields("en")
+    expect(help.fields).toEqual(helpFields)
+    expect(helpFields).toHaveLength(CZKAWKA_TOOL_OPTIONS.length)
+    for (const [index, definition] of CZKAWKA_TOOL_OPTIONS.entries()) {
+      expect(interactionIds.has(definition.id)).toBe(true)
+      expect(helpFields[index]).toMatchObject({ type: definition.kind, defaultValue: String(definition.defaultValue) })
+      expect(helpFields[index]?.name).toContain(definition.cliFlag)
+      expect(helpFields[index]?.description).toContain(definition.label.en)
+      expect(help.translations?.zh?.fields?.[index]?.description).toContain(definition.label.zh)
+    }
+  })
+
+  test("round-trips every tool-specific CLI flag through the shared parser", () => {
+    const args: string[] = []
+    const expected: Record<string, unknown> = {}
+    for (const definition of CZKAWKA_TOOL_OPTIONS) {
+      if (definition.kind === "boolean") {
+        args.push(`--no-${definition.cliFlag.slice(2)}`)
+        expected[definition.id] = false
+      } else {
+        const value = definition.choices?.at(-1)?.value ?? String(definition.max ?? definition.defaultValue)
+        args.push(definition.cliFlag, value)
+        expected[definition.id] = typeof definition.defaultValue === "number" ? Number(value) : value
+      }
+    }
+    expect(parseCzkawkaCliOptions(args)).toEqual(expected)
   })
 
   test("builds the same core scan contract for every surface", () => {

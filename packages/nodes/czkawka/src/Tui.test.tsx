@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils"
-import { expect, test } from "bun:test"
+import { expect, test } from "vitest"
 import { act } from "react"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { CzkawkaTui } from "./Tui.js"
