@@ -377,15 +377,300 @@ flowchart LR
 | 类型 | 首选实现 | 数据路径 | 说明 |
 | --- | --- | --- | --- |
 | 目录/普通图片 | Bun/Node 异步 FS | 原文件直出 | 浏览器能显示且无需缩放时零转码 |
-| ZIP/CBZ | 流式 ZIP + Node zlib | entry stream | 缓存 central directory，禁止整包读入内存 |
-| RAR/7z/CBR | `node-7z` + 平台 7-Zip | 受控进程/临时提取 lease | 兼容性优先，进程池有界 |
-| 缩略图/缩放/转码 | `sharp/libvips` | stream/Buffer 边界 | 懒加载，限制 libvips 并发和缓存 |
+| ZIP/CBZ | `yauzl`/`unzipper` + native zlib | 单 entry stream | 缓存 central directory，主链禁止整包或整页 Buffer |
+| RAR/7z/CBR | 直接 `Bun.spawn(7zz)`；`node-7z` 辅助 list/落盘提取 | stdout stream 或临时提取 lease | 按 solid/non-solid 分流，进程数有界 |
+| 缩略图/缩放/转码 | `sharp/libvips` | stream pipeline | 懒加载，限制 libvips 并发和缓存 |
 | PDF | `pdfjs-dist` | Worker/WASM | 按页渲染，缓存尺寸化结果 |
 | EPUB | `epubjs` 或 `foliate-js` 适配器 | 文档资源流 | 二期评估，不侵入 Page 核心 |
 | 动图/视频 | WebView 原生或 FFmpeg 适配器 | 原文件/分段流 | 非 Reader MVP 阻塞项 |
 | JXL 等特殊格式 | 可选 native/WASM adapter | 按需转码 | 作为 capability，不进入基础包启动链 |
 
 具体库在实现前必须用真实书库做兼容性和基准测试。库名是适配器候选，不是绕过验证的既定依赖。
+
+### 11.1 “流式”必须分成三个层级
+
+不能因为 API 类型叫 `Stream` 就声称已经实现流式阅读：
+
+| 层级 | 定义 | 是否满足主链要求 |
+| --- | --- | --- |
+| Archive 不整体进内存 | 只读取 central directory/index 和所需 entry | 必须满足，但仅此还不够 |
+| 单 entry 增量解压 | 解压器按 chunk 产生原图字节 | 必须满足，solid 格式除外 |
+| 端到端传输 | entry chunk 不先聚合为完整 Buffer/临时文件，直接经 HTTP 到 WebView | ZIP/CBZ 默认必须满足 |
+
+如果实现内部执行了 `CopyTo(MemoryStream)`、`Buffer.concat(chunks)` 或等待临时文件完整写入后才返回，那么它仍属于“完整物化后传输”。
+
+### 11.2 OpenComic 和 NeeView 的真实实现
+
+本节结论基于 OpenComic `d47203a72670eb558cb21debbc28926fc40fd829` 和本地 `ref/NeeView`。
+
+#### OpenComic
+
+OpenComic 主阅读链使用 `node-7z` 与 `7zip-bin-full`：
+
+1. `read7z()` 通过 `7z list` 的事件读取 entry 索引；
+2. `makeAvailable()` 收集当前需要的页面；
+3. `extract7z()` 将页面按大小分组，并以 cherry-pick 方式解压到 archive hash 临时目录；
+4. 等待文件完整写入磁盘后通知 render；
+5. 后续页面显示和尺寸读取复用临时文件。
+
+`scripts/file-manager/compressed-stream-reader.mts` 确实使用 `7z x -so`，但会把 stdout chunk 全部放入数组，再 `Buffer.concat()` 并按 delimiter 拆分。它主要服务批量图片尺寸探测，不是主阅读链的端到端流。
+
+值得借鉴：
+
+- entry 索引和提取结果缓存；
+- 只提取需要的页面；
+- 按任务大小分组；
+- HDD 使用单任务，SSD 才增加并发；
+- 页面写完立即通知，而不是等整批完成。
+
+不应照搬：
+
+- 为普通 CBZ 页面先落盘再读取；
+- 用 `Buffer.concat()` 聚合大批图片；
+- SSD 直接使用全部线程；
+- 依赖随机 delimiter 分割多张二进制图片的 stdout；
+- 热路径中的同步 FS 调用。
+
+#### NeeView
+
+NeeView 的 ZIP 实现通过 `ZipArchiveEntry.Open()` 得到解压流，但随后将整个 entry `CopyToAsync()` 到 `MemoryStream`，完成后才返回。SevenZipSharp 路径也将单 entry 完整解压到预分配的 `MemoryStream`。
+
+对于 solid 7z/RAR，NeeView 会启动一次 archive pre-extract，并根据条件选择：
+
+- 内存预算允许的普通图片：保存为 `byte[]`；
+- 内存不足、大 entry 或嵌套压缩包：保存为临时文件；
+- 页面再次访问：直接使用 entry 上已经保存的数据。
+
+NeeView 还使用进程级静态 `AsyncLock` 限制 SevenZipSharp 并行访问，因为多个 archive 同时调用 7-Zip 会出现严重吞吐下降。
+
+值得借鉴：
+
+- solid archive 只顺序展开一次；
+- 内存/临时文件混合存储；
+- entry、archive、临时目录和缓存具有显式生命周期；
+- 当前页面等待自己的 entry 可用，不必等待全部预提取完成；
+- 对同一 7-Zip 引擎采用受控串行而不是盲目并发。
+
+不应照搬：
+
+- 普通 ZIP 页面总是完整复制到 `MemoryStream`；
+- `ArchiveEntryStreamSource` 默认把非文件 entry 再缓存为完整字节数组；
+- 让“避免重复解压”只能依赖长期持有原图大 Buffer。
+
+结论：两者都避免了把整个非 solid archive 读入内存，但主显示路径都没有做到 entry 到 WebView 的端到端流。Xiranite 应保留它们成熟的索引、solid 预提取和生命周期设计，同时减少普通 ZIP 的内存/磁盘中间物化。
+
+### 11.3 ArchiveProvider 契约
+
+核心只依赖统一契约，不感知 `yauzl`、7-Zip 进程或临时文件：
+
+```ts
+interface ArchiveEntryInfo {
+  id: string
+  name: string
+  compressedSize?: number
+  uncompressedSize: number
+  compressionMethod?: number
+  encrypted: boolean
+}
+
+interface OpenEntryResult {
+  stream: ReadableStream<Uint8Array>
+  size?: number
+  contentType: string
+  etag: string
+  rangeSupported: boolean
+  materialization: "stream" | "memory" | "temp-file"
+}
+
+interface ArchiveProvider extends AsyncDisposable {
+  readonly kind: "zip" | "seven-zip" | "rar" | "folder" | "nested"
+  readonly solid: boolean
+
+  list(signal: AbortSignal): Promise<readonly ArchiveEntryInfo[]>
+  openEntry(entryId: string, signal: AbortSignal): Promise<OpenEntryResult>
+}
+```
+
+约束：
+
+- `entryId` 只能来自已验证索引，asset route 不接收任意 archive 内路径；
+- index 缓存键至少包含规范路径、文件大小和 mtime；
+- archive handle 使用 ref count，session dispose 后关闭；
+- entry stream 必须传播背压和 `AbortSignal`；
+- 打开流不等于将 entry 加入内存缓存，缓存由独立策略决定；
+- provider 暴露 `solid`、随机访问成本和 materialization 方式，调度器据此选择策略。
+
+### 11.4 CBZ/ZIP：默认端到端流式
+
+CBZ/ZIP 是漫画库最重要、也最适合随机读取的快速路径：
+
+```text
+ZIP central directory
+  -> 定位 entry
+  -> native zlib 增量解压
+  -> 可选 sharp transform
+  -> loopback HTTP Response
+  -> WebView image decoder
+```
+
+首选评估 `yauzl`，因为它提供 lazy entry、ZIP64 和明确的 `openReadStream()`；同时用 `unzipper` 做 Bun 兼容性和性能对照。二者的容器控制层是 JS/TS，但 Deflate 由 native zlib 执行。禁止为了“全 TS”把大型 CBZ 交给主事件循环上的纯 JS inflate。
+
+实现要求：
+
+- 打开 archive 时只解析并缓存 central directory，不扫描/解压全部 entry；
+- 每次只打开当前可见页和有限预读页的 entry stream；
+- Store method 的 JPEG/WebP 等 entry 直接做文件区间流；
+- Deflate entry 通过 native zlib stream 解压；
+- 浏览器原生支持且无需缩放的图片绕过 `sharp`；
+- 未转换的 entry 可使用索引中的 uncompressed size 设置 `Content-Length`；
+- 转码结果长度未知时使用 chunked response，不为计算长度先缓存完整输出；
+- Deflate entry 不支持任意解压后 Range，不得错误声明 `Accept-Ranges`；Store entry 只有 provider 能正确映射原始 offset 时才支持 Range；
+- CRC/完整性错误必须记录，并禁止把失败结果写入持久缓存。
+
+HTTP 主链应接近：
+
+```ts
+const source = await archive.openEntry(entryId, request.signal)
+
+return new Response(source.stream, {
+  headers: {
+    "Content-Type": source.contentType,
+    ...(source.size === undefined ? {} : { "Content-Length": String(source.size) }),
+    "ETag": source.etag,
+    "Cache-Control": "private, max-age=31536000, immutable",
+  },
+})
+```
+
+这条路径禁止出现完整页 `Buffer`、Base64、Object URL IPC 和临时文件。只有兼容库限制、特殊格式转换或明确的缓存策略允许物化，并必须进入指标统计。
+
+### 11.5 RAR/7z 非 solid：stdout 真流式
+
+`node-7z` 适合 list、进度事件和批量落盘提取；单页数据面应直接使用 `Bun.spawn()` 调用平台 `7zz`，把 stdout 作为流返回：
+
+```ts
+const child = Bun.spawn(
+  [sevenZipPath, "x", "-so", "--", archivePath, indexedEntryName],
+  { stdout: "pipe", stderr: "pipe" },
+)
+
+signal.addEventListener("abort", () => child.kill(), { once: true })
+return child.stdout
+```
+
+实现时还必须：
+
+- 使用 `spawn`，禁止使用会缓存完整 stdout 的 `exec`；
+- 不执行 `Buffer.concat()`；
+- 消费并限制 stderr，记录退出码；
+- HTTP 客户端断开时终止子进程，session close 时清理全部子进程；
+- 仅允许从已索引 entry 生成参数，并在 archive path 前使用参数终止符；
+- 同一个 entry 的并发请求通过 singleflight 合并；
+- 为相邻页批量预提取到临时缓存可以减少进程启动，但不能把多张图片无边界拼到同一 stdout；
+- 密码不得写入日志；密码输入和进程参数暴露风险需要单独设计。
+
+进程启动存在固定成本，因此“当前页单 entry stdout 流”和“邻近页小批量落盘预提取”应由实测动态选择，而不是强制所有 RAR/7z 都走一种路径。
+
+### 11.6 Solid archive：预提取优于伪随机流
+
+solid 7z/RAR 的多个文件共享压缩块。读取靠后的单页可能必须从 solid block 开头解码；stdout 是流不代表可以快速随机定位。
+
+正确策略借鉴 NeeView：
+
+1. 索引阶段识别 solid 与 block 信息；
+2. 当前页请求触发一次有界的顺序 pre-extract；
+3. entry 完成后立即发布可用事件，不等待整个 archive 完成；
+4. 小 entry 可进入受字节预算控制的内存层；
+5. 大 entry、内存压力或嵌套 archive 写入 session temp lease；
+6. 后台按阅读方向继续提取；
+7. archive fingerprint 未变化时复用完整且校验过的磁盘结果；
+8. 改变方向或关闭 session 时取消未需要的后续工作。
+
+同一 solid archive 只允许一个顺序 extractor。为同一包同时启动多个 `7zz x` 通常会重复解码相同 solid block，既浪费 CPU 又增加磁盘争用。
+
+嵌套压缩包通常需要 seek/central directory，应先将内层 archive 物化到临时文件并建立 lease，再由对应 provider 打开。不要为了形式上的流式把整个内层 archive 放进 JS Buffer。
+
+### 11.7 图片处理和尺寸探测也要流式
+
+浏览器原生支持的 JPEG、PNG、WebP、GIF、AVIF 等优先发送原始 entry：
+
+```text
+entry stream -> HTTP -> WebView
+```
+
+只有目标视口需要缩放、格式不受支持或用户启用处理时才进入：
+
+```text
+entry stream -> sharp/libvips -> output stream -> HTTP/cache
+```
+
+禁止默认使用：
+
+```text
+entry -> full Buffer -> sharp -> full Buffer -> IPC
+```
+
+图片尺寸探测只读取足够的解压后头部字节：PNG 通常只需固定头部，JPEG 扫描到 SOF marker，WebP/AVIF 读取必要 chunk/box。设置明确上限（初始可取 256 KiB），得到尺寸后 abort ZIP stream 或终止 `7zz -so`。不能像 OpenComic 当前批量尺寸路径一样，为了尺寸把每张图片完整解压为 Buffer。
+
+### 11.8 并发、缓存和背压
+
+初始并发上限按存储介质和格式区分，再由 benchmark 修订：
+
+| 场景 | 初始上限 | 原因 |
+| --- | ---: | --- |
+| 同一 HDD 的 archive I/O | 1 | 避免随机寻道互相放大 |
+| SSD/NVMe ZIP entry | 每 archive 2～4 | 当前页优先，给预读留少量并发 |
+| 非 solid RAR/7z | 每物理磁盘 1～2 个进程 | 控制进程、CPU 和磁盘竞争 |
+| 同一 solid archive | 1 | 防止重复解码 solid block |
+| sharp transform | 进程级共享上限 | libvips 自身也有线程池和缓存 |
+
+不能直接照搬 OpenComic 的“SSD 使用全部线程”。Reader 与 Xiranite 其他节点共享 CPU、I/O 和内存，全局调度器必须保留交互槽位。
+
+流式主链仍需要缓存，但缓存内容应选择正确：
+
+- 缓存 archive index，而不是每次重新 list；
+- 普通 ZIP 原图默认依赖 WebView HTTP cache，不在 JS 堆再存完整副本；
+- 缓存昂贵的缩放/转码结果；
+- 缓存 solid archive 已预提取的临时/磁盘结果；
+- 当前页和下一页可以有小型 byte-budget memory cache；
+- 所有缓存用 source fingerprint + entry id + transform 参数失效。
+
+背压必须贯通 `archive/child stdout -> transform -> HTTP response`。禁止无界读取子进程 stdout；客户端取消、切页 generation 失效或 session close 时，整条 pipeline 必须被 abort。
+
+### 11.9 安全和失败边界
+
+- 校验 uncompressed size、压缩比、entry 数和递归深度，防止 zip bomb；
+- 规范化 entry name，拒绝绝对路径、`..` 逃逸和设备路径；
+- 临时提取使用应用拥有的随机目录和 opaque 文件名；
+- 不信任 archive 声明的 MIME，使用扩展名与受限 header probe；
+- 加密 archive 的密码只存在 session secret store，不进入 TOML、URL、日志或缓存键；
+- 进程异常、CRC 错误和客户端中断不得留下“完成”缓存标记；
+- provider dispose 后必须关闭 fd、stream、子进程和 temp lease。
+
+### 11.10 压缩漫画专项基准
+
+Phase 0 必须加入以下固定样本，不能只用普通图片目录代表阅读性能：
+
+- JPEG Store CBZ；
+- JPEG Deflate CBZ；
+- 大页数/大 central directory CBZ；
+- 非 solid CBR/RAR；
+- solid CBR/RAR；
+- 非 solid CB7/7z；
+- solid CB7/7z；
+- 嵌套压缩包；
+- 单张超大图和损坏/加密 archive。
+
+每个样本记录：index time、当前页 TTFB、frame ready、顺序翻页 p50/p95、随机跳页 p95、解压吞吐、CPU、峰值 RSS、临时写入字节、完整 Buffer 次数、取消延迟和关闭后的残留进程/fd。
+
+专项阻断条件：
+
+- CBZ/ZIP 主阅读链不能出现整包读取、完整页 `Buffer.concat` 或临时文件；
+- 第一个 entry 字节可用前不能等待预读任务；
+- 快速翻页后旧 stream/7-Zip 进程必须及时终止，旧结果零回写；
+- solid archive 不能为相邻页重复从 block 起点解码；
+- 相同 archive 热打开必须命中 index cache；
+- 多节点并发时不得通过无限增加解压进程换取 Reader 单项成绩。
 
 ## 12. 统一缓存设计
 
@@ -781,8 +1066,9 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 
 ### Phase 0：冻结基线
 
-- 固定真实样本：图片目录、普通 CBZ、大 CBZ、RAR/7z、PDF、超长图、动图；
+- 固定真实样本：图片目录、Store/Deflate CBZ、solid/non-solid RAR/7z、嵌套包、PDF、超长图、动图；
 - 记录当前 NeoView 的首屏、连续翻页、随机跳页、缩略图、峰值内存和关闭后残留；
+- 记录 archive index、entry TTFB、临时写入量、完整 Buffer 次数和取消延迟；
 - 记录 Xiranite 同时运行其他 CPU/I/O 节点时的延迟；
 - 建立可重复的 `xreader benchmark` 和结果 JSON 格式。
 
@@ -798,7 +1084,8 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 
 ### Phase 2：目录、ZIP 与唯一数据主链
 
-- 实现目录和 CBZ/ZIP provider；
+- 对比 `yauzl`/`unzipper` 后实现目录与 CBZ/ZIP provider；
+- 打通 `entry stream -> 可选 sharp -> HTTP Response` 端到端背压与取消；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
 - 实现 loopback asset route；
@@ -817,7 +1104,9 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 
 ### Phase 4：复杂格式与 TUI
 
+- 实现非 solid RAR/7z stdout stream 和 solid archive 顺序预提取；
 - 基于真实兼容性测试选择 7-Zip、PDF、EPUB、特殊图片适配器；
+- 覆盖嵌套、加密、损坏和 zip bomb 安全边界；
 - 增加 TUI 和 CLI 输出，但不复制 application 逻辑；
 - 实现平台 capability 和缺失依赖的明确错误；
 - 按平台拆分可选二进制依赖。
@@ -845,6 +1134,9 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 | 连续滚动/缩放 | DOM 数、输入延迟、长任务 | DOM 数随虚拟窗口而非总页数增长；逐帧交互不依赖 React state |
 | 快速连续翻页 | 取消延迟、过时任务数 | 旧结果零回写；队列能在用户停止后快速收敛 |
 | 大压缩包 | 峰值 RSS、整包读取量 | 禁止整包进内存；峰值不高于 NeoView 基线 |
+| CBZ/ZIP 数据面 | entry TTFB、完整 Buffer/临时写入 | 原图主链端到端流式；完整页 Buffer 和临时写入均为零 |
+| 非 solid RAR/7z | stdout TTFB、进程数、取消延迟 | 不聚合 stdout；进程有界且请求取消后及时退出 |
+| solid RAR/7z | 重复解码量、entry-ready 时间 | 同一包单顺序 extractor；相邻页不重复解码 solid block |
 | 多节点并发 | Reader p95、其他节点 p95 | 任一方相对单独运行退化超过 10% 时必须分析和限流 |
 | 关闭/休眠 | 句柄、Worker、子进程、session 内存 | 无泄漏；重资源回到预定空闲预算 |
 | 图片传输 | 编码、复制、JS heap | 主链无 Base64；HTTP 支持流与取消 |
@@ -892,6 +1184,8 @@ TS 源文件本身不会导致严重膨胀；真正的体积来源是 `sharp/lib
 - 内存缓存按真实字节预算、方向和 pin 淘汰；
 - session close/hibernate 能释放归档句柄、Worker、进程、临时文件和大对象；
 - 目录、ZIP、RAR/7z、PDF 等已承诺格式通过真实样本兼容性测试；
+- CBZ/ZIP 原图实现 entry 到 HTTP 的端到端流式，主链没有完整页 Buffer 或临时落盘；
+- RAR/7z 能识别 solid 并选择 stdout stream 或单任务预提取，取消后无残留子进程；
 - 旧 Page/FS/Thumbnail/cache/transfer 多版本实现已删除，而非隐藏；
 - GUI 热路径没有 workspace 级重渲染和重复缓存；
 - 第 19 节所有阻断式基准通过并保留可复现报告；
