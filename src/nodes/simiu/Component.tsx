@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { SimiuAction, SimiuData, SimiuInput } from "@xiranite/node-simiu/core"
@@ -50,7 +50,7 @@ export function Component({ compId, host }: SimiuProps) {
   const compactSurface = surface.mode === "compact" || surface.mode === "portrait"
   const forceCollapsedSurface = compactSurface && surface.height > 0 && surface.height < 160
   const portraitCompact = surface.mode === "portrait" || (surface.mode === "compact" && surface.width < 560 && surface.height >= 300)
-  const rootCount = useMemo(() => parseLines(data.rootsText).length, [data.rootsText])
+  const rootCount = parseLines(data.rootsText).length
   const canRun = !running
 
   useEffect(() => {

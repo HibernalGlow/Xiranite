@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { MarkuAction, MarkuData, MarkuInput } from "@xiranite/node-marku/core"
 import { Copy, FileCode, History, Play, RotateCcw, ShieldAlert, Square, Undo2 } from "lucide-react"
@@ -40,7 +40,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const result = data.result ?? null
   const moduleMeta = findModuleMeta(data.module)
   const hasText = Boolean(data.inputText?.trim())
-  const paths = useMemo(() => splitPaths(data.pathText), [data.pathText])
+  const paths = splitPaths(data.pathText)
   const dryRun = data.dryRun ?? true
   const phase = phaseFromState(data, running)
   const progress = data.progress ?? 0
