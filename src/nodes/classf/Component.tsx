@@ -446,10 +446,10 @@ function ExecutionGate(props: ViewProps & { embedded?: boolean }) {
 
 function AnalysisPanel(props: ViewProps) {
   const analysis = useMemo(() => analyzePlan(props.result), [props.result])
-  const issueLines = useMemo(() => [
+  const issueLines = [
     ...(props.result?.errors ?? []),
     ...(props.result?.items ?? []).filter((item) => item.reason).map((item) => `${item.sourcePath}: ${item.reason}`),
-  ], [props.result])
+  ]
   return (
     <ModulePanel fill badge={issueLines.length} icon={BarChart3} title={props.tNode("tabs.analysis", "Analysis")} contentClassName="gap-0">
       <Tabs defaultValue="overview" className="min-h-0 flex-1 gap-0">
