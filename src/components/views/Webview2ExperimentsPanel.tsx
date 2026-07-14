@@ -34,7 +34,7 @@ function cloneConfig(config: Webview2Config): Webview2Config {
 export function Webview2ExperimentsPanel({ available }: { available: boolean }) {
   const { t } = useTranslation()
   const [config, setConfig] = useState<Webview2Config>(() => cloneConfig(DEFAULT_WEBVIEW2_CONFIG))
-  const [persistedConfig, setPersistedConfig] = useState<Webview2Config>(() => cloneConfig(DEFAULT_WEBVIEW2_CONFIG))
+  const [persistedConfig, setPersistedConfig] = useState<Webview2Config | null>(null)
   const [configPath, setConfigPath] = useState("")
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -52,7 +52,7 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
         if (cancelled) return
         const next = normalizeWebview2Config(result.config)
         setConfig(cloneConfig(next))
-        setPersistedConfig(cloneConfig(next))
+        setPersistedConfig(result.config ? cloneConfig(next) : null)
         setConfigPath(result.path)
       })
       .catch((reason: unknown) => {
@@ -64,7 +64,7 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
     return () => { cancelled = true }
   }, [available])
 
-  const dirty = !configsEqual(config, persistedConfig)
+  const dirty = persistedConfig === null || !configsEqual(config, persistedConfig)
 
   function setFlag(group: FlagGroup, id: string, checked: boolean) {
     const catalog = WEBVIEW2_FLAG_CATALOG[group]
