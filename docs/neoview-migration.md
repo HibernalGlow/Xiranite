@@ -298,49 +298,235 @@ flowchart TB
 
 ## 7. 推荐包结构
 
+NeoView 不采用普通轻节点的内部平铺结构。只有节点发现、公共 facade 和 presentation 入口保持在约定位置；领域、用例、端口、平台实现和前端 feature 必须进入子目录。不能为了和小节点“看起来一致”把数百个文件堆在 `src/` 或 `src/nodes/neoview/` 根目录。
+
 ```text
 packages/nodes/neoview/
   package.json
   src/
-    core/
-      book.ts
-      page.ts
-      frame.ts
-      navigation.ts
-      layout.ts
-      sorting.ts
-      preload-policy.ts
-      eviction-policy.ts
-    application/
-      ReaderService.ts
-      ReaderSession.ts
-      SessionRegistry.ts
-      FrameSnapshotBuilder.ts
+    index.ts                   # 节点元数据与 package entry，只做组装/re-export
+    core.ts                    # 稳定的公共 core facade，不放业务实现
+    platform.ts                # runtime composition root，不放具体 provider
+    cli.ts                     # CLI 入口
+    Tui.tsx                    # TUI 入口
+    help.ts                    # 三端共用帮助元数据
+
+    domain/                    # 纯 TS 领域规则，不访问 FS/React/Node/Wails
+      book/
+        book.ts
+        media-priority.ts
+      page/
+        page.ts
+        page-content.ts
+      frame/
+        frame.ts
+        layout.ts
+        frame-builder.ts
+      navigation/
+        navigation.ts
+        tail-overflow.ts
+      sorting/
+        natural-sort.ts
+        page-order.ts
+      policies/
+        preload-policy.ts
+        eviction-policy.ts
+
+    application/               # 用例、会话、任务 generation 与生命周期
+      reader/
+        ReaderService.ts
+        ReaderSession.ts
+        SessionRegistry.ts
+      frames/
+        FrameSnapshotBuilder.ts
+      preloading/
+        PreloadCoordinator.ts
+      settings/
+        ReaderSettings.ts
+        LegacySettingsCodec.ts
+      history/
+        ReadingProgressService.ts
       contracts.ts
-    platform/
+
+    ports/                     # application 所依赖的抽象能力
+      ArchiveProvider.ts
+      ImageDecoder.ts
+      DocumentProvider.ts
+      ThumbnailRepository.ts
+      SuperResolutionProvider.ts
+      ReaderCache.ts
+      AssetPublisher.ts
+      ResourceScheduler.ts
+
+    platform/                  # ports 的具体实现；按 capability 懒加载
       filesystem/
+        DirectoryBookLoader.ts
       archives/
+        zip/
+          ZipArchiveProvider.ts
+        sevenzip/
+          SevenZipArchiveProvider.ts
+        nested/
+          NestedArchiveProvider.ts
       images/
+        browser/
+        sharp/
+        wic/
       documents/
+        pdf/
+        epub/
+      thumbnails/
+        ThumbnailDatabase.ts
+      super-resolution/
+        opencomic-system/
+          OpenComicSystemProvider.ts
+          CliResolver.ts
+          UpscaylDaemon.ts
+      persistence/
+        settings/
+        history/
       cache/
-      asset/
-    interaction.ts
-    core.ts
-    platform.ts
-    cli.ts
-    Tui.tsx
-    help.ts
-    index.ts
+      scheduler/
+      asset-route/
+
+    presentation/
+      cli/
+      tui/
+
+    testing/                   # fake、fixture 与所有 provider 共用 conformance
+      MemoryArchiveProvider.ts
+      FakeReaderCache.ts
+      fixtures/
+      conformance/
+        archive-provider.conformance.ts
+        image-decoder.conformance.ts
 
 src/nodes/neoview/
-  entry.ts
-  Component.tsx
-  ReaderView.tsx
-  controls.tsx
-  stores/
+  entry.ts                     # AppNodeEntry，保持薄
+  Component.tsx               # 节点壳与懒加载边界，保持薄
+
+  app/
+    ReaderApp.tsx
+    ReaderProviders.tsx
+    routes.ts
+
+  features/                   # 按用户能力纵切，不按“所有组件/所有 hooks”横切
+    reader/
+      ReaderView.tsx
+      PageImage.tsx
+      ContinuousReader.tsx
+      controls/
+    library/
+      FileBrowser.tsx
+      FolderTree.tsx
+    history/
+    bookmarks/
+    metadata/
+    thumbnails/
+    upscale/
+    settings/
+    panels/
+
+  shell/
+    ReaderToolbar.tsx
+    ReaderSidebar.tsx
+    ReaderStatusBar.tsx
+    PanelRegistry.ts
+
+  state/                       # 只保存 UI 状态，不拥有句柄或图片字节
+    reader-ui-store.ts
+    panel-store.ts
+
+  adapters/
+    reader-client.ts
+    host-capabilities.ts
+
+  shared/                      # 仅 NeoView 内复用；不能变成无边界杂物区
+    components/
+    hooks/
+    styles/
+
+migration/neoview/frontend/
+  component-inventory.json
+  store-inventory.json
+  component-graph.json
+  tauri-usage.json
+  tsx-scaffold/               # AST 可再生成草稿，生产代码不得直接 import
+  REPORT.md
 ```
 
-与其他节点相同，通过 `generate:node-registries` 接入生成清单，不手改注册表。重节点的差异体现在内部 application/platform 结构和生命周期，不应破坏统一节点契约。
+### 7.1 必须保持平铺的固定入口
+
+以下文件由 Xiranite 节点发现、动态 import 或公共 package export 使用，保留在固定位置并限制为薄 facade：
+
+- `packages/nodes/neoview/src/index.ts`；
+- `packages/nodes/neoview/src/core.ts`；
+- `packages/nodes/neoview/src/platform.ts`；
+- `packages/nodes/neoview/src/cli.ts`、`Tui.tsx`、`help.ts`；
+- `src/nodes/neoview/entry.ts`、`Component.tsx`。
+
+这些入口只允许组合、动态加载和 re-export，不能逐渐堆入 ReaderSession、ZIP、缓存或 React 页面实现。与其他节点相同，通过 `generate:node-registries` 接入，不手改生成注册表。重节点的内部层次可以更深，但不能破坏统一 `NodeDef`/runtime/app entry 契约。
+
+### 7.2 后端依赖方向
+
+```text
+domain <- application <- presentation
+            ^
+            |
+           ports <- platform
+```
+
+强制规则：
+
+- `domain` 不得导入 Node 内置模块、文件系统、数据库、React、Wails 或具体 provider；
+- `application` 只能依赖 `domain`、`ports` 和宿主无关的小型共享 contract；
+- `ports` 只定义能力和生命周期，不包含平台探测或业务流程；
+- `platform` 实现 `ports`，不得反向定义排序、导航、单双页等领域规则；
+- `core.ts` 不得 re-export platform 实现，防止 GUI/CLI/TUI 绕过 application；
+- GUI、CLI、TUI 调用同一个 `ReaderService`，不能分别直接调用 ZIP、Sharp、SQLite 或系统 CLI；
+- provider 的测试与实现就近放置，所有实现还必须通过 `testing/conformance` 的共享测试。
+
+### 7.3 前端依赖方向
+
+```text
+entry/Component -> app -> features -> shell/shared
+                         |
+                         -> adapters -> ReaderService/host contract
+```
+
+- `Component.tsx` 只负责节点生命周期、lazy boundary 和宿主 props；
+- `app` 组合 feature 和 provider，不持有具体 ZIP/图片/数据库实现；
+- `features` 按 `feature-compatibility.json` 的用户能力纵切，组件、hook、测试和 feature 内状态就近放置；
+- `state` 只能保存 `sessionId`、`FrameSnapshot`、控件、选中项和动画状态，不保存 archive handle、Buffer、Blob、ImageBitmap 或大块 Base64；
+- `adapters` 是 React 到 ReaderService/host capability 的唯一桥，不允许组件散落调用 backend API；
+- `shared` 只放至少两个 NeoView feature 真正复用且语义稳定的代码，禁止建立通用 `utils.ts`、`types.ts`、`hooks.ts` 垃圾场；
+- 跨节点真正通用的组件或能力移到 Xiranite 共享包，不能藏在 NeoView `shared` 中供外部反向引用。
+
+### 7.4 AST scaffold 的进入生产流程
+
+`migration/neoview/frontend/tsx-scaffold` 是可删除、可再生成的迁移产物，不属于生产源码。处理步骤固定为：
+
+1. Svelte AST 生成 scaffold、source hash、feature id 和分类；
+2. 人工审查 `converted/adapter-needed/manual/replaced/blocked`；
+3. 将确认后的代码迁入对应 `features/`、`shell/` 或 `shared/`；
+4. 保留文件头 provenance 和关联 characterization/component test；
+5. 生产目录禁止 import scaffold；CI 扫描发现直接依赖即失败。
+
+生成目录不能直接手改。需要保留的人工差异通过 codemod override/patch 输入表达，或迁出 generated 目录后由正常源码维护。
+
+### 7.5 当前启动骨架的归位计划
+
+当前少量平铺文件只是 Phase 1 启动骨架，应在继续增加实现前归位：
+
+| 当前文件 | 目标位置 |
+| --- | --- |
+| `frame.ts` | `domain/frame/frame.ts` 与 `frame-builder.ts` |
+| `session.ts` | `application/reader/ReaderSession.ts`、`ReaderService.ts` |
+| `archive.ts` 中的接口 | `ports/ArchiveProvider.ts` |
+| `MemoryArchiveProvider` | `testing/MemoryArchiveProvider.ts` |
+| `archive.test.ts` 的公共行为 | `testing/conformance/archive-provider.conformance.ts` |
+
+迁移期间允许 `core.ts`/兼容 subpath 暂时 re-export 新位置，但最终稳定公开面只保留小型 facade。不能长期保留“新目录实现 + 根目录旧实现”两份代码。
 
 ## 8. 领域模型：不要把 ReaderSession 塞进 React store
 
