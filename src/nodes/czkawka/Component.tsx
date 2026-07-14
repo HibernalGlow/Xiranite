@@ -1,11 +1,10 @@
 import { useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaEntry, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaSort, type CzkawkaTool } from "@xiranite/node-czkawka/core"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderSearch2, FolderX, HardDrive, Image, Link2Off, ListFilter, MoveRight, Play, Save, Search, Trash2, Video, X } from "lucide-react"
+import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, Play, Save, Search, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PathTextarea } from "@/components/ui/path-input"
@@ -14,15 +13,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
-import { LocalImagePreview } from "@/nodes/shared/LocalImagePreview"
 import { createCzkawkaScanInput, getCzkawkaToolOptions, type CzkawkaOptionDefinition } from "@xiranite/node-czkawka/tool-options"
 import type { CzkawkaCardState, CzkawkaPanel } from "./types"
+import { CzkawkaResultTable } from "./result-table"
 
 const TOOLS: Array<{ id: CzkawkaTool; label: string; short: string; icon: typeof Copy }> = [
   { id: "duplicate-files", label: "重复文件", short: "重复", icon: Copy },
@@ -38,25 +36,27 @@ const TOOLS: Array<{ id: CzkawkaTool; label: string; short: string; icon: typeof
   { id: "bad-extensions", label: "不正确扩展名", short: "扩展名", icon: ArchiveX },
 ]
 
-const GROUP_TRACKS = ["border-l-chart-1", "border-l-chart-2", "border-l-chart-3", "border-l-chart-4", "border-l-chart-5"]
-const GROUP_DOTS = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"]
-
 export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>) {
   "use no memo"
   const surface = useNodeSurface()
   const { t } = useNodeI18n("czkawka")
   const data = getData(host, compId)
   const [running, setRunning] = useState(false)
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
+  const [resultsByTool, setResultsByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaData>>>({})
+  const [selectedPathsByTool, setSelectedPathsByTool] = useState<Partial<Record<CzkawkaTool, string[]>>>({})
   const [panel, setPanel] = useState<CzkawkaPanel>("source")
   const tool = data.tool ?? "duplicate-files"
-  const result = data.result ?? null
-  const visibleGroups = filterGroups(result, data.filterText ?? "", data.sortBy ?? "path", data.descending ?? false)
+  const result = resultsByTool[tool] ?? (data.result?.tool === tool ? data.result : null)
+  const selectedPaths = selectedPathsByTool[tool] ?? []
   const compact = surface.mode === "compact" || surface.mode === "portrait"
 
   function patch(next: Partial<CzkawkaCardState>) {
     if (host.state?.patchData) host.state.patchData(next)
     else host.patchData(compId, next)
+  }
+
+  function setSelectedPaths(next: string[] | ((current: string[]) => string[])) {
+    setSelectedPathsByTool((current) => ({ ...current, [tool]: typeof next === "function" ? next(current[tool] ?? []) : next }))
   }
 
   async function executeScan() {
@@ -72,6 +72,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
       const response = await run<CzkawkaInput, CzkawkaData>("czkawka", scanInput(tool, data), (event: NodeRunEvent) => {
         if (event.type === "progress") patch({ progress: event.progress ?? 0, progressText: event.message })
       }) as NodeRunResult<CzkawkaData>
+      if (response.data) setResultsByTool((current) => ({ ...current, [tool]: response.data }))
       patch({ phase: response.success ? "completed" : "error", progress: response.success ? 100 : 0, progressText: response.message, result: response.data ?? null })
       setPanel("results")
     } catch (error) { patch({ phase: "error", progressText: message(error) }) }
@@ -91,20 +92,18 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     finally { setRunning(false) }
   }
 
-  function togglePath(path: string, checked: boolean) { setSelectedPaths((current) => checked ? [...new Set([...current, path])] : current.filter((item) => item !== path)) }
-  function selectGroup(entries: CzkawkaEntry[], checked: boolean) { const paths = entries.map((entry) => entry.path); setSelectedPaths((current) => checked ? [...new Set([...current, ...paths])] : current.filter((path) => !paths.includes(path))) }
   function applySmartSelection(strategy: CzkawkaSelectionStrategy) { if (result) setSelectedPaths(smartSelect(result.groups, strategy)) }
 
-  const view = { data, tool, result, visibleGroups, running, selectedPaths, panel, getFileUrl: host.localFiles?.getUrl, patch, setPanel, executeScan, executeOperation, togglePath, selectGroup, applySmartSelection }
+  const view = { data, tool, result, running, selectedPaths, panel, getFileUrl: host.localFiles?.getUrl, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), executeScan, executeOperation, applySmartSelection }
   return <TooltipProvider><div ref={surface.ref} data-testid="czkawka-surface" className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
     {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
   </div></TooltipProvider>
 }
 
 type View = {
-  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; visibleGroups: CzkawkaData["groups"]; running: boolean; selectedPaths: string[]; panel: CzkawkaPanel
+  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; running: boolean; selectedPaths: string[]; panel: CzkawkaPanel
   getFileUrl?: (path: string) => string
-  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>; togglePath: (path: string, checked: boolean) => void; selectGroup: (entries: CzkawkaEntry[], checked: boolean) => void
+  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
   applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
 }
 
@@ -145,32 +144,9 @@ function SchemaOptionField({ data, definition, patch }: View & { definition: Czk
   return <Field label={definition.label.zh}><Select value={String(value)} onValueChange={(next) => patch({ [definition.id]: next } as Partial<CzkawkaCardState>)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{definition.choices?.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label ?? choice.value}</SelectItem>)}</SelectContent></Select></Field>
 }
 
-/* Legacy fork-specific layout retained temporarily while M1 switches to schema rendering.
-  if (props.tool === "duplicate-files") return <div className="grid gap-2"><div className="grid grid-cols-2 gap-2"><Field label="判断方式"><Select value={props.data.checkMethod ?? "hash"} onValueChange={(checkMethod) => props.patch({ checkMethod: checkMethod as CzkawkaCardState["checkMethod"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="hash">Hash</SelectItem><SelectItem value="name">名称</SelectItem><SelectItem value="size">大小</SelectItem><SelectItem value="size-and-name">大小与名称</SelectItem></SelectContent></Select></Field><Field label="哈希"><Select value={props.data.hashType ?? "blake3"} onValueChange={(hashType) => props.patch({ hashType: hashType as CzkawkaCardState["hashType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="blake3">BLAKE3</SelectItem><SelectItem value="xxh3">XXH3</SelectItem><SelectItem value="crc32">CRC32</SelectItem></SelectContent></Select></Field></div><Field label="最小组大小"><Input type="number" min={1} max={10000} value={props.data.duplicateMinimumGroupSize ?? "1"} onChange={(event) => props.patch({ duplicateMinimumGroupSize: event.currentTarget.value })} /></Field><SwitchLine label="名称区分大小写" checked={props.data.caseSensitiveNames ?? false} onChange={(caseSensitiveNames) => props.patch({ caseSensitiveNames })} /><SwitchLine label="忽略硬链接" checked={props.data.ignoreHardLinks ?? true} onChange={(ignoreHardLinks) => props.patch({ ignoreHardLinks })} /><SwitchLine label="使用预哈希" checked={props.data.usePrehash ?? true} onChange={(usePrehash) => props.patch({ usePrehash })} /></div>
-  if (props.tool === "big-files") return <div className="grid gap-2"><Field label="结果数量"><Input type="number" value={props.data.numberOfFiles ?? "50"} onChange={(event) => props.patch({ numberOfFiles: event.currentTarget.value })} /></Field><SwitchLine label="优先最大文件" checked={props.data.biggestFirst ?? true} onChange={(biggestFirst) => props.patch({ biggestFirst })} /></div>
-  if (props.tool === "similar-images") return <div className="grid gap-2"><Field label="最大差异"><Input type="number" min={0} max={40} value={props.data.similarity ?? "10"} onChange={(event) => props.patch({ similarity: event.currentTarget.value })} /></Field><div className="grid grid-cols-2 gap-2"><Field label="Hash 尺寸"><Select value={props.data.similarImagesHashSize ?? "16"} onValueChange={(similarImagesHashSize) => props.patch({ similarImagesHashSize })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["8", "16", "32", "64"].map((value) => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field><Field label="Hash 算法"><Select value={props.data.similarImagesHashAlgorithm ?? "mean"} onValueChange={(similarImagesHashAlgorithm) => props.patch({ similarImagesHashAlgorithm: similarImagesHashAlgorithm as CzkawkaCardState["similarImagesHashAlgorithm"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="mean">Mean</SelectItem><SelectItem value="gradient">Gradient</SelectItem><SelectItem value="blockhash">BlockHash</SelectItem><SelectItem value="vert-gradient">VertGradient</SelectItem><SelectItem value="double-gradient">DoubleGradient</SelectItem><SelectItem value="median">Median</SelectItem></SelectContent></Select></Field></div><Field label="缩放算法"><Select value={props.data.similarImagesResizeAlgorithm ?? "lanczos3"} onValueChange={(similarImagesResizeAlgorithm) => props.patch({ similarImagesResizeAlgorithm: similarImagesResizeAlgorithm as CzkawkaCardState["similarImagesResizeAlgorithm"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="lanczos3">Lanczos3</SelectItem><SelectItem value="gaussian">Gaussian</SelectItem><SelectItem value="catmull-rom">CatmullRom</SelectItem><SelectItem value="triangle">Triangle</SelectItem><SelectItem value="nearest">Nearest</SelectItem></SelectContent></Select></Field><Field label="文件夹阈值"><Input type="number" min={1} value={props.data.similarImagesFolderThreshold ?? "2"} onChange={(event) => props.patch({ similarImagesFolderThreshold: event.currentTarget.value })} /></Field><SwitchLine label="忽略相同尺寸" checked={props.data.similarImagesIgnoreSameSize ?? false} onChange={(similarImagesIgnoreSameSize) => props.patch({ similarImagesIgnoreSameSize })} /></div>
-  if (props.tool === "similar-videos") return <div className="grid gap-2"><Field label="最大差异"><Input type="number" min={0} max={20} value={props.data.similarity ?? "10"} onChange={(event) => props.patch({ similarity: event.currentTarget.value })} /></Field><SwitchLine label="忽略相同尺寸" checked={props.data.similarVideosIgnoreSameSize ?? false} onChange={(similarVideosIgnoreSameSize) => props.patch({ similarVideosIgnoreSameSize })} /><div className="grid grid-cols-2 gap-2"><Field label="跳过开头（秒）"><Input type="number" min={0} value={props.data.similarVideosSkipForward ?? "15"} onChange={(event) => props.patch({ similarVideosSkipForward: event.currentTarget.value })} /></Field><Field label="Hash 时长（秒）"><Input type="number" min={2} value={props.data.similarVideosHashDuration ?? "10"} onChange={(event) => props.patch({ similarVideosHashDuration: event.currentTarget.value })} /></Field></div><Field label="裁剪检测"><Select value={props.data.similarVideosCropDetect ?? "letterbox"} onValueChange={(similarVideosCropDetect) => props.patch({ similarVideosCropDetect: similarVideosCropDetect as CzkawkaCardState["similarVideosCropDetect"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="letterbox">Letterbox</SelectItem><SelectItem value="motion">Motion</SelectItem><SelectItem value="none">None</SelectItem></SelectContent></Select></Field></div>
-  if (props.tool === "duplicate-music") return <MusicFields {...props} />
-  if (props.tool === "broken-files") return <div className="grid gap-2"><SwitchLine label="音频" checked={props.data.brokenAudio ?? true} onChange={(brokenAudio) => props.patch({ brokenAudio })} /><SwitchLine label="PDF" checked={props.data.brokenPdf ?? true} onChange={(brokenPdf) => props.patch({ brokenPdf })} /><SwitchLine label="压缩包" checked={props.data.brokenArchive ?? true} onChange={(brokenArchive) => props.patch({ brokenArchive })} /><SwitchLine label="图片" checked={props.data.brokenImage ?? true} onChange={(brokenImage) => props.patch({ brokenImage })} /></div>
-  return null
-}
-
-function MusicFields(props: View) {
-  const fingerprint = (props.data.musicCheckType ?? "tags") === "fingerprint"
-  return <div className="grid gap-2"><Field label="音频判断方式"><Select value={props.data.musicCheckType ?? "tags"} onValueChange={(musicCheckType) => props.patch({ musicCheckType: musicCheckType as CzkawkaCardState["musicCheckType"] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tags">标签</SelectItem><SelectItem value="fingerprint">音频指纹</SelectItem></SelectContent></Select></Field>{fingerprint ? <><Field label="最大差异"><Input type="number" min={0} max={10} value={props.data.musicMaximumDifference ?? "10"} onChange={(event) => props.patch({ musicMaximumDifference: event.currentTarget.value })} /></Field><Field label="最小片段时长"><Input type="number" min={0} value={props.data.musicMinimumFragmentDuration ?? "15"} onChange={(event) => props.patch({ musicMinimumFragmentDuration: event.currentTarget.value })} /></Field><SwitchLine label="仅比较相似标题" checked={props.data.musicCompareFingerprintsOnlyWithSimilarTitles ?? true} onChange={(musicCompareFingerprintsOnlyWithSimilarTitles) => props.patch({ musicCompareFingerprintsOnlyWithSimilarTitles })} /></> : <><SwitchLine label="近似标签比较" checked={props.data.musicApproximateComparison ?? true} onChange={(musicApproximateComparison) => props.patch({ musicApproximateComparison })} /><div className="grid grid-cols-2 gap-1"><SwitchLine label="标题" checked={props.data.musicCompareTitle ?? true} onChange={(musicCompareTitle) => props.patch({ musicCompareTitle })} /><SwitchLine label="艺术家" checked={props.data.musicCompareArtist ?? true} onChange={(musicCompareArtist) => props.patch({ musicCompareArtist })} /><SwitchLine label="比特率" checked={props.data.musicCompareBitrate ?? false} onChange={(musicCompareBitrate) => props.patch({ musicCompareBitrate })} /><SwitchLine label="流派" checked={props.data.musicCompareGenre ?? false} onChange={(musicCompareGenre) => props.patch({ musicCompareGenre })} /><SwitchLine label="年份" checked={props.data.musicCompareYear ?? false} onChange={(musicCompareYear) => props.patch({ musicCompareYear })} /><SwitchLine label="时长" checked={props.data.musicCompareLength ?? false} onChange={(musicCompareLength) => props.patch({ musicCompareLength })} /></div></>}</div>
-}
-*/
-
 function ResultTable(props: View) {
-  return <section className="flex min-h-0 flex-col rounded-md border bg-card"><div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><SectionTitle icon={ListFilter} title="结果组" /><div className="flex items-center gap-1"><Input aria-label="filter results" className="h-7 w-40 text-xs" placeholder="过滤路径或详情" value={props.data.filterText ?? ""} onChange={(event) => props.patch({ filterText: event.currentTarget.value })} /><Select value={props.data.sortBy ?? "path"} onValueChange={(sortBy) => props.patch({ sortBy: sortBy as CzkawkaSort })}><SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="path">路径</SelectItem><SelectItem value="size">大小</SelectItem><SelectItem value="modified">修改时间</SelectItem></SelectContent></Select><Button aria-label="toggle sort direction" size="icon-xs" variant="ghost" onClick={() => props.patch({ descending: !(props.data.descending ?? false) })}>{props.data.descending ? "↓" : "↑"}</Button></div></div><ScrollArea className="min-h-0 flex-1"><Table className="text-xs"><TableHeader className="sticky top-0 z-10 bg-card"><TableRow><TableHead className="w-10" /><TableHead className="w-12" /><TableHead className="w-16">组</TableHead><TableHead>文件</TableHead><TableHead className="w-24 text-right">大小</TableHead><TableHead className="w-36">详情</TableHead></TableRow></TableHeader><TableBody>{props.visibleGroups.length ? props.visibleGroups.flatMap((group) => group.entries.map((entry, index) => <ResultRow key={entry.id} entry={entry} group={group} index={index} selected={props.selectedPaths.includes(entry.path)} allSelected={group.entries.filter((item) => !item.isReference).every((item) => props.selectedPaths.includes(item.path))} getFileUrl={props.getFileUrl} onToggle={props.togglePath} onToggleGroup={props.selectGroup} />)) : <TableRow><TableCell colSpan={6} className="h-56 text-center text-muted-foreground">{props.running ? "正在分析文件…" : "添加目录并开始扫描。结果会按关系分组显示。"}</TableCell></TableRow>}</TableBody></Table></ScrollArea></section>
+  return <CzkawkaResultTable tool={props.tool} groups={props.result?.groups ?? []} running={props.running} selectedPaths={props.selectedPaths} getFileUrl={props.getFileUrl} onSelectionChange={props.setSelectedPaths} />
 }
-
-function ResultRow({ entry, group, index, selected, allSelected, getFileUrl, onToggle, onToggleGroup }: { entry: CzkawkaEntry; group: CzkawkaData["groups"][number]; index: number; selected: boolean; allSelected: boolean; getFileUrl?: (path: string) => string; onToggle: (path: string, checked: boolean) => void; onToggleGroup: (entries: CzkawkaEntry[], checked: boolean) => void }) {
-  const track = GROUP_TRACKS[group.id % GROUP_TRACKS.length]!, dot = GROUP_DOTS[group.id % GROUP_DOTS.length]!
-  return <TableRow data-state={selected ? "selected" : undefined} className={cn("border-l-4", track)}><TableCell><Checkbox aria-label={`选择 ${entry.name}`} disabled={entry.isReference} checked={selected} onCheckedChange={(checked) => onToggle(entry.path, checked === true)} /></TableCell><TableCell><ImagePreview path={entry.path} getFileUrl={getFileUrl} /></TableCell><TableCell><button className="flex items-center gap-1 font-mono" onClick={() => onToggleGroup(group.entries.filter((item) => !item.isReference), !allSelected)}><span className={cn("size-2 rounded-full", dot)} />{String(group.id + 1).padStart(2, "0")}{index === 0 && group.entries.length > 1 ? <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">{group.entries.length}</Badge> : null}</button></TableCell><TableCell><div className="flex max-w-[34rem] items-center gap-1 truncate font-mono" title={entry.path}>{entry.isReference ? <Badge variant="secondary" className="h-4 px-1 text-[9px]">参考</Badge> : null}<span className="truncate">{entry.path}</span></div>{entry.secondaryPath ? <div className="max-w-[34rem] truncate text-[10px] text-muted-foreground">→ {entry.secondaryPath}</div> : null}</TableCell><TableCell className="text-right font-mono">{formatBytes(entry.size)}</TableCell><TableCell className="max-w-36 truncate text-muted-foreground">{entry.detail || entry.properExtension || entry.similarity || [entry.artist, entry.title].filter(Boolean).join(" · ") || "—"}</TableCell></TableRow>
-}
-
-function ImagePreview({ path, getFileUrl }: { path: string; getFileUrl?: (path: string) => string }) { return <LocalImagePreview path={path} getFileUrl={getFileUrl} className="size-9" /> }
 
 function AnalysisPanel(props: View) {
   const stats = props.result
@@ -185,7 +161,6 @@ function SectionHeader({ icon, title }: { icon: typeof Search; title: string }) 
 function SectionTitle({ icon: Icon, title }: { icon: typeof Search; title: string }) { return <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><Icon className="size-3.5 text-primary" />{title}</div> }
 
 export function scanInput(tool: CzkawkaTool, data: CzkawkaCardState): CzkawkaInput { return createCzkawkaScanInput(tool, data as Record<string, unknown>) }
-function filterGroups(result: CzkawkaData | null, filter: string, sort: CzkawkaSort, descending: boolean): CzkawkaData["groups"] { if (!result) return []; const needle = filter.trim().toLocaleLowerCase(); return result.groups.map((group) => ({ ...group, entries: [...group.entries].filter((entry) => !needle || `${entry.path} ${entry.detail ?? ""} ${entry.artist ?? ""} ${entry.title ?? ""}`.toLocaleLowerCase().includes(needle)).sort((a, b) => { const compared = sort === "size" ? a.size - b.size : sort === "modified" ? a.modifiedDate - b.modifiedDate : a.path.localeCompare(b.path, undefined, { numeric: true }); return descending ? -compared : compared }) })).filter((group) => group.entries.length) }
 function toolMeta(tool: CzkawkaTool) { return TOOLS.find((item) => item.id === tool) ?? TOOLS[0]! }
 function lines(value: unknown) { return String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }
 function message(error: unknown) { return error instanceof Error ? error.message : String(error) }

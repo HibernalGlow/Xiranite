@@ -37,17 +37,36 @@ describe("Czkawka node", () => {
       similarVideosCropDetect: "motion",
     })
   })
+
+  test("keeps results and selections isolated when switching tools", async () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, resultFor)
+    const view = render(<Component compId="czkawka" host={host} />)
+    await screen.getByRole("button", { name: "开始扫描" }).click()
+    await waitFor(() => expect(screen.getAllByText("duplicate-files-result.dat").length).toBeGreaterThan(0))
+    await screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).click()
+    expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
+
+    await screen.getByRole("button", { name: "空文件" }).click()
+    view.rerender(<Component compId="czkawka" host={host} />)
+    await screen.getByRole("button", { name: "开始扫描" }).click()
+    await waitFor(() => expect(screen.getAllByText("empty-files-result.dat").length).toBeGreaterThan(0))
+
+    await screen.getByRole("button", { name: "重复文件" }).click()
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect(screen.getAllByText("duplicate-files-result.dat").length).toBeGreaterThan(0)
+    expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
+  })
 })
 
 type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }> }
-function createHost(initial: CzkawkaCardState): TestHost {
+function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample): TestHost {
   const host: TestHost = {
     stateValue: initial,
     calls: [],
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["contract", "state", "runner"], hasCapability: () => true },
     env: { theme: "light", platform: "web" },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
-    runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 2 item(s).", data: sample as TData } } },
+    runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } } },
     getData: <T,>() => host.stateValue as T,
     patchData: (_id, patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     listComponents: () => [],
@@ -57,3 +76,11 @@ function createHost(initial: CzkawkaCardState): TestHost {
 }
 
 const sample: CzkawkaData = { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
+
+function resultFor(input: CzkawkaInput): CzkawkaData {
+  const tool = input.tool ?? "duplicate-files"
+  const path = `${tool}-result.dat`
+  const entry = { id: path, groupId: 0, path, name: path, size: 10, modifiedDate: 1 }
+  const group = { id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }
+  return { action: "scan", tool, groups: [group], entries: [entry], messages: "", stopped: false, groupCount: 1, fileCount: 1, totalBytes: 10, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
+}
