@@ -63,7 +63,7 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 
 | ID | 状态 | 工具 / 能力 | fork 关键参数 | Xiranite 验收标准 |
 | --- | --- | --- | --- | --- |
-| T01 | `[-]` | 重复文件 | name/size/size+name/hash；Blake3/CRC32/XXH3；大小写；最小组大小；prehash；hard link | 所有参数进入 TS contract 和 Node-API，结果按组保留参考项 |
+| T01 | `[x]` | 重复文件 | name/size/size+name/hash；Blake3/CRC32/XXH3；大小写；最小组大小；prehash；hard link | 原生扫描参数进入 Node-API；最小组过滤由 TS core 处理；结果按组保留参考项 |
 | T02 | `[x]` | 空文件夹 | 递归、排除项、删除时仅空层级校验 | 列表和删除策略可区分文件夹，不依赖 Rust 删除 helper |
 | T03 | `[x]` | 大文件 | 最大/最小模式、行数 | 两种排序方向与数量限制真实影响 native 扫描 |
 | T04 | `[x]` | 空文件 | 通用路径/扩展名/递归过滤 | 扫描、显示、选择、操作均可用 |
@@ -74,6 +74,8 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | T09 | `[x]` | 无效符号链接 | 通用过滤 | 显示 link/target/reason，操作不误处理 target |
 | T10 | `[-]` | 损坏文件 | audio/PDF/archive/image 类型开关 | 类型开关进入 native；结果显示错误类型与详情 |
 | T11 | `[x]` | 不正确扩展名 | 当前扩展名、正确扩展名、批量重命名 | 支持预览、冲突处理、dry-run 和真实重命名 |
+
+T01 验证证据（2026-07-15）：重复文件的 check method、hash type、名称大小写、prehash、hard link 与 reference 参数由 `CZKAWKA_TOOL_OPTIONS` 唯一驱动三端并传入冻结的 Node-API；fork 的最小组大小属于结果策略，由共享 TS core 在 native 分组返回后过滤。真实 release Node-API smoke 使用隔离目录验证 name/size/size+name/hash 四种方法，CRC32/XXH3/BLAKE3 三种哈希均找到内容副本，大小写开关只在预期模式合并 `Same.txt`/`same.txt`，prehash 开关不改变正确性，hard link 开关决定同 inode 项是否成组，`--min-group 3` 从三项组和两项组中只保留三项组；reference 目录结果保持一项 `isReference` 标记。TS 单测另覆盖最小组过滤和 reference 回收空间计算，Rust 无新增业务逻辑。
 
 T02/T03 验证证据（2026-07-15）：空文件夹与大文件继续使用已冻结的 basic scanner Node-API，不增加 Rust 业务逻辑；递归、排除项、结果数量和最大/最小方向均由 `CZKAWKA_TOOL_OPTIONS` 与通用扫描字段驱动 GUI、CLI、OpenTUI。文件操作仍完全位于 TypeScript：空文件夹 live 删除会在执行瞬间递归检查整棵目录树只包含目录，符号链接或任何文件都会拒绝删除；pipe CLI 操作新增通用 `--tool`，因此 `delete --tool empty-folders` 与 GUI/OpenTUI 一样保留该安全语义。真实 release Node-API smoke 构造 100/50/1 字节文件，`--count 2 --biggest-first` 只返回 100/50，`--no-biggest-first` 只返回 1/50；空目录扫描同时验证递归关闭、排除规则、成功删除纯空目录树，以及扫描后新增文件时 live 删除返回逐项 error 且文件仍存在。
 

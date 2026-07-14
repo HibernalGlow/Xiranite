@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { access, link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -48,14 +48,45 @@ try {
   const media = await scan("bad-extensions", fixture, ["--no-cache"])
   if (media.data?.tool !== "bad-extensions" || !media.data.entries.some((entry) => entry.path.endsWith("image.bin"))) throw new Error(`Unexpected media CLI result: ${JSON.stringify(media)}`)
 
-  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
+  const duplicateMatrix = await createDuplicateMatrix(fixture)
+  const minimumGroup = await scan("duplicate-files", duplicateMatrix.minimumGroup, ["--no-cache", "--check", "hash", "--min-group", "3"])
+  if (minimumGroup.data?.groupCount !== 1 || minimumGroup.data.groups[0]?.entries.length !== 3) throw new Error(`Minimum duplicate group size did not filter the pair: ${JSON.stringify(minimumGroup)}`)
+
+  const insensitiveNames = await scan("duplicate-files", duplicateMatrix.names, ["--no-cache", "--check", "name", "--no-case-sensitive"])
+  const sensitiveNames = await scan("duplicate-files", duplicateMatrix.names, ["--no-cache", "--check", "name", "--case-sensitive"])
+  if (insensitiveNames.data?.groupCount !== 1 || sensitiveNames.data?.groupCount !== 0) throw new Error(`Duplicate name case sensitivity mismatch: ${JSON.stringify({ insensitiveNames, sensitiveNames })}`)
+
+  const bySize = await scan("duplicate-files", duplicateMatrix.size, ["--no-cache", "--check", "size"])
+  const byHash = await scan("duplicate-files", duplicateMatrix.size, ["--no-cache", "--check", "hash"])
+  const bySizeAndName = await scan("duplicate-files", duplicateMatrix.sizeAndName, ["--no-cache", "--check", "size-and-name"])
+  if (bySize.data?.groupCount !== 1 || byHash.data?.groupCount !== 0 || bySizeAndName.data?.groupCount !== 1) throw new Error(`Duplicate check method mismatch: ${JSON.stringify({ bySize, byHash, bySizeAndName })}`)
+
+  for (const hash of ["crc32", "xxh3", "blake3"]) {
+    const result = await scan("duplicate-files", duplicateMatrix.hash, ["--no-cache", "--check", "hash", "--hash", hash])
+    if (result.data?.groupCount !== 1) throw new Error(`${hash} did not find the duplicate pair: ${JSON.stringify(result)}`)
+  }
+  for (const prehash of ["--prehash", "--no-prehash"]) {
+    const result = await scan("duplicate-files", duplicateMatrix.hash, ["--no-cache", "--check", "hash", prehash])
+    if (result.data?.groupCount !== 1) throw new Error(`${prehash} changed duplicate correctness: ${JSON.stringify(result)}`)
+  }
+
+  const hiddenHardLink = await scan("duplicate-files", duplicateMatrix.hardLinks, ["--no-cache", "--check", "hash", "--ignore-hard-links"])
+  const visibleHardLink = await scan("duplicate-files", duplicateMatrix.hardLinks, ["--no-cache", "--check", "hash", "--no-ignore-hard-links"])
+  if (hiddenHardLink.data?.groupCount !== 0 || visibleHardLink.data?.groupCount !== 1) throw new Error(`Hard-link filtering mismatch: ${JSON.stringify({ hiddenHardLink, visibleHardLink })}`)
+
+  const referenced = await scanRoots("duplicate-files", [duplicateMatrix.reference, duplicateMatrix.referenceOther], ["--no-cache", "--check", "hash", "--reference", duplicateMatrix.reference])
+  if (referenced.data?.groupCount !== 1 || referenced.data.groups[0]?.entries.filter((entry) => entry.isReference).length !== 1) throw new Error(`Reference duplicate group mismatch: ${JSON.stringify(referenced)}`)
+
+  console.log(JSON.stringify({ duplicateGroups: duplicate.data.groupCount, duplicateMethods: 4, duplicateHashes: 3, duplicateMinimumGroup: minimumGroup.data.groupCount, duplicateReferenceItems: 1, emptyFiles: basic.data.fileCount, biggestFiles: biggest.data.fileCount, smallestFiles: smallest.data.fileCount, emptyFolders: folders.data.fileCount, shallowEmptyFolders: shallowFolders.data.fileCount, excludedEmptyFolders: excludedFolders.data.fileCount, rejectedChangedFolder: true, badExtensions: media.data.fileCount }))
 } finally {
   await rm(fixture, { recursive: true, force: true })
 }
 
 async function scan(tool, root, flags) {
-  return (await run(["scan", tool, root, ...flags, "--json"])).value
+  return scanRoots(tool, [root], flags)
 }
+
+async function scanRoots(tool, roots, flags) { return (await run(["scan", tool, ...roots, ...flags, "--json"])).value }
 
 async function run(args, expectSuccess = true) {
   const processResult = Bun.spawnSync([process.execPath, cli, ...args], { cwd: packageRoot, stdout: "pipe", stderr: "pipe" })
@@ -72,3 +103,25 @@ function assertNames(result, expected, label) {
 }
 
 async function exists(path) { try { await access(path); return true } catch { return false } }
+
+async function createDuplicateMatrix(root) {
+  const base = join(root, "duplicate-matrix")
+  const paths = Object.fromEntries(["minimumGroup", "names", "size", "sizeAndName", "hash", "hardLinks", "reference", "referenceOther"].map((name) => [name, join(base, name)]))
+  await Promise.all(Object.values(paths).map((path) => mkdir(path, { recursive: true })))
+  await Promise.all([
+    writeFile(join(paths.minimumGroup, "triple-a.bin"), "triple"), writeFile(join(paths.minimumGroup, "triple-b.bin"), "triple"), writeFile(join(paths.minimumGroup, "triple-c.bin"), "triple"),
+    writeFile(join(paths.minimumGroup, "pair-a.bin"), "pair"), writeFile(join(paths.minimumGroup, "pair-b.bin"), "pair"),
+    mkdir(join(paths.names, "a")), mkdir(join(paths.names, "b")),
+    writeFile(join(paths.size, "a.dat"), "1234567"), writeFile(join(paths.size, "b.dat"), "7654321"),
+    mkdir(join(paths.sizeAndName, "a")), mkdir(join(paths.sizeAndName, "b")),
+    writeFile(join(paths.hash, "a.bin"), "hash-pair"), writeFile(join(paths.hash, "b.bin"), "hash-pair"),
+    writeFile(join(paths.hardLinks, "original.bin"), "hard-link"),
+    writeFile(join(paths.reference, "reference.bin"), "reference-pair"), writeFile(join(paths.referenceOther, "other.bin"), "reference-pair"),
+  ])
+  await Promise.all([
+    writeFile(join(paths.names, "a", "Same.txt"), "one"), writeFile(join(paths.names, "b", "same.txt"), "different"),
+    writeFile(join(paths.sizeAndName, "a", "shared.bin"), "abcdefg"), writeFile(join(paths.sizeAndName, "b", "shared.bin"), "gfedcba"),
+    link(join(paths.hardLinks, "original.bin"), join(paths.hardLinks, "alias.bin")),
+  ])
+  return paths
+}
