@@ -62,6 +62,31 @@ describe("CzkawkaResultTable", () => {
     expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
   })
 
+  test("resizes preview thumbnails and virtual row height per tool", () => {
+    const props = { groups: [group], running: false, selectedPaths: [], onSelectionChange: vi.fn() }
+    const view = render(<CzkawkaResultTable tool="empty-files" {...props} />)
+    const handle = screen.getByRole("separator", { name: "调整预览列宽" })
+    fireEvent.pointerDown(handle, { pointerId: 2, clientX: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 180 })
+    fireEvent.pointerUp(handle, { pointerId: 2, clientX: 180 })
+    expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("132px")
+    expect((view.container.querySelector('[data-slot="table-body"]') as HTMLElement).style.height).toBe("264px")
+
+    view.rerender(<CzkawkaResultTable tool="similar-images" {...props} />)
+    expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
+    view.rerender(<CzkawkaResultTable tool="empty-files" {...props} />)
+    expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("132px")
+  })
+
+  test("resolves media URLs only for the bounded virtual window", () => {
+    const getFileUrl = vi.fn((path: string) => `http://local/${path}`)
+    const manyEntries = Array.from({ length: 10_000 }, (_, index) => entry(`image-${String(index).padStart(5, "0")}.jpg`, `Image ${index}`))
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[{ ...group, entries: manyEntries }]} running={false} selectedPaths={[]} getFileUrl={getFileUrl} onSelectionChange={vi.fn()} />)
+    expect(container.querySelectorAll("img").length).toBeGreaterThan(0)
+    expect(container.querySelectorAll("img").length).toBeLessThan(80)
+    expect(getFileUrl.mock.calls.length).toBeLessThan(80)
+  })
+
   test("opens direct image previews with visible-result navigation and metadata", () => {
     const imageGroup: CzkawkaGroup = {
       ...group,
