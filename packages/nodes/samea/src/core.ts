@@ -11,6 +11,8 @@ export interface SameaInput {
   ignorePathBlacklist?: boolean
   minOccurrences?: number
   centralize?: boolean
+  /** Do not recurse into existing [artist] group directories. */
+  skipGroupedDirectories?: boolean
   dryRun?: boolean
   artistBlacklist?: string[]
   pathBlacklist?: string[]
@@ -82,6 +84,7 @@ export function normalizeSameaInput(input: SameaInput): Required<SameaInput> {
     ignorePathBlacklist: input.ignorePathBlacklist ?? false,
     minOccurrences: clampInt(input.minOccurrences, 1, 100, 1),
     centralize: input.centralize ?? false,
+    skipGroupedDirectories: input.skipGroupedDirectories ?? false,
     dryRun: input.dryRun ?? true,
     artistBlacklist: uniqueClean(input.artistBlacklist?.length ? input.artistBlacklist : DEFAULT_ARTIST_BLACKLIST),
     pathBlacklist: uniqueClean(input.pathBlacklist?.length ? input.pathBlacklist : DEFAULT_PATH_BLACKLIST),
@@ -167,6 +170,7 @@ async function collectArchives(root: string, directory: string, input: Required<
   const collected: Array<{ rootPath: string; entry: SameaDirEntry; artist: ArtistMatch | undefined; ignored?: string }> = []
   for (const entry of await runtime.listDir(directory)) {
     if (entry.isDirectory) {
+      if (input.skipGroupedDirectories && isArtistGroupDirectory(entry.name)) continue
       collected.push(...await collectArchives(root, entry.path, input, runtime))
       continue
     }
@@ -225,6 +229,7 @@ function summarize(input: Required<SameaInput>, items: SameaPlanItem[], groups: 
 function success(message: string, data: SameaData): SameaResult { return { success: true, message, data } }
 function failure(message: string, input: Required<SameaInput>): SameaResult { return { success: false, message, data: summarize(input, [{ rootPath: "", sourcePath: "", targetPath: "", sourceName: "", artistKey: "", artistName: "", status: "error", reason: message }], [], 0) } }
 function isArchive(name: string, extensions: string[]): boolean { return extensions.some((extension) => name.toLowerCase().endsWith(extension)) }
+function isArtistGroupDirectory(name: string): boolean { return /^\[[^\[\]]+\]$/.test(name.trim()) }
 function isPathBlacklisted(path: string, input: Pick<Required<SameaInput>, "pathBlacklist" | "regexBlacklist">): boolean { return input.pathBlacklist.some((term) => includesLoose(path, term)) || input.regexBlacklist.some((pattern) => matchesRegex(path, pattern)) }
 function isArtistBlacklisted(value: string, input: Pick<Required<SameaInput>, "artistBlacklist" | "regexBlacklist">): boolean { return input.artistBlacklist.some((term) => includesLoose(value, term)) || input.regexBlacklist.some((pattern) => matchesRegex(value, pattern)) }
 function includesLoose(value: string, term: string): boolean { return Boolean(term) && value.toLocaleLowerCase().includes(term.toLocaleLowerCase()) }

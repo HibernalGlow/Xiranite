@@ -91,7 +91,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     const completedWait = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 75, 25, "wait", items, runtime, onEvent))
     emitCompletedItems(completedWait.data, "wait", baseDir ?? "", runtime, onEvent)
     const grouped = normalized.sameaGroupEnabled
-      ? await runPostTransferSamea(transfers, normalized, runtime, onEvent)
+      ? await runPostTransferSamea(sameaPaths, transfers, normalized, runtime, onEvent)
       : {}
     const completedItems = transferItems([...completedAlready.plan, ...completedWait.plan], transfers, sameaPaths, normalized, runtime)
     const data = summarize({ ...normalized, paths: sameaPaths }, completedItems, baseDir, { samea: sameaPlan.data, crashu: crashuData, migrateAlready: completedAlready.data, migrateWait: completedWait.data, ...grouped })
@@ -110,6 +110,7 @@ type PostTransferSameaData = Pick<ClassfData, "sameaGroupAlready" | "sameaGroupW
  * directory preserves its normal per-root grouping semantics.
  */
 async function runPostTransferSamea(
+  sourcePaths: string[],
   transfers: FileTransfer[],
   input: ReturnType<typeof normalizeClassfInput>,
   runtime: ClassfRuntime,
@@ -124,6 +125,10 @@ async function runPostTransferSamea(
     roots.get("wait")!.add(runtime.join(input.targetDir, "wait"))
   } else {
     for (const transfer of transfers) roots.get(transfer.stage)!.add(transfer.targetDir)
+    const existingRoots = await findClassificationDirectories(sourcePaths, runtime)
+    for (const stage of ["already", "wait"] as const) {
+      for (const path of existingRoots.get(stage)!) roots.get(stage)!.add(path)
+    }
   }
 
   const output: PostTransferSameaData = {}
@@ -141,6 +146,7 @@ async function runPostTransferSamea(
       ignorePathBlacklist: input.sameaIgnorePathBlacklist,
       minOccurrences: input.sameaGroupMinOccurrences,
       centralize: input.sameaGroupCentralize,
+      skipGroupedDirectories: true,
       dryRun: false,
     }, (event) => forward(event, stage === "already" ? 90 : 94, 5, onEvent))
     if (stage === "already") output.sameaGroupAlready = result.data
@@ -149,6 +155,40 @@ async function runPostTransferSamea(
   }
   onEvent({ type: "progress", progress: 100, message: "SameA grouping completed." })
   return output
+}
+
+async function findClassificationDirectories(
+  sourcePaths: string[],
+  runtime: Pick<ClassfRuntime, "pathInfo" | "listDir" | "dirname" | "basename" | "join">,
+): Promise<Map<"already" | "wait", Set<string>>> {
+  const found = new Map<"already" | "wait", Set<string>>([
+    ["already", new Set<string>()],
+    ["wait", new Set<string>()],
+  ])
+  const visited = new Set<string>()
+  async function visit(path: string): Promise<void> {
+    const info = await runtime.pathInfo(path)
+    if (!info.exists) return
+    if (info.isFile) {
+      for (const stage of ["already", "wait"] as const) found.get(stage)!.add(runtime.join(runtime.dirname(info.path), stage))
+      return
+    }
+    if (!info.isDirectory || visited.has(normalizePath(info.path))) return
+    const ownStage = classificationStage(runtime.basename(info.path))
+    if (ownStage) {
+      found.get(ownStage)!.add(info.path)
+      return
+    }
+    visited.add(normalizePath(info.path))
+    for (const entry of await runtime.listDir(info.path)) {
+      if (!entry.isDirectory) continue
+      const stage = classificationStage(entry.name)
+      if (stage) found.get(stage)!.add(entry.path)
+      else await visit(entry.path)
+    }
+  }
+  for (const path of sourcePaths) await visit(path)
+  return found
 }
 
 async function collectInputFiles(paths: string[], runtime: Pick<ClassfRuntime, "pathInfo" | "listDir">): Promise<ClassfDirEntry[]> {
@@ -245,6 +285,7 @@ function inferInputBase(paths: string[], runtime: Pick<ClassfRuntime, "dirname">
 function parentRelative(path: string): string { const normalized = path.replace(/\\/g, "/"); const index = normalized.lastIndexOf("/"); return index > 0 ? normalized.slice(0, index) : "" }
 function pathName(path: string): string { return path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) ?? path }
 function isClassificationDirectory(name: string): boolean { return name.toLocaleLowerCase() === "already" || name.toLocaleLowerCase() === "wait" }
+function classificationStage(name: string): "already" | "wait" | undefined { const normalized = name.toLocaleLowerCase(); return normalized === "already" || normalized === "wait" ? normalized : undefined }
 function sum(items: MigratefData[], key: "migratedCount" | "skippedCount" | "errorCount" | "totalCount" | "successCount" | "failedCount"): number { return items.reduce((total, item) => total + item[key], 0) }
 
 export function inferCommonParent(paths: string[], runtime: Pick<ClassfRuntime, "dirname">): string | undefined { const parents = new Set(paths.map((path) => normalizePath(runtime.dirname(path)))); return parents.size === 1 ? runtime.dirname(paths[0]!) : undefined }

@@ -33,10 +33,25 @@ describe("samea core", () => {
       ["/archive/[Artist] two.zip", "/archive/[Artist]/[Artist] two.zip"],
     ])
   })
+
+  test("does not rescan archives inside existing artist group directories", async () => {
+    const groupedArchive: SameaDirEntry = { name: "[Artist] old.zip", path: "/archive/[Artist]/[Artist] old.zip", isFile: true, isDirectory: false }
+    const runtime = fakeRuntime({
+      "/archive": [
+        { name: "[Artist]", path: "/archive/[Artist]", isFile: false, isDirectory: true },
+        file("[New Artist] new.zip"),
+      ],
+      "/archive/[Artist]": [groupedArchive],
+    })
+    const result = await buildSameaPlan({ ...baseInput, paths: ["/archive"], skipGroupedDirectories: true }, runtime)
+
+    expect(result.scannedCount).toBe(1)
+    expect(result.items.map((item) => item.sourcePath)).toEqual(["/archive/[New Artist] new.zip"])
+  })
 })
 
 const baseInput = {
-  action: "plan" as const, path: "", listText: "", ignorePathBlacklist: false, minOccurrences: 1, centralize: false, dryRun: true,
+  action: "plan" as const, path: "", listText: "", ignorePathBlacklist: false, minOccurrences: 1, centralize: false, skipGroupedDirectories: false, dryRun: true,
   artistBlacklist: ["various"], pathBlacklist: ["[00画师分类]"], regexBlacklist: [], archiveExtensions: [".zip", ".rar", ".7z"],
 }
 function file(name: string): SameaDirEntry { return { name, path: `/archive/${name}`, isFile: true, isDirectory: false } }

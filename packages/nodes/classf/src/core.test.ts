@@ -94,6 +94,28 @@ describe("classf pipeline", () => {
     ]))
   })
 
+  test("groups pre-existing already/wait directories without reclassifying their contents", async () => {
+    const calls: Call[] = []
+    const runtime = fakeRuntime(calls)
+    runtime.pathInfo = async (path) => ({ path, exists: ["/archives", "/archives/already", "/archives/wait", "/archives/already/[Artist]"].includes(path), isFile: false, isDirectory: ["/archives", "/archives/already", "/archives/wait", "/archives/already/[Artist]"].includes(path) })
+    runtime.listDir = async (path) => path === "/archives" ? [
+      { name: "already", path: "/archives/already", isFile: false, isDirectory: true },
+      { name: "wait", path: "/archives/wait", isFile: false, isDirectory: true },
+    ] : path === "/archives/already" ? [
+      { name: "[Artist]", path: "/archives/already/[Artist]", isFile: false, isDirectory: true },
+    ] : []
+
+    const result = await runClassf({ action: "classify", paths: ["/archives"], placementMode: "local", dryRun: false, sameaGroupEnabled: true }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(calls.filter((call) => call.stage === "migratef")).toHaveLength(0)
+    const postCalls = calls.filter((call) => call.stage === "samea").slice(1).map((call) => call.input as SameaInput)
+    expect(postCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ paths: ["/archives/already"], action: "classify", skipGroupedDirectories: true }),
+      expect.objectContaining({ paths: ["/archives/wait"], action: "classify", skipGroupedDirectories: true }),
+    ]))
+  })
+
   test("fails when the default clipboard has no archive roots", async () => {
     const runtime = fakeRuntime([])
     runtime.readClipboardPaths = async () => []
