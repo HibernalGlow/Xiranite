@@ -85,7 +85,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.dryRun, defaults])
+  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
 
   function patch(patchData: Partial<ClassfCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -401,6 +401,10 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.paste", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
       <Textarea aria-label="classf crashu sources" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-12" : "h-20")} disabled={props.disabled} placeholder={props.t("placeholders.crashuSources", "CrashU 来源目录，每行一个；留空使用默认库")} value={props.data.crashuSourcesText ?? ""} onChange={(event) => props.onPatch({ crashuSourcesText: event.currentTarget.value })} />
+      <div className="grid gap-1.5">
+        <SwitchRow checked={props.data.sameaGroupEnabled ?? false} disabled={props.disabled} icon={FolderTree} label={props.t("fields.sameaGroup", "already / wait 画师分组")} onCheckedChange={(sameaGroupEnabled) => props.onPatch({ sameaGroupEnabled })} />
+        {props.data.sameaGroupEnabled && <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"><Label htmlFor="classf-samea-group-min" className="text-xs text-muted-foreground">{props.t("fields.sameaGroupMin", "画师最少文件数")}</Label><Input id="classf-samea-group-min" aria-label="classf samea group minimum" type="number" min={1} max={100} className="h-7 w-20 text-xs" disabled={props.disabled} value={props.data.sameaGroupMinOccurrences ?? 1} onChange={(event) => props.onPatch({ sameaGroupMinOccurrences: Math.max(1, Number(event.currentTarget.value) || 1) })} /></div>}
+      </div>
     </div>
   )
 }
@@ -784,6 +788,9 @@ function buildInput(action: ClassfAction, data: ClassfCardState): ClassfInput {
     placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
     dryRun: data.dryRun ?? true,
+    sameaGroupEnabled: data.sameaGroupEnabled ?? false,
+    sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
+    sameaGroupCentralize: data.sameaGroupCentralize ?? false,
   }
 }
 
@@ -796,6 +803,9 @@ function planFingerprint(data: ClassfCardState): string {
     classifyMode: data.classifyMode ?? "auto",
     placementMode: data.placementMode ?? "local",
     existingPolicy: data.existingPolicy ?? "merge",
+    sameaGroupEnabled: data.sameaGroupEnabled ?? false,
+    sameaGroupMinOccurrences: data.sameaGroupMinOccurrences ?? 1,
+    sameaGroupCentralize: data.sameaGroupCentralize ?? false,
   })
 }
 

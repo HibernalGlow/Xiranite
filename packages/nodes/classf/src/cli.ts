@@ -17,6 +17,9 @@ interface ClassfNodeConfig {
   samea_min_occurrences?: number
   samea_centralize?: boolean
   samea_ignore_path_blacklist?: boolean
+  samea_group_enabled?: boolean
+  samea_group_min_occurrences?: number
+  samea_group_centralize?: boolean
   target_dir?: string
   transfer_mode?: ClassfTransferMode
   classify_mode?: ClassfClassifyMode
@@ -47,7 +50,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createDefaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 
 function createClassfDefinition(defaults: ClassfNodeConfig, _language: TerminalLanguage): TerminalInteractionDefinition<ClassfInput, ClassfResult> {
-  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
+  return { schema: createClassfInteractionSchema({ crashuSourcesText: defaults.crashu_source_paths?.join("\n") ?? "", targetDir: defaults.target_dir ?? "", transferMode: defaults.transfer_mode ?? "move", classifyMode: defaults.classify_mode ?? "auto", placementMode: defaults.placement_mode ?? "local", existingPolicy: defaults.existing_policy ?? "merge", dryRun: defaults.dry_run ?? true, sameaGroupEnabled: defaults.samea_group_enabled ?? false, sameaGroupMinOccurrences: defaults.samea_group_min_occurrences ?? 1 } satisfies Partial<ClassfInteractionValues>, _language), run: (input, onEvent) => runClassf(input, createNodeClassfRuntime(), onEvent) }
 }
 
 function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -73,6 +76,9 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
     sameaMinOccurrences: numberFor(args, "--samea-min") ?? config?.samea_min_occurrences,
     sameaCentralize: args.includes("--samea-centralize") || config?.samea_centralize,
     sameaIgnorePathBlacklist: args.includes("--samea-ignore-path-blacklist") || config?.samea_ignore_path_blacklist,
+    sameaGroupEnabled: args.includes("--samea-group") || config?.samea_group_enabled,
+    sameaGroupMinOccurrences: numberFor(args, "--samea-group-min") ?? config?.samea_group_min_occurrences,
+    sameaGroupCentralize: args.includes("--samea-group-centralize") || config?.samea_group_centralize,
     targetDir: valueFor(args, "--target") ?? config?.target_dir,
     transferMode: valueFor(args, "--transfer") as ClassfTransferMode | undefined ?? config?.transfer_mode,
     classifyMode: valueFor(args, "--classify") as ClassfClassifyMode | undefined ?? config?.classify_mode,
@@ -93,7 +99,7 @@ if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))
 
 function pathArgs(args: string[]): string[] {
   const commands = new Set(["plan", "classify", "run"])
-  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--crashu-source", "--similarity", "--samea-min"])
+  const valueOptions = new Set(["--target", "--transfer", "--classify", "--placement", "--existing", "--crashu-source", "--similarity", "--samea-min", "--samea-group-min"])
   return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? ""))
 }
 

@@ -76,6 +76,24 @@ describe("classf pipeline", () => {
     expect(result.data?.items.every((item) => item.status === "moved")).toBe(true)
   })
 
+  test("runs optional SameA artist grouping after already/wait transfers", async () => {
+    const calls: Call[] = []
+    const runtime = fakeRuntime(calls)
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path.endsWith("/already") || path.endsWith("/wait")
+      ? { path, exists: true, isFile: false, isDirectory: true }
+      : originalPathInfo(path)
+    const result = await runClassf({ action: "classify", classifyMode: "auto", placementMode: "local", dryRun: false, sameaGroupEnabled: true, sameaGroupMinOccurrences: 2 }, runtime)
+
+    expect(result.success).toBe(true)
+    const sameaCalls = calls.filter((call) => call.stage === "samea").map((call) => call.input as SameaInput)
+    expect(sameaCalls).toHaveLength(3)
+    expect(sameaCalls.slice(1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: "classify", paths: ["/archives/already"], minOccurrences: 2, dryRun: false }),
+      expect.objectContaining({ action: "classify", paths: ["/archives/nested/wait"], minOccurrences: 2, dryRun: false }),
+    ]))
+  })
+
   test("fails when the default clipboard has no archive roots", async () => {
     const runtime = fakeRuntime([])
     runtime.readClipboardPaths = async () => []

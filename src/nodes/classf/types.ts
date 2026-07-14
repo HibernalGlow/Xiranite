@@ -12,6 +12,9 @@ export interface ClassfCardState {
   placementMode?: ClassfPlacementMode
   existingPolicy?: ClassfExistingPolicy
   dryRun?: boolean
+  sameaGroupEnabled?: boolean
+  sameaGroupMinOccurrences?: number
+  sameaGroupCentralize?: boolean
   phase?: ClassfPhase
   progress?: number
   progressText?: string
@@ -38,4 +41,7 @@ export const CONFIG_FIELDS = [
   "placementMode",
   "existingPolicy",
   "dryRun",
+  "sameaGroupEnabled",
+  "sameaGroupMinOccurrences",
+  "sameaGroupCentralize",
 ] as const satisfies Array<keyof ClassfCardState>
