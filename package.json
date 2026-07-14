@@ -184,6 +184,7 @@
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
     "@oxc-project/types": "^0.139.0",
+    "@tailwindcss/oxide": "^4.2.2",
     "@playwright/test": "^1.61.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
