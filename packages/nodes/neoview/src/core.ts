@@ -45,6 +45,18 @@ export interface ReaderSessionOptions {
   tailOverflow: TailOverflowBehavior
 }
 
+export const DEFAULT_READER_SESSION_OPTIONS: ReaderSessionOptions = {
+  direction: "left-to-right",
+  layout: {
+    pageMode: "single",
+    panorama: false,
+    singleFirstPage: true,
+    singleLastPage: true,
+    treatWidePageAsSingle: true,
+  },
+  tailOverflow: "stay-on-last-page",
+}
+
 export type ReaderSessionEvent =
   | { type: "frame"; snapshot: FrameSnapshot }
   | { type: "pages-changed"; pages: readonly ReaderPage[]; generation: ReaderGeneration }

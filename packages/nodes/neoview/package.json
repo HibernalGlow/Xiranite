@@ -18,6 +18,10 @@
       "types": "./dist/frame.d.ts",
       "default": "./dist/frame.js"
     },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "default": "./dist/session.js"
+    },
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
