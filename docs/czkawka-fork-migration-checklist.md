@@ -273,11 +273,13 @@ Surface 与无障碍证据（2026-07-15）：`Component.test.tsx` 以 `NODE_SURF
 | C04 | `[x]` | 完整工具专属参数 | 与 GUI 的参数模型同源，不手写第二套 |
 | C05 | `[x]` | 停止和连续进度 | Ctrl+C 安全取消并打印最终状态 |
 | C06 | `[x]` | OpenTUI 11 工具导航 | 键盘与鼠标可切换 |
-| C07 | `[-]` | OpenTUI 条件/结果/日志 | 已有基础 tabs；补高级筛选、选择和操作结果 |
-| C08 | `[ ]` | OpenTUI 预览元数据 | 终端不渲染图片时显示完整媒体信息和可打开操作 |
+| C07 | `[x]` | OpenTUI 条件/结果/日志 | 已有基础 tabs；补高级筛选、选择和操作结果 |
+| C08 | `[x]` | OpenTUI 预览元数据 | 终端不渲染图片时显示完整媒体信息和可打开操作 |
 | C09 | `[x]` | 帮助文档自动生成 | 从统一 schema 生成 GUI label、CLI help、TUI fields |
 
 参数与帮助证据（2026-07-15）：`CZKAWKA_TOOL_OPTIONS` 是 33 个工具专属参数的唯一声明，包含适用工具、双语 label、控件类型、默认值、范围/选项和 CLI flag。GUI 按当前工具从该表渲染控件，OpenTUI/guided mode 从该表生成带 `visibleWhen` 的 interaction fields，pipe CLI 从同一表解析正向/`--no-*` 布尔参数和值参数；`NodeHelp.fields` 及中英文说明也由同一表生成。共享 terminal help renderer 已支持结构化 fields，真实 `xczkawka --help` 会列出重复、图片、视频、音频和损坏文件的全部专属 flag，不再维护第二份帮助清单。测试逐项核对 GUI/TUI field、CLI parser、帮助字段和 33 个 flag 的 round-trip。
+
+OpenTUI 对等证据（2026-07-15）：目录页覆盖包含、reference、排除、线程、递归和缓存，过滤页覆盖排除规则、allowed/excluded 扩展名、大小范围和结果文本，算法页仍由统一 33 参数 schema 动态生成，操作页消费共享 `selectedPathsText` 与安全操作字段。结果工作台提供全部/已选/操作三种视图，鼠标行选择和 Tab+↑↓/jk/Space/a/s/c/o 键盘流；`s` 直接调用共享 `smartSelect`，选择同步回操作 contract。Inspector 提供元数据、逐项操作结果和日志三页，展示路径、分组、大小、修改时间、分辨率、相似度、Hash、reference、音频标签、码率、正确扩展名、状态、目标、冲突和错误；`openPath` 由 TS platform 注入，Windows 使用 `explorer.exe`/`rundll32`，不进入 Rust。3 项真实 OpenTUI Vitest 覆盖 11 工具/条件 tab、媒体结果选择与完整元数据、打开回调、move dry-run 状态/目标/冲突及进度日志。
 
 ## 13. 测试与交付门槛
 

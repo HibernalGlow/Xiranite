@@ -8,6 +8,7 @@ export type CzkawkaInteractionValues = InteractionValues & {
   action: "scan" | "delete" | "move" | "rename" | "save"
   tool: CzkawkaTool
   includedDirectoriesText: string
+  includedDirectoriesReferencedText: string
   excludedDirectoriesText: string
   excludedItemsText: string
   allowedExtensions: string
@@ -46,11 +47,12 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {
   const zh = language === "zh"
-  const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, threadCount: 0, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", exportScope: "selected", renameItemsText: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
+  const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", includedDirectoriesReferencedText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, threadCount: 0, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", exportScope: "selected", renameItemsText: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
   const fields: InteractionField[] = [
     { id: "action", label: zh ? "命令" : "Command", kind: "select", role: "action", options: [{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }, { value: "delete", label: zh ? "♲ 删除" : "♲ Delete" }, { value: "move", label: zh ? "⇄ 移动/复制" : "⇄ Move/copy" }, { value: "rename", label: zh ? "✎ 修正扩展名" : "✎ Fix extension" }, { value: "save", label: zh ? "⇩ 导出" : "⇩ Export" }] },
     { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", options: CZKAWKA_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
     { id: "includedDirectoriesText", label: zh ? "包含目录" : "Included directories", kind: "path-list", lines: 4, visibleWhen: scanOnly },
+    { id: "includedDirectoriesReferencedText", label: zh ? "参考目录" : "Reference directories", kind: "path-list", lines: 3, visibleWhen: scanOnly },
     { id: "excludedDirectoriesText", label: zh ? "排除目录" : "Excluded directories", kind: "path-list", lines: 3, visibleWhen: scanOnly },
     { id: "excludedItemsText", label: zh ? "排除项目/通配模式" : "Excluded items / patterns", kind: "multiline", lines: 3, visibleWhen: scanOnly },
     { id: "allowedExtensions", label: zh ? "允许扩展名" : "Allowed extensions", kind: "text", visibleWhen: scanOnly },

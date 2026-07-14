@@ -107,6 +107,16 @@ export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
   return runtime
 }
 
+export async function openCzkawkaPath(path: string): Promise<void> {
+  const entry = await lstat(path)
+  if (process.platform === "win32") {
+    if (entry.isDirectory()) await execFileAsync("explorer.exe", [path])
+    else await execFileAsync("rundll32.exe", ["url.dll,FileProtocolHandler", path])
+    return
+  }
+  await execFileAsync(process.platform === "darwin" ? "open" : "xdg-open", [path])
+}
+
 async function runNativeScan<TOptions extends object, TResult>(options: TOptions, threadCount: number, runtime: CzkawkaRuntime, onProgress: ((progress: CzkawkaNativeProgress) => void) | undefined, scan: (options: TOptions & { scanId: string; threadCount: number }) => Promise<TResult>): Promise<TResult> {
   const scanId = randomUUID()
   let lastProgress = ""

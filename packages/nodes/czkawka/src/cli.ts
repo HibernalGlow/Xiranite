@@ -6,7 +6,7 @@ import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, ty
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
 import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
-import { createNodeCzkawkaRuntime } from "./platform.js"
+import { createNodeCzkawkaRuntime, openCzkawkaPath } from "./platform.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 import { createCzkawkaOperationInput, CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
@@ -73,7 +73,7 @@ function createDefinition(defaults: CzkawkaConfig, language: TerminalLanguage) {
   const presetValues = activePreset ? czkawkaScanPresetToValues(activePreset) as Partial<CzkawkaInteractionValues> : {}
   let cancelled = false
   const platform = createNodeCzkawkaRuntime()
-  return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input: CzkawkaInput, onEvent: Parameters<typeof runCzkawka>[2]) => { cancelled = false; return runCzkawka(input, { ...platform, isCancelled: () => cancelled }, onEvent) }, cancel: async () => { cancelled = true } }
+  return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input: CzkawkaInput, onEvent: Parameters<typeof runCzkawka>[2]) => { cancelled = false; return runCzkawka(input, { ...platform, isCancelled: () => cancelled }, onEvent) }, cancel: async () => { cancelled = true }, openPath: openCzkawkaPath }
 }
 
 function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
