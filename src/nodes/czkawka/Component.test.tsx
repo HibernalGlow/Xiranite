@@ -306,6 +306,27 @@ describe("Czkawka node", () => {
     expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.visible).toBe(false)
   })
 
+  test("persists, minimizes, and resets the desktop workspace layout", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    const view = render(<Component compId="czkawka" host={host} />)
+
+    const sourceResize = screen.getByRole("separator", { name: "调整扫描条件宽度" })
+    fireEvent.keyDown(sourceResize, { key: "ArrowRight", shiftKey: true })
+    expect(host.stateValue.workspaceLayout?.sourcePanelWidth).toBe(332)
+    fireEvent.doubleClick(sourceResize)
+    expect(host.stateValue.workspaceLayout?.sourcePanelWidth).toBe(300)
+
+    fireEvent.click(screen.getByRole("button", { name: "最小化扫描条件" }))
+    expect(host.stateValue.workspaceLayout?.sourcePanelMinimized).toBe(true)
+    view.rerender(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "恢复扫描条件" }))
+    expect(host.stateValue.workspaceLayout?.sourcePanelMinimized).toBe(false)
+
+    fireEvent.click(screen.getByRole("button", { name: "最小化分析与操作" }))
+    expect(host.stateValue.workspaceLayout?.analysisPanelMinimized).toBe(true)
+  })
+
   test("persists a movable and resizable analysis panel inside the node surface", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

@@ -20,6 +20,7 @@
     "./source-inputs": { "types": "./dist/source-inputs.d.ts", "default": "./dist/source-inputs.js" },
     "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
     "./tool-options": { "types": "./dist/tool-options.d.ts", "default": "./dist/tool-options.js" },
+    "./workspace-layout": { "types": "./dist/workspace-layout.d.ts", "default": "./dist/workspace-layout.js" },
     "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
     "./interaction": { "types": "./dist/interaction.d.ts", "default": "./dist/interaction.js" },
     "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" }

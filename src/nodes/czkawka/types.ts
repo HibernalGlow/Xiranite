@@ -5,11 +5,13 @@ import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-lo
 import type { CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
 import type { CzkawkaFloatingPanelState } from "@xiranite/node-czkawka/floating-panel"
 import type { CzkawkaScanPreset } from "@xiranite/node-czkawka/scan-presets"
+import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 
 export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
 export type CzkawkaPanel = "source" | "results" | "analysis"
 
 export interface CzkawkaCardState {
+  schemaVersion?: 1
   tool?: CzkawkaTool
   includedDirectoriesText?: string
   includedDirectoriesReferencedText?: string
@@ -63,6 +65,7 @@ export interface CzkawkaCardState {
   previewPanelEnabledByTool?: Partial<Record<CzkawkaTool, boolean>>
   activityLog?: CzkawkaActivityLogEntry[]
   cardLayout?: CzkawkaCardLayout
+  workspaceLayout?: CzkawkaWorkspaceLayout
   floatingAnalysisPanel?: CzkawkaFloatingPanelState
   scanPresets?: CzkawkaScanPreset[]
   activeScanPresetId?: string

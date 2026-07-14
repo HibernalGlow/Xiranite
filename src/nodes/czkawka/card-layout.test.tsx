@@ -14,6 +14,8 @@ describe("Czkawka card layout UI", () => {
     expect(cardIds("analysis").slice(0, 3)).toEqual(["preview", "logs", "analysis"])
     fireEvent.change(screen.getByRole("slider", { name: "调整活动日志高度" }), { target: { value: "400" } })
     expect((document.querySelector('[data-card-id="logs"]') as HTMLElement).style.height).toBe("400px")
+    fireEvent.doubleClick(screen.getByRole("slider", { name: "调整活动日志高度" }))
+    expect((document.querySelector('[data-card-id="logs"]') as HTMLElement).style.height).toBe("300px")
     fireEvent.click(screen.getByText("活动日志"))
     expect(screen.queryByRole("slider", { name: "调整活动日志高度" })).toBeNull()
 

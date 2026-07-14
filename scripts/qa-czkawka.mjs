@@ -60,7 +60,6 @@ try {
   await root.getByRole("tab", { name: /结果/ }).click()
   console.log("[qa-czkawka] result tab")
   await root.getByText("添加目录并开始扫描。").waitFor({ state: "visible" })
-  await root.getByRole("tab", { name: "条件" }).click()
 
   console.log("[qa-czkawka] measure")
   await primary.focus()
@@ -80,12 +79,14 @@ try {
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      surface: { width: surfaceRect.width, height: surfaceRect.height, scrollWidth: surface.scrollWidth, scrollHeight: surface.scrollHeight },
+      surface: { width: surfaceRect.width, height: surfaceRect.height, scrollWidth: surface.scrollWidth, scrollHeight: surface.scrollHeight, mode: surface.dataset.surfaceMode, measuredWidth: surface.dataset.surfaceWidth },
+      primaryRect: { left: startRect.left, right: startRect.right, top: startRect.top, bottom: startRect.bottom },
       primaryFullyVisible: startRect.left >= surfaceRect.left && startRect.right <= surfaceRect.right && startRect.top >= surfaceRect.top && startRect.bottom <= surfaceRect.bottom,
       activeElement: document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.textContent?.trim().slice(0, 80) ?? "",
       unlabeledControls,
     }
   })
+  console.log(JSON.stringify(measurements, null, 2))
   if (measurements.documentOverflowX > 1) throw new Error(`Document horizontally overflows by ${measurements.documentOverflowX}px`)
   if (!measurements.primaryFullyVisible) throw new Error("Primary scan action is clipped on the portrait surface")
   if (measurements.unlabeledControls.length) throw new Error(`Unlabelled interactive controls: ${measurements.unlabeledControls.join(", ")}`)
@@ -93,7 +94,7 @@ try {
 
   await mkdir(outputRoot, { recursive: true })
   await root.screenshot({ path: screenshotPath })
-  const report = { componentId, interaction: { switchedTool: "similar-images", referencesSelected: 2, tabsVisited: ["results", "source"] }, measurements, consoleErrors, consoleWarnings, screenshotPath }
+  const report = { componentId, interaction: { switchedTool: "similar-images", referencesSelected: 2, tabsVisited: ["results"] }, measurements, consoleErrors, consoleWarnings, screenshotPath }
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8")
   console.log(JSON.stringify(report, null, 2))
 } finally {
