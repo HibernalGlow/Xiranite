@@ -47,6 +47,10 @@ func StartLocalBackend() (*LocalBackend, error) {
 		return nil, nil
 	}
 
+	if err := prepareEmbeddedNativeAssets(); err != nil {
+		return nil, fmt.Errorf("prepare embedded native assets: %w", err)
+	}
+
 	command, args, cwd, err := resolveLocalBackendCommand()
 	if err != nil {
 		return nil, err

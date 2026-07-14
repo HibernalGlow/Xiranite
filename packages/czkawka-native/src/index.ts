@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { resolveCzkawkaBindingPath } from "./native-asset.js"
 
 export interface CzkawkaInfo {
   apiVersion: number
@@ -153,8 +154,7 @@ let cachedBinding: CzkawkaBinding | undefined
 export function loadCzkawkaBinding(): CzkawkaBinding {
   if (cachedBinding) return cachedBinding
   const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
-  const override = process.env.XIRANITE_CZKAWKA_NATIVE_PATH
-  const bindingPath = override ?? join(packageRoot, "native", `xiranite-czkawka.${process.platform}-${process.arch}.node`)
+  const bindingPath = resolveCzkawkaBindingPath(packageRoot)
   if (!existsSync(bindingPath)) {
     throw new Error(`Xiranite Czkawka native binding not found at ${bindingPath}. Run "bun run --cwd packages/czkawka-native build:native" first.`)
   }

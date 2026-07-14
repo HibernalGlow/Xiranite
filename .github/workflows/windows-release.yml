@@ -77,6 +77,9 @@ jobs:
       - name: Build backend JS
         run: bun run build:backend:js
 
+      - name: Prepare embedded native assets
+        run: bun run build:native-assets
+
       - name: Generate Windows resources
         run: bun run wails:syso
 

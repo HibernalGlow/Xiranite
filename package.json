@@ -28,6 +28,9 @@
     "build:packages:tsc": "bun scripts/run-turbo.ts build:tsc --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "test:packages:turbo": "bun scripts/run-turbo.ts test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "build:backend:js": "bun scripts/build-backend-js.ts",
+    "build:native-assets": "bun run --cwd packages/czkawka-native prepare:embedded",
+    "refresh:native-assets": "bun run --cwd packages/czkawka-native refresh:prebuilt",
+    "refresh:native-assets:existing": "bun run --cwd packages/czkawka-native refresh:prebuilt:existing",
     "build:backend:deno": "bun scripts/build-backend-js.ts build/deno/xiranite-backend.js",
     "build:desktop:deno": "bun scripts/build-desktop-deno.ts",
     "check:desktop:deno": "bun scripts/check-desktop-deno.ts",
@@ -64,7 +67,7 @@
     "release:major": "bun scripts/release.ts major",
     "wails:dev": "bun run dev:desktop",
     "wails:syso": "go run -mod=mod github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso",
-    "wails:build": "bun run build && bun run build:backend:js && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
+    "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
     "wails:start": "go run -mod=mod ."
   },
   "dependencies": {

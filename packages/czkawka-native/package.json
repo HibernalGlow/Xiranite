@@ -16,7 +16,14 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
-    "smoke:native": "bun run build && bun scripts/smoke-native.mjs"
+    "prepare:embedded": "bun scripts/build-embedded-asset.ts",
+    "refresh:prebuilt": "bun scripts/build-embedded-asset.ts --refresh",
+    "refresh:prebuilt:existing": "bun scripts/build-embedded-asset.ts --refresh --no-build",
+    "smoke:native": "bun run build && bun scripts/smoke-native.mjs",
+    "smoke:embedded": "bun run build && bun scripts/smoke-embedded.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
