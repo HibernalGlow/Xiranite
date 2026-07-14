@@ -99,6 +99,31 @@ describe("CzkawkaResultTable", () => {
     fireEvent.contextMenu(row)
     expect((await screen.findByText("复制文件（暂不支持）")).getAttribute("data-disabled")).not.toBeNull()
   })
+
+  test("keeps a controlled header filter synchronized with the table filter", () => {
+    const onFilterTextChange = vi.fn()
+    const view = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} filterText="Alpha" selectedPaths={[]} onFilterTextChange={onFilterTextChange} onSelectionChange={vi.fn()} />)
+    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("Alpha")
+    fireEvent.change(screen.getByRole("textbox", { name: "filter results" }), { target: { value: "b.mp3" } })
+    expect(onFilterTextChange).toHaveBeenCalledWith("b.mp3")
+    view.rerender(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} filterText="b.mp3" selectedPaths={[]} onFilterTextChange={onFilterTextChange} onSelectionChange={vi.fn()} />)
+    expect(view.container.textContent).toContain("b.mp3")
+    expect(view.container.textContent).not.toContain("a.mp3")
+  })
+
+  test("renders group tracks and recoverable error and stopped states", () => {
+    const retry = vi.fn(async () => undefined)
+    const grouped = [group, { ...group, id: 1, entries: [entry("c.mp3", "Gamma")] }]
+    const view = render(<CzkawkaResultTable tool="empty-files" groups={grouped} running={false} phase="error" statusMessage="Scanner failed" selectedPaths={[]} onRetry={retry} onSelectionChange={vi.fn()} />)
+    expect(view.container.querySelectorAll('[data-group-start="true"]')).toHaveLength(2)
+    expect(screen.getByRole("alert").textContent).toContain("Scanner failed")
+    fireEvent.click(screen.getByRole("button", { name: /重新扫描/ }))
+    expect(retry).toHaveBeenCalledTimes(1)
+
+    view.rerender(<CzkawkaResultTable tool="empty-files" groups={[]} running={false} phase="stopped" statusMessage="Stopped by user" selectedPaths={[]} onRetry={retry} onSelectionChange={vi.fn()} />)
+    expect(screen.getByRole("status").textContent).toContain("Stopped by user")
+    expect(screen.getByText("扫描已停止，没有返回结果。")).toBeTruthy()
+  })
 })
 
 const entries: CzkawkaEntry[] = [entry("a.mp3", "Alpha"), entry("b.mp3", "Beta")]

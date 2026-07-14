@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CzkawkaData, CzkawkaInput } from "@xiranite/node-czkawka/core"
@@ -55,6 +55,34 @@ describe("Czkawka node", () => {
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getAllByText("duplicate-files-result.dat").length).toBeGreaterThan(0)
     expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
+  })
+
+  test("links the header search to the result table and isolates it by tool", () => {
+    const duplicate = resultFor({ tool: "duplicate-files" })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: duplicate })
+    const view = render(<Component compId="czkawka" host={host} />)
+    const headerSearch = screen.getByRole("textbox", { name: "czkawka global filter" })
+    fireEvent.change(headerSearch, { target: { value: "not-present" } })
+    expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("not-present")
+    expect(screen.getByText("没有匹配当前筛选的结果。")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "空文件" }))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect((screen.getByRole("textbox", { name: "czkawka global filter" }) as HTMLInputElement).value).toBe("")
+
+    fireEvent.click(screen.getByRole("button", { name: "重复文件" }))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect((screen.getByRole("textbox", { name: "czkawka global filter" }) as HTMLInputElement).value).toBe("not-present")
+  })
+
+  test("maps a stopped core result to a recoverable stopped GUI state", async () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, () => ({ ...sample, stopped: true }))
+    const view = render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
+    await waitFor(() => expect(host.stateValue.phase).toBe("stopped"))
+    view.rerender(<Component compId="czkawka" host={host} />)
+    expect(screen.getByRole("status").textContent).toContain("Found 1 item(s).")
+    expect(screen.getByText("扫描已停止，没有返回结果。")).toBeTruthy()
   })
 })
 
