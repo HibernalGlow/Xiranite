@@ -215,14 +215,16 @@ git diff --name-status 210823a..bbe1969 -- ui/src tauri/src
 | D04 | `[-]` | 相似度分布 | 图片等级/差异区间已完成；native 视频 DTO 尚无距离值 |
 | D05 | `[x]` | 选择统计 | 数量、体积、回收空间实时联动 |
 | D06 | `[ ]` | 浮动分析面板 | 可移动/缩放且不超出节点卡片可视区域 |
-| D07 | `[ ]` | 统一卡片注册表 | 设置、预览、分析、日志可由 registry 组合 |
-| D08 | `[ ]` | 卡片可见/折叠/高度 | 配置持久化 |
-| D09 | `[ ]` | 卡片拖动排序和跨面板移动 | 键盘/鼠标可访问，顺序持久化 |
+| D07 | `[x]` | 统一卡片注册表 | 设置、预览、分析、日志可由 registry 组合 |
+| D08 | `[x]` | 卡片可见/折叠/高度 | 配置持久化 |
+| D09 | `[x]` | 卡片拖动排序和跨面板移动 | 键盘/鼠标可访问，顺序持久化 |
 | D10 | `[x]` | 日志视图 | 扫描和操作日志可复制、清空、过滤 |
 
 验证证据（2026-07-15）：统计算法位于 `packages/nodes/czkawka/src/analysis.ts`，不依赖 React、GUI 或原生绑定；按扩展名生成数量/体积/双百分比，按 fork 的 8/16/32/64 hash 阈值生成图片相似度等级，并直接复用选择助手的回收空间算法。GUI 的 `CzkawkaAnalysisView` 消费当前过滤后的 groups，使用同一数据绘制 CSS conic-gradient 环图、格式体积条、相似度条和实时选择卡；CLI 文本摘要、交互模式结果和 OpenTUI 主要格式卡也调用同一函数。Czkawka 包 43 项 Vitest、1 项真实 OpenTUI Bun 测试、GUI 分析/节点 11 项测试及 TS 构建通过。`czkawka_core` 当前 `VideosEntry` 包含 vhash 但 bridge 的 `MediaEntry` 未暴露距离，前端不会伪造视频相似度，因此 D04 保持部分完成。
 
 活动日志证据（2026-07-15）：`packages/nodes/czkawka/src/activity-log.ts` 定义与 UI 无关的扫描/进度/操作/系统日志、四级状态、200 条有界历史、过滤、序列化和跨端文本格式。GUI 将扫描开始、所有 progress/log 事件、停止/完成/错误以及删除/移动/导出结果写入节点 `activityLog`，查看器支持按工具/级别/操作/消息过滤、复制全文和清空；CLI 与 OpenTUI 复用同一消息格式化函数。Czkawka 包 46 项 Vitest、1 项 OpenTUI Bun 测试、GUI 日志/节点 11 项测试和 TS 构建通过。
+
+卡片系统证据（2026-07-15）：`packages/nodes/czkawka/src/card-layout.ts` 提供六张卡片的注册表、`source`/`analysis` 面板、版本 1 布局、缺失卡片迁移、可见/折叠/高度边界、顺序与跨面板移动；不依赖 React 或 dnd 库。GUI 的 `CzkawkaCardStack` 实际组合扫描设置、固定预览、统计、日志、选择和文件操作卡片；头部管理器可切换可见性、面板归属和恢复默认布局。卡片原生 drag/drop 支持同面板排序和跨面板移动，同时提供上移/下移按钮；高度 range、折叠标题、管理器操作均具备可访问名称。所有变化同步写入节点 `cardLayout`，纯模型 4 项测试和 GUI/宿主持久化测试覆盖顺序、高度、折叠、隐藏及跨面板拖动。
 
 ## 11. 布局、设置与桌面体验
 

@@ -130,6 +130,27 @@ describe("Czkawka node", () => {
     expect(screen.getByRole("button", { name: "禁用固定预览" })).toBeTruthy()
   })
 
+  test("persists card order, height, collapse, visibility, and cross-panel moves", () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "下移统计分析" }))
+    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.order).toBe(2)
+    fireEvent.change(screen.getByRole("slider", { name: "调整活动日志高度" }), { target: { value: "416" } })
+    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.height).toBe(416)
+    fireEvent.click(screen.getByRole("button", { name: "活动日志" }))
+    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.collapsed).toBe(true)
+
+    const transfer = { value: "", effectAllowed: "none", setData: vi.fn((_type: string, value: string) => { transfer.value = value }), getData: vi.fn(() => transfer.value) }
+    fireEvent.dragStart(document.querySelector('[data-card-id="logs"]')!, { dataTransfer: transfer })
+    fireEvent.drop(screen.getByTestId("czkawka-card-stack-source"), { dataTransfer: transfer })
+    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "logs")?.panel).toBe("source")
+
+    fireEvent.click(screen.getByRole("button", { name: "管理卡片" }))
+    fireEvent.click(screen.getByRole("button", { name: "隐藏统计分析" }))
+    expect(host.stateValue.cardLayout?.cards.find((card) => card.id === "analysis")?.visible).toBe(false)
+  })
+
   test("keeps per-tool selection history synchronized with the result table", async () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

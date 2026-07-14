@@ -13,6 +13,7 @@
     "./selection-assistant": { "types": "./dist/selection-assistant.d.ts", "default": "./dist/selection-assistant.js" },
     "./analysis": { "types": "./dist/analysis.d.ts", "default": "./dist/analysis.js" },
     "./activity-log": { "types": "./dist/activity-log.d.ts", "default": "./dist/activity-log.js" },
+    "./card-layout": { "types": "./dist/card-layout.d.ts", "default": "./dist/card-layout.js" },
     "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
     "./tool-options": { "types": "./dist/tool-options.d.ts", "default": "./dist/tool-options.js" },
     "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" },
