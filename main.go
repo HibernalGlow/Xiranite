@@ -53,9 +53,16 @@ func main() {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 		Windows: application.WindowsOptions{
-			AdditionalBrowserArgs: []string{
-				"--enable-features=JXLImageFormat",
+			EnabledFeatures: []string{
+				"JXLImageFormat",
+				"msWebView2CodeCache",
+				"msWebView2NativeEventDispatch",
+				"CanvasOopRasterization",
 			},
+			AdditionalBrowserArgs: append([]string{
+				"--enable-gpu-rasterization",
+				"--enable-zero-copy",
+			}, developmentWebviewBrowserArgs()...),
 		},
 	})
 
