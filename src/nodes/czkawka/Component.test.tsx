@@ -12,13 +12,30 @@ afterEach(cleanup)
 
 describe("Czkawka node", () => {
   test("renders all scanners and sends scan input", async () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", hashType: "blake3" })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", hashType: "blake3", threadCount: "6" })
     render(<Component compId="czkawka" host={host} />)
     expect(screen.getByText("Czkawka · 重复文件")).toBeTruthy()
     expect(screen.getByRole("button", { name: "相似图片" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "不正确扩展名" })).toBeTruthy()
     await screen.getByRole("button", { name: "开始扫描" }).click()
-    await waitFor(() => expect(host.calls[0]).toEqual(expect.objectContaining({ nodeId: "czkawka", input: expect.objectContaining({ action: "scan", tool: "duplicate-files", includedDirectories: ["D:/media"], hashType: "blake3" }) })))
+    await waitFor(() => expect(host.calls[0]).toEqual(expect.objectContaining({ nodeId: "czkawka", input: expect.objectContaining({ action: "scan", tool: "duplicate-files", includedDirectories: ["D:/media"], hashType: "blake3", threadCount: 6 }) })))
+  })
+
+  test("switches the running action to native cancellation", async () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    let finish!: (result: NodeRunResult<CzkawkaData>) => void
+    host.runner!.run = async <TInput, TData>(nodeId: string, input: TInput) => {
+      host.calls.push({ nodeId, input: input as CzkawkaInput })
+      return await new Promise<NodeRunResult<CzkawkaData>>((resolve) => { finish = resolve }) as NodeRunResult<TData>
+    }
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
+    const stop = await screen.findByRole("button", { name: "停止扫描" })
+    fireEvent.click(stop)
+    await waitFor(() => expect(host.cancelCalls).toBe(1))
+    expect(host.stateValue.progressText).toContain("正在请求停止")
+    finish({ success: false, message: "Stopped duplicate-files.", data: { ...sample, stopped: true } })
+    await waitFor(() => expect(host.stateValue.phase).toBe("stopped"))
   })
 
   test("maps fork-specific media settings into the shared scan contract", () => {
@@ -275,15 +292,16 @@ describe("Czkawka node", () => {
   })
 })
 
-type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }> }
+type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number }
 function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample): TestHost {
   const host: TestHost = {
     stateValue: initial,
     calls: [],
+    cancelCalls: 0,
     contract: { name: "xiranite.node-host", version: "1.0.0", supportedCapabilities: ["contract", "state", "runner"], hasCapability: () => true },
     env: { theme: "light", platform: "web" },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
-    runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } } },
+    runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,
     patchData: (_id, patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     listComponents: () => [],

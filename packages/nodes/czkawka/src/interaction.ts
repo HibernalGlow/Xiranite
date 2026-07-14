@@ -16,6 +16,7 @@ export type CzkawkaInteractionValues = InteractionValues & {
   maximumFileSize: number
   recursive: boolean
   useCache: boolean
+  threadCount: number
   filterText: string
   selectedPathsText: string
   destinationDirectory: string
@@ -45,7 +46,7 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {
   const zh = language === "zh"
-  const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", exportScope: "selected", renameItemsText: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
+  const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, threadCount: 0, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", exportScope: "selected", renameItemsText: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
   const fields: InteractionField[] = [
     { id: "action", label: zh ? "命令" : "Command", kind: "select", role: "action", options: [{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }, { value: "delete", label: zh ? "♲ 删除" : "♲ Delete" }, { value: "move", label: zh ? "⇄ 移动/复制" : "⇄ Move/copy" }, { value: "rename", label: zh ? "✎ 修正扩展名" : "✎ Fix extension" }, { value: "save", label: zh ? "⇩ 导出" : "⇩ Export" }] },
     { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", options: CZKAWKA_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
@@ -58,6 +59,7 @@ export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteract
     { id: "maximumFileSize", label: zh ? "最大字节" : "Maximum bytes", kind: "number", min: 1, step: 1, visibleWhen: scanOnly },
     { id: "recursive", label: zh ? "递归扫描" : "Recursive", kind: "boolean", visibleWhen: scanOnly },
     { id: "useCache", label: zh ? "使用缓存" : "Use cache", kind: "boolean", visibleWhen: scanOnly },
+    { id: "threadCount", label: zh ? "扫描线程（0 = 自动）" : "Scan threads (0 = auto)", kind: "number", min: 0, max: 256, step: 1, visibleWhen: scanOnly },
     ...createCzkawkaOptionFields(language),
     { id: "filterText", label: zh ? "结果过滤" : "Result filter", kind: "text", visibleWhen: scanOnly },
     { id: "selectedPathsText", label: zh ? "操作路径" : "Operation paths", kind: "path-list", lines: 5, visibleWhen: (values) => values.action !== "scan" && values.action !== "rename" },

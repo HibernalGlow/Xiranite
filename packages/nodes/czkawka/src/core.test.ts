@@ -19,6 +19,7 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.deleteMode).toBe("trash")
     expect(value.conflictPolicy).toBe("skip")
     expect(value.hashType).toBe("blake3")
+    expect(value.threadCount).toBe(0)
     expect(value.similarImagesHashSize).toBe(16)
     expect(value.similarVideosCropDetect).toBe("letterbox")
     expect(value.musicCheckType).toBe("tags")
@@ -30,6 +31,36 @@ describe("czkawka TypeScript orchestration", () => {
     expect(result.success).toBe(true)
     expect(result.data?.groupCount).toBe(1)
     expect(result.data?.reclaimableBytes).toBe(12)
+  })
+
+  test("forwards continuous native progress as bounded node events", async () => {
+    const adapter = runtime()
+    vi.mocked(adapter.scanDuplicates).mockImplementation(async (_input, onProgress) => {
+      onProgress?.({ stage: "hashFiles", stageIndex: 1, stageCount: 3, entriesChecked: 25, entriesTotal: 100, bytesChecked: 0, bytesTotal: 0 })
+      return { groups: [], messages: "ok", stopped: false }
+    })
+    const events: Array<{ progress?: number; message?: string }> = []
+    await runCzkawka({ includedDirectories: ["D:/"] }, adapter, (event) => events.push(event))
+    expect(events).toContainEqual(expect.objectContaining({ progress: 43, message: "hash Files 25/100" }))
+    expect(events.at(-1)).toMatchObject({ progress: 100, message: "Finished duplicate-files." })
+  })
+
+  test("honors cancellation before entering native code", async () => {
+    const adapter = runtime()
+    adapter.isCancelled = () => true
+    adapter.waitWhilePaused = vi.fn(async () => undefined)
+    const result = await runCzkawka({ includedDirectories: ["D:/"] }, adapter)
+    expect(adapter.waitWhilePaused).toHaveBeenCalledOnce()
+    expect(adapter.scanDuplicates).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ success: false, data: { stopped: true } })
+  })
+
+  test("preserves partial results from a stopped native scan", async () => {
+    const adapter = runtime()
+    vi.mocked(adapter.scanDuplicates).mockResolvedValue({ groups: [{ files: [{ path: "D:/partial.bin", size: 12, modifiedDate: 1 }] }], messages: "stopped", stopped: true })
+    const result = await runCzkawka({ includedDirectories: ["D:/"] }, adapter)
+    expect(result).toMatchObject({ success: false, data: { stopped: true, fileCount: 1 } })
+    expect(result.message).toContain("retained 1 partial")
   })
 
   test("applies the fork minimum duplicate group size in TypeScript", async () => {

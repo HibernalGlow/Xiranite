@@ -1,10 +1,12 @@
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Once;
+use std::sync::{Arc, Once, OnceLock};
 use std::sync::atomic::AtomicBool;
+use std::thread::JoinHandle;
 
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use czkawka_core::common::config_cache_path::set_config_cache_path;
 use czkawka_core::common::model::{CheckingMethod, HashType};
+use czkawka_core::common::progress_data::ProgressData;
 use czkawka_core::common::tool_data::CommonData;
 use czkawka_core::common::traits::Search;
 use czkawka_core::tools::bad_extensions::{BadExtensions, BadExtensionsParameters};
@@ -22,7 +24,47 @@ use image_hasher::{FilterType, HashAlg};
 use thiserror::Error;
 use vid_dup_finder_lib::Cropdetect;
 
-pub const API_VERSION: u32 = 2;
+pub const API_VERSION: u32 = 3;
+
+#[derive(Debug, Clone)]
+pub struct ScanProgress {
+    pub stage: String,
+    pub stage_index: u8,
+    pub stage_count: u8,
+    pub entries_checked: usize,
+    pub entries_total: usize,
+    pub bytes_checked: u64,
+    pub bytes_total: u64,
+}
+
+#[derive(Clone)]
+pub struct ScanControl {
+    stop: Arc<AtomicBool>,
+    progress: Option<Sender<ScanProgress>>,
+}
+
+impl ScanControl {
+    pub fn detached() -> Self { Self { stop: Arc::new(AtomicBool::new(false)), progress: None } }
+    pub fn channel(stop: Arc<AtomicBool>) -> (Self, Receiver<ScanProgress>) { let (sender, receiver) = unbounded(); (Self { stop, progress: Some(sender) }, receiver) }
+    fn start_progress_forwarder(&self) -> (Option<Sender<ProgressData>>, Option<JoinHandle<()>>) {
+        let Some(target) = self.progress.clone() else { return (None, None) };
+        let (sender, receiver) = unbounded::<ProgressData>();
+        let handle = std::thread::spawn(move || while let Ok(progress) = receiver.recv() { let _ = target.send(ScanProgress { stage: format!("{:?}", progress.sstage), stage_index: progress.current_stage_idx, stage_count: progress.max_stage_idx.saturating_add(1), entries_checked: progress.entries_checked, entries_total: progress.entries_to_check, bytes_checked: progress.bytes_checked, bytes_total: progress.bytes_to_check }); });
+        (Some(sender), Some(handle))
+    }
+}
+
+pub fn initialize_threads(thread_count: usize) -> usize {
+    static THREAD_COUNT: OnceLock<usize> = OnceLock::new();
+    *THREAD_COUNT.get_or_init(|| { czkawka_core::common::set_number_of_threads(thread_count); czkawka_core::common::get_number_of_threads() })
+}
+
+fn search_with_control<T: Search>(tool: &mut T, control: &ScanControl) {
+    let (progress, forwarder) = control.start_progress_forwarder();
+    tool.search(&control.stop, progress.as_ref());
+    drop(progress);
+    if let Some(handle) = forwarder { let _ = handle.join(); }
+}
 
 #[derive(Debug, Error)]
 pub enum CzkawkaError {
@@ -125,6 +167,13 @@ pub struct DuplicateScanResult {
 pub fn scan_duplicate_files(
     options: DuplicateScanOptions,
 ) -> Result<DuplicateScanResult, CzkawkaError> {
+    scan_duplicate_files_controlled(options, &ScanControl::detached())
+}
+
+pub fn scan_duplicate_files_controlled(
+    options: DuplicateScanOptions,
+    control: &ScanControl,
+) -> Result<DuplicateScanResult, CzkawkaError> {
     if options.included_directories.is_empty() {
         return Err(CzkawkaError::InvalidOption(
             "included_directories cannot be empty".into(),
@@ -173,8 +222,7 @@ pub fn scan_duplicate_files(
     finder.set_recursive_search(options.recursive);
     finder.set_use_cache(options.use_cache);
 
-    let stop = Arc::new(AtomicBool::new(false));
-    finder.search(&stop, None);
+    search_with_control(&mut finder, control);
     let raw_groups: Vec<Vec<(DuplicateEntry, bool)>> = if finder.get_use_reference() {
         match check_method {
             CheckingMethod::Hash => finder.get_files_with_identical_hashes_referenced().values().flatten().map(referenced_duplicate_group).collect(),
@@ -286,12 +334,15 @@ pub struct BasicScanResult {
 }
 
 pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, CzkawkaError> {
+    scan_basic_files_controlled(options, &ScanControl::detached())
+}
+
+pub fn scan_basic_files_controlled(options: BasicScanOptions, control: &ScanControl) -> Result<BasicScanResult, CzkawkaError> {
     if options.included_directories.is_empty() {
         return Err(CzkawkaError::InvalidOption(
             "included_directories cannot be empty".into(),
         ));
     }
-    let stop = Arc::new(AtomicBool::new(false));
     match options.tool {
         BasicTool::BigFiles => {
             let mode = if options.biggest_first {
@@ -301,7 +352,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
             };
             let mut tool = BigFile::new(BigFileParameters::new(options.number_of_files, mode));
             configure_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_big_files()
                 .iter()
@@ -318,7 +369,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
         BasicTool::EmptyFiles => {
             let mut tool = EmptyFiles::new();
             configure_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_empty_files()
                 .iter()
@@ -335,7 +386,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
         BasicTool::EmptyFolders => {
             let mut tool = EmptyFolder::new();
             configure_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_empty_folder_list()
                 .values()
@@ -352,7 +403,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
         BasicTool::TemporaryFiles => {
             let mut tool = Temporary::new();
             configure_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_temporary_files()
                 .iter()
@@ -369,7 +420,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, Cz
         BasicTool::InvalidSymlinks => {
             let mut tool = InvalidSymlinks::new();
             configure_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_invalid_symlinks()
                 .iter()
@@ -570,12 +621,15 @@ pub struct MediaScanResult {
 }
 
 pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, CzkawkaError> {
+    scan_media_files_controlled(options, &ScanControl::detached())
+}
+
+pub fn scan_media_files_controlled(options: MediaScanOptions, control: &ScanControl) -> Result<MediaScanResult, CzkawkaError> {
     if options.included_directories.is_empty() {
         return Err(CzkawkaError::InvalidOption(
             "included_directories cannot be empty".into(),
         ));
     }
-    let stop = Arc::new(AtomicBool::new(false));
     match options.tool {
         MediaTool::SimilarImages => {
             let hash_algorithm = match options.image_hash_algorithm {
@@ -602,7 +656,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
                 options.ignore_hard_links,
             ));
             configure_media_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let groups = if tool.get_use_reference() {
                 tool.get_similar_images_referenced().iter().map(|(reference, others)| MediaGroup {
                     entries: std::iter::once(image_media_entry(reference, true))
@@ -631,7 +685,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
                 crop_detect,
             ));
             configure_media_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let groups = if tool.get_use_reference() {
                 tool.get_similar_videos_referenced().iter().map(|(reference, others)| MediaGroup {
                     entries: std::iter::once(video_media_entry(reference, true))
@@ -669,7 +723,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
                 options.music_compare_fingerprints_only_with_similar_titles,
             ));
             configure_media_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let groups = if tool.get_use_reference() {
                 tool.get_similar_music_referenced().iter().map(|(reference, others)| MediaGroup {
                     entries: std::iter::once(music_media_entry(reference, true))
@@ -692,7 +746,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
             if checked == CheckedTypes::NONE { checked = CheckedTypes::AUDIO; }
             let mut tool = BrokenFiles::new(BrokenFilesParameters::new(checked));
             configure_media_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_broken_files()
                 .iter()
@@ -719,7 +773,7 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
         MediaTool::BadExtensions => {
             let mut tool = BadExtensions::new(BadExtensionsParameters::new());
             configure_media_tool(&mut tool, &options);
-            tool.search(&stop, None);
+            search_with_control(&mut tool, control);
             let entries = tool
                 .get_bad_extensions_files()
                 .iter()

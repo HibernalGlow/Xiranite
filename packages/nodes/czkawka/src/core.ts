@@ -44,6 +44,7 @@ export interface CzkawkaInput {
   maximumFileSize?: number
   recursive?: boolean
   useCache?: boolean
+  threadCount?: number
   ignoreHardLinks?: boolean
   usePrehash?: boolean
   caseSensitiveNames?: boolean
@@ -112,9 +113,9 @@ export interface NativeMediaResult {
 }
 
 export interface CzkawkaRuntime {
-  scanDuplicates: (input: Required<CzkawkaInput>) => Promise<NativeDuplicateResult>
-  scanBasic: (input: Required<CzkawkaInput>) => Promise<NativeBasicResult>
-  scanMedia: (input: Required<CzkawkaInput>) => Promise<NativeMediaResult>
+  scanDuplicates: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
+  scanBasic: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
+  scanMedia: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
   pathExists: (path: string) => Promise<boolean>
   removePath: (path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }) => Promise<void>
   copyPath: (source: string, target: string) => Promise<void>
@@ -125,7 +126,11 @@ export interface CzkawkaRuntime {
   dirname: (path: string) => string
   basename: (path: string) => string
   relativeDirectoryFromRoot: (path: string) => string
+  isCancelled?: () => boolean
+  waitWhilePaused?: () => Promise<void>
 }
+
+export interface CzkawkaNativeProgress { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }
 
 export interface CzkawkaEntry {
   id: string
@@ -198,6 +203,7 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     maximumFileSize: clamp(input.maximumFileSize, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
     recursive: input.recursive ?? true,
     useCache: input.useCache ?? true,
+    threadCount: clamp(input.threadCount, 0, 256, 0),
     ignoreHardLinks: input.ignoreHardLinks ?? true,
     usePrehash: input.usePrehash ?? true,
     caseSensitiveNames: input.caseSensitiveNames ?? false,
@@ -274,32 +280,41 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
 async function scan(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   if (!value.includedDirectories.length) return fail(value, "Add at least one included directory.")
   if (value.minimumFileSize > value.maximumFileSize) return fail(value, "Minimum file size cannot exceed maximum file size.")
-  onEvent({ type: "progress", progress: 5, message: `Starting ${value.tool}.` })
+  await runtime.waitWhilePaused?.()
+  if (runtime.isCancelled?.()) return cancelled(value)
+  onEvent({ type: "progress", progress: 2, message: `Starting ${value.tool}.` })
+  const onProgress = (progress: CzkawkaNativeProgress) => onEvent({ type: "progress", progress: nativeProgressPercent(progress), message: nativeProgressMessage(progress) })
   let groups: CzkawkaGroup[]
   let messages = ""
   let stopped = false
   if (value.tool === "duplicate-files") {
-    const native = await runtime.scanDuplicates(value)
+    const native = await runtime.scanDuplicates(value, onProgress)
     groups = native.groups.filter((group) => group.files.length >= value.duplicateMinimumGroupSize).map((group, index) => makeGroup(index, group.files.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, true))
     messages = native.messages
     stopped = native.stopped
   } else if (BASIC_TOOLS.has(value.tool)) {
-    const native = await runtime.scanBasic(value)
+    const native = await runtime.scanBasic(value, onProgress)
     groups = native.entries.length ? [makeGroup(0, native.entries.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, false)] : []
     messages = native.messages
     stopped = native.stopped
   } else if (MEDIA_TOOLS.has(value.tool)) {
-    const native = await runtime.scanMedia(value)
+    const native = await runtime.scanMedia(value, onProgress)
     groups = native.groups.filter((group) => group.entries.length > 0).map((group, index) => makeGroup(index, group.entries.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, isGroupedTool(value.tool)))
     messages = native.messages
     stopped = native.stopped
   } else return fail(value, `Unsupported Czkawka tool: ${value.tool}`)
 
   groups = filterAndSortGroups(groups, value)
-  onEvent({ type: "progress", progress: 100, message: `Finished ${value.tool}.` })
+  if (runtime.isCancelled?.() && !stopped) stopped = true
+  onEvent({ type: "progress", progress: stopped ? 99 : 100, message: stopped ? `Stopped ${value.tool}.` : `Finished ${value.tool}.` })
   const data = summarize(value, groups, messages, stopped)
-  return { success: true, message: `Found ${data.fileCount} item(s) in ${data.groupCount} group(s).`, data }
+  return { success: !stopped, message: stopped ? `Stopped ${value.tool}; retained ${data.fileCount} partial item(s).` : `Found ${data.fileCount} item(s) in ${data.groupCount} group(s).`, data }
 }
+
+function nativeProgressPercent(progress: CzkawkaNativeProgress): number { const stages = Math.max(1, progress.stageCount), stage = Math.max(0, Math.min(stages - 1, progress.stageIndex)), fraction = progress.entriesTotal > 0 ? progress.entriesChecked / progress.entriesTotal : progress.bytesTotal > 0 ? progress.bytesChecked / progress.bytesTotal : 0; return Math.max(3, Math.min(98, Math.round(((stage + Math.max(0, Math.min(1, fraction))) / stages) * 95 + 3))) }
+function nativeProgressMessage(progress: CzkawkaNativeProgress): string { const count = progress.entriesTotal > 0 ? ` ${progress.entriesChecked}/${progress.entriesTotal}` : progress.entriesChecked > 0 ? ` ${progress.entriesChecked}` : ""; return `${humanStage(progress.stage)}${count}` }
+function humanStage(stage: string): string { return stage.replace(/([a-z0-9])([A-Z])/g, "$1 $2") }
+function cancelled(value: Required<CzkawkaInput>): CzkawkaResult { return { success: false, message: `${value.tool} scan cancelled.`, data: summarize(value, [], "Scan cancelled.", true) } }
 
 function makeGroup(index: number, raw: Array<Partial<CzkawkaEntry> & { path: string; name: string; size: number; modifiedDate: number }>, runtime: Pick<CzkawkaRuntime, "basename">, reclaimable: boolean): CzkawkaGroup {
   const entries = raw.map((entry, entryIndex) => ({ ...entry, id: `${index}:${entryIndex}:${entry.path}`, groupId: index, name: entry.name || runtime.basename(entry.path) })) as CzkawkaEntry[]

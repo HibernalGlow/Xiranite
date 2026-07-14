@@ -21,6 +21,7 @@ export interface CzkawkaCardState {
   maximumFileSize?: string
   recursive?: boolean
   useCache?: boolean
+  threadCount?: string
   checkMethod?: CzkawkaCheckMethod
   hashType?: CzkawkaHashType
   caseSensitiveNames?: boolean

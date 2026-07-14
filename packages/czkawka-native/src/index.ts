@@ -25,6 +25,8 @@ export interface DuplicateScanOptions {
   caseSensitiveNames?: boolean
   checkMethod?: "name" | "size" | "size-and-name" | "sizeAndName" | "hash"
   hashType?: "crc32" | "xxh3" | "blake3"
+  scanId?: string
+  threadCount?: number
 }
 
 export interface DuplicateFile {
@@ -57,6 +59,8 @@ export interface BasicScanOptions {
   useCache?: boolean
   numberOfFiles?: number
   biggestFirst?: boolean
+  scanId?: string
+  threadCount?: number
 }
 
 export interface BasicEntry {
@@ -112,6 +116,8 @@ export interface MediaScanOptions {
   brokenPdf?: boolean
   brokenArchive?: boolean
   brokenImage?: boolean
+  scanId?: string
+  threadCount?: number
 }
 
 export interface MediaEntry {
@@ -142,11 +148,23 @@ export interface MediaScanResult {
   stopped: boolean
 }
 
+export interface CzkawkaScanProgress {
+  stage: string
+  stageIndex: number
+  stageCount: number
+  entriesChecked: number
+  entriesTotal: number
+  bytesChecked: number
+  bytesTotal: number
+}
+
 export interface CzkawkaBinding {
   getCzkawkaInfo(): CzkawkaInfo
   scanDuplicateFiles(options: DuplicateScanOptions): Promise<DuplicateScanResult>
   scanBasicFiles(options: BasicScanOptions): Promise<BasicScanResult>
   scanMediaFiles(options: MediaScanOptions): Promise<MediaScanResult>
+  cancelCzkawkaScan?(scanId: string): boolean
+  getCzkawkaScanProgress?(scanId: string): CzkawkaScanProgress | undefined
 }
 
 let cachedBinding: CzkawkaBinding | undefined
@@ -173,3 +191,5 @@ export const scanBasicFiles = (options: BasicScanOptions): Promise<BasicScanResu
   loadCzkawkaBinding().scanBasicFiles(options)
 export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResult> =>
   loadCzkawkaBinding().scanMediaFiles(options)
+export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false
+export const getCzkawkaScanProgress = (scanId: string): CzkawkaScanProgress | undefined => loadCzkawkaBinding().getCzkawkaScanProgress?.(scanId) ?? undefined

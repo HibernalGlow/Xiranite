@@ -67,6 +67,7 @@ export function czkawkaScanPresetToValues(preset: CzkawkaScanPreset): Record<str
     maximumFileSize: input.maximumFileSize === undefined ? "" : String(input.maximumFileSize),
     recursive: input.recursive ?? true,
     useCache: input.useCache ?? true,
+    threadCount: input.threadCount ?? 0,
   }
   for (const option of CZKAWKA_TOOL_OPTIONS) if (input[option.id] !== undefined) values[option.id] = typeof option.defaultValue === "number" ? String(input[option.id]) : input[option.id]
   return values

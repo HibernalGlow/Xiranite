@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { scanBasicFiles, scanDuplicateFiles, scanMediaFiles, type BasicScanOptions, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
-import type { CzkawkaInput, CzkawkaRuntime } from "./core.js"
+import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import type { CzkawkaInput, CzkawkaNativeProgress, CzkawkaRuntime } from "./core.js"
 
 type NormalizedInput = Required<CzkawkaInput>
 const execFileAsync = promisify(execFile)
@@ -88,10 +89,10 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
 }
 
 export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
-  return {
-    scanDuplicates: (input) => scanDuplicateFiles(toDuplicateScanOptions(input)),
-    scanBasic: (input) => scanBasicFiles(toBasicScanOptions(input)),
-    scanMedia: (input) => scanMediaFiles(toMediaScanOptions(input)),
+  const runtime: CzkawkaRuntime = {
+    scanDuplicates: (input, onProgress) => runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles),
+    scanBasic: (input, onProgress) => runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles),
+    scanMedia: (input, onProgress) => runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles),
     pathExists,
     removePath,
     copyPath,
@@ -103,7 +104,23 @@ export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
     basename,
     relativeDirectoryFromRoot: (path) => relative(parse(path).root, dirname(path)),
   }
+  return runtime
 }
+
+async function runNativeScan<TOptions extends object, TResult>(options: TOptions, threadCount: number, runtime: CzkawkaRuntime, onProgress: ((progress: CzkawkaNativeProgress) => void) | undefined, scan: (options: TOptions & { scanId: string; threadCount: number }) => Promise<TResult>): Promise<TResult> {
+  const scanId = randomUUID()
+  let lastProgress = ""
+  const publish = () => { const progress = getCzkawkaScanProgress(scanId); if (!progress) return; const signature = `${progress.stage}:${progress.stageIndex}:${progress.entriesChecked}:${progress.bytesChecked}`; if (signature === lastProgress) return; lastProgress = signature; onProgress?.(normalizeProgress(progress)) }
+  const timer = setInterval(() => { if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId); publish() }, 100)
+  timer.unref()
+  try {
+    const pending = scan({ ...options, scanId, threadCount })
+    if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId)
+    return await pending
+  } finally { publish(); clearInterval(timer) }
+}
+
+function normalizeProgress(progress: CzkawkaScanProgress): CzkawkaNativeProgress { return { stage: progress.stage, stageIndex: Number(progress.stageIndex), stageCount: Number(progress.stageCount), entriesChecked: Number(progress.entriesChecked), entriesTotal: Number(progress.entriesTotal), bytesChecked: Number(progress.bytesChecked), bytesTotal: Number(progress.bytesTotal) } }
 
 async function pathExists(path: string): Promise<boolean> {
   try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }

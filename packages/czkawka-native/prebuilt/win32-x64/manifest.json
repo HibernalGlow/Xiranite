@@ -3,16 +3,16 @@
   "assets": [
     {
       "id": "czkawka",
-      "version": "10.0.0-api2",
+      "version": "10.0.0-api3",
       "platform": "win32",
       "arch": "x64",
       "archive": "czkawka.win32-x64.zip",
       "binding": "xiranite-czkawka.win32-x64.node",
-      "sha256": "ccfb936520758d8e426937c0a5fe828ef93b17904eede069cd522c4049cb382c",
+      "sha256": "dd83ce56c032c7eaec33402c22909f9466a2264dea887c8be28b581dfe306e58",
       "files": [
         {
           "name": "xiranite-czkawka.win32-x64.node",
-          "sha256": "72c69ec8136b61add2055c66477ec6b473702bc2e91de95c1f7918af4aed0e6d"
+          "sha256": "881d73b4c9ae4a8db7e927efc3d7a31077bccb7c478b8f7e24453e48daa7983d"
         },
         {
           "name": "dav1d.dll",

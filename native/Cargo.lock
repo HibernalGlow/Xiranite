@@ -5555,6 +5555,7 @@ dependencies = [
 name = "xiranite-czkawka-core"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "czkawka_core",
  "image_hasher",
  "tempfile",

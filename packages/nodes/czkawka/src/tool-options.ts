@@ -3,7 +3,7 @@ import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun">
 type OptionValue = string | number | boolean
 
 export interface CzkawkaOptionDefinition {
@@ -105,6 +105,7 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     maximumFileSize: optionalNumber(values.maximumFileSize),
     recursive: values.recursive !== false,
     useCache: values.useCache !== false,
+    threadCount: optionalNumber(values.threadCount),
     filterText: text(values.filterText),
     ...valuesToCzkawkaOptions(values),
   }

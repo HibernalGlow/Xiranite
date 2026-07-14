@@ -3,8 +3,9 @@ import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, write
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
+import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
-import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaTool } from "./core.js"
+import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { createNodeCzkawkaRuntime } from "./platform.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
@@ -25,7 +26,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = d
     host,
     cliName: CLI_NAME,
     loadContext: async () => { const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } },
-    createDefinition: (defaults, language) => { const activePreset = defaults.scan_presets?.find((preset) => preset.id === defaults.active_scan_preset_id); const presetValues = activePreset ? czkawkaScanPresetToValues(activePreset) as Partial<CzkawkaInteractionValues> : {}; return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input, onEvent) => runCzkawka(input, createNodeCzkawkaRuntime(), onEvent) } },
+    createDefinition,
     runPipe,
     runGuide: runGuidedInteraction,
     runUi: runTerminalUi,
@@ -54,10 +55,24 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   else if (command === "rename") input = createCzkawkaOperationInput("rename", { renameItems: positional(args.slice(2), OPERATION_VALUE_FLAGS).map((path) => ({ path, properExtension: args[1] ?? "" })), conflictPolicy: valueFor(args, "--conflict"), dryRun: !args.includes("--live") })
   else if (command === "save") input = createCzkawkaOperationInput("save", { outputPath: args[1], selectedPaths: positional(args.slice(2), OPERATION_VALUE_FLAGS), outputFormat: args.includes("--csv") ? "csv" : "json", exportScope: valueFor(args, "--scope"), dryRun: false })
   else { writeLine(host, `Unknown command: ${command}`); process.exitCode = 2; return }
-  const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) })
+  let cancelled = false
+  const requestCancel = () => { cancelled = true }
+  process.once("SIGINT", requestCancel); process.once("SIGTERM", requestCancel)
+  const platform = createNodeCzkawkaRuntime()
+  let result: CzkawkaResult
+  try { result = await runCzkawka(input, { ...platform, isCancelled: () => cancelled }, (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) }) }
+  finally { process.off("SIGINT", requestCancel); process.off("SIGTERM", requestCancel) }
   if (json) writeJson(host, result)
   else { writeLine(host, result.message); if (result.data?.action === "scan") { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, entry.status ? `${entry.status}\t${entry.path}${entry.secondaryPath ? `\t→ ${entry.secondaryPath}` : ""}${entry.error ? `\t${entry.error}` : ""}` : `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
   if (!result.success) process.exitCode = 1
+}
+
+function createDefinition(defaults: CzkawkaConfig, language: TerminalLanguage) {
+  const activePreset = defaults.scan_presets?.find((preset) => preset.id === defaults.active_scan_preset_id)
+  const presetValues = activePreset ? czkawkaScanPresetToValues(activePreset) as Partial<CzkawkaInteractionValues> : {}
+  let cancelled = false
+  const platform = createNodeCzkawkaRuntime()
+  return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input: CzkawkaInput, onEvent: Parameters<typeof runCzkawka>[2]) => { cancelled = false; return runCzkawka(input, { ...platform, isCancelled: () => cancelled }, onEvent) }, cancel: async () => { cancelled = true } }
 }
 
 function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {

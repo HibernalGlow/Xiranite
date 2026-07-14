@@ -1,9 +1,28 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use napi::bindgen_prelude::{AsyncTask, Error, Result, Task};
 use napi::{Env, Status};
 use napi_derive::napi;
 use xiranite_czkawka_core as core;
+
+#[derive(Clone)]
+struct ScanSession { id: String, stop: Arc<AtomicBool>, progress: Arc<Mutex<Option<core::ScanProgress>>> }
+fn scan_sessions() -> &'static Mutex<HashMap<String, ScanSession>> { static SESSIONS: OnceLock<Mutex<HashMap<String, ScanSession>>> = OnceLock::new(); SESSIONS.get_or_init(|| Mutex::new(HashMap::new())) }
+impl ScanSession {
+    fn create(id: Option<String>) -> Option<Self> { let id = id?.trim().to_owned(); if id.is_empty() { return None; } let session = Self { id: id.clone(), stop: Arc::new(AtomicBool::new(false)), progress: Arc::new(Mutex::new(None)) }; if let Some(previous) = scan_sessions().lock().expect("scan session registry poisoned").insert(id, session.clone()) { previous.stop.store(true, Ordering::Relaxed); } Some(session) }
+    fn finish(&self) { let mut sessions = scan_sessions().lock().expect("scan session registry poisoned"); if sessions.get(&self.id).is_some_and(|current| Arc::ptr_eq(&current.stop, &self.stop)) { sessions.remove(&self.id); } }
+}
+
+#[napi(object)]
+pub struct CzkawkaScanProgress { pub stage: String, pub stage_index: u32, pub stage_count: u32, pub entries_checked: i64, pub entries_total: i64, pub bytes_checked: i64, pub bytes_total: i64 }
+#[napi]
+pub fn cancel_czkawka_scan(scan_id: String) -> bool { let sessions = scan_sessions().lock().expect("scan session registry poisoned"); let Some(session) = sessions.get(&scan_id) else { return false; }; session.stop.store(true, Ordering::Relaxed); true }
+#[napi]
+pub fn get_czkawka_scan_progress(scan_id: String) -> Option<CzkawkaScanProgress> { let sessions = scan_sessions().lock().expect("scan session registry poisoned"); let session = sessions.get(&scan_id)?; let progress = session.progress.lock().expect("scan progress poisoned").clone()?; Some(CzkawkaScanProgress { stage: progress.stage, stage_index: progress.stage_index.into(), stage_count: progress.stage_count.into(), entries_checked: saturating_i64(progress.entries_checked as u64), entries_total: saturating_i64(progress.entries_total as u64), bytes_checked: saturating_i64(progress.bytes_checked), bytes_total: saturating_i64(progress.bytes_total) }) }
+fn run_controlled<T>(session: &Option<ScanSession>, scan: impl FnOnce(&core::ScanControl) -> std::result::Result<T, core::CzkawkaError>) -> Result<T> { let Some(session) = session else { return scan(&core::ScanControl::detached()).map_err(|error| Error::from_reason(error.to_string())); }; let (control, progress_receiver) = core::ScanControl::channel(session.stop.clone()); let progress_state = session.progress.clone(); let monitor = std::thread::spawn(move || while let Ok(progress) = progress_receiver.recv() { *progress_state.lock().expect("scan progress poisoned") = Some(progress); }); let result = scan(&control).map_err(|error| Error::from_reason(error.to_string())); drop(control); let _ = monitor.join(); session.finish(); result }
 
 #[napi(object)]
 pub struct CzkawkaInfo {
@@ -37,6 +56,8 @@ pub struct DuplicateScanOptions {
     pub case_sensitive_names: Option<bool>,
     pub check_method: Option<String>,
     pub hash_type: Option<String>,
+    pub scan_id: Option<String>,
+    pub thread_count: Option<u32>,
 }
 
 #[napi(object)]
@@ -60,7 +81,7 @@ pub struct DuplicateScanResult {
     pub stopped: bool,
 }
 
-pub struct DuplicateScanTask(core::DuplicateScanOptions);
+pub struct DuplicateScanTask { options: core::DuplicateScanOptions, session: Option<ScanSession>, thread_count: usize }
 
 #[napi]
 pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<DuplicateScanTask>> {
@@ -119,7 +140,8 @@ pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<D
             ));
         }
     };
-    Ok(AsyncTask::new(DuplicateScanTask(core_options)))
+    let session = ScanSession::create(options.scan_id);
+    Ok(AsyncTask::new(DuplicateScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
 }
 
 impl Task for DuplicateScanTask {
@@ -127,8 +149,8 @@ impl Task for DuplicateScanTask {
     type JsValue = DuplicateScanResult;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        core::scan_duplicate_files(self.0.clone())
-            .map_err(|error| Error::from_reason(error.to_string()))
+        core::initialize_threads(self.thread_count);
+        run_controlled(&self.session, |control| core::scan_duplicate_files_controlled(self.options.clone(), control))
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -180,6 +202,8 @@ pub struct BasicScanOptions {
     pub use_cache: Option<bool>,
     pub number_of_files: Option<u32>,
     pub biggest_first: Option<bool>,
+    pub scan_id: Option<String>,
+    pub thread_count: Option<u32>,
 }
 
 #[napi(object)]
@@ -198,7 +222,7 @@ pub struct BasicScanResult {
     pub stopped: bool,
 }
 
-pub struct BasicScanTask(core::BasicScanOptions);
+pub struct BasicScanTask { options: core::BasicScanOptions, session: Option<ScanSession>, thread_count: usize }
 
 #[napi]
 pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScanTask>> {
@@ -242,7 +266,8 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
     core_options.use_cache = options.use_cache.unwrap_or(true);
     core_options.number_of_files = options.number_of_files.unwrap_or(50).max(1) as usize;
     core_options.biggest_first = options.biggest_first.unwrap_or(true);
-    Ok(AsyncTask::new(BasicScanTask(core_options)))
+    let session = ScanSession::create(options.scan_id);
+    Ok(AsyncTask::new(BasicScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
 }
 
 impl Task for BasicScanTask {
@@ -250,8 +275,8 @@ impl Task for BasicScanTask {
     type JsValue = BasicScanResult;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        core::scan_basic_files(self.0.clone())
-            .map_err(|error| Error::from_reason(error.to_string()))
+        core::initialize_threads(self.thread_count);
+        run_controlled(&self.session, |control| core::scan_basic_files_controlled(self.options.clone(), control))
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -313,6 +338,8 @@ pub struct MediaScanOptions {
     pub broken_pdf: Option<bool>,
     pub broken_archive: Option<bool>,
     pub broken_image: Option<bool>,
+    pub scan_id: Option<String>,
+    pub thread_count: Option<u32>,
 }
 
 #[napi(object)]
@@ -346,7 +373,7 @@ pub struct MediaScanResult {
     pub stopped: bool,
 }
 
-pub struct MediaScanTask(core::MediaScanOptions);
+pub struct MediaScanTask { options: core::MediaScanOptions, session: Option<ScanSession>, thread_count: usize }
 
 #[napi]
 pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScanTask>> {
@@ -437,7 +464,8 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
     core_options.broken_pdf = options.broken_pdf.unwrap_or(true);
     core_options.broken_archive = options.broken_archive.unwrap_or(true);
     core_options.broken_image = options.broken_image.unwrap_or(true);
-    Ok(AsyncTask::new(MediaScanTask(core_options)))
+    let session = ScanSession::create(options.scan_id);
+    Ok(AsyncTask::new(MediaScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
 }
 
 impl Task for MediaScanTask {
@@ -445,8 +473,8 @@ impl Task for MediaScanTask {
     type JsValue = MediaScanResult;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        core::scan_media_files(self.0.clone())
-            .map_err(|error| Error::from_reason(error.to_string()))
+        core::initialize_threads(self.thread_count);
+        run_controlled(&self.session, |control| core::scan_media_files_controlled(self.options.clone(), control))
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
