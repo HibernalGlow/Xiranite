@@ -8,6 +8,7 @@ import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool 
 import { czkawkaToolLabel } from "./interaction.js"
 import { getCzkawkaToolOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
+import { formatCzkawkaActivityMessage } from "./activity-log.js"
 
 export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>) {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
@@ -44,7 +45,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
       </WorkbenchPanel>
       <box width="22%" minWidth={22} flexDirection="column" gap={1}>
         <box height={15} flexShrink={0}><WorkbenchPanel title="◇ ANALYSIS" description="共享 TS 统计" flexGrow={1}><MetricLine label="文件" value={String(data?.fileCount ?? 0)} color={theme.colors.primary} /><MetricLine label="分组" value={String(data?.groupCount ?? 0)} color={theme.colors.success} /><MetricLine label="总大小" value={formatBytes(data?.totalBytes ?? 0)} color={theme.colors.foreground} /><MetricLine label="可回收" value={formatBytes(data?.reclaimableBytes ?? 0)} color={theme.colors.warning} /><MetricLine label="主要格式" value={analysis?.formats[0] ? `${analysis.formats[0].format} ${analysis.formats[0].count}` : "—"} color={theme.colors.focusRing} /></WorkbenchPanel></box>
-        <WorkbenchPanel title="▦ TELEMETRY" description="扫描日志" flexGrow={1}><scrollbox flexGrow={1}>{session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(2, "0")} ${line}`}</text>)}</scrollbox><ProgressBar value={session.progress} label={session.status || "SCANNER READY"} /></WorkbenchPanel>
+        <WorkbenchPanel title="▦ TELEMETRY" description="扫描日志" flexGrow={1}><scrollbox flexGrow={1}>{session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(2, "0")} ${formatCzkawkaActivityMessage("info", line)}`}</text>)}</scrollbox><ProgressBar value={session.progress} label={session.status || "SCANNER READY"} /></WorkbenchPanel>
       </box>
     </box>
   </box>

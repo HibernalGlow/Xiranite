@@ -18,4 +18,5 @@ export * from "./filters.js"
 export * from "./selection-assistant.js"
 export * from "./tool-options.js"
 export * from "./analysis.js"
+export * from "./activity-log.js"
 export default entry

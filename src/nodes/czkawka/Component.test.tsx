@@ -86,6 +86,24 @@ describe("Czkawka node", () => {
     expect(screen.getByText("扫描已停止，没有返回结果。")).toBeTruthy()
   })
 
+  test("persists bounded scan and operation activity logs and clears them from the viewer", async () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) }, resultFor)
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
+    await waitFor(() => expect(host.stateValue.activityLog?.map((entry) => entry.kind)).toEqual(["scan", "progress", "scan"]))
+    expect(host.stateValue.activityLog?.at(-1)?.level).toBe("success")
+    expect(screen.getByText("Scanning")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
+    fireEvent.click(screen.getByRole("button", { name: /删除已选/ }))
+    fireEvent.click(screen.getByRole("button", { name: "确认" }))
+    await waitFor(() => expect(host.stateValue.activityLog?.some((entry) => entry.action === "delete" && entry.level === "success")).toBe(true))
+
+    fireEvent.click(screen.getByRole("button", { name: "清空活动日志" }))
+    expect(host.stateValue.activityLog).toEqual([])
+    expect(screen.getByText("没有匹配的日志")).toBeTruthy()
+  })
+
   test("persists custom filter presets in node state", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

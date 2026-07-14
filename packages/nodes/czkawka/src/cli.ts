@@ -10,6 +10,7 @@ import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 import { CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
+import { formatCzkawkaActivityMessage } from "./activity-log.js"
 
 const CLI_NAME = nodeCliName("czkawka")
 interface CzkawkaConfig extends CliInteractionPreferencesSource { tool?: CzkawkaTool; recursive?: boolean; use_cache?: boolean; hash_type?: "crc32" | "xxh3" | "blake3"; check_method?: "name" | "size" | "size-and-name" | "hash"; similarity?: number }
@@ -50,7 +51,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   else if (command === "move") input = { action: "move", destinationDirectory: args[1], selectedPaths: positional(args.slice(2), new Set()), dryRun: !args.includes("--live") }
   else if (command === "save") input = { action: "save", outputPath: args[1], selectedPaths: positional(args.slice(2), new Set()), outputFormat: args.includes("--csv") ? "csv" : "json", dryRun: false }
   else { writeLine(host, `Unknown command: ${command}`); process.exitCode = 2; return }
-  const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json && event.type === "progress") writeLine(host, `[${event.progress ?? 0}%] ${event.message}`) })
+  const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json) writeLine(host, formatCzkawkaActivityMessage("info", event.message, event.progress)) })
   if (json) writeJson(host, result)
   else { writeLine(host, result.message); if (result.data) { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
   if (!result.success) process.exitCode = 1
