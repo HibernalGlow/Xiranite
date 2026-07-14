@@ -883,9 +883,57 @@ const page = useReaderStore((state) => state.pages[pageId])
 - passive scroll/wheel listener（不需要 `preventDefault` 时）；
 - 交互结束或达到低频采样点后，才把最终值提交到 React/store 并请求精确尺寸图片。
 
-`will-change` 只能在交互开始时短暂启用，结束后移除，避免长期占用合成层内存。普通图片优先使用 `<img>` 和浏览器解码管线，不为“绕开 React”默认改成 Canvas。
+`will-change` 只能在交互开始时短暂启用，结束后移除，避免长期占用合成层内存。
 
-### 16.5 虚拟化与稳定布局
+### 16.5 唯一图片主渲染链：DOM `<img>`
+
+迁移后的生产 Reader **唯一主渲染链是 DOM `<img>`**。不保留 `img | canvas` 用户选项，不允许单页、双页、宽页拆分或全景模式各自选择渲染器，也不允许普通图片在运行时自动 fallback 到 Canvas。单双页、全景、适应窗口、适应宽/高、原始尺寸、缩放和旋转都是页面布局与视口变换问题，不需要把页面像素合成为 Canvas。
+
+原 NeoView 已提供足够的决策证据：`FrameImage.svelte` 的 `<img>` 已承载单页、双页和全景布局；`CurrentFrameLayer.svelte` 用两个页面元素完成双页、裁剪、旋转和 RTL；`PanoramaFrameLayer.svelte` 用 DOM 序列完成横向/纵向全景；`zoomModeHandler.ts` 的 fit/fill/fitWidth/fitHeight/original 只计算比例。旧 `loadModeStore.svelte.ts` 也已经将历史 `canvas` 配置迁移到 `img`。新架构应完成这个收口，而不是重新建立两套主链。
+
+主显示结构固定为：
+
+```text
+ReaderViewport
+  FrameScene                 # 统一坐标系，承载缩放、拖动和旋转
+    PageImage <img>          # 单页或双页第一张
+    PageImage <img>          # 双页第二张，可选
+    AnnotationOverlay        # 可选的透明 Canvas/SVG，不替代底图
+```
+
+`FrameLayoutEngine` 必须先计算显示项，React 只按快照摆放同一个 `PageImage`，不能在组件中重新猜单双页、RTL 或 fit 规则：
+
+```ts
+interface FrameDisplayItem {
+  pageId: string
+  assetUrl: string
+  naturalWidth: number
+  naturalHeight: number
+  rect: { x: number; y: number; width: number; height: number }
+  rotation: 0 | 90 | 180 | 270
+  clip?: { x: number; y: number; width: number; height: number }
+  zIndex: number
+}
+```
+
+| 阅读能力 | 固定实现 |
+| --- | --- |
+| 单页 | 一个 `PageImage <img>` |
+| 双页 | 同一 `FrameScene` 内两个 `PageImage`，由 layout rect 排列 |
+| 宽页拆分 | 同一图片 URL 加 clip/overflow/transform，或 core 产生两个逻辑 `ViewItem` |
+| 横向/纵向全景 | 有界虚拟化的 DOM 图片序列，不生成整本长 Canvas |
+| fit/fill/适应宽/适应高/原始尺寸 | TS layout metrics 加 CSS 尺寸 |
+| 缩放与拖动 | `FrameScene` 的 ref、rAF 和 CSS transform |
+| 90 度倍数旋转 | CSS transform；layout engine 交换逻辑宽高 |
+| 普通滤镜与上色 | CSS filter；昂贵像素处理交给后端 sharp/libvips |
+| 动图、视频、SVG | 分别使用 `<img>`、`<video>` 和浏览器原生 SVG 图片管线 |
+| PDF/不支持格式 | provider/Worker 生成页面 asset，再交给相同 `PageImage` |
+
+Canvas 只允许作为显式、可懒加载和可释放的能力工具：批注/绘画透明 overlay、缩略尺寸的裁边或颜色检测、视频帧预览、导出拼接、截图/像素采样，以及真实基准证明浏览器不能直接承载时的超大图 tile renderer 或 raw pixel provider。它们必须由具体 feature/capability 触发，独立于普通阅读 bundle；关闭能力或 session 时必须 `dispose`。即使启用批注，页面底图仍是 `<img>`。
+
+选择 `<img>` 是为了保留浏览器的图片缓存、异步/渐进解码、动图和颜色管理能力，并避免 Canvas 路径常见的“完整 Blob + ImageBitmap + 原图尺寸 backing store”三重驻留。`CanvasImage` 那种先 `fetch().blob()`、再解码、再按原图像素创建 Canvas 的实现不得迁移。若 8K/16K 或超过 WebView2 纹理边界的样本确实需要分块，只新增独立的 `TiledPageImage` capability，并以基准和设备能力探测启用，不能把它扩散成第二套常规 Reader。
+
+### 16.6 虚拟化与稳定布局
 
 项目已经依赖 `@tanstack/react-virtual`，Reader 应直接复用：
 
@@ -899,7 +947,7 @@ const page = useReaderStore((state) => state.pages[pageId])
 
 虚拟列表的数据、测量器和第三方配置可能依赖引用恒等性。这些位置不能为了“让 Compiler 全权处理”而盲目删除手写 memo，必须结合实际滚动 benchmark 验证。
 
-### 16.6 React 19 调度只用于非紧急更新
+### 16.7 React 19 调度只用于非紧急更新
 
 - 当前页导航、点击反馈和当前 frame ready 属于紧急更新；
 - 缩略图补全、后台元数据、非关键统计可使用 `startTransition`；
@@ -908,7 +956,7 @@ const page = useReaderStore((state) => state.pages[pageId])
 - 独立异步请求应尽早并行启动，禁止形成“先读书籍信息，再串行读页，再串行取尺寸”的前端 waterfall；
 - Suspense 只能作为分块加载和占位边界，不能让页面级 fallback 清空仍可显示的旧 frame。
 
-### 16.7 图片与 bundle 规则
+### 16.8 图片与 bundle 规则
 
 - 图片 URL 稳定且带内容版本，不为同一资源重复创建随机 URL；
 - 当前页可设置高请求优先级，邻近预读页保持低优先级；
@@ -918,18 +966,18 @@ const page = useReaderStore((state) => state.pages[pageId])
 - React 只持有 URL、尺寸和小型状态，不持有后端 archive buffer；
 - 所有 effect、observer、timer、subscription 和临时 Object URL 必须清理。
 
-### 16.8 最后的兜底：命令式 Viewer Island
+### 16.9 最后的兜底：命令式 Viewer Island
 
 如果 Profiler 证明 React commit 或 reconciliation 在虚拟化和细粒度订阅后仍占据显著帧预算，可以采用“React 外壳 + 命令式 Viewer Island”：
 
 - React 继续管理工具栏、设置、书籍信息、session 和可访问性结构；
-- 一个独立的 imperative DOM/Web Component/Canvas viewer 只消费 FrameSnapshot；
+- 一个独立的 imperative DOM/Web Component viewer 只消费 FrameSnapshot，底图仍使用 `<img>`；
 - 拖动、缩放和页面变换由 viewer 自己逐帧处理；
 - React 只在 frame、模式和持久化状态变化时同步。
 
 这个兜底仍复用相同 ReaderService，不引入第二套 Svelte runtime 和第二套业务逻辑。只有在真实火焰图证明 React 是瓶颈后才实施，不能作为前期架构复杂化的理由。
 
-### 16.9 React 专属观测指标
+### 16.10 React 专属观测指标
 
 除第 19 节端到端指标外，Phase 3 还必须用 React Profiler、Performance API 和浏览器 trace 记录：
 
@@ -1000,6 +1048,8 @@ const page = useReaderStore((state) => state.pages[pageId])
 | 零散扩展数据 | 旧 localStorage/IndexedDB 模块 | 通过迁移页面或旧版导出桥接，不要求新 WebView 直接共享 origin |
 
 需要映射的设置不只包括 `NeoViewSettings` 的 `system/startup/archive/performance/image/view/book/panels/bindings/history/slideshow/subtitle`，还包括现有完整导出中的：快捷键、EMM 配置、文件浏览排序、UI 状态、目录/浏览历史、最近文件、元数据编辑器、缩放设置、卡片配置与布局、全屏状态、文件夹评分和性能设置。
+
+历史 `renderMode: "canvas"` 或等价 load-mode 字段必须被完整识别，但统一映射为新的 DOM `img` 主链，并在 migration report 标记为 `deprecated`/`host-replaced`；它不是未知字段，也不得在新 TOML 中重新保存。`dataSource` 等旧传输选项同样只作为导入输入，按新的 loopback asset 数据面映射，不能借兼容设置复活 Blob/临时文件或 img/canvas 双主链。
 
 导入流程必须：
 
@@ -1187,11 +1237,13 @@ scripts/
 | Archive 识别与索引 | 目录、Store/Deflate/ZIP64、RAR/7z solid/non-solid、嵌套、加密、空包、损坏包、重复文件名、非 UTF-8/Unicode 名、超大 entry 数 |
 | Archive 数据面 | 当前页优先、首 chunk、背压、客户端取消、CRC 错误、singleflight、无整页 Buffer、无意外临时写入、solid 不重复解码 |
 | 图片格式 | JPEG/PNG/WebP/GIF/AVIF/JXL/SVG、动画、透明度、ICC/EXIF 方向、超大图、坏图、浏览器直出与 sharp fallback |
+| 图片主渲染链 | 单页/双页/全景共用 `PageImage <img>`；源码和生产构建中普通 Reader 无 Canvas 分支；旧 canvas 设置映射；ready 前保留旧 frame；decode、取消、错误占位和资源释放 |
 | 书籍构建与排序 | 自然排序、文件夹层级、压缩包内目录、媒体优先级、排除路径、横页识别、空页与不支持文件 |
 | 单/双页布局 | LTR/RTL、封面单页、末页单页、宽页拆分、不同尺寸对齐、旋转后方向、窗口 resize、页数奇偶 |
 | 导航 | 上/下一页、首尾页、随机跳转、快速连翻、尾页五种行为、跨书切换、恢复旧 frame、旧 generation 零回写 |
 | 连续阅读 | 虚拟窗口、overscan、滚动定位、长图模式、方向改变、快速滚动、图片高度修正、DOM 数不随总页数增长 |
 | 缩放与视觉 | fit/fill/宽/高/原始、左右对齐、拖动、滚轮/捏合、放大镜、旋转、背景色、ambient/aurora/spotlight、旧 frame 到 ready frame 过渡 |
+| Canvas capability | 批注 overlay 不替代底图；检测/导出/tile 按需动态加载；普通阅读不加载；dispose 后无 bitmap/backing store/Worker 残留 |
 | 动图/视频/字幕 | 自动播放、暂停、速度上下限、切页停止、恢复、字幕样式与位置、资源释放、浏览器不支持时降级 |
 | 预读与调度 | View/Ahead 优先级、前一/后一顺序、方向切换、内存不足停止预读、其他节点占用 CPU、取消延迟、Worker 空闲退出 |
 | 内存/磁盘缓存 | byte budget、pin、方向淘汰、deep cleanup、mtime 失效、ETag、80% hysteresis、损坏缓存恢复、关闭 session 后释放 |
@@ -1292,6 +1344,8 @@ scripts/
 ### Phase 3：React Reader 重构
 
 - 以 FrameSnapshot 重写显示层；
+- 建立唯一 `PageImage <img>` 主链，以 `FrameLayoutEngine` 统一生成单页、双页、宽页拆分、全景、RTL、旋转和 fit rect；
+- 删除 `CanvasImage`、`renderMode: img | canvas` 和普通 Reader 的 Canvas fallback；仅保留独立、动态导入的 Canvas capability；
 - 使用“薄 opt-out 节点入口 + Compiler 优化内部子树”；
 - 接入细粒度 selector、虚拟化、稳定布局和方向预读；
 - 高频拖动/缩放使用 ref、rAF 和 CSS transform，不逐帧提交 React state；
@@ -1339,6 +1393,7 @@ scripts/
 | 多节点并发 | Reader p95、其他节点 p95 | 任一方相对单独运行退化超过 10% 时必须分析和限流 |
 | 关闭/休眠 | 句柄、Worker、子进程、session 内存 | 无泄漏；重资源回到预定空闲预算 |
 | 图片传输 | 编码、复制、JS heap | 主链无 Base64；HTTP 支持流与取消 |
+| 图片主渲染链 | `<img>`/旧 Canvas 同样本首帧、双页切换 p95、全景掉帧、8K/16K 峰值 RSS/GPU、缩放输入延迟、切页后释放 | DOM `<img>` 为生产基线；不得出现 Blob + ImageBitmap + Canvas backing store 三重驻留；超过 WebView2 texture/Canvas 边界时由实测决定是否启用 tile capability |
 
 5%/10% 是初始工程门槛，Phase 0 根据测量方差修订。绝对值应按图片尺寸、存储介质和机器级别分组，不能混在一个平均数里。
 
@@ -1399,6 +1454,8 @@ TS 源文件本身不会导致严重膨胀；真正的体积来源是 `sharp/lib
 - RAR/7z 能识别 solid 并选择 stdout stream 或单任务预提取，取消后无残留子进程；
 - 旧 Page/FS/Thumbnail/cache/transfer 多版本实现已删除，而非隐藏；
 - GUI 热路径没有 workspace 级重渲染和重复缓存；
+- 单页、双页和全景共用 DOM `<img>` 主链，旧 Canvas 设置可导入但不会生成第二套配置或代码路径；
+- 普通翻页没有完整 Blob、ImageBitmap 与 Canvas backing store 三重驻留，Canvas capability 未启用时不进入首块且关闭后资源归零；
 - 第 19 节所有阻断式基准通过并保留可复现报告；
 - OpenComic/NeeView 及第三方依赖许可记录完整。
 
@@ -1414,4 +1471,5 @@ TS 源文件本身不会导致严重膨胀；真正的体积来源是 `sharp/lib
 6. 删除被替代实现，拒绝长期多版本并存；
 7. 保留全部原有用户能力和可迁移数据，主题统一由 Xiranite 接管；
 8. Reader 设置统一进入 Xiranite TOML，缩略图数据库沿用原版路径；
-9. 以真实数据和多工具并发基准决定优化，而不是以“Rust/TS/IPC”标签决定性能。
+9. 普通页面统一以 DOM `<img>` 显示，Canvas 只作为可懒加载的 overlay/离屏/tile capability；
+10. 以真实数据和多工具并发基准决定优化，而不是以“Rust/TS/IPC”标签决定性能。
