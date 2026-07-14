@@ -44,7 +44,7 @@
       "settingsKeys": ["performance.archiveTempfileThresholdMB", "archive.allowFileOperations", "archive.confirmBeforeDelete"],
       "dataStores": ["archive index", "materialization leases"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["ZIP/ZIP64/CBZ", "RAR/7z solid 与 non-solid", "嵌套与加密", "当前页优先流", "CRC/损坏包", "条目删除后索引失效", "取消无子进程残留"],
-      "testIds": [], "benchmarkIds": ["archive-entry-ttfb", "solid-adjacent-page"], "knownDifferences": []
+      "testIds": ["neoview.archive.conformance", "neoview.archive.security"], "benchmarkIds": ["archive-entry-ttfb", "solid-adjacent-page"], "knownDifferences": []
     },
     {
       "id": "page-index-navigation",
