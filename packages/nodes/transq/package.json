@@ -38,12 +38,15 @@
     "test": "vitest run src --passWithNoTests --exclude src/Tui.bun.test.tsx"
   },
   "dependencies": {
+    "@opentui/react": "0.4.3",
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*"
+    "@xiranite/contract": "workspace:*",
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
