@@ -94,7 +94,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
 
   function applySmartSelection(strategy: CzkawkaSelectionStrategy) { if (result) setSelectedPaths(smartSelect(result.groups, strategy)) }
 
-  const view = { data, tool, result, running, selectedPaths, panel, getFileUrl: host.localFiles?.getUrl, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), executeScan, executeOperation, applySmartSelection }
+  const view = { data, tool, result, running, selectedPaths, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), executeScan, executeOperation, applySmartSelection }
   return <TooltipProvider><div ref={surface.ref} data-testid="czkawka-surface" className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
     {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
   </div></TooltipProvider>
@@ -103,6 +103,9 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
 type View = {
   data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; running: boolean; selectedPaths: string[]; panel: CzkawkaPanel
   getFileUrl?: (path: string) => string
+  copyText?: (text: string) => Promise<void>
+  openPath?: (path: string) => Promise<void>
+  revealPath?: (path: string) => Promise<void>
   patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
   applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
 }
@@ -145,7 +148,7 @@ function SchemaOptionField({ data, definition, patch }: View & { definition: Czk
 }
 
 function ResultTable(props: View) {
-  return <CzkawkaResultTable tool={props.tool} groups={props.result?.groups ?? []} running={props.running} selectedPaths={props.selectedPaths} getFileUrl={props.getFileUrl} onSelectionChange={props.setSelectedPaths} />
+  return <CzkawkaResultTable tool={props.tool} groups={props.result?.groups ?? []} running={props.running} selectedPaths={props.selectedPaths} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} onSelectionChange={props.setSelectedPaths} />
 }
 
 function AnalysisPanel(props: View) {

@@ -154,6 +154,23 @@ export function useNodeHostApi(
 
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
+      openPath: async (path: string) => {
+        if (typeof window !== "undefined" && window._wails) {
+          const { Browser } = await import("@wailsio/runtime")
+          await Browser.OpenURL(localPathToFileUrl(path))
+          return
+        }
+        window.open(localBackendFileUrl(path), "_blank", "noopener,noreferrer")
+      },
+      revealPath: async (path: string) => {
+        const parent = parentLocalPath(path)
+        if (typeof window !== "undefined" && window._wails) {
+          const { Browser } = await import("@wailsio/runtime")
+          await Browser.OpenURL(localPathToFileUrl(parent))
+          return
+        }
+        window.open(localBackendFileUrl(parent), "_blank", "noopener,noreferrer")
+      },
       list: listLocalFiles,
       pickFiles: async (options) => {
         if (typeof window !== "undefined" && window._wails) {
@@ -267,6 +284,22 @@ export function useNodeHostApi(
 
 function isComponentVisibilityMode(mode: string): mode is ComponentVisibilityMode {
   return viewModes.has(mode as ComponentVisibilityMode)
+}
+
+export function parentLocalPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
+  const index = normalized.lastIndexOf("/")
+  return index > 0 ? normalized.slice(0, index) : normalized
+}
+
+export function localPathToFileUrl(value: string): string {
+  const normalized = value.replace(/\\/g, "/")
+  if (normalized.startsWith("//")) {
+    const [host = "", ...parts] = normalized.slice(2).split("/")
+    return `file://${encodeURIComponent(host)}/${parts.map(encodeURIComponent).join("/")}`
+  }
+  const absolute = normalized.startsWith("/") ? normalized : `/${normalized}`
+  return `file://${absolute.split("/").map((part, index) => index === 0 || /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)).join("/")}`
 }
 
 function toHostRef(component: ComponentInstance): HostComponentRef {

@@ -40,7 +40,7 @@ describe("CzkawkaResultTable", () => {
     const manyEntries = Array.from({ length: 10_000 }, (_, index) => entry(`file-${index}.mp3`, `Track ${index}`))
     const manyGroup = { ...group, entries: manyEntries }
     const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[manyGroup]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
-    const renderedRows = container.querySelectorAll('[data-slot="table-body"] [data-slot="table-row"]')
+    const renderedRows = container.querySelectorAll('[data-slot="table-body"] tr[data-index]')
     expect(renderedRows.length).toBeGreaterThan(0)
     expect(renderedRows.length).toBeLessThan(80)
     expect((container.querySelector('[data-slot="table-body"]') as HTMLElement).style.height).toBe("520000px")
@@ -48,7 +48,7 @@ describe("CzkawkaResultTable", () => {
     viewport.scrollTop = 4_236
     fireEvent.scroll(viewport)
     await waitFor(() => expect(container.textContent).toContain("file-73.mp3"))
-    expect(container.querySelectorAll('[data-slot="table-body"] [data-slot="table-row"]').length).toBeLessThan(80)
+    expect(container.querySelectorAll('[data-slot="table-body"] tr[data-index]').length).toBeLessThan(80)
   })
 
   test("resizes columns without changing the fixed preview row height", () => {
@@ -59,7 +59,45 @@ describe("CzkawkaResultTable", () => {
     fireEvent.pointerMove(handle, { pointerId: 1, clientX: 180 })
     fireEvent.pointerUp(handle, { pointerId: 1, clientX: 180 })
     expect((handle.parentElement as HTMLElement).style.width).toBe("240px")
-    expect((view.container.querySelector('[data-slot="table-body"] [data-slot="table-row"]') as HTMLElement).style.height).toBe("52px")
+    expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
+  })
+
+  test("selects virtual rows by dragging a box", () => {
+    const onSelectionChange = vi.fn()
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={onSelectionChange} />)
+    const body = container.querySelector('[data-slot="table-body"]') as HTMLElement
+    vi.spyOn(body, "getBoundingClientRect").mockReturnValue({ x: 0, y: 40, top: 40, left: 0, right: 800, bottom: 144, width: 800, height: 104, toJSON: () => ({}) })
+    fireEvent.pointerDown(body, { button: 0, pointerId: 7, clientY: 41 })
+    expect(screen.getByTestId("czkawka-selection-box")).toBeTruthy()
+    fireEvent.pointerMove(body, { pointerId: 7, clientY: 143 })
+    fireEvent.pointerUp(body, { pointerId: 7, clientY: 143 })
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["a.mp3", "b.mp3"])
+  })
+
+  test("offers row context actions through reusable host callbacks", async () => {
+    const onCopyText = vi.fn(async () => undefined)
+    const onOpenPath = vi.fn(async () => undefined)
+    const onRevealPath = vi.fn(async () => undefined)
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} onCopyText={onCopyText} onOpenPath={onOpenPath} onRevealPath={onRevealPath} />)
+    const row = container.querySelector('[data-index="a.mp3"]') as HTMLElement
+    fireEvent.contextMenu(row)
+    fireEvent.click(await screen.findByText("复制路径"))
+    expect(onCopyText).toHaveBeenCalledWith("a.mp3")
+
+    fireEvent.contextMenu(row)
+    fireEvent.click(await screen.findByText("复制名称"))
+    expect(onCopyText).toHaveBeenCalledWith("a.mp3")
+
+    fireEvent.contextMenu(row)
+    fireEvent.click(await screen.findByText("打开"))
+    expect(onOpenPath).toHaveBeenCalledWith("a.mp3")
+
+    fireEvent.contextMenu(row)
+    fireEvent.click(await screen.findByText("在文件管理器中定位"))
+    expect(onRevealPath).toHaveBeenCalledWith("a.mp3")
+
+    fireEvent.contextMenu(row)
+    expect((await screen.findByText("复制文件（暂不支持）")).getAttribute("data-disabled")).not.toBeNull()
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-czkawka/core"
-import { applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups } from "./result-table"
+import { applyBoxSelection, applyResultSelection, calculateVirtualWindow, CZKAWKA_RESULT_COLUMNS, filterAndSortResultGroups, flattenResultRows } from "./result-table"
 
 const entries = [entry("a", 30), entry("b", 10), entry("c", 20)]
 const group: CzkawkaGroup = { id: 0, entries, totalBytes: 60, reclaimableBytes: 30 }
@@ -23,6 +23,13 @@ describe("Czkawka result table model", () => {
     expect(applyResultSelection(["a"], entries, "b", true, "replace")).toEqual(["b"])
     expect(applyResultSelection(["a"], entries, "b", true, "toggle")).toEqual(["a", "b"])
     expect(applyResultSelection(["a"], entries, "c", true, "range", "a")).toEqual(["a", "b", "c"])
+  })
+
+  test("applies replace, additive, and subtractive box selection without selecting references", () => {
+    const rows = flattenResultRows([{ ...group, entries: [entries[0]!, { ...entries[1]!, isReference: true }, entries[2]!] }])
+    expect(applyBoxSelection(["outside"], rows, 0, 104, 52, "replace")).toEqual(["a"])
+    expect(applyBoxSelection(["outside"], rows, 52, 156, 52, "add")).toEqual(["outside", "c"])
+    expect(applyBoxSelection(["outside", "a", "c"], rows, 52, 156, 52, "remove")).toEqual(["outside", "a"])
   })
 
   test("calculates a bounded overscanned window for ten thousand rows", () => {

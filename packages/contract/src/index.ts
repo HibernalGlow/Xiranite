@@ -210,6 +210,10 @@ export interface NodeFilePickerOptions {
 
 export interface NodeLocalFilesCapability {
   getUrl: (path: string) => string
+  /** Open a local path with the operating system's default application. */
+  openPath?: (path: string) => Promise<void>
+  /** Reveal a local path in its parent file manager directory. */
+  revealPath?: (path: string) => Promise<void>
   pickFiles?: (options?: NodeFilePickerOptions) => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
   list?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ name: string; path: string; isDirectory: boolean; sizeBytes: number; lastModified: number; type: string }>>

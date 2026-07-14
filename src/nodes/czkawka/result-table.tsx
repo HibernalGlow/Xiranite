@@ -1,11 +1,12 @@
 import { useDeferredValue, useRef, useState } from "react"
 import type { MouseEvent, PointerEvent, UIEvent } from "react"
-import { ArrowDown, ArrowUp, ChevronsUpDown, ListFilter } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronsUpDown, ClipboardCopy, Copy, ExternalLink, FolderOpen, ListFilter, MousePointer2 } from "lucide-react"
 import type { CzkawkaEntry, CzkawkaGroup, CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { TableBody, TableCell, TableComponent, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { LocalImagePreview } from "@/nodes/shared/LocalImagePreview"
@@ -58,6 +59,8 @@ type ResultRowItem = { entry: CzkawkaEntry; group: CzkawkaGroup; indexInGroup: n
 type ResizeState = { tool: CzkawkaTool; id: CzkawkaResultColumnId; startX: number; startWidth: number }
 type ViewportState = { scrollTop: number; height: number }
 type GroupSelection = { paths: string[]; selected: boolean }
+type BoxSelectionMode = "replace" | "add" | "remove"
+type BoxSelectionState = { pointerId: number; startY: number; currentY: number; mode: BoxSelectionMode }
 
 const SELECT_WIDTH = 44
 const PREVIEW_WIDTH = 60
@@ -72,16 +75,21 @@ export interface CzkawkaResultTableProps {
   running: boolean
   selectedPaths: string[]
   getFileUrl?: (path: string) => string
+  onCopyText?: (text: string) => Promise<void>
+  onOpenPath?: (path: string) => Promise<void>
+  onRevealPath?: (path: string) => Promise<void>
   onSelectionChange: (paths: string[]) => void
 }
 
 export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
   const resizeRef = useRef<ResizeState | null>(null)
+  const boxInitialSelectionRef = useRef<string[]>([])
   const [filters, setFilters] = useState<Partial<Record<CzkawkaTool, string>>>({})
   const [sorts, setSorts] = useState<Partial<Record<CzkawkaTool, SortState>>>({})
   const [anchors, setAnchors] = useState<Partial<Record<CzkawkaTool, string>>>({})
   const [widths, setWidths] = useState<Partial<Record<CzkawkaTool, ColumnWidths>>>({})
   const [viewports, setViewports] = useState<Partial<Record<CzkawkaTool, ViewportState>>>({})
+  const [boxSelection, setBoxSelection] = useState<BoxSelectionState | null>(null)
   const filter = filters[props.tool] ?? ""
   const deferredFilter = useDeferredValue(filter)
   const sort = sorts[props.tool] ?? { id: defaultSort(props.tool), descending: false }
@@ -137,13 +145,38 @@ export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
     setViewports((current) => ({ ...current, [props.tool]: { scrollTop, height } }))
   }
 
-  return <section className="flex min-h-0 flex-col rounded-md border bg-card" data-testid="czkawka-result-table" aria-busy={filter !== deferredFilter}><div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><ListFilter className="size-3.5 text-primary" />结果组</div><Input aria-label="filter results" className="h-7 w-48 text-xs" placeholder="过滤当前工具结果" value={filter} onChange={(event) => { const value = event.currentTarget.value; setFilters((current) => ({ ...current, [props.tool]: value })) }} /></div><div className="min-h-0 flex-1 overflow-auto" data-testid="czkawka-result-viewport" onScroll={updateViewport}><TableComponent className="grid text-xs" style={{ minWidth: tableWidth }}><TableHeader className="sticky top-0 z-10 grid bg-card"><TableRow className="grid" style={{ gridTemplateColumns }}><TableHead /><TableHead>预览</TableHead><TableHead>组</TableHead>{columns.map((item) => <TableHead key={item.id} className={cn("relative overflow-hidden", item.align === "right" && "text-right")} style={{ width: toolWidths[item.id] ?? defaultColumnWidth(item.id) }}><Button className="h-7 max-w-[calc(100%-6px)] px-1 text-xs" variant="ghost" onClick={() => changeSort(item.id)}>{item.label}{sort.id !== item.id ? <ChevronsUpDown className="size-3 opacity-40" /> : sort.descending ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}</Button><span role="separator" aria-label={`调整${item.label}列宽`} aria-orientation="vertical" className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/40" onPointerDown={(event) => startResize(event, item.id)} onPointerMove={resizeColumn} onPointerUp={finishResize} onPointerCancel={finishResize} /></TableHead>)}</TableRow></TableHeader><TableBody className="relative grid" style={{ height: rows.length * RESULT_ROW_HEIGHT }}>{renderedRows.map((virtualRow) => { const row = rows[virtualRow.index]!; return <VirtualResultRow key={row.entry.id} row={row} columns={columns} gridTemplateColumns={gridTemplateColumns} selectedSet={selectedSet} groupSelection={groupSelections.get(row.group)!} getFileUrl={props.getFileUrl} onSelect={select} onSelectGroup={selectGroup} start={virtualRow.start} /> })}</TableBody></TableComponent>{rows.length === 0 ? <div className="grid h-56 place-items-center text-xs text-muted-foreground">{props.running ? "正在分析文件…" : deferredFilter ? "没有匹配当前筛选的结果。" : "添加目录并开始扫描。"}</div> : null}</div></section>
+  function startBoxSelection(event: PointerEvent<HTMLTableSectionElement>) {
+    if (event.button !== 0 || isInteractiveTarget(event.target)) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    const y = event.clientY - event.currentTarget.getBoundingClientRect().top
+    const mode: BoxSelectionMode = event.altKey ? "remove" : event.ctrlKey || event.metaKey || event.shiftKey ? "add" : "replace"
+    boxInitialSelectionRef.current = props.selectedPaths
+    setBoxSelection({ pointerId: event.pointerId, startY: y, currentY: y, mode })
+  }
+
+  function moveBoxSelection(event: PointerEvent<HTMLTableSectionElement>) {
+    if (!boxSelection || boxSelection.pointerId !== event.pointerId) return
+    const currentY = event.clientY - event.currentTarget.getBoundingClientRect().top
+    setBoxSelection({ ...boxSelection, currentY })
+    props.onSelectionChange(applyBoxSelection(boxInitialSelectionRef.current, rows, boxSelection.startY, currentY, RESULT_ROW_HEIGHT, boxSelection.mode))
+  }
+
+  function finishBoxSelection(event: PointerEvent<HTMLTableSectionElement>) {
+    if (!boxSelection || boxSelection.pointerId !== event.pointerId) return
+    const currentY = event.clientY - event.currentTarget.getBoundingClientRect().top
+    props.onSelectionChange(applyBoxSelection(boxInitialSelectionRef.current, rows, boxSelection.startY, currentY, RESULT_ROW_HEIGHT, boxSelection.mode))
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId)
+    setBoxSelection(null)
+  }
+
+  return <section className="flex min-h-0 flex-col rounded-md border bg-card" data-testid="czkawka-result-table" aria-busy={filter !== deferredFilter}><div className="flex items-center justify-between gap-2 border-b px-2 py-1.5"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]"><ListFilter className="size-3.5 text-primary" />结果组</div><Input aria-label="filter results" className="h-7 w-48 text-xs" placeholder="过滤当前工具结果" value={filter} onChange={(event) => { const value = event.currentTarget.value; setFilters((current) => ({ ...current, [props.tool]: value })) }} /></div><div className="min-h-0 flex-1 overflow-auto" data-testid="czkawka-result-viewport" onScroll={updateViewport}><TableComponent className="grid text-xs" style={{ minWidth: tableWidth }}><TableHeader className="sticky top-0 z-10 grid bg-card"><TableRow className="grid" style={{ gridTemplateColumns }}><TableHead /><TableHead>预览</TableHead><TableHead>组</TableHead>{columns.map((item) => <TableHead key={item.id} className={cn("relative overflow-hidden", item.align === "right" && "text-right")} style={{ width: toolWidths[item.id] ?? defaultColumnWidth(item.id) }}><Button className="h-7 max-w-[calc(100%-6px)] px-1 text-xs" variant="ghost" onClick={() => changeSort(item.id)}>{item.label}{sort.id !== item.id ? <ChevronsUpDown className="size-3 opacity-40" /> : sort.descending ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}</Button><span role="separator" aria-label={`调整${item.label}列宽`} aria-orientation="vertical" className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/40" onPointerDown={(event) => startResize(event, item.id)} onPointerMove={resizeColumn} onPointerUp={finishResize} onPointerCancel={finishResize} /></TableHead>)}</TableRow></TableHeader><TableBody className="relative grid select-none" style={{ height: rows.length * RESULT_ROW_HEIGHT }} onPointerDown={startBoxSelection} onPointerMove={moveBoxSelection} onPointerUp={finishBoxSelection} onPointerCancel={finishBoxSelection}>{renderedRows.map((virtualRow) => { const row = rows[virtualRow.index]!; return <VirtualResultRow key={row.entry.id} row={row} columns={columns} gridTemplateColumns={gridTemplateColumns} selectedSet={selectedSet} groupSelection={groupSelections.get(row.group)!} getFileUrl={props.getFileUrl} onCopyText={props.onCopyText} onOpenPath={props.onOpenPath} onRevealPath={props.onRevealPath} onSelect={select} onSelectGroup={selectGroup} start={virtualRow.start} /> })}{boxSelection ? <div data-testid="czkawka-selection-box" className="pointer-events-none absolute left-0 z-20 w-full border border-primary bg-primary/10" style={{ top: Math.min(boxSelection.startY, boxSelection.currentY), height: Math.abs(boxSelection.currentY - boxSelection.startY) }}><MousePointer2 className="size-3 text-primary" /></div> : null}</TableBody></TableComponent>{rows.length === 0 ? <div className="grid h-56 place-items-center text-xs text-muted-foreground">{props.running ? "正在分析文件…" : deferredFilter ? "没有匹配当前筛选的结果。" : "添加目录并开始扫描。"}</div> : null}</div></section>
 }
 
-function VirtualResultRow({ row, columns, gridTemplateColumns, selectedSet, groupSelection, getFileUrl, onSelect, onSelectGroup, start }: { row: ResultRowItem; columns: readonly CzkawkaResultColumn[]; gridTemplateColumns: string; selectedSet: Set<string>; groupSelection: GroupSelection; getFileUrl?: (path: string) => string; onSelect: (entry: CzkawkaEntry, checked: boolean, event: MouseEvent) => void; onSelectGroup: (group: CzkawkaGroup, selection: GroupSelection) => void; start: number }) {
+function VirtualResultRow({ row, columns, gridTemplateColumns, selectedSet, groupSelection, getFileUrl, onCopyText, onOpenPath, onRevealPath, onSelect, onSelectGroup, start }: { row: ResultRowItem; columns: readonly CzkawkaResultColumn[]; gridTemplateColumns: string; selectedSet: Set<string>; groupSelection: GroupSelection; getFileUrl?: (path: string) => string; onCopyText?: (text: string) => Promise<void>; onOpenPath?: (path: string) => Promise<void>; onRevealPath?: (path: string) => Promise<void>; onSelect: (entry: CzkawkaEntry, checked: boolean, event: MouseEvent) => void; onSelectGroup: (group: CzkawkaGroup, selection: GroupSelection) => void; start: number }) {
   const { entry, group, indexInGroup } = row
   const selected = selectedSet.has(entry.path)
-  return <TableRow data-index={entry.id} data-state={selected ? "selected" : undefined} className="absolute left-0 grid w-full" style={{ gridTemplateColumns, height: RESULT_ROW_HEIGHT, transform: `translateY(${start}px)` }}><TableCell><Checkbox aria-label={`选择 ${entry.name}`} disabled={entry.isReference} checked={selected} onClick={(event) => { event.preventDefault(); onSelect(entry, !selected, event) }} /></TableCell><TableCell className="py-2"><LocalImagePreview path={entry.path} getFileUrl={getFileUrl} className="size-9" /></TableCell><TableCell><button className="flex items-center gap-1 font-mono" onClick={() => onSelectGroup(group, groupSelection)}><span className={cn("size-2 rounded-full", groupSelection.selected ? "bg-primary" : "bg-muted-foreground/40")} />{String(group.id + 1).padStart(2, "0")}{indexInGroup === 0 && group.entries.length > 1 ? <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">{group.entries.length}</Badge> : null}</button></TableCell>{columns.map((item) => <TableCell key={item.id} className={cn("min-w-0 truncate overflow-hidden", item.align === "right" && "text-right font-mono")} title={String(item.display?.(entry, group) ?? item.value(entry, group))}>{item.id === "path" ? <div className="flex min-w-0 items-center gap-1">{entry.isReference ? <Badge variant="secondary" className="h-4 px-1 text-[9px]">参考</Badge> : null}<span className="truncate font-mono">{entry.path}</span></div> : item.display?.(entry, group) ?? String(item.value(entry, group) || "—")}</TableCell>)}</TableRow>
+  return <ContextMenu><ContextMenuTrigger asChild><TableRow data-index={entry.id} data-state={selected ? "selected" : undefined} className="absolute left-0 grid w-full" style={{ gridTemplateColumns, height: RESULT_ROW_HEIGHT, transform: `translateY(${start}px)` }}><TableCell><Checkbox aria-label={`选择 ${entry.name}`} disabled={entry.isReference} checked={selected} onClick={(event) => { event.preventDefault(); onSelect(entry, !selected, event) }} /></TableCell><TableCell className="py-2"><LocalImagePreview path={entry.path} getFileUrl={getFileUrl} className="size-9" /></TableCell><TableCell><button className="flex items-center gap-1 font-mono" onClick={() => onSelectGroup(group, groupSelection)}><span className={cn("size-2 rounded-full", groupSelection.selected ? "bg-primary" : "bg-muted-foreground/40")} />{String(group.id + 1).padStart(2, "0")}{indexInGroup === 0 && group.entries.length > 1 ? <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">{group.entries.length}</Badge> : null}</button></TableCell>{columns.map((item) => <TableCell key={item.id} className={cn("min-w-0 truncate overflow-hidden", item.align === "right" && "text-right font-mono")} title={String(item.display?.(entry, group) ?? item.value(entry, group))}>{item.id === "path" ? <div className="flex min-w-0 items-center gap-1">{entry.isReference ? <Badge variant="secondary" className="h-4 px-1 text-[9px]">参考</Badge> : null}<span className="truncate font-mono">{entry.path}</span></div> : item.display?.(entry, group) ?? String(item.value(entry, group) || "—")}</TableCell>)}</TableRow></ContextMenuTrigger><ContextMenuContent><ContextMenuItem disabled={groupSelection.selected} onSelect={() => onSelectGroup(group, { ...groupSelection, selected: false })}>选中该组</ContextMenuItem><ContextMenuItem disabled={!groupSelection.selected} onSelect={() => onSelectGroup(group, { ...groupSelection, selected: true })}>取消选中该组</ContextMenuItem><ContextMenuSeparator /><ContextMenuItem disabled={!onCopyText} onSelect={() => void onCopyText?.(entry.path)}><Copy />复制路径</ContextMenuItem><ContextMenuItem disabled={!onCopyText} onSelect={() => void onCopyText?.(entry.name)}><ClipboardCopy />复制名称</ContextMenuItem><ContextMenuItem disabled title="当前宿主暂不支持复制本地文件对象"><ClipboardCopy />复制文件（暂不支持）</ContextMenuItem><ContextMenuSeparator /><ContextMenuItem disabled={!onOpenPath} onSelect={() => void onOpenPath?.(entry.path)}><ExternalLink />打开</ContextMenuItem><ContextMenuItem disabled={!onRevealPath} onSelect={() => void onRevealPath?.(entry.path)}><FolderOpen />在文件管理器中定位</ContextMenuItem></ContextMenuContent></ContextMenu>
 }
 
 export function flattenResultRows(groups: CzkawkaGroup[]): ResultRowItem[] {
@@ -187,6 +220,19 @@ export function applyResultSelection(current: string[], visible: CzkawkaEntry[],
   return checked ? unique([...current, ...range]) : current.filter((item) => !range.includes(item))
 }
 
+export function applyBoxSelection(current: string[], rows: ResultRowItem[], startY: number, endY: number, rowHeight: number, mode: BoxSelectionMode): string[] {
+  if (rows.length === 0 || rowHeight <= 0) return mode === "replace" ? [] : current
+  const top = Math.max(0, Math.min(startY, endY))
+  const bottom = Math.max(0, Math.max(startY, endY))
+  const startIndex = clamp(Math.floor(top / rowHeight), 0, rows.length - 1)
+  const endIndex = clamp(Math.floor(Math.max(top, bottom - 0.001) / rowHeight), startIndex, rows.length - 1)
+  const paths = rows.slice(startIndex, endIndex + 1).filter((row) => !row.entry.isReference).map((row) => row.entry.path)
+  if (mode === "replace") return unique(paths)
+  if (mode === "add") return unique([...current, ...paths])
+  const removed = new Set(paths)
+  return current.filter((path) => !removed.has(path))
+}
+
 export function filterAndSortResultGroups(groups: CzkawkaGroup[], columns: readonly CzkawkaResultColumn[], filter: string, sort: SortState): CzkawkaGroup[] {
   const needle = filter.trim().toLocaleLowerCase()
   const sortColumn = columns.find((item) => item.id === sort.id) ?? columns[0]!
@@ -208,3 +254,4 @@ function unique(values: string[]): string[] { return [...new Set(values)] }
 function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)) }
 function formatDate(value: number): string { if (!value) return "—"; const milliseconds = value < 10_000_000_000 ? value * 1000 : value; return new Date(milliseconds).toLocaleString() }
 function formatBytes(bytes: number): string { if (bytes < 1024) return `${bytes} B`; const units = ["KB", "MB", "GB", "TB"]; let value = bytes / 1024; let unit = units[0]!; for (let index = 1; index < units.length && value >= 1024; index += 1) { value /= 1024; unit = units[index]! } return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}` }
+function isInteractiveTarget(target: EventTarget | null): boolean { return target instanceof Element && Boolean(target.closest("button, input, a, [role=checkbox], [role=menu], [role=menuitem], [data-no-box-select]")) }
