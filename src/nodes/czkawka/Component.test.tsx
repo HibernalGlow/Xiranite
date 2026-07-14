@@ -19,6 +19,30 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({ useNodeSurface: () => ({ ref: 
 afterEach(() => { cleanup(); Object.assign(surface, { width: 1200, height: 760, mode: "regular" }) })
 
 describe("Czkawka node", () => {
+  test.each([
+    ["regular", 1200, 760, "czkawka-full-view"],
+    ["compact", 640, 480, "czkawka-compact-view"],
+  ] as const)("keeps all eleven scanners reachable in the %s tool rail", (mode, width, height, testId) => {
+    Object.assign(surface, { mode, width, height })
+    render(<Component compId="czkawka-tools" host={createHost({ tool: "duplicate-files" })} />)
+    expect(screen.getByTestId(testId)).toBeTruthy()
+    for (const label of ["重复文件", "空文件夹", "大文件", "空文件", "临时文件", "相似图片", "相似视频", "重复音频", "无效符号链接", "损坏文件", "不正确扩展名"]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy()
+    }
+  })
+
+  test("inherits host theme and background while leaving window controls to the desktop shell", () => {
+    const host = createHost({ tool: "duplicate-files" })
+    host.env.theme = "dark"
+    render(<Component compId="czkawka-host-mapping" host={host} />)
+    const root = screen.getByTestId("czkawka-surface")
+    expect(root.dataset.hostTheme).toBe("dark")
+    expect(root.classList.contains("bg-transparent")).toBe(true)
+    expect(root.classList.contains("bg-background")).toBe(false)
+    expect(root.classList.contains("text-foreground")).toBe(true)
+    expect(screen.queryByRole("button", { name: /(?:minimize|maximize|close|最小化窗口|最大化窗口|关闭窗口)/i })).toBeNull()
+  })
+
   test.each(NODE_SURFACE_TEST_MODES)("renders the %s surface without losing the primary action", (mode, width, height, testId) => {
     Object.assign(surface, { mode, width, height })
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })

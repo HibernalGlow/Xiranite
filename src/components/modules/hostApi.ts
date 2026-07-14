@@ -9,7 +9,7 @@ import type {
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
+import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
 import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
@@ -136,6 +136,7 @@ export function useNodeHostApi(
     const clipboardCapability = {
       readText: () => navigator.clipboard.readText(),
       writeText: (text: string) => navigator.clipboard.writeText(text),
+      ...(supportsNativeFileClipboard() ? { writeFiles: copyLocalFilesToClipboard } : {}),
       readImage: async () => {
         if (!navigator.clipboard?.read) throw new Error("当前运行环境不支持读取剪贴板图片。")
         const items = await navigator.clipboard.read()
@@ -331,6 +332,10 @@ export function parentLocalPath(value: string): string {
   const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
   const index = normalized.lastIndexOf("/")
   return index > 0 ? normalized.slice(0, index) : normalized
+}
+
+export function supportsNativeFileClipboard(platform = navigator.platform, userAgent = navigator.userAgent): boolean {
+  return /win/i.test(platform) || /windows/i.test(userAgent)
 }
 
 export function localPathToFileUrl(value: string): string {

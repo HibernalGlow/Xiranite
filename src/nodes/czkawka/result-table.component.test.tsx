@@ -201,9 +201,10 @@ describe("CzkawkaResultTable", () => {
 
   test("offers row context actions through reusable host callbacks", async () => {
     const onCopyText = vi.fn(async () => undefined)
+    const onCopyFiles = vi.fn(async () => undefined)
     const onOpenPath = vi.fn(async () => undefined)
     const onRevealPath = vi.fn(async () => undefined)
-    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} onCopyText={onCopyText} onOpenPath={onOpenPath} onRevealPath={onRevealPath} />)
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} onCopyText={onCopyText} onCopyFiles={onCopyFiles} onOpenPath={onOpenPath} onRevealPath={onRevealPath} />)
     const row = container.querySelector('[data-index="a.mp3"]') as HTMLElement
     fireEvent.contextMenu(row)
     fireEvent.click(await screen.findByText("复制路径"))
@@ -222,7 +223,14 @@ describe("CzkawkaResultTable", () => {
     expect(onRevealPath).toHaveBeenCalledWith("a.mp3")
 
     fireEvent.contextMenu(row)
-    expect((await screen.findByText("复制文件（暂不支持）")).getAttribute("data-disabled")).not.toBeNull()
+    fireEvent.click(await screen.findByText("复制文件"))
+    expect(onCopyFiles).toHaveBeenCalledWith(["a.mp3"])
+  })
+
+  test("disables file-object copy when the host does not expose the capability", async () => {
+    const { container } = render(<CzkawkaResultTable tool="empty-files" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
+    fireEvent.contextMenu(container.querySelector('[data-index="a.mp3"]') as HTMLElement)
+    expect((await screen.findByText("复制文件")).getAttribute("data-disabled")).not.toBeNull()
   })
 
   test("keeps a controlled header filter synchronized with the table filter", () => {

@@ -25,6 +25,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
 import { pickLocalPaths } from "./localFilePicker.js"
+import { writeFilesToClipboard } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 
 export interface CreateDefaultBackendOptions {
@@ -45,6 +46,7 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   hostname?: string
   port?: number
   token?: string
+  writeClipboardFiles?: (paths: string[]) => Promise<void>
 }
 
 export interface BackendCliOptions extends StartBackendOptions {
@@ -145,6 +147,18 @@ export async function startBackend(options: StartBackendOptions = {}) {
           return
         }
         await writeNodeResponse(outgoing, Response.json({ paths: await pickLocalPaths(body.kind) }))
+        return
+      }
+
+      if (url.pathname === "/local-files/clipboard" && request.method === "POST") {
+        const body = await request.json().catch(() => ({})) as { paths?: unknown }
+        if (!Array.isArray(body.paths) || body.paths.length === 0 || body.paths.some((item) => typeof item !== "string" || !item.trim())) {
+          await writeNodeResponse(outgoing, Response.json({ error: "paths must be a non-empty string array" }, { status: 400 }))
+          return
+        }
+        const paths = body.paths as string[]
+        await (options.writeClipboardFiles ?? writeFilesToClipboard)(paths)
+        await writeNodeResponse(outgoing, Response.json({ copied: paths.length }))
         return
       }
 

@@ -91,6 +91,18 @@ export async function pickLocalPaths(kind: "files" | "directory"): Promise<strin
   return Array.isArray(body.paths) ? body.paths.filter((path): path is string => typeof path === "string" && Boolean(path.trim())) : []
 }
 
+export async function copyLocalFilesToClipboard(paths: string[]): Promise<void> {
+  const config = resolveLocalBackendConfig()
+  const url = new URL("/local-files/clipboard", config.baseUrl)
+  const response = await fetch(url.href, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "content-type": "application/json", ...(config.token && { "x-xiranite-token": config.token }) },
+    body: JSON.stringify({ paths }),
+  })
+  if (!response.ok) throw new Error(await response.text().catch(() => `Native file clipboard returned ${response.status}.`))
+}
+
 export function isSupportedAudioPath(filePath: string): boolean {
   return AUDIO_EXTENSIONS.some((extension) => filePath.toLowerCase().endsWith(extension))
 }

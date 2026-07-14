@@ -337,6 +337,37 @@ describe("backend", () => {
     }
   })
 
+  test("routes validated local paths to the native file clipboard", async () => {
+    const writeClipboardFiles = vi.fn(async () => undefined)
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository(), writeClipboardFiles })
+    try {
+      const blocked = await fetch(`${backend.url}/local-files/clipboard`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: ["D:/Media/a.jpg"] }),
+      })
+      expect(blocked.status).toBe(401)
+
+      const invalid = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: [] }),
+      })
+      expect(invalid.status).toBe(400)
+
+      const response = await fetch(`${backend.url}/local-files/clipboard?token=test-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: ["D:/Media/a.jpg", "D:/Media/b.jpg"] }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ copied: 2 })
+      expect(writeClipboardFiles).toHaveBeenCalledWith(["D:/Media/a.jpg", "D:/Media/b.jpg"])
+    } finally {
+      backend.close()
+    }
+  })
+
   test("serves local audio files with range support and lists music entries", async () => {
     const dataDir = await createTempDataDir()
     const musicDir = join(dataDir, "music")

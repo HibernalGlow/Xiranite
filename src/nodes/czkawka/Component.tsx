@@ -389,6 +389,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     getFileUrl: host.localFiles?.getUrl,
     pickDirectory: host.localFiles?.pickDirectory,
     copyText: host.clipboard?.writeText,
+    copyFiles: host.clipboard?.writeFiles,
     openPath: host.localFiles?.openPath,
     revealPath: host.localFiles?.revealPath,
     patch,
@@ -417,7 +418,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   }
   return (
     <TooltipProvider>
-      <div ref={surface.ref} data-testid="czkawka-surface" data-surface-mode={surface.mode} data-surface-width={surface.width} className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
+      <div ref={surface.ref} data-testid="czkawka-surface" data-surface-mode={surface.mode} data-surface-width={surface.width} data-host-theme={host.env.theme} className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-transparent text-foreground">
         {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
       </div>
     </TooltipProvider>
@@ -451,6 +452,7 @@ type View = {
   getFileUrl?: (path: string) => string
   pickDirectory?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
+  copyFiles?: (paths: string[]) => Promise<void>
   openPath?: (path: string) => Promise<void>
   revealPath?: (path: string) => Promise<void>
   patch: (next: Partial<CzkawkaCardState>) => void
@@ -851,7 +853,7 @@ function SchemaOptionField({ data, definition, patch }: View & { definition: Czk
 }
 
 function ResultTable(props: View) {
-  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
+  const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
   if (props.tool !== "similar-images") return table
   return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">图片</TabsTrigger><TabsTrigger value="folders">文件夹 <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
