@@ -16,6 +16,8 @@ export interface MemoryArchiveEntryInput {
   compressionMethod?: string
   crc32?: number
   modifiedAt?: string
+  encrypted?: boolean
+  zip64?: boolean
 }
 
 interface StoredEntry {
@@ -63,6 +65,8 @@ export class MemoryArchiveProvider implements ArchiveProvider {
           compressionMethod: entry.compressionMethod,
           crc32: entry.crc32,
           modifiedAt: entry.modifiedAt,
+          encrypted: entry.encrypted,
+          zip64: entry.zip64,
         },
         bytes,
       }

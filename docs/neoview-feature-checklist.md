@@ -87,7 +87,7 @@
 - 设置：`performance.archiveTempfileThresholdMB`、`archive.allowFileOperations`、`archive.confirmBeforeDelete`
 - 数据：archive index、materialization leases
 - 行为：ZIP/ZIP64/CBZ；RAR/7z solid 与 non-solid；嵌套与加密；当前页优先流；CRC/损坏包；条目删除后索引失效；取消无子进程残留
-- 测试：`neoview.archive.conformance`、`neoview.archive.security`
+- 测试：`neoview.archive.conformance`、`neoview.archive.security`、`neoview.archive.zip-metadata`、`neoview.archive.zip64`、`neoview.archive.streaming`、`neoview.archive.cancellation`、`neoview.archive.crc`、`neoview.archive.duplicates`、`neoview.archive.unicode`、`neoview.archive.encrypted`、`neoview.archive.empty-corrupt`、`neoview.archive.large-index`
 - 性能基准：`archive-entry-ttfb`、`solid-adjacent-page`
 - 已知差异：无
 

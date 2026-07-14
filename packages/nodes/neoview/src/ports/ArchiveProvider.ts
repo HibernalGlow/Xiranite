@@ -13,6 +13,8 @@ export interface ArchiveEntry {
   compressionMethod?: string
   crc32?: number
   modifiedAt?: string
+  encrypted?: boolean
+  zip64?: boolean
 }
 
 export interface ArchiveCapabilities {
@@ -25,6 +27,8 @@ export interface ArchiveCapabilities {
 export interface OpenArchiveEntryOptions {
   signal?: AbortSignal
   range?: ArchiveByteRange
+  password?: string
+  rawPassword?: Uint8Array
 }
 
 export interface MaterializedEntryLease extends AsyncDisposable {

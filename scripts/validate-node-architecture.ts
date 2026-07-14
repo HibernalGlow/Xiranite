@@ -281,6 +281,7 @@ async function collectNeoViewLayerFindings(nodeDir: string, findings: Finding[])
     const source = await parseSourceIfExists(file)
     if (!source) continue
     const localPath = file.slice(sourceRoot.length + 1).replace(/\\/g, "/")
+    const isTestFile = /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(localPath)
     if (!localPath.includes("/") && !allowedRootFiles.has(localPath)) {
       findings.push({
         file,
@@ -295,7 +296,7 @@ async function collectNeoViewLayerFindings(nodeDir: string, findings: Finding[])
       if (!specifier) continue
       const normalized = specifier.replace(/\\/g, "/")
       const isTestingDependency = /(?:^|\/)testing(?:\/|$|\.[cm]?[jt]sx?$)/.test(normalized)
-      if (!localPath.startsWith("testing/") && isTestingDependency) {
+      if (!isTestFile && !localPath.startsWith("testing/") && isTestingDependency) {
         addNodeFinding(source, statement, "NeoView production code must not depend on testing", specifier, findings)
       }
       if (localPath.startsWith("domain/") && isForbiddenLayer(normalized, ["application", "ports", "platform", "testing"])) {

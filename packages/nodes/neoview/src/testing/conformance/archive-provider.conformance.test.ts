@@ -21,6 +21,8 @@ describe("MemoryArchiveProvider", () => {
   it("[neoview.archive.security] rejects traversal, absolute paths and duplicates", () => {
     expect(() => normalizeArchivePath("../escape.jpg")).toThrow("Unsafe")
     expect(() => normalizeArchivePath("/absolute.jpg")).toThrow("Unsafe")
+    expect(() => normalizeArchivePath("C:\\absolute.jpg")).toThrow("Unsafe")
+    expect(() => normalizeArchivePath("nul\0name.jpg")).toThrow("Unsafe")
     expect(() => new MemoryArchiveProvider([{ path: "a.jpg" }, { path: "./a.jpg" }])).toThrow("Duplicate")
   })
 })

@@ -30,7 +30,8 @@
     "test": "vitest run src --environment node"
   },
   "dependencies": {
-    "@xiranite/contract": "workspace:*"
+    "@xiranite/contract": "workspace:*",
+    "@zip.js/zip.js": "^2.8.26"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
