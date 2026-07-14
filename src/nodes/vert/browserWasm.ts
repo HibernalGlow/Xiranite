@@ -1,6 +1,6 @@
 import { chooseConverter, createFfmpegArgs, normalizeFormat, withFfmpegCoverArt } from "@xiranite/node-vert/core"
 import magickWasmUrl from "@imagemagick/magick-wasm/magick.wasm?url"
-import pandocWasmUrl from "../../../ref/VERT/static/pandoc.wasm?url"
+const pandocWasmUrl = "/wasm/pandoc.wasm"
 import { makeZip } from "client-zip"
 import type { IMagickImage } from "@imagemagick/magick-wasm"
 
