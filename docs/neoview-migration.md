@@ -528,6 +528,106 @@ entry/Component -> app -> features -> shell/shared
 
 迁移期间允许 `core.ts`/兼容 subpath 暂时 re-export 新位置，但最终稳定公开面只保留小型 facade。不能长期保留“新目录实现 + 根目录旧实现”两份代码。
 
+### 7.6 package exports 与可见性
+
+目录拆分不是把所有文件都变成可被任意调用的 subpath。`package.json#exports` 同时承担架构边界，最终只保留下面四类入口：
+
+| 导出 | 使用者 | 允许内容 | 禁止内容 |
+| --- | --- | --- | --- |
+| `@xiranite/node-neoview` | 节点注册器 | `def`、默认 `HeadlessNodePackage`、稳定 core re-export | provider、测试 fake、React UI |
+| `@xiranite/node-neoview/core` | GUI/CLI/TUI 和其他受控宿主 | domain value/type、ReaderService contract、application command/result/event | Sharp/ZIP/SQLite/子进程实现 |
+| `@xiranite/node-neoview/platform` | runtime composition root | `createNodeNeoviewRuntime()`、显式 capability 装配函数 | 具体实现的深层 re-export、模块加载时探测系统 |
+| `@xiranite/node-neoview/testing` | 测试和外部 provider conformance | fake、fixture builder、conformance suite | 被生产代码 import |
+
+早期 `./archive`、`./frame`、`./session` 只作为启动期兼容导出；完成本节归位并确认仓库没有消费者后一次性删除。内部源码禁止通过 package 自引用或深层相对路径绕过边界，例如 application 不得 import `../../platform/archives/zip/...`。同层目录只通过明确文件导入，不能为每层建立会隐藏循环依赖的全量 barrel。
+
+公共 contract 的兼容规则：
+
+1. 稳定导出的 type、event 和错误码采用语义化版本管理；内部目录移动不构成公共 API；
+2. `core.ts` 是经过审查的白名单 facade，不使用 `export *` 把整个内部树意外公开；
+3. platform provider 默认 internal；只有第三方实现确有需求时，才新增窄的 `ports/*` 导出，不公开内置实现；
+4. `testing` 必须是独立入口，生产构建通过 lint/architecture audit 禁止依赖它；
+5. CLI/TUI 不能依赖 GUI 包；三端只共享 `core` contract、application service 和无 UI 的帮助/命令元数据。
+
+### 7.7 feature 目录的内部模板
+
+前端以用户能力为纵切单元，不要求每个 feature 创建所有子目录。文件达到 5 个以上或同时包含视图、状态和适配逻辑时，按需采用：
+
+```text
+features/reader/
+  index.ts                    # 仅导出本 feature 给 app 使用的表面
+  ReaderView.tsx
+  components/
+    PageImage.tsx
+    ReaderControls.tsx
+  model/
+    reader-view-model.ts      # UI 派生状态，不复制 ReaderSession
+  hooks/
+    use-reader-session.ts
+  adapters/
+    image-element-adapter.ts  # 仅当前 feature 使用的浏览器适配
+  reader.feature.test.tsx
+```
+
+归属判断按以下顺序执行：
+
+1. 不依赖 IO/UI 的阅读规则进入 `domain`；
+2. 编排多个规则或端口、具有生命周期的用例进入 `application`；
+3. application 需要但不应知道实现的能力进入 `ports`；
+4. 文件系统、数据库、解码器、HTTP route、Worker 或系统程序实现进入 package `platform`；
+5. 只服务一个用户能力的 React 代码进入对应 `features/<feature>`；
+6. 负责多个 feature 的工作区框架进入 `shell`；
+7. 只有在两个以上 feature 已实际复用后才进入 `shared`，不能因“以后可能复用”提前抽象。
+
+feature 之间不得互相深层 import。确需协作时由 `app` 组合，或把稳定的纯规则下沉到 domain/application。`features/settings` 只负责编辑体验，设置 schema、默认值、校验、旧版导入和持久化仍属于 application/port/platform，不能只存在于表单组件中。
+
+### 7.8 懒加载边界与重节点隔离
+
+子目录本身不会自动减少启动成本，真正的隔离以 import graph 和运行时生命周期为准。NeoView 拆成以下加载组：
+
+| 加载组 | 触发时机 | 可包含 | 不得包含 |
+| --- | --- | --- | --- |
+| registry | Xiranite 节点清单生成/启动 | `def`、图标名、轻量 contract | React viewer、Sharp、ZIP、SQLite、系统探测 |
+| shell | 用户首次打开 NeoView 节点 | React 壳、空状态、命令入口 | 归档索引、解码器初始化、缩略图数据库连接 |
+| reader core | 首次打开书籍或 headless command | domain/application、选中的 provider factory | 未被当前书籍需要的格式实现 |
+| capability | 检测到对应格式或操作 | ZIP、7z/RAR、PDF、WIC、超分等单项 adapter | 其他 capability 的聚合 barrel |
+| session resource | session 实际运行期间 | fd、Worker、缓存租约、daemon lease | 无 owner 的全局常驻资源 |
+
+要求：
+
+- `entry.ts` 与 `Component.tsx` 使用动态 import 进入 shell/reader，不静态 import `platform` 聚合实现；
+- provider registry 保存轻量 descriptor 和异步 factory，不能在模块顶层 `import sharp`、打开 SQLite、执行 CLI 探测或启动 Worker；
+- `platform.ts` 只组装所需 factory；禁止创建一个导入全部 provider 的 `platform/index.ts` 大桶；
+- session close/hibernate 按 owner 释放文件句柄、流、临时文件、Worker 和 daemon lease；进程级共享缓存通过宿主 scheduler 引用计数；
+- 构建审计记录 registry/shell 初始 chunk 及可选 capability chunk，防止一次目录调整把重依赖重新拉回启动链。
+
+这意味着“节点独立”只是第一层；还必须做到 capability 独立和 session 资源独立，才能保证 NeoView 不拖慢未使用它的其他工具。
+
+### 7.9 测试、fixture 与源码就近规则
+
+- 纯规则和 application 单元测试与源码同目录命名为 `*.test.ts`；
+- React feature 测试与 feature 同目录，不在节点根目录建立巨型 `components.test.tsx`；
+- provider 自身的特例测试与实现就近，共同行为由 `testing/conformance/*.conformance.ts` 导出测试工厂；
+- 可生成的小样本放在 `packages/nodes/neoview/test/fixtures`，生成器放在 `test/fixture-builders`；大漫画只登记 manifest/hash，不提交仓库；
+- 跨 package 的 GUI/CLI/TUI 行为放入 `tests/integration/neoview`，真实用户流程放入 `tests/e2e/neoview`；
+- benchmark 独立于正确性测试，输出环境、样本 hash、冷/热缓存状态和资源峰值，不能只记录单次耗时。
+
+`testing` 可以依赖 domain、application 和 ports，也可以为 platform 测试提供 fake；生产层不得依赖 `testing`。conformance suite 接收 provider factory，而不是反向 import 某个具体 provider，因此 ZIP、7z、RAR 和未来实现可以复用同一组取消、range、路径安全和 dispose 测试。
+
+### 7.10 归位执行顺序与完成条件
+
+当前骨架必须一次只移动一种职责，并保持公共测试持续通过：
+
+1. 先移动 frame/book/page/navigation 纯类型与算法到 `domain`，由 `core.ts` 白名单 re-export；
+2. 再拆分 `ReaderSession`、`ReaderService` 与 loader contract，确保 application 不导入具体 provider；
+3. 将 `ArchiveProvider` 移到 `ports`，将 `MemoryArchiveProvider` 和 conformance 移到 `testing`；
+4. 建立 `platform` composition root，但此阶段不为了目录完整创建空 provider 或占位 barrel；
+5. 更新 package exports、feature verifier 和仓库消费者，确认后删除旧 `archive.ts`、`frame.ts`、`session.ts` 及旧 subpath；
+6. 运行 feature/inventory audit、package test/build、node architecture audit、全仓 typecheck 和 `git diff --check`；
+7. 单独提交目录归位，再开始 Svelte AST 工具和真实 ZIP provider，避免结构迁移与行为实现混在同一 diff。
+
+完成条件不是“文件已经移动”，而是同时满足：根目录只剩固定薄入口；不存在旧/新双实现；公共 facade 无 platform 泄漏；生产代码不依赖 testing/generated；所有 provider 可懒加载且通过 conformance；GUI/CLI/TUI 通过同一 ReaderService；节点未打开时不加载重依赖、不创建线程/进程、不开数据库和文件句柄。
+
 ## 8. 领域模型：不要把 ReaderSession 塞进 React store
 
 借鉴 NeeView，将页面拆为四个概念：
@@ -1509,19 +1609,19 @@ interface FeatureCompatibilityEntry {
 
 ```text
 packages/nodes/neoview/
-  src/core/**/*.test.ts
+  src/domain/**/*.test.ts
   src/application/**/*.test.ts
   src/platform/**/*.test.ts
-  src/platform/archives/archive-provider.conformance.ts
+  src/testing/conformance/*.conformance.ts
   src/migration/**/*.test.ts
   test/fixtures/
   test/fixture-builders/
 
 src/nodes/neoview/
   Component.test.tsx
-  ReaderView.test.tsx
-  controls.test.tsx
+  features/**/*.test.tsx
 
+tests/integration/neoview/
 tests/e2e/neoview/
   open-and-read.spec.ts
   navigation.spec.ts
