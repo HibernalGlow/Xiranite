@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createZipFixture, deterministicBytes, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
+import type { ResourceScheduler, ResourceTaskRequest } from "../../ports/ResourceScheduler.js"
 import { createPlatformReaderBookLoader } from "./PlatformReaderBookLoader.js"
 
 const cleanupDirectories: string[] = []
@@ -97,6 +98,75 @@ describe("PlatformReaderBookLoader", () => {
     }
   })
 
+  it("[neoview.archive.nested] recursively materializes nested archives and releases the resource stack", async () => {
+    const deepest = await createZipFixture({
+      name: "deepest.cbz",
+      entries: [
+        { path: "pages/10.jpg", bytes: Uint8Array.of(10), level: 0 },
+        { path: "pages/2.jpg", bytes: Uint8Array.of(2), level: 6 },
+      ],
+    })
+    const middle = await createZipFixture({
+      name: "middle.cbz",
+      entries: [{ path: "books/deepest.cbz", bytes: deepest.bytes, level: 0 }],
+    })
+    const outer = await createZipFixture({
+      name: "outer.cbz",
+      entries: [{ path: "nested/middle.cbz", bytes: middle.bytes, level: 6 }],
+    })
+    cleanupArchives.push(deepest, middle, outer)
+    const tempDirectory = await mkdtemp(join(tmpdir(), "xiranite-neoview-nested-"))
+    cleanupDirectories.push(tempDirectory)
+    const scheduler = new RecordingScheduler()
+    const book = await createPlatformReaderBookLoader({
+      archiveTempDirectory: tempDirectory,
+      resourceScheduler: scheduler,
+    })({
+      kind: "archive",
+      path: outer.path,
+      entryPaths: ["nested/middle.cbz", "books/deepest.cbz"],
+    })
+    expect(book.source).toEqual({
+      kind: "archive",
+      path: outer.path,
+      entryPaths: ["nested/middle.cbz", "books/deepest.cbz"],
+    })
+    expect(book.displayName).toBe("deepest.cbz")
+    expect(book.pages.map((page) => page.entryPath)).toEqual(["pages/2.jpg", "pages/10.jpg"])
+    const source = await book.pages[0]!.content.load()
+    expect(new Uint8Array(await new Response(await source.open()).arrayBuffer())).toEqual(Uint8Array.of(2))
+    await source.close()
+    expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-materialize")).toHaveLength(2)
+    await book.close()
+    expect(await readdir(tempDirectory)).toEqual([])
+  })
+
+  it("[neoview.archive.nested-limits] enforces path contract, depth and materialized byte budgets", async () => {
+    const inner = await createZipFixture({ name: "inner.cbz" })
+    const outer = await createZipFixture({
+      name: "outer.cbz",
+      entries: [{ path: "inner.cbz", bytes: inner.bytes, level: 0 }],
+    })
+    cleanupArchives.push(inner, outer)
+    const loader = createPlatformReaderBookLoader({ maxArchiveDepth: 1, maxArchiveMaterializedBytes: 1 })
+    await expect(loader({
+      kind: "archive",
+      path: outer.path,
+      entryPath: "inner.cbz",
+      entryPaths: ["inner.cbz"],
+    })).rejects.toThrow("both entryPath and entryPaths")
+    await expect(loader({
+      kind: "archive",
+      path: outer.path,
+      entryPaths: ["inner.cbz", "deeper.cbz"],
+    })).rejects.toThrow("depth 2 exceeds")
+    await expect(loader({
+      kind: "archive",
+      path: outer.path,
+      entryPath: "inner.cbz",
+    })).rejects.toThrow("materialized bytes")
+  })
+
   it("[neoview.book.detect] detects directories, archives, images and standalone video from one path entry", async () => {
     const directory = await createDirectoryFixture()
     const loader = createPlatformReaderBookLoader()
@@ -140,4 +210,14 @@ async function createDirectoryFixture(): Promise<string> {
   ])
   await writeFile(join(directory, "subfolder", "nested.png"), Uint8Array.of(5))
   return directory
+}
+
+class RecordingScheduler implements ResourceScheduler {
+  readonly requests: ResourceTaskRequest[] = []
+
+  async acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<{ release(): void }> {
+    signal?.throwIfAborted()
+    this.requests.push({ ...request })
+    return { release() {} }
+  }
 }

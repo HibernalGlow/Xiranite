@@ -1,10 +1,11 @@
 import type { FrameSnapshot } from "../../domain/frame/frame.js"
+import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession } from "../../application/reader/contracts.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
+import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
-import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 
@@ -36,9 +37,7 @@ export interface ReaderSessionDto {
   visiblePages: ReaderPageDto[]
 }
 
-export interface ReaderHttpControllerOptions extends ReaderAssetRouteOptions {
-  resourceScheduler?: ResourceScheduler
-}
+export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions
 
 export class ReaderHttpController implements AsyncDisposable {
   readonly #service: CoreReaderService
@@ -47,7 +46,7 @@ export class ReaderHttpController implements AsyncDisposable {
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#service = new CoreReaderService(
-      createPlatformReaderBookLoader({ resourceScheduler: options.resourceScheduler }),
+      createPlatformReaderBookLoader(options),
       new StreamingImageMetadataProbe(),
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
@@ -101,9 +100,16 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: "initialPage must be a non-negative integer" }, 400)
     }
     const initialPage = typeof initialPageValue === "number" ? initialPageValue : undefined
+    const entryPaths = parseEntryPaths(body)
+    if (entryPaths === "invalid") {
+      return jsonResponse({ error: "entryPath/entryPaths must contain non-empty archive paths and cannot be combined" }, 400)
+    }
     try {
+      const source: ViewSource = entryPaths
+        ? { kind: "archive", path: body.path, entryPaths }
+        : { kind: "path", path: body.path }
       const session = await this.#service.openViewSource(
-        { kind: "path", path: body.path },
+        source,
         { initialPage, signal: request.signal },
       )
       return jsonResponse(this.#sessionDto(session), 201)
@@ -209,6 +215,18 @@ async function readControlJson(request: Request): Promise<Record<string, unknown
 function requirePageIndex(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("pageIndex must be a non-negative integer")
   return value as number
+}
+
+function parseEntryPaths(body: Record<string, unknown>): readonly string[] | undefined | "invalid" {
+  if (body.entryPath !== undefined && body.entryPaths !== undefined) return "invalid"
+  if (body.entryPath !== undefined) {
+    return typeof body.entryPath === "string" && body.entryPath.trim() ? [body.entryPath] : "invalid"
+  }
+  if (body.entryPaths === undefined) return undefined
+  if (!Array.isArray(body.entryPaths) || body.entryPaths.length === 0 || body.entryPaths.length > 16) return "invalid"
+  return body.entryPaths.every((path) => typeof path === "string" && path.trim())
+    ? body.entryPaths as string[]
+    : "invalid"
 }
 
 function boundedInteger(value: string | null, minimum: number, maximum: number, fallback: number): number {

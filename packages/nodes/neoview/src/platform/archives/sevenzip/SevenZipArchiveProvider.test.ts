@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -205,6 +205,47 @@ describe.skipIf(!executable)("SevenZipArchiveProvider system integration", () =>
     } finally {
       await provider.close()
     }
+  })
+
+  it("[neoview.sevenzip.materialize-lease] materializes non-solid entries and releases their temporary root", async () => {
+    const scheduler = new RecordingScheduler()
+    const tempDirectory = join(directory, "non-solid-materialized")
+    await mkdir(tempDirectory)
+    const provider = new SevenZipArchiveProvider(nonSolidPath, {
+      executable: executable!,
+      resourceScheduler: scheduler,
+      tempDirectory,
+    })
+    try {
+      const first = (await provider.list()).find((entry) => entry.path === "pages/001.jpg")!
+      const lease = await provider.materializeEntry(first.id)
+      expect(new Uint8Array(await readFile(lease.path))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+      expect(scheduler.requests.some((request) => request.kind === "neoview.archive-materialize")).toBe(true)
+      await lease.release()
+      expect(await readdir(tempDirectory)).toEqual([])
+    } finally {
+      await provider.close()
+    }
+  })
+
+  it("[neoview.sevenzip.solid-materialize-lease] borrows the solid cache without a second materialization copy", async () => {
+    const scheduler = new RecordingScheduler()
+    const tempDirectory = join(directory, "solid-borrowed")
+    await mkdir(tempDirectory)
+    const provider = new SevenZipArchiveProvider(solidPath, {
+      executable: executable!,
+      resourceScheduler: scheduler,
+      tempDirectory,
+    })
+    const first = (await provider.list()).find((entry) => entry.path === "pages/001.jpg")!
+    const lease = await provider.materializeEntry(first.id)
+    expect(new Uint8Array(await readFile(lease.path))).toEqual(Uint8Array.of(1, 2, 3, 4, 5))
+    expect(scheduler.requests.filter((request) => request.kind === "neoview.archive-solid-extract")).toHaveLength(1)
+    expect(scheduler.requests.some((request) => request.kind === "neoview.archive-materialize")).toBe(false)
+    await lease.release()
+    expect(await access(lease.path).then(() => true, () => false)).toBe(true)
+    await provider.close()
+    expect(await readdir(tempDirectory)).toEqual([])
   })
 })
 

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process"
-import { open, mkdtemp, rm, type FileHandle } from "node:fs/promises"
+import { mkdir, open, mkdtemp, rm, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Readable } from "node:stream"
@@ -101,6 +101,7 @@ export class SolidArchiveMaterializer implements AsyncDisposable {
     }, signal)
     try {
       const parent = this.#tempDirectory ?? tmpdir()
+      await mkdir(parent, { recursive: true })
       this.#root = await mkdtemp(join(parent, "xiranite-neoview-solid-"))
       signal.throwIfAborted()
       const child = spawn(this.#executable.path, [

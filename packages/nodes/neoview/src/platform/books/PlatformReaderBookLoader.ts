@@ -4,6 +4,9 @@ import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 export interface PlatformReaderBookLoaderOptions {
   resourceScheduler?: ResourceScheduler
+  archiveTempDirectory?: string
+  maxArchiveDepth?: number
+  maxArchiveMaterializedBytes?: number
 }
 
 export function createPlatformReaderBookLoader(options: PlatformReaderBookLoaderOptions = {}): ReaderBookLoader {

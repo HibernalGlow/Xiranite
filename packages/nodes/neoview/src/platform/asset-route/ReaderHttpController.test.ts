@@ -1,17 +1,20 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
+import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 
 const cleanupDirectories: string[] = []
+const cleanupArchives: ZipFixture[] = []
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
 )
 
 afterEach(async () => {
+  await Promise.all(cleanupArchives.splice(0).map((fixture) => fixture.cleanup()))
   await Promise.all(cleanupDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -62,9 +65,50 @@ describe("ReaderHttpController", () => {
     try {
       expect((await controller.handle(jsonRequest("/reader/sessions", { path: "" })))?.status).toBe(400)
       expect((await controller.handle(jsonRequest("/reader/sessions", { path: directory, initialPage: -1 })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest("/reader/sessions", { path: directory, entryPaths: [] })))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest("/reader/sessions", {
+        path: directory,
+        entryPath: "inner.cbz",
+        entryPaths: ["inner.cbz"],
+      })))?.status).toBe(400)
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
       const { sessionId } = await opened.json() as ReaderSessionDto
       expect((await controller.handle(jsonRequest(`/reader/s/${sessionId}/navigate`, { action: "goTo" })))?.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.control.nested-archive] opens and streams an inner archive without exposing materialized paths", async () => {
+    const inner = await createZipFixture({
+      name: "inner.cbz",
+      entries: [{ path: "pages/1.png", bytes: ONE_PIXEL_PNG, level: 0 }],
+    })
+    const outer = await createZipFixture({
+      name: "outer.cbz",
+      entries: [{ path: "nested/inner.cbz", bytes: inner.bytes, level: 6 }],
+    })
+    cleanupArchives.push(inner, outer)
+    const tempDirectory = await mkdtemp(join(tmpdir(), "xiranite-neoview-control-nested-"))
+    cleanupDirectories.push(tempDirectory)
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      archiveTempDirectory: tempDirectory,
+    })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", {
+        path: outer.path,
+        entryPaths: ["nested/inner.cbz"],
+      })))!
+      expect(opened.status).toBe(201)
+      const session = await opened.json() as ReaderSessionDto
+      expect(session.book).toMatchObject({ displayName: "inner.cbz", pageCount: 1 })
+      expect(JSON.stringify(session)).not.toContain(tempDirectory)
+      const asset = (await controller.handle(new Request(session.visiblePages[0]!.assetUrl)))!
+      expect(Buffer.from(await asset.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+      await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))
+      expect(await readdir(tempDirectory)).toEqual([])
     } finally {
       await controller[Symbol.asyncDispose]()
     }
