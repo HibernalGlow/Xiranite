@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 
 const cleanupDirectories: string[] = []
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+  "base64",
+)
 
 afterEach(async () => {
   await Promise.all(cleanupDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
@@ -61,6 +65,28 @@ describe("ReaderHttpController", () => {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
       const { sessionId } = await opened.json() as ReaderSessionDto
       expect((await controller.handle(jsonRequest(`/reader/s/${sessionId}/navigate`, { action: "goTo" })))?.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.image.transform-http] streams a native transform through the controller response", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-transform-"))
+    cleanupDirectories.push(directory)
+    await writeFile(join(directory, "page.png"), ONE_PIXEL_PNG)
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
+      const session = await opened.json() as ReaderSessionDto
+      const url = new URL(session.visiblePages[0]!.assetUrl)
+      url.searchParams.set("width", "1")
+      url.searchParams.set("format", "webp")
+      const response = (await controller.handle(new Request(url)))!
+      const bytes = Buffer.from(await response.arrayBuffer())
+      expect(response.status).toBe(200)
+      expect(response.headers.get("content-type")).toBe("image/webp")
+      expect(bytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
+      expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
     } finally {
       await controller[Symbol.asyncDispose]()
     }

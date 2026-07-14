@@ -84,7 +84,7 @@
       "settingsKeys": ["image.supportedFormats", "image.nativeJxl", "performance.protocolDirectEnabled", "performance.directUrlThresholdMB"],
       "dataStores": ["dimension cache", "decoded image cache"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG", "EXIF 方向", "ICC/透明度", "坏图", "超大图", "浏览器直出和转换 fallback"],
-      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout"], "benchmarkIds": ["image-decode", "image-first-frame"], "knownDifferences": []
+      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout", "neoview.image.transform-query", "neoview.image.transform-validation", "neoview.image.transform-route", "neoview.image.transform-sharp", "neoview.image.transform-cancellation", "neoview.image.transform-http"], "benchmarkIds": ["image-decode", "image-first-frame"], "knownDifferences": []
     },
     {
       "id": "animated-image-video",
@@ -104,7 +104,7 @@
       "settingsKeys": ["performance.preLoadSize", "performance.adaptivePreload", "performance.preDecodeCacheSize", "performance.progressiveLoad", "image.preloadCount", "book.preloadPages"],
       "dataStores": ["priority queues", "request dedup"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["View/Ahead/Background 优先级", "方向感知预读", "渐进批次", "背压", "快速翻页取消", "多节点资源配额"],
-      "testIds": [], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
+      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.image.transform-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
     },
     {
       "id": "thumbnail-system",

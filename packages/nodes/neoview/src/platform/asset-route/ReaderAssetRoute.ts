@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto"
 
 import type { ReaderService, ReaderSessionId } from "../../application/reader/contracts.js"
+import {
+  appendImageTransform,
+  imageTransformCacheKey,
+  imageTransformContentType,
+  parseImageTransform,
+  type ImageTransformRequest,
+} from "../../domain/image/image-transform.js"
 import type { PageByteRange, PageSource } from "../../domain/page/page-content.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
+import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 
@@ -11,18 +19,29 @@ export interface ReaderAssetRouteOptions {
   token: string
 }
 
+export interface ReaderAssetRouteDependencies {
+  loadImageTransformer?: ImageTransformerLoader
+}
+
 export class ReaderAssetRoute {
   readonly #readerService: ReaderService
   readonly #baseUrl: string
   readonly #token: string
+  readonly #loadImageTransformer?: ImageTransformerLoader
+  #imageTransformer?: Promise<ImageTransformer>
 
-  constructor(readerService: ReaderService, options: ReaderAssetRouteOptions) {
+  constructor(
+    readerService: ReaderService,
+    options: ReaderAssetRouteOptions,
+    dependencies: ReaderAssetRouteDependencies = {},
+  ) {
     this.#readerService = readerService
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#token = options.token
+    this.#loadImageTransformer = dependencies.loadImageTransformer
   }
 
-  pageUrl(sessionId: ReaderSessionId, pageId: PageId): string {
+  pageUrl(sessionId: ReaderSessionId, pageId: PageId, transform?: ImageTransformRequest): string {
     const session = this.#readerService.getSession(sessionId)
     const page = session?.getPage(pageId)
     if (!page) throw new Error(`Reader page was not found: ${sessionId}/${pageId}`)
@@ -30,6 +49,7 @@ export class ReaderAssetRoute {
     const url = new URL(path, this.#baseUrl)
     url.searchParams.set("version", page.contentVersion)
     url.searchParams.set("token", this.#token)
+    if (transform) appendImageTransform(url.searchParams, transform)
     return url.href
   }
 
@@ -51,28 +71,46 @@ export class ReaderAssetRoute {
     if (url.searchParams.get("version") !== page.contentVersion) {
       return textResponse("Reader page version is stale", 410)
     }
+    let transform: ImageTransformRequest | undefined
+    try {
+      transform = parseImageTransform(url.searchParams)
+    } catch (error) {
+      return textResponse(error instanceof Error ? error.message : String(error), 400)
+    }
+    if (transform && page.mediaKind !== "image" && page.mediaKind !== "animated-image") {
+      return textResponse("Reader asset does not support image transforms", 415)
+    }
+    if (transform && !this.#loadImageTransformer) return textResponse("Image transforms are unavailable", 501)
 
     request.signal.throwIfAborted()
     const source = await page.content.load(request.signal)
     try {
-      return await this.#respond(request, page, source)
+      return await this.#respond(request, page, source, transform)
     } catch (error) {
       await source.close().catch(() => undefined)
       throw error
     }
   }
 
-  async #respond(request: Request, page: ReaderPage, source: PageSource): Promise<Response> {
+  async #respond(
+    request: Request,
+    page: ReaderPage,
+    source: PageSource,
+    transform?: ImageTransformRequest,
+  ): Promise<Response> {
     const size = source.byteLength ?? page.byteLength
-    const etag = pageEtag(page)
+    const transformKey = transform ? imageTransformCacheKey(transform) : undefined
+    const etag = pageEtag(page, transformKey)
     const headers = new Headers({
       "cache-control": "private, max-age=31536000, immutable",
-      "content-type": source.contentType ?? page.mimeType ?? "application/octet-stream",
+      "content-type": transform
+        ? imageTransformContentType(transform.format)
+        : source.contentType ?? page.mimeType ?? "application/octet-stream",
       "etag": etag,
       "x-content-type-options": "nosniff",
     })
-    if (source.rangeSupported) headers.set("accept-ranges", "bytes")
-    if (size !== undefined) headers.set("content-length", String(size))
+    if (!transform && source.rangeSupported) headers.set("accept-ranges", "bytes")
+    if (!transform && size !== undefined) headers.set("content-length", String(size))
 
     if (matchesEtag(request.headers.get("if-none-match"), etag)) {
       await source.close()
@@ -80,7 +118,7 @@ export class ReaderAssetRoute {
       return new Response(null, { status: 304, headers })
     }
 
-    const requestedRange = source.rangeSupported && size !== undefined
+    const requestedRange = !transform && source.rangeSupported && size !== undefined
       ? parseRangeHeader(request.headers.get("range"), size)
       : null
     if (requestedRange === "invalid") {
@@ -99,8 +137,35 @@ export class ReaderAssetRoute {
       return new Response(null, { status, headers })
     }
 
-    const stream = await source.open(request.signal, requestedRange ?? undefined)
-    return new Response(finalizePageStream(stream, source), { status, headers })
+    const input = await source.open(request.signal, requestedRange ?? undefined)
+    if (!transform) return new Response(finalizePageStream(input, source), { status, headers })
+    try {
+      const transformer = await this.#getImageTransformer()
+      request.signal.throwIfAborted()
+      const result = await transformer.transform(input, transform, request.signal)
+      const expectedContentType = imageTransformContentType(transform.format)
+      if (result.contentType !== expectedContentType) {
+        await result.stream.cancel("unexpected image transform content type").catch(() => undefined)
+        throw new Error(`Image transformer returned ${result.contentType}; expected ${expectedContentType}.`)
+      }
+      return new Response(finalizePageStream(result.stream, source), { status, headers })
+    } catch (error) {
+      await input.cancel(error).catch(() => undefined)
+      throw error
+    }
+  }
+
+  #getImageTransformer(): Promise<ImageTransformer> {
+    if (!this.#loadImageTransformer) return Promise.reject(new Error("Image transforms are unavailable"))
+    if (!this.#imageTransformer) {
+      const pending = this.#loadImageTransformer()
+      const guarded = pending.catch((error) => {
+        if (this.#imageTransformer === guarded) this.#imageTransformer = undefined
+        throw error
+      })
+      this.#imageTransformer = guarded
+    }
+    return this.#imageTransformer
   }
 
   #isAuthorized(request: Request, url: URL): boolean {
@@ -165,8 +230,14 @@ function finalizePageStream(stream: ReadableStream<Uint8Array>, source: PageSour
   })
 }
 
-function pageEtag(page: ReaderPage): string {
-  const hash = createHash("sha256").update(page.id).update("\0").update(page.contentVersion).digest("base64url")
+function pageEtag(page: ReaderPage, transformKey?: string): string {
+  const hash = createHash("sha256")
+    .update(page.id)
+    .update("\0")
+    .update(page.contentVersion)
+    .update("\0")
+    .update(transformKey ?? "original")
+    .digest("base64url")
   return `"neoview-${hash}"`
 }
 

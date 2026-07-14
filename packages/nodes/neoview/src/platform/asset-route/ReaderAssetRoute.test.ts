@@ -7,6 +7,7 @@ import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
+import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
@@ -112,6 +113,68 @@ describe("ReaderAssetRoute", () => {
     await reader.cancel("client disconnected")
     expect(cancelled).toHaveBeenCalledWith("client disconnected")
     expect(sourceClosed).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.image.transform-route] loads the transformer only for normalized transform requests", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3, 4))
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input, request) => {
+      await input.cancel("fake transform consumed")
+      expect(request).toEqual({ width: 320, height: undefined, dpr: 2, fit: "inside", format: "webp", quality: 70 })
+      return {
+        stream: new ReadableStream({ start(controller) { controller.enqueue(Uint8Array.of(9, 8, 7)); controller.close() } }),
+        contentType: "image/webp",
+      }
+    })
+    const loadImageTransformer = vi.fn(async (): Promise<ImageTransformer> => ({ transform }))
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer },
+    )
+    const originalUrl = route.pageUrl(session.id, session.book.pages[0]!.id)
+    const originalHead = (await route.handle(new Request(originalUrl, { method: "HEAD" })))!
+    expect(originalHead.headers.get("content-type")).toBe("image/jpeg")
+    expect(loadImageTransformer).not.toHaveBeenCalled()
+
+    const transformedUrl = new URL(originalUrl)
+    transformedUrl.searchParams.set("width", "320")
+    transformedUrl.searchParams.set("dpr", "2")
+    transformedUrl.searchParams.set("quality", "70")
+    const transformedHead = (await route.handle(new Request(transformedUrl, { method: "HEAD" })))!
+    expect(transformedHead.status).toBe(200)
+    expect(transformedHead.headers.get("content-type")).toBe("image/webp")
+    expect(transformedHead.headers.has("content-length")).toBe(false)
+    expect(transformedHead.headers.has("accept-ranges")).toBe(false)
+    expect(transformedHead.headers.get("etag")).not.toBe(originalHead.headers.get("etag"))
+    expect(loadImageTransformer).not.toHaveBeenCalled()
+
+    const response = (await route.handle(new Request(transformedUrl, { headers: { range: "bytes=0-1" } })))!
+    expect(response.status).toBe(200)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.of(9, 8, 7))
+    expect(loadImageTransformer).toHaveBeenCalledOnce()
+    expect(transform).toHaveBeenCalledOnce()
+
+    const notModified = (await route.handle(new Request(transformedUrl, {
+      headers: { "if-none-match": response.headers.get("etag")! },
+    })))!
+    expect(notModified.status).toBe(304)
+    expect(transform).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.image.transform-validation] rejects invalid transforms before loading native code", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    const loadImageTransformer = vi.fn<ImageTransformerLoader>()
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "999999")
+    expect((await route.handle(new Request(url)))?.status).toBe(400)
+    expect(loadImageTransformer).not.toHaveBeenCalled()
     await service[Symbol.asyncDispose]()
   })
 })

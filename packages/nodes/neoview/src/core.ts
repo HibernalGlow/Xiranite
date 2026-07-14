@@ -32,6 +32,22 @@ export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation
 export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
 export type { PageByteRange, PageContent, PageSource } from "./domain/page/page-content.js"
 export type { ImageMetadataProbe, ProbedImageFormat, ProbedImageMetadata } from "./ports/ImageMetadataProbe.js"
+export type { ImageTransformer, ImageTransformerLoader, ImageTransformResult } from "./ports/ImageTransformer.js"
+export type {
+  ResourceLease,
+  ResourcePriority,
+  ResourceScheduler,
+  ResourceTaskRequest,
+} from "./ports/ResourceScheduler.js"
+export {
+  appendImageTransform,
+  imageTransformCacheKey,
+  imageTransformContentType,
+  parseImageTransform,
+  type ImageTransformFit,
+  type ImageTransformFormat,
+  type ImageTransformRequest,
+} from "./domain/image/image-transform.js"
 export {
   type ArchiveByteRange,
   type ArchiveCapabilities,

@@ -40,7 +40,12 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #token: string
 
   constructor(options: ReaderAssetRouteOptions) {
-    this.#assets = new ReaderAssetRoute(this.#service, options)
+    this.#assets = new ReaderAssetRoute(this.#service, options, {
+      loadImageTransformer: async () => {
+        const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
+        return new SharpImageTransformer()
+      },
+    })
     this.#token = options.token
   }
 

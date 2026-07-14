@@ -131,7 +131,7 @@
 - 设置：`image.supportedFormats`、`image.nativeJxl`、`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：dimension cache、decoded image cache
 - 行为：JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG；EXIF 方向；ICC/透明度；坏图；超大图；浏览器直出和转换 fallback
-- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`
+- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`、`neoview.image.transform-query`、`neoview.image.transform-validation`、`neoview.image.transform-route`、`neoview.image.transform-sharp`、`neoview.image.transform-cancellation`、`neoview.image.transform-http`
 - 性能基准：`image-decode`、`image-first-frame`
 - 已知差异：无
 
@@ -153,7 +153,7 @@
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：待补
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.image.transform-cancellation`
 - 性能基准：`scheduler-contention`、`cancel-latency`
 - 已知差异：无
 

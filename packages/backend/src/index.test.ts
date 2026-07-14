@@ -8,7 +8,7 @@ import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, res
 
 const RUN_ROOT = join(process.cwd(), "../../artifacts/test-runs/backend")
 const ONE_PIXEL_PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lV9uKAAAAABJRU5ErkJggg==",
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
 )
 const TINY_FLAC_HEADER = Buffer.from("fLaC00000000", "utf8")
@@ -426,6 +426,18 @@ describe("backend", () => {
       expect(image.status).toBe(200)
       expect(image.headers.get("content-type")).toBe("image/jpeg")
       expect(Buffer.from(await image.arrayBuffer())).toEqual(ONE_PIXEL_PNG)
+
+      const transformedUrl = new URL(session.visiblePages[0]!.assetUrl)
+      transformedUrl.searchParams.set("width", "1")
+      transformedUrl.searchParams.set("format", "webp")
+      const transformed = await fetch(transformedUrl)
+      const transformedBytes = Buffer.from(await transformed.arrayBuffer())
+      expect(transformed.status).toBe(200)
+      expect(transformed.headers.get("content-type")).toBe("image/webp")
+      expect(transformed.headers.has("content-length")).toBe(false)
+      expect(transformed.headers.has("accept-ranges")).toBe(false)
+      expect(transformedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
+      expect(transformedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
 
       const closed = await fetch(`${backend.url}/reader/s/${session.sessionId}`, {
         method: "DELETE",

@@ -1023,6 +1023,10 @@ entry -> full Buffer -> sharp -> full Buffer -> IPC
 
 JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp fallback，不能为了探测尺寸引入常驻 sidecar。AVIF 已有有界 BMFF box 遍历与 `ispe` 支持，但 `irot`/`imir` 等 item property 关联和色彩/解码能力仍由后续转换 fallback 收口。RAR/7z 接入后同一 probe 必须把成功后的取消继续传递到 `7zz -so` 子进程。
 
+可选 sharp 变换现已接入同一 asset route。无变换参数时仍走原始 `PageSource`、Range、原始 `Content-Length` 和原图 ETag，且不会加载 sharp；只有 URL 明确携带有界的 `width`/`height`/`dpr`/`fit`/`format`/`quality` 时，才动态导入 `SharpImageTransformer`。参数先规范化并进入变体 ETag，重复参数、非法组合、超限尺寸在打开 page source 和 native 模块前返回 400。变换链为 `PageSource stream -> sharp Duplex -> Web ReadableStream -> HTTP`，不调用 `toBuffer()`，转换响应不谎报 Range 或预先物化以计算 `Content-Length`。当前支持 JPEG、PNG、WebP、AVIF 输出，默认缩放结果为 `inside` WebP，并通过 `AbortSignal` 将客户端断开传到输入流与 sharp pipeline。
+
+`sharp@0.34.5` 已被 CLI runtime 使用，NeoView 声明相同直接依赖，lockfile 仍只有一个版本；模块与 libvips 初始化保持二级懒加载。当前 `PriorityResourceScheduler` 为 NeoView 进程内共享的过渡实现：最多两个交互变换，并为 interactive 保留一个槽位，队列支持取消。它解决 Reader 自身无界并发，但尚不能证明与其他节点共享总配额；后续必须把同一 `ResourceScheduler` port 由 backend 宿主注入，缩略图、归档、超分及其他高负载节点都从宿主调度器取得 lease。
+
 ### 11.8 并发、缓存和背压
 
 初始并发上限按存储介质和格式区分，再由 benchmark 修订：
@@ -1803,8 +1807,9 @@ scripts/
 ### Phase 2：目录、ZIP 与唯一数据主链
 
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
-- 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；后续接可选 sharp transform；
+- 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；可选 sharp transform 复用同一响应链；
 - 已接入 256 KiB 有界的纯 TS 流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL 与 AVIF 变换属性留给惰性 native fallback；
+- 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。当前 NeoView 内部调度上限已生效，宿主级跨节点总配额仍待接入；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
 - 接入统一 cache、scheduler 和资源统计；
 - 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；

@@ -38,7 +38,12 @@ export async function createReaderAssetRoute(
   options: ReaderAssetRouteOptions,
 ): Promise<ReaderAssetRoute> {
   const { ReaderAssetRoute } = await import("./platform/asset-route/ReaderAssetRoute.js")
-  return new ReaderAssetRoute(readerService, options)
+  return new ReaderAssetRoute(readerService, options, {
+    loadImageTransformer: async () => {
+      const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
+      return new SharpImageTransformer()
+    },
+  })
 }
 
 export async function createReaderHttpController(
