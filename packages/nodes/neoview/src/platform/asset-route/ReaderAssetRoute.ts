@@ -11,6 +11,7 @@ import {
 import type { PageByteRange, PageSource } from "../../domain/page/page-content.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
+import type { CachedPresentation, ReaderPresentationCache } from "../../ports/ReaderPresentationCache.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 
@@ -21,6 +22,7 @@ export interface ReaderAssetRouteOptions {
 
 export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
+  presentationCache?: ReaderPresentationCache
 }
 
 export class ReaderAssetRoute {
@@ -28,7 +30,10 @@ export class ReaderAssetRoute {
   readonly #baseUrl: string
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
+  readonly #presentationCache?: ReaderPresentationCache
+  readonly #transformFlights = new Map<string, Promise<CachedPresentation | undefined>>()
   #imageTransformer?: Promise<ImageTransformer>
+  #closed = false
 
   constructor(
     readerService: ReaderService,
@@ -39,6 +44,7 @@ export class ReaderAssetRoute {
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
+    this.#presentationCache = dependencies.presentationCache
   }
 
   pageUrl(sessionId: ReaderSessionId, pageId: PageId, transform?: ImageTransformRequest): string {
@@ -57,6 +63,7 @@ export class ReaderAssetRoute {
     const url = new URL(request.url)
     const match = PAGE_PATH.exec(url.pathname)
     if (!match) return undefined
+    if (this.#closed) return textResponse("Reader asset route is closed", 410)
     if (!this.#isAuthorized(request, url)) return textResponse("Unauthorized", 401)
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method not allowed", { status: 405, headers: { allow: "GET, HEAD" } })
@@ -83,34 +90,36 @@ export class ReaderAssetRoute {
     if (transform && !this.#loadImageTransformer) return textResponse("Image transforms are unavailable", 501)
 
     request.signal.throwIfAborted()
+    if (transform) return this.#respondTransformed(request, page, transform)
     const source = await page.content.load(request.signal)
     try {
-      return await this.#respond(request, page, source, transform)
+      return await this.#respondOriginal(request, page, source)
     } catch (error) {
       await source.close().catch(() => undefined)
       throw error
     }
   }
 
-  async #respond(
-    request: Request,
-    page: ReaderPage,
-    source: PageSource,
-    transform?: ImageTransformRequest,
-  ): Promise<Response> {
+  clearPresentationCache(): void {
+    this.#presentationCache?.clear()
+  }
+
+  close(): void {
+    this.#closed = true
+    this.clearPresentationCache()
+  }
+
+  async #respondOriginal(request: Request, page: ReaderPage, source: PageSource): Promise<Response> {
     const size = source.byteLength ?? page.byteLength
-    const transformKey = transform ? imageTransformCacheKey(transform) : undefined
-    const etag = pageEtag(page, transformKey)
+    const etag = pageEtag(page)
     const headers = new Headers({
       "cache-control": "private, max-age=31536000, immutable",
-      "content-type": transform
-        ? imageTransformContentType(transform.format)
-        : source.contentType ?? page.mimeType ?? "application/octet-stream",
+      "content-type": source.contentType ?? page.mimeType ?? "application/octet-stream",
       "etag": etag,
       "x-content-type-options": "nosniff",
     })
-    if (!transform && source.rangeSupported) headers.set("accept-ranges", "bytes")
-    if (!transform && size !== undefined) headers.set("content-length", String(size))
+    if (source.rangeSupported) headers.set("accept-ranges", "bytes")
+    if (size !== undefined) headers.set("content-length", String(size))
 
     if (matchesEtag(request.headers.get("if-none-match"), etag)) {
       await source.close()
@@ -118,7 +127,7 @@ export class ReaderAssetRoute {
       return new Response(null, { status: 304, headers })
     }
 
-    const requestedRange = !transform && source.rangeSupported && size !== undefined
+    const requestedRange = source.rangeSupported && size !== undefined
       ? parseRangeHeader(request.headers.get("range"), size)
       : null
     if (requestedRange === "invalid") {
@@ -137,9 +146,49 @@ export class ReaderAssetRoute {
       return new Response(null, { status, headers })
     }
 
-    const input = await source.open(request.signal, requestedRange ?? undefined)
-    if (!transform) return new Response(finalizePageStream(input, source), { status, headers })
+    const stream = await source.open(request.signal, requestedRange ?? undefined)
+    return new Response(finalizePageStream(stream, source), { status, headers })
+  }
+
+  async #respondTransformed(
+    request: Request,
+    page: ReaderPage,
+    transform: ImageTransformRequest,
+  ): Promise<Response> {
+    const transformKey = imageTransformCacheKey(transform)
+    const etag = pageEtag(page, transformKey)
+    const cacheKey = `${etag}:sharp-0.34.5`
+    const headers = new Headers({
+      "cache-control": "private, max-age=31536000, immutable",
+      "content-type": imageTransformContentType(transform.format),
+      "etag": etag,
+      "x-content-type-options": "nosniff",
+    })
+    if (matchesEtag(request.headers.get("if-none-match"), etag)) return new Response(null, { status: 304, headers })
+    const cached = this.#presentationCache?.get(cacheKey)
+    if (request.method === "HEAD") {
+      if (cached) headers.set("content-length", String(cached.bytes.byteLength))
+      return new Response(null, { status: 200, headers })
+    }
+    if (cached) return cachedPresentationResponse(cached, headers)
+    const active = this.#transformFlights.get(cacheKey)
+    if (active) {
+      const shared = await waitForSharedTransform(active, request.signal)
+      if (shared) return cachedPresentationResponse(shared, headers)
+      request.signal.throwIfAborted()
+      return this.#respondTransformed(request, page, transform)
+    }
+
+    let settleFlight: ((value: CachedPresentation | undefined) => void) | undefined
+    if (this.#presentationCache) {
+      const completion = new Promise<CachedPresentation | undefined>((resolve) => { settleFlight = resolve })
+      this.#transformFlights.set(cacheKey, completion)
+    }
+
+    let source: PageSource | undefined
     try {
+      source = await page.content.load(request.signal)
+      const input = await source.open(request.signal)
       const transformer = await this.#getImageTransformer()
       request.signal.throwIfAborted()
       const result = await transformer.transform(input, transform, request.signal)
@@ -148,9 +197,26 @@ export class ReaderAssetRoute {
         await result.stream.cancel("unexpected image transform content type").catch(() => undefined)
         throw new Error(`Image transformer returned ${result.contentType}; expected ${expectedContentType}.`)
       }
-      return new Response(finalizePageStream(result.stream, source), { status, headers })
+      if (!this.#presentationCache || !settleFlight) {
+        return new Response(finalizePageStream(result.stream, source), { status: 200, headers })
+      }
+      const [responseStream, cacheStream] = result.stream.tee()
+      const cacheCompletion = collectPresentation(cacheStream, this.#presentationCache.maxEntryBytes, expectedContentType)
+        .then((presentation) => {
+          if (presentation && (this.#closed || !this.#presentationCache!.set(cacheKey, presentation))) {
+            presentation = undefined
+          }
+          this.#transformFlights.delete(cacheKey)
+          settleFlight!(presentation)
+        }, () => {
+          this.#transformFlights.delete(cacheKey)
+          settleFlight!(undefined)
+        })
+      return new Response(finalizePageStream(responseStream, source, cacheCompletion), { status: 200, headers })
     } catch (error) {
-      await input.cancel(error).catch(() => undefined)
+      this.#transformFlights.delete(cacheKey)
+      settleFlight?.(undefined)
+      await source?.close().catch(() => undefined)
       throw error
     }
   }
@@ -197,7 +263,11 @@ export function parseRangeHeader(rangeHeader: string | null, size: number): Page
   return { start, end: Math.min(end, size - 1) }
 }
 
-function finalizePageStream(stream: ReadableStream<Uint8Array>, source: PageSource): ReadableStream<Uint8Array> {
+function finalizePageStream(
+  stream: ReadableStream<Uint8Array>,
+  source: PageSource,
+  beforeNormalClose?: Promise<void>,
+): ReadableStream<Uint8Array> {
   const reader = stream.getReader()
   let finalizePromise: Promise<void> | undefined
   const finalize = (): Promise<void> => {
@@ -212,6 +282,7 @@ function finalizePageStream(stream: ReadableStream<Uint8Array>, source: PageSour
       try {
         const result = await reader.read()
         if (result.done) {
+          await beforeNormalClose
           await finalize()
           controller.close()
         } else {
@@ -227,6 +298,81 @@ function finalizePageStream(stream: ReadableStream<Uint8Array>, source: PageSour
       await reader.cancel(reason).catch(() => undefined)
       await finalize()
     },
+  })
+}
+
+async function collectPresentation(
+  stream: ReadableStream<Uint8Array>,
+  maxBytes: number,
+  contentType: string,
+): Promise<CachedPresentation | undefined> {
+  const reader = stream.getReader()
+  let chunks: Uint8Array[] | undefined = []
+  let bytes = 0
+  try {
+    while (true) {
+      const result = await reader.read()
+      if (result.done) break
+      if (!chunks) continue
+      const nextBytes = bytes + result.value.byteLength
+      if (nextBytes > maxBytes) {
+        chunks = undefined
+        continue
+      }
+      chunks.push(result.value)
+      bytes = nextBytes
+    }
+    if (!chunks || bytes === 0) return undefined
+    const output = new Uint8Array(bytes)
+    let offset = 0
+    for (const chunk of chunks) {
+      output.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    return { bytes: output, contentType }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+function cachedPresentationResponse(presentation: CachedPresentation, sourceHeaders: Headers): Response {
+  const headers = new Headers(sourceHeaders)
+  headers.set("content-type", presentation.contentType)
+  headers.set("content-length", String(presentation.bytes.byteLength))
+  return new Response(streamCachedBytes(presentation.bytes), { status: 200, headers })
+}
+
+function streamCachedBytes(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  let offset = 0
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.byteLength) {
+        controller.close()
+        return
+      }
+      const end = Math.min(offset + 64 * 1024, bytes.byteLength)
+      controller.enqueue(bytes.subarray(offset, end))
+      offset = end
+    },
+  })
+}
+
+function waitForSharedTransform(
+  completion: Promise<CachedPresentation | undefined>,
+  signal: AbortSignal,
+): Promise<CachedPresentation | undefined> {
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      cleanup()
+      reject(signal.reason)
+    }
+    const cleanup = () => signal.removeEventListener("abort", onAbort)
+    signal.addEventListener("abort", onAbort, { once: true })
+    completion.then(
+      (value) => { cleanup(); resolve(value) },
+      (error) => { cleanup(); reject(error) },
+    )
   })
 }
 

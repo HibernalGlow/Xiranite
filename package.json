@@ -60,6 +60,7 @@
     "qa:node-baselines": "bun scripts/capture-node-gui-baselines.ts",
     "benchmark:react-compiler": "bun scripts/benchmark-react-compiler.ts",
     "benchmark:neoview-zip": "bun scripts/benchmark-neoview-zip.ts",
+    "benchmark:neoview-cache": "bun scripts/benchmark-neoview-cache.ts",
     "test:unit": "vitest run --dir . --exclude \"**/dist/**\" --exclude \"**/artifacts/**\" --exclude \"**/build/**\" --exclude \"**/vendor/**\" --exclude \"**/ref/**\" --exclude \"**/tests/e2e/**\"",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:packages": "bun run generate:node-registries && bun scripts/run-turbo.ts build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\" && bun run audit:node-architecture && bun scripts/run-turbo.ts test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",

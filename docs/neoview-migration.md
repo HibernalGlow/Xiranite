@@ -1116,6 +1116,20 @@ sourceFingerprint + entryId + contentVersion
 5. 达到软上限时逐步回收，达到硬上限或内存压力时执行 deep cleanup；
 6. 缓存记录实际字节数，不用“对象数量”代替内存预算。
 
+当前已实现 L2 变换产物的 `WeightedLruPresentationCache` 和 transform singleflight：
+
+- 只缓存经过 sharp 生成的昂贵呈现产物，原图/ZIP entry 继续直接依赖流与 WebView HTTP cache；
+- 首个冷请求通过 `ReadableStream.tee()` 一路立即返回 HTTP、一路有界收集，不等待完整转码后才开始响应；
+- 相同 `page id + contentVersion + transform + decoderVersion` 的并发请求等待同一个 flight，等待者取消不会中止生产者或其他等待者；
+- 默认总预算 96 MiB、单条 24 MiB，按最终 `Uint8Array.byteLength` 计费；超过单条预算时继续排空旁路以维持 singleflight，但不保留字节；
+- 超过硬预算后按 LRU 淘汰到 80% 软目标，命中会触摸条目；替换、清空、命中、未命中和淘汰都有精确计数；
+- 缓存命中直接以 64 KiB 分块流返回，并提供已知 `Content-Length`；冷变换仍不为了长度先物化；
+- controller dispose 会清空内存层，源文件或 archive 的 size/mtime/CRC 变化会改变 `contentVersion`，旧条目不会被新请求命中。
+
+这仍不是第 12 节的全部完成状态：当前 frame pin、方向/距离权重、内存压力 deep cleanup、L3 内容寻址磁盘缓存、缩略图数据库与跨进程复用尚待实现。缓存产物物化是受字节预算约束的明确例外，禁止把同一机制扩展为“所有原图默认进 JS 堆”。
+
+`bun run benchmark:neoview-cache` 提供可重复的 `cache-memory-budget` JSON。2026-07-15 本机 32 MiB 预算样本连续写入 64 个 1 MiB 已触碰字节条目，最终严格保留 32 MiB、淘汰 32 条；20,000 次热命中无 miss。脚本支持 `NEOVIEW_CACHE_BENCH_MIB` 调整预算，报告 Bun/平台、配置、写入吞吐、热命中延迟、保留字节和淘汰数；这些数值用于同机回归，不作为跨硬件性能承诺。
+
 前端不再长期保存数百 MB Blob/ImageBitmap。Object URL 若用于短暂兼容路径，必须由同一组件在替换或卸载时 revoke。
 
 ## 13. 全局调度与多工具共存
@@ -1812,13 +1826,13 @@ scripts/
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；可选 sharp transform 复用同一响应链；
 - 已接入 256 KiB 有界的纯 TS 流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL 与 AVIF 变换属性留给惰性 native fallback；
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
+- 已接入 transform singleflight 与 96 MiB/单条 24 MiB 的 L2 weighted LRU；冷请求保持边响应边有界收集，超限产物不缓存。方向 pin、内存压力回收和 L3 磁盘层仍待实现；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
-- 接入统一 cache、scheduler 和资源统计；
-- 以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
-- 实现 loopback asset route；
-- GUI/CLI 使用相同 `openViewSource()`；
-- 验证流式读取、背压、取消、ETag、错误恢复和 session close；
-- 接入最小 React smoke viewer，完成首条真实 E2E。
+- 继续把 archive、thumbnail、超分和其他高负载节点迁入宿主 scheduler，并补 queue/cache 指标与 benchmark；
+- 待以原 `%APPDATA%\NeoView\thumbnails.db` 接入单一缩略图 adapter；
+- 已实现 loopback asset/control route、opaque token、ETag、文件 Range、ZIP 无伪 Range、背压与断开取消；
+- GUI 已使用共享 `openViewSource()` contract；CLI/TUI presentation adapter 仍待接入；
+- 已验证 ZIP 流式读取、背压、取消、ETag、错误恢复和 session close，RAR/7z/PDF 等 provider 仍需同等级测试。
 
 ### Phase 3：React Reader 重构
 

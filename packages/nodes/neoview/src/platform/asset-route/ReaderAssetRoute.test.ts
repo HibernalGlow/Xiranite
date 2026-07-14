@@ -10,6 +10,7 @@ import type { ReaderPage } from "../../domain/page/page.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
+import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 
 const cleanupDirectories: string[] = []
@@ -175,6 +176,182 @@ describe("ReaderAssetRoute", () => {
     url.searchParams.set("width", "999999")
     expect((await route.handle(new Request(url)))?.status).toBe(400)
     expect(loadImageTransformer).not.toHaveBeenCalled()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.singleflight] shares an active transform and serves later requests from the byte cache", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    let output!: ReadableStreamDefaultController<Uint8Array>
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      return {
+        stream: new ReadableStream({ start(controller) { output = controller } }),
+        contentType: "image/webp",
+      }
+    })
+    const cache = new WeightedLruPresentationCache({ maxBytes: 32, maxEntryBytes: 16 })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { presentationCache: cache, loadImageTransformer: async () => ({ transform }) },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    const first = (await route.handle(new Request(url)))!
+    let secondResolved = false
+    const secondPending = route.handle(new Request(url)).then((response) => {
+      secondResolved = true
+      return response!
+    })
+    await Promise.resolve()
+    expect(secondResolved).toBe(false)
+    expect(transform).toHaveBeenCalledOnce()
+
+    output.enqueue(Uint8Array.of(4, 5, 6, 7))
+    output.close()
+    const second = await secondPending
+    expect(new Uint8Array(await second.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    expect(second.headers.get("content-length")).toBe("4")
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+
+    const third = (await route.handle(new Request(url)))!
+    expect(new Uint8Array(await third.arrayBuffer())).toEqual(Uint8Array.of(4, 5, 6, 7))
+    expect(transform).toHaveBeenCalledOnce()
+    expect(cache.snapshot()).toMatchObject({ entries: 1, bytes: 4, hits: 1 })
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.oversized-bypass] drains but does not retain transformed output above the entry budget", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue(Uint8Array.of(1, 2, 3))
+            controller.close()
+          },
+        }),
+        contentType: "image/webp",
+      }
+    })
+    const cache = new WeightedLruPresentationCache({ maxBytes: 8, maxEntryBytes: 2 })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { presentationCache: cache, loadImageTransformer: async () => ({ transform }) },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    await (await route.handle(new Request(url)))!.arrayBuffer()
+    await expect.poll(() => cache.snapshot().entries).toBe(0)
+    await (await route.handle(new Request(url)))!.arrayBuffer()
+    expect(transform).toHaveBeenCalledTimes(2)
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.waiter-cancellation] cancels a waiter without aborting the shared transform", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    let output!: ReadableStreamDefaultController<Uint8Array>
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      return {
+        stream: new ReadableStream({ start(controller) { output = controller } }),
+        contentType: "image/webp",
+      }
+    })
+    const cache = new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 8 })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { presentationCache: cache, loadImageTransformer: async () => ({ transform }) },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    const first = (await route.handle(new Request(url)))!
+    const abort = new AbortController()
+    const waiting = route.handle(new Request(url, { signal: abort.signal }))
+    abort.abort(new Error("waiter navigated away"))
+    await expect(waiting).rejects.toThrow("waiter navigated away")
+
+    output.enqueue(Uint8Array.of(8, 9))
+    output.close()
+    expect(new Uint8Array(await first.arrayBuffer())).toEqual(Uint8Array.of(8, 9))
+    await expect.poll(() => cache.snapshot().entries).toBe(1)
+    expect(transform).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.failure-retry] removes a failed flight so a waiter can regenerate the artifact", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    let failedOutput!: ReadableStreamDefaultController<Uint8Array>
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input) => {
+      await input.cancel("fixture transformed")
+      if (transform.mock.calls.length === 1) {
+        return {
+          stream: new ReadableStream({ start(controller) { failedOutput = controller } }),
+          contentType: "image/webp",
+        }
+      }
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue(Uint8Array.of(6, 7))
+            controller.close()
+          },
+        }),
+        contentType: "image/webp",
+      }
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        presentationCache: new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 8 }),
+        loadImageTransformer: async () => ({ transform }),
+      },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    const first = (await route.handle(new Request(url)))!
+    const waiting = route.handle(new Request(url))
+    failedOutput.error(new Error("fixture transform failed"))
+    await expect(first.arrayBuffer()).rejects.toThrow("fixture transform failed")
+    const recovered = (await waiting)!
+    expect(new Uint8Array(await recovered.arrayBuffer())).toEqual(Uint8Array.of(6, 7))
+    expect(transform).toHaveBeenCalledTimes(2)
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.cache.lifecycle] prevents an active flight from refilling cache after route close", async () => {
+    const { service, session } = await openDirectoryRoute(Uint8Array.of(1, 2, 3))
+    let output!: ReadableStreamDefaultController<Uint8Array>
+    const cache = new WeightedLruPresentationCache({ maxBytes: 16, maxEntryBytes: 8 })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      {
+        presentationCache: cache,
+        loadImageTransformer: async () => ({
+          async transform(input) {
+            await input.cancel("fixture transformed")
+            return {
+              stream: new ReadableStream({ start(controller) { output = controller } }),
+              contentType: "image/webp",
+            }
+          },
+        }),
+      },
+    )
+    const url = new URL(route.pageUrl(session.id, session.book.pages[0]!.id))
+    url.searchParams.set("width", "100")
+    const response = (await route.handle(new Request(url)))!
+    route.close()
+    output.enqueue(Uint8Array.of(1, 2))
+    output.close()
+    await response.arrayBuffer()
+    expect(cache.snapshot()).toMatchObject({ entries: 0, bytes: 0 })
+    expect((await route.handle(new Request(url)))?.status).toBe(410)
     await service[Symbol.asyncDispose]()
   })
 })

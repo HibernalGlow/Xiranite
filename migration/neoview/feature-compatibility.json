@@ -104,7 +104,7 @@
       "settingsKeys": ["performance.preLoadSize", "performance.adaptivePreload", "performance.preDecodeCacheSize", "performance.progressiveLoad", "image.preloadCount", "book.preloadPages"],
       "dataStores": ["priority queues", "request dedup"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["View/Ahead/Background 优先级", "方向感知预读", "渐进批次", "背压", "快速翻页取消", "多节点资源配额"],
-      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
+      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation", "neoview.cache.singleflight", "neoview.cache.waiter-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
     },
     {
       "id": "thumbnail-system",
@@ -124,7 +124,7 @@
       "settingsKeys": ["performance.cacheMemorySize"],
       "dataStores": ["memory LRU", "persistent cache", "cache index DB"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["真实字节预算", "pin 和方向淘汰", "mtime/hash 失效", "损坏恢复", "80% hysteresis", "session close/hibernate 回收"],
-      "testIds": [], "benchmarkIds": ["cache-memory-budget"], "knownDifferences": []
+      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.http.e2e"], "benchmarkIds": ["cache-memory-budget"], "knownDifferences": []
     },
     {
       "id": "super-resolution",

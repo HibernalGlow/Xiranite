@@ -38,7 +38,9 @@ export async function createReaderAssetRoute(
   options: ReaderAssetRouteOptions,
 ): Promise<ReaderAssetRoute> {
   const { ReaderAssetRoute } = await import("./platform/asset-route/ReaderAssetRoute.js")
+  const { WeightedLruPresentationCache } = await import("./platform/cache/WeightedLruPresentationCache.js")
   return new ReaderAssetRoute(readerService, options, {
+    presentationCache: new WeightedLruPresentationCache(),
     loadImageTransformer: async () => {
       const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
       return new SharpImageTransformer()

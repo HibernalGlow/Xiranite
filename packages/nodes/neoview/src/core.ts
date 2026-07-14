@@ -34,6 +34,11 @@ export type { PageByteRange, PageContent, PageSource } from "./domain/page/page-
 export type { ImageMetadataProbe, ProbedImageFormat, ProbedImageMetadata } from "./ports/ImageMetadataProbe.js"
 export type { ImageTransformer, ImageTransformerLoader, ImageTransformResult } from "./ports/ImageTransformer.js"
 export type {
+  CachedPresentation,
+  ReaderPresentationCache,
+  ReaderPresentationCacheSnapshot,
+} from "./ports/ReaderPresentationCache.js"
+export type {
   ResourceClass,
   ResourceLease,
   ResourcePriority,

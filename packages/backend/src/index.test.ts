@@ -442,6 +442,10 @@ describe("backend", () => {
       expect(transformed.headers.has("accept-ranges")).toBe(false)
       expect(transformedBytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
       expect(transformedBytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
+      const cachedTransform = await fetch(transformedUrl)
+      const cachedBytes = Buffer.from(await cachedTransform.arrayBuffer())
+      expect(cachedBytes).toEqual(transformedBytes)
+      expect(acquireResource).toHaveBeenCalledTimes(1)
       expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
         resource: "cpu",
         kind: "neoview.image-transform",

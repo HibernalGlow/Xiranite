@@ -87,6 +87,9 @@ describe("ReaderHttpController", () => {
       expect(response.headers.get("content-type")).toBe("image/webp")
       expect(bytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
       expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
+      const cached = (await controller.handle(new Request(url)))!
+      expect(Buffer.from(await cached.arrayBuffer())).toEqual(bytes)
+      expect(cached.headers.get("content-length")).toBe(String(bytes.byteLength))
     } finally {
       await controller[Symbol.asyncDispose]()
     }
