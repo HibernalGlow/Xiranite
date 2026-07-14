@@ -7,10 +7,26 @@ import { Component, scanInput } from "./Component"
 import type { CzkawkaCardState } from "./types"
 
 const surface = vi.hoisted(() => ({ width: 1200, height: 760, mode: "regular" }))
+const NODE_SURFACE_TEST_MODES = [
+  ["collapsed", 280, 64, "czkawka-collapsed-view"],
+  ["compact", 640, 480, "czkawka-compact-view"],
+  ["portrait", 420, 720, "czkawka-compact-view"],
+  ["regular", 1200, 760, "czkawka-full-view"],
+  ["expanded", 1600, 900, "czkawka-full-view"],
+  ["workspace", 1440, 860, "czkawka-full-view"],
+] as const
 vi.mock("@/nodes/shared/useNodeSurface", () => ({ useNodeSurface: () => ({ ref: { current: null }, ...surface }) }))
-afterEach(cleanup)
+afterEach(() => { cleanup(); Object.assign(surface, { width: 1200, height: 760, mode: "regular" }) })
 
 describe("Czkawka node", () => {
+  test.each(NODE_SURFACE_TEST_MODES)("renders the %s surface without losing the primary action", (mode, width, height, testId) => {
+    Object.assign(surface, { mode, width, height })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    render(<Component compId="czkawka" host={host} />)
+    expect(screen.getByTestId(testId)).toBeTruthy()
+    expect(screen.getByRole("button", { name: "开始扫描" })).toBeTruthy()
+  })
+
   test("renders all scanners and sends scan input", async () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", hashType: "blake3", threadCount: "6" })
     render(<Component compId="czkawka" host={host} />)
