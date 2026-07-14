@@ -13,4 +13,10 @@ describe("czkawka CLI", () => {
     expect(output).toContain("czkawka")
     expect(output).toContain("--help")
   })
+
+  test("rejects an invalid operation tool instead of dropping safety semantics", async () => {
+    const sink = { write: () => true }
+    const host = { cwd: process.cwd(), env: {}, stdin: { isTTY: true }, stdout: sink, stderr: sink } as unknown as CliHost
+    await expect(runProgram(["delete", "D:/empty", "--tool", "empty-folder", "--json"], host)).rejects.toThrow("Unsupported Czkawka tool")
+  })
 })
