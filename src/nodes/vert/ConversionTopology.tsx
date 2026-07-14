@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from "react"
 import type { CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import type { VertFormatCategory } from "@xiranite/node-vert/core"
 import { detectVertCategory, VERT_FORMAT_GROUPS } from "@xiranite/node-vert/core"
-import { Background, BackgroundVariant, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState } from "@xyflow/react"
-import type { Edge, Node, NodeProps, NodeTypes } from "@xyflow/react"
+import { Background, BackgroundVariant, ConnectionLineType, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState } from "@xyflow/react"
+import type { Connection, Edge, Node, NodeProps, NodeTypes } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { FileAudio, FileImage, FileText, FileVideo, Group, Plus, Route, Trash2, Ungroup, X } from "lucide-react"
@@ -31,11 +32,13 @@ export interface VertConversionRoute {
 interface TopologyProps {
   compact?: boolean
   dense?: boolean
+  toolbarTarget?: HTMLElement | null
   groups: VertInputFileGroup[]
   routes: VertConversionRoute[]
   running: boolean
   onChange: (key: string, config: VertConversionGroupConfig) => void
   onAddConversion: () => void
+  onConnectConversion: (sourceFormat: string, outputCategory: VertOutputCategory) => void
   onRemoveConversion: (key: string) => void
   onRemoveFile: (file: File) => void
   onRemoveGroup: (group: VertInputFileGroup) => void
@@ -79,9 +82,10 @@ const FLOW_STYLE = {
   "--xy-controls-button-color": "var(--foreground)",
   "--xy-controls-button-border-color": "var(--border)",
 } as CSSProperties
+const CONNECTION_LINE_STYLE = { stroke: "var(--primary)", strokeWidth: 2.5 } as CSSProperties
 
 export function ConversionTopology(props: TopologyProps) {
-  if (!props.routes.length) return <TopologyEmpty compact={props.compact} />
+  if (!props.groups.length) return <TopologyEmpty compact={props.compact} />
   if (props.compact) return <CompactTopology {...props} />
   return <FlowTopology {...props} />
 }
@@ -108,6 +112,14 @@ function FlowTopology(props: TopologyProps) {
   const selected = nodes.filter((node) => node.selected)
   const canGroup = selected.filter((node) => !node.parentId && node.type !== "manualGroup").length >= 2
   const canUngroup = selected.some((node) => node.type === "manualGroup" || node.parentId)
+  function isValidConnection(connection: Connection): boolean {
+    return Boolean(connectionToConversion(connection)) && !props.running
+  }
+  function connectConversion(connection: Connection) {
+    const conversion = connectionToConversion(connection)
+    if (!conversion || props.running) return
+    props.onConnectConversion(conversion.sourceFormat, conversion.outputCategory)
+  }
   function groupSelected() {
     setNodes((current) => {
       const members = current.filter((node) => node.selected && !node.parentId && node.type !== "manualGroup")
@@ -138,10 +150,12 @@ function FlowTopology(props: TopologyProps) {
       })
     })
   }
+  const toolbar = <div className="flex items-center gap-1.5"><Button disabled={props.running || !props.groups.length} size="sm" onClick={props.onAddConversion}><Plus data-icon="inline-start" />添加转换组</Button><Button disabled={!canGroup} size="sm" variant="outline" onClick={groupSelected}><Group data-icon="inline-start" />组合</Button><Button disabled={!canUngroup} size="sm" variant="ghost" onClick={ungroupSelected}><Ungroup data-icon="inline-start" />解组</Button><Badge variant="secondary">{props.routes.length} 个转换组</Badge></div>
   return <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background/55" data-testid="vert-conversion-topology">
-    <div className="z-10 flex items-center justify-between gap-3 border-b bg-background/80 px-3 py-2 backdrop-blur"><div><h4 className="text-sm font-semibold">转换拓扑</h4><p className="text-xs text-muted-foreground">转换组直接定义源格式 → 目标格式；Shift 多选可手动组合节点。</p></div><div className="flex items-center gap-1.5"><Button disabled={props.running || !props.groups.length} size="sm" onClick={props.onAddConversion}><Plus data-icon="inline-start" />添加转换组</Button><Button disabled={!canGroup} size="sm" variant="outline" onClick={groupSelected}><Group data-icon="inline-start" />组合</Button><Button disabled={!canUngroup} size="sm" variant="ghost" onClick={ungroupSelected}><Ungroup data-icon="inline-start" />解组</Button><Badge variant="secondary">{props.routes.length} 个转换组</Badge></div></div>
+    {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : null}
+    <div className="z-10 flex items-center justify-between gap-3 border-b bg-background/80 px-3 py-1.5 backdrop-blur"><div><h4 className="text-sm font-semibold">转换拓扑</h4><p className="text-xs text-muted-foreground">从文件团拖线到中间大类即可添加转换层；Shift 多选可手动组合节点。</p></div>{props.toolbarTarget ? null : toolbar}</div>
     <div className="min-h-[330px] flex-1">
-      <ReactFlow<VertFlowNode, Edge> nodes={nodes} edges={flow.edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.45} maxZoom={1.35} nodesDraggable nodesConnectable={false} elementsSelectable multiSelectionKeyCode="Shift" onlyRenderVisibleElements panOnScroll proOptions={{ hideAttribution: true }} zoomOnDoubleClick={false} style={FLOW_STYLE}>
+      <ReactFlow<VertFlowNode, Edge> nodes={nodes} edges={flow.edges} nodeTypes={NODE_TYPES} onNodesChange={onNodesChange} onConnect={connectConversion} isValidConnection={isValidConnection} connectionLineType={ConnectionLineType.Bezier} connectionLineStyle={CONNECTION_LINE_STYLE} connectionRadius={28} fitView fitViewOptions={{ padding: 0.12, maxZoom: 1 }} minZoom={0.45} maxZoom={1.35} nodesDraggable nodesConnectable={!props.running} elementsSelectable multiSelectionKeyCode="Shift" onlyRenderVisibleElements panOnScroll proOptions={{ hideAttribution: true }} zoomOnDoubleClick={false} style={FLOW_STYLE}>
         <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="color-mix(in oklch, var(--muted-foreground) 22%, transparent)" />
         <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
@@ -152,27 +166,31 @@ function FlowTopology(props: TopologyProps) {
 function buildFlow(props: TopologyProps, reduceMotion: boolean): { nodes: VertFlowNode[]; edges: Edge[] } {
   const nodes: VertFlowNode[] = []
   const edges: Edge[] = []
+  const sourceCategoryEdges = new Set<string>()
   const rowCount = Math.max(props.groups.length, props.routes.length)
   const height = Math.max(620, rowCount * 170 + 50)
   const categoryGap = (height - 120) / CATEGORY_ORDER.length
   for (const [index, group] of props.groups.entries()) {
     const sourceId = `source:${group.key}`
     const y = 20 + index * 170
-    const categoryId = `category:${normalizedCategory(group.category)}`
     nodes.push({ id: sourceId, type: "sourceGroup", position: { x: 20, y }, data: { group, running: props.running, onRemoveFile: props.onRemoveFile, onRemoveGroup: props.onRemoveGroup, onRemovePath: props.onRemovePath }, className: "[&.selected>article]:border-primary [&.selected>article]:ring-2 [&.selected>article]:ring-primary/25", style: { width: 300, height: 130 } })
-    const edgeStyle = { strokeWidth: props.running ? 3 : 2 }
-    edges.push({ id: `${sourceId}->${categoryId}`, source: sourceId, target: categoryId, type: "default", animated: !reduceMotion, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 }, style: edgeStyle })
   }
   for (const [index, route] of props.routes.entries()) {
-    const categoryId = `category:${normalizedCategory(route.group.category)}`
+    const sourceId = `source:${route.group.key}`
+    const categoryId = `category:${route.config.outputCategory}`
     const outputId = `output:${route.key}`
     const y = 20 + index * 170
     nodes.push({ id: outputId, type: "outputGroup", position: { x: 700, y }, data: { route, sourceFormats: props.groups.map((group) => group.extension), onChange: props.onChange, onRemove: props.onRemoveConversion }, className: "[&.selected>article]:border-primary [&.selected>article]:ring-2 [&.selected>article]:ring-primary/25", style: { width: 300, height: 142 } })
     const edgeStyle = { strokeWidth: props.running ? 3 : 2 }
+    const sourceCategoryId = `${sourceId}->${categoryId}`
+    if (!sourceCategoryEdges.has(sourceCategoryId)) {
+      sourceCategoryEdges.add(sourceCategoryId)
+      edges.push({ id: sourceCategoryId, source: sourceId, target: categoryId, type: "default", animated: !reduceMotion, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 }, style: edgeStyle })
+    }
     edges.push({ id: `${categoryId}->${outputId}`, source: categoryId, target: outputId, type: "default", animated: !reduceMotion, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 }, style: edgeStyle })
   }
   for (const [index, category] of CATEGORY_ORDER.entries()) {
-    nodes.push({ id: `category:${category}`, type: "categoryRouter", position: { x: 430, y: 20 + index * categoryGap }, data: { category, active: props.groups.some((group) => normalizedCategory(group.category) === category) }, className: "[&.selected>div]:border-primary [&.selected>div]:ring-2 [&.selected>div]:ring-primary/25", style: { width: 150, height: 90 } })
+    nodes.push({ id: `category:${category}`, type: "categoryRouter", position: { x: 430, y: 20 + index * categoryGap }, data: { category, active: props.routes.some((route) => route.config.outputCategory === category) }, className: "[&.selected>div]:border-primary [&.selected>div]:ring-2 [&.selected>div]:ring-primary/25", style: { width: 150, height: 90 } })
   }
   return { nodes, edges }
 }
@@ -182,7 +200,7 @@ function SourceFlowNodeCard({ data }: NodeProps<SourceFlowNode>) {
   const meta = CATEGORY_META[category]
   const Icon = meta.icon
   const total = data.group.paths.length + data.group.files.length
-  return <article className="flex size-full flex-col overflow-hidden rounded-xl border border-primary/55 bg-card/95 px-3 py-2 shadow-md"><Handle type="source" position={Position.Right} className="!size-2.5 !border-2 !border-background !bg-primary" /><div className="flex items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", meta.className)}><Icon className="size-4" /></div><span className="font-mono text-sm font-semibold uppercase">.{data.group.extension}</span><Badge variant="outline">{total} 个</Badge><span className="ml-auto text-[10px] text-muted-foreground">文件团</span><Button aria-label={`清空 .${data.group.extension} 文件团`} className="nodrag nopan" disabled={data.running} size="icon-xs" variant="ghost" onClick={() => data.onRemoveGroup(data.group)}><Trash2 /></Button></div><ul className="nowheel nodrag nopan mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">{data.group.paths.map((path) => <FileRow key={`path:${path}`} engine="CLI" label={fileName(path)} title={path} disabled={data.running} onRemove={() => data.onRemovePath(path)} />)}{data.group.files.map((file) => <FileRow key={`file:${browserFileKey(file)}`} engine="Wasm" label={file.name} title={file.name} disabled={data.running} onRemove={() => data.onRemoveFile(file)} />)}</ul></article>
+  return <article className="flex size-full flex-col overflow-hidden rounded-xl border border-primary/55 bg-card/95 px-3 py-2 shadow-md"><Handle aria-label={`从 .${data.group.extension} 拉线添加转换层`} type="source" position={Position.Right} className="!size-3 !border-2 !border-background !bg-primary" /><div className="flex items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg border", meta.className)}><Icon className="size-4" /></div><span className="font-mono text-sm font-semibold uppercase">.{data.group.extension}</span><Badge variant="outline">{total} 个</Badge><span className="ml-auto text-[10px] text-muted-foreground">文件团</span><Button aria-label={`清空 .${data.group.extension} 文件团`} className="nodrag nopan" disabled={data.running} size="icon-xs" variant="ghost" onClick={() => data.onRemoveGroup(data.group)}><Trash2 /></Button></div><ul className="nowheel nodrag nopan mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto">{data.group.paths.map((path) => <FileRow key={`path:${path}`} engine="CLI" label={fileName(path)} title={path} disabled={data.running} onRemove={() => data.onRemovePath(path)} />)}{data.group.files.map((file) => <FileRow key={`file:${browserFileKey(file)}`} engine="Wasm" label={file.name} title={file.name} disabled={data.running} onRemove={() => data.onRemoveFile(file)} />)}</ul></article>
 }
 
 function ManualGroupFlowNodeCard({ data }: NodeProps<ManualGroupFlowNode>) { return <div className="size-full rounded-2xl border-2 border-primary bg-primary/[0.045] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_18%,transparent)]"><div className="px-3 py-2 text-[10px] font-semibold text-primary">{data.label} · 拖动整体</div></div> }
@@ -190,14 +208,14 @@ function ManualGroupFlowNodeCard({ data }: NodeProps<ManualGroupFlowNode>) { ret
 function CategoryFlowNodeCard({ data }: NodeProps<CategoryFlowNode>) {
   const meta = CATEGORY_META[data.category]
   const Icon = meta.icon
-  return <div className={cn("flex size-full flex-col items-center justify-center rounded-xl border text-center shadow-sm transition-opacity", meta.className, data.active ? "opacity-100" : "opacity-30")}><Handle type="target" position={Position.Left} className="!size-2.5 !border-2 !border-background !bg-primary" /><Icon className="mb-1 size-5" /><span className="text-xs font-semibold">{meta.label}</span><span className="text-[10px] opacity-70">自动路由</span>{data.active ? <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-background" /> : null}<Handle type="source" position={Position.Right} className="!size-2.5 !border-2 !border-background !bg-primary" /></div>
+  return <div className={cn("flex size-full flex-col items-center justify-center rounded-xl border text-center shadow-sm transition-opacity", meta.className, data.active ? "opacity-100" : "opacity-55")}><Handle aria-label={`连接到${meta.label}转换层`} type="target" position={Position.Left} className="!size-3 !border-2 !border-background !bg-primary" /><Icon className="mb-1 size-5" /><span className="text-xs font-semibold">{meta.label}</span><span className="text-[10px] opacity-70">拖线添加</span>{data.active ? <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-background" /> : null}<Handle type="source" position={Position.Right} isConnectable={false} className="!size-2.5 !border-2 !border-background !bg-primary" /></div>
 }
 
 function OutputFlowNodeCard({ data }: NodeProps<OutputFlowNode>) {
   const { route } = data
   const sourceFormat = route.config.sourceFormat ?? route.group.extension
   const canDeleteSource = route.group.paths.length > 0
-  return <article className="flex size-full flex-col justify-center gap-2 rounded-xl border border-primary/55 bg-card/95 px-3 py-2 shadow-md"><Handle type="target" position={Position.Left} className="!size-2.5 !border-2 !border-background !bg-primary" /><div className="flex items-center gap-2"><Route className="size-4 text-primary" /><span className="min-w-0 flex-1 truncate font-mono text-sm font-semibold uppercase">.{sourceFormat} → .{route.config.targetFormat}</span><Badge variant="outline">转换组</Badge><Button aria-label={`删除 .${sourceFormat} → .${route.config.targetFormat} 转换组`} className="nodrag nopan" size="icon-xs" variant="ghost" onClick={() => data.onRemove(route.key)}><Trash2 /></Button></div><div className="nodrag nopan grid grid-cols-2 gap-2"><SourceFormatSelect formats={data.sourceFormats} value={sourceFormat} onChange={(sourceFormat) => data.onChange(route.key, { ...route.config, sourceFormat })} /><TargetFormatSelect value={route.config.targetFormat} onChange={(targetFormat) => data.onChange(route.key, { ...route.config, outputCategory: categoryForFormat(targetFormat), targetFormat })} /></div><label className={cn("nodrag nopan flex items-center justify-between gap-2 text-[11px]", canDeleteSource ? "text-foreground" : "text-muted-foreground")} title={canDeleteSource ? "仅在本地 CLI 转换成功后删除源文件" : "浏览器/Wasm 无权删除磁盘源文件"}><span>成功后删除源文件 <span className="text-muted-foreground">· 默认关闭</span></span><Switch checked={route.config.deleteSourceAfterSuccess ?? false} disabled={!canDeleteSource} onCheckedChange={(deleteSourceAfterSuccess) => data.onChange(route.key, { ...route.config, deleteSourceAfterSuccess })} /></label></article>
+  return <article className="flex size-full flex-col justify-center gap-2 rounded-xl border border-primary/55 bg-card/95 px-3 py-2 shadow-md"><Handle type="target" position={Position.Left} isConnectable={false} className="!size-2.5 !border-2 !border-background !bg-primary" /><div className="flex items-center gap-2"><Route className="size-4 text-primary" /><span className="min-w-0 flex-1 truncate font-mono text-sm font-semibold uppercase">.{sourceFormat} → .{route.config.targetFormat}</span><Badge variant="outline">转换组</Badge><Button aria-label={`删除 .${sourceFormat} → .${route.config.targetFormat} 转换组`} className="nodrag nopan" size="icon-xs" variant="ghost" onClick={() => data.onRemove(route.key)}><Trash2 /></Button></div><div className="nodrag nopan grid grid-cols-2 gap-2"><SourceFormatSelect formats={data.sourceFormats} value={sourceFormat} onChange={(sourceFormat) => data.onChange(route.key, { ...route.config, sourceFormat })} /><TargetFormatSelect value={route.config.targetFormat} onChange={(targetFormat) => data.onChange(route.key, { ...route.config, outputCategory: categoryForFormat(targetFormat), targetFormat })} /></div><label className={cn("nodrag nopan flex items-center justify-between gap-2 text-[11px]", canDeleteSource ? "text-foreground" : "text-muted-foreground")} title={canDeleteSource ? "仅在本地 CLI 转换成功后删除源文件" : "浏览器/Wasm 无权删除磁盘源文件"}><span>成功后删除源文件 <span className="text-muted-foreground">· 默认关闭</span></span><Switch checked={route.config.deleteSourceAfterSuccess ?? false} disabled={!canDeleteSource} onCheckedChange={(deleteSourceAfterSuccess) => data.onChange(route.key, { ...route.config, deleteSourceAfterSuccess })} /></label></article>
 }
 
 function CompactTopology(props: TopologyProps) {
@@ -220,3 +238,11 @@ function categoryForFormat(format: string): VertOutputCategory { return normaliz
 function fileName(path: string): string { return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path }
 function browserFileKey(file: File): string { return `${file.name}:${file.size}:${file.lastModified}` }
 function nodeDimension(node: VertFlowNode, key: "height" | "width"): number { const value = node.style?.[key]; if (typeof value === "number") return value; const parsed = Number.parseFloat(String(value ?? "")); return Number.isFinite(parsed) ? parsed : key === "width" ? 160 : 80 }
+
+export function connectionToConversion(connection: Pick<Connection, "source" | "target">): { sourceFormat: string; outputCategory: VertOutputCategory } | undefined {
+  if (!connection.source?.startsWith("source:") || !connection.target?.startsWith("category:")) return undefined
+  const sourceFormat = connection.source.slice("source:".length)
+  const outputCategory = connection.target.slice("category:".length)
+  if (!sourceFormat || !CATEGORY_ORDER.includes(outputCategory as VertOutputCategory)) return undefined
+  return { sourceFormat, outputCategory: outputCategory as VertOutputCategory }
+}

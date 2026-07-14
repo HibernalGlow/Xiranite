@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { VertData, VertEnginePreference, VertFormatCategory, VertInput } from "@xiranite/node-vert/core"
@@ -16,9 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useLocalFileDrop } from "@/nodes/shared/useLocalFileDrop"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import type { VertBrowserOutput } from "./browserWasm"
 import { ConversionTopology, compatibleCategories, defaultFormat, type VertConversionRoute, type VertInputFileGroup } from "./ConversionTopology"
-import type { VertCardState, VertConversionGroupConfig } from "./types"
+import { CONFIG_FIELDS, type VertCardState, type VertConversionGroupConfig } from "./types"
 
 type OutputCategory = Exclude<VertFormatCategory, "unknown">
 const DEFAULTS = { outputCategory: "image" as OutputCategory, targetFormat: "webp", engine: "auto" as const, overwrite: false, quality: 90 }
@@ -31,12 +33,17 @@ const VERT_PICKER_FILTERS = [
 
 export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
   const surface = useNodeSurface()
+  const { t: tNode } = useNodeI18n("vert")
   const data = getHostData(host, compId)
   const dataRef = useRef(data); dataRef.current = data
   const browserInputRef = useRef<HTMLInputElement>(null)
   const [browserFiles, setBrowserFiles] = useState<File[]>([])
   const [browserOutputs, setBrowserOutputs] = useState<VertBrowserOutput[]>([])
+  const [topologyToolbarTarget, setTopologyToolbarTarget] = useState<HTMLDivElement | null>(null)
   const [running, setRunning] = useState(false)
+  const [defaults, setDefaults] = useState<Partial<VertCardState>>({ ...DEFAULTS })
+  const [configFilePath, setConfigFilePath] = useState<string | undefined>()
+  const [configDirty, setConfigDirty] = useState(false)
   const drop = useLocalFileDrop({ disabled: running, onDropPaths: (paths) => appendPaths(paths), onDropFiles: ingestBrowserFiles, onUnsupported: () => browserInputRef.current?.click(), subscribeDrops: host.localFiles?.subscribeDrops })
   const paths = splitPaths(data.pathsText)
   const engine = data.engine ?? DEFAULTS.engine
@@ -45,6 +52,42 @@ export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
   const target = routes[0]?.config.targetFormat ?? data.targetFormat ?? DEFAULTS.targetFormat
   const compact = surface.mode === "compact" || surface.mode === "portrait"
   const denseCompact = compact && surface.height > 0 && surface.height < 320
+
+  async function reloadDefaults() {
+    const loadConfig = host.config?.get?.<Partial<VertCardState>>() ?? host.getNodeConfig?.<Partial<VertCardState>>()
+    if (!loadConfig) return
+    try {
+      const response = await loadConfig
+      setDefaults({ ...DEFAULTS, ...(response.config ?? {}) })
+      setConfigFilePath(response.path)
+    } catch {
+      // Configuration management is optional in lightweight hosts.
+    }
+  }
+
+  useEffect(() => { void reloadDefaults() }, [host])
+  const configValuesKey = CONFIG_FIELDS.map((field) => JSON.stringify(data[field] ?? "")).join("\u0001")
+  useEffect(() => {
+    setConfigDirty(CONFIG_FIELDS.some((field) => JSON.stringify(data[field] ?? "") !== JSON.stringify(defaults[field] ?? "")))
+  }, [configValuesKey, defaults])
+
+  async function saveAsDefault() {
+    const config: Partial<VertCardState> = {}
+    for (const field of CONFIG_FIELDS) {
+      const value = dataRef.current[field]
+      if (value !== undefined) (config as Record<string, unknown>)[field] = value
+    }
+    await host.saveNodeConfig?.(config)
+    setDefaults({ ...DEFAULTS, ...config })
+    setConfigDirty(false)
+  }
+
+  function restoreDefault() { patch(defaults) }
+  function resetOverride() {
+    const override: Partial<VertCardState> = {}
+    for (const field of CONFIG_FIELDS) (override as Record<string, unknown>)[field] = undefined
+    patch(override)
+  }
 
   function patch(value: Partial<VertCardState>) { dataRef.current = { ...dataRef.current, ...value }; if (host.state?.patchData) host.state.patchData(value); else host.patchData(compId, value) }
   function appendPaths(next: string[]) { const combined = [...new Set([...splitPaths(dataRef.current.pathsText), ...next])]; patch({ pathsText: combined.join("\n") }) }
@@ -55,7 +98,20 @@ export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
   function reset() { patch({ result: null, logs: [], phase: "idle", progress: 0, progressText: "" }); setBrowserOutputs([]) }
   function materializedConversionGroups(): Record<string, VertConversionGroupConfig> { return dataRef.current.conversionGroups ?? Object.fromEntries(routes.map((route) => [route.key, { ...route.config, sourceFormat: route.group.extension }])) }
   function changeConversionGroup(key: string, config: VertConversionGroupConfig) { patch({ conversionGroups: { ...materializedConversionGroups(), [key]: config } }) }
-  function addConversionGroup() { const group = fileGroups[0]; if (!group) return; const outputCategory = compatibleCategories(group.category)[0]; const key = `manual-${Date.now().toString(36)}`; patch({ conversionGroups: { ...materializedConversionGroups(), [key]: { sourceFormat: group.extension, outputCategory, targetFormat: defaultFormat(outputCategory) } } }) }
+  function addConversionGroup(sourceFormat = fileGroups[0]?.extension, requestedCategory?: OutputCategory) {
+    const group = fileGroups.find((item) => item.extension === sourceFormat)
+    if (!group) return
+    const outputCategory = requestedCategory ?? compatibleCategories(group.category)[0]
+    const current = materializedConversionGroups()
+    const key = `manual-${Date.now().toString(36)}-${Object.keys(current).length}`
+    patch({
+      conversionGroups: { ...current, [key]: { sourceFormat: group.extension, outputCategory, targetFormat: defaultFormat(outputCategory) } },
+      result: null,
+      phase: "idle",
+      progress: 0,
+      progressText: "",
+    })
+  }
   function removeConversionGroup(key: string) { const next = { ...materializedConversionGroups() }; delete next[key]; patch({ conversionGroups: next, result: null, phase: "idle", progress: 0, progressText: "" }) }
   function removePath(path: string) { patch({ pathsText: splitPaths(dataRef.current.pathsText).filter((item) => item !== path).join("\n"), result: null, phase: "idle", progress: 0, progressText: "" }); setBrowserOutputs([]) }
   function removeBrowserFile(file: File) { setBrowserFiles((current) => current.filter((item) => !sameBrowserFile(item, file))); setBrowserOutputs([]); patch({ result: null, phase: "idle", progress: 0, progressText: "" }) }
@@ -132,7 +188,7 @@ export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
       <input ref={browserInputRef} className="hidden" type="file" multiple onChange={onBrowserFiles} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,color-mix(in_oklch,var(--primary)_13%,transparent),transparent_34%),radial-gradient(circle_at_88%_92%,color-mix(in_oklch,var(--chart-2)_10%,transparent),transparent_30%)]" />
       <div className="relative flex min-h-0 w-full flex-col">
-        {surface.mode === "collapsed" ? <Collapsed phase={phase} progress={data.progress ?? 0} queueCount={queueCount} target={target} onRun={() => execute("convert")} /> : compact ? <Compact dense={denseCompact} data={data} browserFiles={browserFiles} browserOutputs={browserOutputs} drop={drop} engine={engine} groups={fileGroups} paths={paths} routes={routes} running={running} target={target} onAddConversion={addConversionGroup} onBrowserPick={() => browserInputRef.current?.click()} onChooseNative={chooseNativeFiles} onEngine={(value) => patch({ engine: value })} onGroupChange={changeConversionGroup} onRemoveBrowserFile={removeBrowserFile} onRemoveConversion={removeConversionGroup} onRemoveGroup={removeGroup} onRemovePath={removePath} onReset={reset} onRun={() => execute("convert")} /> : <Full data={data} browserFiles={browserFiles} browserOutputs={browserOutputs} drop={drop} engine={engine} groups={fileGroups} paths={paths} routes={routes} running={running} target={target} onAddConversion={addConversionGroup} onBrowserPick={() => browserInputRef.current?.click()} onChooseNative={chooseNativeFiles} onDownload={downloadOutput} onEngine={(value) => patch({ engine: value })} onGroupChange={changeConversionGroup} onPatch={patch} onPlan={() => execute("plan")} onRemoveBrowserFile={removeBrowserFile} onRemoveConversion={removeConversionGroup} onRemoveGroup={removeGroup} onRemovePath={removePath} onReset={reset} onRun={() => execute("convert")} />}
+        {surface.mode === "collapsed" ? <Collapsed phase={phase} progress={data.progress ?? 0} queueCount={queueCount} target={target} onRun={() => execute("convert")} /> : compact ? <Compact dense={denseCompact} data={data} browserFiles={browserFiles} browserOutputs={browserOutputs} drop={drop} engine={engine} groups={fileGroups} paths={paths} routes={routes} running={running} target={target} onAddConversion={() => addConversionGroup()} onConnectConversion={addConversionGroup} onBrowserPick={() => browserInputRef.current?.click()} onChooseNative={chooseNativeFiles} onEngine={(value) => patch({ engine: value })} onGroupChange={changeConversionGroup} onRemoveBrowserFile={removeBrowserFile} onRemoveConversion={removeConversionGroup} onRemoveGroup={removeGroup} onRemovePath={removePath} onReset={reset} onRun={() => execute("convert")} /> : <Full data={data} browserFiles={browserFiles} browserOutputs={browserOutputs} drop={drop} engine={engine} groups={fileGroups} paths={paths} routes={routes} running={running} target={target} toolbarTarget={topologyToolbarTarget} onAddConversion={() => addConversionGroup()} onConnectConversion={addConversionGroup} onBrowserPick={() => browserInputRef.current?.click()} onChooseNative={chooseNativeFiles} onDownload={downloadOutput} onEngine={(value) => patch({ engine: value })} onGroupChange={changeConversionGroup} onPatch={patch} onPlan={() => execute("plan")} onRemoveBrowserFile={removeBrowserFile} onRemoveConversion={removeConversionGroup} onRemoveGroup={removeGroup} onRemovePath={removePath} onReset={reset} onRun={() => execute("convert")} onToolbarTarget={setTopologyToolbarTarget} />}
       </div>
     </div>
   )
@@ -140,14 +196,14 @@ export function Component({ compId, host }: NodeComponentProps<VertCardState>) {
 
 function Collapsed(props: { phase: string; progress: number; queueCount: number; target: string; onRun: () => void }) { return <div data-testid="vert-collapsed-view" className="flex min-h-0 flex-1 items-center gap-2 px-2"><div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><RefreshCw /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="truncate text-sm font-semibold">VERT · .{props.target}</span><Badge variant="outline">{props.queueCount}</Badge></div><Progress value={props.progress} className="mt-1 h-1" /></div><Button size="icon-sm" disabled={!props.queueCount || props.phase === "running"} onClick={props.onRun}><Zap /><span className="sr-only">转换</span></Button></div> }
 
-interface SharedViewProps { dense?: boolean; data: VertCardState; browserFiles: File[]; browserOutputs: VertBrowserOutput[]; drop: ReturnType<typeof useLocalFileDrop>; engine: VertEnginePreference; groups: VertInputFileGroup[]; paths: string[]; routes: VertConversionRoute[]; running: boolean; target: string; onAddConversion: () => void; onBrowserPick: () => void; onChooseNative: () => void; onEngine: (value: VertEnginePreference) => void; onGroupChange: (key: string, config: VertConversionGroupConfig) => void; onRemoveBrowserFile: (file: File) => void; onRemoveConversion: (key: string) => void; onRemoveGroup: (group: VertInputFileGroup) => void; onRemovePath: (path: string) => void; onReset: () => void; onRun: () => void }
-function Compact(props: SharedViewProps) { return <div data-testid="vert-compact-view" className={cn("flex min-h-0 flex-1 flex-col p-2", props.dense ? "gap-1.5" : "gap-2")}><Header data={props.data} engine={props.engine} running={props.running} /><UploadPanel compact dense={props.dense} {...props} /><ConversionTopology compact dense={props.dense} groups={props.groups} routes={props.routes} running={props.running} onAddConversion={props.onAddConversion} onChange={props.onGroupChange} onRemoveConversion={props.onRemoveConversion} onRemoveFile={props.onRemoveBrowserFile} onRemoveGroup={props.onRemoveGroup} onRemovePath={props.onRemovePath} /><div className="flex items-center gap-2">{props.dense ? null : <EngineSelect value={props.engine} onChange={props.onEngine} />}<Button className="flex-1" size="sm" disabled={props.running || !props.routes.length} onClick={props.onRun}>{props.running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}转换 {props.routes.length} 组 · {props.engine === "auto" ? "CLI 优先" : props.engine.toUpperCase()}</Button></div><Progress value={props.data.progress ?? 0} label="VERT progress" /></div> }
+interface SharedViewProps { dense?: boolean; data: VertCardState; browserFiles: File[]; browserOutputs: VertBrowserOutput[]; drop: ReturnType<typeof useLocalFileDrop>; engine: VertEnginePreference; groups: VertInputFileGroup[]; paths: string[]; routes: VertConversionRoute[]; running: boolean; target: string; onAddConversion: () => void; onConnectConversion: (sourceFormat: string, outputCategory: OutputCategory) => void; onBrowserPick: () => void; onChooseNative: () => void; onEngine: (value: VertEnginePreference) => void; onGroupChange: (key: string, config: VertConversionGroupConfig) => void; onRemoveBrowserFile: (file: File) => void; onRemoveConversion: (key: string) => void; onRemoveGroup: (group: VertInputFileGroup) => void; onRemovePath: (path: string) => void; onReset: () => void; onRun: () => void }
+function Compact(props: SharedViewProps) { return <div data-testid="vert-compact-view" className={cn("flex min-h-0 flex-1 flex-col p-2", props.dense ? "gap-1.5" : "gap-2")}><Header data={props.data} engine={props.engine} running={props.running} /><UploadPanel compact dense={props.dense} {...props} /><ConversionTopology compact dense={props.dense} groups={props.groups} routes={props.routes} running={props.running} onAddConversion={props.onAddConversion} onConnectConversion={props.onConnectConversion} onChange={props.onGroupChange} onRemoveConversion={props.onRemoveConversion} onRemoveFile={props.onRemoveBrowserFile} onRemoveGroup={props.onRemoveGroup} onRemovePath={props.onRemovePath} /><div className="flex items-center gap-2">{props.dense ? null : <EngineSelect value={props.engine} onChange={props.onEngine} />}<Button className="flex-1" size="sm" disabled={props.running || !props.routes.length} onClick={props.onRun}>{props.running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}转换 {props.routes.length} 组 · {props.engine === "auto" ? "CLI 优先" : props.engine.toUpperCase()}</Button></div><Progress value={props.data.progress ?? 0} label="VERT progress" /></div> }
 
-function Full(props: SharedViewProps & { onDownload: (output: VertBrowserOutput) => void; onPatch: (value: Partial<VertCardState>) => void; onPlan: () => void }) {
-  return <div data-testid="vert-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><Header data={props.data} engine={props.engine} running={props.running} /><div className="grid min-h-0 flex-1 grid-cols-[15rem_minmax(0,1fr)] gap-3"><aside className="flex min-h-0 flex-col gap-3"><UploadPanel compact {...props} /><FieldGroup className="gap-2"><Field><FieldLabel>执行引擎</FieldLabel><EngineSelect value={props.engine} onChange={props.onEngine} /></Field><Field><FieldLabel htmlFor="vert-output-directory">输出目录</FieldLabel><Input id="vert-output-directory" value={props.data.outputDirectory ?? ""} placeholder="与源文件相同" onChange={(event) => props.onPatch({ outputDirectory: event.target.value })} /></Field><Field orientation="horizontal" className="rounded-lg border p-2"><FieldContent><FieldTitle>覆盖同名文件</FieldTitle><FieldDescription>默认安全跳过</FieldDescription></FieldContent><Switch checked={props.data.overwrite ?? false} onCheckedChange={(overwrite) => props.onPatch({ overwrite })} /></Field></FieldGroup><div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={props.running || !props.routes.length} onClick={props.onPlan}><Gauge data-icon="inline-start" />预演</Button><Button className="flex-1" size="sm" disabled={props.running || !props.routes.length} onClick={props.onRun}>{props.running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}转换 {props.routes.length} 组</Button><Button size="icon-sm" variant="ghost" onClick={props.onReset}><RotateCcw /><span className="sr-only">重置</span></Button></div><Progress value={props.data.progress ?? 0} label="VERT progress" /><div className="min-h-0 flex-1"><ResultTabs data={props.data} browserFiles={props.browserFiles} outputs={props.browserOutputs} paths={props.paths} onDownload={props.onDownload} onRemoveFile={props.onRemoveBrowserFile} onRemovePath={props.onRemovePath} /></div></aside><ConversionTopology groups={props.groups} routes={props.routes} running={props.running} onAddConversion={props.onAddConversion} onChange={props.onGroupChange} onRemoveConversion={props.onRemoveConversion} onRemoveFile={props.onRemoveBrowserFile} onRemoveGroup={props.onRemoveGroup} onRemovePath={props.onRemovePath} /></div></div>
+function Full(props: SharedViewProps & { toolbarTarget: HTMLDivElement | null; onDownload: (output: VertBrowserOutput) => void; onPatch: (value: Partial<VertCardState>) => void; onPlan: () => void; onToolbarTarget: (node: HTMLDivElement | null) => void }) {
+  return <div data-testid="vert-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3"><Header actionsRef={props.onToolbarTarget} data={props.data} engine={props.engine} running={props.running} /><div className="grid min-h-0 flex-1 grid-cols-[15rem_minmax(0,1fr)] gap-3"><aside className="flex min-h-0 flex-col gap-3"><UploadPanel compact {...props} /><FieldGroup className="gap-2"><Field><FieldLabel>执行引擎</FieldLabel><EngineSelect value={props.engine} onChange={props.onEngine} /></Field><Field><FieldLabel htmlFor="vert-output-directory">输出目录</FieldLabel><Input id="vert-output-directory" value={props.data.outputDirectory ?? ""} placeholder="与源文件相同" onChange={(event) => props.onPatch({ outputDirectory: event.target.value })} /></Field><Field orientation="horizontal" className="rounded-lg border p-2"><FieldContent><FieldTitle>覆盖同名文件</FieldTitle><FieldDescription>默认安全跳过</FieldDescription></FieldContent><Switch checked={props.data.overwrite ?? false} onCheckedChange={(overwrite) => props.onPatch({ overwrite })} /></Field></FieldGroup><div className="flex items-center gap-2"><Button size="sm" variant="outline" disabled={props.running || !props.routes.length} onClick={props.onPlan}><Gauge data-icon="inline-start" />预演</Button><Button className="flex-1" size="sm" disabled={props.running || !props.routes.length} onClick={props.onRun}>{props.running ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <RefreshCw data-icon="inline-start" />}转换 {props.routes.length} 组</Button><Button size="icon-sm" variant="ghost" onClick={props.onReset}><RotateCcw /><span className="sr-only">重置</span></Button></div><Progress value={props.data.progress ?? 0} label="VERT progress" /><div className="min-h-0 flex-1"><ResultTabs data={props.data} browserFiles={props.browserFiles} outputs={props.browserOutputs} paths={props.paths} onDownload={props.onDownload} onRemoveFile={props.onRemoveBrowserFile} onRemovePath={props.onRemovePath} /></div></aside><ConversionTopology groups={props.groups} routes={props.routes} running={props.running} toolbarTarget={props.toolbarTarget} onAddConversion={props.onAddConversion} onConnectConversion={props.onConnectConversion} onChange={props.onGroupChange} onRemoveConversion={props.onRemoveConversion} onRemoveFile={props.onRemoveBrowserFile} onRemoveGroup={props.onRemoveGroup} onRemovePath={props.onRemovePath} /></div></div>
 }
 
-function Header({ data, engine, running }: { data: VertCardState; engine: VertEnginePreference; running: boolean }) { const status = running ? "转换中" : data.phase === "completed" ? "完成" : data.phase === "error" ? "失败" : "就绪"; const engineLabel = engine === "auto" ? "自动 · 本地 CLI 优先" : engine === "cli" ? "仅本地 CLI" : "仅浏览器 Wasm"; return <header className="flex shrink-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><RefreshCw /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="text-lg font-semibold leading-none">VERT</h3><Badge variant={data.phase === "error" ? "destructive" : running ? "secondary" : "outline"}>{status}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{data.progressText || "文件转换，直接在你的设备上完成。"}</p></div></div><Badge variant="secondary"><Zap data-icon="inline-start" />{engineLabel}</Badge></header> }
+function Header({ actionsRef, data, engine, running }: { actionsRef?: (node: HTMLDivElement | null) => void; data: VertCardState; engine: VertEnginePreference; running: boolean }) { const status = running ? "转换中" : data.phase === "completed" ? "完成" : data.phase === "error" ? "失败" : "就绪"; const engineLabel = engine === "auto" ? "自动 · 本地 CLI 优先" : engine === "cli" ? "仅本地 CLI" : "仅浏览器 Wasm"; return <header className="flex shrink-0 items-center gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><RefreshCw /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="text-lg font-semibold leading-none">VERT</h3><Badge variant={data.phase === "error" ? "destructive" : running ? "secondary" : "outline"}>{status}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{data.progressText || "文件转换，直接在你的设备上完成。"}</p></div></div>{actionsRef ? <div ref={actionsRef} className="ml-auto flex min-w-0 items-center" /> : <span className="ml-auto" />}<Badge className="shrink-0" variant="secondary"><Zap data-icon="inline-start" />{engineLabel}</Badge></header> }
 
 function UploadPanel(props: SharedViewProps & { compact?: boolean; dense?: boolean }) { const count = props.paths.length + props.browserFiles.length; return <section {...props.drop.targetProps} data-testid="vert-upload-dropzone" className={cn("relative flex shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed bg-background/70 text-center transition-colors", props.dense ? "min-h-16 p-2" : props.compact ? "min-h-24 p-3" : "min-h-44 p-6", props.drop.dragging && "border-primary bg-accent")}><div className={cn("grid place-items-center rounded-full bg-primary text-primary-foreground", props.dense ? "size-8" : props.compact ? "size-10" : "size-14")}><Upload /></div>{props.dense ? null : <h4 className={cn("font-semibold", props.compact ? "mt-2 text-sm" : "mt-3 text-lg")}>{count ? `${count} 个文件已准备` : "选择或拖入文件开始转换"}</h4>}{props.compact ? null : <p className="mt-1 text-xs text-muted-foreground">拖入或选择本地文件时使用 CLI；浏览器文件才进入 Wasm</p>}<div className={cn("flex flex-wrap justify-center gap-2", props.dense ? "mt-1" : "mt-3")}><Button size="sm" variant="outline" onClick={props.onChooseNative}><FolderOpen data-icon="inline-start" />{props.dense ? "本地/拖入" : "本地文件 · CLI"}</Button>{props.dense ? null : <Button size="sm" variant="ghost" onClick={props.onBrowserPick}><FileCog data-icon="inline-start" />浏览器文件 · Wasm</Button>}</div></section> }
 
