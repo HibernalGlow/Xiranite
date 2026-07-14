@@ -2,6 +2,7 @@ import type { InteractionField, InteractionValues, TerminalInteractionSchema } f
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { createCzkawkaOptionFields, createCzkawkaScanInput, czkawkaOptionDefaults } from "./tool-options.js"
+import { buildCzkawkaAnalysis } from "./analysis.js"
 
 export type CzkawkaInteractionValues = InteractionValues & {
   tool: CzkawkaTool
@@ -59,11 +60,12 @@ export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteract
     validate: (_values, input) => input.includedDirectories?.length ? null : zh ? "请至少添加一个包含目录。" : "Add at least one included directory.",
     preview: (input) => [`${input.includedDirectories?.length ?? 0} root(s)`, human(input.tool ?? "duplicate-files")],
     isDangerous: () => false,
-    result: (result) => ({ success: result.success, message: result.message, lines: result.data ? [`Files: ${result.data.fileCount}`, `Groups: ${result.data.groupCount}`, `Reclaimable: ${result.data.reclaimableBytes} B`] : [] }),
+    result: (result) => ({ success: result.success, message: result.message, lines: result.data ? analysisLines(result.data) : [] }),
   }
 }
 
 export function czkawkaToolLabel(tool: CzkawkaTool, language: TerminalLanguage = "zh"): string { return language === "zh" ? LABELS_ZH[tool] : human(tool) }
+function analysisLines(data: NonNullable<CzkawkaResult["data"]>): string[] { const analysis = buildCzkawkaAnalysis(data.groups, [], data.tool); return [`Files: ${data.fileCount}`, `Groups: ${data.groupCount}`, `Reclaimable: ${data.reclaimableBytes} B`, `Formats: ${analysis.formats.slice(0, 5).map((item) => `${item.format}=${item.count}`).join(", ") || "none"}`] }
 const defined = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
 const lines = (value: unknown) => String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
 const human = (value: string) => value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ")

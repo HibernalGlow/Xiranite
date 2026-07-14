@@ -7,6 +7,7 @@ import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { czkawkaToolLabel } from "./interaction.js"
 import { getCzkawkaToolOptions } from "./tool-options.js"
+import { buildCzkawkaAnalysis } from "./analysis.js"
 
 export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>) {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
@@ -15,6 +16,7 @@ export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaRes
 
 function Workbench({ definition, language, onExit }: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), data = session.result?.data
+  const analysis = data ? buildCzkawkaAnalysis(data.groups, [], data.tool) : undefined
   const pulse = useAnimation({ intervalMs: session.phase === "running" ? 110 : 600 })
   const [panel, setPanel] = useState<"roots" | "filters" | "algorithm">("roots")
   useTerminalChromeActions({ onReset: session.reset, onExit })
@@ -41,7 +43,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
         <scrollbox id="czkawka-results" flexGrow={1}>{data?.groups.length ? data.groups.flatMap((group) => group.entries.map((entry, index) => <box key={entry.id} height={2} flexShrink={0} flexDirection="row"><box width={8}><text fg={groupColor(group.id, theme)}>{`${index === 0 ? "◆" : index === group.entries.length - 1 ? "└" : "│"} ${String(group.id + 1).padStart(2, "0")}`}</text></box><box width="20%"><text>{formatBytes(entry.size)}</text></box><box width="45%"><text fg={theme.colors.foreground}>{entry.path}</text></box><text fg={theme.colors.mutedForeground}>{entry.detail ?? entry.properExtension ?? entry.similarity ?? ""}</text></box>)) : <text fg={theme.colors.mutedForeground}>选择工具与目录，然后点击“开始扫描”。</text>}</scrollbox>
       </WorkbenchPanel>
       <box width="22%" minWidth={22} flexDirection="column" gap={1}>
-        <box height={13} flexShrink={0}><WorkbenchPanel title="◇ ANALYSIS" description="当前结果统计" flexGrow={1}><MetricLine label="文件" value={String(data?.fileCount ?? 0)} color={theme.colors.primary} /><MetricLine label="分组" value={String(data?.groupCount ?? 0)} color={theme.colors.success} /><MetricLine label="总大小" value={formatBytes(data?.totalBytes ?? 0)} color={theme.colors.foreground} /><MetricLine label="可回收" value={formatBytes(data?.reclaimableBytes ?? 0)} color={theme.colors.warning} /></WorkbenchPanel></box>
+        <box height={15} flexShrink={0}><WorkbenchPanel title="◇ ANALYSIS" description="共享 TS 统计" flexGrow={1}><MetricLine label="文件" value={String(data?.fileCount ?? 0)} color={theme.colors.primary} /><MetricLine label="分组" value={String(data?.groupCount ?? 0)} color={theme.colors.success} /><MetricLine label="总大小" value={formatBytes(data?.totalBytes ?? 0)} color={theme.colors.foreground} /><MetricLine label="可回收" value={formatBytes(data?.reclaimableBytes ?? 0)} color={theme.colors.warning} /><MetricLine label="主要格式" value={analysis?.formats[0] ? `${analysis.formats[0].format} ${analysis.formats[0].count}` : "—"} color={theme.colors.focusRing} /></WorkbenchPanel></box>
         <WorkbenchPanel title="▦ TELEMETRY" description="扫描日志" flexGrow={1}><scrollbox flexGrow={1}>{session.logs.map((line, index) => <text key={`${line}-${index}`} fg={theme.colors.mutedForeground}>{`${String(index + 1).padStart(2, "0")} ${line}`}</text>)}</scrollbox><ProgressBar value={session.progress} label={session.status || "SCANNER READY"} /></WorkbenchPanel>
       </box>
     </box>

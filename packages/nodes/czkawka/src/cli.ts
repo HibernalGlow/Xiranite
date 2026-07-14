@@ -9,6 +9,7 @@ import { createNodeCzkawkaRuntime } from "./platform.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
 import { CZKAWKA_CLI_VALUE_FLAGS, parseCzkawkaCliOptions } from "./tool-options.js"
+import { buildCzkawkaAnalysis } from "./analysis.js"
 
 const CLI_NAME = nodeCliName("czkawka")
 interface CzkawkaConfig extends CliInteractionPreferencesSource { tool?: CzkawkaTool; recursive?: boolean; use_cache?: boolean; hash_type?: "crc32" | "xxh3" | "blake3"; check_method?: "name" | "size" | "size-and-name" | "hash"; similarity?: number }
@@ -51,7 +52,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   else { writeLine(host, `Unknown command: ${command}`); process.exitCode = 2; return }
   const result = await runCzkawka(input, createNodeCzkawkaRuntime(), (event) => { if (!json && event.type === "progress") writeLine(host, `[${event.progress ?? 0}%] ${event.message}`) })
   if (json) writeJson(host, result)
-  else { writeLine(host, result.message); for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
+  else { writeLine(host, result.message); if (result.data) { const analysis = buildCzkawkaAnalysis(result.data.groups, [], result.data.tool); writeLine(host, `Formats: ${analysis.formats.slice(0, 8).map((item) => `${item.format}=${item.count}/${item.bytes}B`).join(", ") || "none"}`); if (analysis.similarities.length) writeLine(host, `Similarity: ${analysis.similarities.map((item) => `${item.label}=${item.count}`).join(", ")}`) } for (const entry of result.data?.entries.slice(0, 200) ?? []) writeLine(host, `${entry.groupId + 1}\t${entry.size}\t${entry.path}${entry.detail ? `\t${entry.detail}` : ""}`) }
   if (!result.success) process.exitCode = 1
 }
 
