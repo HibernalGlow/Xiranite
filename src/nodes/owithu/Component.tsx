@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { OwithuAction, OwithuData, OwithuInput } from "@xiranite/node-owithu/core"
@@ -598,8 +598,8 @@ function OwithuResultTabs(props: {
   onCopyLogs: () => void
   onCopyResults: () => void
 }) {
-  const planLines = useMemo(() => (props.result?.plan ?? []).slice(0, 500).map((item) => `${item.enabled ? "✓" : "○"} ${item.entryKey} / ${item.hive} / ${item.scope} -> ${item.command}`), [props.result])
-  const entryLines = useMemo(() => (props.result?.entries ?? []).map((entry) => `${entry.enabled ? "✓" : "○"} ${entry.key} - ${entry.label} [${entry.scope.join(", ")}]`), [props.result])
+  const planLines = (props.result?.plan ?? []).slice(0, 500).map((item) => `${item.enabled ? "✓" : "○"} ${item.entryKey} / ${item.hive} / ${item.scope} -> ${item.command}`)
+  const entryLines = (props.result?.entries ?? []).map((entry) => `${entry.enabled ? "✓" : "○"} ${entry.key} - ${entry.label} [${entry.scope.join(", ")}]`)
   const hasPlan = planLines.length > 0
   const hasEntries = entryLines.length > 0
 

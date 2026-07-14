@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import type { LinedupFilterResult } from "@xiranite/node-linedup/core"
 import { createDiffRows, splitLines } from "@xiranite/node-linedup/core"
@@ -30,10 +30,7 @@ export function LinedupDisplayTabs(props: {
     setTab(preferredTab)
   }, [preferredTab])
 
-  const diffRows = useMemo(
-    () => props.result ? createDiffRows(splitLines(props.sourceText), props.result.filteredLines) : [],
-    [props.result, props.sourceText],
-  )
+  const diffRows = props.result ? createDiffRows(splitLines(props.sourceText), props.result.filteredLines) : []
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as LinedupDisplayTab)} className="flex h-full min-h-0 flex-col">
