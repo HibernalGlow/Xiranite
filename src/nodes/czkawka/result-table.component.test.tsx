@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { cleanup } from "@testing-library/react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "@xiranite/node-czkawka/core"
@@ -60,6 +60,25 @@ describe("CzkawkaResultTable", () => {
     fireEvent.pointerUp(handle, { pointerId: 1, clientX: 180 })
     expect((handle.parentElement as HTMLElement).style.width).toBe("240px")
     expect((view.container.querySelector('[data-slot="table-body"] tr[data-index]') as HTMLElement).style.height).toBe("52px")
+  })
+
+  test("opens direct image previews with visible-result navigation and metadata", () => {
+    const imageGroup: CzkawkaGroup = {
+      ...group,
+      entries: [entry("a.jpg", "Alpha"), entry("track.mp3", "Track"), entry("b.avif", "Beta")],
+    }
+    render(<CzkawkaResultTable tool="similar-images" groups={[imageGroup]} running={false} selectedPaths={[]} getFileUrl={(path) => `http://local/${path}`} onSelectionChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "预览 a.jpg" }))
+    const dialog = within(screen.getByRole("dialog"))
+    expect(dialog.getByRole("heading", { name: "a.jpg" })).toBeTruthy()
+    expect(dialog.getByText("1920×1080")).toBeTruthy()
+    expect(dialog.getByText("10 B")).toBeTruthy()
+    expect(dialog.getByText("1 / 2")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "下一张图片" }))
+    expect(dialog.getByRole("heading", { name: "b.avif" })).toBeTruthy()
+    expect(dialog.getByText("2 / 2")).toBeTruthy()
   })
 
   test("selects virtual rows by dragging a box", () => {
