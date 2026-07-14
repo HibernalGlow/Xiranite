@@ -77,6 +77,7 @@ export interface CzkawkaResultTableProps {
   phase?: CzkawkaPhase
   statusMessage?: string
   filterText?: string
+  externalFiltering?: boolean
   selectedPaths: string[]
   getFileUrl?: (path: string) => string
   onCopyText?: (text: string) => Promise<void>
@@ -100,7 +101,7 @@ export function CzkawkaResultTable(props: CzkawkaResultTableProps) {
   const deferredFilter = useDeferredValue(filter)
   const sort = sorts[props.tool] ?? { id: defaultSort(props.tool), descending: false }
   const columns = CZKAWKA_RESULT_COLUMNS[props.tool]
-  const visibleGroups = filterAndSortResultGroups(props.groups, columns, deferredFilter, sort)
+  const visibleGroups = filterAndSortResultGroups(props.groups, columns, props.externalFiltering ? "" : deferredFilter, sort)
   const rows = flattenResultRows(visibleGroups)
   const visibleEntries = selectableEntries(rows)
   const selectedSet = new Set(props.selectedPaths)

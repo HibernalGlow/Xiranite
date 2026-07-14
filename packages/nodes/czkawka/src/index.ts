@@ -14,5 +14,6 @@ export const def = {
 const entry = { def, core } satisfies HeadlessNodePackage<typeof core>
 export { core }
 export * from "./core.js"
+export * from "./filters.js"
 export * from "./tool-options.js"
 export default entry
