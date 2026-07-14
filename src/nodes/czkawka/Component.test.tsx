@@ -64,6 +64,7 @@ describe("Czkawka node", () => {
     const headerSearch = screen.getByRole("textbox", { name: "czkawka global filter" })
     fireEvent.change(headerSearch, { target: { value: "not-present" } })
     expect((screen.getByRole("textbox", { name: "filter results" }) as HTMLInputElement).value).toBe("not-present")
+    expect(host.stateValue.filterStatesByTool?.["duplicate-files"]?.text.pattern).toBe("not-present")
     expect(screen.getByText("没有匹配当前筛选的结果。")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "空文件" }))
@@ -83,6 +84,15 @@ describe("Czkawka node", () => {
     view.rerender(<Component compId="czkawka" host={host} />)
     expect(screen.getByRole("status").textContent).toContain("Found 1 item(s).")
     expect(screen.getByText("扫描已停止，没有返回结果。")).toBeTruthy()
+  })
+
+  test("persists custom filter presets in node state", () => {
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开多维筛选" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "新预设名称" }), { target: { value: "我的筛选" } })
+    fireEvent.click(screen.getByRole("button", { name: /保存/ }))
+    expect(host.stateValue.filterPresets).toEqual([expect.objectContaining({ name: "我的筛选" })])
   })
 })
 

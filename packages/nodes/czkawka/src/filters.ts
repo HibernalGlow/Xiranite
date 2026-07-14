@@ -5,6 +5,14 @@ export type CzkawkaMarkFilter = "all" | "selected" | "unselected" | "group-some-
 export type CzkawkaPathMatchMode = "contains" | "not-contains" | "starts-with" | "ends-with" | "regex"
 export type CzkawkaDatePreset = "today" | "last-7-days" | "last-30-days" | "last-year" | "custom"
 export type CzkawkaAspectRatio = "any" | "16:9" | "4:3" | "1:1"
+export type CzkawkaFormatCategory = "images" | "videos" | "audio" | "documents" | "archives" | "folders" | "other"
+export type CzkawkaBuiltinFilterPreset = "none" | "large-files" | "small-files" | "recently-modified" | "old-files"
+
+export interface CzkawkaStoredFilterPreset {
+  id: string
+  name: string
+  state: CzkawkaFilterState
+}
 
 export interface CzkawkaRangeFilter {
   enabled: boolean
@@ -19,7 +27,7 @@ export interface CzkawkaFilterState {
   groupCount: CzkawkaRangeFilter
   groupSize: CzkawkaRangeFilter
   fileSize: CzkawkaRangeFilter
-  extension: { enabled: boolean; mode: "include" | "exclude"; extensions: string[] }
+  extension: { enabled: boolean; mode: "include" | "exclude"; extensions: string[]; excludedCategories: CzkawkaFormatCategory[] }
   modifiedDate: { enabled: boolean; preset: CzkawkaDatePreset; start?: number; end?: number }
   path: { enabled: boolean; mode: CzkawkaPathMatchMode; pattern: string; caseSensitive: boolean }
   similarity: CzkawkaRangeFilter
@@ -35,6 +43,12 @@ export interface CzkawkaExtensionStat {
   filteredBytes: number
 }
 
+export interface CzkawkaCategoryStat {
+  category: CzkawkaFormatCategory
+  totalCount: number
+  filteredCount: number
+}
+
 export interface CzkawkaFilterStats {
   totalItems: number
   filteredItems: number
@@ -45,6 +59,7 @@ export interface CzkawkaFilterStats {
   selectedItems: number
   activeFilterCount: number
   extensions: CzkawkaExtensionStat[]
+  categories: CzkawkaCategoryStat[]
 }
 
 export interface CzkawkaFilterResult {
@@ -61,7 +76,7 @@ export function createDefaultCzkawkaFilterState(): CzkawkaFilterState {
     groupCount: { enabled: false, min: 2, max: 100 },
     groupSize: { enabled: false, min: 0, max: 100, unit: "GB" },
     fileSize: { enabled: false, min: 0, max: 100, unit: "GB" },
-    extension: { enabled: false, mode: "include", extensions: [] },
+    extension: { enabled: false, mode: "include", extensions: [], excludedCategories: [] },
     modifiedDate: { enabled: false, preset: "custom" },
     path: { enabled: false, mode: "contains", pattern: "", caseSensitive: false },
     similarity: { enabled: false, min: 0, max: 100 },
@@ -70,7 +85,47 @@ export function createDefaultCzkawkaFilterState(): CzkawkaFilterState {
   }
 }
 
-export function applyCzkawkaFilters(groups: CzkawkaGroup[], selectedPaths: Iterable<string>, state: CzkawkaFilterState, now = Date.now()): CzkawkaFilterResult {
+export function applyCzkawkaBuiltinFilterPreset(preset: CzkawkaBuiltinFilterPreset, now = Date.now()): CzkawkaFilterState {
+  const state = createDefaultCzkawkaFilterState()
+  if (preset === "large-files") state.fileSize = { enabled: true, min: 100, max: 102_400, unit: "MB" }
+  if (preset === "small-files") state.fileSize = { enabled: true, min: 0, max: 1024, unit: "KB" }
+  if (preset === "recently-modified") state.modifiedDate = { enabled: true, preset: "last-30-days" }
+  if (preset === "old-files") state.modifiedDate = { enabled: true, preset: "custom", start: 0, end: now - 365 * 24 * 60 * 60 * 1000 }
+  return state
+}
+
+export function normalizeCzkawkaFilterState(value: Partial<CzkawkaFilterState> | undefined): CzkawkaFilterState {
+  const defaults = createDefaultCzkawkaFilterState()
+  if (!value) return defaults
+  return {
+    ...defaults,
+    ...value,
+    text: { ...defaults.text, ...value.text },
+    groupCount: { ...defaults.groupCount, ...value.groupCount },
+    groupSize: { ...defaults.groupSize, ...value.groupSize },
+    fileSize: { ...defaults.fileSize, ...value.fileSize },
+    extension: { ...defaults.extension, ...value.extension, extensions: [...(value.extension?.extensions ?? [])], excludedCategories: [...(value.extension?.excludedCategories ?? [])] },
+    modifiedDate: { ...defaults.modifiedDate, ...value.modifiedDate },
+    path: { ...defaults.path, ...value.path },
+    similarity: { ...defaults.similarity, ...value.similarity },
+    resolution: { ...defaults.resolution, ...value.resolution },
+  }
+}
+
+export function serializeCzkawkaFilterPresets(presets: CzkawkaStoredFilterPreset[]): string { return JSON.stringify({ version: 1, presets }, null, 2) }
+
+export function parseCzkawkaFilterPresets(text: string): CzkawkaStoredFilterPreset[] {
+  const parsed = JSON.parse(text) as { version?: unknown; presets?: unknown }
+  if (parsed.version !== 1 || !Array.isArray(parsed.presets)) throw new Error("Unsupported Czkawka filter preset document.")
+  return parsed.presets.map((preset, index) => {
+    if (!preset || typeof preset !== "object") throw new Error(`Invalid preset at index ${index}.`)
+    const value = preset as { id?: unknown; name?: unknown; state?: unknown }
+    if (typeof value.id !== "string" || !value.id || typeof value.name !== "string" || !value.name || !value.state || typeof value.state !== "object") throw new Error(`Invalid preset at index ${index}.`)
+    return { id: value.id, name: value.name, state: normalizeCzkawkaFilterState(value.state as Partial<CzkawkaFilterState>) }
+  })
+}
+
+export function applyCzkawkaFilters(groups: CzkawkaGroup[], selectedPaths: Iterable<string>, state: CzkawkaFilterState, now = Date.now(), tool?: CzkawkaTool): CzkawkaFilterResult {
   const selected = new Set(selectedPaths)
   const textMatcher = createTextMatcher(state.text.pattern, state.text.caseSensitive, state.text.regex)
   const pathMatcher = createPathMatcher(state.path.pattern, state.path.caseSensitive, state.path.mode)
@@ -78,14 +133,14 @@ export function applyCzkawkaFilters(groups: CzkawkaGroup[], selectedPaths: Itera
 
   for (const group of groups) {
     if (!matchesGroupRanges(group, state) || !matchesGroupMark(group, selected, state.mark)) continue
-    const matchedEntries = group.entries.filter((entry) => matchesEntry(entry, selected, state, now, textMatcher.match, pathMatcher.match))
+    const matchedEntries = group.entries.filter((entry) => matchesEntry(entry, selected, state, now, textMatcher.match, pathMatcher.match, tool))
     if (matchedEntries.length === 0) continue
     filteredGroups.push({ ...group, entries: state.showAllInFilteredGroups && hasEntryFilter(state) ? group.entries : matchedEntries })
   }
 
   return {
     groups: filteredGroups,
-    stats: calculateCzkawkaFilterStats(groups, filteredGroups, selected, state),
+    stats: calculateCzkawkaFilterStats(groups, filteredGroups, selected, state, tool),
     ...(pathMatcher.error ? { pathPatternError: pathMatcher.error } : {}),
     ...(textMatcher.error ? { textPatternError: textMatcher.error } : {}),
   }
@@ -97,7 +152,7 @@ export function countActiveCzkawkaFilters(state: CzkawkaFilterState): number {
     + Number(state.groupCount.enabled)
     + Number(state.groupSize.enabled)
     + Number(state.fileSize.enabled)
-    + Number(state.extension.enabled && state.extension.extensions.length > 0)
+    + Number(state.extension.enabled && (state.extension.extensions.length > 0 || state.extension.excludedCategories.length > 0))
     + Number(state.modifiedDate.enabled)
     + Number(state.path.enabled && Boolean(state.path.pattern))
     + Number(state.similarity.enabled)
@@ -122,12 +177,13 @@ function matchesGroupMark(group: CzkawkaGroup, selected: Set<string>, mark: Czka
   return selectedCount === 0
 }
 
-function matchesEntry(entry: CzkawkaEntry, selected: Set<string>, state: CzkawkaFilterState, now: number, textMatch: (value: string) => boolean, pathMatch: (value: string) => boolean): boolean {
+function matchesEntry(entry: CzkawkaEntry, selected: Set<string>, state: CzkawkaFilterState, now: number, textMatch: (value: string) => boolean, pathMatch: (value: string) => boolean, tool?: CzkawkaTool): boolean {
   if (state.mark === "selected" && !selected.has(entry.path)) return false
   if (state.mark === "unselected" && (entry.isReference || selected.has(entry.path))) return false
   if (state.mark === "reference" && !entry.isReference) return false
   if (state.text.enabled && state.text.pattern && !textMatch(entrySearchText(entry))) return false
   if (state.fileSize.enabled && !inRange(entry.size, sizeBoundary(state.fileSize.min, state.fileSize.unit), sizeBoundary(state.fileSize.max, state.fileSize.unit))) return false
+  if (state.extension.enabled && state.extension.excludedCategories.includes(categoryOf(entry, tool))) return false
   if (state.extension.enabled && state.extension.extensions.length > 0) {
     const extensions = new Set(state.extension.extensions.map(normalizeExtension))
     const included = extensions.has(extensionOf(entry.path))
@@ -144,16 +200,21 @@ function hasEntryFilter(state: CzkawkaFilterState): boolean {
   return state.text.enabled || state.mark === "selected" || state.mark === "unselected" || state.mark === "reference" || state.fileSize.enabled || state.extension.enabled || state.modifiedDate.enabled || state.path.enabled || state.similarity.enabled || state.resolution.enabled
 }
 
-function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: CzkawkaGroup[], selected: Set<string>, state: CzkawkaFilterState): CzkawkaFilterStats {
+function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: CzkawkaGroup[], selected: Set<string>, state: CzkawkaFilterState, tool?: CzkawkaTool): CzkawkaFilterStats {
   const originalEntries = original.flatMap((group) => group.entries)
   const filteredEntries = filtered.flatMap((group) => group.entries)
   const extensionMap = new Map<string, CzkawkaExtensionStat>()
+  const categoryMap = new Map<CzkawkaFormatCategory, CzkawkaCategoryStat>()
   for (const entry of originalEntries) {
     const extension = extensionOf(entry.path) || "(无扩展名)"
     const current = extensionMap.get(extension) ?? { extension, totalCount: 0, filteredCount: 0, totalBytes: 0, filteredBytes: 0 }
     current.totalCount += 1
     current.totalBytes += entry.size
     extensionMap.set(extension, current)
+    const category = categoryOf(entry, tool)
+    const categoryStat = categoryMap.get(category) ?? { category, totalCount: 0, filteredCount: 0 }
+    categoryStat.totalCount += 1
+    categoryMap.set(category, categoryStat)
   }
   for (const entry of filteredEntries) {
     const extension = extensionOf(entry.path) || "(无扩展名)"
@@ -161,6 +222,10 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
     current.filteredCount += 1
     current.filteredBytes += entry.size
     extensionMap.set(extension, current)
+    const category = categoryOf(entry, tool)
+    const categoryStat = categoryMap.get(category) ?? { category, totalCount: 0, filteredCount: 0 }
+    categoryStat.filteredCount += 1
+    categoryMap.set(category, categoryStat)
   }
   return {
     totalItems: originalEntries.length,
@@ -172,6 +237,7 @@ function calculateCzkawkaFilterStats(original: CzkawkaGroup[], filtered: Czkawka
     selectedItems: originalEntries.filter((entry) => selected.has(entry.path)).length,
     activeFilterCount: countActiveCzkawkaFilters(state),
     extensions: [...extensionMap.values()].sort((left, right) => right.filteredCount - left.filteredCount || right.totalCount - left.totalCount || left.extension.localeCompare(right.extension)),
+    categories: [...categoryMap.values()].sort((left, right) => CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category)),
   }
 }
 
@@ -217,5 +283,14 @@ function sizeBoundary(value: number | undefined, unit: CzkawkaSizeUnit | undefin
 function inRange(value: number, min?: number, max?: number): boolean { return (min === undefined || value >= min) && (max === undefined || value <= max) }
 function extensionOf(path: string): string { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? ""; const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLocaleLowerCase() : "" }
 function normalizeExtension(value: string): string { const normalized = value.trim().replace(/^\./, "").toLocaleLowerCase(); return normalized === "(无扩展名)" ? "" : normalized }
+const CATEGORY_ORDER: CzkawkaFormatCategory[] = ["images", "videos", "audio", "documents", "archives", "folders", "other"]
+const CATEGORY_EXTENSIONS: Record<Exclude<CzkawkaFormatCategory, "folders" | "other">, Set<string>> = {
+  images: new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "avif", "heic", "jxl", "svg", "raw", "cr2", "nef", "arw"]),
+  videos: new Set(["mp4", "mkv", "avi", "mov", "webm", "wmv", "flv", "m4v", "mpeg", "mpg", "ts"]),
+  audio: new Set(["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "ape"]),
+  documents: new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "epub"]),
+  archives: new Set(["zip", "7z", "rar", "tar", "gz", "bz2", "xz", "zst", "cab", "iso"]),
+}
+function categoryOf(entry: CzkawkaEntry, tool?: CzkawkaTool): CzkawkaFormatCategory { if (tool === "empty-folders") return "folders"; const extension = extensionOf(entry.path); for (const category of ["images", "videos", "audio", "documents", "archives"] as const) if (CATEGORY_EXTENSIONS[category].has(extension)) return category; return "other" }
 function parseNumeric(value: string | undefined): number { const result = Number.parseFloat(value ?? ""); return Number.isFinite(result) ? result : -1 }
 function sumBytes(entries: CzkawkaEntry[]): number { return entries.reduce((sum, entry) => sum + entry.size, 0) }

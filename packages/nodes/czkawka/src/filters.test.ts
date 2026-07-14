@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { CzkawkaEntry, CzkawkaGroup } from "./core.js"
-import { applyCzkawkaFilters, createDefaultCzkawkaFilterState } from "./filters.js"
+import { applyCzkawkaBuiltinFilterPreset, applyCzkawkaFilters, createDefaultCzkawkaFilterState, parseCzkawkaFilterPresets, serializeCzkawkaFilterPresets } from "./filters.js"
 
 const mb = 1024 * 1024
 const now = Date.UTC(2026, 6, 14, 12)
@@ -14,7 +14,7 @@ describe("Czkawka shared filter engine", () => {
     const state = createDefaultCzkawkaFilterState()
     state.groupCount = { enabled: true, min: 3, max: 3 }
     state.fileSize = { enabled: true, min: 100, max: 200, unit: "MB" }
-    state.extension = { enabled: true, mode: "include", extensions: [".JPG"] }
+    state.extension = { enabled: true, mode: "include", extensions: [".JPG"], excludedCategories: [] }
     state.showAllInFilteredGroups = false
     const result = applyCzkawkaFilters(groups, [], state, now)
     expect(result.groups.map((item) => item.entries.map((entry) => entry.path))).toEqual([["D:/keep/a.jpg"]])
@@ -77,11 +77,11 @@ describe("Czkawka shared filter engine", () => {
   test("supports exclusion, text regex, case sensitivity, and no-extension tokens", () => {
     const extended = [...groups, group(2, [entry("D:/README", 1)])]
     const state = createDefaultCzkawkaFilterState()
-    state.extension = { enabled: true, mode: "exclude", extensions: ["png", "mp3"] }
+    state.extension = { enabled: true, mode: "exclude", extensions: ["png", "mp3"], excludedCategories: [] }
     state.text = { enabled: true, pattern: "^(a|c|README)", regex: true, caseSensitive: true }
     state.showAllInFilteredGroups = false
     expect(applyCzkawkaFilters(extended, [], state, now).groups.flatMap((group) => group.entries.map((item) => item.name))).toEqual(["a.jpg", "c.jpg", "README"])
-    state.extension = { enabled: true, mode: "include", extensions: ["(无扩展名)"] }
+    state.extension = { enabled: true, mode: "include", extensions: ["(无扩展名)"], excludedCategories: [] }
     state.text.enabled = false
     expect(applyCzkawkaFilters(extended, [], state, now).groups.flatMap((group) => group.entries.map((item) => item.path))).toEqual(["D:/README"])
   })
@@ -105,6 +105,30 @@ describe("Czkawka shared filter engine", () => {
     state.path = { enabled: true, mode: "contains", pattern: "keep", caseSensitive: false }
     state.showAllInFilteredGroups = false
     expect(applyCzkawkaFilters(groups, ["D:/keep/a.jpg"], state, now).stats.activeFilterCount).toBe(3)
+  })
+
+  test("filters format categories and recognizes folder tools", () => {
+    const state = createDefaultCzkawkaFilterState()
+    state.extension = { ...state.extension, enabled: true, excludedCategories: ["images"] }
+    state.showAllInFilteredGroups = false
+    const result = applyCzkawkaFilters(groups, [], state, now, "duplicate-files")
+    expect(result.groups.flatMap((group) => group.entries.map((item) => item.path))).toEqual(["D:/keep/d.mp3", "D:/keep/e.mp3"])
+    expect(result.stats.categories.find((item) => item.category === "images")).toMatchObject({ totalCount: 3, filteredCount: 0 })
+
+    const folders = applyCzkawkaFilters([group(0, [entry("D:/empty", 0)])], [], createDefaultCzkawkaFilterState(), now, "empty-folders")
+    expect(folders.stats.categories).toEqual([{ category: "folders", totalCount: 1, filteredCount: 1 }])
+  })
+
+  test("round-trips custom presets and applies every built-in preset", () => {
+    const state = createDefaultCzkawkaFilterState()
+    state.path = { enabled: true, mode: "contains", pattern: "archive", caseSensitive: false }
+    const text = serializeCzkawkaFilterPresets([{ id: "archive", name: "Archive", state }])
+    expect(parseCzkawkaFilterPresets(text)).toEqual([{ id: "archive", name: "Archive", state }])
+    expect(applyCzkawkaBuiltinFilterPreset("large-files", now).fileSize).toMatchObject({ enabled: true, min: 100, unit: "MB" })
+    expect(applyCzkawkaBuiltinFilterPreset("small-files", now).fileSize).toMatchObject({ enabled: true, max: 1024, unit: "KB" })
+    expect(applyCzkawkaBuiltinFilterPreset("recently-modified", now).modifiedDate.preset).toBe("last-30-days")
+    expect(applyCzkawkaBuiltinFilterPreset("old-files", now).modifiedDate.end).toBe(now - 365 * 86_400_000)
+    expect(() => parseCzkawkaFilterPresets('{"version":2,"presets":[]}')).toThrow(/Unsupported/)
   })
 })
 

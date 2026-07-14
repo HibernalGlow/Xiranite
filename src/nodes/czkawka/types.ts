@@ -1,4 +1,5 @@
 import type { CzkawkaCheckMethod, CzkawkaData, CzkawkaHashType, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
+import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 
 export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
 export type CzkawkaPanel = "source" | "results" | "analysis"
@@ -49,6 +50,8 @@ export interface CzkawkaCardState {
   brokenArchive?: boolean
   brokenImage?: boolean
   filterText?: string
+  filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
+  filterPresets?: CzkawkaStoredFilterPreset[]
   sortBy?: CzkawkaSort
   descending?: boolean
   dryRun?: boolean

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
-import { applyCzkawkaFilters, createDefaultCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState } from "@xiranite/node-czkawka/filters"
+import { applyCzkawkaFilters, normalizeCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState, type CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, Play, Save, Search, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -46,13 +46,15 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   const [running, setRunning] = useState(false)
   const [resultsByTool, setResultsByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaData>>>({})
   const [selectedPathsByTool, setSelectedPathsByTool] = useState<Partial<Record<CzkawkaTool, string[]>>>({})
-  const [filterStatesByTool, setFilterStatesByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaFilterState>>>({})
+  const [filterStatesByTool, setFilterStatesByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaFilterState>>>(() => data.filterStatesByTool ?? {})
+  const [filterPresets, setFilterPresetsState] = useState<CzkawkaStoredFilterPreset[]>(() => data.filterPresets ?? [])
+  const [filterNow] = useState(Date.now)
   const [panel, setPanel] = useState<CzkawkaPanel>("source")
   const tool = data.tool ?? "duplicate-files"
   const result = resultsByTool[tool] ?? (data.result?.tool === tool ? data.result : null)
   const selectedPaths = selectedPathsByTool[tool] ?? []
-  const filterState = filterStatesByTool[tool] ?? createDefaultCzkawkaFilterState()
-  const filterResult = applyCzkawkaFilters(result?.groups ?? [], selectedPaths, filterState)
+  const filterState = normalizeCzkawkaFilterState(filterStatesByTool[tool])
+  const filterResult = applyCzkawkaFilters(result?.groups ?? [], selectedPaths, filterState, filterNow, tool)
   const filterText = filterState.text.pattern
   const compact = surface.mode === "compact" || surface.mode === "portrait"
 
@@ -100,22 +102,23 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   }
 
   function applySmartSelection(strategy: CzkawkaSelectionStrategy) { if (result) setSelectedPaths(smartSelect(result.groups, strategy)) }
-  function setFilterState(value: CzkawkaFilterState) { setFilterStatesByTool((current) => ({ ...current, [tool]: value })) }
+  function setFilterState(value: CzkawkaFilterState) { setFilterStatesByTool((current) => { const next = { ...current, [tool]: value }; patch({ filterStatesByTool: next }); return next }) }
+  function setFilterPresets(value: CzkawkaStoredFilterPreset[]) { setFilterPresetsState(value); patch({ filterPresets: value }) }
   function setFilterText(value: string) { setFilterState({ ...filterState, text: { ...filterState.text, enabled: Boolean(value), pattern: value } }) }
 
-  const view = { data, tool, result, filterState, filterResult, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), setFilterState, setFilterText, executeScan, executeOperation, applySmartSelection }
+  const view = { data, tool, result, filterState, filterResult, filterPresets, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), setFilterState, setFilterPresets, setFilterText, executeScan, executeOperation, applySmartSelection }
   return <TooltipProvider><div ref={surface.ref} data-testid="czkawka-surface" className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
     {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
   </div></TooltipProvider>
 }
 
 type View = {
-  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; filterState: CzkawkaFilterState; filterResult: CzkawkaFilterResult; running: boolean; selectedPaths: string[]; filterText: string; panel: CzkawkaPanel
+  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; filterState: CzkawkaFilterState; filterResult: CzkawkaFilterResult; filterPresets: CzkawkaStoredFilterPreset[]; running: boolean; selectedPaths: string[]; filterText: string; panel: CzkawkaPanel
   getFileUrl?: (path: string) => string
   copyText?: (text: string) => Promise<void>
   openPath?: (path: string) => Promise<void>
   revealPath?: (path: string) => Promise<void>
-  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; setFilterState: (value: CzkawkaFilterState) => void; setFilterText: (value: string) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
+  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; setFilterState: (value: CzkawkaFilterState) => void; setFilterPresets: (value: CzkawkaStoredFilterPreset[]) => void; setFilterText: (value: string) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
   applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
 }
 
@@ -134,7 +137,7 @@ function Collapsed(props: View) {
 
 function Header(props: View) {
   const meta = toolMeta(props.tool)
-  return <header className="flex shrink-0 items-center justify-between gap-3 border-b pb-2"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md border bg-muted/40"><meta.icon className="size-5 text-primary" /></div><div className="min-w-0"><h3 className="truncate text-base font-semibold tracking-tight">Czkawka · {meta.label}</h3><p className="truncate font-mono text-[11px] text-muted-foreground">FILE FORENSICS / 11 SCANNERS / TS CONTROL PLANE</p></div></div><div className="flex items-center gap-2"><div className="relative"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="czkawka global filter" className="h-8 w-48 pl-7 pr-7 text-xs" placeholder="搜索当前工具结果" value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />{props.filterText ? <button type="button" aria-label="清除结果搜索" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => props.setFilterText("")}><X className="size-3.5" /></button> : null}</div><CzkawkaFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} onChange={props.setFilterState} /><Badge variant="outline">{props.selectedPaths.length} 已选</Badge><Button disabled={props.running} size="sm" onClick={props.executeScan}>{props.running ? <Search className="animate-pulse" /> : <Play />}{props.running ? "扫描中" : "开始扫描"}</Button></div></header>
+  return <header className="flex shrink-0 items-center justify-between gap-3 border-b pb-2"><div className="flex min-w-0 items-center gap-2"><div className="grid size-9 place-items-center rounded-md border bg-muted/40"><meta.icon className="size-5 text-primary" /></div><div className="min-w-0"><h3 className="truncate text-base font-semibold tracking-tight">Czkawka · {meta.label}</h3><p className="truncate font-mono text-[11px] text-muted-foreground">FILE FORENSICS / 11 SCANNERS / TS CONTROL PLANE</p></div></div><div className="flex items-center gap-2"><div className="relative"><Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="czkawka global filter" className="h-8 w-48 pl-7 pr-7 text-xs" placeholder="搜索当前工具结果" value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />{props.filterText ? <button type="button" aria-label="清除结果搜索" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => props.setFilterText("")}><X className="size-3.5" /></button> : null}</div><CzkawkaFilterPanel tool={props.tool} state={props.filterState} stats={props.filterResult.stats} pathPatternError={props.filterResult.pathPatternError} textPatternError={props.filterResult.textPatternError} presets={props.filterPresets} onChange={props.setFilterState} onPresetsChange={props.setFilterPresets} /><Badge variant="outline">{props.selectedPaths.length} 已选</Badge><Button disabled={props.running} size="sm" onClick={props.executeScan}>{props.running ? <Search className="animate-pulse" /> : <Play />}{props.running ? "扫描中" : "开始扫描"}</Button></div></header>
 }
 
 function ToolRail(props: View) {
