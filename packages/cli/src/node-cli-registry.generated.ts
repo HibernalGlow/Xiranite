@@ -52,6 +52,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Match similar folder names and optionally move matched folders.",
   },
   {
+    id: "czkawka",
+    packageName: "@xiranite/node-czkawka",
+    bin: nodeCliName("czkawka"),
+    description: "Scan files with eleven Czkawka tools and manage results safely.",
+  },
+  {
     id: "dissolvef",
     packageName: "@xiranite/node-dissolvef",
     bin: nodeCliName("dissolvef"),

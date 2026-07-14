@@ -37,6 +37,7 @@
         "@xiranite/node-cleanf": "workspace:*",
         "@xiranite/node-coveru": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
+        "@xiranite/node-czkawka": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-enginev": "workspace:*",
@@ -202,6 +203,7 @@
         "@xiranite/node-bandia": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
+        "@xiranite/node-czkawka": "workspace:*",
         "@xiranite/node-dissolvef": "workspace:*",
         "@xiranite/node-encodeb": "workspace:*",
         "@xiranite/node-enginev": "workspace:*",
@@ -434,6 +436,24 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/nodes/czkawka": {
+      "name": "@xiranite/node-czkawka",
+      "version": "0.1.0",
+      "bin": {
+        "xczkawka": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "@xiranite/czkawka-native": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/dissolvef": {
@@ -2041,6 +2061,8 @@
     "@xiranite/node-coveru": ["@xiranite/node-coveru@workspace:packages/nodes/coveru"],
 
     "@xiranite/node-crashu": ["@xiranite/node-crashu@workspace:packages/nodes/crashu"],
+
+    "@xiranite/node-czkawka": ["@xiranite/node-czkawka@workspace:packages/nodes/czkawka"],
 
     "@xiranite/node-dissolvef": ["@xiranite/node-dissolvef@workspace:packages/nodes/dissolvef"],
 

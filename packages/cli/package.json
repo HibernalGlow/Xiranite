@@ -31,6 +31,7 @@
     "@xiranite/node-bandia": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
+    "@xiranite/node-czkawka": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
     "@xiranite/node-encodeb": "workspace:*",
     "@xiranite/node-enginev": "workspace:*",

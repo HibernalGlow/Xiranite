@@ -60,6 +60,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-crashu/platform"), { nodeId: "crashu", entry: "platform" }),
     createRuntime: "createNodeCrashuRuntime",
   },
+  czkawka: {
+    packageName: "@xiranite/node-czkawka",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-czkawka/core"), { nodeId: "czkawka", entry: "core" }),
+    run: "runCzkawka",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-czkawka/platform"), { nodeId: "czkawka", entry: "platform" }),
+    createRuntime: "createNodeCzkawkaRuntime",
+  },
   dissolvef: {
     packageName: "@xiranite/node-dissolvef",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-dissolvef/core"), { nodeId: "dissolvef", entry: "core" }),
