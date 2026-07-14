@@ -5,6 +5,7 @@ type SubscribeDrops = NodeLocalFilesCapability["subscribeDrops"]
 
 export interface LocalFileDropOptions {
   disabled?: boolean
+  onDropFiles?: (files: File[]) => void
   onDropPaths: (paths: string[]) => void
   onUnsupported?: () => void
   subscribeDrops?: SubscribeDrops
@@ -28,20 +29,29 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
   const targetId = `local-file-drop-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
   const [dragging, setDragging] = useState(false)
   const latestRef = useRef(options)
+  const pendingBrowserDropRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   latestRef.current = options
   const subscribeDrops = options.subscribeDrops ?? localFiles?.subscribeDrops
+
+  function cancelPendingBrowserDrop() {
+    if (pendingBrowserDropRef.current) clearTimeout(pendingBrowserDropRef.current)
+    pendingBrowserDropRef.current = undefined
+  }
 
   useEffect(() => {
     if (!subscribeDrops) return
     let disposed = false
     let unsubscribe: (() => void) | undefined
     void subscribeDrops(targetId, (paths) => {
-      if (!disposed && !latestRef.current.disabled && paths.length) latestRef.current.onDropPaths(paths)
+      if (!disposed && !latestRef.current.disabled && paths.length) {
+        cancelPendingBrowserDrop()
+        latestRef.current.onDropPaths(paths)
+      }
     }).then((release) => {
       if (disposed) release()
       else unsubscribe = release
     })
-    return () => { disposed = true; unsubscribe?.() }
+    return () => { disposed = true; cancelPendingBrowserDrop(); unsubscribe?.() }
   }, [subscribeDrops, targetId])
 
   const onDragOver: DragEventHandler<HTMLElement> = (event) => {
@@ -60,6 +70,18 @@ export function useLocalFileDrop(options: LocalFileDropOptions) {
       return path ? [path] : []
     })
     if (paths.length) latestRef.current.onDropPaths(paths)
+    else if (event.dataTransfer.files.length && latestRef.current.onDropFiles) {
+      const files = Array.from(event.dataTransfer.files)
+      if (subscribeDrops) {
+        cancelPendingBrowserDrop()
+        // Wails sends the real absolute paths just after the DOM drop. Wait for
+        // that event before falling back to browser File objects and Wasm.
+        pendingBrowserDropRef.current = setTimeout(() => {
+          pendingBrowserDropRef.current = undefined
+          if (!latestRef.current.disabled) latestRef.current.onDropFiles?.(files)
+        }, 400)
+      } else latestRef.current.onDropFiles(files)
+    }
     else if (event.dataTransfer.files.length) latestRef.current.onUnsupported?.()
   }
 

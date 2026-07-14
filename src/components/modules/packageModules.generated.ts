@@ -46,6 +46,7 @@ export const PACKAGE_MODULES = [
   { id: "timeu", name: "TimeU", version: "0.1.0", category: "file", description: "Back up and restore file timestamps from JSON records.", icon: "Clock3", keywords: ["timestamp", "backup", "restore", "mtime", "atime"] },
   { id: "transq", name: "TransQ", version: "0.1.0", category: "text", description: "Organize manga-translator result queues with native filesystem operations.", icon: "Languages", keywords: ["translation", "manga-translator", "organize", "queue"] },
   { id: "trename", name: "Trename", version: "0.1.0", category: "file", description: "Scan folders into rename JSON, validate translated targets, rename, and undo.", icon: "FilePenLine", keywords: ["rename", "translate", "json", "undo", "batch"] },
+  { id: "vert", name: "VERT", version: "0.1.0", category: "file", description: "Convert images, audio, video, and documents locally with CLI-first execution and a Wasm fallback.", icon: "RefreshCw", keywords: ["convert", "ffmpeg", "imagemagick", "pandoc", "wasm", "vert"] },
   { id: "xlchemy", name: "Xlchemy", version: "0.1.0", category: "media", description: "High-performance batch image transcoding workbench.", icon: "Images", keywords: ["image", "convert", "jxl", "avif", "webp", "psd", "clip", "transcode"] },
 ] satisfies NodeDef[]
 
@@ -93,6 +94,7 @@ export const packageModuleLoaders = {
   timeu: () => import("@/nodes/timeu/entry") as Promise<{ default: AppNodeEntry }>,
   transq: () => import("@/nodes/transq/entry") as Promise<{ default: AppNodeEntry }>,
   trename: () => import("@/nodes/trename/entry") as Promise<{ default: AppNodeEntry }>,
+  vert: () => import("@/nodes/vert/entry") as Promise<{ default: AppNodeEntry }>,
   xlchemy: () => import("@/nodes/xlchemy/entry") as Promise<{ default: AppNodeEntry }>,
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry | HeadlessNodePackage }>>>
 
@@ -140,5 +142,6 @@ export const nodeHelpLoaders = {
   timeu: () => import("@xiranite/node-timeu/help") as Promise<{ help: NodeHelp }>,
   transq: () => import("@xiranite/node-transq/help") as Promise<{ help: NodeHelp }>,
   trename: () => import("@xiranite/node-trename/help") as Promise<{ help: NodeHelp }>,
+  vert: () => import("@xiranite/node-vert/help") as Promise<{ help: NodeHelp }>,
   xlchemy: () => import("@xiranite/node-xlchemy/help") as Promise<{ help: NodeHelp }>,
 } satisfies Partial<Record<string, () => Promise<{ help: NodeHelp }>>>

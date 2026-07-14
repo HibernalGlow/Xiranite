@@ -31,10 +31,29 @@ describe("useLocalFileDrop", () => {
     fireEvent.drop(screen.getByTestId("direct"), { dataTransfer: { files: [file] } })
     expect(screen.getByTestId("direct-value").textContent).toBe("D:/images/direct.png")
   })
+
+  test("routes ordinary browser files when File.path is unavailable", () => {
+    render(<Probe name="browser" acceptBrowserFiles />)
+    const file = new File(["audio"], "track.flac", { type: "audio/flac" })
+    fireEvent.drop(screen.getByTestId("browser"), { dataTransfer: { files: [file] } })
+    expect(screen.getByTestId("browser-value").textContent).toBe("track.flac")
+  })
+
+  test("prefers a delayed native path over the earlier pathless DOM file", async () => {
+    let nativeDrop: ((paths: string[]) => void) | undefined
+    const subscribeDrops: NonNullable<NodeLocalFilesCapability["subscribeDrops"]> = async (_targetId, handler) => { nativeDrop = handler; return () => undefined }
+    render(<Probe name="native-first" acceptBrowserFiles subscribeDrops={subscribeDrops} />)
+    await waitFor(() => expect(nativeDrop).toBeTypeOf("function"))
+    fireEvent.drop(screen.getByTestId("native-first"), { dataTransfer: { files: [new File(["audio"], "track.flac")] } })
+    nativeDrop?.(["D:/audio/track.flac"])
+    await waitFor(() => expect(screen.getByTestId("native-first-value").textContent).toBe("D:/audio/track.flac"))
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(screen.getByTestId("native-first-value").textContent).toBe("D:/audio/track.flac")
+  })
 })
 
-function Probe(props: { name: string; subscribeDrops?: NodeLocalFilesCapability["subscribeDrops"] }) {
+function Probe(props: { name: string; acceptBrowserFiles?: boolean; subscribeDrops?: NodeLocalFilesCapability["subscribeDrops"] }) {
   const [value, setValue] = useState("")
-  const drop = useLocalFileDrop({ subscribeDrops: props.subscribeDrops, onDropPaths: (paths) => setValue(paths.join("\n")) })
+  const drop = useLocalFileDrop({ subscribeDrops: props.subscribeDrops, onDropPaths: (paths) => setValue(paths.join("\n")), onDropFiles: props.acceptBrowserFiles ? (files) => setValue(files.map((file) => file.name).join("\n")) : undefined })
   return <div><div {...drop.targetProps} data-testid={props.name} /><output data-testid={`${props.name}-value`}>{value}</output></div>
 }

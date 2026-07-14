@@ -155,10 +155,18 @@ export function useNodeHostApi(
     const localFilesCapability = {
       getUrl: (path: string) => localBackendFileUrl(path),
       list: listLocalFiles,
-      pickFiles: async () => {
+      pickFiles: async (options) => {
         if (typeof window !== "undefined" && window._wails) {
           const { Dialogs } = await import("@wailsio/runtime")
-          return await Dialogs.OpenFile({ CanChooseFiles: true, CanChooseDirectories: false, AllowsMultipleSelection: true, Title: "选择待转换图片", Filters: [{ DisplayName: "图片文件", Pattern: "*.jxl;*.jpg;*.jpeg;*.jfif;*.jif;*.jpe;*.png;*.apng;*.gif;*.webp;*.jp2;*.bmp;*.ico;*.tiff;*.tif;*.avif" }] })
+          return await Dialogs.OpenFile({
+            CanChooseFiles: true,
+            CanChooseDirectories: false,
+            AllowsMultipleSelection: true,
+            Title: options?.title ?? "选择待转换图片",
+            Filters: options?.filters?.length
+              ? options.filters.map((filter) => ({ DisplayName: filter.displayName, Pattern: filter.pattern }))
+              : [{ DisplayName: "图片文件", Pattern: "*.jxl;*.jpg;*.jpeg;*.jfif;*.jif;*.jpe;*.png;*.apng;*.gif;*.webp;*.jp2;*.bmp;*.ico;*.tiff;*.tif;*.avif" }],
+          })
         }
         return await pickLocalPaths("files")
       },

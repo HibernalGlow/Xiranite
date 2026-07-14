@@ -203,9 +203,14 @@ export interface NodeDownloadsCapability {
   text: (filename: string, content: string) => void
 }
 
+export interface NodeFilePickerOptions {
+  title?: string
+  filters?: Array<{ displayName: string; pattern: string }>
+}
+
 export interface NodeLocalFilesCapability {
   getUrl: (path: string) => string
-  pickFiles?: () => Promise<string[]>
+  pickFiles?: (options?: NodeFilePickerOptions) => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
   list?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ name: string; path: string; isDirectory: boolean; sizeBytes: number; lastModified: number; type: string }>>
   /** Subscribe to native desktop file drops routed to one explicit DOM target. */

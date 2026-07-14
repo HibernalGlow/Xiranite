@@ -262,6 +262,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Scan folders into rename JSON, validate translated targets, rename, and undo.",
   },
   {
+    id: "vert",
+    packageName: "@xiranite/node-vert",
+    bin: nodeCliName("vert"),
+    description: "Convert images, audio, video, and documents locally with CLI-first execution and a Wasm fallback.",
+  },
+  {
     id: "xlchemy",
     packageName: "@xiranite/node-xlchemy",
     bin: nodeCliName("xlchemy"),

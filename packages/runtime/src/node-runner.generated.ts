@@ -304,6 +304,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-trename/platform"), { nodeId: "trename", entry: "platform" }),
     createRuntime: "createNodeTrenameRuntime",
   },
+  vert: {
+    packageName: "@xiranite/node-vert",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-vert/core"), { nodeId: "vert", entry: "core" }),
+    run: "runVert",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-vert/platform"), { nodeId: "vert", entry: "platform" }),
+    createRuntime: "createNodeVertRuntime",
+  },
   xlchemy: {
     packageName: "@xiranite/node-xlchemy",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-xlchemy/core"), { nodeId: "xlchemy", entry: "core" }),

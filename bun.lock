@@ -6,6 +6,7 @@
       "name": "shadcn-ui-template",
       "dependencies": {
         "@base-ui/react": "^1.1.0",
+        "@bjorn3/browser_wasi_shim": "^0.4.2",
         "@blocknote/core": "^0.51.4",
         "@blocknote/react": "^0.51.4",
         "@blocknote/shadcn": "^0.51.4",
@@ -14,8 +15,11 @@
         "@dnd-kit/modifiers": "^9.0.0",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
         "@hibernalglow/ocean-dataview": "file:vendor/ocean-dataview",
         "@hookform/resolvers": "^5.2.2",
+        "@imagemagick/magick-wasm": "^0.0.37",
         "@radix-ui/react-accordion": "1.2.12",
         "@tailwindcss/vite": "^4.2.1",
         "@tanstack/react-query": "^5.90.16",
@@ -68,12 +72,14 @@
         "@xiranite/node-timeu": "workspace:*",
         "@xiranite/node-transq": "workspace:*",
         "@xiranite/node-trename": "workspace:*",
+        "@xiranite/node-vert": "workspace:*",
         "@xiranite/node-xlchemy": "workspace:*",
         "@xiranite/packu-node-runtime": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "chrono-node": "^2.9.0",
         "class-variance-authority": "^0.7.1",
+        "client-zip": "^2.5.0",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
         "date-fns": "^4.1.0",
@@ -573,6 +579,7 @@
         "xjellypot": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
       },
@@ -1012,6 +1019,24 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/nodes/vert": {
+      "name": "@xiranite/node-vert",
+      "version": "0.1.0",
+      "bin": {
+        "xvert": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@opentui/react": "0.4.3",
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+        "react": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+      },
+    },
     "packages/nodes/xlchemy": {
       "name": "@xiranite/node-xlchemy",
       "version": "0.1.0",
@@ -1061,47 +1086,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@xiranite/contract": "workspace:*",
-        "@xiranite/node-audiov": "workspace:*",
-        "@xiranite/node-bandia": "workspace:*",
-        "@xiranite/node-bitv": "workspace:*",
-        "@xiranite/node-classf": "workspace:*",
-        "@xiranite/node-classq": "workspace:*",
-        "@xiranite/node-cleanf": "workspace:*",
-        "@xiranite/node-coveru": "workspace:*",
-        "@xiranite/node-crashu": "workspace:*",
-        "@xiranite/node-dissolvef": "workspace:*",
-        "@xiranite/node-encodeb": "workspace:*",
-        "@xiranite/node-enginev": "workspace:*",
-        "@xiranite/node-envuconfig": "workspace:*",
-        "@xiranite/node-findz": "workspace:*",
-        "@xiranite/node-formatv": "workspace:*",
-        "@xiranite/node-gifu": "workspace:*",
-        "@xiranite/node-jellypot": "workspace:*",
-        "@xiranite/node-kavvka": "workspace:*",
-        "@xiranite/node-lata": "workspace:*",
-        "@xiranite/node-linedup": "workspace:*",
-        "@xiranite/node-linku": "workspace:*",
-        "@xiranite/node-lorat": "workspace:*",
-        "@xiranite/node-marku": "workspace:*",
-        "@xiranite/node-migratef": "workspace:*",
-        "@xiranite/node-movea": "workspace:*",
-        "@xiranite/node-mvz": "workspace:*",
-        "@xiranite/node-nameu": "workspace:*",
-        "@xiranite/node-owithu": "workspace:*",
-        "@xiranite/node-rawfilter": "workspace:*",
-        "@xiranite/node-recycleu": "workspace:*",
-        "@xiranite/node-repacku": "workspace:*",
-        "@xiranite/node-samea": "workspace:*",
-        "@xiranite/node-scoolp": "workspace:*",
-        "@xiranite/node-seriex": "workspace:*",
-        "@xiranite/node-simiu": "workspace:*",
-        "@xiranite/node-sleept": "workspace:*",
-        "@xiranite/node-smartzip": "workspace:*",
-        "@xiranite/node-snf": "workspace:*",
-        "@xiranite/node-synct": "workspace:*",
-        "@xiranite/node-timeu": "workspace:*",
-        "@xiranite/node-transq": "workspace:*",
-        "@xiranite/node-trename": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^7.0.2",
@@ -1176,6 +1160,8 @@
     "@base-ui/react": ["@base-ui/react@1.6.0", "https://registry.npmmirror.com/@base-ui/react/-/react-1.6.0.tgz", { "dependencies": { "@babel/runtime": "^7.29.2", "@base-ui/utils": "0.3.1", "@floating-ui/react-dom": "^2.1.8", "@floating-ui/utils": "^0.2.11", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@date-fns/tz": "^1.2.0", "@types/react": "^17 || ^18 || ^19", "date-fns": "^4.0.0", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@date-fns/tz", "@types/react", "date-fns"] }, "sha512-/jzjTWJYXhRFO45Bev9lc3cHbmjzCMpUqbMZ2AgKy/z25mY9B6shGSNcXcjQar9n5doM0KYW1W8fcFv2jZBuMw=="],
 
     "@base-ui/utils": ["@base-ui/utils@0.3.1", "https://registry.npmmirror.com/@base-ui/utils/-/utils-0.3.1.tgz", { "dependencies": { "@babel/runtime": "^7.29.2", "@floating-ui/utils": "^0.2.11", "reselect": "^5.2.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-gFFiltORVmW/N6IILTGxizP3PBpVpysqML1ALY5Vk0mH+7faVkCknOU31goYHN5Aoek2dkjxva1XOD2Ce9WuIg=="],
+
+    "@bjorn3/browser_wasi_shim": ["@bjorn3/browser_wasi_shim@0.4.2", "https://registry.npmmirror.com/@bjorn3/browser_wasi_shim/-/browser_wasi_shim-0.4.2.tgz", {}, "sha512-/iHkCVUG3VbcbmEHn5iIUpIrh7a7WPiwZ3sHy4HZKZzBdSadwdddYDZAII2zBvQYV0Lfi8naZngPCN7WPHI/hA=="],
 
     "@blocknote/core": ["@blocknote/core@0.51.4", "https://registry.npmmirror.com/@blocknote/core/-/core-0.51.4.tgz", { "dependencies": { "@emoji-mart/data": "^1.2.1", "@handlewithcare/prosemirror-inputrules": "^0.1.4", "@shikijs/types": "^4", "@tanstack/store": "^0.7.7", "@tiptap/core": "^3.13.0", "@tiptap/extension-bold": "^3.13.0", "@tiptap/extension-code": "^3.13.0", "@tiptap/extension-horizontal-rule": "^3.13.0", "@tiptap/extension-italic": "^3.13.0", "@tiptap/extension-paragraph": "^3.13.0", "@tiptap/extension-strike": "^3.13.0", "@tiptap/extension-text": "^3.13.0", "@tiptap/extension-underline": "^3.13.0", "@tiptap/extensions": "^3.13.0", "@tiptap/pm": "^3.13.0", "emoji-mart": "^5.6.0", "fast-deep-equal": "^3.1.3", "lib0": "^0.2.99", "prosemirror-highlight": "^0.15.1", "prosemirror-model": "^1.25.4", "prosemirror-state": "^1.4.4", "prosemirror-tables": "^1.8.3", "prosemirror-transform": "^1.11.0", "prosemirror-view": "^1.41.4", "y-prosemirror": "^1.3.7", "y-protocols": "^1.0.6", "yjs": "^13.6.27" } }, "sha512-uR7/BlW6VVlCx/JzfGbkaLGz7O5uI3bu2tbNIdzGTfSloiEp8Qc14if36Dy7DDs+dVWfZgwds0jWiGfE3AzJiw=="],
 
@@ -1269,6 +1255,12 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.4", "https://registry.npmmirror.com/@esbuild/win32-x64/-/win32-x64-0.27.4.tgz", { "os": "win32", "cpu": "x64" }, "sha512-+knoa0BDoeXgkNvvV1vvbZX4+hizelrkwmGJBdT17t8FNPwG2lKemmuMZlmaNQ3ws3DKKCxpb4zRZEIp3UxFCg=="],
 
+    "@ffmpeg/ffmpeg": ["@ffmpeg/ffmpeg@0.12.15", "https://registry.npmmirror.com/@ffmpeg/ffmpeg/-/ffmpeg-0.12.15.tgz", { "dependencies": { "@ffmpeg/types": "^0.12.4" } }, "sha512-1C8Obr4GsN3xw+/1Ww6PFM84wSQAGsdoTuTWPOj2OizsRDLT4CXTaVjPhkw6ARyDus1B9X/L2LiXHqYYsGnRFw=="],
+
+    "@ffmpeg/types": ["@ffmpeg/types@0.12.4", "https://registry.npmmirror.com/@ffmpeg/types/-/types-0.12.4.tgz", {}, "sha512-k9vJQNBGTxE5AhYDtOYR5rO5fKsspbg51gbcwtbkw2lCdoIILzklulcjJfIDwrtn7XhDeF2M+THwJ2FGrLeV6A=="],
+
+    "@ffmpeg/util": ["@ffmpeg/util@0.12.2", "https://registry.npmmirror.com/@ffmpeg/util/-/util-0.12.2.tgz", {}, "sha512-ouyoW+4JB7WxjeZ2y6KpRvB+dLp7Cp4ro8z0HIVpZVCM7AwFlHa0c4R8Y/a4M3wMqATpYKhC7lSFHQ0T11MEDw=="],
+
     "@floating-ui/core": ["@floating-ui/core@1.7.5", "https://registry.npmmirror.com/@floating-ui/core/-/core-1.7.5.tgz", { "dependencies": { "@floating-ui/utils": "^0.2.11" } }, "sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ=="],
 
     "@floating-ui/dom": ["@floating-ui/dom@1.7.6", "https://registry.npmmirror.com/@floating-ui/dom/-/dom-1.7.6.tgz", { "dependencies": { "@floating-ui/core": "^1.7.5", "@floating-ui/utils": "^0.2.11" } }, "sha512-9gZSAI5XM36880PPMm//9dfiEngYoC6Am2izES1FF406YFsjvyBMmeJ2g4SAju3xWwtuynNRFL2s9hgxpLI5SQ=="],
@@ -1284,6 +1276,8 @@
     "@hibernalglow/ocean-dataview": ["@hibernalglow/ocean-dataview@file:vendor/ocean-dataview", { "dependencies": { "@base-ui/react": "^1.1.0", "@dnd-kit/core": "^6.3.1", "@dnd-kit/sortable": "^10.0.0", "@dnd-kit/utilities": "^3.2.2", "@hookform/resolvers": "^5.2.2", "@tanstack/react-query": "^5.90.16", "@tanstack/react-table": "^8.21.3", "chrono-node": "^2.9.0", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "date-fns": "^4.1.0", "embla-carousel-react": "^8.6.0", "input-otp": "^1.4.2", "lucide-react": "^0.562.0", "nuqs": "^2.8.6", "radix-ui": "^1.6.1", "react": "^19.2.3", "react-day-picker": "^9.13.0", "react-dom": "^19.2.3", "react-hook-form": "^7.69.0", "react-resizable-panels": "^4.1.1", "recharts": "^3.6.0", "sonner": "^2.0.7", "tailwind-merge": "^3.4.0", "tw-animate-css": "^1.4.0", "usehooks-ts": "^3.1.1", "vaul": "^1.1.2", "zod": "^4.3.6", "zustand": "^5.0.10" }, "devDependencies": { "@tailwindcss/postcss": "^4.1.18", "@tailwindcss/vite": "^4.2.1", "@types/node": "^24.0.0", "@vitejs/plugin-react": "^5.2.0", "tailwindcss": "^4.1.18", "typescript": "~5.9.3", "vite": "^7.3.1" }, "peerDependencies": { "@types/react": "^19.2.0", "@types/react-dom": "^19.2.0", "react": "^19.0.0", "react-dom": "^19.0.0" } }],
 
     "@hookform/resolvers": ["@hookform/resolvers@5.2.2", "https://registry.npmmirror.com/@hookform/resolvers/-/resolvers-5.2.2.tgz", { "dependencies": { "@standard-schema/utils": "^0.3.0" }, "peerDependencies": { "react-hook-form": "^7.55.0" } }, "sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA=="],
+
+    "@imagemagick/magick-wasm": ["@imagemagick/magick-wasm@0.0.37", "https://registry.npmmirror.com/@imagemagick/magick-wasm/-/magick-wasm-0.0.37.tgz", {}, "sha512-tVs9hcWu9u7I3Jz/XvUYVvCEniuxAR+JjZEzI+yKtQmYAtNsLF1WjoH1HZGCKPumaB9jAHZlcf2RGT9+1l3nxQ=="],
 
     "@img/colour": ["@img/colour@1.1.0", "https://registry.npmmirror.com/@img/colour/-/colour-1.1.0.tgz", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 
@@ -2079,6 +2073,8 @@
 
     "@xiranite/node-trename": ["@xiranite/node-trename@workspace:packages/nodes/trename"],
 
+    "@xiranite/node-vert": ["@xiranite/node-vert@workspace:packages/nodes/vert"],
+
     "@xiranite/node-xlchemy": ["@xiranite/node-xlchemy@workspace:packages/nodes/xlchemy"],
 
     "@xiranite/packu-node-runtime": ["@xiranite/packu-node-runtime@workspace:packages/packu-node-runtime"],
@@ -2152,6 +2148,8 @@
     "cli-spinners": ["cli-spinners@3.4.0", "https://registry.npmmirror.com/cli-spinners/-/cli-spinners-3.4.0.tgz", {}, "sha512-bXfOC4QcT1tKXGorxL3wbJm6XJPDqEnij2gQ2m7ESQuE+/z9YFIWnl/5RpTiKWbMq3EVKR4fRLJGn6DVfu0mpw=="],
 
     "cli-width": ["cli-width@4.1.0", "https://registry.npmmirror.com/cli-width/-/cli-width-4.1.0.tgz", {}, "sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ=="],
+
+    "client-zip": ["client-zip@2.5.0", "https://registry.npmmirror.com/client-zip/-/client-zip-2.5.0.tgz", {}, "sha512-ydG4nDZesbFurnNq0VVCp/yyomIBh+X/1fZPI/P24zbnG4dtC4tQAfI5uQsomigsUMeiRO2wiTPizLWQh+IAyQ=="],
 
     "cliui": ["cliui@8.0.1", "https://registry.npmmirror.com/cliui/-/cliui-8.0.1.tgz", { "dependencies": { "string-width": "^4.2.0", "strip-ansi": "^6.0.1", "wrap-ansi": "^7.0.0" } }, "sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ=="],
 
