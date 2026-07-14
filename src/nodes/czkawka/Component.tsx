@@ -2,6 +2,7 @@ import { useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { applyCzkawkaFilters, normalizeCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState, type CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
+import { applyCzkawkaDirectorySelection, applyCzkawkaGroupSelection, applyCzkawkaTextSelection, calculateCzkawkaSelectionStats, createCzkawkaSelectionHistory, createDefaultCzkawkaSelectionAssistantConfig, invertCzkawkaSelection, pushCzkawkaSelectionHistory, redoCzkawkaSelectionHistory, selectAllCzkawkaEntries, undoCzkawkaSelectionHistory, type CzkawkaSelectionAssistantConfig, type CzkawkaSelectionHistory, type CzkawkaSelectionResult, type CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
 import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, Play, Save, Search, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,7 @@ import { createCzkawkaScanInput, getCzkawkaToolOptions, type CzkawkaOptionDefini
 import type { CzkawkaCardState, CzkawkaPanel } from "./types"
 import { CzkawkaResultTable } from "./result-table"
 import { CzkawkaFilterPanel } from "./filter-panel"
+import { CzkawkaSelectionAssistant } from "./selection-assistant"
 
 const TOOLS: Array<{ id: CzkawkaTool; label: string; short: string; icon: typeof Copy }> = [
   { id: "duplicate-files", label: "重复文件", short: "重复", icon: Copy },
@@ -48,6 +50,9 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   const [selectedPathsByTool, setSelectedPathsByTool] = useState<Partial<Record<CzkawkaTool, string[]>>>({})
   const [filterStatesByTool, setFilterStatesByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaFilterState>>>(() => data.filterStatesByTool ?? {})
   const [filterPresets, setFilterPresetsState] = useState<CzkawkaStoredFilterPreset[]>(() => data.filterPresets ?? [])
+  const [selectionConfig, setSelectionConfigState] = useState<CzkawkaSelectionAssistantConfig>(() => data.selectionAssistantConfig ?? createDefaultCzkawkaSelectionAssistantConfig())
+  const [selectionAssistantOpen, setSelectionAssistantOpenState] = useState(data.selectionAssistantOpen ?? false)
+  const [selectionHistoriesByTool, setSelectionHistoriesByTool] = useState<Partial<Record<CzkawkaTool, CzkawkaSelectionHistory>>>({})
   const [filterNow] = useState(Date.now)
   const [panel, setPanel] = useState<CzkawkaPanel>("source")
   const tool = data.tool ?? "duplicate-files"
@@ -55,6 +60,8 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   const selectedPaths = selectedPathsByTool[tool] ?? []
   const filterState = normalizeCzkawkaFilterState(filterStatesByTool[tool])
   const filterResult = applyCzkawkaFilters(result?.groups ?? [], selectedPaths, filterState, filterNow, tool)
+  const selectionHistory = selectionHistoriesByTool[tool] ?? createCzkawkaSelectionHistory(selectedPaths)
+  const selectionStats = calculateCzkawkaSelectionStats(filterResult.groups, selectedPaths)
   const filterText = filterState.text.pattern
   const compact = surface.mode === "compact" || surface.mode === "portrait"
 
@@ -63,8 +70,14 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     else host.patchData(compId, next)
   }
 
-  function setSelectedPaths(next: string[] | ((current: string[]) => string[])) {
-    setSelectedPathsByTool((current) => ({ ...current, [tool]: typeof next === "function" ? next(current[tool] ?? []) : next }))
+  function setSelectedPaths(paths: string[]) {
+    setSelectedPathsByTool((current) => ({ ...current, [tool]: paths }))
+    setSelectionHistoriesByTool((current) => ({ ...current, [tool]: pushCzkawkaSelectionHistory(current[tool] ?? createCzkawkaSelectionHistory(selectedPaths), paths) }))
+  }
+
+  function resetSelectedPaths(paths: string[] = []) {
+    setSelectedPathsByTool((current) => ({ ...current, [tool]: paths }))
+    setSelectionHistoriesByTool((current) => ({ ...current, [tool]: createCzkawkaSelectionHistory(paths) }))
   }
 
   async function executeScan() {
@@ -74,7 +87,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     const run = host.runner?.run ?? host.actions?.run
     if (!run) { patch({ phase: "error", progressText: t("errors.noRuntime", "当前环境没有本地运行能力。") }); return }
     setRunning(true)
-    setSelectedPaths([])
+    resetSelectedPaths()
     patch({ phase: "running", progress: 0, progressText: t("progress.starting", "正在启动 Czkawka 扫描。"), result: null })
     try {
       const response = await run<CzkawkaInput, CzkawkaData>("czkawka", scanInput(tool, data), (event: NodeRunEvent) => {
@@ -96,7 +109,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
     try {
       const response = await run<CzkawkaInput, CzkawkaData>("czkawka", { action, selectedPaths, dryRun: data.dryRun ?? true, destinationDirectory: data.destinationDirectory, outputPath: data.outputPath, outputFormat: data.outputPath?.toLowerCase().endsWith(".csv") ? "csv" : "json" }) as NodeRunResult<CzkawkaData>
       patch({ progressText: response.message, operation: response.data ?? null, phase: response.success ? "completed" : "error" })
-      if (response.success && data.dryRun === false && action !== "save") setSelectedPaths([])
+      if (response.success && data.dryRun === false && action !== "save") resetSelectedPaths()
     } catch (error) { patch({ phase: "error", progressText: message(error) }) }
     finally { setRunning(false) }
   }
@@ -105,20 +118,27 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   function setFilterState(value: CzkawkaFilterState) { setFilterStatesByTool((current) => { const next = { ...current, [tool]: value }; patch({ filterStatesByTool: next }); return next }) }
   function setFilterPresets(value: CzkawkaStoredFilterPreset[]) { setFilterPresetsState(value); patch({ filterPresets: value }) }
   function setFilterText(value: string) { setFilterState({ ...filterState, text: { ...filterState.text, enabled: Boolean(value), pattern: value } }) }
+  function setSelectionConfig(value: CzkawkaSelectionAssistantConfig) { setSelectionConfigState(value); patch({ selectionAssistantConfig: value }) }
+  function setSelectionAssistantOpen(open: boolean) { setSelectionAssistantOpenState(open); patch({ selectionAssistantOpen: open }) }
+  function applySelectionRule(kind: "group" | "text" | "directory"): CzkawkaSelectionResult { const mode = kind === "directory" && selectionConfig.directory.mode === "exclude-directory" ? "remove" : selectionConfig.applyMode; const selection = kind === "group" ? applyCzkawkaGroupSelection(filterResult.groups, selectedPaths, selectionConfig.group, mode) : kind === "text" ? applyCzkawkaTextSelection(filterResult.groups, selectedPaths, selectionConfig.text, mode) : applyCzkawkaDirectorySelection(filterResult.groups, selectedPaths, selectionConfig.directory, mode); if (!selection.error) setSelectedPaths(selection.paths); return selection }
+  function undoSelection() { const history = undoCzkawkaSelectionHistory(selectionHistory); setSelectionHistoriesByTool((current) => ({ ...current, [tool]: history })); setSelectedPathsByTool((current) => ({ ...current, [tool]: history.present })) }
+  function redoSelection() { const history = redoCzkawkaSelectionHistory(selectionHistory); setSelectionHistoriesByTool((current) => ({ ...current, [tool]: history })); setSelectedPathsByTool((current) => ({ ...current, [tool]: history.present })) }
+  function invertSelection() { setSelectedPaths(invertCzkawkaSelection(filterResult.groups, selectedPaths)) }
+  function selectAllVisible() { setSelectedPaths(selectAllCzkawkaEntries(filterResult.groups)) }
 
-  const view = { data, tool, result, filterState, filterResult, filterPresets, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, setPanel, setSelectedPaths: (paths: string[]) => setSelectedPaths(paths), setFilterState, setFilterPresets, setFilterText, executeScan, executeOperation, applySmartSelection }
+  const view = { data, tool, result, filterState, filterResult, filterPresets, selectionConfig, selectionStats, selectionHistory, selectionAssistantOpen, running, selectedPaths, filterText, panel, getFileUrl: host.localFiles?.getUrl, copyText: host.clipboard?.writeText, openPath: host.localFiles?.openPath, revealPath: host.localFiles?.revealPath, patch, setPanel, setSelectedPaths, setFilterState, setFilterPresets, setFilterText, setSelectionConfig, setSelectionAssistantOpen, applySelectionRule, undoSelection, redoSelection, invertSelection, selectAllVisible, executeScan, executeOperation, applySmartSelection }
   return <TooltipProvider><div ref={surface.ref} data-testid="czkawka-surface" className="@container/czkawka flex h-full min-h-0 w-full overflow-hidden bg-background">
     {surface.mode === "collapsed" ? <Collapsed {...view} /> : compact ? <Compact {...view} /> : <Full {...view} />}
   </div></TooltipProvider>
 }
 
 type View = {
-  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; filterState: CzkawkaFilterState; filterResult: CzkawkaFilterResult; filterPresets: CzkawkaStoredFilterPreset[]; running: boolean; selectedPaths: string[]; filterText: string; panel: CzkawkaPanel
+  data: CzkawkaCardState; tool: CzkawkaTool; result: CzkawkaData | null; filterState: CzkawkaFilterState; filterResult: CzkawkaFilterResult; filterPresets: CzkawkaStoredFilterPreset[]; selectionConfig: CzkawkaSelectionAssistantConfig; selectionStats: CzkawkaSelectionStats; selectionHistory: CzkawkaSelectionHistory; selectionAssistantOpen: boolean; running: boolean; selectedPaths: string[]; filterText: string; panel: CzkawkaPanel
   getFileUrl?: (path: string) => string
   copyText?: (text: string) => Promise<void>
   openPath?: (path: string) => Promise<void>
   revealPath?: (path: string) => Promise<void>
-  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; setFilterState: (value: CzkawkaFilterState) => void; setFilterPresets: (value: CzkawkaStoredFilterPreset[]) => void; setFilterText: (value: string) => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
+  patch: (next: Partial<CzkawkaCardState>) => void; setPanel: (panel: CzkawkaPanel) => void; setSelectedPaths: (paths: string[]) => void; setFilterState: (value: CzkawkaFilterState) => void; setFilterPresets: (value: CzkawkaStoredFilterPreset[]) => void; setFilterText: (value: string) => void; setSelectionConfig: (value: CzkawkaSelectionAssistantConfig) => void; setSelectionAssistantOpen: (open: boolean) => void; applySelectionRule: (kind: "group" | "text" | "directory") => CzkawkaSelectionResult; undoSelection: () => void; redoSelection: () => void; invertSelection: () => void; selectAllVisible: () => void; executeScan: () => Promise<void>; executeOperation: (action: CzkawkaAction) => Promise<void>
   applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
 }
 
@@ -165,7 +185,11 @@ function ResultTable(props: View) {
 
 function AnalysisPanel(props: View) {
   const stats = props.result
-  return <section className="flex min-h-0 flex-col rounded-md border bg-card"><SectionHeader icon={Search} title="分析与操作" /><div className="grid grid-cols-2 gap-px border-b bg-border"><Metric label="文件" value={String(stats?.fileCount ?? 0)} /><Metric label="分组" value={String(stats?.groupCount ?? 0)} /><Metric label="总大小" value={formatBytes(stats?.totalBytes ?? 0)} /><Metric label="可回收" value={formatBytes(stats?.reclaimableBytes ?? 0)} accent /></div><ScrollArea className="min-h-0 flex-1"><div className="grid gap-3 p-3"><div className="text-xs text-muted-foreground">已选择 <strong className="text-foreground">{props.selectedPaths.length}</strong> 个路径。删除和移动默认只生成计划。</div><Field label="智能选择"><div className="grid grid-cols-2 gap-1"><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-first")}>每组除首个</Button><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-newest")}>保留最新</Button><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-biggest")}>保留最大</Button><Button size="xs" variant="ghost" onClick={() => props.patch({ operation: null })}><X />清除操作</Button></div></Field><SwitchLine label="仅预演操作" checked={props.data.dryRun ?? true} onChange={(dryRun) => props.patch({ dryRun })} /><Separator /><Field label="移动到"><div className="flex gap-1"><Input value={props.data.destinationDirectory ?? ""} placeholder="D:/Review" onChange={(event) => props.patch({ destinationDirectory: event.currentTarget.value })} /><Button aria-label="move selected" disabled={!props.selectedPaths.length || props.running} size="icon-sm" variant="outline" onClick={() => void props.executeOperation("move")}><MoveRight /></Button></div></Field><Field label="导出结果"><div className="flex gap-1"><Input value={props.data.outputPath ?? ""} placeholder="D:/result.json" onChange={(event) => props.patch({ outputPath: event.currentTarget.value })} /><Button aria-label="save selected" disabled={!props.selectedPaths.length || !props.data.outputPath || props.running} size="icon-sm" variant="outline" onClick={() => void props.executeOperation("save")}><Save /></Button></div></Field><AlertDialog><AlertDialogTrigger asChild><Button disabled={!props.selectedPaths.length || props.running} variant="destructive"><Trash2 />删除已选</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{props.data.dryRun ?? true ? "生成删除计划？" : "永久删除已选文件？"}</AlertDialogTitle><AlertDialogDescription>{props.data.dryRun ?? true ? "当前是预演模式，不会修改文件。" : `将永久删除 ${props.selectedPaths.length} 个路径，此操作不可撤销。`}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => void props.executeOperation("delete")}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>{props.data.operation ? <div className="rounded-md border bg-muted/30 p-2 text-xs"><div className="font-medium">上次操作</div><div className="mt-1 text-muted-foreground">{props.data.operation.affectedCount} 项 / {props.data.operation.errorCount} 错误</div></div> : null}</div></ScrollArea></section>
+  return <section className="flex min-h-0 flex-col rounded-md border bg-card"><SectionHeader icon={Search} title="分析与操作" /><div className="grid grid-cols-2 gap-px border-b bg-border"><Metric label="文件" value={String(stats?.fileCount ?? 0)} /><Metric label="分组" value={String(stats?.groupCount ?? 0)} /><Metric label="总大小" value={formatBytes(stats?.totalBytes ?? 0)} /><Metric label="可回收" value={formatBytes(stats?.reclaimableBytes ?? 0)} accent /></div><ScrollArea className="min-h-0 flex-1"><div className="grid gap-3 p-3"><div className="text-xs text-muted-foreground">已选择 <strong className="text-foreground">{props.selectedPaths.length}</strong> 个路径。删除和移动默认只生成计划。</div><SelectionAssistantControl {...props} /><Field label="智能选择"><div className="grid grid-cols-2 gap-1"><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-first")}>每组除首个</Button><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-newest")}>保留最新</Button><Button size="xs" variant="outline" onClick={() => props.applySmartSelection("all-except-biggest")}>保留最大</Button><Button size="xs" variant="ghost" onClick={() => props.patch({ operation: null })}><X />清除操作</Button></div></Field><SwitchLine label="仅预演操作" checked={props.data.dryRun ?? true} onChange={(dryRun) => props.patch({ dryRun })} /><Separator /><Field label="移动到"><div className="flex gap-1"><Input value={props.data.destinationDirectory ?? ""} placeholder="D:/Review" onChange={(event) => props.patch({ destinationDirectory: event.currentTarget.value })} /><Button aria-label="move selected" disabled={!props.selectedPaths.length || props.running} size="icon-sm" variant="outline" onClick={() => void props.executeOperation("move")}><MoveRight /></Button></div></Field><Field label="导出结果"><div className="flex gap-1"><Input value={props.data.outputPath ?? ""} placeholder="D:/result.json" onChange={(event) => props.patch({ outputPath: event.currentTarget.value })} /><Button aria-label="save selected" disabled={!props.selectedPaths.length || !props.data.outputPath || props.running} size="icon-sm" variant="outline" onClick={() => void props.executeOperation("save")}><Save /></Button></div></Field><AlertDialog><AlertDialogTrigger asChild><Button disabled={!props.selectedPaths.length || props.running} variant="destructive"><Trash2 />删除已选</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{props.data.dryRun ?? true ? "生成删除计划？" : "永久删除已选文件？"}</AlertDialogTitle><AlertDialogDescription>{props.data.dryRun ?? true ? "当前是预演模式，不会修改文件。" : `将永久删除 ${props.selectedPaths.length} 个路径，此操作不可撤销。`}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => void props.executeOperation("delete")}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>{props.data.operation ? <div className="rounded-md border bg-muted/30 p-2 text-xs"><div className="font-medium">上次操作</div><div className="mt-1 text-muted-foreground">{props.data.operation.affectedCount} 项 / {props.data.operation.errorCount} 错误</div></div> : null}</div></ScrollArea></section>
+}
+
+function SelectionAssistantControl(props: View) {
+  return <CzkawkaSelectionAssistant open={props.selectionAssistantOpen} config={props.selectionConfig} stats={props.selectionStats} canUndo={props.selectionHistory.past.length > 0} canRedo={props.selectionHistory.future.length > 0} onOpenChange={props.setSelectionAssistantOpen} onConfigChange={props.setSelectionConfig} onApply={props.applySelectionRule} onUndo={props.undoSelection} onRedo={props.redoSelection} onClear={() => props.setSelectedPaths([])} onInvert={props.invertSelection} onSelectAll={props.selectAllVisible} />
 }
 
 function StatusBar(props: View) { return <div className="flex shrink-0 items-center gap-2 rounded-md border bg-muted/20 px-2 py-1"><Progress className="h-1.5 flex-1" value={props.data.progress ?? 0} /><span className="max-w-[55%] truncate text-[11px] text-muted-foreground">{props.data.progressText || "Czkawka 已就绪。"}</span>{props.data.phase === "error" ? <AlertTriangle className="size-3.5 text-destructive" /> : null}</div> }
