@@ -60,7 +60,7 @@ export function Component({ host }: EngineVProps) {
   const action = data.action === "filter" ? "scan" : data.action ?? "scan"
   const progress = data.progress ?? 0
   const wallpapers = data.wallpapers ?? result?.wallpapers ?? []
-  const selectedIds = useMemo(() => parseIds(data.idsText), [data.idsText])
+  const selectedIds = parseIds(data.idsText)
   const hasFilters = Boolean(data.titleFilter || data.ratingFilter || data.typeFilter)
   const galleryWallpapers = useMemo(() => {
     if (!wallpapers.length) return []
