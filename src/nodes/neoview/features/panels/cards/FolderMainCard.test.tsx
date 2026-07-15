@@ -179,10 +179,27 @@ describe("FolderMainCard", () => {
   it("[neoview.folder.details-lazy] loads the sparse Niko view only after explicit activation", async () => {
     const opened = page({
       total: 1,
+      metadataCapabilities: ["date", "size", "dimensions", "pageCount", "tags"],
       entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true, size: 1024 }],
     })
+    const listDirectoryBrowser = vi.fn(async () => page({
+      ...opened,
+      metadataFields: ["date", "size", "dimensions", "pageCount", "tags"],
+      entries: [{
+        name: "book.cbz",
+        path: "C:/books/book.cbz",
+        kind: "file",
+        readerSupported: true,
+        size: 1024,
+        width: 1200,
+        height: 1800,
+        pageCount: 24,
+        tags: ["artist:alice"],
+      }],
+    }))
     const client = {
       openDirectoryBrowser: vi.fn(async () => opened),
+      listDirectoryBrowser,
       closeDirectoryBrowser: vi.fn(async () => undefined),
     } as unknown as ReaderHttpClient
     const view = render(
@@ -195,6 +212,13 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeNull()
     fireEvent.click(currentView.getByLabelText("详细信息"))
     await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy())
+    await waitFor(() => expect(listDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      0,
+      128,
+      expect.any(AbortSignal),
+      ["date", "size", "dimensions", "pageCount", "tags"],
+    ))
     expect(currentView.getByText("扩展名")).toBeTruthy()
   })
 })

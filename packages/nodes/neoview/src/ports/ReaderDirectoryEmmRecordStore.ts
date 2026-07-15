@@ -1,6 +1,7 @@
 export interface ReaderDirectoryEmmRecord {
   ratingData?: string
   emmJson?: string
+  manualTags?: string
 }
 
 export interface ReaderDirectoryEmmRecordStore {

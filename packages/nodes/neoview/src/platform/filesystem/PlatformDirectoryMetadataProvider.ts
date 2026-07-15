@@ -25,11 +25,13 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
     private readonly emmStore?: ReaderDirectoryEmmRecordStore,
     private readonly collectTagSource = new PlatformEmmCollectTagSource(),
     private readonly defaultRating = DEFAULT_EMM_RATING,
+    private readonly mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
   ) {
     this.supportedFields = new Set<ReaderDirectoryMetadataField>([
       "date",
       "size",
-      ...(emmStore?.directoryEmmAvailable ? ["rating", "collectTagCount"] as const : []),
+      ...(emmStore?.directoryEmmAvailable ? ["rating", "collectTagCount", "tags", "pageCount"] as const : []),
+      ...(mediaMetadataProvider?.supportedFields ?? []),
     ])
   }
 
@@ -40,7 +42,7 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
   ): Promise<readonly ReaderDirectoryEntry[]> {
     signal?.throwIfAborted()
     const wantsStat = fields.has("date") || fields.has("size")
-    const wantsEmm = fields.has("rating") || fields.has("collectTagCount")
+    const wantsEmm = fields.has("rating") || fields.has("collectTagCount") || fields.has("tags") || fields.has("pageCount")
     const [statEntries, emmRecords, collectTags] = await Promise.all([
       wantsStat ? hydrateStats(entries, fields, signal) : entries,
       wantsEmm && this.emmStore
@@ -51,16 +53,21 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
         : Promise.resolve({ tags: [], mixedGender: false } satisfies ReaderEmmCollectTagSnapshot),
     ])
     signal?.throwIfAborted()
-    if (!wantsEmm) return statEntries
+    if (!wantsEmm && !wantsMedia(fields)) return statEntries
     const records = new Map([...emmRecords].map(([path, record]) => [normalizePath(path), record]))
-    return statEntries.map((entry) => {
+    const merged = statEntries.map((entry) => {
       const record = records.get(normalizePath(entry.path))
+      const emm = parseJsonRecord(record?.emmJson)
       return {
         ...entry,
         rating: fields.has("rating") ? effectiveRating(record, this.defaultRating) : entry.rating,
         collectTagCount: fields.has("collectTagCount") ? countCollectTags(record?.emmJson, collectTags) : entry.collectTagCount,
+        pageCount: fields.has("pageCount") ? jsonPositiveInteger(emm, "page_count", "pageCount") ?? entry.pageCount : entry.pageCount,
+        tags: fields.has("tags") ? directoryTags(emm, record?.manualTags) : entry.tags,
       }
     })
+    if (!this.mediaMetadataProvider || !wantsMedia(fields)) return merged
+    return this.mediaMetadataProvider.hydrate(merged, fields, signal)
   }
 }
 
@@ -118,6 +125,43 @@ function jsonNumber(json: string | undefined, field: string): number | undefined
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
+function jsonPositiveInteger(value: Record<string, unknown> | undefined, ...fields: string[]): number | undefined {
+  for (const field of fields) {
+    const candidate = value?.[field]
+    if (Number.isSafeInteger(candidate) && (candidate as number) >= 0) return candidate as number
+  }
+  return undefined
+}
+
+function directoryTags(emm: Record<string, unknown> | undefined, manualTagsJson: string | undefined): string[] {
+  const output = new Set<string>()
+  appendTagArray(output, emm?.tags)
+  appendTagArray(output, parseJsonArray(manualTagsJson))
+  return [...output].slice(0, 256)
+}
+
+function appendTagArray(output: Set<string>, value: unknown): void {
+  if (!Array.isArray(value)) return
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.namespace !== "string" || typeof item.tag !== "string") continue
+    const namespace = item.namespace.trim()
+    const tag = item.tag.trim()
+    if (!namespace || !tag || namespace.length > 128 || tag.length > 256) continue
+    output.add(`${namespace}:${tag}`)
+    if (output.size >= 256) return
+  }
+}
+
+function parseJsonArray(json: string | undefined): unknown[] | undefined {
+  if (!json) return undefined
+  try {
+    const value = JSON.parse(json) as unknown
+    return Array.isArray(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function parseJsonRecord(json: string | undefined): Record<string, unknown> | undefined {
   if (!json) return undefined
   try {
@@ -138,4 +182,8 @@ function normalizePath(path: string): string {
 
 function tagKey(category: string, tag: string): string {
   return `${category.toLocaleLowerCase()}\0${tag.toLocaleLowerCase()}`
+}
+
+function wantsMedia(fields: ReadonlySet<ReaderDirectoryMetadataField>): boolean {
+  return fields.has("dimensions") || fields.has("pageCount")
 }

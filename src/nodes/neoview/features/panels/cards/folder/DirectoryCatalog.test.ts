@@ -4,6 +4,7 @@ import type { ReaderDirectoryPageDto } from "../../../../adapters/reader-http-cl
 import {
   createDirectoryCatalog,
   directoryEntryAt,
+  directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
   trimDirectoryPages,
@@ -16,6 +17,8 @@ describe("DirectoryCatalog", () => {
     expect(catalog.pages.size).toBe(2)
     expect(directoryEntryAt(catalog, 9_999)?.path).toBe("D:/library/item-9999")
     expect(directoryPageCursors(9_990, 9_999, 10_000, 128)).toEqual([9_984])
+    expect(directoryPageHasMetadata(catalog, 9_984, [])).toBe(true)
+    expect(directoryPageHasMetadata(catalog, 9_984, ["dimensions"])).toBe(false)
   })
 
   it("[neoview.folder.memory-bound] evicts pages furthest from the viewport anchor", () => {
@@ -23,6 +26,7 @@ describe("DirectoryCatalog", () => {
     for (const cursor of [128, 256, 384, 512]) catalog = mergeDirectoryPage(catalog, page(cursor, 10_000))
     catalog = trimDirectoryPages(catalog, 400, 3)
     expect([...catalog.pages.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
+    expect([...catalog.pageMetadataFields.keys()].toSorted((left, right) => left - right)).toEqual([256, 384, 512])
   })
 })
 

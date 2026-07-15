@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { SqliteReaderDataStore } from "../persistence/SqliteReaderDataStore.js"
@@ -132,6 +132,49 @@ describe("ReaderDirectoryBrowserRoute", () => {
       })))!
       const sortedBody = await sorted.json() as { entries: Array<{ name: string }> }
       expect(sortedBody.entries.map((entry) => entry.name)).toEqual(["second.cbz", "first.cbz"])
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.folder.details-on-demand] hydrates expensive fields only for an explicit details page", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-details-"))
+    directories.push(directory)
+    await writeFile(join(directory, "book.cbz"), "book")
+    const mediaHydrate = vi.fn(async (entries: readonly Record<string, unknown>[]) => entries.map((entry) => ({
+      ...entry,
+      width: 1200,
+      height: 1800,
+      pageCount: 24,
+    })))
+    const route = new ReaderDirectoryBrowserRoute(undefined, undefined, {
+      supportedFields: new Set(["dimensions", "pageCount"]),
+      hydrate: mediaHydrate,
+    } as never)
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const initial = await opened.json() as { sessionId: string; metadataCapabilities: string[]; entries: Array<{ width?: number }> }
+      expect(initial.metadataCapabilities).toEqual(expect.arrayContaining(["dimensions", "pageCount"]))
+      expect(initial.entries[0]?.width).toBeUndefined()
+      expect(mediaHydrate).not.toHaveBeenCalled()
+
+      const details = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/entries?cursor=0&limit=128&fields=date,size,dimensions,pageCount`,
+      )))!
+      await expect(details.json()).resolves.toMatchObject({
+        metadataFields: expect.arrayContaining(["date", "size", "dimensions", "pageCount"]),
+        entries: [expect.objectContaining({ width: 1200, height: 1800, pageCount: 24, size: 4 })],
+      })
+      expect(mediaHydrate).toHaveBeenCalledTimes(1)
+
+      const invalid = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${initial.sessionId}/entries?fields=unknown`,
+      )))!
+      expect(invalid.status).toBe(400)
     } finally {
       await route[Symbol.asyncDispose]()
     }

@@ -50,4 +50,37 @@ describe("PlatformDirectoryMetadataProvider", () => {
       expect.objectContaining({ rating: 4.2, collectTagCount: 0 }),
     ])
   })
+
+  it("[neoview.folder.details-metadata] merges EMM page count and all tags before probing missing media fields", async () => {
+    const mediaHydrate = vi.fn(async (entries: readonly Record<string, unknown>[]) => entries.map((entry) => ({
+      ...entry,
+      width: 1600,
+      height: 2400,
+      pageCount: entry.pageCount ?? 12,
+    })))
+    const provider = new PlatformDirectoryMetadataProvider(
+      {
+        directoryEmmAvailable: true,
+        readDirectoryEmmRecords: async () => new Map([
+          ["D:/book.cbz", {
+            emmJson: JSON.stringify({ page_count: 42, tags: [{ namespace: "artist", tag: "alice" }] }),
+            manualTags: JSON.stringify([{ namespace: "manual", tag: "favorite", timestamp: 1 }]),
+          }],
+        ]),
+      },
+      undefined,
+      4.2,
+      { supportedFields: new Set(["dimensions", "pageCount"]), hydrate: mediaHydrate } as never,
+    )
+    const entries = await provider.hydrate([
+      { name: "book.cbz", path: "D:/book.cbz", kind: "file", readerSupported: true },
+    ], new Set(["dimensions", "pageCount", "tags"]))
+    expect(entries[0]).toMatchObject({
+      width: 1600,
+      height: 2400,
+      pageCount: 42,
+      tags: ["artist:alice", "manual:favorite"],
+    })
+    expect(mediaHydrate).toHaveBeenCalledTimes(1)
+  })
 })

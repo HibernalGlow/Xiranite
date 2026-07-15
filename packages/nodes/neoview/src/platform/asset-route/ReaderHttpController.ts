@@ -20,6 +20,7 @@ import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailPro
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
+import { PlatformDirectoryMediaMetadataProvider } from "../filesystem/PlatformDirectoryMediaMetadataProvider.js"
 import { WeightedLruPresentationCache } from "../cache/WeightedLruPresentationCache.js"
 import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
@@ -133,6 +134,7 @@ export class ReaderHttpController implements AsyncDisposable {
       maxBytes: options.maxSolidArchiveCacheBytes,
     })
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache })
+    const imageMetadataProbe = new StreamingImageMetadataProbe()
     const loadImageTransformer = async () => {
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
       const sharp = new SharpImageTransformer(options.resourceScheduler)
@@ -166,7 +168,7 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#service = new CoreReaderService(
       bookLoader,
-      new StreamingImageMetadataProbe(),
+      imageMetadataProbe,
       options.sessionOptions,
       options.progressStore || undefined,
     )
@@ -182,6 +184,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#directoryBrowser = new ReaderDirectoryBrowserRoute(
       options.directorySortPreferenceStore,
       options.directoryEmmRecordStore,
+      new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe),
     )
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined

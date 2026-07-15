@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type {
   ReaderDirectoryEntryDto,
+  ReaderDirectoryMetadataFieldDto,
   ReaderDirectoryNavigationDto,
   ReaderDirectoryPageDto,
   ReaderDirectorySortDto,
@@ -36,6 +37,7 @@ import {
   createDirectoryCatalog,
   directoryEntryAt,
   directoryLoadedEntries,
+  directoryPageHasMetadata,
   directoryPageCursors,
   mergeDirectoryPage,
   trimDirectoryPages,
@@ -47,6 +49,9 @@ const MAX_CACHED_PAGES = 12
 const MAX_HISTORY_STATES = 64
 const MAX_THUMBNAILS = 64
 const LIST_HEIGHT = 288
+const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
+  "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
+]
 const SORT_LABELS: Record<ReaderDirectorySortFieldDto, string> = {
   name: "名称",
   date: "修改时间",
@@ -86,7 +91,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const thumbnailRequestRef = useRef<AbortController | undefined>(undefined)
-  const pendingCursorsRef = useRef(new Set<number>())
+  const pendingCursorsRef = useRef(new Set<string>())
   const navigationGenerationRef = useRef(0)
   const thumbnailGenerationRef = useRef(0)
   const thumbnailContextSequenceRef = useRef(0)
@@ -120,6 +125,11 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     if (!catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
   }, [catalog?.sessionId, catalog?.generation, viewMode, previewCount])
+
+  useEffect(() => {
+    if (!catalog || viewMode !== "details") return
+    queueMicrotask(() => requestRange(visibleRangeRef.current))
+  }, [catalog?.sessionId, catalog?.generation, viewMode])
 
   function registerVisibleThumbnails() {
     const current = catalogRef.current
@@ -306,14 +316,21 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     visibleRangeRef.current = range
     const current = catalogRef.current
     if (!current || !client.listDirectoryBrowser) return
+    const metadataFields = viewMode === "details"
+      ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
+      : []
     const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
     for (const cursor of cursors) {
-      if (current.pages.has(cursor) || pendingCursorsRef.current.has(cursor)) continue
-      pendingCursorsRef.current.add(cursor)
+      const requestKey = `${cursor}:${metadataFields.join(",")}`
+      if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
+      pendingCursorsRef.current.add(requestKey)
       const sessionId = current.sessionId
       const generation = current.generation
       const requestSignal = catalogRequestRef.current?.signal
-      void client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
+      const request = metadataFields.length
+        ? client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal, metadataFields)
+        : client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
+      void request
         .then((page) => {
           const latest = catalogRef.current
           if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
@@ -327,7 +344,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
         })
         .finally(() => {
           const latest = catalogRef.current
-          if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(cursor)
+          if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(requestKey)
         })
     }
     queueMicrotask(registerVisibleThumbnails)

@@ -112,7 +112,14 @@ export interface ReaderDirectoryEntryDto {
 }
 
 export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
-export type ReaderDirectoryMetadataFieldDto = "date" | "size" | "rating" | "collectTagCount"
+export type ReaderDirectoryMetadataFieldDto =
+  | "date"
+  | "size"
+  | "rating"
+  | "collectTagCount"
+  | "dimensions"
+  | "pageCount"
+  | "tags"
 export type ReaderDirectorySortOrderDto = "asc" | "desc"
 
 export interface ReaderDirectorySortDto {
@@ -141,6 +148,7 @@ export interface ReaderDirectoryPageDto {
   sort: ReaderDirectorySortDto
   sortFields: ReaderDirectorySortFieldDto[]
   metadataFields: ReaderDirectoryMetadataFieldDto[]
+  metadataCapabilities?: ReaderDirectoryMetadataFieldDto[]
   sortSource: ReaderDirectorySortSourceDto
   sortTemporary: boolean
   globalDefaultSort: ReaderDirectorySortDto
@@ -240,7 +248,13 @@ export interface ReaderHttpClient {
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string): Promise<ReaderDirectoryPageDto>
-  listDirectoryBrowser?(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  listDirectoryBrowser?(
+    sessionId: string,
+    cursor: number,
+    limit: number,
+    signal?: AbortSignal,
+    metadataFields?: readonly ReaderDirectoryMetadataFieldDto[],
+  ): Promise<ReaderDirectoryPageDto>
   navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   updateDirectorySortPreference?(
@@ -339,10 +353,14 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path, scopeId }),
       signal,
     }),
-    listDirectoryBrowser: (sessionId, cursor, limit, signal) => request<ReaderDirectoryPageDto>(
-      `/reader/browser/s/${encodeURIComponent(sessionId)}/entries?cursor=${cursor}&limit=${limit}`,
-      { signal },
-    ),
+    listDirectoryBrowser: (sessionId, cursor, limit, signal, metadataFields) => {
+      const search = new URLSearchParams({ cursor: String(cursor), limit: String(limit) })
+      if (metadataFields?.length) search.set("fields", metadataFields.join(","))
+      return request<ReaderDirectoryPageDto>(
+        `/reader/browser/s/${encodeURIComponent(sessionId)}/entries?${search}`,
+        { signal },
+      )
+    },
     navigateDirectoryBrowser: (sessionId, navigation, signal) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/navigate`,
       {

@@ -156,17 +156,37 @@ describe("SqliteReaderDataStore", () => {
     const { path } = await fixture()
     const seeded = await openFixtureDatabase(path)
     seeded.exec(`
-      UPDATE thumbs SET rating_data = '{"value":4.7}', emm_json = '{"rating":3.0,"tags":[]}' WHERE key = 'D:/cover.jpg';
+      UPDATE thumbs SET rating_data = '{"value":4.7}', emm_json = '{"rating":3.0,"tags":[]}', manual_tags = '[{"namespace":"manual","tag":"keep","timestamp":1}]' WHERE key = 'D:/cover.jpg';
       INSERT INTO thumbs (key, category, value, emm_json) VALUES ('D:/other.cbz', 'file', X'00', '{"rating":2.5,"tags":[]}');
     `)
     seeded.close()
     const store = await SqliteReaderDataStore.open(path)
     expect(store.directoryEmmAvailable).toBe(true)
     await expect(store.readDirectoryEmmRecords(["D:/cover.jpg", "D:/other.cbz", "D:/missing.cbz"])).resolves.toEqual(new Map([
-      ["D:/cover.jpg", { ratingData: '{"value":4.7}', emmJson: '{"rating":3.0,"tags":[]}' }],
-      ["D:/other.cbz", { ratingData: undefined, emmJson: '{"rating":2.5,"tags":[]}' }],
+      ["D:/cover.jpg", { ratingData: '{"value":4.7}', emmJson: '{"rating":3.0,"tags":[]}', manualTags: '[{"namespace":"manual","tag":"keep","timestamp":1}]' }],
+      ["D:/other.cbz", { ratingData: undefined, emmJson: '{"rating":2.5,"tags":[]}', manualTags: undefined }],
     ]))
     await store.close()
+  })
+
+  it("[neoview.folder.emm-legacy-columns] reads older EMM rows without adding manual_tags", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-reader-emm-legacy-"))
+    directories.push(directory)
+    const path = join(directory, "thumbnails.db")
+    const database = await openFixtureDatabase(path)
+    database.exec(`
+      CREATE TABLE thumbs (key TEXT PRIMARY KEY, rating_data TEXT, emm_json TEXT);
+      INSERT INTO thumbs (key, rating_data, emm_json) VALUES ('D:/old.cbz', '{"value":4.1}', '{"tags":[]}');
+    `)
+    database.close()
+    const store = await SqliteReaderDataStore.open(path)
+    await expect(store.readDirectoryEmmRecords(["D:/old.cbz"])).resolves.toEqual(new Map([
+      ["D:/old.cbz", { ratingData: '{"value":4.1}', emmJson: '{"tags":[]}', manualTags: undefined }],
+    ]))
+    await store.close()
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT COUNT(*) AS count FROM pragma_table_info('thumbs') WHERE name = 'manual_tags'")).toEqual({ count: 0 })
+    verified.close()
   })
 })
 

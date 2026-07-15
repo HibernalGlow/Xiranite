@@ -9,6 +9,10 @@ export interface ReaderDirectoryEntry {
   size?: number
   rating?: number
   collectTagCount?: number
+  width?: number
+  height?: number
+  pageCount?: number
+  tags?: readonly string[]
 }
 
 export interface ReaderDirectoryListing {

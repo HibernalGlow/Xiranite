@@ -123,8 +123,8 @@
 - [ ] `folder.view.details` 详细信息视图与列
   - 目标：显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。
   - 源码：`components/FolderListItem.svelte`、`stores/folderPanelStore/types.ts`
-  - 测试：`neoview.folder.details-lazy`、`neoview.folder.details-niko-sparse`
-  - 备注：已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分、标签十列。Niko 仅在切换 details 后二级动态加载。尺寸、页数与完整标签的后端批量 hydration、列设置持久化、真实 Chromium 滚动/定位和原版视觉证据仍待完成。
+  - 测试：`neoview.folder.details-lazy`、`neoview.folder.details-niko-sparse`、`neoview.folder.details-on-demand`、`neoview.folder.details-metadata`、`neoview.folder.media-metadata-batch`、`neoview.folder.media-metadata-fallback`、`neoview.folder.media-metadata-emm-hit`
+  - 备注：已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分、标签十列。Niko 仅在切换 details 后二级动态加载；显式 details 分页才按需请求 date/size/dimensions/pageCount/tags，图片尺寸复用 StreamingImageMetadataProbe，缺失归档页数复用 ReaderBookLoader，EMM page_count 命中时不打开归档；媒体并发固定为 2，单项失败保留基础行。列设置持久化、真实 Chromium 滚动/定位和原版视觉证据仍待完成。
 - [ ] `folder.view.thumbnail-size` 缩略图宽度调节
   - 目标：连续调节缩略图宽度并持久化；调整时虚拟布局重测但不丢失锚点和选中项。
   - 源码：`components/FolderToolbar/ViewPanel.svelte`、`stores/folderTabStore/layoutSettings.svelte.ts`
@@ -371,13 +371,13 @@
 - [ ] `folder.emm.metadata` EMM 元数据批量 hydration
   - 目标：可见/排序需求按批查询评分、标签、收藏标签数等元数据，带 generation 和缓存，不产生逐文件 N+1。
   - 源码：`components/FolderListItem.svelte`、`components/FolderStack/sortingUtils.ts`
-  - 测试：`neoview.folder.emm-sqlite-batch`、`neoview.folder.emm-settings`、`neoview.folder.emm-batch`、`neoview.folder.emm-visible-batch`、`neoview.folder.emm-route`
-  - 备注：现有 SqliteReaderDataStore 实现可选 EMM record port；首批与稀疏页仅 hydration 当前 128 项，排序时按 256 项批次读取并定期 yield，缺少兼容 thumbs 列时不开放字段。完整标签 DTO、缓存失效与搜索 provider 仍待完成。
+  - 测试：`neoview.folder.emm-sqlite-batch`、`neoview.folder.emm-legacy-columns`、`neoview.folder.emm-settings`、`neoview.folder.emm-batch`、`neoview.folder.emm-visible-batch`、`neoview.folder.emm-route`、`neoview.folder.details-metadata`
+  - 备注：现有 SqliteReaderDataStore 实现可选 EMM record port；首批与稀疏页仅 hydration 当前批次，排序时按 256 项批次读取并定期 yield。details 同一 SELECT 读取 emm_json/rating_data/manual_tags，输出去重且最多 256 项的 namespace:tag DTO，并优先复用 EMM page_count；旧库没有 manual_tags 时使用 NULL 投影，不修改旧表。缓存失效、标签搜索和编辑 provider 仍待完成。
 - [ ] `folder.emm.display` 评分、标签与收藏信息显示
   - 目标：各视图按空间显示评分、标签、收藏数量和缺失态，tooltip 提供完整信息。
   - 源码：`components/FolderListItem.svelte`、`components/FavoriteTagPanel.svelte`
-  - 测试：`neoview.folder.emm-display`
-  - 备注：compact 与 cover-grid 已显示评分和收藏标签数，默认评分 4.2 同时参与显示/排序；完整标签、其余四种视图、tooltip 详情与可配置默认评分仍待完成。
+  - 测试：`neoview.folder.emm-display`、`neoview.folder.details-metadata`
+  - 备注：compact 与 cover-grid 已显示评分和收藏标签数，details 已接入完整 EMM + manual tag 文本；默认评分 4.2 同时参与显示/排序。cover/mosaic list/grid 的完整标签、tooltip 详情与可配置默认评分仍待完成。
 - [ ] `folder.emm.edit` 编辑 EMM 标签与评分
   - 目标：单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。
   - 源码：`components/FolderContextMenu.svelte`、`components/FavoriteTagPanel.svelte`

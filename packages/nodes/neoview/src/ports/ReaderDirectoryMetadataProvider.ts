@@ -1,6 +1,13 @@
 import type { ReaderDirectoryEntry } from "./ReaderDirectoryListingProvider.js"
 
-export type ReaderDirectoryMetadataField = "date" | "size" | "rating" | "collectTagCount"
+export type ReaderDirectoryMetadataField =
+  | "date"
+  | "size"
+  | "rating"
+  | "collectTagCount"
+  | "dimensions"
+  | "pageCount"
+  | "tags"
 
 export interface ReaderDirectoryMetadataProvider {
   readonly supportedFields: ReadonlySet<ReaderDirectoryMetadataField>

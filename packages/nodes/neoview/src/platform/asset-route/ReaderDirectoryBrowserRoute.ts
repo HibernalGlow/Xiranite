@@ -14,7 +14,10 @@ import {
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
-import type { ReaderDirectoryMetadataField } from "../../ports/ReaderDirectoryMetadataProvider.js"
+import type {
+  ReaderDirectoryMetadataField,
+  ReaderDirectoryMetadataProvider,
+} from "../../ports/ReaderDirectoryMetadataProvider.js"
 
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
@@ -22,6 +25,9 @@ const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
 const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount"])
+const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
+  "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
+])
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: CoreReaderDirectoryBrowser
@@ -29,10 +35,11 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   constructor(
     sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
     emmRecordStore?: ReaderDirectoryEmmRecordStore,
+    mediaMetadataProvider?: ReaderDirectoryMetadataProvider,
   ) {
     this.#browser = new CoreReaderDirectoryBrowser(
       new PlatformDirectoryListingProvider(),
-      new PlatformDirectoryMetadataProvider(emmRecordStore),
+      new PlatformDirectoryMetadataProvider(emmRecordStore, undefined, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
     )
   }
@@ -84,7 +91,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const cursor = integer(url.searchParams.get("cursor"), 0)
     const limit = integer(url.searchParams.get("limit"), 128)
     try {
-      const result = await this.#browser.list(sessionId, cursor, limit, DISPLAY_METADATA_FIELDS, signal)
+      const result = await this.#browser.list(sessionId, cursor, limit, requestedMetadataFields(url), signal)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       return errorResponse(errorMessage(error), 400)
@@ -141,6 +148,19 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return errorResponse(errorMessage(error), 400)
     }
   }
+}
+
+function requestedMetadataFields(url: URL): ReadonlySet<ReaderDirectoryMetadataField> {
+  const fields = new Set(DISPLAY_METADATA_FIELDS)
+  const raw = url.searchParams.get("fields")
+  if (!raw) return fields
+  for (const value of raw.split(",")) {
+    if (!READER_DIRECTORY_METADATA_FIELDS.has(value as ReaderDirectoryMetadataField)) {
+      throw new Error(`Unsupported directory metadata field: ${value}`)
+    }
+    fields.add(value as ReaderDirectoryMetadataField)
+  }
+  return fields
 }
 
 function parseNavigation(body: { action?: unknown; path?: unknown } | undefined): ReaderDirectoryNavigation | undefined {

@@ -163,4 +163,15 @@ describe("reader-http-client", () => {
       focusPath: "D:/books/book.cbz",
     })
   })
+
+  it("[neoview.file-browser.metadata-client] requests details metadata only on an explicit page call", async () => {
+    const fetchMock = vi.fn(async () => Response.json({}))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.listDirectoryBrowser!("browser-1", 256, 128, undefined, ["date", "size", "dimensions", "pageCount", "tags"])
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]))
+    expect(url.searchParams.get("cursor")).toBe("256")
+    expect(url.searchParams.get("limit")).toBe("128")
+    expect(url.searchParams.get("fields")).toBe("date,size,dimensions,pageCount,tags")
+  })
 })

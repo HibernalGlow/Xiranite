@@ -26,11 +26,13 @@ const MAX_FOLDER_SORT_RULES = 1_000
 
 export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore {
   readonly directoryEmmAvailable: boolean
+  readonly #directoryManualTagsAvailable: boolean
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {
     const columns = new Set(database.all("PRAGMA table_info(thumbs)").flatMap((row) => typeof row.name === "string" ? [row.name] : []))
     this.directoryEmmAvailable = columns.has("key") && columns.has("rating_data") && columns.has("emm_json")
+    this.#directoryManualTagsAvailable = columns.has("manual_tags")
   }
 
   static async open(path: string): Promise<SqliteReaderDataStore> {
@@ -459,7 +461,8 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
       const batch = unique.slice(cursor, cursor + 256)
       const placeholders = batch.map((_, index) => `?${index + 1}`).join(", ")
       const rows = this.database.all(
-        `SELECT key, rating_data, emm_json FROM thumbs WHERE key IN (${placeholders})`,
+        `SELECT key, rating_data, emm_json, ${this.#directoryManualTagsAvailable ? "manual_tags" : "NULL AS manual_tags"}
+         FROM thumbs WHERE key IN (${placeholders})`,
         ...batch,
       )
       for (const row of rows) {
@@ -467,6 +470,7 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
         output.set(key, {
           ratingData: optionalText(row.rating_data),
           emmJson: optionalText(row.emm_json),
+          manualTags: optionalText(row.manual_tags),
         })
       }
       if (cursor && cursor % 2_048 === 0) await scheduler.yield()

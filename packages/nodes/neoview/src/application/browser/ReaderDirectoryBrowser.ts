@@ -44,6 +44,7 @@ export interface ReaderDirectoryPage {
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
   metadataFields: readonly ReaderDirectoryMetadataField[]
+  metadataCapabilities: readonly ReaderDirectoryMetadataField[]
   sortSource: ReaderDirectorySortPreferenceSnapshot["source"]
   sortTemporary: boolean
   globalDefaultSort: ReaderDirectorySortRule
@@ -305,7 +306,8 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     suggestedSelectionValue?: ReaderDirectoryPage["suggestedSelection"],
   ): Promise<ReaderDirectoryPage> {
     const metadataFields = [...requestedFields].filter((field) => this.metadataProvider?.supportedFields.has(field))
-    const page = pageOf(session, cursor, limit, suggestedSelectionValue, metadataFields)
+    const metadataCapabilities = [...(this.metadataProvider?.supportedFields ?? [])]
+    const page = pageOf(session, cursor, limit, suggestedSelectionValue, metadataFields, metadataCapabilities)
     if (!metadataFields.length || !this.metadataProvider) return page
     const entries = await this.metadataProvider.hydrate(page.entries, new Set(metadataFields), signal)
     signal?.throwIfAborted()
@@ -344,6 +346,7 @@ function pageOf(
   limit: number,
   suggestedSelectionValue?: ReaderDirectoryPage["suggestedSelection"],
   metadataFields: readonly ReaderDirectoryMetadataField[] = [],
+  metadataCapabilities: readonly ReaderDirectoryMetadataField[] = [],
 ): ReaderDirectoryPage {
   const entries = session.listing.entries.slice(cursor, cursor + limit)
   return {
@@ -360,6 +363,7 @@ function pageOf(
     sort: session.sort,
     sortFields: session.sortFields,
     metadataFields,
+    metadataCapabilities,
     sortSource: session.sortPreference.source,
     sortTemporary: session.sortPreference.temporary,
     globalDefaultSort: session.sortPreference.globalDefault,
