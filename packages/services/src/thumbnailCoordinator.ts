@@ -31,6 +31,7 @@ export interface ThumbnailCoordinatorOptions<TSource = unknown> {
   resolver: ThumbnailResolver<TSource>
   maxMemoryBytes?: number
   maxEntryBytes?: number
+  now?: () => number
 }
 
 export interface ThumbnailCoordinatorSnapshot {
@@ -45,6 +46,7 @@ interface CacheEntry {
   asset: ThumbnailAsset
   bytes: number
   pins: number
+  expiresAt?: number
 }
 
 interface Flight<TSource> {
@@ -75,6 +77,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   readonly #resolver: ThumbnailResolver<TSource>
   readonly #maxMemoryBytes: number
   readonly #maxEntryBytes: number
+  readonly #now: () => number
   readonly #flights = new Map<string, Flight<TSource>>()
   readonly #cache = new Map<string, CacheEntry>()
   readonly #demands = new Map<number, DemandRecord>()
@@ -87,6 +90,7 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     this.#resolver = options.resolver
     this.#maxMemoryBytes = boundedBytes(options.maxMemoryBytes ?? DEFAULT_MAX_MEMORY_BYTES, "maxMemoryBytes")
     this.#maxEntryBytes = boundedBytes(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
+    this.#now = options.now ?? Date.now
   }
 
   acquire(demand: ThumbnailDemand<TSource>): ThumbnailLease {
@@ -128,7 +132,11 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
       record.removeAbort = () => demand.signal!.removeEventListener("abort", abort)
     }
 
-    const cached = this.#cache.get(demand.cacheKey)
+    let cached = this.#cache.get(demand.cacheKey)
+    if (cached?.expiresAt !== undefined && cached.expiresAt <= this.#now() && cached.pins === 0) {
+      this.#deleteCacheEntry(demand.cacheKey, cached)
+      cached = undefined
+    }
     if (cached) {
       cached.pins += 1
       this.#touchCache(demand.cacheKey, cached)
@@ -190,6 +198,22 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     this.#contextGenerations.delete(contextId)
   }
 
+  prime(cacheKey: string, asset: ThumbnailAsset, options: { ttlMs?: number } = {}): boolean {
+    this.#assertOpen()
+    validateCacheKey(cacheKey)
+    validateAsset(asset)
+    const ttlMs = options.ttlMs
+    if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 60_000)) {
+      throw new RangeError("Thumbnail prime ttlMs must be an integer from 1 to 60000.")
+    }
+    if (asset.bytes.byteLength > this.#maxEntryBytes) return false
+    if (this.#flights.has(cacheKey)) return false
+    const current = this.#cache.get(cacheKey)
+    if (current?.pins) return false
+    if (current) this.#deleteCacheEntry(cacheKey, current)
+    return this.#cacheAsset(cacheKey, asset, 0, ttlMs === undefined ? undefined : this.#now() + ttlMs)
+  }
+
   snapshot(): ThumbnailCoordinatorSnapshot {
     const demandsByLane = emptyLaneCounts()
     for (const demand of this.#demands.values()) demandsByLane[demand.lane] += 1
@@ -246,12 +270,15 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
     }
   }
 
-  #cacheAsset(cacheKey: string, asset: ThumbnailAsset, pins: number): boolean {
+  #cacheAsset(cacheKey: string, asset: ThumbnailAsset, pins: number, expiresAt?: number): boolean {
     const bytes = asset.bytes.byteLength
     if (bytes > this.#maxMemoryBytes) return false
+    const current = this.#cache.get(cacheKey)
+    if (current?.pins) return false
+    if (current) this.#deleteCacheEntry(cacheKey, current)
     this.#evictToFit(bytes)
     if (this.#cachedBytes + bytes > this.#maxMemoryBytes) return false
-    const entry: CacheEntry = { asset, bytes, pins }
+    const entry: CacheEntry = { asset, bytes, pins, expiresAt }
     this.#cache.set(cacheKey, entry)
     this.#cachedBytes += bytes
     return true
@@ -269,6 +296,11 @@ export class ThumbnailCoordinatorService<TSource = unknown> implements AsyncDisp
   #touchCache(key: string, entry: CacheEntry): void {
     this.#cache.delete(key)
     this.#cache.set(key, entry)
+  }
+
+  #deleteCacheEntry(key: string, entry: CacheEntry): void {
+    if (!this.#cache.delete(key)) return
+    this.#cachedBytes -= entry.bytes
   }
 
   #releaseDemand(id: number, reason: unknown): void {
@@ -310,10 +342,14 @@ export function thumbnailLanePriority(lane: ThumbnailLane): ResourcePriority {
 }
 
 function validateDemand<TSource>(demand: ThumbnailDemand<TSource>): void {
-  if (!demand.cacheKey || demand.cacheKey.length > 32_768) throw new Error("Thumbnail cacheKey must be 1..32768 characters.")
+  validateCacheKey(demand.cacheKey)
   if (!demand.contextId || demand.contextId.length > 1_024) throw new Error("Thumbnail contextId must be 1..1024 characters.")
   if (!Number.isSafeInteger(demand.generation) || demand.generation < 0) throw new RangeError("Thumbnail generation must be a non-negative integer.")
   thumbnailLanePriority(demand.lane)
+}
+
+function validateCacheKey(cacheKey: string): void {
+  if (!cacheKey || cacheKey.length > 32_768) throw new Error("Thumbnail cacheKey must be 1..32768 characters.")
 }
 
 function validateAsset(asset: ThumbnailAsset): void {

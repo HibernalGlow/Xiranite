@@ -27,6 +27,7 @@ export interface ReaderThumbnailFailure {
 
 export interface ReaderThumbnailStore {
   get(key: string, category: ReaderThumbnailCategory): Promise<ReaderThumbnailAsset | undefined>
+  getMany?(keys: readonly string[], category: ReaderThumbnailCategory): Promise<ReadonlyMap<string, ReaderThumbnailAsset>>
   put?(thumbnail: ReaderThumbnailWrite): Promise<void>
   getFailure?(key: string): Promise<ReaderThumbnailFailure | undefined>
   recordFailure?(failure: Omit<ReaderThumbnailFailure, "retryCount">): Promise<void>

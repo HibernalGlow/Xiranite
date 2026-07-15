@@ -10,6 +10,7 @@ import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyL
 
 export interface WritableLegacyThumbnailStoreOptions {
   maxThumbnailBytes?: number
+  decodeConcurrency?: number
   flushIntervalMs?: number
   maxBatchSize?: number
 }
@@ -24,6 +25,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   readonly #maxThumbnailBytes: number
   readonly #flushIntervalMs: number
   readonly #maxBatchSize: number
+  readonly #decodeConcurrency: number
   #pending: PendingWrite[] = []
   #flushTimer?: ReturnType<typeof setTimeout>
   #flushing?: Promise<void>
@@ -35,9 +37,11 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#maxThumbnailBytes = options.maxThumbnailBytes ?? DEFAULT_MAX_THUMBNAIL_BYTES
     this.#flushIntervalMs = options.flushIntervalMs ?? 50
     this.#maxBatchSize = options.maxBatchSize ?? 32
+    this.#decodeConcurrency = options.decodeConcurrency ?? 8
     assertInteger(this.#maxThumbnailBytes, "maxThumbnailBytes", 1, 256 * 1024 * 1024)
     assertInteger(this.#flushIntervalMs, "flushIntervalMs", 0, 60_000)
     assertInteger(this.#maxBatchSize, "maxBatchSize", 1, 512)
+    assertInteger(this.#decodeConcurrency, "decodeConcurrency", 1, 64)
   }
 
   static async open(path: string, options: WritableLegacyThumbnailStoreOptions = {}): Promise<WritableLegacyThumbnailStore> {
@@ -75,6 +79,40 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       generationHash: optionalInteger(row.ghash),
       ...decoded,
     }
+  }
+
+  async getMany(keys: readonly string[], category: LegacyThumbnailCategory): Promise<ReadonlyMap<string, LegacyThumbnailRecord>> {
+    this.#assertOpen()
+    assertCategory(category)
+    if (keys.length > 512) throw new RangeError("Thumbnail batch cannot exceed 512 keys.")
+    const unique = [...new Set(keys)]
+    for (const key of unique) assertKey(key)
+    if (!unique.length) return new Map()
+    const placeholders = unique.map((_, index) => `?${index + 2}`).join(", ")
+    const rows = this.#database.all(
+      `SELECT key, size, date, ghash, category, value FROM thumbs WHERE category = ?1 AND value IS NOT NULL AND key IN (${placeholders})`,
+      category,
+      ...unique,
+    )
+    const records = await mapConcurrent(rows, this.#decodeConcurrency, async (row): Promise<LegacyThumbnailRecord> => {
+      const bytes = requireBytes(row.value, "thumbs.value")
+      return {
+        key: requireString(row.key, "thumbs.key"),
+        category: requireCategory(row.category),
+        sourceSize: optionalInteger(row.size),
+        date: optionalString(row.date),
+        generationHash: optionalInteger(row.ghash),
+        ...await decodeLegacyThumbnailBlob(bytes, this.#maxThumbnailBytes),
+      }
+    })
+    const output = new Map(records.map((record) => [record.key, record]))
+    const requested = new Set(unique)
+    for (const item of this.#pending) {
+      if (item.kind === "thumbnail" && item.value.category === category && requested.has(item.value.key)) {
+        output.set(item.value.key, toRecord(item.value))
+      }
+    }
+    return output
   }
 
   put(thumbnail: ReaderThumbnailWrite): Promise<void> {
@@ -276,4 +314,16 @@ function optionalInteger(value: unknown): number | undefined {
 
 function assertInteger(value: number, name: string, minimum: number, maximum: number): void {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}.`)
+}
+
+async function mapConcurrent<T, R>(values: readonly T[], concurrency: number, map: (value: T) => Promise<R>): Promise<R[]> {
+  const output = new Array<R>(values.length)
+  let cursor = 0
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor++
+      output[index] = await map(values[index]!)
+    }
+  }))
+  return output
 }

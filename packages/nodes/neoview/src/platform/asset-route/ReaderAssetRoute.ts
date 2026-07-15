@@ -21,6 +21,7 @@ import {
   PlatformThumbnailPipeline,
   ThumbnailRetryDeferredError,
   ThumbnailUnavailableError,
+  type ThumbnailPrewarmResult,
 } from "../thumbnails/PlatformThumbnailPipeline.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
@@ -96,6 +97,11 @@ export class ReaderAssetRoute {
     url.searchParams.set("token", this.#token)
     if (transform) appendImageTransform(url.searchParams, transform)
     return url.href
+  }
+
+  prewarmThumbnails(pages: readonly ReaderPage[], signal?: AbortSignal): Promise<ThumbnailPrewarmResult> {
+    return this.#thumbnailPipeline?.prewarmPages(pages, { signal })
+      ?? Promise.resolve({ requested: pages.length, databaseHits: 0, primed: 0 })
   }
 
   async handle(request: Request): Promise<Response | undefined> {

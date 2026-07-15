@@ -127,7 +127,7 @@ export class ReaderHttpController implements AsyncDisposable {
     }
 
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
-    if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url)
+    if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const sessionMatch = SESSION_PATH.exec(url.pathname)
@@ -237,12 +237,16 @@ export class ReaderHttpController implements AsyncDisposable {
     return session ? jsonResponse(this.#sessionDto(session)) : jsonResponse({ error: "Reader session not found" }, 404)
   }
 
-  #listPages(encodedSessionId: string, url: URL): Response {
+  async #listPages(encodedSessionId: string, url: URL, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     const cursor = boundedInteger(url.searchParams.get("cursor"), 0, session.book.pages.length, 0)
     const limit = boundedInteger(url.searchParams.get("limit"), 1, 500, 100)
-    const pages = session.book.pages.slice(cursor, cursor + limit).map((page) => this.#pageDto(session, page))
+    const sourcePages = session.book.pages.slice(cursor, cursor + limit)
+    await this.#assets.prewarmThumbnails(sourcePages, signal).catch((error) => {
+      if (signal?.aborted) throw error
+    })
+    const pages = sourcePages.map((page) => this.#pageDto(session, page))
     const nextCursor = cursor + pages.length < session.book.pages.length ? cursor + pages.length : undefined
     return jsonResponse({ pages, nextCursor, total: session.book.pages.length })
   }

@@ -100,6 +100,30 @@ describe("ThumbnailCoordinatorService", () => {
     await coordinator.dispose()
   })
 
+  it("[neoview.thumbnail.coordinator.prime-ttl] prewarms byte-accounted volatile assets and expires them deterministically", async () => {
+    let now = 1_000
+    const resolve = vi.fn(async () => asset(7, 2))
+    const coordinator = new ThumbnailCoordinatorService<string>({
+      resolver: { resolve },
+      maxMemoryBytes: 16,
+      maxEntryBytes: 8,
+      now: () => now,
+    })
+    expect(coordinator.prime("legacy", { ...asset(6, 1), cacheable: false }, { ttlMs: 2_000 })).toBe(true)
+    expect(coordinator.snapshot()).toMatchObject({ cachedEntries: 1, cachedBytes: 6 })
+    const warm = coordinator.acquire(demand("legacy", "page"))
+    await expect(warm.ready).resolves.toMatchObject({ cacheable: false })
+    expect(resolve).not.toHaveBeenCalled()
+    warm.release()
+
+    now = 3_001
+    const cold = coordinator.acquire(demand("legacy", "page", { generation: 1 }))
+    await expect(cold.ready).resolves.toMatchObject({ contentType: "image/webp" })
+    expect(resolve).toHaveBeenCalledOnce()
+    cold.release()
+    await coordinator.dispose()
+  })
+
   it("maps thumbnail lanes onto the shared scheduler priorities", () => {
     expect(thumbnailLanePriority("reader-visible")).toBe("interactive")
     expect(thumbnailLanePriority("library-visible")).toBe("view")

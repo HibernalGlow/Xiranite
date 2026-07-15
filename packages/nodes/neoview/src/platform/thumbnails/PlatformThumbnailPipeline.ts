@@ -59,6 +59,12 @@ export interface PageThumbnailAcquireOptions {
   signal?: AbortSignal
 }
 
+export interface ThumbnailPrewarmResult {
+  requested: number
+  databaseHits: number
+  primed: number
+}
+
 export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #thumbnailStore?: ReaderThumbnailStore
@@ -87,13 +93,58 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
     const profile = "page-strip-v1" as const
     return this.#coordinator.acquire({
-      cacheKey: `${page.thumbnailSource.category}:${page.thumbnailSource.key}:${page.contentVersion}:${profile}`,
+      cacheKey: pageThumbnailCacheKey(page, profile),
       source: { kind: "page", page, profile },
       lane: options.lane ?? "reader-visible",
       contextId: options.contextId,
       generation: options.generation ?? 0,
       signal: options.signal,
     })
+  }
+
+  async prewarmPages(
+    pages: readonly ReaderPage[],
+    options: { ttlMs?: number; signal?: AbortSignal } = {},
+  ): Promise<ThumbnailPrewarmResult> {
+    options.signal?.throwIfAborted()
+    const ttlMs = options.ttlMs ?? 500
+    const store = this.#thumbnailStore
+    if (!store?.getMany || !pages.length) return { requested: pages.length, databaseHits: 0, primed: 0 }
+    if (pages.length > 512) throw new RangeError("Thumbnail prewarm batch cannot exceed 512 pages.")
+    const candidates = pages.filter((page) => page.thumbnailSource
+      && (page.mediaKind === "image" || page.mediaKind === "animated-image"))
+    const byCategory = new Map<"file" | "folder", ReaderPage[]>()
+    for (const page of candidates) {
+      const category = page.thumbnailSource!.category
+      const current = byCategory.get(category)
+      if (current) current.push(page)
+      else byCategory.set(category, [page])
+    }
+
+    let databaseHits = 0
+    let primed = 0
+    const primedKeys = new Set<string>()
+    for (const [category, categoryPages] of byCategory) {
+      options.signal?.throwIfAborted()
+      const records = await store.getMany(categoryPages.map((page) => page.thumbnailSource!.key), category)
+      options.signal?.throwIfAborted()
+      for (const page of categoryPages) {
+        const record = records.get(page.thumbnailSource!.key)
+        const sizeMatches = record?.sourceSize === undefined || page.byteLength === undefined || record.sourceSize === page.byteLength
+        if (!record?.contentType?.startsWith("image/") || !sizeMatches) continue
+        databaseHits += 1
+        const cacheKey = pageThumbnailCacheKey(page, "page-strip-v1")
+        if (primedKeys.has(cacheKey)) continue
+        primedKeys.add(cacheKey)
+        if (this.#coordinator.prime(cacheKey, {
+          bytes: record.bytes,
+          contentType: record.contentType,
+          version: `${record.date ?? ""}:${record.generationHash ?? ""}`,
+          cacheable: false,
+        }, { ttlMs })) primed += 1
+      }
+    }
+    return { requested: pages.length, databaseHits, primed }
   }
 
   async describeLibrarySource(path: string, kind: LibraryThumbnailKind, signal?: AbortSignal): Promise<LibraryThumbnailSource> {
@@ -383,6 +434,12 @@ function timestampAtOrAfter(value: string | undefined, minimumMs: number): boole
   if (!value) return false
   const parsed = Date.parse(value.endsWith("Z") ? value : `${value.replace(" ", "T")}Z`)
   return Number.isFinite(parsed) && parsed >= minimumMs
+}
+
+function pageThumbnailCacheKey(page: ReaderPage, profile: "page-strip-v1"): string {
+  const source = page.thumbnailSource
+  if (!source) throw new ThumbnailUnavailableError()
+  return `${source.category}:${source.key}:${page.contentVersion}:${profile}`
 }
 
 async function describeFolderRepresentative(path: string, signal?: AbortSignal): Promise<string | undefined> {

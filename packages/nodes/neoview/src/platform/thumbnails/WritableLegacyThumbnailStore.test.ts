@@ -30,6 +30,12 @@ describe("WritableLegacyThumbnailStore", () => {
       contentType: "image/webp",
       compressed: false,
     })
+    const pending = store.put({ key: "D:/book/page-2.jpg", category: "file", bytes: fixtureWebp(8), sourceSize: 456 })
+    const batch = await store.getMany(["D:/book/page-1.jpg", "D:/book/page-2.jpg", "missing", "D:/book/page-1.jpg"], "file")
+    expect([...batch.keys()].sort()).toEqual(["D:/book/page-1.jpg", "D:/book/page-2.jpg"])
+    expect(batch.get("D:/book/page-2.jpg")).toMatchObject({ sourceSize: 456, contentType: "image/webp" })
+    await store.flush()
+    await pending
     await store.close()
   })
 

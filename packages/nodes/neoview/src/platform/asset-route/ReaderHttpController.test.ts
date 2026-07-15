@@ -100,14 +100,15 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.thumbnail.http] publishes thumbnail DTOs and disposes its owned store", async () => {
+  it("[neoview.thumbnail.http] [neoview.thumbnail.batch-prewarm] publishes thumbnail DTOs and disposes its owned store", async () => {
     const directory = await createBookDirectory()
     const disposeThumbnailStore = vi.fn(async () => undefined)
     const get = vi.fn(async () => ({ bytes: Uint8Array.of(1, 2, 3), contentType: "image/webp" }))
+    const getMany = vi.fn(async (keys: readonly string[]) => new Map(keys.map((key) => [key, { bytes: Uint8Array.of(1, 2, 3), contentType: "image/webp" }])))
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
       token: "reader-token",
-      thumbnailStore: { get },
+      thumbnailStore: { get, getMany },
       disposeThumbnailStore,
     })
     const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
@@ -116,10 +117,12 @@ describe("ReaderHttpController", () => {
     const thumbnailUrl = session.visiblePages[0]?.thumbnailUrl
     expect(thumbnailUrl).toContain(`/reader/s/${session.sessionId}/thumbnail/`)
     expect(thumbnailUrl).not.toContain(directory)
+    expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/pages?cursor=0&limit=3`)))?.status).toBe(200)
     const thumbnail = (await controller.handle(new Request(thumbnailUrl!)))!
     expect(new Uint8Array(await thumbnail.arrayBuffer())).toEqual(Uint8Array.of(1, 2, 3))
     await controller[Symbol.asyncDispose]()
-    expect(get).toHaveBeenCalledOnce()
+    expect(getMany).toHaveBeenCalledOnce()
+    expect(get).not.toHaveBeenCalled()
     expect(disposeThumbnailStore).toHaveBeenCalledOnce()
   })
 

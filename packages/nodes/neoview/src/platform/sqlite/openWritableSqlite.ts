@@ -1,6 +1,7 @@
 import type { SqliteBinding } from "./openReadonlySqlite.js"
 
 export interface WritableSqliteConnection {
+  all(sql: string, ...bindings: SqliteBinding[]): Record<string, unknown>[]
   get(sql: string, ...bindings: SqliteBinding[]): Record<string, unknown> | undefined
   run(sql: string, ...bindings: SqliteBinding[]): void
   exec(sql: string): void
@@ -13,6 +14,7 @@ export async function openWritableSqlite(path: string): Promise<WritableSqliteCo
     const sqlite = await import(moduleName) as unknown as {
       Database: new (path: string, options: { create: boolean; strict: boolean }) => {
         query(sql: string): {
+          all(...bindings: SqliteBinding[]): Record<string, unknown>[]
           get(...bindings: SqliteBinding[]): Record<string, unknown> | null
           run(...bindings: SqliteBinding[]): unknown
         }
@@ -31,6 +33,7 @@ export async function openWritableSqlite(path: string): Promise<WritableSqliteCo
       return current
     }
     return {
+      all: (sql, ...bindings) => statement(sql).all(...bindings),
       get: (sql, ...bindings) => statement(sql).get(...bindings) ?? undefined,
       run: (sql, ...bindings) => { statement(sql).run(...bindings) },
       exec: (sql) => database.exec(sql),
@@ -54,6 +57,7 @@ export async function openWritableSqlite(path: string): Promise<WritableSqliteCo
     return current
   }
   return {
+    all: (sql, ...bindings) => statement(sql).all(...bindings) as Record<string, unknown>[],
     get: (sql, ...bindings) => statement(sql).get(...bindings) as Record<string, unknown> | undefined,
     run: (sql, ...bindings) => { statement(sql).run(...bindings) },
     exec: (sql) => database.exec(sql),
