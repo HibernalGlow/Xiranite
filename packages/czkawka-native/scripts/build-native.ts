@@ -23,6 +23,8 @@ if (process.platform === "win32" && (!existsSync(join(dav1dPkgConfig, "dav1d.pc"
 
 const env = process.platform === "win32" ? {
   ...process.env,
+  CARGO_PROFILE_RELEASE_LTO: process.env.CARGO_PROFILE_RELEASE_LTO ?? "thin",
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: process.env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS ?? "8",
   PATH: `${join(dav1dRoot, "bin")};${process.env.PATH ?? ""}`,
   PKG_CONFIG: process.env.PKG_CONFIG ?? Bun.which("pkgconf") ?? Bun.which("pkg-config") ?? "pkgconf",
   PKG_CONFIG_PATH: [dav1dPkgConfig, process.env.PKG_CONFIG_PATH].filter(Boolean).join(";"),

@@ -340,6 +340,19 @@ describe("Czkawka node", () => {
     expect(screen.getByTestId("czkawka-result-table")).toBeTruthy()
   })
 
+  test("maps advanced cache settings and isolates outdated cleanup by scanner", () => {
+    const state = {
+      saveAlsoAsJson: true,
+      cacheFolderPath: "D:/cache",
+      configFolderPath: "D:/config",
+      duplicateMinimalHashCacheSizeKiB: "12",
+      duplicateMinimalPrehashCacheSizeKiB: "3",
+      deleteOutdatedCacheByTool: { "duplicate-files": false, "similar-images": true },
+    }
+    expect(scanInput("duplicate-files", state)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false, cacheFolderPath: "D:/cache", configFolderPath: "D:/config", duplicateMinimalHashCacheSizeKiB: 12, duplicateMinimalPrehashCacheSizeKiB: 3 })
+    expect(scanInput("similar-images", state)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: true, cacheFolderPath: "D:/cache", configFolderPath: "D:/config" })
+  })
+
   test("adds multiple directories and automatically marks keyword matches as references", async () => {
     const host = createHost({ tool: "duplicate-files", referencePathKeywords: "#compare;reference" })
     host.pickedDirectories = ["D:/photos", "E:/#compare/archive", "F:/reference/library"]
