@@ -77,7 +77,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     try {
       const busyTimeoutMs = options.busyTimeoutMs ?? 5_000
       assertInteger(busyTimeoutMs, "busyTimeoutMs", 0, 60_000)
-      database.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;`)
+      database.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}; PRAGMA synchronous = NORMAL;`)
       return new WritableLegacyThumbnailStore(database, report, options)
     } catch (error) {
       database.close()

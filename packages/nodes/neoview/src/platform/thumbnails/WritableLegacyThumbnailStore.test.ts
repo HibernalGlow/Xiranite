@@ -79,6 +79,22 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.close()
   })
 
+  it("[neoview.thumbnail.writer.journal-compat] preserves the legacy database journal mode", async () => {
+    const path = await createFixture(roots)
+    const setup = await openFixtureDatabase(path)
+    setup.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;")
+    expect(setup.get("PRAGMA journal_mode")).toEqual({ journal_mode: "delete" })
+    setup.close()
+
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await store.put({ key: "D:/journal.jpg", category: "file", bytes: fixtureWebp(1) })
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("PRAGMA journal_mode")).toEqual({ journal_mode: "delete" })
+    verified.close()
+  })
+
   it("[neoview.thumbnail.writer.busy-retry] retries the complete transaction after a competing writer releases its lock", async () => {
     const path = await createFixture(roots)
     const blocker = await openFixtureDatabase(path)
