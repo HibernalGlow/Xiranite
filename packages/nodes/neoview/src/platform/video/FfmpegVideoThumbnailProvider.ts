@@ -1,8 +1,14 @@
-import { PassThrough } from "node:stream"
+import { PassThrough, Readable } from "node:stream"
+import type { ReadableStream as NodeReadableStream } from "node:stream/web"
 import ffmpeg, { type FfmpegCommand } from "fluent-ffmpeg"
 
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
-import type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "../../ports/VideoThumbnailProvider.js"
+import type {
+  VideoThumbnailInput,
+  VideoThumbnailProvider,
+  VideoThumbnailRequest,
+  VideoThumbnailResult,
+} from "../../ports/VideoThumbnailProvider.js"
 import { PriorityResourceScheduler } from "../scheduler/PriorityResourceScheduler.js"
 import { detectImageContentType } from "../thumbnails/ThumbnailBlobCodec.js"
 
@@ -67,11 +73,13 @@ export interface FluentFfmpegThumbnailOptions {
 }
 
 export function createFfmpegThumbnailCommand(
-  request: Pick<VideoThumbnailRequest, "sourcePath" | "maxEdge" | "quality">,
+  request: VideoThumbnailInput & Pick<VideoThumbnailRequest, "maxEdge" | "quality">,
   executablePath = "ffmpeg",
+  inputStream?: Readable,
 ): FfmpegCommand {
   const scale = `scale=${request.maxEdge}:${request.maxEdge}:force_original_aspect_ratio=decrease:force_divisible_by=2`
-  return ffmpeg(request.sourcePath)
+  const input = request.sourcePath ?? inputStream ?? toNodeReadable(request.sourceStream)
+  return ffmpeg(input)
     .setFfmpegPath(executablePath)
     .inputOptions(["-nostdin"])
     .outputOptions([
@@ -91,7 +99,8 @@ export async function runFluentFfmpegThumbnail(
   options: FluentFfmpegThumbnailOptions,
 ): Promise<Uint8Array> {
   options.signal?.throwIfAborted()
-  const command = createFfmpegThumbnailCommand(request, options.executablePath)
+  const inputStream = request.sourceStream ? toNodeReadable(request.sourceStream) : undefined
+  const command = createFfmpegThumbnailCommand(request, options.executablePath, inputStream)
   // fluent-ffmpeg treats an output stream's `close` as a failed process after
   // only 20 ms. Keep it alive through the process `exit` event under load.
   const output = new PassThrough({ autoDestroy: false })
@@ -110,8 +119,13 @@ export async function runFluentFfmpegThumbnail(
     return result
   } finally {
     options.signal?.removeEventListener("abort", onAbort)
+    inputStream?.destroy()
     output.destroy()
   }
+}
+
+function toNodeReadable(stream: ReadableStream<Uint8Array>): Readable {
+  return Readable.fromWeb(stream as NodeReadableStream<Uint8Array>)
 }
 
 async function readBoundedBytes(stream: NodeJS.ReadableStream, maxBytes: number, kill: () => void): Promise<Uint8Array> {
@@ -133,7 +147,9 @@ async function readBoundedBytes(stream: NodeJS.ReadableStream, maxBytes: number,
 }
 
 function validateRequest(request: VideoThumbnailRequest): void {
-  if (!request.sourcePath) throw new Error("Video thumbnail sourcePath cannot be empty.")
+  if ((!request.sourcePath && !request.sourceStream) || (request.sourcePath && request.sourceStream)) {
+    throw new Error("Video thumbnail request must provide exactly one sourcePath or sourceStream.")
+  }
   if (!Number.isSafeInteger(request.maxEdge) || request.maxEdge < 32 || request.maxEdge > 2_048) {
     throw new RangeError("Video thumbnail maxEdge must be an integer from 32 to 2048.")
   }

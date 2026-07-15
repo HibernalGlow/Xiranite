@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -93,6 +93,15 @@ describe("FfmpegVideoThumbnailProvider", () => {
     expect(result.bytes.subarray(0, 4)).toEqual(Uint8Array.from([0x52, 0x49, 0x46, 0x46]))
     expect(new TextDecoder().decode(result.bytes.subarray(8, 12))).toBe("WEBP")
     expect(result.bytes.byteLength).toBeLessThan(256 * 1024)
+    const videoBytes = await readFile(videoPath)
+    const streamed = await new FfmpegVideoThumbnailProvider().generate({
+      sourceStream: byteStream(videoBytes),
+      maxEdge: 128,
+      quality: 80,
+      priority: "view",
+    })
+    expect(streamed.bytes.subarray(0, 4)).toEqual(Uint8Array.from([0x52, 0x49, 0x46, 0x46]))
+    expect(new TextDecoder().decode(streamed.bytes.subarray(8, 12))).toBe("WEBP")
     await expect(runFluentFfmpegThumbnail({
       sourcePath: videoPath,
       maxEdge: 128,
@@ -101,3 +110,12 @@ describe("FfmpegVideoThumbnailProvider", () => {
     }, { executablePath: "ffmpeg", maxOutputBytes: 32 })).rejects.toThrow("exceeded 32 bytes")
   })
 })
+
+function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
+}

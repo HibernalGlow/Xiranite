@@ -124,7 +124,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       page.mediaKind === "image" || page.mediaKind === "animated-image"
       || (page.mediaKind === "video" && (
         Boolean(this.#thumbnailStore)
-        || (!page.entryPath && Boolean(this.#loadSystemThumbnailProvider || this.#loadVideoThumbnailProvider))
+        || Boolean(this.#loadVideoThumbnailProvider)
+        || (!page.entryPath && Boolean(this.#loadSystemThumbnailProvider))
       ))
     )
   }
@@ -363,15 +364,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       }
     }
     if (page.mediaKind === "video") {
-      if (!this.#loadVideoThumbnailProvider || page.entryPath) throw new ThumbnailUnavailableError()
       try {
-        const result = await (await this.#getVideoThumbnailProvider()).generate({
-          sourcePath: page.sourcePath,
-          maxEdge: 320,
-          quality: 78,
-          priority: thumbnailLanePriority(demand.lane),
-          ownerId: demand.contextId,
-        }, signal)
+        const result = await this.#generateVideoThumbnail(page, 320, 78, demand, signal)
         if (thumbnailStore?.put) {
           void thumbnailStore.put({
             key: persistence.key,
@@ -492,14 +486,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       if (reusableMatches) {
         bytes = reusable.bytes
       } else if (page.mediaKind === "video") {
-        if (!this.#loadVideoThumbnailProvider || page.entryPath) throw new ThumbnailUnavailableError()
-        bytes = (await (await this.#getVideoThumbnailProvider()).generate({
-          sourcePath: page.sourcePath,
-          maxEdge: 416,
-          quality: 82,
-          priority: thumbnailLanePriority(demand.lane),
-          ownerId: demand.contextId,
-        }, signal)).bytes
+        bytes = (await this.#generateVideoThumbnail(page, 416, 82, demand, signal)).bytes
       } else {
         source = await page.content.load(signal)
         const transformer = await this.#getImageTransformer()
@@ -546,6 +533,33 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     } finally {
       await source?.close().catch(() => undefined)
       await book?.close().catch(() => undefined)
+    }
+  }
+
+  async #generateVideoThumbnail(
+    page: ReaderPage,
+    maxEdge: number,
+    quality: number,
+    demand: Readonly<ThumbnailDemand<PlatformThumbnailDemandSource>>,
+    signal: AbortSignal,
+  ) {
+    if (!this.#loadVideoThumbnailProvider) throw new ThumbnailUnavailableError()
+    const provider = await this.#getVideoThumbnailProvider()
+    const options = {
+      maxEdge,
+      quality,
+      priority: thumbnailLanePriority(demand.lane),
+      ownerId: demand.contextId,
+    }
+    if (!page.entryPath) return provider.generate({ sourcePath: page.sourcePath, ...options }, signal)
+
+    let source: PageSource | undefined
+    try {
+      source = await page.content.load(signal)
+      const sourceStream = await source.open(signal)
+      return await provider.generate({ sourceStream, ...options }, signal)
+    } finally {
+      await source?.close().catch(() => undefined)
     }
   }
 

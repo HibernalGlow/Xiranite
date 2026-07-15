@@ -1,7 +1,10 @@
 import type { ResourcePriority, ResourceScheduler } from "./ResourceScheduler.js"
 
-export interface VideoThumbnailRequest {
-  sourcePath: string
+export type VideoThumbnailInput =
+  | { sourcePath: string; sourceStream?: never }
+  | { sourcePath?: never; sourceStream: ReadableStream<Uint8Array> }
+
+export type VideoThumbnailRequest = VideoThumbnailInput & {
   maxEdge: number
   quality: number
   priority: ResourcePriority

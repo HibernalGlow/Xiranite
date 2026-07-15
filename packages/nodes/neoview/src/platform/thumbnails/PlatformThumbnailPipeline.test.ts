@@ -1,13 +1,19 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { createZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
+import { FfmpegVideoThumbnailProvider } from "../video/FfmpegVideoThumbnailProvider.js"
 import { PlatformThumbnailPipeline, type LibraryThumbnailSource } from "./PlatformThumbnailPipeline.js"
+
+const ffmpegAvailable = spawnSync("ffmpeg", ["-hide_banner", "-version"], { windowsHide: true }).status === 0
 
 describe("PlatformThumbnailPipeline", () => {
   const roots: string[] = []
@@ -258,6 +264,109 @@ describe("PlatformThumbnailPipeline", () => {
     lease.release()
     await pipeline.dispose()
   })
+
+  it("[neoview.thumbnail.video.archive-entry] streams an archive page into ffmpeg and closes its PageSource", async () => {
+    const page = fixtureVideoPage("D:/books/videos.cbz")
+    page.entryPath = "clips/clip.mp4"
+    page.thumbnailSource = { key: "D:/books/videos.cbz::clips/clip.mp4#0", category: "file" }
+    const generated = fixtureWebp(10)
+    const generate = vi.fn(async (request: { sourceStream?: ReadableStream<Uint8Array> }) => {
+      expect(request.sourceStream).toBeInstanceOf(ReadableStream)
+      const reader = request.sourceStream!.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: Uint8Array.of(1, 2, 3), done: false })
+      reader.releaseLock()
+      return { bytes: generated, contentType: "image/webp" as const }
+    })
+    const put = vi.fn(async () => undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: { get: async () => undefined, put },
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    expect(pipeline.supportsPage(page)).toBe(true)
+    const lease = pipeline.acquirePage(page, { contextId: "reader:archive-video" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: generated, contentType: "image/webp" })
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({
+      sourceStream: expect.any(ReadableStream),
+      maxEdge: 320,
+      quality: 78,
+      priority: "interactive",
+      ownerId: "reader:archive-video",
+    }), expect.any(AbortSignal))
+    expect(pageContentClose(page)).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ key: page.thumbnailSource.key, bytes: generated }))
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.video.archive-cover] reuses the archive stream path for a library cover", async () => {
+    const page = fixtureVideoPage("D:/books/videos.cbz")
+    page.entryPath = "clips/clip.mp4"
+    page.thumbnailSource = { key: "D:/books/videos.cbz::clips/clip.mp4#0", category: "file" }
+    const closeBook = vi.fn(async () => undefined)
+    const generate = vi.fn(async () => ({ bytes: fixtureWebp(11), contentType: "image/webp" as const }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(page, closeBook),
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    const lease = pipeline.acquireLibrary(librarySource("file", "D:/books/videos.cbz", 1_024), { contextId: "library:archive-video" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(11) })
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({
+      sourceStream: expect.any(ReadableStream),
+      maxEdge: 416,
+      priority: "view",
+      ownerId: "library:archive-video",
+    }), expect.any(AbortSignal))
+    expect(pageContentClose(page)).toHaveBeenCalledOnce()
+    expect(closeBook).toHaveBeenCalledOnce()
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it.skipIf(!ffmpegAvailable)("[neoview.thumbnail.video.archive-e2e] generates a real CBZ video cover without materializing the entry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-thumbnail-archive-video-"))
+    roots.push(root)
+    const videoPath = join(root, "sample.mp4")
+    const generated = spawnSync("ffmpeg", [
+      "-hide_banner", "-loglevel", "error", "-y",
+      "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=15", "-t", "1",
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", videoPath,
+    ], { windowsHide: true })
+    expect(generated.status).toBe(0)
+    const archive = await createZipFixture({
+      name: "video.cbz",
+      entries: [{ path: "clips/sample.mp4", bytes: await readFile(videoPath), level: 0 }],
+    })
+    roots.push(archive.directory)
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: createPlatformReaderBookLoader(),
+      loadVideoThumbnailProvider: async () => new FfmpegVideoThumbnailProvider(),
+    })
+    const descriptor = librarySource("file", archive.path, archive.bytes.byteLength)
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "library:archive-video-e2e" })
+    const result = await lease.ready
+    expect(result.bytes.subarray(0, 4)).toEqual(Uint8Array.from([0x52, 0x49, 0x46, 0x46]))
+    expect(new TextDecoder().decode(result.bytes.subarray(8, 12))).toBe("WEBP")
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.video.archive-cancel] aborts active archive video generation and closes the source", async () => {
+    const page = fixtureVideoPage("D:/books/videos.cbz")
+    page.entryPath = "clips/clip.mp4"
+    page.thumbnailSource = { key: "D:/books/videos.cbz::clips/clip.mp4#0", category: "file" }
+    const generate = vi.fn((_request: unknown, signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+    }))
+    const pipeline = new PlatformThumbnailPipeline({
+      loadVideoThumbnailProvider: async () => ({ generate }),
+    })
+    const lease = pipeline.acquirePage(page, { contextId: "reader:archive-video-cancel" })
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce())
+    lease.release()
+    await expect(lease.ready).rejects.toMatchObject({ name: "AbortError" })
+    await vi.waitFor(() => expect(pageContentClose(page)).toHaveBeenCalledOnce())
+    await pipeline.dispose()
+  })
 })
 
 function librarySource(kind: "file" | "folder", path: string, sourceSize?: number): LibraryThumbnailSource {
@@ -299,6 +408,15 @@ function fixturePage(key: string): ReaderPage {
 
 function fixtureVideoPage(path: string): ReaderPage {
   const close = vi.fn(async () => undefined)
+  const content = {
+    close,
+    load: async () => ({
+      rangeSupported: true,
+      open: async () => byteStream(Uint8Array.of(1, 2, 3)),
+      close,
+      [Symbol.asyncDispose]: close,
+    }),
+  }
   return {
     id: "video-1",
     index: 0,
@@ -309,15 +427,16 @@ function fixtureVideoPage(path: string): ReaderPage {
     mimeType: "video/mp4",
     byteLength: 99,
     contentVersion: "video-v1",
-    content: {
-      load: async () => ({
-        rangeSupported: true,
-        open: async () => byteStream(Uint8Array.of(1, 2, 3)),
-        close,
-        [Symbol.asyncDispose]: close,
-      }),
-    },
+    content,
   }
+}
+
+function pageContentClose(page: ReaderPage) {
+  return (page.content as PageContentFixture).close
+}
+
+interface PageContentFixture {
+  close: ReturnType<typeof vi.fn>
 }
 
 function fixtureWebp(fill: number): Uint8Array {
