@@ -1,4 +1,4 @@
-import type { FrameSnapshot } from "../../domain/frame/frame.js"
+import { DEFAULT_READER_LAYOUT, type FrameSnapshot } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
@@ -17,16 +17,21 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
+  DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewSidebarLayoutPatch,
+  parseNeoviewViewDefaultsPatch,
   type NeoviewShellConfig,
   type NeoviewShellConfigPatch,
+  type NeoviewViewDefaults,
+  type NeoviewViewDefaultsPatch,
 } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_PAGES_PATH = /^\/reader\/s\/([^/]+)\/pages$/
 const SESSION_NAVIGATE_PATH = /^\/reader\/s\/([^/]+)\/navigate$/
+const SESSION_OPTIONS_PATH = /^\/reader\/s\/([^/]+)\/options$/
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
 
 export interface ReaderPageDto {
@@ -60,6 +65,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   disposeThumbnailStore?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
+  viewDefaults?: NeoviewViewDefaults
+  updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -73,8 +80,11 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #ownsSolidArchiveCache: boolean
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
+  #viewDefaults: NeoviewViewDefaults
+  #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
-  #shellUpdateQueue: Promise<void> = Promise.resolve()
+  readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
+  #configUpdateQueue: Promise<void> = Promise.resolve()
 
   constructor(options: ReaderHttpControllerOptions) {
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -93,8 +103,8 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
       bookLoader,
       loadImageTransformer,
-      thumbnailStore: options.thumbnailStore,
       loadVideoThumbnailProvider,
+      thumbnailStore: options.thumbnailStore,
       maxMemoryBytes: 32 * 1024 * 1024,
       maxEntryBytes: 512 * 1024,
     })
@@ -113,7 +123,10 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
+    this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
+    this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
+    this.#updateViewDefaults = options.updateViewDefaults
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -132,7 +145,7 @@ export class ReaderHttpController implements AsyncDisposable {
       return this.#openSession(request)
     }
     if (url.pathname === "/reader/config" && request.method === "GET") {
-      return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions })
+      return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions, viewDefaults: this.#viewDefaults })
     }
     if (url.pathname === "/reader/config" && request.method === "PATCH") {
       return this.#patchShellConfig(request)
@@ -142,6 +155,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const navigateMatch = SESSION_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
+    const optionsMatch = SESSION_OPTIONS_PATH.exec(url.pathname)
+    if (optionsMatch && request.method === "PATCH") return this.#updateSessionOptions(optionsMatch[1]!, request)
     const sessionMatch = SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "GET") return this.#getSession(sessionMatch[1]!)
     if (sessionMatch && request.method === "DELETE") return this.#closeSession(sessionMatch[1]!)
@@ -217,9 +232,39 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #patchShellConfig(request: Request): Promise<Response> {
-    if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
     const body = await readControlJson(request)
-    if (!body) return jsonResponse({ error: "Reader shell patch must be a JSON object" }, 400)
+    if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "viewDefaults")) {
+      if (!this.#updateViewDefaults) return jsonResponse({ error: "Reader view defaults are read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewViewDefaultsPatch>
+      try {
+        parsed = parseNeoviewViewDefaultsPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewViewDefaults | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateViewDefaults!(parsed.patch, parsed.tomlPatch)
+        this.#viewDefaults = updated
+        if (parsed.patch.viewDefaults.pageMode) {
+          const layout = {
+            ...DEFAULT_READER_LAYOUT,
+            ...this.#sessionOptions.layout,
+            pageMode: parsed.patch.viewDefaults.pageMode,
+          }
+          this.#sessionOptions = { ...this.#sessionOptions, layout }
+          this.#service.updateSessionDefaults(this.#sessionOptions)
+        }
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse({ schemaVersion: 1, shell: this.#shellOptions, viewDefaults: updated })
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
     let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch> | ReturnType<typeof parseNeoviewBoardLayoutPatch>
     try {
       parsed = Object.hasOwn(body, "board")
@@ -231,14 +276,14 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }
     let updated: NeoviewShellConfig | undefined
-    const operation = this.#shellUpdateQueue.then(async () => {
+    const operation = this.#configUpdateQueue.then(async () => {
       updated = await this.#updateShellOptions!(parsed.patch, parsed.tomlPatch)
       this.#shellOptions = updated
     })
-    this.#shellUpdateQueue = operation.catch(() => undefined)
+    this.#configUpdateQueue = operation.catch(() => undefined)
     try {
       await operation
-      return jsonResponse({ schemaVersion: 1, shell: updated })
+      return jsonResponse({ schemaVersion: 1, shell: updated, viewDefaults: this.#viewDefaults })
     } catch (error) {
       return jsonResponse({ error: errorMessage(error) }, 500)
     }
@@ -276,6 +321,31 @@ export class ReaderHttpController implements AsyncDisposable {
         : body.action === "previous"
           ? await session.previous(request.signal)
           : await session.goTo(requirePageIndex(body.pageIndex), request.signal)
+      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame) })
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+  }
+
+  async #updateSessionOptions(encodedSessionId: string, request: Request): Promise<Response> {
+    const session = this.#findSession(encodedSessionId)
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
+    const body = await readControlJson(request)
+    if (!body || Object.keys(body).some((key) => key !== "layout")) {
+      return jsonResponse({ error: "Reader session options must contain only layout" }, 400)
+    }
+    const layout = body.layout
+    if (!layout || typeof layout !== "object" || Array.isArray(layout)) {
+      return jsonResponse({ error: "Reader session options.layout must be an object" }, 400)
+    }
+    const record = layout as Record<string, unknown>
+    if (Object.keys(record).some((key) => key !== "pageMode") || (record.pageMode !== "single" && record.pageMode !== "double")) {
+      return jsonResponse({ error: "Reader session options.layout.pageMode must be single or double" }, 400)
+    }
+    try {
+      const current = session.snapshot().layout
+      const frame = await session.updateOptions({ layout: { ...current, pageMode: record.pageMode } }, request.signal)
       return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame) })
     } catch (error) {
       if (request.signal.aborted) throw error

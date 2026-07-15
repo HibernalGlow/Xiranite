@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind } from "@xiranite/node-neoview/core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode } from "@xiranite/node-neoview/core"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -43,6 +43,15 @@ export interface ReaderShellConfigDto {
   cardLayout: Record<string, { panelId: string; visible: boolean; expanded: boolean; order: number; height?: number }>
 }
 
+export interface ReaderRuntimeConfigDto {
+  shell: ReaderShellConfigDto
+  viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
+}
+
+export interface ReaderViewDefaultsPatch {
+  viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode }
+}
+
 export interface ReaderSidebarLayoutPatch {
   side: "left" | "right"
   width?: number
@@ -69,14 +78,16 @@ export interface ReaderBoardLayoutPatch {
 }
 
 export interface ReaderHttpClient {
-  config(signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  config(signal?: AbortSignal): Promise<ReaderRuntimeConfigDto>
   updateSidebarLayout(patch: ReaderSidebarLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
+  updateSessionOptions(sessionId: string, patch: { layout: { pageMode: PageMode } }, signal?: AbortSignal): Promise<ReaderNavigationDto>
   close(sessionId: string): Promise<void>
 }
 
@@ -95,7 +106,7 @@ export function createReaderHttpClient(
   }
 
   return {
-    config: (signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", { signal }).then((value) => value.shell),
+    config: (signal) => request<ReaderRuntimeConfigDto>("/reader/config", { signal }),
     updateSidebarLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -114,6 +125,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.shell),
+    updateViewDefaults: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.viewDefaults),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -139,6 +156,15 @@ export function createReaderHttpClient(
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "goTo", pageIndex }),
+        signal,
+      },
+    ),
+    updateSessionOptions: (sessionId, patch, signal) => request<ReaderNavigationDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/options`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
         signal,
       },
     ),

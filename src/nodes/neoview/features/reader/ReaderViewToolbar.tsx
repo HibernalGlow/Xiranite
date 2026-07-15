@@ -6,7 +6,7 @@
  * @features panels-toolbar-shell
  * @migration-status adapted
  */
-import { Maximize2, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+import { Columns2, Maximize2, RotateCcw, RotateCw, Square, ZoomIn, ZoomOut } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   rotateReaderPresentation,
@@ -27,12 +27,16 @@ const FIT_MODES: Array<{ value: ReaderFitMode; label: string }> = [
 
 export function ReaderViewToolbar({
   disabled,
+  pageMode,
   presentation,
   onChange,
+  onPageModeChange,
 }: {
   disabled?: boolean
+  pageMode: "single" | "double"
   presentation: ReaderPresentation
   onChange(presentation: ReaderPresentation): void
+  onPageModeChange(pageMode: "single" | "double"): void
 }) {
   return (
     <div className="xiranite-app-region-no-drag flex min-w-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-3 py-1.5" data-reader-view-toolbar="true">
@@ -54,6 +58,11 @@ export function ReaderViewToolbar({
       <Button title="逆时针旋转 90 度" aria-label="逆时针旋转 90 度" type="button" size="icon-xs" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, rotation: rotateReaderPresentation(presentation.rotation, -1) })}><RotateCcw /></Button>
       <Button title="顺时针旋转 90 度" aria-label="顺时针旋转 90 度" type="button" size="icon-xs" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, rotation: rotateReaderPresentation(presentation.rotation, 1) })}><RotateCw /></Button>
       <Button title="重置视图" aria-label="重置视图" type="button" size="icon-xs" variant="ghost" disabled={disabled} onClick={() => onChange({ ...DEFAULT_READER_PRESENTATION })}><Maximize2 /></Button>
+      <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+      <div className="flex shrink-0 items-center rounded border border-border bg-muted/45 p-0.5" aria-label="页面模式">
+        <Button title="单页模式" aria-label="单页模式" aria-pressed={pageMode === "single"} type="button" size="icon-xs" variant={pageMode === "single" ? "default" : "ghost"} disabled={disabled} onClick={() => onPageModeChange("single")}><Square /></Button>
+        <Button title="双页模式" aria-label="双页模式" aria-pressed={pageMode === "double"} type="button" size="icon-xs" variant={pageMode === "double" ? "default" : "ghost"} disabled={disabled} onClick={() => onPageModeChange("double")}><Columns2 /></Button>
+      </div>
     </div>
   )
 }

@@ -20,6 +20,10 @@ afterEach(async () => {
 
 describe("ReaderHttpController", () => {
   it("[neoview.settings.shell-http] protects and returns only normalized shell settings", async () => {
+    const updateViewDefaults = vi.fn(async (patch) => ({
+      fitMode: patch.viewDefaults.fitMode ?? "fit-height" as const,
+      pageMode: patch.viewDefaults.pageMode ?? "single" as const,
+    }))
     const updateShellOptions = vi.fn(async (patch) => ({
       showDelayMs: 50,
       hideDelayMs: 200,
@@ -60,13 +64,19 @@ describe("ReaderHttpController", () => {
         },
       },
       updateShellOptions,
+      viewDefaults: { fitMode: "fit-height", pageMode: "single" },
+      updateViewDefaults,
     })
     try {
       expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/config")))?.status).toBe(401)
       const response = (await controller.handle(authorizedRequest("/reader/config")))!
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body).toMatchObject({ schemaVersion: 1, shell: { showDelayMs: 50, sidebars: { left: { width: 333 } } } })
+      expect(body).toMatchObject({
+        schemaVersion: 1,
+        shell: { showDelayMs: 50, sidebars: { left: { width: 333 } } },
+        viewDefaults: { fitMode: "fit-height", pageMode: "single" },
+      })
       expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
       const patched = (await controller.handle(jsonRequest("/reader/config", { side: "left", width: 401 }, true, "PATCH")))!
       expect(patched.status).toBe(200)
@@ -95,6 +105,14 @@ describe("ReaderHttpController", () => {
           card_state: { "book-information": { visible: true, order: 0, panel_id: "pageList" } },
         },
       })
+      const viewPatched = (await controller.handle(jsonRequest("/reader/config", {
+        viewDefaults: { fitMode: "original", pageMode: "double" },
+      }, true, "PATCH")))!
+      expect(await viewPatched.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "double" } })
+      expect(updateViewDefaults).toHaveBeenCalledWith(
+        { viewDefaults: { fitMode: "original", pageMode: "double" } },
+        { reader: { default_zoom_mode: "original", double_page_view: true } },
+      )
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -174,6 +192,30 @@ describe("ReaderHttpController", () => {
       expect(session.frame.anchorPageIndex).toBe(1)
       expect(session.visiblePages[0]?.name).toBe("2.jpg")
       expect(JSON.stringify(session)).not.toContain(directory)
+
+      const options = (await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { pageMode: "double" } },
+        true,
+        "PATCH",
+      )))!
+      expect(options.status).toBe(200)
+      expect(await options.json()).toMatchObject({
+        frame: { layout: { pageMode: "double" }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
+        visiblePages: [{ index: 1 }, { index: 2 }],
+      })
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { pageMode: "panorama" } },
+        true,
+        "PATCH",
+      )))?.status).toBe(400)
+      expect((await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/options`,
+        { layout: { pageMode: "single" } },
+        true,
+        "PATCH",
+      )))?.status).toBe(200)
 
       const pagesResponse = (await controller.handle(authorizedRequest(
         `/reader/s/${session.sessionId}/pages?cursor=1&limit=1`,

@@ -23,6 +23,7 @@ describe("loadNeoviewSessionOptions", () => {
       "[nodes.neoview.reader]",
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
+      "default_zoom_mode = \"fitWidth\"",
       "tail_overflow_behavior = \"loop\"",
       "",
     ].join("\n"), "utf8")
@@ -33,16 +34,27 @@ describe("loadNeoviewSessionOptions", () => {
       layout: { pageMode: "double" },
       tailOverflow: "loop",
     })
+    expect((await loadNeoviewRuntimeConfig({ configPath })).viewDefaults).toEqual({ fitMode: "fit-width", pageMode: "double" })
 
     const explicit = await loadNeoviewSessionOptions({
       configPath,
-      sessionOptions: { direction: "left-to-right", tailOverflow: "next-book" },
+      sessionOptions: {
+        direction: "left-to-right",
+        layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
+        tailOverflow: "next-book",
+      },
     })
     expect(explicit).toMatchObject({
       direction: "left-to-right",
-      layout: { pageMode: "double" },
+      layout: { pageMode: "single" },
       tailOverflow: "next-book",
     })
+    expect((await loadNeoviewRuntimeConfig({
+      configPath,
+      sessionOptions: {
+        layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
+      },
+    })).viewDefaults.pageMode).toBe("single")
   })
 
   it("does not create a config file when the default source is absent", async () => {
@@ -94,6 +106,7 @@ describe("loadNeoviewSessionOptions", () => {
       "[nodes.neoview.reader]",
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
+      "default_zoom_mode = \"fitHeight\"",
       "",
     ].join("\n"), "utf8")
 
@@ -116,7 +129,28 @@ describe("loadNeoviewSessionOptions", () => {
       const shellResponse = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         headers: { "x-xiranite-token": "runtime-token" },
       }))
-      expect(await shellResponse?.json()).toMatchObject({ schemaVersion: 1, shell: { edges: { left: { triggerSize: 32 } } } })
+      expect(await shellResponse?.json()).toMatchObject({
+        schemaVersion: 1,
+        shell: { edges: { left: { triggerSize: 32 } } },
+        viewDefaults: { fitMode: "fit-height", pageMode: "double" },
+      })
+      const viewPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ viewDefaults: { fitMode: "original", pageMode: "single" } }),
+      }))
+      expect(await viewPatched?.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "single" } })
+      expect(await readFile(configPath, "utf8")).toContain("default_zoom_mode = \"original\"")
+      expect(await readFile(configPath, "utf8")).toContain("double_page_view = false")
+      const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ path: bookPath, initialPage: 1 }),
+      }))
+      expect(await reopened?.json()).toMatchObject({
+        frame: { layout: { pageMode: "single" }, pages: [{ pageIndex: 1 }] },
+        visiblePages: [{ index: 1 }],
+      })
       const patched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

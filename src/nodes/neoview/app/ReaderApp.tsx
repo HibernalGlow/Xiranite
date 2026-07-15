@@ -84,6 +84,12 @@ export function ReaderApp({
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
+  const viewDefaultsRef = useRef<{ fitMode: ReaderPresentation["fitMode"]; pageMode: "single" | "double" }>({
+    fitMode: DEFAULT_READER_PRESENTATION.fitMode,
+    pageMode: "single",
+  })
+  const viewDefaultsGenerationRef = useRef(0)
+  const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
@@ -101,7 +107,13 @@ export function ReaderApp({
 
   useEffect(() => {
     const controller = new AbortController()
-    void clientRef.current.config(controller.signal).then(setShell).catch(() => undefined)
+    void clientRef.current.config(controller.signal).then((config) => {
+      if (viewDefaultsGenerationRef.current === 0) viewDefaultsRef.current = config.viewDefaults
+      setShell(config.shell)
+      if (!presentationTouchedRef.current) {
+        setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
+      }
+    }).catch(() => undefined)
     return () => controller.abort()
   }, [])
 
@@ -129,7 +141,8 @@ export function ReaderApp({
       }
       sessionRef.current = opened.sessionId
       setSession(opened)
-      setPresentation({ ...DEFAULT_READER_PRESENTATION })
+      setPresentation({ ...DEFAULT_READER_PRESENTATION, fitMode: viewDefaultsRef.current.fitMode })
+      presentationTouchedRef.current = false
       setPath(normalizedPath)
       onPathCommitted?.(normalizedPath)
       if (previousSession && previousSession !== opened.sessionId) {
@@ -154,9 +167,9 @@ export function ReaderApp({
 
   async function updateNavigation(
     request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
-  ) {
+  ): Promise<boolean> {
     const sessionId = sessionRef.current
-    if (!sessionId || busy) return
+    if (!sessionId || busy) return false
     const controller = new AbortController()
     operationRef.current?.abort()
     operationRef.current = controller
@@ -165,11 +178,43 @@ export function ReaderApp({
     try {
       const result = await request(sessionId, controller.signal)
       if (!controller.signal.aborted) setSession((current) => current ? applyNavigation(current, result) : current)
+      return !controller.signal.aborted
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause))
+      return false
     } finally {
       if (operationRef.current === controller) operationRef.current = undefined
       if (!controller.signal.aborted) setBusy(false)
+    }
+  }
+
+  function updatePresentation(next: ReaderPresentation) {
+    const fitModeChanged = next.fitMode !== presentation.fitMode
+    presentationTouchedRef.current = true
+    setPresentation(next)
+    if (fitModeChanged) void persistViewDefaults({ fitMode: next.fitMode })
+  }
+
+  async function updatePageMode(pageMode: "single" | "double") {
+    if (pageMode === session?.frame.layout.pageMode) return
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
+      sessionId,
+      { layout: { pageMode } },
+      signal,
+    ))
+    if (updated) void persistViewDefaults({ pageMode })
+  }
+
+  async function persistViewDefaults(patch: { fitMode?: ReaderPresentation["fitMode"]; pageMode?: "single" | "double" }) {
+    const previous = viewDefaultsRef.current
+    viewDefaultsRef.current = { ...previous, ...patch }
+    const generation = ++viewDefaultsGenerationRef.current
+    try {
+      const updated = await clientRef.current.updateViewDefaults({ viewDefaults: patch })
+      if (generation === viewDefaultsGenerationRef.current) viewDefaultsRef.current = updated
+    } catch (cause) {
+      if (generation === viewDefaultsGenerationRef.current) viewDefaultsRef.current = previous
+      setError(errorMessage(cause))
     }
   }
 
@@ -276,7 +321,13 @@ export function ReaderApp({
         </div>
         {session ? (
           <Suspense fallback={null}>
-            <LazyReaderViewToolbar disabled={busy} presentation={presentation} onChange={setPresentation} />
+            <LazyReaderViewToolbar
+              disabled={busy}
+              pageMode={frame?.layout.pageMode ?? "single"}
+              presentation={presentation}
+              onChange={updatePresentation}
+              onPageModeChange={(pageMode) => void updatePageMode(pageMode)}
+            />
           </Suspense>
         ) : null}
         {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}

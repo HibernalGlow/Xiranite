@@ -13,8 +13,16 @@ export class CoreReaderService implements ReaderService {
   constructor(
     private readonly loadBook: ReaderBookLoader,
     private readonly metadataProbe?: ImageMetadataProbe,
-    private readonly sessionDefaults: Partial<ReaderSessionOptions> = {},
+    private sessionDefaults: Partial<ReaderSessionOptions> = {},
   ) {}
+
+  updateSessionDefaults(options: Partial<ReaderSessionOptions>): void {
+    this.sessionDefaults = {
+      ...this.sessionDefaults,
+      ...options,
+      layout: options.layout ?? this.sessionDefaults.layout,
+    }
+  }
 
   async openViewSource(source: ViewSource, options: OpenViewSourceOptions = {}): Promise<ReaderSession> {
     this.#assertOpen()

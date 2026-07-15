@@ -1,11 +1,22 @@
-import { DEFAULT_READER_LAYOUT } from "../../domain/frame/frame.js"
+import { DEFAULT_READER_LAYOUT, type PageMode } from "../../domain/frame/frame.js"
 import type { TailOverflowBehavior } from "../../domain/navigation/navigation.js"
+import { DEFAULT_READER_PRESENTATION, type ReaderFitMode } from "../../domain/presentation/presentation.js"
 import type { ReaderSessionOptions } from "../reader/contracts.js"
 
 export interface NeoviewRuntimeConfig {
   schemaVersion: 1
   sessionOptions: Partial<ReaderSessionOptions>
   shellOptions: NeoviewShellConfig
+  viewDefaults: NeoviewViewDefaults
+}
+
+export interface NeoviewViewDefaults {
+  fitMode: ReaderFitMode
+  pageMode: PageMode
+}
+
+export interface NeoviewViewDefaultsPatch {
+  viewDefaults: Partial<NeoviewViewDefaults>
 }
 
 export interface NeoviewShellEdgeConfig {
@@ -75,6 +86,11 @@ export interface NeoviewBoardLayoutPatch {
 
 export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch | NeoviewBoardLayoutPatch
 
+export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
+  fitMode: DEFAULT_READER_PRESENTATION.fitMode,
+  pageMode: DEFAULT_READER_LAYOUT.pageMode,
+}
+
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
   hideDelayMs: 0,
@@ -115,7 +131,12 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
 }
 
 export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig {
-  if (value === undefined) return { schemaVersion: 1, sessionOptions: {}, shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG }
+  if (value === undefined) return {
+    schemaVersion: 1,
+    sessionOptions: {},
+    shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
+    viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+  }
   const config = requireRecord(value, "[nodes.neoview]")
   const schemaVersion = config.schema_version ?? 1
   if (schemaVersion !== 1) throw new Error(`[nodes.neoview].schema_version must be 1, received ${String(schemaVersion)}.`)
@@ -134,6 +155,11 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const tailOverflow = parseTailOverflow(
     reader?.tail_overflow_behavior ?? nestedValue(reader, "book", "tail_overflow_behavior"),
   )
+  const fitMode = readerFitMode(
+    reader?.default_zoom_mode ?? nestedValue(reader, "view", "default_zoom_mode") ?? nestedValue(reader, "view", "defaultZoomMode"),
+    "[nodes.neoview.reader].default_zoom_mode",
+  )
+  const pageMode = doublePage === undefined ? DEFAULT_READER_LAYOUT.pageMode : doublePage ? "double" : "single"
 
   return {
     schemaVersion: 1,
@@ -145,7 +171,32 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
       tailOverflow,
     },
     shellOptions: parseShellOptions(panels),
+    viewDefaults: { fitMode, pageMode },
   }
+}
+
+export function parseNeoviewViewDefaultsPatch(value: unknown): {
+  patch: NeoviewViewDefaultsPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader view defaults patch")
+  if (Object.keys(record).some((key) => key !== "viewDefaults")) throw new Error("reader view defaults patch contains unsupported fields.")
+  const defaults = requireRecord(record.viewDefaults, "reader view defaults patch.viewDefaults")
+  const allowed = new Set(["fitMode", "pageMode"])
+  const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewViewDefaultsPatch = { viewDefaults: {} }
+  const readerPatch: Record<string, unknown> = {}
+  if (defaults.fitMode !== undefined) {
+    patch.viewDefaults.fitMode = readerFitMode(defaults.fitMode, "reader view defaults patch.fitMode")
+    readerPatch.default_zoom_mode = persistedReaderFitMode(patch.viewDefaults.fitMode)
+  }
+  if (defaults.pageMode !== undefined) {
+    patch.viewDefaults.pageMode = optionalEnum(defaults.pageMode, "reader view defaults patch.pageMode", ["single", "double"] as const)
+    readerPatch.double_page_view = patch.viewDefaults.pageMode === "double"
+  }
+  if (!Object.keys(patch.viewDefaults).length) throw new Error("reader view defaults patch must change at least one field.")
+  return { patch, tomlPatch: { reader: readerPatch } }
 }
 
 export function parseNeoviewSidebarLayoutPatch(value: unknown): {
@@ -402,6 +453,21 @@ function parseTailOverflow(value: unknown): TailOverflowBehavior | undefined {
     throw new Error("[nodes.neoview.reader].tail_overflow_behavior is invalid.")
   }
   return aliases[value]
+}
+
+function readerFitMode(value: unknown, path: string): ReaderFitMode {
+  if (value === undefined) return DEFAULT_READER_PRESENTATION.fitMode
+  if (value === "fit" || value === "fitLeftAlign" || value === "fitRightAlign") return "fit"
+  if (value === "fill" || value === "original") return value
+  if (value === "fitWidth" || value === "fit-width") return "fit-width"
+  if (value === "fitHeight" || value === "fit-height") return "fit-height"
+  throw new Error(`${path} must be fit, fill, fitWidth, fitHeight or original.`)
+}
+
+function persistedReaderFitMode(value: ReaderFitMode): string {
+  if (value === "fit-width") return "fitWidth"
+  if (value === "fit-height") return "fitHeight"
+  return value
 }
 
 function nestedValue(record: Record<string, unknown> | undefined, section: string, key: string): unknown {

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto, ReaderShellConfigDto } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
 afterEach(cleanup)
@@ -10,10 +10,11 @@ describe("ReaderApp", () => {
   it("[neoview.react.smoke] opens and navigates with DOM img elements over asset URLs", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => shellConfig()),
+      config: vi.fn(async () => runtimeConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -21,6 +22,7 @@ describe("ReaderApp", () => {
         visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
       })),
       goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     const committed = vi.fn()
@@ -47,10 +49,11 @@ describe("ReaderApp", () => {
   it("[neoview.react.lifecycle] aborts superseded work and reports backend errors", async () => {
     let rejectOpen!: (error: Error) => void
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => shellConfig()),
+      config: vi.fn(async () => runtimeConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -58,6 +61,7 @@ describe("ReaderApp", () => {
       listPages: vi.fn(),
       navigate: vi.fn(),
       goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/books/missing.cbz" client={client} />)
@@ -67,18 +71,64 @@ describe("ReaderApp", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
+  it("[neoview.viewer.defaults-react] applies persisted fit mode and updates current/default page mode", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const secondPage = { ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }
+    const updateViewDefaults = vi.fn(async (patch) => ({ fitMode: "fit-height" as const, pageMode: "single" as const, ...patch.viewDefaults }))
+    const updateSessionOptions = vi.fn(async () => ({
+      frame: {
+        ...opened.frame,
+        layout: { ...opened.frame.layout, pageMode: "double" as const },
+        pages: [
+          { pageId: "page-1", pageIndex: 0, side: "left" as const },
+          { pageId: "page-2", pageIndex: 1, side: "right" as const },
+        ],
+      },
+      visiblePages: [opened.visiblePages[0]!, secondPage],
+    }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ shell: shellConfig(), viewDefaults: { fitMode: "fit-height", pageMode: "single" } })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults,
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: [opened.visiblePages[0]!, secondPage], total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions,
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    expect((await screen.findByRole("combobox", { name: "缩放模式" }) as HTMLSelectElement).value).toBe("fit-height")
+
+    fireEvent.change(screen.getByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
+    await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledWith({ viewDefaults: { fitMode: "original" } }))
+    fireEvent.click(screen.getByRole("button", { name: "双页模式" }))
+    await waitFor(() => expect(updateSessionOptions).toHaveBeenCalledWith(
+      "reader-1",
+      { layout: { pageMode: "double" } },
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledWith({ viewDefaults: { pageMode: "double" } }))
+    expect(document.querySelectorAll("[data-reader-page-image]")).toHaveLength(2)
+  })
+
   it("[neoview.react.open-cancel] closes a session that resolves after the reader unmounts", async () => {
     let resolveOpen!: (value: ReaderSessionDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => shellConfig()),
+      config: vi.fn(async () => runtimeConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn(() => new Promise((resolve) => { resolveOpen = resolve })),
       listPages: vi.fn(),
       navigate: vi.fn(),
       goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
@@ -99,10 +149,11 @@ describe("ReaderApp", () => {
       thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-2",
     }
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => shellConfig()),
+      config: vi.fn(async () => runtimeConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -113,6 +164,7 @@ describe("ReaderApp", () => {
         frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
         visiblePages: [secondPage],
       })),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
@@ -123,23 +175,28 @@ describe("ReaderApp", () => {
   })
 
   it("[neoview.settings.shell-react] applies late shell config without remounting the active image", async () => {
-    let resolveConfig!: (value: ReaderShellConfigDto) => void
+    let resolveConfig!: (value: ReaderRuntimeConfigDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
       config: vi.fn(() => new Promise((resolve) => { resolveConfig = resolve })),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
       updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
       goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
     const imageBeforeConfig = await screen.findByRole("img", { name: "001.jpg" })
+    fireEvent.change(screen.getByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
     await act(async () => resolveConfig({
+      ...runtimeConfig(),
+      shell: {
       ...shellConfig(),
       showDelayMs: 125,
       edges: {
@@ -147,14 +204,16 @@ describe("ReaderApp", () => {
         top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
         left: { enabled: true, initialVisible: false, pinned: false, triggerSize: 9 },
       },
-      sidebars: {
-        ...shellConfig().sidebars,
-        left: { width: 444, height: "half", customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+        sidebars: {
+          ...shellConfig().sidebars,
+          left: { width: 444, height: "half", customHeight: 100, verticalAlign: 50, horizontalPosition: 0 },
+        },
       },
     }))
     expect(screen.queryByRole("textbox", { name: "漫画、图片或目录路径" })).toBeNull()
     expect(document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')?.style.height).toBe("5px")
     expect(screen.getByRole("img", { name: "001.jpg" })).toBe(imageBeforeConfig)
+    expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-fit-mode")).toBe("original")
   })
 
   it("[neoview.card.persist-react] optimistically unmounts card content before persistence finishes", async () => {
@@ -163,14 +222,16 @@ describe("ReaderApp", () => {
     const config = shellConfig()
     config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
     const client: ReaderHttpClient = {
-      config: vi.fn(async () => config),
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
       updateSidebarLayout: vi.fn(async () => config),
       updateCardLayout: vi.fn(() => new Promise((resolve) => { finishUpdate = resolve })),
       updateBoardLayout: vi.fn(async () => config),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
       goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
@@ -239,4 +300,8 @@ function shellConfig(): ReaderShellConfigDto {
       "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
     },
   }
+}
+
+function runtimeConfig(): ReaderRuntimeConfigDto {
+  return { shell: shellConfig(), viewDefaults: { fitMode: "fit", pageMode: "single" } }
 }

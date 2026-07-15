@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -8,6 +8,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       reader: {
         reading_direction: "right-to-left",
         double_page_view: true,
+        default_zoom_mode: "fitWidth",
         tail_overflow_behavior: "seamless-loop",
       },
     }).sessionOptions).toEqual({
@@ -20,6 +21,10 @@ describe("parseNeoviewRuntimeConfig", () => {
         treatWidePageAsSingle: true,
       },
       tailOverflow: "seamless-loop",
+    })
+    expect(parseNeoviewRuntimeConfig({ reader: { double_page_view: true, default_zoom_mode: "fitWidth" } }).viewDefaults).toEqual({
+      fitMode: "fit-width",
+      pageMode: "double",
     })
   })
 
@@ -44,18 +49,30 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewRuntimeConfig({ reader: { reading_direction: "top-to-bottom" } })).toThrow("reading_direction")
     expect(() => parseNeoviewRuntimeConfig({ reader: { double_page_view: "yes" } })).toThrow("double_page_view")
     expect(() => parseNeoviewRuntimeConfig({ reader: { tail_overflow_behavior: "delete-book" } })).toThrow("tail_overflow_behavior")
+    expect(() => parseNeoviewRuntimeConfig({ reader: { default_zoom_mode: "stretch" } })).toThrow("default_zoom_mode")
   })
 
   it("returns empty defaults when no NeoView section exists", () => {
     expect(parseNeoviewRuntimeConfig(undefined)).toMatchObject({
       schemaVersion: 1,
       sessionOptions: {},
+      viewDefaults: { fitMode: "fit", pageMode: "single" },
       shellOptions: {
         showDelayMs: 0,
         edges: { left: { pinned: true, triggerSize: 32 }, right: { initialVisible: false } },
         sidebars: { left: { width: 320 }, right: { width: 280 } },
       },
     })
+  })
+
+  it("[neoview.settings.view-defaults] normalizes legacy zoom aliases and writes canonical TOML", () => {
+    expect(parseNeoviewRuntimeConfig({ reader: { default_zoom_mode: "fitRightAlign" } }).viewDefaults.fitMode).toBe("fit")
+    expect(parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "fit-height", pageMode: "double" } })).toEqual({
+      patch: { viewDefaults: { fitMode: "fit-height", pageMode: "double" } },
+      tomlPatch: { reader: { default_zoom_mode: "fitHeight", double_page_view: true } },
+    })
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: {} })).toThrow("at least one")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "stretch" } })).toThrow("fitMode")
   })
 
   it("[neoview.settings.shell] normalizes legacy panel settings into bounded shell options", () => {

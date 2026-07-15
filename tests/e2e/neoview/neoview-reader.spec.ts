@@ -58,6 +58,9 @@ test.beforeAll(async () => {
   await writeFile(configPath, [
     "[nodes.neoview]",
     "schema_version = 1",
+    "[nodes.neoview.reader]",
+    "default_zoom_mode = \"fitHeight\"",
+    "double_page_view = false",
     "[nodes.neoview.panels]",
     "left_sidebar_visible = true",
     "right_sidebar_visible = true",
@@ -112,12 +115,21 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
 
   await first.evaluate((image) => image.setAttribute("data-neoview-presentation-image-instance", "stable"))
   const readerViewport = page.locator('[data-reader-frame-viewport="true"]')
+  const fitMode = page.getByRole("combobox", { name: "缩放模式" })
+  await expect(fitMode).toHaveValue("fit-height")
   const activeAssetUrl = await first.getAttribute("src")
   let repeatedActiveAssetRequests = 0
   page.on("request", (request) => {
     if (request.url() === activeAssetUrl) repeatedActiveAssetRequests += 1
   })
-  await page.getByRole("combobox", { name: "缩放模式" }).selectOption("original")
+  const originalDefaultsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"fitMode":"original"') === true
+  ))
+  await fitMode.selectOption("original")
+  expect((await originalDefaultsResponse).status()).toBe(200)
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain('default_zoom_mode = "original"')
   await expect(readerViewport).toHaveAttribute("data-reader-fit-mode", "original")
   await expect.poll(() => readerViewport.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
   await page.getByRole("button", { name: "顺时针旋转 90 度" }).click()
@@ -125,13 +137,44 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(first).toHaveCSS("transform", /matrix/)
   await page.getByRole("button", { name: "放大" }).click()
   await expect(page.getByLabel("手动缩放比例")).toHaveText("110%")
+  const resetDefaultsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"fitMode":"fit"') === true
+  ))
   await page.getByRole("button", { name: "重置视图" }).click()
+  expect((await resetDefaultsResponse).status()).toBe(200)
   await expect(readerViewport).toHaveAttribute("data-reader-fit-mode", "fit")
   await expect(readerViewport).toHaveAttribute("data-reader-rotation", "0")
   await expect.poll(() => readerViewport.evaluate((element) => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
   expect(await first.getAttribute("data-neoview-presentation-image-instance")).toBe("stable")
   expect(repeatedActiveAssetRequests).toBe(0)
   await expect(page.locator("canvas")).toHaveCount(0)
+
+  const doubleOptionsResponse = page.waitForResponse((response) => response.url().endsWith("/options") && response.request().method() === "PATCH")
+  const doubleDefaultsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"pageMode":"double"') === true
+  ))
+  await page.getByRole("button", { name: "双页模式" }).click()
+  expect(await (await doubleOptionsResponse).json()).toMatchObject({ frame: { layout: { pageMode: "double" } } })
+  expect((await doubleDefaultsResponse).status()).toBe(200)
+  await expect(page.getByRole("button", { name: "双页模式" })).toHaveAttribute("aria-pressed", "true")
+  expect(await first.getAttribute("data-neoview-presentation-image-instance")).toBe("stable")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("double_page_view = true")
+
+  const singleOptionsResponse = page.waitForResponse((response) => response.url().endsWith("/options") && response.request().method() === "PATCH")
+  const singleDefaultsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"pageMode":"single"') === true
+  ))
+  await page.getByRole("button", { name: "单页模式" }).click()
+  expect((await singleOptionsResponse).status()).toBe(200)
+  expect((await singleDefaultsResponse).status()).toBe(200)
+  await expect(page.getByRole("button", { name: "单页模式" })).toHaveAttribute("aria-pressed", "true")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain("double_page_view = false")
 
   await first.evaluate((image) => image.setAttribute("data-neoview-settings-image-instance", "stable"))
   let boardPatchRequests = 0

@@ -21,7 +21,15 @@ export async function loadNeoviewRuntimeConfig(
   const { loadNodeConfigWithHints } = await import("@xiranite/config")
   const { config } = await loadNodeConfigWithHints("neoview", options)
   const parsed = parseNeoviewRuntimeConfig(config)
-  return { ...parsed, sessionOptions: mergeSessionOptions(parsed.sessionOptions, options.sessionOptions) }
+  const sessionOptions = mergeSessionOptions(parsed.sessionOptions, options.sessionOptions)
+  return {
+    ...parsed,
+    sessionOptions,
+    viewDefaults: {
+      ...parsed.viewDefaults,
+      pageMode: sessionOptions.layout?.pageMode ?? parsed.viewDefaults.pageMode,
+    },
+  }
 }
 
 function mergeSessionOptions(
