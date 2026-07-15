@@ -13,6 +13,7 @@ import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
 import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
+import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   parseNeoviewBoardLayoutPatch,
@@ -64,6 +65,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #assets: ReaderAssetRoute
   readonly #libraryThumbnails: LibraryThumbnailRoute
   readonly #thumbnailPipeline: PlatformThumbnailPipeline
+  readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -100,6 +102,7 @@ export class ReaderHttpController implements AsyncDisposable {
       thumbnailPipeline: this.#thumbnailPipeline,
     })
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
+    this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -115,6 +118,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (assetResponse) return assetResponse
     const libraryThumbnailResponse = await this.#libraryThumbnails.handle(request)
     if (libraryThumbnailResponse) return libraryThumbnailResponse
+    const thumbnailMaintenanceResponse = await this.#thumbnailMaintenance.handle(request)
+    if (thumbnailMaintenanceResponse) return thumbnailMaintenanceResponse
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)

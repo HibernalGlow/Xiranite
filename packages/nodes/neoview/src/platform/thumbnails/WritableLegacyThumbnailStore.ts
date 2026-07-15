@@ -1,8 +1,14 @@
 import type {
+  ReaderThumbnailCleanupRequest,
   ReaderThumbnailFailure,
+  ReaderThumbnailInvalidCleanupResult,
+  ReaderThumbnailMaintenanceSnapshot,
   ReaderThumbnailStore,
   ReaderThumbnailWrite,
+  ReaderThumbnailWriterSnapshot,
 } from "../../ports/ReaderThumbnailStore.js"
+import { stat } from "node:fs/promises"
+import { isAbsolute, parse, resolve } from "node:path"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 import { inspectLegacyThumbnailDatabase, type LegacyThumbnailDatabaseReport } from "./LegacyThumbnailDatabaseInspector.js"
 import { decodeLegacyThumbnailBlob, detectImageContentType, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
@@ -13,7 +19,13 @@ export interface WritableLegacyThumbnailStoreOptions {
   decodeConcurrency?: number
   flushIntervalMs?: number
   maxBatchSize?: number
+  busyTimeoutMs?: number
+  writeBusyRetries?: number
+  writeBusyBaseDelayMs?: number
+  pathState?: (path: string) => Promise<ThumbnailPathState>
 }
+
+export type ThumbnailPathState = "exists" | "missing" | "unavailable"
 
 type PendingWrite =
   | { kind: "thumbnail"; value: ReaderThumbnailWrite; resolve(): void; reject(reason: unknown): void }
@@ -26,10 +38,19 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   readonly #flushIntervalMs: number
   readonly #maxBatchSize: number
   readonly #decodeConcurrency: number
+  readonly #writeBusyRetries: number
+  readonly #writeBusyBaseDelayMs: number
+  readonly #pathState: (path: string) => Promise<ThumbnailPathState>
   #pending: PendingWrite[] = []
   #flushTimer?: ReturnType<typeof setTimeout>
   #flushing?: Promise<void>
   #closed = false
+  #committedBatches = 0
+  #committedWrites = 0
+  #busyRetries = 0
+  #failedBatches = 0
+  #lastError?: string
+  #invalidScanCursor = ""
 
   private constructor(database: WritableSqliteConnection, report: LegacyThumbnailDatabaseReport, options: WritableLegacyThumbnailStoreOptions) {
     this.#database = database
@@ -38,10 +59,15 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#flushIntervalMs = options.flushIntervalMs ?? 50
     this.#maxBatchSize = options.maxBatchSize ?? 32
     this.#decodeConcurrency = options.decodeConcurrency ?? 8
+    this.#writeBusyRetries = options.writeBusyRetries ?? 3
+    this.#writeBusyBaseDelayMs = options.writeBusyBaseDelayMs ?? 25
+    this.#pathState = options.pathState ?? filesystemPathState
     assertInteger(this.#maxThumbnailBytes, "maxThumbnailBytes", 1, 256 * 1024 * 1024)
     assertInteger(this.#flushIntervalMs, "flushIntervalMs", 0, 60_000)
     assertInteger(this.#maxBatchSize, "maxBatchSize", 1, 512)
     assertInteger(this.#decodeConcurrency, "decodeConcurrency", 1, 64)
+    assertInteger(this.#writeBusyRetries, "writeBusyRetries", 0, 10)
+    assertInteger(this.#writeBusyBaseDelayMs, "writeBusyBaseDelayMs", 1, 5_000)
   }
 
   static async open(path: string, options: WritableLegacyThumbnailStoreOptions = {}): Promise<WritableLegacyThumbnailStore> {
@@ -49,7 +75,9 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     if (report.compatibility !== "current") throw new Error(`NeoView thumbnail database is not writable (${report.compatibility}): ${path}`)
     const database = await openWritableSqlite(path)
     try {
-      database.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
+      const busyTimeoutMs = options.busyTimeoutMs ?? 5_000
+      assertInteger(busyTimeoutMs, "busyTimeoutMs", 0, 60_000)
+      database.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;`)
       return new WritableLegacyThumbnailStore(database, report, options)
     } catch (error) {
       database.close()
@@ -149,6 +177,150 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     })
   }
 
+  snapshot(): ReaderThumbnailWriterSnapshot {
+    return {
+      pendingWrites: this.#pending.length,
+      flushing: Boolean(this.#flushing),
+      committedBatches: this.#committedBatches,
+      committedWrites: this.#committedWrites,
+      busyRetries: this.#busyRetries,
+      failedBatches: this.#failedBatches,
+      lastError: this.#lastError,
+    }
+  }
+
+  async maintenanceSnapshot(): Promise<ReaderThumbnailMaintenanceSnapshot> {
+    this.#assertOpen()
+    await this.flush()
+    const thumbs = this.#database.get(
+      `SELECT COUNT(*) AS total_rows,
+              SUM(category = 'file') AS file_rows,
+              SUM(category = 'folder') AS folder_rows,
+              COALESCE(SUM(length(value)), 0) AS blob_bytes,
+              SUM(value IS NULL OR length(value) = 0) AS empty_blobs
+       FROM thumbs`,
+    ) ?? {}
+    const failures = this.#database.all(
+      "SELECT reason, COUNT(*) AS count FROM failed_thumbnails GROUP BY reason ORDER BY reason",
+    )
+    const failuresByReason: Record<string, number> = {}
+    let failedRows = 0
+    for (const row of failures) {
+      const reason = requireString(row.reason, "failed_thumbnails.reason")
+      const count = optionalInteger(row.count) ?? 0
+      failuresByReason[reason] = count
+      failedRows += count
+    }
+    const [databaseBytes, walBytes, shmBytes] = await Promise.all([
+      fileSize(this.report.path),
+      fileSize(`${this.report.path}-wal`),
+      fileSize(`${this.report.path}-shm`),
+    ])
+    return {
+      totalRows: optionalInteger(thumbs.total_rows) ?? 0,
+      fileRows: optionalInteger(thumbs.file_rows) ?? 0,
+      folderRows: optionalInteger(thumbs.folder_rows) ?? 0,
+      blobBytes: optionalInteger(thumbs.blob_bytes) ?? 0,
+      emptyBlobs: optionalInteger(thumbs.empty_blobs) ?? 0,
+      failedRows,
+      failuresByReason,
+      databaseBytes,
+      walBytes,
+      shmBytes,
+      writer: this.snapshot(),
+    }
+  }
+
+  async clearFailures(options: { reason?: string; limit: number }): Promise<number> {
+    this.#assertOpen()
+    validateMaintenanceLimit(options.limit)
+    if (options.reason !== undefined && (!options.reason || options.reason.length > 128)) {
+      throw new Error("Thumbnail failure reason must be 1..128 characters.")
+    }
+    await this.flush()
+    return this.#runTransaction(() => options.reason === undefined
+      ? this.#database.run(
+          "DELETE FROM failed_thumbnails WHERE key IN (SELECT key FROM failed_thumbnails ORDER BY last_attempt LIMIT ?1)",
+          options.limit,
+        ).changes
+      : this.#database.run(
+          "DELETE FROM failed_thumbnails WHERE key IN (SELECT key FROM failed_thumbnails WHERE reason = ?1 ORDER BY last_attempt LIMIT ?2)",
+          options.reason,
+          options.limit,
+        ).changes)
+  }
+
+  async cleanup(request: ReaderThumbnailCleanupRequest): Promise<number> {
+    this.#assertOpen()
+    validateMaintenanceLimit(request.limit)
+    if (request.kind === "expired" && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(request.cutoff)) {
+      throw new Error("Thumbnail cleanup cutoff must be a SQLite UTC timestamp.")
+    }
+    if (request.kind === "expired" && request.preserveFolders !== true) {
+      throw new Error("Online thumbnail cleanup must preserve folder thumbnails.")
+    }
+    await this.flush()
+    return this.#runTransaction(() => request.kind === "empty"
+      ? this.#database.run(
+          "DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE value IS NULL OR length(value) = 0 LIMIT ?1)",
+          request.limit,
+        ).changes
+      : this.#database.run(
+          "DELETE FROM thumbs WHERE key IN (SELECT key FROM thumbs WHERE category = 'file' AND date IS NOT NULL AND date < ?1 ORDER BY date LIMIT ?2)",
+          request.cutoff,
+          request.limit,
+        ).changes)
+  }
+
+  async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult> {
+    this.#assertOpen()
+    assertInteger(options.scanLimit, "invalid path scanLimit", 1, 2_000)
+    assertInteger(options.deleteLimit, "invalid path deleteLimit", 1, 500)
+    await this.flush()
+    let wrapped = false
+    let rows = this.#database.all(
+      "SELECT key FROM thumbs WHERE key > ?1 ORDER BY key LIMIT ?2",
+      this.#invalidScanCursor,
+      options.scanLimit,
+    )
+    if (!rows.length && this.#invalidScanCursor) {
+      this.#invalidScanCursor = ""
+      wrapped = true
+      rows = this.#database.all("SELECT key FROM thumbs ORDER BY key LIMIT ?1", options.scanLimit)
+    }
+    const keys = rows.map((row) => requireString(row.key, "thumbs.key"))
+    if (keys.length) this.#invalidScanCursor = keys.at(-1)!
+    const invalid: string[] = []
+    const roots = new Map<string, ThumbnailPathState>()
+    let unavailableVolumeRowsPreserved = 0
+    await mapConcurrent(keys, 32, async (key) => {
+      const source = thumbnailSourcePath(key)
+      if (!source) {
+        invalid.push(key)
+        return
+      }
+      const root = parse(source).root
+      let rootState = roots.get(root)
+      if (!rootState) {
+        rootState = await this.#pathState(root)
+        roots.set(root, rootState)
+      }
+      if (rootState !== "exists") {
+        unavailableVolumeRowsPreserved += 1
+        return
+      }
+      const sourceState = await this.#pathState(source)
+      if (sourceState === "missing") invalid.push(key)
+      else if (sourceState === "unavailable") unavailableVolumeRowsPreserved += 1
+    })
+    const deleteKeys = invalid.slice(0, options.deleteLimit)
+    const deleted = deleteKeys.length ? await this.#runTransaction(() => {
+      const placeholders = deleteKeys.map((_, index) => `?${index + 1}`).join(", ")
+      return this.#database.run(`DELETE FROM thumbs WHERE key IN (${placeholders})`, ...deleteKeys).changes
+    }) : 0
+    return { scanned: keys.length, deleted, unavailableVolumeRowsPreserved, wrapped }
+  }
+
   async flush(): Promise<void> {
     this.#clearTimer()
     while (this.#flushing) await this.#flushing
@@ -188,17 +360,40 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
 
   async #writeBatch(batch: PendingWrite[]): Promise<void> {
     try {
-      this.#database.exec("BEGIN IMMEDIATE")
-      for (const item of batch) {
-        if (item.kind === "thumbnail") this.#writeThumbnail(item.value)
-        else this.#writeFailure(item.value)
-      }
-      this.#database.exec("COMMIT")
+      await this.#runTransaction(() => {
+        for (const item of batch) {
+          if (item.kind === "thumbnail") this.#writeThumbnail(item.value)
+          else this.#writeFailure(item.value)
+        }
+      })
+      this.#committedBatches += 1
+      this.#committedWrites += batch.length
+      this.#lastError = undefined
       for (const item of batch) item.resolve()
     } catch (error) {
-      try { this.#database.exec("ROLLBACK") } catch { /* transaction did not start */ }
+      this.#failedBatches += 1
+      this.#lastError = sanitizeOperationalError(error)
       for (const item of batch) item.reject(error)
     }
+  }
+
+  async #runTransaction<T>(operation: () => T): Promise<T> {
+    let lastError: unknown
+    for (let attempt = 0; attempt <= this.#writeBusyRetries; attempt += 1) {
+      try {
+        this.#database.exec("BEGIN IMMEDIATE")
+        const result = operation()
+        this.#database.exec("COMMIT")
+        return result
+      } catch (error) {
+        lastError = error
+        try { this.#database.exec("ROLLBACK") } catch { /* transaction did not start */ }
+        if (!isSqliteBusy(error) || attempt >= this.#writeBusyRetries) break
+        this.#busyRetries += 1
+        await delay(Math.min(5_000, this.#writeBusyBaseDelayMs * 2 ** attempt))
+      }
+    }
+    throw lastError
   }
 
   #writeThumbnail(value: ReaderThumbnailWrite): void {
@@ -279,6 +474,21 @@ function sanitizeErrorMessage(value: string | undefined): string | undefined {
     .slice(0, 2048)
 }
 
+function sanitizeOperationalError(error: unknown): string {
+  return sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) ?? "Unknown SQLite write error"
+}
+
+function isSqliteBusy(error: unknown): boolean {
+  const record = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : undefined
+  const code = typeof record?.code === "string" ? record.code.toUpperCase() : ""
+  const message = typeof record?.message === "string" ? record.message.toLowerCase() : String(error).toLowerCase()
+  return code.includes("SQLITE_BUSY") || code.includes("SQLITE_LOCKED") || message.includes("database is locked") || message.includes("database is busy")
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function assertKey(value: string): void {
   if (!value || value.length > 32_768 || value.includes("\0")) throw new Error("Thumbnail key must be 1..32768 characters without NUL.")
 }
@@ -314,6 +524,40 @@ function optionalInteger(value: unknown): number | undefined {
 
 function assertInteger(value: number, name: string, minimum: number, maximum: number): void {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) throw new RangeError(`${name} must be an integer from ${minimum} to ${maximum}.`)
+}
+
+function validateMaintenanceLimit(value: number): void {
+  assertInteger(value, "maintenance limit", 1, 10_000)
+}
+
+async function fileSize(path: string): Promise<number | undefined> {
+  try {
+    const info = await stat(path)
+    return info.isFile() ? info.size : undefined
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") return undefined
+    throw error
+  }
+}
+
+async function filesystemPathState(path: string): Promise<ThumbnailPathState> {
+  try {
+    await stat(path)
+    return "exists"
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") return "missing"
+    return "unavailable"
+  }
+}
+
+function thumbnailSourcePath(key: string): string | undefined {
+  const trimmed = key.trim()
+  if (!trimmed) return undefined
+  const separator = trimmed.indexOf("::")
+  const source = separator >= 0 ? trimmed.slice(0, separator) : trimmed
+  return isAbsolute(source) ? resolve(source) : undefined
 }
 
 async function mapConcurrent<T, R>(values: readonly T[], concurrency: number, map: (value: T) => Promise<R>): Promise<R[]> {

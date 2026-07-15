@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, parse, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { WritableLegacyThumbnailStore } from "./WritableLegacyThumbnailStore.js"
 
@@ -11,8 +11,12 @@ describe("WritableLegacyThumbnailStore", () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
 
-  it("[neoview.thumbnail.persist.batch] batches WebP upserts and clears a previous failure atomically", async () => {
+  it("[neoview.thumbnail.persist.batch] [neoview.thumbnail.persist-metadata] batches WebP upserts without clearing metadata", async () => {
     const path = await createFixture(roots)
+    const seed = await openFixtureDatabase(path)
+    seed.exec(`INSERT INTO thumbs (key, category, value, emm_json, rating_data, ai_translation, manual_tags)
+      VALUES ('D:/book/page-1.jpg', 'file', X'00', 'emm', 'rating', 'translation', 'tags')`)
+    seed.close()
     const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 60_000, maxBatchSize: 2 })
     const webp = fixtureWebp(7)
     const failure = store.recordFailure({
@@ -37,6 +41,10 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.flush()
     await pending
     await store.close()
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT emm_json, rating_data, ai_translation, manual_tags FROM thumbs WHERE key = 'D:/book/page-1.jpg'"))
+      .toEqual({ emm_json: "emm", rating_data: "rating", ai_translation: "translation", manual_tags: "tags" })
+    verified.close()
   })
 
   it("[neoview.thumbnail.failure.retry] increments bounded failure metadata and flushes pending work on close", async () => {
@@ -70,6 +78,130 @@ describe("WritableLegacyThumbnailStore", () => {
     expect(() => store.put({ key: "bad", category: "file", bytes: Uint8Array.of(1, 2, 3) })).toThrow("WebP")
     await store.close()
   })
+
+  it("[neoview.thumbnail.writer.busy-retry] retries the complete transaction after a competing writer releases its lock", async () => {
+    const path = await createFixture(roots)
+    const blocker = await openFixtureDatabase(path)
+    blocker.exec("PRAGMA busy_timeout = 0; BEGIN IMMEDIATE")
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 60_000,
+      busyTimeoutMs: 0,
+      writeBusyRetries: 4,
+      writeBusyBaseDelayMs: 5,
+    })
+    const pending = store.put({ key: "D:/busy.jpg", category: "file", bytes: fixtureWebp(3) })
+    const release = setTimeout(() => blocker.exec("COMMIT"), 12)
+    try {
+      await store.flush()
+      await expect(pending).resolves.toBeUndefined()
+      expect(store.snapshot()).toMatchObject({
+        pendingWrites: 0,
+        committedBatches: 1,
+        committedWrites: 1,
+        failedBatches: 0,
+      })
+      expect(store.snapshot().busyRetries).toBeGreaterThan(0)
+    } finally {
+      clearTimeout(release)
+      try { blocker.exec("ROLLBACK") } catch { /* committed by timer */ }
+      blocker.close()
+      await store.close()
+    }
+  })
+
+  it("[neoview.thumbnail.writer.busy-exhausted] rejects callers and records a sanitized terminal write failure", async () => {
+    const path = await createFixture(roots)
+    const blocker = await openFixtureDatabase(path)
+    blocker.exec("PRAGMA busy_timeout = 0; BEGIN IMMEDIATE")
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 60_000,
+      busyTimeoutMs: 0,
+      writeBusyRetries: 1,
+      writeBusyBaseDelayMs: 1,
+    })
+    const pending = store.put({ key: "D:/locked.jpg", category: "file", bytes: fixtureWebp(4) })
+    try {
+      await store.flush()
+      await expect(pending).rejects.toBeTruthy()
+      expect(store.snapshot()).toMatchObject({
+        committedBatches: 0,
+        busyRetries: 1,
+        failedBatches: 1,
+        lastError: expect.any(String),
+      })
+    } finally {
+      blocker.exec("ROLLBACK")
+      blocker.close()
+      await store.close()
+    }
+  })
+
+  it("[neoview.thumbnail.maintenance.online] reports aggregates and performs only bounded online cleanup", async () => {
+    const path = await createFixture(roots)
+    const seed = await openFixtureDatabase(path)
+    seed.exec("INSERT INTO thumbs (key, category, date, value) VALUES ('empty', 'file', '2020-01-01 00:00:00', X'')")
+    seed.close()
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await Promise.all([
+      store.put({ key: "D:/expired.jpg", category: "file", bytes: fixtureWebp(1), date: "2020-01-01 00:00:00" }),
+      store.put({ key: "D:/folder", category: "folder", bytes: fixtureWebp(2), date: "2020-01-01 00:00:00" }),
+      store.put({ key: "D:/current.jpg", category: "file", bytes: fixtureWebp(3), date: "2026-07-15 00:00:00" }),
+      store.recordFailure({ key: "D:/bad-1", reason: "decode-error", lastAttempt: "2026-07-15 00:00:00" }),
+      store.recordFailure({ key: "D:/bad-2", reason: "archive-error", lastAttempt: "2026-07-15 00:00:00" }),
+    ])
+    const before = await store.maintenanceSnapshot()
+    expect(before).toMatchObject({
+      totalRows: 4,
+      fileRows: 3,
+      folderRows: 1,
+      emptyBlobs: 1,
+      failedRows: 2,
+      failuresByReason: { "archive-error": 1, "decode-error": 1 },
+      databaseBytes: expect.any(Number),
+      writer: { pendingWrites: 0, committedWrites: 5 },
+    })
+    expect(await store.cleanup({ kind: "empty", limit: 1 })).toBe(1)
+    expect(await store.cleanup({ kind: "expired", cutoff: "2025-01-01 00:00:00", limit: 1, preserveFolders: true })).toBe(1)
+    expect(await store.get("D:/folder", "folder")).toBeDefined()
+    expect(await store.get("D:/expired.jpg", "file")).toBeUndefined()
+    expect(await store.clearFailures({ reason: "decode-error", limit: 1 })).toBe(1)
+    const after = await store.maintenanceSnapshot()
+    expect(after).toMatchObject({ totalRows: 2, fileRows: 1, folderRows: 1, emptyBlobs: 0, failedRows: 1 })
+    await store.close()
+  })
+
+  it("[neoview.thumbnail.maintenance.invalid-paths] deletes only confirmed missing sources and preserves unavailable volumes", async () => {
+    const path = await createFixture(roots)
+    const root = parse(resolve(path)).root
+    const valid = resolve(join(root, "xiranite-valid.jpg"))
+    const missing = resolve(join(root, "xiranite-missing.jpg"))
+    const unavailable = resolve(join(root, "xiranite-offline.jpg"))
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      pathState: async (candidate) => {
+        if (candidate === root || candidate === valid) return "exists"
+        if (candidate === unavailable) return "unavailable"
+        return "missing"
+      },
+    })
+    await Promise.all([
+      store.put({ key: valid, category: "file", bytes: fixtureWebp(1) }),
+      store.put({ key: missing, category: "file", bytes: fixtureWebp(2) }),
+      store.put({ key: unavailable, category: "file", bytes: fixtureWebp(3) }),
+      store.put({ key: "relative-invalid", category: "file", bytes: fixtureWebp(4) }),
+    ])
+    expect(await store.cleanupInvalid({ scanLimit: 10, deleteLimit: 10 })).toEqual({
+      scanned: 4,
+      deleted: 2,
+      unavailableVolumeRowsPreserved: 1,
+      wrapped: false,
+    })
+    expect(await store.get(valid, "file")).toBeDefined()
+    expect(await store.get(unavailable, "file")).toBeDefined()
+    expect(await store.get(missing, "file")).toBeUndefined()
+    expect(await store.get("relative-invalid", "file")).toBeUndefined()
+    await store.close()
+  })
 })
 
 async function createFixture(roots: string[]): Promise<string> {
@@ -98,6 +230,7 @@ function fixtureWebp(fill: number): Uint8Array {
 
 interface FixtureDatabase {
   exec(sql: string): void
+  get(sql: string): Record<string, unknown> | undefined
   close(): void
 }
 
@@ -105,11 +238,25 @@ async function openFixtureDatabase(path: string): Promise<FixtureDatabase> {
   if (process.versions.bun) {
     const moduleName = "bun:sqlite"
     const sqlite = await import(moduleName) as unknown as {
-      Database: new (path: string, options: { create: boolean; strict: boolean }) => FixtureDatabase
+      Database: new (path: string, options: { create: boolean; strict: boolean }) => {
+        exec(sql: string): void
+        query(sql: string): { get(): Record<string, unknown> | null }
+        close(): void
+      }
     }
-    return new sqlite.Database(path, { create: true, strict: true })
+    const database = new sqlite.Database(path, { create: true, strict: true })
+    return {
+      exec: (sql) => database.exec(sql),
+      get: (sql) => database.query(sql).get() ?? undefined,
+      close: () => database.close(),
+    }
   }
   const moduleName = "node:sqlite"
   const sqlite = await import(moduleName) as typeof import("node:sqlite")
-  return new sqlite.DatabaseSync(path) as unknown as FixtureDatabase
+  const database = new sqlite.DatabaseSync(path)
+  return {
+    exec: (sql) => database.exec(sql),
+    get: (sql) => database.prepare(sql).get() as Record<string, unknown> | undefined,
+    close: () => database.close(),
+  }
 }

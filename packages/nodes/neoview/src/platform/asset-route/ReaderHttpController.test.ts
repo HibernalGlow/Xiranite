@@ -105,10 +105,14 @@ describe("ReaderHttpController", () => {
     const disposeThumbnailStore = vi.fn(async () => undefined)
     const get = vi.fn(async () => ({ bytes: Uint8Array.of(1, 2, 3), contentType: "image/webp" }))
     const getMany = vi.fn(async (keys: readonly string[]) => new Map(keys.map((key) => [key, { bytes: Uint8Array.of(1, 2, 3), contentType: "image/webp" }])))
+    const maintenanceSnapshot = vi.fn(async () => ({
+      totalRows: 1, fileRows: 1, folderRows: 0, blobBytes: 3, emptyBlobs: 0, failedRows: 0, failuresByReason: {},
+      writer: { pendingWrites: 0, flushing: false, committedBatches: 0, committedWrites: 0, busyRetries: 0, failedBatches: 0 },
+    }))
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
       token: "reader-token",
-      thumbnailStore: { get, getMany },
+      thumbnailStore: { get, getMany, maintenanceSnapshot },
       disposeThumbnailStore,
     })
     const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
@@ -123,6 +127,9 @@ describe("ReaderHttpController", () => {
     await controller[Symbol.asyncDispose]()
     expect(getMany).toHaveBeenCalledOnce()
     expect(get).not.toHaveBeenCalled()
+    const maintenance = (await controller.handle(authorizedRequest("/reader/thumbnails/maintenance")))!
+    expect((await maintenance.json() as { snapshot: { totalRows: number } }).snapshot.totalRows).toBe(1)
+    expect(maintenanceSnapshot).toHaveBeenCalledOnce()
     expect(disposeThumbnailStore).toHaveBeenCalledOnce()
   })
 
