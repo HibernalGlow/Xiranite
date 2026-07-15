@@ -6,6 +6,7 @@ export {
   type NeoViewRuntime,
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
+export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
   ReaderSlideshow,

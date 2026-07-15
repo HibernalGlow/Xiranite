@@ -3,6 +3,7 @@ import type { ReaderBook } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { PageContent } from "../../domain/page/page-content.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
+import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { CoreReaderService } from "./ReaderService.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 
@@ -145,6 +146,51 @@ describe("CoreReaderService", () => {
     expect(probe.probe).toHaveBeenCalledTimes(3)
     await service[Symbol.asyncDispose]()
   })
+
+  it("[neoview.progress.restore] restores the last page while an explicit page wins", async () => {
+    const store = memoryProgressStore({
+      bookId: "book-1",
+      source: { kind: "directory", path: "C:/book" },
+      displayName: "Book",
+      pageIndex: 2,
+      pageCount: 4,
+      updatedAt: 1,
+    })
+    const service = new CoreReaderService(async () => book(4), undefined, {}, store)
+    const restored = await service.openViewSource({ kind: "directory", path: "C:/book" })
+    expect(restored.snapshot().anchorPageIndex).toBe(2)
+    await restored.close()
+
+    const explicit = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 1 })
+    expect(explicit.snapshot().anchorPageIndex).toBe(1)
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.progress.flush] keeps navigation off the write path and flushes the latest page on close", async () => {
+    let releaseWrite!: () => void
+    const writes: ReaderProgressRecord[] = []
+    const store = memoryProgressStore(undefined, async (progress) => {
+      writes.push(progress)
+      await new Promise<void>((resolve) => { releaseWrite = resolve })
+    })
+    const service = new CoreReaderService(async () => book(5), undefined, {}, store)
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" })
+    await session.goTo(1)
+    await session.goTo(4)
+    expect(writes).toEqual([])
+
+    const closing = session.close()
+    await vi.waitFor(() => expect(writes).toHaveLength(1))
+    expect(writes[0]?.pageIndex).toBe(4)
+    let closed = false
+    void closing.then(() => { closed = true })
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    releaseWrite()
+    await closing
+    await service[Symbol.asyncDispose]()
+    expect(store.close).toHaveBeenCalledOnce()
+  })
 })
 
 function book(pageCount: number): ReaderBook {
@@ -203,5 +249,22 @@ function bookWithoutDimensions(): { sourceBook: ReaderBook; dimensions: Map<Page
       close,
       [Symbol.asyncDispose]: close,
     },
+  }
+}
+
+function memoryProgressStore(
+  initial?: ReaderProgressRecord,
+  save: (progress: ReaderProgressRecord) => Promise<void> = async () => undefined,
+): ReaderProgressStore & { close: ReturnType<typeof vi.fn> } {
+  let current = initial
+  const close = vi.fn(async () => undefined)
+  return {
+    async get() { return current },
+    async save(progress) {
+      current = progress
+      await save(progress)
+    },
+    close,
+    [Symbol.asyncDispose]: close,
   }
 }

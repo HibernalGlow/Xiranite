@@ -8,7 +8,7 @@ export interface WritableSqliteConnection {
   close(): void
 }
 
-export async function openWritableSqlite(path: string): Promise<WritableSqliteConnection> {
+export async function openWritableSqlite(path: string, options: { create?: boolean } = {}): Promise<WritableSqliteConnection> {
   if (process.versions.bun) {
     const moduleName = "bun:sqlite"
     const sqlite = await import(moduleName) as unknown as {
@@ -22,7 +22,7 @@ export async function openWritableSqlite(path: string): Promise<WritableSqliteCo
         close(): void
       }
     }
-    const database = new sqlite.Database(path, { create: false, strict: true })
+    const database = new sqlite.Database(path, { create: options.create ?? false, strict: true })
     const statements = new Map<string, ReturnType<typeof database.query>>()
     const statement = (sql: string) => {
       let current = statements.get(sql)

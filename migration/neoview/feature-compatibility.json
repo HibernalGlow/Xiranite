@@ -23,8 +23,8 @@
       "settingsKeys": ["fileBrowser.sortField", "fileBrowser.sortOrder", "folderPanelSettings.homePath"],
       "dataStores": ["folder tabs", "navigation history", "quick folders", "tree pins"],
       "surfaces": ["gui", "cli", "tui"], "status": "pending",
-      "behaviorCases": ["列表/网格/树视图", "面包屑前进后退", "多标签与主页", "虚拟列表", "目录流取消", "文件夹预览和评分"],
-      "testIds": [], "benchmarkIds": [], "knownDifferences": []
+        "behaviorCases": ["列表/网格/树视图", "面包屑前进后退", "多标签与主页", "虚拟列表", "目录流取消", "文件夹预览和评分"],
+        "testIds": [], "benchmarkIds": [], "knownDifferences": []
     },
     {
       "id": "file-operations",
@@ -162,8 +162,8 @@
       "legacyCommandPatterns": ["^get_last"],
       "settingsKeys": ["history", "book.rememberProgress", "historySettings"],
       "dataStores": ["history", "bookmarks", "reading heatmap", "streak"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
-      "behaviorCases": ["记录和恢复进度", "历史大小与自动清理", "书签排序/搜索", "历史与文件树联动", "热力图和连续阅读统计"],
-      "testIds": [], "benchmarkIds": [], "knownDifferences": []
+        "behaviorCases": ["记录和恢复进度", "历史大小与自动清理", "书签排序/搜索", "历史与文件树联动", "热力图和连续阅读统计"],
+        "testIds": ["neoview.progress.restore", "neoview.progress.flush", "neoview.progress.sqlite"], "benchmarkIds": [], "knownDifferences": []
     },
     {
       "id": "search-sort-filter-library",

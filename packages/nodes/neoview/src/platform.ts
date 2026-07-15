@@ -7,6 +7,7 @@ import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platfo
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
+import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -34,10 +35,14 @@ export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPip
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
 
-export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions
+export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
+  progressStore?: ReaderProgressStore | false
+  legacyThumbnailDatabasePath?: string | false
+}
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
   legacyThumbnailDatabasePath?: string | false
   loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
+  useDefaultLegacyProgressStore?: boolean
 }
 
 const CURRENT_STATUS: NeoViewMigrationStatus = {
@@ -87,6 +92,13 @@ export async function createReaderHttpController(
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const progressStore = options.progressStore === false
+    ? undefined
+    : options.progressStore ?? (typeof options.legacyThumbnailDatabasePath === "string"
+      ? await createSqliteReaderProgressStore(options.legacyThumbnailDatabasePath)
+      : options.legacyThumbnailDatabasePath !== false && options.useDefaultLegacyProgressStore
+        ? await createSqliteReaderProgressStore(await legacyNeoViewDatabasePath())
+        : undefined)
   let thumbnailStore = options.thumbnailStore
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
@@ -101,6 +113,7 @@ export async function createReaderHttpController(
   }
   return new ReaderHttpController({
     ...options,
+    progressStore,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
@@ -194,6 +207,11 @@ export async function createReaderHeadlessController(
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
   const { loadNeoviewSessionOptions } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
+  const progressStore = options.progressStore === false
+    ? undefined
+    : options.progressStore ?? (options.legacyThumbnailDatabasePath === false
+      ? undefined
+      : await createSqliteReaderProgressStore(await legacyNeoViewDatabasePath(options.legacyThumbnailDatabasePath)))
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -203,7 +221,19 @@ export async function createReaderHeadlessController(
       createPlatformReaderBookLoader({ ...options, solidArchiveCache }),
       new StreamingImageMetadataProbe(),
       await loadNeoviewSessionOptions(options),
+      progressStore,
     ),
     ownsCache ? () => solidArchiveCache.close() : undefined,
   )
+}
+
+async function createSqliteReaderProgressStore(databasePath: string): Promise<ReaderProgressStore> {
+  const { SqliteReaderProgressStore } = await import("./platform/persistence/SqliteReaderProgressStore.js")
+  return SqliteReaderProgressStore.open(databasePath)
+}
+
+async function legacyNeoViewDatabasePath(explicitPath?: string): Promise<string> {
+  if (explicitPath) return explicitPath
+  const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+  return new LegacyNeoViewDataLocator().locate().thumbnailDatabasePath
 }

@@ -239,10 +239,12 @@ async function createReaderController(
     databasePath?: string
     dataDir?: string
     legacyThumbnailDatabasePath?: string | false
+    useDefaultLegacyProgressStore?: boolean
   }) => Promise<BackendRequestController>)({
     baseUrl,
     token,
     resourceScheduler,
+    useDefaultLegacyProgressStore: true,
     ...config,
   })
 }

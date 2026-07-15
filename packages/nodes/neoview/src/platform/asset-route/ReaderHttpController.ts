@@ -5,6 +5,7 @@ import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
@@ -69,6 +70,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
+  progressStore?: ReaderProgressStore | false
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
@@ -134,6 +136,7 @@ export class ReaderHttpController implements AsyncDisposable {
       bookLoader,
       new StreamingImageMetadataProbe(),
       options.sessionOptions,
+      options.progressStore || undefined,
     )
     this.#assets = new ReaderAssetRoute(this.#service, options, {
       presentationCache: new WeightedLruPresentationCache(),

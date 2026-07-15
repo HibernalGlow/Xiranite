@@ -23,14 +23,14 @@ export class CoreReaderSession implements ReaderSession {
   #closing: Promise<void> | undefined
   #metadataResolved = new Set<PageId>()
   #metadataProbes = new Map<PageId, Promise<void>>()
-  #onClose?: (sessionId: ReaderSessionId) => void
+  #onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>
   readonly #metadataProbe?: ImageMetadataProbe
 
   constructor(
     id: ReaderSessionId,
     book: ReaderBook,
     options: Partial<ReaderSessionOptions> = {},
-    onClose?: (sessionId: ReaderSessionId) => void,
+    onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>,
     metadataProbe?: ImageMetadataProbe,
   ) {
     assertBook(book)
@@ -125,13 +125,20 @@ export class CoreReaderSession implements ReaderSession {
 
   close(): Promise<void> {
     if (this.#closing) return this.#closing
+    const finalSnapshot = this.snapshot()
     this.#closed = true
     this.#closing = Promise.resolve().then(async () => {
       this.#emit({ type: "closed", sessionId: this.id })
       this.#listeners.clear()
-      this.#onClose?.(this.id)
+      const onClose = this.#onClose
       this.#onClose = undefined
-      await this.book.close()
+      const results = await Promise.allSettled([
+        Promise.resolve(onClose?.(this.id, finalSnapshot)),
+        this.book.close(),
+      ])
+      const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      if (errors.length === 1) throw errors[0]
+      if (errors.length > 1) throw new AggregateError(errors, `Failed to close reader session ${this.id}.`)
     })
     return this.#closing
   }

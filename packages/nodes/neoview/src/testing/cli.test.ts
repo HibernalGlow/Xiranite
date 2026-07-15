@@ -11,6 +11,11 @@ import type {
   ReaderHeadlessController,
 } from "../core.js"
 import { runProgram } from "../cli.js"
+import { createReaderHeadlessController } from "../platform.js"
+
+const testPlatformDependencies = {
+  createController: (options = {}) => createReaderHeadlessController({ ...options, progressStore: false }),
+}
 
 describe("NeoView CLI", () => {
   it("[neoview.cli.inspect] prints sanitized JSON and clears environment password bytes", async () => {
@@ -124,14 +129,14 @@ describe("NeoView CLI", () => {
     await writeFile(path, bytes)
     try {
       const metadataOutput: unknown[] = []
-      await runProgram(["inspect", path, "--json"], host(metadataOutput))
+      await runProgram(["inspect", path, "--json"], host(metadataOutput), testPlatformDependencies)
       expect(JSON.parse(metadataOutput.join(""))).toMatchObject({
         book: { displayName: "page.png", pageCount: 1 },
         visiblePages: [{ index: 0, dimensions: { width: 37, height: 53 } }],
       })
 
       const binaryOutput: unknown[] = []
-      await runProgram(["extract-page", path, "--index", "0", "--output", "-"], host(binaryOutput))
+      await runProgram(["extract-page", path, "--index", "0", "--output", "-"], host(binaryOutput), testPlatformDependencies)
       expect(Buffer.concat(binaryOutput.map((chunk) => Buffer.from(chunk as Uint8Array)))).toEqual(Buffer.from(bytes))
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -157,7 +162,7 @@ describe("NeoView CLI", () => {
     ].join("\n"), "utf8")
     try {
       const output: unknown[] = []
-      await runProgram(["inspect", bookPath, "--index", "1", "--config", configPath, "--json"], host(output))
+      await runProgram(["inspect", bookPath, "--index", "1", "--config", configPath, "--json"], host(output), testPlatformDependencies)
       expect(JSON.parse(output.join(""))).toMatchObject({
         frame: { direction: "right-to-left", layout: { pageMode: "double" } },
         visiblePages: [{ index: 2 }, { index: 1 }],

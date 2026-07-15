@@ -10,6 +10,7 @@ import type { HeadlessReaderSnapshot } from "../core.js"
 import { createNeoviewTuiDefinition } from "../interaction.js"
 import { NeoviewTui } from "../Tui.js"
 import { createZipFixture } from "../../test/fixture-builders/create-zip-fixture.js"
+import { createReaderHeadlessController } from "../platform.js"
 
 test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader and navigates with shared controller methods", async () => {
   let current = 0
@@ -115,7 +116,13 @@ async function expectRealSourceRenders(path: string, pageName: string): Promise<
   const definition = createNeoviewTuiDefinition("zh")
   definition.schema.initialValues.path = path
   const screen = await testRender(
-    <NeoviewTui definition={definition} language="zh" onExit={() => undefined} imageBackend="half-block" />,
+    <NeoviewTui
+      definition={definition}
+      language="zh"
+      onExit={() => undefined}
+      imageBackend="half-block"
+      createController={() => createReaderHeadlessController({ progressStore: false })}
+    />,
     { width: 132, height: 34, useMouse: true },
   )
   try {
