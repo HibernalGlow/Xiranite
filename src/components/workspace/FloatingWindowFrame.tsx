@@ -56,15 +56,15 @@ export function FloatingWindowCaptionControls({ className, integrated = false }:
       data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
       className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
     >
-      <button type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
+      <button data-window-caption-button type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
         <Minus className="size-3.5" strokeWidth={1.75} />
       </button>
-      <button type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
+      <button data-window-caption-button type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
         {frame.isMaximized
           ? <Copy className="size-3.5" strokeWidth={1.75} />
           : <RectangleHorizontal className="size-3.5" strokeWidth={1.75} />}
       </button>
-      <button type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
+      <button data-window-caption-button data-window-caption-tone="close" type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
         <X className="size-3.5" strokeWidth={1.75} />
       </button>
     </div>

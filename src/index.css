@@ -97,6 +97,30 @@ samp {
   --wails-draggable: no-drag;
 }
 
+/* Window caption controls are host chrome, not node controls. Keep them out
+   of per-theme button treatments so they remain flush with the titlebar. */
+.xiranite-node-surface [data-window-caption-button] {
+  min-height: 2.25rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.xiranite-node-surface [data-window-caption-button]:hover {
+  background: color-mix(in oklch, var(--foreground) 9%, transparent) !important;
+  color: var(--foreground) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.xiranite-node-surface [data-window-caption-button][data-window-caption-tone="close"]:hover {
+  background: #c42b1c !important;
+  color: white !important;
+}
+
 /* ── Workspace canvas dot/grid background ── */
 .ws-canvas-bg {
   position: relative;

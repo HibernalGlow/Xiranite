@@ -54,6 +54,10 @@ test("floating component query params still render a popup window", async ({ pag
     const captionControls = page.getByTestId("floating-window-integrated-controls")
     await expect(captionControls.getByRole("button")).toHaveCount(3)
     await expect(captionControls.getByRole("button").nth(1).locator("svg rect")).toHaveCount(1)
+    await expect.poll(() => captionControls.getByRole("button").evaluateAll((buttons) => buttons.every((button) => {
+      const style = getComputedStyle(button)
+      return style.borderRadius === "0px" && style.borderWidth === "0px" && style.boxShadow === "none"
+    }))).toBe(true)
     await expect.poll(async () => {
       const titlebarBox = await nodeTitlebar.boundingBox()
       const controlsBox = await captionControls.boundingBox()
