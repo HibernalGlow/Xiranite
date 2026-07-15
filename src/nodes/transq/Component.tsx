@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { TransqData, TransqInput } from "@xiranite/node-transq/core"
@@ -351,7 +352,7 @@ function RunActionButton({ compact, props, wide }: { compact?: boolean; props: V
 
 function HeaderLine({ action, status, subtitle, t }: { action?: ReactNode; status: TransqStatusMeta; subtitle: string; t: ViewProps["t"] }) {
   const Icon = NODE_META.icon
-  return <div className="flex min-w-0 flex-1 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold">{t("name", "TransQ")}</h3><Badge variant={status.badgeVariant}>{status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p></div></div>{action && <div className="shrink-0">{action}</div>}</div>
+  return <FloatingWindowNodeHeader><div className="flex min-w-0 flex-1 items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold">{t("name", "TransQ")}</h3><Badge variant={status.badgeVariant}>{status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p></div></div>{action && <div className="xiranite-app-region-no-drag shrink-0">{action}</div>}</div></FloatingWindowNodeHeader>
 }
 
 function RuleSummary({ t }: { t: ViewProps["t"] }) {

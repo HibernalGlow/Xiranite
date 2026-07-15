@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { BandiaAction, BandiaData, BandiaInput, BandiaPathMapping } from "@xiranite/node-bandia/core"
 import { mappingsToText, parseBandiaPaths, parsePathMappings } from "@xiranite/node-bandia/core"
 import type { LucideIcon } from "lucide-react"
@@ -723,6 +724,7 @@ function HeaderLine({ modeMeta, status, subtitle }: {
   subtitle: string
 }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -737,6 +739,7 @@ function HeaderLine({ modeMeta, status, subtitle }: {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

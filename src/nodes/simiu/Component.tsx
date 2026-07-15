@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { SimiuAction, SimiuData, SimiuInput } from "@xiranite/node-simiu/core"
 import { Images, Play, RotateCcw, Square } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -494,6 +495,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   subtitle: string
 }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -508,6 +510,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

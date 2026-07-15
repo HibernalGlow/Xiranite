@@ -12,6 +12,7 @@ import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { RunningTint } from "@/nodes/shared/controls"
 import { NodeConfigButton } from "@/nodes/shared/NodeConfigPopover"
 import { ACTIONS, actionI18nKey, isDestructiveAction } from "./constants"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import {
   ActionIconButton,
   OptionsPopover,
@@ -515,6 +516,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   subtitle: string
 }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -529,6 +531,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

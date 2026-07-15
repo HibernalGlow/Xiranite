@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { ClassfAction, ClassfClassifyMode, ClassfData, ClassfInput, ClassfPlacementMode, ClassfPlanItem, ClassfProgressData, ClassfTransferMode, ClassfWorkItemMode } from "@xiranite/node-classf/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, Archive, ArrowRight, BarChart3, CheckCircle2, Clipboard, Copy, File, Folder, FolderInput, FolderTree, Layers3, Maximize2, Play, RotateCcw, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
@@ -643,7 +644,7 @@ function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIc
 
 function HeaderLine(props: { status: ClassfStatusMeta; subtitle: string }) {
   const Icon = NODE_ICON
-  return <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">ClassF</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div>
+  return <FloatingWindowNodeHeader><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">ClassF</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div></FloatingWindowNodeHeader>
 }
 
 function StatsPanel(props: { paths: string[]; progress: number; result: ClassfData | null; t: ViewProps["tNode"] }) {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { OwithuAction, OwithuData, OwithuInput } from "@xiranite/node-owithu/core"
 import { buildOwithuPlan, parseOwithuConfig } from "@xiranite/node-owithu/core"
 import { Copy, ListChecks, MousePointerClick, Play, RotateCcw, ScrollText, Square } from "lucide-react"
@@ -548,6 +549,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   subtitle: string
 }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -562,6 +564,7 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { LataAction, LataData, LataInput } from "@xiranite/node-lata/core"
 import { Copy, RotateCcw, Rocket, Square } from "lucide-react"
@@ -406,6 +407,7 @@ function HeaderLine({ status, subtitle }: {
   subtitle: string
 }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -420,6 +422,7 @@ function HeaderLine({ status, subtitle }: {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { CoveruAction, CoveruCandidate, CoveruData, CoveruInput, CoveruOutputMode } from "@xiranite/node-coveru/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, CheckCircle2, Clipboard, Copy, FolderInput, GalleryThumbnails, Image as ImageIcon, Images, PackageOpen, Play, RotateCcw, ShieldAlert, Square, Trash2, XCircle } from "lucide-react"
@@ -615,6 +616,7 @@ function TextPanel(props: { actionLabel?: string; empty: string; lines: string[]
 function HeaderLine(props: { status: CoveruStatusMeta; subtitle: string }) {
   const Icon = NODE_ICON
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}>
@@ -629,6 +631,7 @@ function HeaderLine(props: { status: CoveruStatusMeta; subtitle: string }) {
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

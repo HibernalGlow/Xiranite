@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunResult } from "@xiranite/contract"
 import type { EncodebAction, EncodebData, EncodebInput } from "@xiranite/node-encodeb/core"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import { parseEncodebPaths } from "@xiranite/node-encodeb/core"
 import type { LucideIcon } from "lucide-react"
 import { ArrowRight, Clipboard, Copy, Eraser, FileText, Gauge, Languages, Radar, RotateCcw, ScanSearch, ShieldAlert, Square } from "lucide-react"
@@ -381,6 +382,7 @@ function FullView(props: ViewProps) {
 
 function HeaderBar({ compact, props }: { compact?: boolean; props: ViewProps }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="flex min-w-0 items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
         <div className={cn("grid shrink-0 place-items-center rounded-xl", compact ? "size-9" : "size-10", props.status.iconClass)}>
@@ -398,6 +400,7 @@ function HeaderBar({ compact, props }: { compact?: boolean; props: ViewProps }) 
         <ToolButton disabled={!props.logs.length && !props.mappings.length && !props.matches.length} icon={RotateCcw} label="清空状态" onClick={props.onReset} />
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type { SnfAction, SnfData, SnfInput, SnfMode, SnfPlanItem } from "@xiranite/node-snf/core"
 import type { LucideIcon } from "lucide-react"
 import { AlertTriangle, CheckCircle2, Clipboard, Copy, DatabaseZap, FolderInput, GitCompare, ListOrdered, Play, RotateCcw, Settings2, ShieldAlert, Square, Terminal, Trash2, XCircle } from "lucide-react"
@@ -263,7 +264,7 @@ function TextPanel(props: { actionLabel?: string; empty: string; icon?: LucideIc
 
 function HeaderLine(props: { status: SnfStatusMeta; subtitle: string; t: TranslateFn }) {
   const Icon = NODE_ICON
-  return <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">{props.t("name", "SNF")}</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div>
+  return <FloatingWindowNodeHeader><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", props.status.iconClass)}><Icon /></div><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><h3 className="truncate text-sm font-semibold leading-none">{props.t("name", "SNF")}</h3><Badge variant={props.status.badgeVariant}>{props.status.label}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{props.subtitle}</p></div></div></div></FloatingWindowNodeHeader>
 }
 
 function StatsPanel(props: { paths: string[]; progress: number; result: SnfData | null; t: TranslateFn }) {

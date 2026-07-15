@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
+import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
 import type {
   EngineVAction,
   EngineVData,
@@ -893,6 +894,7 @@ function DeleteConfirmButton(props: {
 
 function HeaderLine({ status, subtitle }: { status: EngineVStatusMeta; subtitle: string }) {
   return (
+    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -907,6 +909,7 @@ function HeaderLine({ status, subtitle }: { status: EngineVStatusMeta; subtitle:
         </div>
       </div>
     </div>
+    </FloatingWindowNodeHeader>
   )
 }
 

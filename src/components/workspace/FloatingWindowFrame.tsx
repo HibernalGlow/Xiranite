@@ -35,6 +35,35 @@ export function useFloatingWindowFrame() {
   return useContext(FloatingWindowFrameContext)
 }
 
+/**
+ * Adapts an existing node header to the frameless Wails window chrome.
+ *
+ * In the normal workspace this is a transparent wrapper, so node cards keep
+ * their existing layout. Inside a floating window it turns the header into
+ * the draggable title bar and appends the shared window controls.
+ */
+export function FloatingWindowNodeHeader({ children, className }: {
+  children: ReactNode
+  className?: string
+}) {
+  const frame = useFloatingWindowFrame()
+
+  if (!frame) return <>{children}</>
+
+  return (
+    <div
+      data-floating-window-titlebar="true"
+      onDoubleClick={frame.handleTitlebarDoubleClick}
+      className={cn("flex min-w-0 items-stretch justify-between gap-3", className)}
+    >
+      <div className="xiranite-app-region-drag flex min-w-0 flex-1 select-none items-center">
+        {children}
+      </div>
+      <FloatingWindowCaptionControls integrated />
+    </div>
+  )
+}
+
 export function FloatingWindowCaptionControls({ className, integrated = false }: {
   className?: string
   integrated?: boolean
