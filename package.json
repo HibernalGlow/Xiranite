@@ -56,6 +56,7 @@
     "audit:neoview-inventory": "bun scripts/verify-neoview-inventory-drift.ts",
     "audit:neoview-frontend": "bun scripts/verify-neoview-frontend-inventory.ts",
     "audit:neoview-features": "bun scripts/verify-neoview-feature-matrix.ts",
+    "audit:neoview-cards": "bun scripts/verify-neoview-card-matrix.ts",
     "audit:neoview-build": "bun scripts/audit-neoview-build-chunk.ts",
     "generate:neoview-frontend-inventory": "bun run migrate:svelte -- generate ../ImageAll/NeeWaifu/neoview/neoview-tauri --out migration/neoview/frontend --config migration/neoview/frontend-migration.json --feature-matrix migration/neoview/feature-compatibility.json --force",
     "generate:neoview-feature-checklist": "bun scripts/verify-neoview-feature-matrix.ts --update-doc",

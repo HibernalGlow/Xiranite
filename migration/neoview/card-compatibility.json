@@ -1,0 +1,642 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "file": "src/lib/cards/registry.ts",
+    "hash": "sha256:ab8c2e45a48e4b9cfcea9ce68e2ce9ba0d63dbd0e4581e74d9a516ab92a3d3a3",
+    "cardCount": 77
+  },
+  "statuses": [
+    "pending",
+    "partial",
+    "migrated",
+    "replaced"
+  ],
+  "priorities": [
+    "core",
+    "integration",
+    "deferred"
+  ],
+  "cards": [
+    {
+      "legacyId": "visibility",
+      "title": "可见性监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "latency",
+      "title": "延迟分析",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "renderer",
+      "title": "渲染模式测试",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "files",
+      "title": "文件选择",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "detailed",
+      "title": "详细结果",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "loadmode",
+      "title": "加载模式",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "archives",
+      "title": "压缩包扫描",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "realworld",
+      "title": "实际场景",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "imageSource",
+      "title": "图像源对比",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "protocolTest",
+      "title": "协议测试",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "results",
+      "title": "测试结果",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "summary",
+      "title": "总结",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "pipelineLatency",
+      "title": "实时延迟监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "transcodeBenchmark",
+      "title": "超分预处理转码",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "thumbnailLatency",
+      "title": "目录加载延迟",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "pageFlipMonitor",
+      "title": "翻页性能监控",
+      "panelId": "benchmark",
+      "priority": "deferred",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "preloadStatus",
+      "title": "预加载状态",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "preload-stream-scheduler",
+      "status": "pending"
+    },
+    {
+      "legacyId": "systemMonitor",
+      "title": "系统资源监控",
+      "panelId": "insights",
+      "priority": "integration",
+      "featureId": "performance-benchmark-diagnostics",
+      "status": "pending"
+    },
+    {
+      "legacyId": "bookInfo",
+      "title": "书籍信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "status": "partial",
+      "currentCardId": "book-information"
+    },
+    {
+      "legacyId": "infoOverlay",
+      "title": "信息悬浮窗",
+      "panelId": "info",
+      "priority": "deferred",
+      "featureId": "metadata-dimensions-properties",
+      "status": "pending"
+    },
+    {
+      "legacyId": "switchToast",
+      "title": "切换提示",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "metadata-dimensions-properties",
+      "status": "pending"
+    },
+    {
+      "legacyId": "imageInfo",
+      "title": "图像信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "status": "pending"
+    },
+    {
+      "legacyId": "storage",
+      "title": "存储信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "status": "pending"
+    },
+    {
+      "legacyId": "time",
+      "title": "时间信息",
+      "panelId": "info",
+      "priority": "core",
+      "featureId": "metadata-dimensions-properties",
+      "status": "pending"
+    },
+    {
+      "legacyId": "sidebarControl",
+      "title": "边栏控制",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "panels-toolbar-shell",
+      "status": "pending"
+    },
+    {
+      "legacyId": "colorFilter",
+      "title": "颜色滤镜",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "image-effects-transitions",
+      "status": "pending"
+    },
+    {
+      "legacyId": "imageTrim",
+      "title": "图像裁剪",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "image-effects-transitions",
+      "status": "pending"
+    },
+    {
+      "legacyId": "pageTransition",
+      "title": "翻页动画",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "image-effects-transitions",
+      "status": "pending"
+    },
+    {
+      "legacyId": "animatedVideoMode",
+      "title": "动图视频模式",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "animated-image-video",
+      "status": "pending"
+    },
+    {
+      "legacyId": "ambientBackground",
+      "title": "动态背景",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "theme-background-empty-state",
+      "status": "pending"
+    },
+    {
+      "legacyId": "sidebarHeight",
+      "title": "侧边栏高度",
+      "panelId": "control",
+      "priority": "deferred",
+      "featureId": "panels-toolbar-shell",
+      "status": "pending"
+    },
+    {
+      "legacyId": "emmTags",
+      "title": "EMM 标签",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "bookSettings",
+      "title": "本书设置",
+      "panelId": "properties",
+      "priority": "core",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "folderRatings",
+      "title": "文件夹平均评分",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "favoriteTags",
+      "title": "收藏标签快选",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "emmSync",
+      "title": "EMM 同步",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "thumbnailMaintenance",
+      "title": "缩略图维护",
+      "panelId": "control",
+      "priority": "integration",
+      "featureId": "thumbnail-system",
+      "status": "pending"
+    },
+    {
+      "legacyId": "thumbnailArchMetrics",
+      "title": "缩略图架构指标",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "thumbnail-system",
+      "status": "pending"
+    },
+    {
+      "legacyId": "emmRawData",
+      "title": "EMM 数据库记录",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "emmConfig",
+      "title": "EMM 配置",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "fileListTagDisplay",
+      "title": "文件列表标签",
+      "panelId": "properties",
+      "priority": "integration",
+      "featureId": "emm-ratings-tags-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "upscaleControl",
+      "title": "超分控制",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "upscaleModel",
+      "title": "模型选择",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "upscaleStatus",
+      "title": "处理状态",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "upscaleCache",
+      "title": "缓存管理",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "upscaleConditions",
+      "title": "条件超分",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "progressiveUpscale",
+      "title": "预超分",
+      "panelId": "upscale",
+      "priority": "deferred",
+      "featureId": "super-resolution",
+      "status": "pending"
+    },
+    {
+      "legacyId": "historyList",
+      "title": "历史记录",
+      "panelId": "history",
+      "priority": "core",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "bookmarkList",
+      "title": "书签列表",
+      "panelId": "bookmark",
+      "priority": "core",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "pageListMain",
+      "title": "页面列表",
+      "panelId": "pageList",
+      "priority": "core",
+      "featureId": "page-index-navigation",
+      "status": "partial",
+      "currentCardId": "page-navigation"
+    },
+    {
+      "legacyId": "dailyTrend",
+      "title": "最近 7 日阅读趋势",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "readingStreak",
+      "title": "连续阅读 Streak",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "readingHeatmap",
+      "title": "阅读时段热力图",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "bookmarkOverview",
+      "title": "书签概览",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "sourceBreakdown",
+      "title": "来源拆分",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "emmTagsHot",
+      "title": "EMM 标签热度",
+      "panelId": "insights",
+      "priority": "deferred",
+      "featureId": "history-bookmarks-progress",
+      "status": "pending"
+    },
+    {
+      "legacyId": "folderMain",
+      "title": "文件夹",
+      "panelId": "folder",
+      "priority": "core",
+      "featureId": "file-browser-navigation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiTags",
+      "title": "AI 标签推断",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiApiConfig",
+      "title": "AI API 配置",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiTitleTranslation",
+      "title": "标题翻译",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiServiceConfig",
+      "title": "翻译服务配置",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiTranslationCache",
+      "title": "翻译缓存",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "aiTranslationTest",
+      "title": "翻译测试",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "translationOverlay",
+      "title": "翻译叠加层",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "voiceControl",
+      "title": "语音控制",
+      "panelId": "ai",
+      "priority": "deferred",
+      "featureId": "ai-ollama-translation",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsGeneral",
+      "title": "通用设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsSystem",
+      "title": "系统设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsView",
+      "title": "视图设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "partial",
+      "currentCardId": "view-defaults-settings"
+    },
+    {
+      "legacyId": "settingsImage",
+      "title": "影像设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsBook",
+      "title": "书籍设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsPerformance",
+      "title": "性能设置",
+      "panelId": "settings",
+      "priority": "integration",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsTheme",
+      "title": "外观设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsNotification",
+      "title": "通知设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsPanels",
+      "title": "边栏管理",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "partial",
+      "currentCardId": "sidebar-management-settings"
+    },
+    {
+      "legacyId": "settingsCards",
+      "title": "卡片管理",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "partial",
+      "currentCardId": "panel-layout-settings"
+    },
+    {
+      "legacyId": "settingsBindings",
+      "title": "操作绑定",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    },
+    {
+      "legacyId": "settingsData",
+      "title": "数据设置",
+      "panelId": "settings",
+      "priority": "deferred",
+      "featureId": "settings-import-export-backup",
+      "status": "pending"
+    }
+  ]
+}
