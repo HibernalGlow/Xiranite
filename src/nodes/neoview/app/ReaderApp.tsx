@@ -161,10 +161,14 @@ export function ReaderApp({
     const { cardId, ...changes } = patch
     if (previous) {
       const current = previous.cardLayout[cardId]
-      if (current) setShell({
-        ...previous,
-        cardLayout: { ...previous.cardLayout, [cardId]: { ...current, ...changes } },
-      })
+      if (current) {
+        const next = { ...current, ...changes }
+        if (changes.height === null) delete next.height
+        setShell({
+          ...previous,
+          cardLayout: { ...previous.cardLayout, [cardId]: next },
+        })
+      }
     }
     try {
       setShell(await clientRef.current.updateCardLayout(patch))

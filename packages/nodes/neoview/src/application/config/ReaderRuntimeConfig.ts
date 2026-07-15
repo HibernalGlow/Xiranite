@@ -63,7 +63,7 @@ export interface NeoviewCardLayoutPatch {
   visible?: boolean
   expanded?: boolean
   order?: number
-  height?: number
+  height?: number | null
 }
 
 export interface NeoviewBoardLayoutPatch {
@@ -193,14 +193,15 @@ export function parseNeoviewCardLayoutPatch(value: unknown): {
   if (record.visible !== undefined) patch.visible = optionalBoolean(record.visible, "reader card patch.visible")
   if (record.expanded !== undefined) patch.expanded = optionalBoolean(record.expanded, "reader card patch.expanded")
   if (record.order !== undefined) patch.order = boundedNumber(record.order, 0, 10_000, 0, "reader card patch.order")
-  if (record.height !== undefined) patch.height = boundedNumber(record.height, 50, 4_096, 50, "reader card patch.height")
+  if (record.height === null) patch.height = null
+  else if (record.height !== undefined) patch.height = boundedNumber(record.height, 50, 4_096, 50, "reader card patch.height")
   if (Object.keys(patch).length === 1) throw new Error("reader card patch must change at least one field.")
   const state: Record<string, unknown> = {}
   if (patch.panelId !== undefined) state.panel_id = patch.panelId
   if (patch.visible !== undefined) state.visible = patch.visible
   if (patch.expanded !== undefined) state.expanded = patch.expanded
   if (patch.order !== undefined) state.order = patch.order
-  if (patch.height !== undefined) state.height = patch.height
+  if (patch.height !== undefined) state.height = patch.height === null ? "auto" : patch.height
   return { patch, tomlPatch: { panels: { card_state: { [patch.cardId]: state } } } }
 }
 
@@ -313,7 +314,11 @@ function parseCardValue(
     visible: optionalBoolean(value.visible, `${cardId}.visible`) ?? fallback?.visible ?? true,
     expanded: optionalBoolean(value.expanded, `${cardId}.expanded`) ?? fallback?.expanded ?? true,
     order: boundedNumber(value.order, 0, 10_000, fallback?.order ?? 0, `${cardId}.order`),
-    height: value.height === undefined ? fallback?.height : boundedNumber(value.height, 50, 4_096, 50, `${cardId}.height`),
+    height: value.height === "auto"
+      ? undefined
+      : value.height === undefined
+        ? fallback?.height
+        : boundedNumber(value.height, 50, 4_096, 50, `${cardId}.height`),
   }
 }
 

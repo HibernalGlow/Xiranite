@@ -109,7 +109,9 @@ export function ReaderSidebar({
                 key={card.id}
                 title={card.title}
                 collapsed={cardLayout ? !cardLayout.expanded : false}
+                height={cardLayout?.height}
                 onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
+                onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
               >
                 <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
                   <Card {...context} />

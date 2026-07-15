@@ -53,6 +53,25 @@ describe("ReaderSidebar layout gestures", () => {
     expect(cardCommit).toHaveBeenCalledOnce()
     expect(cardCommit).toHaveBeenCalledWith({ cardId: "page-navigation", expanded: true })
   })
+
+  it("[neoview.card.resize-patch] applies stored height and emits one card patch after a drag", () => {
+    const cardCommit = vi.fn()
+    const config = shell()
+    config.cardLayout["page-navigation"]!.height = 180
+    render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
+    const content = document.querySelector<HTMLElement>('[data-reader-card-content="页面导航"]')!
+    const handle = screen.getByRole("button", { name: "调整页面导航高度" })
+
+    expect(content.style.height).toBe("180px")
+    fireEvent.pointerDown(handle, { pointerId: 18, clientY: 100 })
+    for (let index = 1; index <= 40; index += 1) {
+      fireEvent.pointerMove(handle, { pointerId: 18, clientY: 100 + index })
+    }
+    expect(cardCommit).not.toHaveBeenCalled()
+    fireEvent.pointerUp(handle, { pointerId: 18, clientY: 140 })
+    expect(cardCommit).toHaveBeenCalledOnce()
+    expect(cardCommit).toHaveBeenCalledWith({ cardId: "page-navigation", height: 220 })
+  })
 })
 
 function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "full"): ReaderShellConfigDto {

@@ -58,7 +58,7 @@ export interface ReaderCardLayoutPatch {
   visible?: boolean
   expanded?: boolean
   order?: number
-  height?: number
+  height?: number | null
 }
 
 export interface ReaderBoardLayoutPatch {

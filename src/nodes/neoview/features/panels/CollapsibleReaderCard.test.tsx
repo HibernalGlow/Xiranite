@@ -25,4 +25,65 @@ describe("CollapsibleReaderCard", () => {
     )
     expect(screen.getByTestId("heavy-card-content")).toBeTruthy()
   })
+
+  it("[neoview.card.resize-performance] mutates DOM during pointer moves and commits once on pointer up", () => {
+    const changed = vi.fn()
+    render(
+      <CollapsibleReaderCard title="性能卡片" onHeightChange={changed}>
+        <div>heavy</div>
+      </CollapsibleReaderCard>,
+    )
+    const content = document.querySelector<HTMLElement>('[data-reader-card-content="性能卡片"]')!
+    Object.defineProperty(content, "offsetHeight", { configurable: true, value: 200 })
+    const handle = screen.getByRole("button", { name: "调整性能卡片高度" })
+
+    fireEvent.pointerDown(handle, { pointerId: 11, clientY: 100 })
+    for (let index = 1; index <= 40; index += 1) {
+      fireEvent.pointerMove(handle, { pointerId: 11, clientY: 100 + index * 2 })
+    }
+    expect(changed).not.toHaveBeenCalled()
+    expect(content.style.height).toBe("280px")
+    fireEvent.pointerUp(handle, { pointerId: 11, clientY: 180 })
+    expect(changed).toHaveBeenCalledOnce()
+    expect(changed).toHaveBeenCalledWith(280)
+  })
+
+  it("[neoview.card.resize-bounds] clamps the minimum and restores the configured height on cancel", () => {
+    const changed = vi.fn()
+    render(
+      <CollapsibleReaderCard title="性能卡片" height={180} onHeightChange={changed}>
+        <div>heavy</div>
+      </CollapsibleReaderCard>,
+    )
+    const content = document.querySelector<HTMLElement>('[data-reader-card-content="性能卡片"]')!
+    const handle = screen.getByRole("button", { name: "调整性能卡片高度" })
+
+    fireEvent.pointerDown(handle, { pointerId: 12, clientY: 200 })
+    fireEvent.pointerMove(handle, { pointerId: 12, clientY: -200 })
+    expect(content.style.height).toBe("50px")
+    fireEvent.pointerCancel(handle, { pointerId: 12, clientY: -200 })
+    expect(content.style.height).toBe("180px")
+    expect(changed).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.card.resize-reset] resets custom height and keeps collapsed resize controls unmounted", () => {
+    const changed = vi.fn()
+    const view = render(
+      <CollapsibleReaderCard title="性能卡片" height={180} onHeightChange={changed}>
+        <div>heavy</div>
+      </CollapsibleReaderCard>,
+    )
+    const handle = screen.getByRole("button", { name: "调整性能卡片高度" })
+    fireEvent.doubleClick(handle)
+    expect(changed).toHaveBeenCalledOnce()
+    expect(changed).toHaveBeenCalledWith(undefined)
+
+    view.rerender(
+      <CollapsibleReaderCard title="性能卡片" collapsed height={180} onHeightChange={changed}>
+        <div data-testid="heavy-card-content">heavy</div>
+      </CollapsibleReaderCard>,
+    )
+    expect(screen.queryByRole("button", { name: "调整性能卡片高度" })).toBeNull()
+    expect(screen.queryByTestId("heavy-card-content")).toBeNull()
+  })
 })

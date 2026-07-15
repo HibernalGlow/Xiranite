@@ -183,6 +183,52 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await page.getByRole("button", { name: "展开页面导航" }).click()
   expect((await expandResponse).status()).toBe(200)
   await expect(page.getByRole("spinbutton", { name: "跳转页码" })).toBeVisible()
+  await first.evaluate((image) => image.setAttribute("data-neoview-image-instance", "before-card-resize"))
+  let cardHeightPatchRequests = 0
+  page.on("request", (request) => {
+    if (
+      request.url() === `${backend.url}/reader/config`
+      && request.method() === "PATCH"
+      && request.postData()?.includes('"cardId":"page-navigation"')
+      && request.postData()?.includes('"height"')
+    ) cardHeightPatchRequests += 1
+  })
+  const cardHeightHandle = page.getByRole("button", { name: "调整页面导航高度" })
+  const cardContent = page.locator('[data-reader-card-content="页面导航"]')
+  const cardHandleBox = await cardHeightHandle.boundingBox()
+  expect(cardHandleBox).not.toBeNull()
+  const cardStartHeight = await cardContent.evaluate((element) => element.getBoundingClientRect().height)
+  const cardPatchResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"cardId":"page-navigation"') === true
+    && response.request().postData()?.includes('"height"') === true
+  ))
+  const cardStartX = cardHandleBox!.x + cardHandleBox!.width / 2
+  const cardStartY = cardHandleBox!.y + cardHandleBox!.height / 2
+  await cardHeightHandle.dispatchEvent("pointerdown", { pointerId: 19, clientX: cardStartX, clientY: cardStartY, buttons: 1 })
+  for (let step = 1; step <= 40; step += 1) {
+    await cardHeightHandle.dispatchEvent("pointermove", { pointerId: 19, clientX: cardStartX, clientY: cardStartY + step * 2, buttons: 1 })
+  }
+  await cardHeightHandle.dispatchEvent("pointerup", { pointerId: 19, clientX: cardStartX, clientY: cardStartY + 80, buttons: 0 })
+  expect((await cardPatchResponse).status()).toBe(200)
+  expect(cardHeightPatchRequests).toBe(1)
+  expect(await cardContent.evaluate((element) => element.getBoundingClientRect().height)).toBeGreaterThan(cardStartHeight)
+  expect(await first.getAttribute("data-neoview-image-instance")).toBe("before-card-resize")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toMatch(/height = \d+/)
+
+  const cardResetResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"height":null') === true
+  ))
+  await cardHeightHandle.dblclick()
+  expect((await cardResetResponse).status()).toBe(200)
+  expect(cardHeightPatchRequests).toBe(2)
+  expect(await cardContent.evaluate((element) => (element as HTMLElement).style.height)).toBe("")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain('height = "auto"')
+  expect(await first.getAttribute("data-neoview-image-instance")).toBe("before-card-resize")
+
   await first.evaluate((image) => image.setAttribute("data-neoview-image-instance", "before-sidebar-resize"))
   let shellPatchRequests = 0
   page.on("request", (request) => {

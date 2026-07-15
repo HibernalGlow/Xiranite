@@ -165,6 +165,14 @@ describe("parseNeoviewRuntimeConfig", () => {
       patch: { cardId: "page-navigation", expanded: false, height: 320 },
       tomlPatch: { panels: { card_state: { "page-navigation": { expanded: false, height: 320 } } } },
     })
+    expect(parseNeoviewCardLayoutPatch({ cardId: "page-navigation", height: null })).toEqual({
+      patch: { cardId: "page-navigation", height: null },
+      tomlPatch: { panels: { card_state: { "page-navigation": { height: "auto" } } } },
+    })
+    expect(parseNeoviewRuntimeConfig({ panels: {
+      card_configs: { data: { pageList: [{ id: "page-navigation", height: 240 }] } },
+      card_state: { "page-navigation": { height: "auto" } },
+    } }).shellOptions.cardLayout["page-navigation"]?.height).toBeUndefined()
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "../bad", expanded: false })).toThrow("cardId")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation" })).toThrow("at least one")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation", height: 20 })).toThrow("height")
