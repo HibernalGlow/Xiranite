@@ -38,10 +38,34 @@ describe("StreamingImageMetadataProbe", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
-  it("[neoview.image.probe-fallback] skips JXL without opening a stream so a native fallback can remain lazy", async () => {
-    const load = vi.fn()
-    await expect(new StreamingImageMetadataProbe().probe({ load }, "image/jxl")).resolves.toBeUndefined()
-    expect(load).not.toHaveBeenCalled()
+  it("[neoview.image.probe-jxl] resolves a raw JXL codestream from its bounded header", async () => {
+    const cancelled = vi.fn()
+    const closed = vi.fn(async () => undefined)
+    const content = chunkedContent([
+      Uint8Array.of(0xff, 0x0a),
+      Uint8Array.of(0x7a, 0x43, 0x1d, 0x00, 0x15, 0x88),
+      new Uint8Array(1024),
+    ], cancelled, closed)
+    await expect(new StreamingImageMetadataProbe().probe(content, "image/jxl")).resolves.toEqual({
+      format: "jxl",
+      dimensions: { width: 3840, height: 2160 },
+      orientation: undefined,
+      bytesRead: 8,
+    })
+    expect(cancelled).toHaveBeenCalled()
+    expect(closed).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.image.probe-jxl-container] leaves container dimensions unknown without reading the full box", async () => {
+    const cancelled = vi.fn()
+    const closed = vi.fn(async () => undefined)
+    const content = chunkedContent([
+      Uint8Array.of(0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a),
+      new Uint8Array(1024 * 1024),
+    ], cancelled, closed)
+    await expect(new StreamingImageMetadataProbe().probe(content, "image/jxl")).resolves.toBeUndefined()
+    expect(cancelled).toHaveBeenCalledOnce()
+    expect(closed).toHaveBeenCalledOnce()
   })
 
   it("[neoview.image.probe-archive] cancels a large stored ZIP entry after its bounded header", async () => {

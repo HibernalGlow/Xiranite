@@ -1,6 +1,7 @@
 import type { PageDimensions } from "../page/page.js"
+import { JXLStream } from "image-size/types/jxl-stream"
 
-export type ProbedImageFormat = "avif" | "bmp" | "gif" | "jpeg" | "png" | "tiff" | "webp"
+export type ProbedImageFormat = "avif" | "bmp" | "gif" | "jpeg" | "jxl" | "png" | "tiff" | "webp"
 
 export type ImageDimensionParseResult =
   | { status: "found"; format: ProbedImageFormat; dimensions: PageDimensions; orientation?: number }
@@ -23,12 +24,13 @@ export function parseImageDimensions(bytes: Uint8Array, mimeType?: string): Imag
     case "bmp": return parseBmp(bytes)
     case "tiff": return parseTiff(bytes)
     case "avif": return parseAvif(bytes)
+    case "jxl": return parseJxlStream(bytes)
   }
 }
 
 function detectFormat(bytes: Uint8Array, mimeType?: string): ProbedImageFormat | "need-more" | "unsupported" {
   const normalizedMime = mimeType?.toLowerCase().split(";", 1)[0]
-  if (normalizedMime === "image/jxl") return "unsupported"
+  if (bytes.length >= 2 && JXLStream.validate(bytes)) return "jxl"
   if (bytes.length >= 8 && matches(bytes, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png"
   if (bytes.length >= 6 && (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a")) return "gif"
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8) return "jpeg"
@@ -44,7 +46,19 @@ function detectFormat(bytes: Uint8Array, mimeType?: string): ProbedImageFormat |
   if (normalizedMime === "image/bmp") return "bmp"
   if (normalizedMime === "image/tiff") return "tiff"
   if (normalizedMime === "image/avif") return "avif"
+  if (normalizedMime === "image/jxl") return "unsupported"
   return "unsupported"
+}
+
+function parseJxlStream(bytes: Uint8Array): ImageDimensionParseResult {
+  try {
+    const value = JXLStream.calculate(bytes)
+    return dimensions("jxl", value.width, value.height)
+  } catch (error) {
+    return error instanceof Error && error.message === "Reached end of input"
+      ? { status: "need-more" }
+      : invalid(`Invalid JXL codestream: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 function parsePng(bytes: Uint8Array): ImageDimensionParseResult {

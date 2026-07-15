@@ -3,12 +3,17 @@ import { describe, expect, it } from "vitest"
 import { parseImageDimensions } from "./image-dimensions.js"
 
 describe("parseImageDimensions", () => {
-  it("[neoview.image.probe-formats] parses PNG, GIF, BMP, WebP and AVIF headers", () => {
+  it("[neoview.image.probe-formats] parses PNG, GIF, BMP, WebP, AVIF and JXL codestream headers", () => {
     expect(parseImageDimensions(png(640, 480))).toMatchObject({ status: "found", format: "png", dimensions: { width: 640, height: 480 } })
     expect(parseImageDimensions(gif(320, 240))).toMatchObject({ status: "found", format: "gif", dimensions: { width: 320, height: 240 } })
     expect(parseImageDimensions(bmp(800, 600))).toMatchObject({ status: "found", format: "bmp", dimensions: { width: 800, height: 600 } })
     expect(parseImageDimensions(webpVp8x(1024, 768))).toMatchObject({ status: "found", format: "webp", dimensions: { width: 1024, height: 768 } })
     expect(parseImageDimensions(avif(1920, 1080))).toMatchObject({ status: "found", format: "avif", dimensions: { width: 1920, height: 1080 } })
+    expect(parseImageDimensions(jxlCodestreamHeader(), "image/jxl")).toMatchObject({
+      status: "found",
+      format: "jxl",
+      dimensions: { width: 3840, height: 2160 },
+    })
   })
 
   it("[neoview.image.probe-formats] trusts a recognized signature over a misleading MIME hint", () => {
@@ -37,7 +42,8 @@ describe("parseImageDimensions", () => {
   it("[neoview.image.probe-errors] distinguishes partial, unsupported and corrupt headers", () => {
     expect(parseImageDimensions(png(10, 20).subarray(0, 12), "image/png")).toEqual({ status: "need-more" })
     expect(parseImageDimensions(Uint8Array.of(0xff, 0xd8, 0xff, 0xda), "image/jpeg")).toMatchObject({ status: "invalid" })
-    expect(parseImageDimensions(Uint8Array.of(0xff, 0x0a), "image/jxl")).toEqual({ status: "unsupported" })
+    expect(parseImageDimensions(Uint8Array.of(0xff, 0x0a), "image/jxl")).toEqual({ status: "need-more" })
+    expect(parseImageDimensions(jxlContainerHeader(), "image/jxl")).toEqual({ status: "unsupported" })
     expect(parseImageDimensions(new Uint8Array(32))).toEqual({ status: "unsupported" })
   })
 })
@@ -49,6 +55,14 @@ function png(width: number, height: number): Uint8Array {
   writeU32BE(bytes, 16, width)
   writeU32BE(bytes, 20, height)
   return bytes
+}
+
+function jxlCodestreamHeader(): Uint8Array {
+  return Uint8Array.of(0xff, 0x0a, 0x7a, 0x43, 0x1d, 0x00, 0x15, 0x88)
+}
+
+function jxlContainerHeader(): Uint8Array {
+  return Uint8Array.of(0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a)
 }
 
 function gif(width: number, height: number): Uint8Array {

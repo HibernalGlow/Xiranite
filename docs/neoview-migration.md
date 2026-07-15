@@ -963,7 +963,7 @@ flowchart LR
 | PDF | 未选型（deferred） | 当前无运行时数据链 | 只识别为 document 并明确返回 capability unavailable；通过第 2 节 PDF 决策门后重新选型 |
 | EPUB | `epubjs` 或 `foliate-js` 适配器 | 文档资源流 | 二期评估，不侵入 Page 核心 |
 | 动图/视频 | WebView 原生或 FFmpeg 适配器 | 原文件/分段流 | 非 Reader MVP 阻塞项 |
-| JXL 等特殊格式 | 可选 native/WASM adapter | 按需转码 | 作为 capability，不进入基础包启动链 |
+| JXL | custom `sharp/libvips/libjxl` + `image-size` JXL header parser | 原图流按需转码；裸 codestream 有界探测 | sharp 二级懒加载；container probe 暂不整包读取 |
 
 具体库在实现前必须用真实书库做兼容性和基准测试。库名是适配器候选，不是绕过验证的既定依赖。
 
@@ -1261,7 +1261,7 @@ entry -> full Buffer -> sharp -> full Buffer -> IPC
 - 单页模式只探测当前页，双页模式探测当前页与候选相邻页，真实尺寸直接参与宽页单独成帧判断；
 - 测试覆盖格式、方向、损坏输入、预算、取消、fallback、真实 archive entry 与布局行为。
 
-JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp fallback，不能为了探测尺寸引入常驻 sidecar。AVIF 已有有界 BMFF box 遍历与 `ispe` 支持，但 `irot`/`imir` 等 item property 关联和色彩/解码能力仍由后续转换 fallback 收口。RAR/7z 接入后同一 probe 必须把成功后的取消继续传递到 `7zz -so` 子进程。
+JXL 解码与转码已由带 libjxl 的 custom sharp 提供；尺寸探测对裸 codestream 使用成熟 `image-size@2.0.2` 的 `JXLStream` 子模块，真实 4K 样本只读取前 8 bytes 即得到 `3840×2160`，不加载 sharp/WIC。JXL container 当前仍返回 unknown：该库的 container parser 要求完整 `jxlc` box，实测 sharp stream `metadata()` 也必须消费完整 4,526,290-byte 样本才返回，接入首帧会造成重复全文件读取，因此不能作为 fallback；恢复 container probe 必须采用成熟的增量 libjxl API，不手写 BMFF/JXL bit parser。AVIF 已有有界 BMFF box 遍历与 `ispe` 支持，但 `irot`/`imir` 等 item property 关联和色彩/解码能力仍由后续转换 fallback 收口。RAR/7z 接入后同一 probe 必须把成功后的取消继续传递到 `7zz -so` 子进程。
 
 可选 sharp 变换现已接入同一 asset route。无变换参数时仍走原始 `PageSource`、Range、原始 `Content-Length` 和原图 ETag，且不会加载 sharp；只有 URL 明确携带有界的 `width`/`height`/`dpr`/`fit`/`format`/`quality` 时，才动态导入 `SharpImageTransformer`。参数先规范化并进入变体 ETag，重复参数、非法组合、超限尺寸在打开 page source 和 native 模块前返回 400。变换链为 `PageSource stream -> sharp Duplex -> Web ReadableStream -> HTTP`，不调用 `toBuffer()`，转换响应不谎报 Range 或预先物化以计算 `Content-Length`。当前支持 JPEG、PNG、WebP、AVIF 输出，默认缩放结果为 `inside` WebP，并通过 `AbortSignal` 将客户端断开传到输入流与 sharp pipeline。
 
@@ -2488,7 +2488,7 @@ scripts/
 
 - 已选定并实现 `@zip.js/zip.js` 随机文件 Reader、CBZ/ZIP 流式 provider、目录/单文件 loader 与统一自动识别入口，继续补真实漫画语料；
 - 已打通未转码的 `entry/file stream -> HTTP Response` 端到端背压、Range（文件页）与取消；可选 sharp transform 复用同一响应链；
-- 已接入 256 KiB 有界的纯 TS 流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL 与 AVIF 变换属性留给惰性 native fallback；
+- 已接入 256 KiB 有界的流式图片尺寸探测，覆盖 PNG/GIF/JPEG/WebP/BMP/TIFF/AVIF 和裸 JXL codestream、JPEG/TIFF orientation、archive 提前取消及真实尺寸驱动的宽页布局；JXL container 与 AVIF 变换属性留给经验证的惰性 native fallback；
 - 已接入参数有界、二级懒加载的 sharp 流式缩放/转码，原图请求不加载 native 模块；已覆盖真实 libvips、取消、变体 ETag、无 Range/Buffer 语义和 backend loopback HTTP。NeoView 已从 backend 宿主共享 CPU 池取得 lease，其他高负载节点仍需迁入同一 scheduler；
 - 已接入 transform singleflight、96 MiB/单条 24 MiB 的 L2 weighted LRU，以及惰性 `cacache` L3；冷请求保持边响应边有界收集，L3 使用 opaque typed key、SHA-256 完整性、原子发布、active lease、字节/年龄/低磁盘策略和独立维护 API。方向 pin、内存压力回收与跨进程 lease 仍待实现；
 - 已接入最小 React `<img>` viewer，并以真实 CBZ 在 Chromium 桌面/卡片视口完成首图、翻页和关闭 E2E；
