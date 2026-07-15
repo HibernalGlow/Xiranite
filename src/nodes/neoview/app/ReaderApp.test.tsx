@@ -67,6 +67,27 @@ describe("ReaderApp", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
+  it("[neoview.react.open-cancel] closes a session that resolves after the reader unmounts", async () => {
+    let resolveOpen!: (value: ReaderSessionDto) => void
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => shellConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      open: vi.fn(() => new Promise((resolve) => { resolveOpen = resolve })),
+      listPages: vi.fn(),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    view.unmount()
+    await act(async () => resolveOpen(opened))
+    await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
+  })
+
   it("[neoview.thumbnail.react-list] navigates the shared reader session from a thumbnail", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const secondPage = {

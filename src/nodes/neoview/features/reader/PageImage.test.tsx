@@ -14,6 +14,19 @@ describe("PageImage", () => {
     expect(new URL(image.getAttribute("src")!).searchParams.has("format")).toBe(false)
     expect(document.querySelector("canvas")).toBeNull()
   })
+
+  it("[neoview.viewer.image-identity] keeps the same img while applying measured scale and rotation", () => {
+    const source = page()
+    const view = render(<PageImage page={source} />)
+    const image = view.container.querySelector("img")!
+    view.rerender(<PageImage page={source} scale={0.5} rotation={90} />)
+    expect(view.container.querySelector("img")).toBe(image)
+    expect(image.getAttribute("src")).toBe(source.assetUrl)
+    expect(image.style.transform).toContain("rotate(90deg)")
+    const box = view.container.querySelector<HTMLElement>('[data-reader-page-box="page-1"]')!
+    expect(box.style.width).toBe("3000px")
+    expect(box.style.height).toBe("2000px")
+  })
 })
 
 function page(): ReaderPageDto {

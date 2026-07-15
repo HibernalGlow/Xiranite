@@ -1,5 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
+import {
+  DEFAULT_READER_PRESENTATION,
+  rotateReaderPresentation,
+  stepReaderManualScale,
+  type ReaderPresentation,
+} from "@xiranite/node-neoview/core"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,7 +22,6 @@ import {
   type ReaderCardLayoutPatch,
   type ReaderBoardLayoutPatch,
 } from "../adapters/reader-http-client"
-import { PageImage } from "../features/reader/PageImage"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
 import { ReaderEdgeShell, type ReaderEdgeSlot } from "../features/shell/ReaderEdgeShell"
@@ -37,6 +42,26 @@ function loadReaderSettingsWindow(): Promise<ReaderSettingsWindowModule> {
   return readerSettingsWindowModule
 }
 const LazyReaderSettingsWindow = lazy(async () => ({ default: (await loadReaderSettingsWindow()).ReaderSettingsWindow }))
+
+type ReaderFrameModule = typeof import("../features/reader/ReaderFrame")
+let readerFrameModule: Promise<ReaderFrameModule> | undefined
+function loadReaderFrame(): Promise<ReaderFrameModule> {
+  readerFrameModule ??= import("../features/reader/ReaderFrame")
+  return readerFrameModule
+}
+const LazyReaderFrame = lazy(async () => ({ default: (await loadReaderFrame()).ReaderFrame }))
+
+type ReaderViewToolbarModule = typeof import("../features/reader/ReaderViewToolbar")
+let readerViewToolbarModule: Promise<ReaderViewToolbarModule> | undefined
+function loadReaderViewToolbar(): Promise<ReaderViewToolbarModule> {
+  readerViewToolbarModule ??= import("../features/reader/ReaderViewToolbar")
+  return readerViewToolbarModule
+}
+const LazyReaderViewToolbar = lazy(async () => ({ default: (await loadReaderViewToolbar()).ReaderViewToolbar }))
+
+function loadReaderPresentation(): Promise<unknown> {
+  return Promise.all([loadReaderFrame(), loadReaderViewToolbar()])
+}
 
 export interface ReaderAppProps {
   initialPath?: string
@@ -65,6 +90,7 @@ export function ReaderApp({
   const [error, setError] = useState<string | undefined>(undefined)
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
 
   useEffect(() => () => {
@@ -89,10 +115,21 @@ export function ReaderApp({
     setError(undefined)
     try {
       const previousSession = sessionRef.current
+      const presentationReady = loadReaderPresentation()
       const opened = await clientRef.current.open(normalizedPath, controller.signal)
-      if (controller.signal.aborted) return
+      try {
+        await presentationReady
+      } catch (error) {
+        await clientRef.current.close(opened.sessionId).catch(() => undefined)
+        throw error
+      }
+      if (controller.signal.aborted) {
+        void clientRef.current.close(opened.sessionId).catch(() => undefined)
+        return
+      }
       sessionRef.current = opened.sessionId
       setSession(opened)
+      setPresentation({ ...DEFAULT_READER_PRESENTATION })
       setPath(normalizedPath)
       onPathCommitted?.(normalizedPath)
       if (previousSession && previousSession !== opened.sessionId) {
@@ -237,6 +274,11 @@ export function ReaderApp({
           </Button>
           <Button className="xiranite-app-region-no-drag" aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button><FloatingWindowCaptionControls integrated />
         </div>
+        {session ? (
+          <Suspense fallback={null}>
+            <LazyReaderViewToolbar disabled={busy} presentation={presentation} onChange={setPresentation} />
+          </Suspense>
+        ) : null}
         {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
       </div>
     ),
@@ -318,6 +360,10 @@ export function ReaderApp({
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable) return
         if (event.key === "ArrowLeft") void navigate("previous")
         if (event.key === "ArrowRight") void navigate("next")
+        if (event.key === "+" || event.key === "=") setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, 1) }))
+        if (event.key === "-") setPresentation((current) => ({ ...current, manualScale: stepReaderManualScale(current.manualScale, -1) }))
+        if (event.key.toLowerCase() === "r") setPresentation((current) => ({ ...current, rotation: rotateReaderPresentation(current.rotation, 1) }))
+        if (event.key === "0") setPresentation({ ...DEFAULT_READER_PRESENTATION })
       }}
     >
       <FloatingWindowTitlebarReservation />
@@ -328,14 +374,9 @@ export function ReaderApp({
               <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
             </div>
           ) : (
-            <div className={cn("flex h-full w-full items-center justify-center", session.visiblePages.length > 1 && "gap-1")}>
-              {session.visiblePages.map((page) => (
-                <PageImage
-                  key={`${page.id}:${page.contentVersion}`}
-                  page={page}
-                />
-              ))}
-            </div>
+            <Suspense fallback={null}>
+              <LazyReaderFrame pages={session.visiblePages} presentation={presentation} />
+            </Suspense>
           )}
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
         </div>

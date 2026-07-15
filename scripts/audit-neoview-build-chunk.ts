@@ -27,6 +27,18 @@ if (neoViewChunk.bytes > 40 * 1024) {
 
 const eagerPanelModules = neoViewChunk.modules.filter((module) => /[/\\]features[/\\]panels[/\\](?:ReaderSidebar|cards[/\\])/i.test(module))
 if (eagerPanelModules.length) throw new Error(`NeoView panel/card modules leaked into the reader entry chunk: ${eagerPanelModules.join(", ")}`)
+const eagerPresentationModules = neoViewChunk.modules.filter((module) => /[/\\]features[/\\]reader[/\\](?:ReaderFrame|ReaderViewToolbar|PageImage)\.tsx$/i.test(module))
+if (eagerPresentationModules.length) throw new Error(`NeoView presentation UI leaked into the reader entry chunk: ${eagerPresentationModules.join(", ")}`)
+const readerFrameChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderFrame\.tsx$/i.test(module)))
+const readerViewToolbarChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]ReaderViewToolbar\.tsx$/i.test(module)))
+if (!readerFrameChunk || readerFrameChunk === neoViewChunk) throw new Error("NeoView ReaderFrame did not produce a deferred production chunk.")
+if (!readerViewToolbarChunk || readerViewToolbarChunk === neoViewChunk) throw new Error("NeoView ReaderViewToolbar did not produce a deferred production chunk.")
+if (!readerFrameChunk.modules.some((module) => /[/\\]features[/\\]reader[/\\]PageImage\.tsx$/i.test(module))) {
+  throw new Error("NeoView PageImage is not colocated with the deferred ReaderFrame chunk.")
+}
+for (const chunk of new Set([readerFrameChunk, readerViewToolbarChunk])) {
+  if (chunk.bytes > 16 * 1024) throw new Error(`NeoView deferred presentation chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 16 KiB.`)
+}
 const deferredPanelChunks = neoViewChunks.filter((chunk) => chunk !== neoViewChunk && chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]/i.test(module)))
 if (!deferredPanelChunks.some((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))) {
   throw new Error("NeoView ReaderSidebar did not produce a deferred production chunk.")
@@ -72,6 +84,7 @@ if (zipModules.length) throw new Error(`zip.js leaked into the frontend build:\n
 console.log(JSON.stringify({
   initialChunk: { fileName: initialChunk.fileName, bytes: initialChunk.bytes, neoviewModules: 0 },
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
+  deferredPresentationChunks: [...new Set([readerFrameChunk, readerViewToolbarChunk])].map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
   settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
   sidebarManagementSettingsCardChunk: { fileName: sidebarManagementSettingsCardChunk.fileName, bytes: sidebarManagementSettingsCardChunk.bytes },

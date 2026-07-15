@@ -110,6 +110,29 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   ))).toBe(true)
   await expect(page.locator("canvas")).toHaveCount(0)
 
+  await first.evaluate((image) => image.setAttribute("data-neoview-presentation-image-instance", "stable"))
+  const readerViewport = page.locator('[data-reader-frame-viewport="true"]')
+  const activeAssetUrl = await first.getAttribute("src")
+  let repeatedActiveAssetRequests = 0
+  page.on("request", (request) => {
+    if (request.url() === activeAssetUrl) repeatedActiveAssetRequests += 1
+  })
+  await page.getByRole("combobox", { name: "缩放模式" }).selectOption("original")
+  await expect(readerViewport).toHaveAttribute("data-reader-fit-mode", "original")
+  await expect.poll(() => readerViewport.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await page.getByRole("button", { name: "顺时针旋转 90 度" }).click()
+  await expect(readerViewport).toHaveAttribute("data-reader-rotation", "90")
+  await expect(first).toHaveCSS("transform", /matrix/)
+  await page.getByRole("button", { name: "放大" }).click()
+  await expect(page.getByLabel("手动缩放比例")).toHaveText("110%")
+  await page.getByRole("button", { name: "重置视图" }).click()
+  await expect(readerViewport).toHaveAttribute("data-reader-fit-mode", "fit")
+  await expect(readerViewport).toHaveAttribute("data-reader-rotation", "0")
+  await expect.poll(() => readerViewport.evaluate((element) => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
+  expect(await first.getAttribute("data-neoview-presentation-image-instance")).toBe("stable")
+  expect(repeatedActiveAssetRequests).toBe(0)
+  await expect(page.locator("canvas")).toHaveCount(0)
+
   await first.evaluate((image) => image.setAttribute("data-neoview-settings-image-instance", "stable"))
   let boardPatchRequests = 0
   page.on("request", (request) => {

@@ -36,6 +36,20 @@ export {
   type ReaderGeneration,
   type ReaderLayout,
 } from "./domain/frame/frame.js"
+export {
+  calculateReaderFrameSize,
+  calculateReaderScale,
+  DEFAULT_READER_PRESENTATION,
+  normalizeReaderManualScale,
+  normalizeReaderRotation,
+  rotatePresentationSize,
+  rotateReaderPresentation,
+  stepReaderManualScale,
+  type PresentationSize,
+  type ReaderFitMode,
+  type ReaderPresentation,
+  type ReaderRotation,
+} from "./domain/presentation/presentation.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
 export type { PageByteRange, PageContent, PageSource } from "./domain/page/page-content.js"
