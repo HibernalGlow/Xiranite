@@ -26,7 +26,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
   }))
   const workspaceActions = useWorkspaceActions()
   const [isMaximized, setIsMaximized] = useState(false)
-  const { controlMain, closeComponent } = useWindowControls()
+  const { controlMain, controlMainPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const mod = getModule(moduleId)
   const title = titleFallback
@@ -95,41 +95,53 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
   return (
     <div className={cn("xiranite-floating-window flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
       <header
+        data-testid="floating-window-titlebar"
         onDoubleClick={handleTitleBarDoubleClick}
-        className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-center gap-2 border-b border-border bg-background px-3"
+        className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-stretch border-b border-border bg-background"
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
-          <div className="truncate font-mono text-[9px] text-muted-foreground">{detail}</div>
+        <div className="flex min-w-0 flex-1 items-center gap-2 pl-3 pr-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
+            <div className="truncate font-mono text-[9px] text-muted-foreground">{detail}</div>
+          </div>
         </div>
-        <button
-          type="button"
-          title={t("common:minimize")}
-          aria-label={t("common:minimize")}
-          onClick={() => controlWindow("minimize")}
-          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        <div
+          data-testid="floating-window-caption-controls"
+          className="xiranite-app-region-no-drag flex shrink-0 items-stretch"
         >
-          <Minus className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          title={t("common:maximize")}
-          aria-label={t("common:maximize")}
-          onClick={() => controlWindow("maximize")}
-          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-        >
-          {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
-        </button>
-        <button
-          type="button"
-          title={t("common:closeWindow")}
-          aria-label={t("common:closeWindow")}
-          onClick={() => controlWindow("close")}
-          className="xiranite-app-region-no-drag grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+          <button
+            type="button"
+            title={t("common:minimize")}
+            aria-label={t("common:minimize")}
+            disabled={controlMainPending}
+            onClick={() => controlWindow("minimize")}
+            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title={t("common:maximize")}
+            aria-label={t("common:maximize")}
+            aria-pressed={isMaximized}
+            disabled={controlMainPending}
+            onClick={() => controlWindow("maximize")}
+            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+          >
+            {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
+          </button>
+          <button
+            type="button"
+            title={t("common:closeWindow")}
+            aria-label={t("common:closeWindow")}
+            disabled={controlMainPending}
+            onClick={() => controlWindow("close")}
+            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-[#c42b1c] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </header>
 
       <main className="xiranite-app-region-no-drag min-h-0 flex-1 overflow-hidden p-2">

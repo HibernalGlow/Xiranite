@@ -46,6 +46,18 @@ test("floating component query params still render a popup window", async ({ pag
     await expect(page.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText("Popup Smoke")).toBeVisible()
     await expect(page.locator("main.xiranite-app-region-no-drag")).toBeVisible()
+
+    const titlebar = page.getByTestId("floating-window-titlebar")
+    const captionControls = page.getByTestId("floating-window-caption-controls")
+    await expect(captionControls.getByRole("button")).toHaveCount(3)
+    await expect.poll(async () => {
+      const titlebarBox = await titlebar.boundingBox()
+      const controlsBox = await captionControls.boundingBox()
+      if (!titlebarBox || !controlsBox) return false
+      return Math.abs(controlsBox.y - titlebarBox.y) <= 1
+        && Math.abs((controlsBox.y + controlsBox.height) - (titlebarBox.y + titlebarBox.height)) <= 1
+        && Math.abs((controlsBox.x + controlsBox.width) - (titlebarBox.x + titlebarBox.width)) <= 1
+    }).toBe(true)
   } finally {
     backend.close()
   }
