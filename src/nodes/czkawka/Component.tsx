@@ -3,10 +3,11 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { applyCzkawkaFilters, normalizeCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState, type CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import { applyCzkawkaDirectorySelection, applyCzkawkaGroupSelection, applyCzkawkaTextSelection, calculateCzkawkaSelectionStats, createCzkawkaSelectionHistory, createDefaultCzkawkaSelectionAssistantConfig, invertCzkawkaSelection, pushCzkawkaSelectionHistory, redoCzkawkaSelectionHistory, selectAllCzkawkaEntries, undoCzkawkaSelectionHistory, type CzkawkaSelectionAssistantConfig, type CzkawkaSelectionHistory, type CzkawkaSelectionResult, type CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, Save, Search, Trash2, Video, X } from "lucide-react"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, MoveRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, Save, Search, Settings2, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
@@ -680,6 +681,7 @@ function Header(props: View) {
           <PanelTopOpen />
         </Button>
         <CzkawkaCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
+        <CzkawkaNodeSettings props={props} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label={props.t("filters.global", "Czkawka 全局筛选")} className="h-8 w-48 pl-7 pr-7 text-xs" placeholder={props.t("filters.searchCurrent", "搜索当前工具结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
@@ -733,6 +735,7 @@ function CompactHeader(props: View) {
           {props.selectedPaths.length}
         </Badge>
         <CzkawkaCardManager layout={props.cardLayout} onChange={props.setCardLayout} />
+        <CzkawkaNodeSettings props={props} />
       </div>
     </header>
   )
@@ -746,6 +749,59 @@ function ToolSelector({ compact = false, props }: { compact?: boolean; props: Vi
     </Select>
   )
 }
+
+function CzkawkaNodeSettings({ props }: { props: View }) {
+  const availableThreads = typeof navigator === "undefined" ? 1 : Math.max(1, navigator.hardwareConcurrency || 1)
+  const deleteOutdatedCache = props.data.deleteOutdatedCacheByTool?.[props.tool] ?? true
+  const minimumKiB = Math.floor(Number(props.data.minimumFileSize ?? 0) / 1000)
+  const maximumKiB = props.data.maximumFileSize ? Math.floor(Number(props.data.maximumFileSize) / 1000) : 2_147_483
+  async function browse(field: "cacheFolderPath" | "configFolderPath") {
+    const path = await props.pickDirectory?.()
+    if (path) props.patch({ [field]: path })
+  }
+  return (
+    <Dialog>
+      <DialogTrigger asChild><Button aria-label={props.t("settings.open", "节点设置")} size="icon-sm" variant="ghost"><Settings2 /></Button></DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader><DialogTitle>{props.t("settings.title", "Czkawka 节点设置")}</DialogTitle><DialogDescription>{props.t("settings.description", "适用于所有扫描器的目录过滤、缓存和性能设置。")}</DialogDescription></DialogHeader>
+        <ScrollArea className="max-h-[70vh] pr-3">
+          <div className="grid gap-5">
+            <SettingsSection title={props.t("settings.general", "通用设置")}>
+              <CzkawkaTokenEditor kind="rules" label={props.t("sources.excludedItems", "排除的项目")} value={props.data.excludedItemsText} placeholder={props.t("sources.excludedItemsPlaceholder", "*/cache/*; *.part；每条规则需包含 *")} onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
+              <CzkawkaTokenEditor kind="extensions" label={props.t("sources.allowedExtensions", "允许的扩展名")} value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} />
+              <CzkawkaTokenEditor kind="extensions" label={props.t("sources.excludedExtensions", "排除的扩展名")} value={props.data.excludedExtensions} placeholder="tmp,bak" onChange={(excludedExtensions) => props.patch({ excludedExtensions })} />
+              {props.data.allowedExtensions?.trim() && props.data.excludedExtensions?.trim() ? <p className="text-[11px] text-amber-600 dark:text-amber-400">{props.t("sources.allowedPriority", "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。")}</p> : null}
+              <Field label={props.t("sources.fileSizeKiB", "文件大小（KB）")}><div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2"><Input aria-label={props.t("sources.minimumSizeKiB", "最小文件大小（KB）")} type="number" min={0} max={2_147_483} value={minimumKiB} onChange={(event) => props.patch({ minimumFileSize: String(Number(event.currentTarget.value) * 1000) })} /><span className="text-muted-foreground">~</span><Input aria-label={props.t("sources.maximumSizeKiB", "最大文件大小（KB）")} type="number" min={0} max={2_147_483} value={maximumKiB} onChange={(event) => props.patch({ maximumFileSize: String(Number(event.currentTarget.value) * 1000) })} /></div></Field>
+              <Field label={props.t("sources.referencePathKeywords", "参考路径关键词")}><Input value={props.data.referencePathKeywords ?? "#compare"} placeholder="#compare" onChange={(event) => props.patch({ referencePathKeywords: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.referencePathKeywordsHint", "包含这些关键词的路径将自动标记为参考（用逗号分隔）。")}</p></Field>
+              <SwitchLine label={props.t("sources.recursive", "递归扫描")} checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
+            </SettingsSection>
+            <SettingsSection title={props.t("settings.cachePerformance", "缓存与性能")}>
+              <SettingsDirectoryField label={props.t("cache.cacheFolder", "缓存文件夹路径")} value={props.data.cacheFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} browseLabel={props.t("common.browse", "浏览")} onChange={(cacheFolderPath) => props.patch({ cacheFolderPath })} onBrowse={() => void browse("cacheFolderPath")} />
+              <SettingsDirectoryField label={props.t("cache.configFolder", "配置文件夹路径")} value={props.data.configFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} browseLabel={props.t("common.browse", "浏览")} onChange={(configFolderPath) => props.patch({ configFolderPath })} onBrowse={() => void browse("configFolderPath")} />
+              <Field label={props.t("sources.threads", "线程数")}><div className="flex items-center gap-2"><Input aria-label="czkawka scan threads" type="number" min={1} max={availableThreads} value={props.data.threadCount || String(availableThreads)} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><span className="shrink-0 text-xs text-muted-foreground">/ {availableThreads}</span></div></Field>
+              <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
+              <SwitchLine label={props.t("cache.saveJson", "同时保存 JSON 缓存")} checked={props.data.saveAlsoAsJson ?? false} onChange={(saveAlsoAsJson) => props.patch({ saveAlsoAsJson })} />
+              <SwitchLine label={props.t("cache.deleteOutdated", "清理当前工具的过期缓存项")} checked={deleteOutdatedCache} onChange={(enabled) => props.patch({ deleteOutdatedCacheByTool: { ...props.data.deleteOutdatedCacheByTool, [props.tool]: enabled } })} />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("cache.restartHint", "缓存与配置目录在首次原生扫描时初始化；修改后需重启桌面后端。")}</p>
+            </SettingsSection>
+            <SettingsSection title={props.t("tools.duplicateFiles", "重复文件")}>
+              <Field label={props.t("cache.minHash", "最小缓存文件大小 - 哈希（KB）")}><Input type="number" min={1} value={props.data.duplicateMinimalHashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalHashCacheSizeKiB: event.currentTarget.value })} /></Field>
+              <Field label={props.t("cache.minPrehash", "最小缓存文件大小 - 预哈希（KB）")}><Input type="number" min={1} value={props.data.duplicateMinimalPrehashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalPrehashCacheSizeKiB: event.currentTarget.value })} /></Field>
+            </SettingsSection>
+            <SettingsSection title={props.t("settings.other", "其它")}>
+              <SwitchLine label={props.t("sources.reversePathDisplay", "反向显示路径")} checked={props.data.reversePathDisplay ?? false} onChange={(reversePathDisplay) => props.patch({ reversePathDisplay })} />
+              <SwitchLine label={props.t("sources.tableWrapText", "表格文字折行")} checked={props.data.tableWrapText ?? false} onChange={(tableWrapText) => props.patch({ tableWrapText })} />
+              <Button disabled={!props.data.cacheFolderPath || !props.openPath} variant="outline" onClick={() => void props.openPath?.(props.data.cacheFolderPath!)}><FolderOpen />{props.t("cache.openFolder", "打开缓存文件夹")}</Button>
+            </SettingsSection>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SettingsSection({ children, title }: { children: React.ReactNode; title: string }) { return <section className="grid gap-3 border-t pt-4 first:border-t-0 first:pt-0"><h4 className="text-sm font-semibold">{title}</h4>{children}</section> }
+function SettingsDirectoryField({ browseLabel, label, onBrowse, onChange, placeholder, value }: { browseLabel: string; label: string; onBrowse: () => void; onChange: (value: string) => void; placeholder: string; value: string }) { return <Field label={label}><div className="flex gap-2"><Input className="min-w-0 flex-1" value={value} placeholder={placeholder} onChange={(event) => onChange(event.currentTarget.value)} /><Button className="shrink-0" type="button" variant="outline" onClick={onBrowse}><FolderOpen />{browseLabel}</Button></div></Field> }
 
 function SourcePanel(props: View) {
   return (
@@ -878,44 +934,19 @@ function CzkawkaCardContent({ id, props }: { id: CzkawkaCardId; props: View }) {
 }
 
 function SourceSettingsCard(props: View) {
-  const deleteOutdatedCache = props.data.deleteOutdatedCacheByTool?.[props.tool] ?? true
-  function setDeleteOutdatedCache(enabled: boolean) {
-    props.patch({ deleteOutdatedCacheByTool: { ...props.data.deleteOutdatedCacheByTool, [props.tool]: enabled } })
-  }
+  const activeTab = props.data.sourceSettingsTab === "algorithm" ? "algorithm" : "paths"
   return (
-    <Tabs value={props.data.sourceSettingsTab ?? "paths"} className="min-w-0" onValueChange={(sourceSettingsTab) => props.patch({ sourceSettingsTab: sourceSettingsTab as CzkawkaCardState["sourceSettingsTab"] })}>
+    <Tabs value={activeTab} className="min-w-0" onValueChange={(sourceSettingsTab) => props.patch({ sourceSettingsTab: sourceSettingsTab as CzkawkaCardState["sourceSettingsTab"] })}>
       <TabsList layout="fill" variant="line" className="sticky top-0 z-10 mb-3 min-w-0 overflow-hidden bg-card">
         <TabsTrigger value="paths" className="min-w-0 px-1.5">{props.t("sources.tabs.paths", "路径")}</TabsTrigger>
-        <TabsTrigger value="filters" className="min-w-0 px-1.5">{props.t("sources.tabs.filters", "范围")}</TabsTrigger>
-        <TabsTrigger value="cache" className="min-w-0 px-1.5">{props.t("sources.tabs.cache", "缓存")}</TabsTrigger>
         <TabsTrigger value="algorithm" className="min-w-0 px-1.5">{props.t("sources.tabs.algorithm", "算法")}</TabsTrigger>
       </TabsList>
       <TabsContent value="paths" className="mt-0 grid gap-3">
         <ScanPresetManager {...props} />
         <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
         <CzkawkaDirectoryEditor kind="excluded" label={props.t("sources.excluded", "排除目录")} value={props.data.excludedDirectoriesText} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} />
-        <Field label={props.t("sources.referencePathKeywords", "参考路径关键词")}><Input value={props.data.referencePathKeywords ?? "#compare"} placeholder="#compare" onChange={(event) => props.patch({ referencePathKeywords: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.referencePathKeywordsHint", "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。")}</p></Field>
-      </TabsContent>
-      <TabsContent value="filters" className="mt-0 grid gap-3">
-        <CzkawkaTokenEditor kind="rules" label={props.t("sources.excludedItems", "排除项目")} value={props.data.excludedItemsText} placeholder={props.t("sources.excludedItemsPlaceholder", "*/cache/*; *.part；每条规则需包含 *")} onChange={(excludedItemsText) => props.patch({ excludedItemsText })} />
-        <CzkawkaTokenEditor kind="extensions" label={props.t("sources.allowedExtensions", "允许扩展名")} value={props.data.allowedExtensions} placeholder="jpg,png,IMAGE" onChange={(allowedExtensions) => props.patch({ allowedExtensions })} />
-        <CzkawkaTokenEditor kind="extensions" label={props.t("sources.excludedExtensions", "排除扩展名")} value={props.data.excludedExtensions} placeholder="tmp,bak" onChange={(excludedExtensions) => props.patch({ excludedExtensions })} />
-        {props.data.allowedExtensions?.trim() && props.data.excludedExtensions?.trim() ? <p className="text-[11px] text-amber-600 dark:text-amber-400">{props.t("sources.allowedPriority", "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。")}</p> : null}
-        <div className="grid grid-cols-2 gap-2"><Field label={props.t("sources.minimumSize", "最小文件大小（B）")}><Input type="number" min={0} value={props.data.minimumFileSize ?? "1"} onChange={(event) => props.patch({ minimumFileSize: event.currentTarget.value })} /></Field><Field label={props.t("sources.maximumSize", "最大文件大小（B）")}><Input type="number" min={1} value={props.data.maximumFileSize ?? ""} placeholder={props.t("common.unlimited", "不限")} onChange={(event) => props.patch({ maximumFileSize: event.currentTarget.value })} /></Field></div>
-        <SwitchLine label={props.t("sources.recursive", "递归扫描")} checked={props.data.recursive ?? true} onChange={(recursive) => props.patch({ recursive })} />
-      </TabsContent>
-      <TabsContent value="cache" className="mt-0 grid gap-3">
-        <Field label={props.t("sources.threads", "扫描线程（0 = 自动）")}><Input aria-label="czkawka scan threads" type="number" min={0} max={256} value={props.data.threadCount ?? "0"} onChange={(event) => props.patch({ threadCount: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("sources.threadsHint", "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。")}</p></Field>
-        <SwitchLine label={props.t("sources.useCache", "使用缓存")} checked={props.data.useCache ?? true} onChange={(useCache) => props.patch({ useCache })} />
-        <SwitchLine label={props.t("cache.saveJson", "同时保存 JSON 缓存")} checked={props.data.saveAlsoAsJson ?? false} onChange={(saveAlsoAsJson) => props.patch({ saveAlsoAsJson })} />
-        <SwitchLine label={props.t("cache.deleteOutdated", "清理当前工具的过期缓存项")} checked={deleteOutdatedCache} onChange={setDeleteOutdatedCache} />
-        <Field label={props.t("cache.cacheFolder", "自定义缓存目录")}><Input value={props.data.cacheFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} onChange={(event) => props.patch({ cacheFolderPath: event.currentTarget.value })} /></Field>
-        <Field label={props.t("cache.configFolder", "自定义配置目录")}><Input value={props.data.configFolderPath ?? ""} placeholder={props.t("cache.systemDefault", "系统默认")} onChange={(event) => props.patch({ configFolderPath: event.currentTarget.value })} /><p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("cache.restartHint", "缓存与配置目录在首次原生扫描时初始化；修改后需重启桌面后端。")}</p></Field>
-        {props.tool === "duplicate-files" ? <div className="grid grid-cols-2 gap-2"><Field label={props.t("cache.minHash", "Hash 最小缓存文件（KiB）")}><Input type="number" min={1} value={props.data.duplicateMinimalHashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalHashCacheSizeKiB: event.currentTarget.value })} /></Field><Field label={props.t("cache.minPrehash", "Prehash 最小缓存文件（KiB）")}><Input type="number" min={1} value={props.data.duplicateMinimalPrehashCacheSizeKiB ?? "256"} onChange={(event) => props.patch({ duplicateMinimalPrehashCacheSizeKiB: event.currentTarget.value })} /></Field></div> : null}
       </TabsContent>
       <TabsContent value="algorithm" className="mt-0 grid gap-3">
-        <SwitchLine label={props.t("sources.reversePathDisplay", "反向显示路径")} checked={props.data.reversePathDisplay ?? false} onChange={(reversePathDisplay) => props.patch({ reversePathDisplay })} />
-        <SwitchLine label={props.t("sources.tableWrapText", "表格文字折行")} checked={props.data.tableWrapText ?? false} onChange={(tableWrapText) => props.patch({ tableWrapText })} />
         <AlgorithmFields {...props} />
       </TabsContent>
     </Tabs>
