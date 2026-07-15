@@ -43,6 +43,12 @@ describe("ThumbnailMaintenanceRoute", () => {
     }, true)))!
     expect(await invalid.json()).toEqual({ result: { scanned: 500, deleted: 2, unavailableVolumeRowsPreserved: 4, wrapped: false } })
     expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 500, deleteLimit: 20 })
+    expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
+      kind: "invalid", limit: 501,
+    }, true)))?.status).toBe(400)
+    expect((await route.handle(jsonRequest("/reader/thumbnails/maintenance/cleanup", {
+      kind: "invalid", scanLimit: 2001,
+    }, true)))?.status).toBe(400)
 
     const cleared = (await route.handle(jsonRequest("/reader/thumbnails/maintenance/failures/clear", {
       reason: "decode-error",

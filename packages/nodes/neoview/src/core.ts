@@ -36,6 +36,14 @@ export {
   type ReaderCacheStatus,
 } from "./application/cache/ReaderCacheService.js"
 export {
+  ReaderThumbnailMaintenanceService,
+  type ReaderThumbnailCleanupCommand,
+  type ReaderThumbnailCleanupResult,
+  type ReaderThumbnailFailureCleanupResult,
+  type ReaderThumbnailMaintenancePort,
+  type ReaderThumbnailMaintenanceStatus,
+} from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
+export {
   ReaderPreloadCoordinator,
   type ReaderNavigationIntent,
   type ReaderPreloadCandidate,

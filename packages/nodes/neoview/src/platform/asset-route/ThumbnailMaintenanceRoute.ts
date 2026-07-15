@@ -1,4 +1,5 @@
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import { ReaderThumbnailMaintenanceService } from "../../application/thumbnails/ReaderThumbnailMaintenanceService.js"
 
 const MAINTENANCE_PATH = "/reader/thumbnails/maintenance"
 const CLEANUP_PATH = "/reader/thumbnails/maintenance/cleanup"
@@ -8,18 +9,18 @@ const MAX_BODY_BYTES = 32 * 1024
 export interface ThumbnailMaintenanceRouteOptions {
   token: string
   thumbnailStore?: ReaderThumbnailStore
+  maintenanceService?: ReaderThumbnailMaintenanceService
   now?: () => number
 }
 
 export class ThumbnailMaintenanceRoute {
   readonly #token: string
-  readonly #thumbnailStore?: ReaderThumbnailStore
-  readonly #now: () => number
+  readonly #service: ReaderThumbnailMaintenanceService
 
   constructor(options: ThumbnailMaintenanceRouteOptions) {
     this.#token = options.token
-    this.#thumbnailStore = options.thumbnailStore
-    this.#now = options.now ?? Date.now
+    this.#service = options.maintenanceService
+      ?? new ReaderThumbnailMaintenanceService(options.thumbnailStore, { now: options.now })
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -37,50 +38,55 @@ export class ThumbnailMaintenanceRoute {
   }
 
   async #stats(): Promise<Response> {
-    const snapshot = this.#thumbnailStore?.maintenanceSnapshot
-    if (!snapshot) return jsonResponse({ error: "Thumbnail maintenance is unavailable" }, 501)
     try {
-      return jsonResponse({ snapshot: await snapshot.call(this.#thumbnailStore) })
+      const status = await this.#service.status()
+      return status.enabled
+        ? jsonResponse({ snapshot: status.snapshot })
+        : jsonResponse({ error: "Thumbnail maintenance is unavailable" }, 501)
     } catch {
       return jsonResponse({ error: "Thumbnail maintenance statistics are temporarily unavailable" }, 503)
     }
   }
 
   async #cleanup(request: Request): Promise<Response> {
-    const cleanup = this.#thumbnailStore?.cleanup
     const body = await readBody(request)
-    const limit = maintenanceLimit(body?.limit)
-    if (!body || !limit || (body.kind !== "empty" && body.kind !== "expired" && body.kind !== "invalid")) {
+    if (!body || (body.kind !== "empty" && body.kind !== "expired" && body.kind !== "invalid")) {
       return jsonResponse({ error: "kind must be empty, expired or invalid and limit must be 1..1000" }, 400)
     }
     try {
       if (body.kind === "invalid") {
-        const cleanupInvalid = this.#thumbnailStore?.cleanupInvalid
-        const scanLimit = boundedInteger(body.scanLimit, 1, 2000) ?? 500
-        if (!cleanupInvalid) return jsonResponse({ error: "Invalid-path thumbnail cleanup is unavailable" }, 501)
-        return jsonResponse({ result: await cleanupInvalid.call(this.#thumbnailStore, { scanLimit, deleteLimit: limit }) })
+        const deleteLimit = boundedInteger(body.limit, 1, 500) ?? (body.limit === undefined ? 500 : undefined)
+        const scanLimit = boundedInteger(body.scanLimit, 1, 2000) ?? (body.scanLimit === undefined ? 500 : undefined)
+        if (!deleteLimit || !scanLimit) {
+          return jsonResponse({ error: "invalid cleanup limit must be 1..500 and scanLimit must be 1..2000" }, 400)
+        }
+        const result = await this.#service.cleanup({ kind: body.kind, scanLimit, deleteLimit })
+        return result.enabled && result.kind === "invalid"
+          ? jsonResponse({ result: result.result })
+          : jsonResponse({ error: "Invalid-path thumbnail cleanup is unavailable" }, 501)
       }
-      if (!cleanup) return jsonResponse({ error: "Thumbnail cleanup is unavailable" }, 501)
+      const limit = maintenanceLimit(body.limit)
+      if (!limit) return jsonResponse({ error: "cleanup limit must be 1..1000" }, 400)
       if (body.kind === "empty") {
-        return jsonResponse({ deleted: await cleanup.call(this.#thumbnailStore, { kind: "empty", limit }) })
+        const result = await this.#service.cleanup({ kind: body.kind, limit })
+        return result.enabled && result.kind === "empty"
+          ? jsonResponse({ deleted: result.deleted })
+          : jsonResponse({ error: "Thumbnail cleanup is unavailable" }, 501)
       }
       const days = boundedInteger(body.days, 1, 3650)
       if (!days || (body.preserveFolders !== undefined && body.preserveFolders !== true)) {
         return jsonResponse({ error: "expired cleanup requires days 1..3650 and must preserve folders" }, 400)
       }
-      const cutoff = sqliteTimestamp(new Date(this.#now() - days * 86_400_000))
-      return jsonResponse({
-        deleted: await cleanup.call(this.#thumbnailStore, { kind: "expired", cutoff, limit, preserveFolders: true }),
-        cutoff,
-      })
+      const result = await this.#service.cleanup({ kind: body.kind, days, limit })
+      return result.enabled && result.kind === "expired"
+        ? jsonResponse({ deleted: result.deleted, cutoff: result.cutoff })
+        : jsonResponse({ error: "Thumbnail cleanup is unavailable" }, 501)
     } catch {
       return jsonResponse({ error: "Thumbnail cleanup could not acquire the database writer" }, 503)
     }
   }
 
   async #clearFailures(request: Request): Promise<Response> {
-    const clearFailures = this.#thumbnailStore?.clearFailures
-    if (!clearFailures) return jsonResponse({ error: "Thumbnail failure maintenance is unavailable" }, 501)
     const body = await readBody(request)
     const limit = maintenanceLimit(body?.limit)
     const reason = body?.reason
@@ -88,12 +94,13 @@ export class ThumbnailMaintenanceRoute {
       return jsonResponse({ error: "limit must be 1..1000 and reason must be a non-empty string when provided" }, 400)
     }
     try {
-      return jsonResponse({
-        deleted: await clearFailures.call(this.#thumbnailStore, {
-          reason: typeof reason === "string" ? reason : undefined,
-          limit,
-        }),
+      const result = await this.#service.clearFailures({
+        reason: typeof reason === "string" ? reason : undefined,
+        limit,
       })
+      return result.enabled
+        ? jsonResponse({ deleted: result.deleted })
+        : jsonResponse({ error: "Thumbnail failure maintenance is unavailable" }, 501)
     } catch {
       return jsonResponse({ error: "Thumbnail failures could not be cleared" }, 503)
     }
@@ -116,10 +123,6 @@ function maintenanceLimit(value: unknown): number | undefined {
 
 function boundedInteger(value: unknown, minimum: number, maximum: number): number | undefined {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : undefined
-}
-
-function sqliteTimestamp(value: Date): string {
-  return value.toISOString().replace("T", " ").slice(0, 19)
 }
 
 function jsonResponse(data: unknown, status = 200): Response {

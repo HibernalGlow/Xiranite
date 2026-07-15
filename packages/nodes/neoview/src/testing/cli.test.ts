@@ -340,6 +340,9 @@ describe("NeoView CLI", () => {
       operation: "invalid", scanned: 10, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false,
     })
     expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 10, deleteLimit: 20 })
+    await expect(runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "invalid", "--limit", "501", "--yes",
+    ], host([]), dependencies)).rejects.toThrow("from 1 to 500")
 
     const failureOutput: unknown[] = []
     await runProgram([

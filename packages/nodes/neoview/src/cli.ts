@@ -10,10 +10,12 @@ import type {
   ReaderHeadlessController,
 } from "./core.js"
 import type {
-  ReaderThumbnailCleanupRequest,
-  ReaderThumbnailInvalidCleanupResult,
   ReaderThumbnailMaintenanceSnapshot,
 } from "./ports/ReaderThumbnailStore.js"
+import {
+  ReaderThumbnailMaintenanceService,
+  type ReaderThumbnailMaintenancePort,
+} from "./application/thumbnails/ReaderThumbnailMaintenanceService.js"
 import { help } from "./help.js"
 import { createReaderHeadlessController } from "./platform.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
@@ -60,12 +62,7 @@ export interface NeoviewCliDependencies {
   createCacheService?: (options: ReaderCompositionOptions) => Promise<ReaderCacheService>
 }
 
-interface CliThumbnailMaintenanceStore extends AsyncDisposable {
-  maintenanceSnapshot(): Promise<ReaderThumbnailMaintenanceSnapshot>
-  cleanup(request: ReaderThumbnailCleanupRequest): Promise<number>
-  cleanupInvalid(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult>
-  clearFailures(options: { reason?: string; limit: number }): Promise<number>
-}
+interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, AsyncDisposable {}
 
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
   createController: createReaderHeadlessController,
@@ -382,30 +379,37 @@ async function runThumbnailMaintenanceCommand(
     return createWritableLegacyThumbnailStore(target)
   })
   const store = await openStore(databasePath)
+  const service = new ReaderThumbnailMaintenanceService(store)
   try {
     if (plan.kind === "stats") {
-      printThumbnailStats(await store.maintenanceSnapshot(), parsed.booleans.has("--json"), host)
+      const result = await service.status()
+      if (!result.enabled) throw new Error("Thumbnail maintenance statistics are unavailable.")
+      printThumbnailStats(result.snapshot, parsed.booleans.has("--json"), host)
       return
     }
     if (plan.kind === "clear-failures") {
-      const result = { operation: plan.kind, deleted: await store.clearFailures({ reason: plan.reason, limit: plan.limit }) }
-      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+      const result = await service.clearFailures({ reason: plan.reason, limit: plan.limit })
+      if (!result.enabled) throw new Error("Thumbnail failure maintenance is unavailable.")
+      return printMaintenanceResult({ operation: plan.kind, deleted: result.deleted }, parsed.booleans.has("--json"), host)
     }
     if (plan.kind === "invalid") {
-      const result = { operation: plan.kind, ...await store.cleanupInvalid({ scanLimit: plan.scanLimit, deleteLimit: plan.limit }) }
-      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+      const result = await service.cleanup({ kind: plan.kind, scanLimit: plan.scanLimit, deleteLimit: plan.limit })
+      if (!result.enabled || result.kind !== "invalid") throw new Error("Invalid-path thumbnail cleanup is unavailable.")
+      return printMaintenanceResult({ operation: plan.kind, ...result.result }, parsed.booleans.has("--json"), host)
     }
     if (plan.kind === "empty") {
-      const result = { operation: plan.kind, deleted: await store.cleanup({ kind: plan.kind, limit: plan.limit }) }
-      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+      const result = await service.cleanup(plan)
+      if (!result.enabled || result.kind !== "empty") throw new Error("Thumbnail cleanup is unavailable.")
+      return printMaintenanceResult({ operation: plan.kind, deleted: result.deleted }, parsed.booleans.has("--json"), host)
     }
-    const result = {
-      operation: plan.kind,
-      deleted: await store.cleanup({ kind: plan.kind, cutoff: plan.cutoff, limit: plan.limit, preserveFolders: true }),
-      cutoff: plan.cutoff,
+    const result = await service.cleanup(plan)
+    if (!result.enabled || result.kind !== "expired") throw new Error("Thumbnail cleanup is unavailable.")
+    printMaintenanceResult({
+      operation: result.kind,
+      deleted: result.deleted,
+      cutoff: result.cutoff,
       foldersPreserved: true,
-    }
-    printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+    }, parsed.booleans.has("--json"), host)
   } finally {
     await store[Symbol.asyncDispose]()
   }
@@ -415,13 +419,13 @@ type ThumbnailMaintenancePlan =
   | { kind: "stats" }
   | { kind: "clear-failures"; reason?: string; limit: number }
   | { kind: "empty"; limit: number }
-  | { kind: "expired"; limit: number; cutoff: string }
+  | { kind: "expired"; limit: number; days: number }
   | { kind: "invalid"; limit: number; scanLimit: number }
 
 function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): ThumbnailMaintenancePlan {
   if (command === "thumbnail-db-stats") return { kind: "stats" }
-  const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
   if (command === "thumbnail-db-clear-failures") {
+    const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
     const reason = oneValue(parsed, "--reason")
     if (reason !== undefined && (!reason || reason.length > 128)) throw usage("--reason must be 1..128 characters.")
     return { kind: "clear-failures", reason, limit }
@@ -432,15 +436,17 @@ function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): Thu
   }
   if (kind === "invalid") {
     if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
+    const limit = integerOption(parsed, "--limit", 1, 500, 500)
     return { kind, limit, scanLimit: integerOption(parsed, "--scan-limit", 1, 2_000, 500) }
   }
+  const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
   if (parsed.values.has("--scan-limit")) throw usage("--scan-limit is only valid with --kind invalid.")
   if (kind === "empty") {
     if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
     return { kind, limit }
   }
   const days = integerOption(parsed, "--days", 1, 3_650, 30)
-  return { kind, limit, cutoff: sqliteTimestamp(new Date(Date.now() - days * 86_400_000)) }
+  return { kind, limit, days }
 }
 
 async function resolveThumbnailDatabasePath(path: string | undefined, host: CliHost): Promise<string> {
@@ -460,10 +466,6 @@ function printThumbnailStats(snapshot: ReaderThumbnailMaintenanceSnapshot, json:
 function printMaintenanceResult(result: Record<string, unknown>, json: boolean, host: CliHost): void {
   if (json) writeJson(host, result)
   else writeLine(host, Object.entries(result).map(([key, value]) => `${key}=${String(value)}`).join(" "))
-}
-
-function sqliteTimestamp(value: Date): string {
-  return value.toISOString().replace("T", " ").slice(0, 19)
 }
 
 function rejectOptions(parsed: ParsedArguments, allowed: ReadonlySet<string>): void {
