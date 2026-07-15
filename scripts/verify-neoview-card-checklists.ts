@@ -43,6 +43,11 @@ const cardMatrix = await readJson<{ cards: Array<{
   sourceDisposition?: "component" | "registry-only"
   sourceNotes?: string
 }> }>(resolve(root, contract.scope.inventory))
+const functionalScopes = await readJson<{ cards: Array<{
+  legacyId: string
+  capabilities: string[]
+  checklistRef?: string
+}> }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
 const inventory = await readJson<{ modules: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/module-inventory.json"))
 const componentInventory = await readJson<{ components: Array<{ file: string }> }>(resolve(root, "migration/neoview/frontend/component-inventory.json"))
 const errors: string[] = []
@@ -52,6 +57,24 @@ if (contract.schemaVersion !== 1) errors.push(`unsupported acceptance contract s
 if (contract.scope.cardCount !== cardMatrix.cards.length) errors.push(`acceptance scope card count ${contract.scope.cardCount} != ${cardMatrix.cards.length}`)
 if (!contract.requiredDimensions.length) errors.push("acceptance contract has no required dimensions")
 if (!contract.completionGate.length) errors.push("acceptance contract has no completion gate")
+
+const scopeIds = new Set<string>()
+const matrixIds = new Set(cardMatrix.cards.map((card) => card.legacyId))
+for (const scope of functionalScopes.cards) {
+  if (scopeIds.has(scope.legacyId)) errors.push(`duplicate functional scope ${scope.legacyId}`)
+  scopeIds.add(scope.legacyId)
+  if (!matrixIds.has(scope.legacyId)) errors.push(`functional scope references unknown Card ${scope.legacyId}`)
+  if (!scope.capabilities.length || scope.capabilities.some((capability) => !capability.trim())) {
+    errors.push(`${scope.legacyId} has an empty functional capability scope`)
+  }
+}
+for (const card of cardMatrix.cards) {
+  if (!scopeIds.has(card.legacyId)) errors.push(`${card.legacyId} has no frozen functional scope`)
+}
+const folderScope = functionalScopes.cards.find((scope) => scope.legacyId === checklist.legacyCardId)
+if (folderScope?.checklistRef !== "migration/neoview/folder-main-compatibility.json") {
+  errors.push(`${checklist.legacyCardId} does not reference its detailed checklist`)
+}
 
 const sourcePrefix = "src/lib/components/panels/folderPanel/"
 const sourceFiles = new Set([
@@ -110,6 +133,7 @@ console.log(JSON.stringify({
   byStatus: counts(checklist.items.map((item) => item.status)),
   byCategory: counts(checklist.items.map((item) => item.category)),
   acceptanceDimensions: contract.requiredDimensions.length,
+  functionalScopes: functionalScopes.cards.length,
   cardSourceComponents: cardMatrix.cards.filter((card) => card.sourceDisposition === "component").length,
   registryOnlyCards: cardMatrix.cards.filter((card) => card.sourceDisposition === "registry-only").map((card) => card.legacyId),
 }, null, 2))

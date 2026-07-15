@@ -3,9 +3,10 @@
   "scope": {
     "legacyRegistry": "src/lib/cards/registry.ts",
     "cardCount": 77,
-    "inventory": "migration/neoview/card-compatibility.json"
+    "inventory": "migration/neoview/card-compatibility.json",
+    "functionalScopes": "migration/neoview/card-functional-scopes.json"
   },
-  "policy": "Every legacy Card must have a source-evidenced compatibility checklist before implementation. A Card cannot be marked complete from API or smoke UI coverage alone.",
+  "policy": "Every legacy Card must have a frozen functional scope before implementation and a source-evidenced compatibility checklist before completion. A Card cannot be marked complete from API, title-level inventory or smoke UI coverage alone.",
   "requiredItemFields": [
     "id",
     "category",

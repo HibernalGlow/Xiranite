@@ -27,15 +27,23 @@ interface CardEntry {
   sourceNotes?: string
 }
 
+interface CardFunctionalScope {
+  legacyId: string
+  capabilities: string[]
+  checklistRef?: string
+}
+
 const root = resolve(import.meta.dir, "..")
 const folder = await readJson<{ items: FolderItem[] }>(resolve(root, "migration/neoview/folder-main-compatibility.json"))
 const cards = await readJson<{ cards: CardEntry[] }>(resolve(root, "migration/neoview/card-compatibility.json"))
+const scopes = await readJson<{ cards: CardFunctionalScope[] }>(resolve(root, "migration/neoview/card-functional-scopes.json"))
 const features = await readJson<{ features: Array<{ id: string; title: string }> }>(resolve(root, "migration/neoview/feature-compatibility.json"))
 const featureTitles = new Map(features.features.map((feature) => [feature.id, feature.title]))
+const scopeByCard = new Map(scopes.cards.map((scope) => [scope.legacyId, scope]))
 const lines: string[] = [
   "# NeoView Card 完整功能与 UI 验收清单",
   "",
-  "> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。",
+  "> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。",
   "",
   "## 完成规则",
   "",
@@ -68,7 +76,7 @@ for (const [category, items] of groupBy(folder.items, (item) => item.category)) 
 lines.push(
   "## 全部 77 张 Card",
   "",
-  "下表是逐卡迁移索引。`功能域` 只是第一层归属；每张 Card 开工时仍必须像 `folderMain` 一样把源码内全部命令、字段、模式和状态展开为专用明细，审计通过后才能实现。",
+  "下面 77/77 张 Card 均已冻结最低功能范围。功能范围防止整张 Card 或主要能力被漏掉，但不等于完成证据；每张 Card 开工时仍必须把源码内命令、字段、模式、状态和 UI 几何展开为专用验收项。",
   "",
 )
 
@@ -81,6 +89,13 @@ for (const [panelId, panelCards] of groupBy(cards.cards, (card) => card.panelId)
     lines.push(`| \`${card.legacyId}\` | ${escapeTable(card.title)} | ${card.priority} | ${card.status} | ${escapeTable(source)} | ${escapeTable(featureTitles.get(card.featureId) ?? card.featureId)}${current} |`)
   }
   lines.push("")
+  for (const card of panelCards) {
+    const scope = scopeByCard.get(card.legacyId)
+    lines.push(`#### \`${card.legacyId}\` ${card.title}`, "")
+    if (scope?.checklistRef) lines.push(`- 细项清单：\`${scope.checklistRef}\``)
+    for (const capability of scope?.capabilities ?? []) lines.push(`- [ ] ${capability}`)
+    lines.push(`- UI 基线：\`${card.sourceComponent ?? "registry-only"}\`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。`, "")
+  }
 }
 
 lines.push(

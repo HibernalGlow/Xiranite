@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/folder-main-compatibility.json`、`migration/neoview/card-functional-scopes.json` 与 `migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -443,7 +443,7 @@
 
 ## 全部 77 张 Card
 
-下表是逐卡迁移索引。`功能域` 只是第一层归属；每张 Card 开工时仍必须像 `folderMain` 一样把源码内全部命令、字段、模式和状态展开为专用明细，审计通过后才能实现。
+下面 77/77 张 Card 均已冻结最低功能范围。功能范围防止整张 Card 或主要能力被漏掉，但不等于完成证据；每张 Card 开工时仍必须把源码内命令、字段、模式、状态和 UI 几何展开为专用验收项。
 
 ### Panel: `benchmark`（16）
 
@@ -466,6 +466,118 @@
 | `thumbnailLatency` | 目录加载延迟 | deferred | pending | `src/lib/cards/benchmark/ThumbnailLatencyCard.svelte` | 性能设置、基准、系统监控和诊断 |
 | `pageFlipMonitor` | 翻页性能监控 | deferred | pending | `src/lib/cards/benchmark/PageFlipMonitorCard.svelte` | 性能设置、基准、系统监控和诊断 |
 
+#### `visibility` 可见性监控
+
+- [ ] 记录 Card、Panel、Viewer 的可见/挂载状态
+- [ ] 展示可见性事件与时间线
+- [ ] 验证折叠、隐藏和窗口失焦后的后台工作停止
+- UI 基线：`src/lib/cards/benchmark/VisibilityCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `latency` 延迟分析
+
+- [ ] 选择延迟测试场景和采样参数
+- [ ] 测量请求、首字节、解码、渲染与端到端延迟
+- [ ] 展示分位数、阶段分解、进度、错误和可导出结果
+- UI 基线：`src/lib/cards/benchmark/LatencyCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `renderer` 渲染模式测试
+
+- [ ] 切换并对比旧版支持的图像渲染路径
+- [ ] 运行单次/连续渲染测试
+- [ ] 展示耗时、成功率、内存和视觉结果
+- UI 基线：`src/lib/cards/benchmark/RendererCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `files` 文件选择
+
+- [ ] 选择基准文件、目录与测试集
+- [ ] 显示已选文件及格式/大小
+- [ ] 清空、移除和验证不可用测试源
+- UI 基线：`src/lib/cards/benchmark/FilesCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `detailed` 详细结果
+
+- [ ] 逐样本展示完整基准记录
+- [ ] 按阶段、结果和错误查看明细
+- [ ] 复制或导出详细结果
+- UI 基线：`src/lib/cards/benchmark/DetailedCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `loadmode` 加载模式
+
+- [ ] 选择并解释旧版支持的加载模式
+- [ ] 配置预载/流式/缓存相关测试选项
+- [ ] 保存基准专用选择且不污染日常 Reader 设置
+- UI 基线：`src/lib/cards/benchmark/LoadModeCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `archives` 压缩包扫描
+
+- [ ] 选择压缩包目录并扫描支持格式
+- [ ] 统计归档、条目、失败和耗时
+- [ ] 运行、取消、清空并查看逐归档结果
+- UI 基线：`src/lib/cards/benchmark/ArchivesCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `realworld` 实际场景
+
+- [ ] 运行贴近日常阅读的组合场景
+- [ ] 配置翻页、跳页、缓存冷热和循环次数
+- [ ] 汇总体验指标、进度与失败样本
+- UI 基线：`src/lib/cards/benchmark/RealWorldCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `imageSource` 图像源对比
+
+- [ ] 对比协议 URL、Blob/二进制及旧图像源路径
+- [ ] 执行加载、解码和内存对比
+- [ ] 展示各路径分位数、错误和推荐结论
+- UI 基线：`src/lib/cards/benchmark/ImageSourceCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `protocolTest` 协议测试
+
+- [ ] 验证 Reader 资源协议/HTTP 数据面
+- [ ] 覆盖鉴权、Range、取消、缓存与错误响应
+- [ ] 旧版无 Renderer 映射，迁移时必须补齐诊断 UI 或记录被替代能力
+- UI 基线：`registry-only`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `results` 测试结果
+
+- [ ] 承载共享基准结果列表
+- [ ] 显示运行状态、摘要和选择结果
+- [ ] 为详细结果与总结 Card 提供统一数据源
+- UI 基线：`src/lib/cards/benchmark/ResultsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `summary` 总结
+
+- [ ] 汇总当前基准会话的关键指标
+- [ ] 显示通过/失败预算和瓶颈阶段
+- [ ] 提供清空、复制或导出入口
+- UI 基线：`src/lib/cards/benchmark/SummaryCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `pipelineLatency` 实时延迟监控
+
+- [ ] 实时采集读取、解压、传输、解码和呈现阶段延迟
+- [ ] 显示滚动窗口、分位数和异常尖峰
+- [ ] 启动、暂停、重置并限制采样内存
+- UI 基线：`src/lib/cards/benchmark/PipelineLatencyCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `transcodeBenchmark` 超分预处理转码
+
+- [ ] 选择超分预处理/转码输入与编码参数
+- [ ] 运行可取消的批量基准
+- [ ] 比较吞吐、质量、大小、缓存和失败结果
+- UI 基线：`src/lib/cards/benchmark/TranscodeBenchmarkCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `thumbnailLatency` 目录加载延迟
+
+- [ ] 测量目录首批、缩略图首张/全部和缓存冷热延迟
+- [ ] 配置目录、并发和循环
+- [ ] 展示吞吐、分位数、命中率与错误
+- UI 基线：`src/lib/cards/benchmark/ThumbnailLatencyCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `pageFlipMonitor` 翻页性能监控
+
+- [ ] 实时监控导航、资源响应、解码与画面稳定时间
+- [ ] 显示最近翻页、分位数、丢帧和超预算事件
+- [ ] 暂停、清零和有界保存样本
+- UI 基线：`src/lib/cards/benchmark/PageFlipMonitorCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `info`（6）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
@@ -476,6 +588,48 @@
 | `imageInfo` | 图像信息 | core | partial | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
 | `storage` | 存储信息 | core | partial | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
 | `time` | 时间信息 | core | partial | `src/lib/cards/info/TimeCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `time-information` |
+
+#### `preloadStatus` 预加载状态
+
+- [ ] 显示当前书籍预读队列、活跃任务和缓存命中
+- [ ] 区分当前页、相邻页、缩略图等优先级
+- [ ] 提供取消/清理并在会话关闭时归零
+- UI 基线：`src/lib/cards/info/PreloadStatusCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `bookInfo` 书籍信息
+
+- [ ] 显示书名、源路径、类型、页数和阅读进度
+- [ ] 显示文件/归档大小与可用书籍元数据
+- [ ] 复制路径或打开系统位置并处理缺失源
+- UI 基线：`src/lib/cards/info/BookInfoCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `infoOverlay` 信息悬浮窗
+
+- [ ] 配置阅读画面信息悬浮层的字段与位置
+- [ ] 控制可见性、透明度和自动隐藏
+- [ ] 实时预览页码、尺寸、文件名等叠加信息
+- UI 基线：`src/lib/cards/info/InfoOverlayCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `imageInfo` 图像信息
+
+- [ ] 显示当前页文件名、路径、格式、MIME 与尺寸
+- [ ] 显示帧/动画/视频等媒体属性
+- [ ] 显示旋转、裁剪、解码或超分后的有效信息
+- UI 基线：`src/lib/cards/info/ImageInfoCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `storage` 存储信息
+
+- [ ] 显示当前书籍/页面的压缩与实际字节大小
+- [ ] 显示缓存、缩略图或解码资源占用
+- [ ] 对缺失或不可统计字段稳定降级
+- UI 基线：`src/lib/cards/info/StorageCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `time` 时间信息
+
+- [ ] 显示文件创建、修改和访问相关时间
+- [ ] 显示归档条目与书籍记录时间语义
+- [ ] 按本地时区格式化并处理未知时间
+- UI 基线：`src/lib/cards/info/TimeCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ### Panel: `insights`（7）
 
@@ -488,6 +642,55 @@
 | `bookmarkOverview` | 书签概览 | deferred | pending | `src/lib/cards/insights/BookmarkOverviewCard.svelte` | 历史、书签、阅读进度和数据洞察 |
 | `sourceBreakdown` | 来源拆分 | deferred | pending | `src/lib/cards/insights/SourceBreakdownCard.svelte` | 历史、书签、阅读进度和数据洞察 |
 | `emmTagsHot` | EMM 标签热度 | deferred | pending | `src/lib/cards/insights/EmmTagsHotCard.svelte` | 历史、书签、阅读进度和数据洞察 |
+
+#### `systemMonitor` 系统资源监控
+
+- [ ] 显示 CPU、内存、GPU 与进程资源
+- [ ] 提供实时采样、趋势和峰值
+- [ ] 暂停、重置并限制历史样本
+- UI 基线：`src/lib/cards/monitor/SystemMonitorCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `dailyTrend` 最近 7 日阅读趋势
+
+- [ ] 统计并展示最近 7 日阅读量趋势
+- [ ] 切换统计口径并显示每日详情
+- [ ] 处理空数据、时区和增量刷新
+- UI 基线：`src/lib/cards/insights/DailyTrendCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `readingStreak` 连续阅读 Streak
+
+- [ ] 展示当前/最长连续阅读天数
+- [ ] 显示达成状态、今日进度和历史摘要
+- [ ] 按本地日期边界稳定计算
+- UI 基线：`src/lib/cards/insights/ReadingStreakCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `readingHeatmap` 阅读时段热力图
+
+- [ ] 按星期/时段展示阅读热力分布
+- [ ] 悬停查看精确值和统计范围
+- [ ] 处理时区、空数据和窄 Card 布局
+- UI 基线：`src/lib/cards/insights/ReadingHeatmapCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `bookmarkOverview` 书签概览
+
+- [ ] 汇总书签总量、列表和近期变化
+- [ ] 按列表/类型展示分布
+- [ ] 提供跳转到相关书签视图的入口
+- UI 基线：`src/lib/cards/insights/BookmarkOverviewCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `sourceBreakdown` 来源拆分
+
+- [ ] 按目录、归档/文件和格式拆分阅读来源
+- [ ] 显示数量、占比和详情
+- [ ] 处理未知/失效来源与筛选联动
+- UI 基线：`src/lib/cards/insights/SourceBreakdownCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `emmTagsHot` EMM 标签热度
+
+- [ ] 统计热门 EMM 标签及频次
+- [ ] 按命名空间/范围筛选和查看详情
+- [ ] 点击标签联动搜索/文件浏览器
+- UI 基线：`src/lib/cards/insights/EmmTagsHotCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ### Panel: `control`（9）
 
@@ -503,6 +706,69 @@
 | `sidebarHeight` | 侧边栏高度 | deferred | pending | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知 |
 | `thumbnailMaintenance` | 缩略图维护 | integration | pending | `src/lib/cards/properties/ThumbnailMaintenanceCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移 |
 
+#### `switchToast` 切换提示
+
+- [ ] 逐类开关阅读模式切换提示
+- [ ] 配置提示内容/持续时间/位置等旧选项
+- [ ] 提供测试提示与恢复默认值
+- UI 基线：`src/lib/cards/info/SwitchToastCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `sidebarControl` 边栏控制
+
+- [ ] 控制 top/right/bottom/left 边栏显示与 pin
+- [ ] 切换自动隐藏、触发区和展开行为
+- [ ] 恢复布局默认值且不重挂活动阅读图像
+- UI 基线：`src/lib/cards/info/SidebarControlCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `colorFilter` 颜色滤镜
+
+- [ ] 开关并配置亮度、对比度、饱和度、灰度/反色等颜色效果
+- [ ] 实时预览、单项复位和全部复位
+- [ ] 区分书籍级与全局设置并避免重复渲染链
+- UI 基线：`src/lib/cards/info/ColorFilterCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `imageTrim` 图像裁剪
+
+- [ ] 启用自动/手动裁边并选择检测模式
+- [ ] 配置阈值、边距、最小裁剪和单双页策略
+- [ ] 预览、重算、复位并处理动画/视频/超分兼容
+- UI 基线：`src/lib/cards/info/ImageTrimCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `pageTransition` 翻页动画
+
+- [ ] 开关并选择翻页动画类型
+- [ ] 配置持续时间、缓动和方向
+- [ ] 预览、复位并尊重减少动态效果设置
+- UI 基线：`src/lib/cards/info/PageTransitionCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `animatedVideoMode` 动图视频模式
+
+- [ ] 控制 GIF/APNG/WebP 动图与视频播放模式
+- [ ] 配置自动播放、循环、静音和控制器
+- [ ] 显示媒体状态并在离屏/关闭时暂停释放
+- UI 基线：`src/lib/cards/info/AnimatedVideoModeCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `ambientBackground` 动态背景
+
+- [ ] 选择纯色、模糊当前页、渐变/动态等阅读背景
+- [ ] 配置强度、模糊、透明度、缩放与更新策略
+- [ ] 预览、复位并限制 GPU/重绘开销
+- UI 基线：`src/lib/cards/info/AmbientBackgroundCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `sidebarHeight` 侧边栏高度
+
+- [ ] 配置边栏高度/宽度、垂直或水平对齐
+- [ ] 控制拖动手柄和空白页单双页行为
+- [ ] 实时预览、复位并持久化几何
+- UI 基线：`src/lib/cards/info/SidebarHeightCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `thumbnailMaintenance` 缩略图维护
+
+- [ ] 查看缩略图数据库状态
+- [ ] 扫描缺失/失效项并重建、清理或迁移
+- [ ] 显示可取消任务进度、空间回收和错误
+- UI 基线：`src/lib/cards/properties/ThumbnailMaintenanceCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `properties`（9）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
@@ -517,6 +783,69 @@
 | `emmConfig` | EMM 配置 | integration | pending | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `fileListTagDisplay` | 文件列表标签 | integration | pending | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 
+#### `emmTags` EMM 标签
+
+- [ ] 显示当前书籍 EMM 命名空间标签
+- [ ] 展开、折叠、复制、筛选或跳转标签
+- [ ] 处理无记录、同步中和数据库错误
+- UI 基线：`src/lib/cards/properties/EmmTagsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `bookSettings` 本书设置
+
+- [ ] 查看和编辑当前书籍覆盖设置
+- [ ] 区分继承值、显式覆盖和恢复全局默认
+- [ ] 保存后立即应用且可回滚失败
+- UI 基线：`src/lib/cards/properties/BookSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `folderRatings` 文件夹平均评分
+
+- [ ] 统计当前文件夹条目的评分分布与平均值
+- [ ] 区分默认评分和显式评分
+- [ ] 刷新、跳转或筛选相关条目
+- UI 基线：`src/lib/cards/properties/FolderRatingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `favoriteTags` 收藏标签快选
+
+- [ ] 显示收藏标签快捷项与计数
+- [ ] 搜索、选择和批量应用/移除标签
+- [ ] 管理收藏标签顺序和可见性
+- UI 基线：`src/lib/cards/properties/FavoriteTagsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `emmSync` EMM 同步
+
+- [ ] 配置并执行当前书籍/目录 EMM 同步
+- [ ] 显示扫描、匹配、写入、跳过和错误进度
+- [ ] 支持取消、重试和冲突策略
+- UI 基线：`src/lib/cards/properties/EmmSyncCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `thumbnailArchMetrics` 缩略图架构指标
+
+- [ ] 展示缩略图请求、命中、生成、队列和缓存指标
+- [ ] 区分格式/来源/尺寸与冷热路径
+- [ ] 重置采样并保持监控有界
+- UI 基线：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `emmRawData` EMM 数据库记录
+
+- [ ] 查看当前条目的原始 EMM 数据库字段和 JSON
+- [ ] 切换格式化/原始视图并复制数据
+- [ ] 刷新并清楚区分只读字段和可编辑入口
+- UI 基线：`src/lib/cards/properties/EmmRawDataCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `emmConfig` EMM 配置
+
+- [ ] 配置 EMM 数据库/setting 路径和启用状态
+- [ ] 配置评分、收藏与标签解析规则
+- [ ] 测试连接、显示兼容性并保存/重置
+- UI 基线：`src/lib/cards/properties/EmmConfigCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `fileListTagDisplay` 文件列表标签
+
+- [ ] 选择文件浏览各视图显示的 EMM/manual/AI 标签
+- [ ] 配置数量、命名空间、截断和 tooltip
+- [ ] 实时预览并持久化显示规则
+- UI 基线：`src/lib/cards/properties/FileListTagDisplayCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `upscale`（6）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
@@ -528,11 +857,60 @@
 | `upscaleConditions` | 条件超分 | deferred | pending | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 | `progressiveUpscale` | 预超分 | deferred | pending | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 
+#### `upscaleControl` 超分控制
+
+- [ ] 启用超分并触发当前页/选中范围处理
+- [ ] 控制保存、替换、预览和自动应用策略
+- [ ] 取消任务并显示能力缺失/失败
+- UI 基线：`src/lib/cards/upscale/UpscaleControlCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `upscaleModel` 模型选择
+
+- [ ] 发现、选择和刷新可用超分模型
+- [ ] 显示模型类型、比例、路径和兼容性
+- [ ] 配置设备/精度/分块等模型参数
+- UI 基线：`src/lib/cards/upscale/UpscaleModelCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `upscaleStatus` 处理状态
+
+- [ ] 显示当前与队列任务、阶段、页码和进度
+- [ ] 显示耗时、显存/内存、错误和输出
+- [ ] 暂停/取消/重试并有界保留最近结果
+- UI 基线：`src/lib/cards/upscale/UpscaleStatusCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `upscaleCache` 缓存管理
+
+- [ ] 显示超分内存/磁盘缓存条目、大小和命中
+- [ ] 清理当前书籍、过期项或全部缓存
+- [ ] 配置预算、目录和淘汰策略
+- UI 基线：`src/lib/cards/upscale/UpscaleCacheCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `upscaleConditions` 条件超分
+
+- [ ] 创建、排序、启停和删除条件规则
+- [ ] 按格式、尺寸、页类型等条件选择模型/动作
+- [ ] 验证冲突、预览匹配并导入导出
+- UI 基线：`src/lib/cards/upscale/UpscaleConditionsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `progressiveUpscale` 预超分
+
+- [ ] 配置相邻页/整书预超分范围和优先级
+- [ ] 启动、暂停、取消并显示进度
+- [ ] 服从阅读任务优先级、资源预算和缓存限制
+- UI 基线：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `history`（1）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `historyList` | 历史记录 | core | partial | `src/lib/cards/history/HistoryListCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `history-list` |
+
+#### `historyList` 历史记录
+
+- [ ] 虚拟化显示最近阅读记录与进度
+- [ ] 搜索、排序、筛选、恢复阅读和定位源
+- [ ] 单项/批量删除、清空、缩略图/评分与上下文操作
+- UI 基线：`src/lib/cards/history/HistoryListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ### Panel: `bookmark`（1）
 
@@ -540,17 +918,39 @@
 |---|---|---:|---:|---|---|
 | `bookmarkList` | 书签列表 | core | partial | `src/lib/cards/bookmark/BookmarkListCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `bookmark-list` |
 
+#### `bookmarkList` 书签列表
+
+- [ ] 虚拟化显示书签和自定义列表
+- [ ] 搜索、排序、筛选、打开和定位源
+- [ ] 创建/重命名/删除列表并单项/批量编辑书签
+- UI 基线：`src/lib/cards/bookmark/BookmarkListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `pageList`（1）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `pageListMain` | 页面列表 | core | partial | `src/lib/cards/pageList/PageListCard.svelte` | 页面构建、排序、跳转与边界行为；XR `page-navigation` |
 
+#### `pageListMain` 页面列表
+
+- [ ] list/grid/thumb 三种虚拟化页面视图
+- [ ] 搜索、当前页跟随、页码输入和 Slider 跳转
+- [ ] 可见批次缩略图预热、超分状态与页面上下文删除
+- UI 基线：`src/lib/cards/pageList/PageListCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
 ### Panel: `folder`（1）
 
 | Card | 功能 | 优先级 | 状态 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|
 | `folderMain` | 文件夹 | core | partial | `src/lib/cards/folder/FolderMainCard.svelte` | 文件与文件夹浏览、标签页和树导航；XR `folder-main` |
+
+#### `folderMain` 文件夹
+
+- 细项清单：`migration/neoview/folder-main-compatibility.json`
+- [ ] 74 条独立源码级验收项覆盖架构、导航、标签、六种目标 renderer/四种旧视图、预览、八字段排序、搜索、文件树、文件操作、EMM、穿透、迁移、UI、设置和性能
+- [ ] 排序完整支持 name/date/size/type/random/rating/path/collectTagCount、升降序、目录优先例外、稳定兜底、四级优先级和目录记忆
+- [ ] 10K/100K 稀疏分页、虚拟化、历史恢复、选中定位、1/4/9/16 预览及 Card 关闭回收均为硬门禁
+- UI 基线：`src/lib/cards/folder/FolderMainCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ### Panel: `ai`（8）
 
@@ -564,6 +964,62 @@
 | `aiTranslationTest` | 翻译测试 | deferred | pending | `src/lib/cards/ai/AiTranslationTestCard.svelte` | Ollama、AI 面板和翻译服务 |
 | `translationOverlay` | 翻译叠加层 | deferred | pending | `src/lib/cards/ai/TranslationOverlayCard.svelte` | Ollama、AI 面板和翻译服务 |
 | `voiceControl` | 语音控制 | deferred | pending | `src/lib/cards/ai/VoiceControlCard.svelte` | Ollama、AI 面板和翻译服务 |
+
+#### `aiTags` AI 标签推断
+
+- [ ] 从当前书籍元数据/内容推断 AI 标签
+- [ ] 配置模型、提示和候选数量
+- [ ] 审阅、选择、写入 EMM/manual 标签并处理失败
+- UI 基线：`src/lib/cards/properties/AiTagsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `aiApiConfig` AI API 配置
+
+- [ ] 配置 AI API 类型、地址、模型和鉴权
+- [ ] 测试连接并发现可用模型
+- [ ] 保存、重置并隐藏敏感字段
+- UI 基线：`src/lib/cards/properties/AiApiConfigCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `aiTitleTranslation` 标题翻译
+
+- [ ] 显示原标题、缓存译名和翻译状态
+- [ ] 触发、重试、复制或应用译名
+- [ ] 处理流式结果、取消和语言设置
+- UI 基线：`src/lib/cards/ai/AiTitleTranslationCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `aiServiceConfig` 翻译服务配置
+
+- [ ] 管理翻译服务/provider、模型、语言与提示词
+- [ ] 配置并发、超时、重试、流式和降级链
+- [ ] 连接测试、模型发现、导入导出与重置
+- UI 基线：`src/lib/cards/ai/AiServiceConfigCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `aiTranslationCache` 翻译缓存
+
+- [ ] 查看翻译缓存数量、大小、命中和条目
+- [ ] 搜索、删除当前项/过期项/全部
+- [ ] 配置 TTL/预算并导入导出
+- UI 基线：`src/lib/cards/ai/AiTranslationCacheCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `aiTranslationTest` 翻译测试
+
+- [ ] 输入测试文本并选择服务/语言
+- [ ] 运行可取消的流式或非流式翻译
+- [ ] 显示阶段、耗时、token、结果和错误
+- UI 基线：`src/lib/cards/ai/AiTranslationTestCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `translationOverlay` 翻译叠加层
+
+- [ ] 在阅读画面叠加标题/文本翻译
+- [ ] 配置位置、样式、透明度、字体和自动隐藏
+- [ ] 切换原文/译文并处理加载、错误和多页更新
+- UI 基线：`src/lib/cards/ai/TranslationOverlayCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `voiceControl` 语音控制
+
+- [ ] 启用语音识别并开始/停止监听
+- [ ] 配置语言、连续监听、反馈和置信阈值
+- [ ] 查看/编辑/重置命令短语、历史和识别统计
+- UI 基线：`src/lib/cards/ai/VoiceControlCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ### Panel: `settings`（12）
 
@@ -581,6 +1037,90 @@
 | `settingsCards` | 卡片管理 | deferred | partial | `src/lib/cards/settings/CardManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `panel-layout-settings` |
 | `settingsBindings` | 操作绑定 | deferred | pending | `src/lib/cards/settings/BindingsSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsData` | 数据设置 | deferred | pending | `src/lib/cards/settings/DataSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+
+#### `settingsGeneral` 通用设置
+
+- [ ] 承载旧通用设置分组的全部字段、说明和重置
+- [ ] 搜索/定位设置并显示默认与当前值
+- [ ] 写入唯一 TOML 规范版本并导入旧设置
+- UI 基线：`src/lib/cards/settings/GeneralSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsSystem` 系统设置
+
+- [ ] 承载窗口、启动、托盘和系统集成设置
+- [ ] 显示平台能力与不可用状态
+- [ ] 保存、重置和应用需重启设置
+- UI 基线：`src/lib/cards/settings/SystemSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsView` 视图设置
+
+- [ ] 承载阅读布局、缩放、方向和导航视图设置
+- [ ] 实时预览并区分全局/书籍覆盖
+- [ ] 保存、重置和导入旧值
+- UI 基线：`src/lib/cards/settings/ViewSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsImage` 影像设置
+
+- [ ] 承载解码、质量、颜色、裁边和图像效果设置
+- [ ] 按格式/能力显示条件选项
+- [ ] 保存、重置并避免多版本运行链
+- UI 基线：`src/lib/cards/settings/ImageSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsBook` 书籍设置
+
+- [ ] 承载书籍识别、排序、打开和进度行为设置
+- [ ] 区分全局默认与当前书籍覆盖
+- [ ] 保存、重置和旧配置迁移
+- UI 基线：`src/lib/cards/settings/BookSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsPerformance` 性能设置
+
+- [ ] 配置预读、并发、内存/磁盘缓存和 Worker 预算
+- [ ] 显示估算影响、当前使用和安全范围
+- [ ] 应用、重置并与全局 ResourceScheduler 统一
+- UI 基线：`src/lib/cards/settings/PerformanceSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsTheme` 外观设置
+
+- [ ] 配置主题、颜色、字体、背景和透明效果
+- [ ] 实时预览亮/暗/跟随系统
+- [ ] 保存、重置和导入旧主题
+- UI 基线：`src/lib/cards/settings/ThemeSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsNotification` 通知设置
+
+- [ ] 配置 Toast/系统通知类别、位置和持续时间
+- [ ] 控制声音、重复合并和安静模式
+- [ ] 测试、保存和重置
+- UI 基线：`src/lib/cards/settings/NotificationSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsPanels` 边栏管理
+
+- [ ] 管理四边 Panel 的显隐、顺序、位置、pin 和几何
+- [ ] 预览布局并恢复默认
+- [ ] 一次批量写入且不影响阅读热路径
+- UI 基线：`src/lib/cards/settings/PanelManagementCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsCards` 卡片管理
+
+- [ ] 管理 77 张 Card 的显隐、Panel、顺序和折叠
+- [ ] 拖动到隐藏/未停靠或任意 Panel
+- [ ] 保存/重置布局并支持设置 Card 停靠
+- UI 基线：`src/lib/cards/settings/CardManagementCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsBindings` 操作绑定
+
+- [ ] 查看和编辑键盘、鼠标、触摸等操作绑定
+- [ ] 搜索、冲突检测、禁用和恢复默认
+- [ ] 导入导出并提供无障碍等价操作
+- UI 基线：`src/lib/cards/settings/BindingsSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+#### `settingsData` 数据设置
+
+- [ ] 管理设置/阅读数据的导入、导出、备份和恢复
+- [ ] 显示数据库路径、大小、迁移和清理入口
+- [ ] 预览变更、原子提交、回滚并遵守 NeoView 数据库边界
+- UI 基线：`src/lib/cards/settings/DataSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ## 每张 Card 的专用清单模板
 
