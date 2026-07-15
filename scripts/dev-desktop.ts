@@ -69,7 +69,10 @@ async function waitForFrontend() {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       const response = await fetch(frontendUrl, { method: "HEAD" })
-      if (response.ok || response.status === 404) return
+      if (response.ok || response.status === 404) {
+        const runtime = await fetch(new URL("/node_modules/.vite/deps/@wailsio_runtime.js", frontendUrl))
+        if (runtime.ok) return
+      }
     } catch {
       // Vite is still starting.
     }

@@ -113,7 +113,7 @@ export default defineConfig({
   },
   server: {
     watch: {
-      ignored: ["**/build/**", "**/artifacts/**"],
+      ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**"],
     },
     hmr: process.env.VITE_XIRANITE_FRONTEND_DEV_URL
       ? {
@@ -130,6 +130,7 @@ export default defineConfig({
     // esbuild 预构建会把 CJS 转成 ESM 命名导出。zustand / @base-ui/react /
     // @tanstack/react-store 都通过 shim 入口引用。
     include: [
+      "@wailsio/runtime",
       "use-sync-external-store",
       "use-sync-external-store/shim",
       "use-sync-external-store/shim/with-selector",
@@ -141,10 +142,11 @@ export default defineConfig({
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
     exclude: ["nuqs"],
-    esbuildOptions: {
-      target: "es2022",
-      define: {
-        "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+    rolldownOptions: {
+      transform: {
+        define: {
+          "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+        },
       },
     },
   },
@@ -155,20 +157,19 @@ export default defineConfig({
     exclude: ["**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**", "**/tests/e2e/**"],
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "scheduler"],
-          "vendor-radix": [
-            "radix-ui",
-            "@radix-ui/react-accordion",
+        codeSplitting: {
+          groups: [
+            { name: "vendor-react", test: /[\\/]node_modules[\\/](?:react|react-dom|scheduler)[\\/]/ },
+            { name: "vendor-radix", test: /[\\/]node_modules[\\/](?:radix-ui|@radix-ui)[\\/]/ },
+            { name: "vendor-query", test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/ },
+            { name: "vendor-i18n", test: /[\\/]node_modules[\\/](?:i18next|react-i18next)[\\/]/ },
+            { name: "vendor-state", test: /[\\/]node_modules[\\/](?:zustand|nuqs)[\\/]/ },
+            { name: "vendor-motion", test: /[\\/]node_modules[\\/]motion[\\/]/ },
+            { name: "vendor-dockview", test: /[\\/]node_modules[\\/]dockview-react[\\/]/ },
+            { name: "vendor-gridstack", test: /[\\/]node_modules[\\/]gridstack[\\/]/ },
           ],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-i18n": ["i18next", "react-i18next"],
-          "vendor-state": ["zustand", "nuqs"],
-          "vendor-motion": ["motion"],
-          "vendor-dockview": ["dockview-react"],
-          "vendor-gridstack": ["gridstack"],
         },
       },
     },
