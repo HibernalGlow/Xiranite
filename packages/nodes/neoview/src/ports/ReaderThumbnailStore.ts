@@ -61,6 +61,7 @@ export interface ReaderThumbnailInvalidCleanupResult {
 }
 
 export interface ReaderThumbnailStore {
+  revision?(): number
   get(key: string, category: ReaderThumbnailCategory): Promise<ReaderThumbnailAsset | undefined>
   getMany?(keys: readonly string[], category: ReaderThumbnailCategory): Promise<ReadonlyMap<string, ReaderThumbnailAsset>>
   put?(thumbnail: ReaderThumbnailWrite): Promise<void>

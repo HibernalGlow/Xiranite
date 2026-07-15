@@ -9,18 +9,21 @@ describe("LazyReaderThumbnailStore", () => {
     const load = vi.fn(() => pending.promise)
     const get = vi.fn(async (): Promise<ReaderThumbnailAsset | undefined> => ({ bytes: Uint8Array.of(1), contentType: "image/webp" }))
     const put = vi.fn(async () => undefined)
+    const revision = vi.fn(() => 7)
     const store = new LazyReaderThumbnailStore({ load })
 
+    expect(store.revision()).toBe(0)
     expect(load).not.toHaveBeenCalled()
     const reading = store.get("page", "file")
     const writing = store.put({ key: "page", category: "file", bytes: webp() })
     expect(load).toHaveBeenCalledOnce()
-    pending.resolve({ get, put })
+    pending.resolve({ get, put, revision })
 
     await expect(reading).resolves.toMatchObject({ contentType: "image/webp" })
     await expect(writing).resolves.toBeUndefined()
     expect(get).toHaveBeenCalledWith("page", "file")
     expect(put).toHaveBeenCalledOnce()
+    expect(store.revision()).toBe(7)
     await store.close()
   })
 

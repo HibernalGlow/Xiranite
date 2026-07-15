@@ -133,7 +133,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     if (!this.supportsPage(page)) throw new ThumbnailUnavailableError()
     const profile = "page-strip-v1" as const
     return this.#coordinator.acquire({
-      cacheKey: pageThumbnailCacheKey(page, profile),
+      cacheKey: pageThumbnailCacheKey(page, profile, this.#thumbnailRevision()),
       source: { kind: "page", page, profile },
       lane: options.lane ?? "reader-visible",
       contextId: options.contextId,
@@ -163,6 +163,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
     let databaseHits = 0
     let primed = 0
+    const revision = this.#thumbnailRevision()
     const primedKeys = new Set<string>()
     for (const [category, categoryPages] of byCategory) {
       options.signal?.throwIfAborted()
@@ -173,7 +174,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         const sizeMatches = record?.sourceSize === undefined || page.byteLength === undefined || record.sourceSize === page.byteLength
         if (!record?.contentType?.startsWith("image/") || !sizeMatches) continue
         databaseHits += 1
-        const cacheKey = pageThumbnailCacheKey(page, "page-strip-v1")
+        const cacheKey = pageThumbnailCacheKey(page, "page-strip-v1", revision)
         if (primedKeys.has(cacheKey)) continue
         primedKeys.add(cacheKey)
         if (this.#coordinator.prime(cacheKey, {
@@ -206,6 +207,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
     let databaseHits = 0
     let primed = 0
+    const revision = this.#thumbnailRevision()
     const primedKeys = new Set<string>()
     for (const [category, categorySources] of byCategory) {
       options.signal?.throwIfAborted()
@@ -215,7 +217,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         const record = records.get(source.path)
         if (!isValidLibraryThumbnail(record, source)) continue
         databaseHits += 1
-        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1")
+        const cacheKey = libraryThumbnailCacheKey(source, "library-cover-v1", revision)
         if (primedKeys.has(cacheKey)) continue
         primedKeys.add(cacheKey)
         if (this.#coordinator.prime(cacheKey, {
@@ -266,7 +268,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   acquireLibrary(source: LibraryThumbnailSource, options: PageThumbnailAcquireOptions): ThumbnailLease {
     const profile = libraryThumbnailProfile(source.previewCount)
     return this.#coordinator.acquire({
-      cacheKey: libraryThumbnailCacheKey(source, profile),
+      cacheKey: libraryThumbnailCacheKey(source, profile, this.#thumbnailRevision()),
       source: { kind: "library", source, profile },
       lane: options.lane ?? (source.kind === "folder" ? "folder-preview" : "library-visible"),
       contextId: options.contextId,
@@ -298,6 +300,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.dispose()
+  }
+
+  #thumbnailRevision(): number {
+    return this.#thumbnailStore?.revision?.() ?? 0
   }
 
   async #resolve(
@@ -690,8 +696,8 @@ function thumbnailGenerationHash(contentVersion: string): number {
   return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
 }
 
-function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile): string {
-  return `${source.kind}:${source.path}:${source.contentVersion}:${profile}`
+function libraryThumbnailCacheKey(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile, revision: number): string {
+  return `${source.kind}:${source.path}:${source.contentVersion}:db-${revision}:${profile}`
 }
 
 function libraryThumbnailProfile(count: LibraryThumbnailPreviewCount): LibraryThumbnailProfile {
@@ -723,10 +729,10 @@ function timestampAtOrAfter(value: string | undefined, minimumMs: number): boole
   return Number.isFinite(parsed) && parsed >= minimumMs
 }
 
-function pageThumbnailCacheKey(page: ReaderPage, profile: "page-strip-v1"): string {
+function pageThumbnailCacheKey(page: ReaderPage, profile: "page-strip-v1", revision: number): string {
   const source = page.thumbnailSource
   if (!source) throw new ThumbnailUnavailableError()
-  return `${source.category}:${source.key}:${page.contentVersion}:${profile}`
+  return `${source.category}:${source.key}:${page.contentVersion}:db-${revision}:${profile}`
 }
 
 async function collectThumbnailBytes(stream: ReadableStream<Uint8Array>, maxBytes: number, signal: AbortSignal): Promise<Uint8Array> {

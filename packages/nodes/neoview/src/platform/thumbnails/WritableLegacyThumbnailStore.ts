@@ -10,6 +10,7 @@ import type {
 import { stat } from "node:fs/promises"
 import { isAbsolute, parse, resolve } from "node:path"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
+import { SqliteDataVersionTracker } from "../sqlite/SqliteDataVersionTracker.js"
 import { inspectLegacyThumbnailDatabase, type LegacyThumbnailDatabaseReport } from "./LegacyThumbnailDatabaseInspector.js"
 import { decodeLegacyThumbnailBlob, detectImageContentType, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
 import type { LegacyThumbnailCategory, LegacyThumbnailRecord } from "./ReadonlyLegacyThumbnailStore.js"
@@ -23,6 +24,7 @@ export interface WritableLegacyThumbnailStoreOptions {
   writeBusyRetries?: number
   writeBusyBaseDelayMs?: number
   pathState?: (path: string) => Promise<ThumbnailPathState>
+  dataVersionPollIntervalMs?: number
 }
 
 export type ThumbnailPathState = "exists" | "missing" | "unavailable"
@@ -41,6 +43,7 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
   readonly #writeBusyRetries: number
   readonly #writeBusyBaseDelayMs: number
   readonly #pathState: (path: string) => Promise<ThumbnailPathState>
+  readonly #dataVersion: SqliteDataVersionTracker
   #pending: PendingWrite[] = []
   #flushTimer?: ReturnType<typeof setTimeout>
   #flushing?: Promise<void>
@@ -62,6 +65,9 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.#writeBusyRetries = options.writeBusyRetries ?? 3
     this.#writeBusyBaseDelayMs = options.writeBusyBaseDelayMs ?? 25
     this.#pathState = options.pathState ?? filesystemPathState
+    this.#dataVersion = new SqliteDataVersionTracker(database, {
+      pollIntervalMs: options.dataVersionPollIntervalMs,
+    })
     assertInteger(this.#maxThumbnailBytes, "maxThumbnailBytes", 1, 256 * 1024 * 1024)
     assertInteger(this.#flushIntervalMs, "flushIntervalMs", 0, 60_000)
     assertInteger(this.#maxBatchSize, "maxBatchSize", 1, 512)
@@ -83,6 +89,11 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Async
       database.close()
       throw error
     }
+  }
+
+  revision(): number {
+    this.#assertOpen()
+    return this.#dataVersion.revision()
   }
 
   async get(key: string, category: LegacyThumbnailCategory): Promise<LegacyThumbnailRecord | undefined> {

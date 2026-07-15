@@ -18,6 +18,7 @@ export class LazyReaderThumbnailStore implements ReaderThumbnailStore, AsyncDisp
   readonly #loadStore: () => Promise<ReaderThumbnailStore>
   readonly #disposeStore?: (store: ReaderThumbnailStore) => void | Promise<void>
   #store?: Promise<ReaderThumbnailStore | undefined>
+  #loadedStore?: ReaderThumbnailStore
   #closing?: Promise<void>
   #closed = false
   #disposed = false
@@ -25,6 +26,10 @@ export class LazyReaderThumbnailStore implements ReaderThumbnailStore, AsyncDisp
   constructor(options: LazyReaderThumbnailStoreOptions) {
     this.#loadStore = options.load
     this.#disposeStore = options.dispose
+  }
+
+  revision(): number {
+    return this.#loadedStore?.revision?.() ?? 0
   }
 
   async get(key: string, category: ReaderThumbnailCategory): Promise<ReaderThumbnailAsset | undefined> {
@@ -93,7 +98,10 @@ export class LazyReaderThumbnailStore implements ReaderThumbnailStore, AsyncDisp
     if (this.#closed) return Promise.reject(new Error("Lazy thumbnail store is closed."))
     if (!this.#store) {
       this.#store = this.#loadStore().then(async (store) => {
-        if (!this.#closed) return store
+        if (!this.#closed) {
+          this.#loadedStore = store
+          return store
+        }
         await this.#dispose(store)
         return undefined
       }, () => undefined)
@@ -110,6 +118,7 @@ export class LazyReaderThumbnailStore implements ReaderThumbnailStore, AsyncDisp
   async #dispose(store: ReaderThumbnailStore): Promise<void> {
     if (this.#disposed) return
     this.#disposed = true
+    if (this.#loadedStore === store) this.#loadedStore = undefined
     await this.#disposeStore?.(store)
   }
 }

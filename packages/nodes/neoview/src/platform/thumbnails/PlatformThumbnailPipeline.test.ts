@@ -65,6 +65,36 @@ describe("PlatformThumbnailPipeline", () => {
     expect(closeBook).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.library.external-epoch] bypasses a generated L1 entry after another database writer commits", async () => {
+    const generated = fixtureWebp(7)
+    const external = fixtureWebp(8)
+    let revision = 0
+    const get = vi.fn(async () => revision === 0 ? undefined : {
+      bytes: external,
+      contentType: "image/webp",
+      sourceSize: 100,
+      date: "2026-07-16 00:00:00",
+    })
+    const transform = vi.fn(async () => ({ contentType: "image/webp", stream: byteStream(generated) }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(fixturePage("D:/library/book/cover.png")),
+      thumbnailStore: { revision: () => revision, get, put: async () => undefined },
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const descriptor = librarySource("file", "D:/library/book.cbz", 100)
+    const first = pipeline.acquireLibrary(descriptor, { contextId: "library:epoch-1" })
+    await expect(first.ready).resolves.toMatchObject({ bytes: generated })
+    first.release()
+
+    revision = 1
+    const second = pipeline.acquireLibrary(descriptor, { contextId: "library:epoch-2" })
+    await expect(second.ready).resolves.toMatchObject({ bytes: external, cacheable: false })
+    second.release()
+    expect(transform).toHaveBeenCalledOnce()
+    expect(get).toHaveBeenCalledTimes(3)
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library.prewarm] batches visible file and folder hits into L1 by category", async () => {
     const file = librarySource("file", "D:/library/book.cbz", 100)
     const folder = librarySource("folder", "D:/library/series")

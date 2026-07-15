@@ -5,6 +5,7 @@ import {
 } from "./LegacyThumbnailDatabaseInspector.js"
 import { decodeLegacyThumbnailBlob, DEFAULT_MAX_THUMBNAIL_BYTES } from "./ThumbnailBlobCodec.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import { SqliteDataVersionTracker } from "../sqlite/SqliteDataVersionTracker.js"
 
 export type LegacyThumbnailCategory = "file" | "folder"
 
@@ -22,6 +23,7 @@ export interface LegacyThumbnailRecord {
 export interface ReadonlyLegacyThumbnailStoreOptions {
   maxThumbnailBytes?: number
   decodeConcurrency?: number
+  dataVersionPollIntervalMs?: number
 }
 
 export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, AsyncDisposable {
@@ -29,6 +31,7 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
   readonly #database: ReadonlySqliteConnection
   readonly #maxThumbnailBytes: number
   readonly #decodeConcurrency: number
+  readonly #dataVersion: SqliteDataVersionTracker
   #closed = false
 
   private constructor(
@@ -40,6 +43,9 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
     this.report = report
     this.#maxThumbnailBytes = options.maxThumbnailBytes ?? DEFAULT_MAX_THUMBNAIL_BYTES
     this.#decodeConcurrency = options.decodeConcurrency ?? 8
+    this.#dataVersion = new SqliteDataVersionTracker(database, {
+      pollIntervalMs: options.dataVersionPollIntervalMs,
+    })
     assertPositiveInteger(this.#maxThumbnailBytes, "maxThumbnailBytes", 256 * 1024 * 1024)
     assertPositiveInteger(this.#decodeConcurrency, "decodeConcurrency", 64)
   }
@@ -60,6 +66,11 @@ export class ReadonlyLegacyThumbnailStore implements ReaderThumbnailStore, Async
       database.close()
       throw error
     }
+  }
+
+  revision(): number {
+    this.#assertOpen()
+    return this.#dataVersion.revision()
   }
 
   async get(key: string, category: LegacyThumbnailCategory): Promise<LegacyThumbnailRecord | undefined> {

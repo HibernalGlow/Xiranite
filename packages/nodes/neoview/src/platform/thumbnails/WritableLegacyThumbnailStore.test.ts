@@ -95,6 +95,25 @@ describe("WritableLegacyThumbnailStore", () => {
     verified.close()
   })
 
+  it("[neoview.thumbnail.writer.external-epoch] increments only when another SQLite connection commits", async () => {
+    const path = await createFixture(roots)
+    const store = await WritableLegacyThumbnailStore.open(path, {
+      flushIntervalMs: 0,
+      dataVersionPollIntervalMs: 0,
+    })
+    expect(store.revision()).toBe(0)
+
+    const external = await openFixtureDatabase(path)
+    external.exec("INSERT INTO thumbs (key, category, value) VALUES ('D:/external.jpg', 'file', X'52494646040000005745425001')")
+    external.close()
+    expect(store.revision()).toBe(1)
+    expect(store.revision()).toBe(1)
+
+    await store.put({ key: "D:/local.jpg", category: "file", bytes: fixtureWebp(2) })
+    expect(store.revision()).toBe(1)
+    await store.close()
+  })
+
   it("[neoview.thumbnail.writer.busy-retry] retries the complete transaction after a competing writer releases its lock", async () => {
     const path = await createFixture(roots)
     const blocker = await openFixtureDatabase(path)
