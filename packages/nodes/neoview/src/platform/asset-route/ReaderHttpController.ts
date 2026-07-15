@@ -9,6 +9,7 @@ import type { ReaderSession, ReaderSessionOptions } from "../../application/read
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
@@ -21,6 +22,7 @@ import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
 import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
+import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
@@ -76,6 +78,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
+  libraryService?: ReaderLibraryService
+  disposeLibraryService?: boolean
   shellOptions?: NeoviewShellConfig
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
@@ -91,6 +95,9 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #thumbnailPipeline: PlatformThumbnailPipeline
   readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
   readonly #directoryBrowser: ReaderDirectoryBrowserRoute
+  readonly #library?: ReaderLibraryHttpController
+  readonly #libraryService?: ReaderLibraryService
+  readonly #disposeLibraryService: boolean
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -152,6 +159,9 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })
     this.#directoryBrowser = new ReaderDirectoryBrowserRoute()
+    this.#libraryService = options.libraryService
+    this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined
+    this.#disposeLibraryService = options.disposeLibraryService ?? false
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -176,6 +186,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (thumbnailMaintenanceResponse) return thumbnailMaintenanceResponse
     const directoryBrowserResponse = await this.#directoryBrowser.handle(request)
     if (directoryBrowserResponse) return directoryBrowserResponse
+    const libraryResponse = await this.#library?.handle(request)
+    if (libraryResponse) return libraryResponse
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
@@ -219,6 +231,13 @@ export class ReaderHttpController implements AsyncDisposable {
       await this.#service[Symbol.asyncDispose]()
     } catch (error) {
       errors.push(error)
+    }
+    if (this.#disposeLibraryService && this.#libraryService) {
+      try {
+        await this.#libraryService.close()
+      } catch (error) {
+        errors.push(error)
+      }
     }
     if (this.#ownsSolidArchiveCache) {
       try {

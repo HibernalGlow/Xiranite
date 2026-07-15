@@ -8,6 +8,7 @@ import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
+import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -99,6 +100,12 @@ export async function createReaderHttpController(
       : options.legacyThumbnailDatabasePath !== false && options.useDefaultLegacyProgressStore
         ? await createSqliteReaderProgressStore(await legacyNeoViewDatabasePath())
         : undefined)
+  const libraryService = options.legacyThumbnailDatabasePath === false
+    || (typeof options.legacyThumbnailDatabasePath !== "string" && !options.useDefaultLegacyProgressStore)
+      ? undefined
+      : await createReaderLibraryService(
+          typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
+        )
   let thumbnailStore = options.thumbnailStore
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
@@ -114,6 +121,8 @@ export async function createReaderHttpController(
   return new ReaderHttpController({
     ...options,
     progressStore,
+    libraryService,
+    disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
@@ -196,6 +205,14 @@ export async function createFfmpegVideoThumbnailProvider(
 ): Promise<FfmpegVideoThumbnailProvider> {
   const { FfmpegVideoThumbnailProvider } = await import("./platform/video/FfmpegVideoThumbnailProvider.js")
   return new FfmpegVideoThumbnailProvider(options)
+}
+
+export async function createReaderLibraryService(databasePath?: string): Promise<ReaderLibraryService> {
+  const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
+  const { SqliteReaderLibraryStore } = await import("./platform/persistence/SqliteReaderLibraryStore.js")
+  return new ReaderLibraryService(
+    await SqliteReaderLibraryStore.open(await legacyNeoViewDatabasePath(databasePath)),
+  )
 }
 
 export async function createReaderHeadlessController(

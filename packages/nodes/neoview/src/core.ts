@@ -7,6 +7,19 @@ export {
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
+export {
+  ReaderLibraryService,
+  READER_SYSTEM_BOOKMARK_LIST_IDS,
+  type SaveReaderBookmarkInput,
+  type SaveReaderBookmarkListInput,
+} from "./application/library/ReaderLibraryService.js"
+export type {
+  ReaderBookmarkListRecord,
+  ReaderBookmarkQuery,
+  ReaderBookmarkRecord,
+  ReaderLibraryStore,
+  ReaderRecentQuery,
+} from "./ports/ReaderLibraryStore.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
   ReaderSlideshow,
