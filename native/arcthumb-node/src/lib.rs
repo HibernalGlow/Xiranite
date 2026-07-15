@@ -46,6 +46,114 @@ pub struct ArchiveThumbnail {
 
 pub struct ArchiveThumbnailTask(core::ArchiveThumbnailOptions);
 
+#[napi(object)]
+pub struct SystemThumbnailOptions {
+    pub path: String,
+    pub max_dimension: Option<u32>,
+}
+
+#[napi(object)]
+pub struct SystemThumbnail {
+    pub rgba: Buffer,
+    pub width: u32,
+    pub height: u32,
+    pub premultiplied: bool,
+}
+
+pub struct SystemThumbnailTask {
+    path: String,
+    max_dimension: u32,
+}
+
+#[napi(object)]
+pub struct WicImageThumbnailOptions {
+    pub data: Buffer,
+    pub max_dimension: Option<u32>,
+}
+
+pub struct WicImageThumbnailTask {
+    data: Vec<u8>,
+    max_dimension: u32,
+}
+
+#[napi]
+pub fn get_cached_system_thumbnail(
+    options: SystemThumbnailOptions,
+) -> Result<AsyncTask<SystemThumbnailTask>> {
+    if options.path.is_empty() {
+        return Err(Error::new(Status::InvalidArg, "path cannot be empty"));
+    }
+    let max_dimension = options.max_dimension.unwrap_or(416);
+    if !(16..=2048).contains(&max_dimension) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "maxDimension must be between 16 and 2048",
+        ));
+    }
+    Ok(AsyncTask::new(SystemThumbnailTask {
+        path: options.path,
+        max_dimension,
+    }))
+}
+
+impl Task for SystemThumbnailTask {
+    type Output = Option<core::SystemThumbnail>;
+    type JsValue = Option<SystemThumbnail>;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        core::get_cached_system_thumbnail(&self.path, self.max_dimension)
+            .map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output.map(|thumbnail| SystemThumbnail {
+            rgba: thumbnail.rgba.into(),
+            width: thumbnail.width,
+            height: thumbnail.height,
+            premultiplied: thumbnail.premultiplied,
+        }))
+    }
+}
+
+#[napi]
+pub fn create_wic_image_thumbnail(
+    options: WicImageThumbnailOptions,
+) -> Result<AsyncTask<WicImageThumbnailTask>> {
+    if options.data.is_empty() {
+        return Err(Error::new(Status::InvalidArg, "data cannot be empty"));
+    }
+    let max_dimension = options.max_dimension.unwrap_or(416);
+    if max_dimension != 0 && !(16..=8192).contains(&max_dimension) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "maxDimension must be zero or between 16 and 8192",
+        ));
+    }
+    Ok(AsyncTask::new(WicImageThumbnailTask {
+        data: options.data.to_vec(),
+        max_dimension,
+    }))
+}
+
+impl Task for WicImageThumbnailTask {
+    type Output = core::SystemThumbnail;
+    type JsValue = SystemThumbnail;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        core::create_wic_image_thumbnail(&self.data, self.max_dimension)
+            .map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(SystemThumbnail {
+            rgba: output.rgba.into(),
+            width: output.width,
+            height: output.height,
+            premultiplied: output.premultiplied,
+        })
+    }
+}
+
 #[napi]
 pub fn create_archive_thumbnail(
     options: ArchiveThumbnailOptions,

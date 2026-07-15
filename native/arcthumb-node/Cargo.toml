@@ -14,7 +14,7 @@ napi = { version = "3", features = ["napi8", "async"] }
 napi-derive = "3"
 
 [target.'cfg(windows)'.dependencies]
-xiranite-arcthumb-core = { path = "../arcthumb-core", features = ["wic"] }
+xiranite-arcthumb-core = { path = "../arcthumb-core", features = ["wic", "windows-shell"] }
 
 [target.'cfg(not(windows))'.dependencies]
 xiranite-arcthumb-core = { path = "../arcthumb-core" }

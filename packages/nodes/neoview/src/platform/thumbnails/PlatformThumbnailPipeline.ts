@@ -18,12 +18,14 @@ import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ImageTransformer, ImageTransformerLoader } from "../../ports/ImageTransformer.js"
 import type { ReaderBookLoader } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailFailure, ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { SystemThumbnailProvider, SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProvider, VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
   thumbnailStore?: ReaderThumbnailStore
   bookLoader?: ReaderBookLoader
+  loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   maxMemoryBytes?: number
   maxEntryBytes?: number
@@ -71,15 +73,18 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #thumbnailStore?: ReaderThumbnailStore
   readonly #bookLoader?: ReaderBookLoader
+  readonly #loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   readonly #loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   readonly #coordinator: ThumbnailCoordinatorService<PlatformThumbnailDemandSource>
   #imageTransformer?: Promise<ImageTransformer>
+  #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
 
   constructor(options: PlatformThumbnailPipelineOptions = {}) {
     this.#loadImageTransformer = options.loadImageTransformer
     this.#thumbnailStore = options.thumbnailStore
     this.#bookLoader = options.bookLoader
+    this.#loadSystemThumbnailProvider = options.loadSystemThumbnailProvider
     this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,
@@ -89,13 +94,17 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   }
 
   get available(): boolean {
-    return Boolean(this.#thumbnailStore || this.#loadImageTransformer || this.#loadVideoThumbnailProvider)
+    return Boolean(this.#thumbnailStore || this.#loadImageTransformer
+      || this.#loadSystemThumbnailProvider || this.#loadVideoThumbnailProvider)
   }
 
   supportsPage(page: ReaderPage): boolean {
     return Boolean(page.thumbnailSource) && (
       page.mediaKind === "image" || page.mediaKind === "animated-image"
-      || (page.mediaKind === "video" && Boolean(this.#loadVideoThumbnailProvider) && !page.entryPath)
+      || (page.mediaKind === "video" && (
+        Boolean(this.#thumbnailStore)
+        || (!page.entryPath && Boolean(this.#loadSystemThumbnailProvider || this.#loadVideoThumbnailProvider))
+      ))
     )
   }
 
@@ -244,6 +253,28 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
+    if (!page.entryPath) {
+      const cached = await this.#trySystemThumbnail({
+        sourcePath: page.sourcePath,
+        maxEdge: 320,
+        quality: 78,
+        priority: thumbnailLanePriority(demand.lane),
+        ownerId: demand.contextId,
+      }, signal)
+      if (cached) {
+        if (thumbnailStore?.put) {
+          void thumbnailStore.put({
+            key: persistence.key,
+            category: persistence.category,
+            bytes: cached.bytes,
+            sourceSize: page.byteLength,
+            date: sqliteTimestamp(new Date()),
+            generationHash: thumbnailGenerationHash(page.contentVersion),
+          }).catch(() => undefined)
+        }
+        return { bytes: cached.bytes, contentType: cached.contentType, version: demandSource.profile, cacheable: true }
+      }
+    }
     if (page.mediaKind === "video") {
       if (!this.#loadVideoThumbnailProvider || page.entryPath) throw new ThumbnailUnavailableError()
       try {
@@ -340,6 +371,26 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const failure = await thumbnailStore.getFailure?.(descriptor.path)
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
+    }
+    const cached = await this.#trySystemThumbnail({
+      sourcePath: descriptor.path,
+      maxEdge: 416,
+      quality: 82,
+      priority: thumbnailLanePriority(demand.lane),
+      ownerId: demand.contextId,
+    }, signal)
+    if (cached) {
+      if (thumbnailStore?.put) {
+        void thumbnailStore.put({
+          key: descriptor.path,
+          category,
+          bytes: cached.bytes,
+          sourceSize: descriptor.kind === "file" ? descriptor.sourceSize : undefined,
+          date: sqliteTimestamp(new Date()),
+          generationHash: expectedHash,
+        }).catch(() => undefined)
+      }
+      return { bytes: cached.bytes, contentType: cached.contentType, version: demandSource.profile, cacheable: true }
     }
     if (!this.#bookLoader || (!this.#loadImageTransformer && !this.#loadVideoThumbnailProvider)) throw new ThumbnailUnavailableError()
 
@@ -441,6 +492,32 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       this.#videoThumbnailProvider = guarded
     }
     return this.#videoThumbnailProvider
+  }
+
+  #getSystemThumbnailProvider(): Promise<SystemThumbnailProvider> {
+    if (!this.#loadSystemThumbnailProvider) return Promise.reject(new ThumbnailUnavailableError())
+    if (!this.#systemThumbnailProvider) {
+      const pending = this.#loadSystemThumbnailProvider()
+      const guarded = pending.catch((error) => {
+        if (this.#systemThumbnailProvider === guarded) this.#systemThumbnailProvider = undefined
+        throw error
+      })
+      this.#systemThumbnailProvider = guarded
+    }
+    return this.#systemThumbnailProvider
+  }
+
+  async #trySystemThumbnail(
+    request: Parameters<SystemThumbnailProvider["getCached"]>[0],
+    signal: AbortSignal,
+  ): Promise<Awaited<ReturnType<SystemThumbnailProvider["getCached"]>>> {
+    if (!this.#loadSystemThumbnailProvider) return undefined
+    try {
+      return await (await this.#getSystemThumbnailProvider()).getCached(request, signal)
+    } catch (error) {
+      signal.throwIfAborted()
+      return undefined
+    }
   }
 
   #recordFailure(key: string, error: unknown): void {

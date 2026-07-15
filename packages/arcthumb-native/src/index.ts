@@ -27,9 +27,28 @@ export interface ArchiveThumbnail {
   mimeType: string
 }
 
+export interface SystemThumbnailOptions {
+  path: string
+  maxDimension?: number
+}
+
+export interface WicImageThumbnailOptions {
+  data: Uint8Array
+  maxDimension?: number
+}
+
+export interface SystemThumbnail {
+  rgba: Buffer
+  width: number
+  height: number
+  premultiplied: boolean
+}
+
 export interface ArcThumbBinding {
   getArcThumbInfo(): ArcThumbInfo
   createArchiveThumbnail(options: ArchiveThumbnailOptions): Promise<ArchiveThumbnail>
+  getCachedSystemThumbnail(options: SystemThumbnailOptions): Promise<SystemThumbnail | undefined>
+  createWicImageThumbnail(options: WicImageThumbnailOptions): Promise<SystemThumbnail>
 }
 
 let cachedBinding: ArcThumbBinding | undefined
@@ -49,3 +68,7 @@ export function loadArcThumbBinding(): ArcThumbBinding {
 export const getArcThumbInfo = (): ArcThumbInfo => loadArcThumbBinding().getArcThumbInfo()
 export const createArchiveThumbnail = (options: ArchiveThumbnailOptions): Promise<ArchiveThumbnail> =>
   loadArcThumbBinding().createArchiveThumbnail(options)
+export const getCachedSystemThumbnail = (options: SystemThumbnailOptions): Promise<SystemThumbnail | undefined> =>
+  loadArcThumbBinding().getCachedSystemThumbnail(options)
+export const createWicImageThumbnail = (options: WicImageThumbnailOptions): Promise<SystemThumbnail> =>
+  loadArcThumbBinding().createWicImageThumbnail(options)

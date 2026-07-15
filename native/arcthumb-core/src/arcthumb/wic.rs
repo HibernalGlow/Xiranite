@@ -13,7 +13,7 @@ use std::error::Error;
 use std::ptr;
 
 use image::{DynamicImage, ImageBuffer, Rgba};
-use windows::Win32::Foundation::HGLOBAL;
+use windows::Win32::Foundation::{HGLOBAL, RPC_E_CHANGED_MODE};
 use windows::Win32::Graphics::Imaging::{
     CLSID_WICImagingFactory, GUID_WICPixelFormat32bppRGBA, IWICBitmapDecoder,
     IWICBitmapFrameDecode, IWICFormatConverter, IWICImagingFactory, WICBitmapDitherType,
@@ -21,7 +21,8 @@ use windows::Win32::Graphics::Imaging::{
 };
 use windows::Win32::System::Com::StructuredStorage::CreateStreamOnHGlobal;
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, CoCreateInstance, IStream, STREAM_SEEK_SET,
+    CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
+    IStream, STREAM_SEEK_SET,
 };
 
 use crate::limits;
@@ -53,6 +54,7 @@ pub fn is_wic_format(name: &str) -> bool {
 /// - Dimensions exceeding [`limits::MAX_IMAGE_DIMENSION`] or pixel
 ///   buffer exceeding [`limits::MAX_IMAGE_ALLOC`] cause an error.
 pub fn decode_via_wic(bytes: &[u8]) -> Result<DynamicImage, Box<dyn Error>> {
+    let _apartment = ComApartment::initialize()?;
     // ── 1. Wrap bytes in an IStream ────────────────────────────────────
     let stream = create_stream_over_bytes(bytes)?;
 
@@ -130,6 +132,29 @@ pub fn decode_via_wic(bytes: &[u8]) -> Result<DynamicImage, Box<dyn Error>> {
         .ok_or("WIC output buffer size mismatch")?;
 
     Ok(DynamicImage::ImageRgba8(img))
+}
+
+struct ComApartment(bool);
+
+impl ComApartment {
+    fn initialize() -> Result<Self, Box<dyn Error>> {
+        let result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        if result.is_ok() {
+            Ok(Self(true))
+        } else if result == RPC_E_CHANGED_MODE {
+            Ok(Self(false))
+        } else {
+            Err(format!("CoInitializeEx: HRESULT {:#010x}", result.0 as u32).into())
+        }
+    }
+}
+
+impl Drop for ComApartment {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe { CoUninitialize() };
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

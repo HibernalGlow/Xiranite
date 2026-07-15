@@ -1,4 +1,6 @@
 mod arcthumb;
+#[cfg(all(windows, feature = "windows-shell"))]
+mod windows_shell;
 
 // Keep ArcThumb's original crate-relative module paths intact. This lets the
 // imported core stay close to upstream while the public API remains ours.
@@ -16,7 +18,7 @@ use image::imageops::FilterType;
 use image::{DynamicImage, ImageFormat};
 use thiserror::Error;
 
-pub const API_VERSION: u32 = 1;
+pub const API_VERSION: u32 = 2;
 pub const SOURCE_VERSION: &str = "0.10.1";
 
 #[derive(Debug, Error)]
@@ -32,6 +34,8 @@ pub enum ArcThumbError {
     Archive(String),
     #[error("image encoding failed: {0}")]
     Encode(String),
+    #[error("platform thumbnail failed: {0}")]
+    Platform(String),
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +110,77 @@ pub struct ArchiveThumbnail {
     pub source_name: String,
     pub content_kind: &'static str,
     pub mime_type: &'static str,
+}
+
+#[derive(Debug, Clone)]
+pub struct SystemThumbnail {
+    pub rgba: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub premultiplied: bool,
+}
+
+#[cfg(all(windows, feature = "wic"))]
+pub fn create_wic_image_thumbnail(
+    bytes: &[u8],
+    max_dimension: u32,
+) -> Result<SystemThumbnail, ArcThumbError> {
+    if max_dimension != 0 && !(16..=8192).contains(&max_dimension) {
+        return Err(ArcThumbError::InvalidOption(
+            "max_dimension must be zero or between 16 and 8192".into(),
+        ));
+    }
+    let decoded = arcthumb::wic::decode_via_wic(bytes)
+        .map_err(|error| ArcThumbError::Platform(error.to_string()))?;
+    let resized = if max_dimension == 0 {
+        decoded.to_rgba8()
+    } else {
+        decoded
+            .resize(max_dimension, max_dimension, FilterType::Lanczos3)
+            .to_rgba8()
+    };
+    Ok(SystemThumbnail {
+        width: resized.width(),
+        height: resized.height(),
+        rgba: resized.into_raw(),
+        premultiplied: false,
+    })
+}
+
+#[cfg(not(all(windows, feature = "wic")))]
+pub fn create_wic_image_thumbnail(
+    _bytes: &[u8],
+    max_dimension: u32,
+) -> Result<SystemThumbnail, ArcThumbError> {
+    if max_dimension != 0 && !(16..=8192).contains(&max_dimension) {
+        return Err(ArcThumbError::InvalidOption(
+            "max_dimension must be zero or between 16 and 8192".into(),
+        ));
+    }
+    Err(ArcThumbError::Platform(
+        "WIC image decoding is unavailable on this platform".into(),
+    ))
+}
+
+#[cfg(all(windows, feature = "windows-shell"))]
+pub fn get_cached_system_thumbnail(
+    path: &str,
+    max_dimension: u32,
+) -> Result<Option<SystemThumbnail>, ArcThumbError> {
+    windows_shell::get_cached_thumbnail(path, max_dimension)
+}
+
+#[cfg(not(all(windows, feature = "windows-shell")))]
+pub fn get_cached_system_thumbnail(
+    _path: &str,
+    max_dimension: u32,
+) -> Result<Option<SystemThumbnail>, ArcThumbError> {
+    if !(16..=2048).contains(&max_dimension) {
+        return Err(ArcThumbError::InvalidOption(
+            "max_dimension must be between 16 and 2048".into(),
+        ));
+    }
+    Ok(None)
 }
 
 pub fn create_archive_thumbnail(

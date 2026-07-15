@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { getCoreInfo, scanDuplicateFiles } from "../dist/index.js"
 
 const info = getCoreInfo()
-if (info.apiVersion !== 1 || info.czkawkaVersion !== "10.0.0") {
+if (info.apiVersion !== 4 || info.czkawkaVersion !== "10.0.0") {
   throw new Error(`Unexpected native core info: ${JSON.stringify(info)}`)
 }
 console.log(JSON.stringify(info))

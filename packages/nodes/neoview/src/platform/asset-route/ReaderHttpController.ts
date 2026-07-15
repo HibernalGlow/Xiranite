@@ -5,6 +5,7 @@ import { CoreReaderService } from "../../application/reader/ReaderService.js"
 import type { ReaderSession, ReaderSessionOptions } from "../../application/reader/contracts.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
+import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
@@ -61,6 +62,7 @@ export interface ReaderSessionDto {
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   sessionOptions?: Partial<ReaderSessionOptions>
   thumbnailStore?: ReaderThumbnailStore
+  loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
   disposeThumbnailStore?: () => void | Promise<void>
   shellOptions?: NeoviewShellConfig
@@ -95,15 +97,25 @@ export class ReaderHttpController implements AsyncDisposable {
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache })
     const loadImageTransformer = async () => {
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-      return new SharpImageTransformer(options.resourceScheduler)
+      const sharp = new SharpImageTransformer(options.resourceScheduler)
+      if (process.platform !== "win32") return sharp
+      const { WindowsWicImageTransformer } = await import("../images/WindowsWicImageTransformer.js")
+      return new WindowsWicImageTransformer(sharp, { resourceScheduler: options.resourceScheduler })
     }
     const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
       return new FfmpegVideoThumbnailProvider({ resourceScheduler: options.resourceScheduler })
     })
+    const loadSystemThumbnailProvider = options.loadSystemThumbnailProvider ?? (process.platform === "win32"
+      ? async () => {
+          const { WindowsSystemThumbnailProvider } = await import("../windows/WindowsSystemThumbnailProvider.js")
+          return new WindowsSystemThumbnailProvider({ resourceScheduler: options.resourceScheduler })
+        }
+      : undefined)
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
       bookLoader,
       loadImageTransformer,
+      loadSystemThumbnailProvider,
       loadVideoThumbnailProvider,
       thumbnailStore: options.thumbnailStore,
       maxMemoryBytes: 32 * 1024 * 1024,

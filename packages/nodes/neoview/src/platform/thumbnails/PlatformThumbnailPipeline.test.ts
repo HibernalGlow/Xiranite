@@ -90,6 +90,54 @@ describe("PlatformThumbnailPipeline", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.windows.page] prefers a cached system thumbnail before image decoding", async () => {
+    const page = fixturePage("D:/library/page.png")
+    page.sourcePath = "D:/library/page.png"
+    const cached = fixtureWebp(3)
+    const getCached = vi.fn(async () => ({ bytes: cached, contentType: "image/webp" as const }))
+    const transform = vi.fn()
+    const put = vi.fn(async () => undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      thumbnailStore: { get: async () => undefined, put },
+      loadSystemThumbnailProvider: async () => ({ getCached }),
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const lease = pipeline.acquirePage(page, { contextId: "reader:system-cache" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: cached, contentType: "image/webp" })
+    expect(getCached).toHaveBeenCalledWith(expect.objectContaining({
+      sourcePath: "D:/library/page.png",
+      maxEdge: 320,
+      quality: 78,
+      priority: "interactive",
+    }), expect.any(AbortSignal))
+    expect(transform).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ key: "D:/library/page.png", bytes: cached }))
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.windows.folder] uses a cached Explorer folder cover before opening the directory", async () => {
+    const cached = fixtureWebp(2)
+    const getCached = vi.fn(async () => ({ bytes: cached, contentType: "image/webp" as const }))
+    const bookLoader = vi.fn()
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader,
+      loadSystemThumbnailProvider: async () => ({ getCached }),
+    })
+    const descriptor = librarySource("folder", "D:/library/folder")
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "library:folder" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: cached, contentType: "image/webp" })
+    expect(getCached).toHaveBeenCalledWith(expect.objectContaining({
+      sourcePath: "D:/library/folder",
+      maxEdge: 416,
+      quality: 82,
+      priority: "background",
+    }), expect.any(AbortSignal))
+    expect(bookLoader).not.toHaveBeenCalled()
+    lease.release()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.video.page] generates and persists a video page through the shared coordinator", async () => {
     const page = fixtureVideoPage("D:/videos/clip.mp4")
     const generated = fixtureWebp(6)

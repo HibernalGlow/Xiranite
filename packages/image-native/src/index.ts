@@ -1,5 +1,7 @@
 import {
   createArchiveThumbnail,
+  createWicImageThumbnail,
+  getCachedSystemThumbnail,
   getArcThumbInfo,
   loadArcThumbBinding,
 } from "@xiranite/arcthumb-native"
@@ -14,6 +16,9 @@ export type {
   ArchiveThumbnailOptions,
   ArcThumbBinding,
   ArcThumbInfo,
+  SystemThumbnail,
+  SystemThumbnailOptions,
+  WicImageThumbnailOptions,
 } from "@xiranite/arcthumb-native"
 export type {
   CzkawkaBinding,
@@ -24,6 +29,8 @@ export type {
 } from "@xiranite/czkawka-native"
 export {
   createArchiveThumbnail,
+  createWicImageThumbnail,
+  getCachedSystemThumbnail,
   getArcThumbInfo,
   getCzkawkaInfo,
   loadArcThumbBinding,

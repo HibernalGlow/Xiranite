@@ -781,6 +781,7 @@
         "xneoview": "./dist/cli.js",
       },
       "dependencies": {
+        "@xiranite/arcthumb-native": "workspace:*",
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
