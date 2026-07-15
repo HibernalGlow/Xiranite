@@ -1172,6 +1172,15 @@ return Readable.toWeb(child.stdout)
 
 当前边界也必须保持明确：AES ZIP/CBZ 已使用 session credential store 支持根级与嵌套密码；encrypted RAR/7z 仍明确拒绝。系统 7-Zip 26.02 实测中，无论省略 `-p` 还是传空 `-p`，重定向 stdin 写入密码都不会被 CLI 读取并返回 `Wrong password`；唯一可工作的 `-pPASSWORD` 会把明文暴露在进程参数中，不符合安全约束，因此禁止使用。RAR/7z 加密支持必须等待不经过 argv 的 7-Zip DLL/native adapter。方向改变后的选择性停止仍属于后续 Phase 4，不能把当前 provider 宣称为完整 RAR/7z 功能。
 
+2026-07-16 对成熟库候选的复核仍不允许放宽该边界：
+
+- `7z-wasm@1.2.0` 基于 7-Zip 24.09，解包约 1.83 MB，Bun 源码运行可实例化；但默认要求同目录 `7zz.wasm`，Bun 单文件 bundle 运行时会因缺少该资产失败。它还需要独立 Worker 才能避免同步 `callMain()` 阻塞后端事件循环，并带 LGPL + unRAR restriction 分发义务；当前接入将迫使 XR 自维护 WASM 内嵌 loader、Worker bootstrap 和许可证资产，因此不采用。
+- `libarchive.js@2.0.2` 有密码 API，但正式数据链依赖独立 worker bundle；`libarchive-wasm@1.2.0` 的低层 API以完整 `Int8Array` 为输入且未提供本方案需要的有界文件/密码 port，不能替换当前 stdout/solid 分流主链。
+- `node-unrar-js@2.0.2` 只覆盖 RAR，文件模式使用同步文件系统且仍要求独立 `unrar.wasm`；它不能解决 encrypted 7z，也不能直接提供按页流和及时取消。
+- 当前没有找到维护中、提供预编译 Node-API 包并暴露安全密码 callback 的 7-Zip binding。Koffi 无法直接消费 7-Zip 的 C++ COM 风格接口；为此自写 C/Rust shim 等同于维护新的归档后端，不符合“成熟库优先”。
+
+重新启用 encrypted RAR/7z 的 adapter 必须同时证明：密码不进入 OS argv、URL、日志或缓存键；只为加密归档惰性加载；不阻塞 Bun 主事件循环；支持 `AbortSignal` 后及时停止；不要求整包进入 JS 堆；在 Wails 发布形态下可重复部署；许可证和第三方 notice 完整。满足这些门槛前，现有“启动提取进程前拒绝并覆零 raw password”的行为是正式 capability 降级，不是待删除的临时绕过。
+
 ### 11.6 Solid archive：预提取优于伪随机流
 
 solid 7z/RAR 的多个文件共享压缩块。读取靠后的单页可能必须从 solid block 开头解码；stdout 是流不代表可以快速随机定位。
