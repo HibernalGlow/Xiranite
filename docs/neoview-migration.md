@@ -1194,6 +1194,41 @@ JXL 目前明确返回 unsupported，保留给后续惰性 native decoder/sharp 
 
 背压必须贯通 `archive/child stdout -> transform -> HTTP response`。禁止无界读取子进程 stdout；客户端取消、切页 generation 失效或 session close 时，整条 pipeline 必须被 abort。
 
+#### 11.8.1 文件系统、路径身份与临时物化
+
+OpenComic 的 `file-manager`、归档临时目录和基于修改时间的打开文件缓存说明：文件系统不是一个可由前端路径字符串直接访问的工具函数集合，而是 Reader 的能力边界。Xiranite 需要用自己的 clean-room `ReaderFileSystem` port 表达这一点；`ReaderSession`、React 和 HTTP URL 都不得持有可重新解释的真实路径。
+
+```ts
+interface ReaderFileSystem {
+  resolveSource(input: ReaderOpenInput, signal: AbortSignal): Promise<ResolvedSource>
+  listDirectory(source: DirectorySource, cursor: string | undefined, signal: AbortSignal): Promise<DirectoryPage>
+  openReadable(source: FileSource, range: ByteRange | undefined, signal: AbortSignal): Promise<PageSource>
+  createTempLease(input: TempLeaseRequest, signal: AbortSignal): Promise<TempLease>
+}
+
+interface ResolvedSource {
+  displayPath: string             // 仅用于 UI/诊断，已脱敏时可省略
+  canonicalIdentity: string       // 平台 adapter 产生，不进入 URL
+  revision: SourceRevision        // size/mtime/ctime/文件 ID 等可用事实
+  kind: "file" | "directory" | "archive"
+}
+```
+
+`resolveSource()` 是唯一把用户输入转换为可读 source 的位置。它必须在授权根内规范化路径、再解析 `realpath`/Windows reparse point，并以解析后的结果重新检查授权边界，避免 `..`、junction、symlink 或 TOCTOU 把 Reader 带出用户批准的目录。展示路径保留用户输入的大小写与分隔符；缓存、session 和访问控制使用 canonical identity，二者不能混用。普通本地目录允许按页枚举直接子项，使用受限 metadata 并发并自然排序，绝不为首屏递归扫描整棵目录树；文件系统通知只作为“可能变更”的失效提示，收到事件后仍须 `stat`/重建受影响索引，不能把 watcher 当作可靠的版本真相。
+
+source revision 至少包含规范身份、size、mtime；平台能安全提供时再加入 ctime、POSIX inode/dev 或 Windows volume/file index。打开文件后也要在关闭前验证关键 revision：变化时当前已打开的流可完成或报一致的 `source-changed`，但其结果不得发布到新 revision 的缓存。不存在、无权限、目录被替换、网络卷短暂失联和 removable volume 拔出是可恢复 source 错误，不得被错误地归因为图片解码失败。路径、archive entry、密码和用户目录名均不得出现在 telemetry、异常聚合标签或 asset URL 中。
+
+文件句柄和目录句柄只在 `PageSource`/索引 lease 的有效期内拥有。不能为了“缓存打开文件”长期保留每本书或每页的 fd；进程级 archive index 可以缓存解析结果，但其底层 handle 必须可重新打开。每次 stream 的 `cancel`、consumer close、session generation 失效与 `ReaderBook.close()` 都关闭它自己的 handle。实现需要对打开/关闭计数、活动 fd、失败清理和异常路径做测试，Windows 上还要覆盖关闭前不能 rename/delete 的真实行为。
+
+临时物化只服务三种已证明不能直接流式消费的场景：solid archive 顺序提取、嵌套 archive 需要 seek 的内层载荷，以及明确要求文件路径的外部 capability。它不属于 L3 可重建缓存，也不接受调用方指定的文件名：
+
+1. 宿主在专用父目录内用 `mkdtemp("xiranite-neoview-")` 创建随机 session/cache root；每个 entry 用随机 opaque 名称和排他创建，archive 内路径永不落入文件系统；
+2. 写入到同目录 partial 文件，逐块计量预算并校验长度/CRC；只有 producer 成功、文件句柄关闭且所有校验完成后才能原子 rename 为 ready 文件；取消、失败、超预算和 CRC 不匹配必须删除 partial，绝不留下可命中的半成品；
+3. `TempLease` 持有 owner、实际字节、source fingerprint 与引用计数。session 临时项在最后一个 lease 释放或 session close 时删除；可跨 session 复用的 solid 结果只能交给已有 `SolidArchiveCache`，并继续受全局字节预算、LRU 和验证完成状态约束；
+4. 创建前检查可用空间、单 entry/嵌套链/全局临时预算和同卷 I/O lease；清理使用受控 root 内的目录句柄/规范路径，绝不对 archive 或 UI 提供的字符串递归删除；启动恢复只能清理由本应用命名前缀和过期 lease journal 证明归属的孤儿目录。
+
+这套边界吸收 OpenComic “短期解压结果和 cache purge”的工程经验，但不沿用其让 renderer 持有路径、Object URL 与临时缓存所有权的做法。普通 ZIP 原图仍应直接 `PageSource -> HTTP`；因为“已经有临时目录”就落盘，是性能和安全回退。
+
 ### 11.9 安全和失败边界
 
 - 校验 uncompressed size、压缩比、entry 数和递归深度，防止 zip bomb；
@@ -1278,6 +1313,27 @@ sourceFingerprint + entryId + contentVersion
 
 前端不再长期保存数百 MB Blob/ImageBitmap。Object URL 若用于短暂兼容路径，必须由同一组件在替换或卸载时 revoke。
 
+### 12.1 缓存记录不是裸字节：范围、发布与失效
+
+第 12 节的“统一”指一个协调契约，不表示把所有介质塞进同一个 Map 或数据库。缩略图继续遵循第 18.5 节的兼容 SQLite 约束；页面 transform、solid materialization、archive index 和目录 metadata 分别由适合其介质的 store 保存，但全部通过 `ReaderCache` 报告预算、lease、命中和失效。任何新的 store 都必须先声明以下矩阵，不能只实现 `get/set`：
+
+| 记录 | owner / 作用域 | ready 条件 | 失效或释放 | 禁止项 |
+| --- | --- | --- | --- | --- |
+| directory/archive index | 宿主 L0 | 完整、受限解析成功 | source revision、parser/index schema 改变；内存压力 | 用路径字符串跨 revision 命中 |
+| 原始 `PageSource` / file handle | request 或 session lease | consumer 仍存在 | cancel、generation/会话结束 | 以完整 JS Buffer 作为“缓存” |
+| solid materialization | 宿主 `SolidArchiveCache` | stdout 成功、长度/CRC 校验、原子发布 | fingerprint 改变、最后 lease 后 LRU、宿主关闭 | 缓存 partial 或复制第二份 payload |
+| presentation transform | 宿主 L2 | transform 成功且未超单项预算 | source/transform/decoder version 改变、byte LRU | 未验证输出进入热缓存 |
+| thumbnail BLOB | 兼容 SQLite + L1 | profile 编码成功且符合数据库规则 | 第 18.5 节 generation fingerprint | 以 `INSERT OR REPLACE` 清空业务列 |
+| L3 可重建文件 | 宿主 cache root | 完整写入、校验并原子 rename | 内容版本、年龄/字节预算、显式清理 | 存放密码、真实路径或 session secret |
+
+所有持久或跨 session 的键都必须由 typed key builder 创建，至少编码 `cacheKind`、key schema version、source identity/revision、entry identity、producer/decoder version 和变换 profile；不同 byte 表示（原图、orientation 修正结果、WebP thumbnail、不同色彩空间）不得共享同一键。哈希用于防冲突或内容寻址，不取代 source revision：目录扫描和正常翻页先用已取得的 metadata，只有 L3 去重、外部导入或风险升级才读取全量内容 hash。缓存 key、HTTP token、日志 correlation id 必须是不同命名空间，不能用一个可反推路径的 hash 兼任三者。
+
+写入实行两阶段发布：producer 在私有临时位置写完，计数/校验/关闭后由 store 在单一临界区发布 metadata 与 ready 文件；读取只接受 ready 记录。删除和换代同样先使旧 fingerprint 不可被新请求命中，再等待其 lease 降为零后回收，避免 Windows 上 active file delete/rename 失败。singleflight 的 producer 有独立 abort domain：一个等待者取消只释放自己的 lease；最后一个等待者、session close 或宿主 shutdown 才取消仍可取消的 producer。失败、取消、CRC 错误、磁盘满和 decoder 超限不产生 ready 记录；失败退避仅保存脱敏元数据，且不能阻止用户在 source revision 改变后重试。
+
+L3 的清理与缩略图库维护分离。OpenComic 的“超过上限清到 80%”可以保留为 hysteresis，但必须使用实际已分配字节、按小批事务/目录批次执行，并跳过 active lease、最近发布项和当前 visible frame。触及硬预算、磁盘低水位或宿主内存压力时，顺序为：停止 P2/P3 admission、释放反方向 warm L1/L2、淘汰无 lease L3、再拒绝新的非交互物化；不能为了完成 background prefetch 淘汰当前页。维护 worker 只在空闲或显式命令触发，和读取/写入走同一 scheduler，输出命中率、保留/删除字节、active lease、按原因的拒绝数与执行时长；不得扫用户目录来“猜测”缓存孤儿。
+
+缓存测试需要以故障注入证明发布协议：写到一半取消、rename 前断电模拟、CRC 失败、并发同 key、同路径 revision 变化、active lease 中失效、Windows 文件占用、低磁盘、L3 与 thumbnail SQLite 同时维护。每例都断言下次读取不会返回半成品、不会误命中新 revision，也不会遗留 session 临时文件。
+
 ## 13. 全局调度与多工具共存
 
 Reader 需要局部队列，但资源配额必须由 Xiranite 进程级调度器统一分配。
@@ -1305,6 +1361,25 @@ Reader 需要局部队列，但资源配额必须由 Xiranite 进程级调度器
 ReaderService 应支持多个 session，但不能让 session 数量线性乘以 Worker 数和缓存上限。多个 session 共享执行器与内容寻址磁盘缓存，各自拥有取消域和可见页 pin。
 
 当前宿主实现位于 `packages/services/src/resourceScheduler.ts`，契约位于 `@xiranite/contract`。backend 为每个进程只创建一个实例并注入 NeoView；CPU 默认 2、I/O 默认 4、GPU 默认 1 个并发槽，各池可独立配置。默认值只是安全起点，后续必须由 `scheduler-contention` 基准按硬件修订。服务快照公开 active、queued 和各优先级排队数，后续诊断页面与 benchmark 直接读取该状态，节点不得另建不可观测的全局队列。
+
+### 13.1 `PreloadCoordinator`：按 frame 和方向管理猜测，不按页号盲跑
+
+OpenComic 的 renderer 会围绕当前索引排入前后 render queue，并在重新渲染时清掉旧队列；这一点值得保留。它的局限也必须避开：预读范围、Blob/Object URL、解码与 DOM 生命周期混在 renderer 中，快速拖动或切书时很难审计谁仍拥有工作。Xiranite 的 `PreloadCoordinator` 放在 application 层，只输出带 lease 的需求，绝不返回 `Buffer`、`Blob` 或 DOM 节点。
+
+每次 `FrameSnapshot` 可见范围、导航意图、阅读方向、缩放/旋转影响的 layout、滚动速度或 source revision 变化，都生成单调递增的 `preloadGeneration`。候选以逻辑 frame 而不是裸 page 编号计算：双页将配对页作为一个候选，RTL/漫画方向先映射到阅读顺序，连续滚动以 viewport 交集和滚动方向计算。候选分为以下层级，前一层未 admission 不得由后一层抢占：
+
+| 层 | 需求 | 默认范围 | 允许的工作 | 何时取消 |
+| --- | --- | --- | --- | --- |
+| P0 `visible` | 当前 frame | 0 | asset response、必要 metadata probe、当前变换 | 仅在 frame 替换/关闭 |
+| P1 `near` | 下一 frame；稳定时可含前一 frame | 单页 1 个 frame，双页 1 个 frame | 相邻 `<img>`/`Image.decode()`、已有 transform/L1 命中 | 新 generation、反向导航、内存压力 |
+| P2 `ahead` | 预计方向上的后续 frame | 默认最多 2 个 frame，滚动视图最多约 1.5 viewport | metadata、archive index 命中、solid 顺序 extractor 的后续 entry、低优先级 transform/thumbnail demand | 150 ms 内方向反转、queue wait、预算/磁盘压力 |
+| P3 `warm` | 反方向最近 frame、书末/下章节提示 | 最多 1 个 frame | 仅 metadata 或已存在缓存 touch | 任意 P0/P1/P2 需求 |
+
+范围是起始保守值，不是固定用户可见承诺。跳转超过相邻阈值、快速 scrub、触屏惯性反复反向或窗口失焦时，coordinator 先取消 P1-P3、保留 P0；只有导航稳定约 120--150 ms 后才重新 admission。无论预读是否命中，当前页的 archive stream、HTTP first byte、CPU lease 和 transform 槽始终优先于 P1-P3。低内存、GPU decode 错误、全局 queue wait 超阈值、磁盘低水位或其他节点取得交互 lease 时，将窗口收缩到 P0，进入冷却后再逐级恢复，不能由每个 session 独自猜测机器还剩多少资源。
+
+预加载的“完成”按介质区分：目录/ZIP 通常只需预热 metadata 与让 WebView 持有相邻原图 HTTP/decoder cache，禁止读入 JS 堆；non-solid 7z/RAR 可以为 P1 准备一个受取消控制的相邻 entry stream 或小批临时提取；solid archive 则把 P2 交给同一个顺序 `SolidArchiveMaterializer`，沿阅读方向发布下一个 verified entry，绝不为每页新起 extractor。对于超过 decoded-pixel 或 encoded-byte 门槛的相邻原图，P1 只做 metadata，不调用 `Image.decode()`；阈值由浏览器实测和 L1/L2 预算给出，不能把“预解码”变成隐藏的显存泄漏。
+
+`PreloadCoordinator` 必须公开可观测快照：generation、direction confidence、每层候选/active/取消数、admission 拒绝原因、命中后 P0 节省的 TTFB/decode 时间、保留字节和 active leases。自动化至少覆盖单页/双页/RTL/连续滚动、快进快退、切书、缩放后 frame 重算、solid/non-solid archive、内存压力和宿主资源竞争；断言旧 generation 零回写、P0 无需等待 speculative work、最终 lease/queue/临时文件数归零。基准分别报告冷启动、稳定顺读、随机跳转和方向反转，不能只用顺读平均值掩盖过度预读。
 
 ## 14. 会话生命周期和休眠
 
