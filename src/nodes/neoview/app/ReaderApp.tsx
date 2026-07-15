@@ -19,11 +19,13 @@ import {
   ReaderHttpError,
   type ReaderHttpClient,
   type ReaderNavigationDto,
+  type ReaderRuntimeConfigDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
   type ReaderSidebarLayoutPatch,
   type ReaderCardLayoutPatch,
   type ReaderBoardLayoutPatch,
+  type ReaderViewDefaultsPatch,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -31,6 +33,10 @@ import { ReaderEdgeShell, type ReaderEdgeSlot } from "../features/shell/ReaderEd
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
+const INITIAL_VIEW_DEFAULTS = {
+  fitMode: DEFAULT_READER_PRESENTATION.fitMode,
+  pageMode: "single",
+} satisfies ReaderRuntimeConfigDto["viewDefaults"]
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
   readerSidebarModule ??= import("../features/panels/ReaderSidebar")
@@ -87,10 +93,7 @@ export function ReaderApp({
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
-  const viewDefaultsRef = useRef<{ fitMode: ReaderPresentation["fitMode"]; pageMode: "single" | "double" }>({
-    fitMode: DEFAULT_READER_PRESENTATION.fitMode,
-    pageMode: "single",
-  })
+  const viewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const viewDefaultsGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
@@ -98,6 +101,7 @@ export function ReaderApp({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
+  const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
@@ -111,7 +115,10 @@ export function ReaderApp({
   useEffect(() => {
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
-      if (viewDefaultsGenerationRef.current === 0) viewDefaultsRef.current = config.viewDefaults
+      if (viewDefaultsGenerationRef.current === 0) {
+        viewDefaultsRef.current = config.viewDefaults
+        setViewDefaults(config.viewDefaults)
+      }
       setShell(config.shell)
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({ ...current, fitMode: config.viewDefaults.fitMode }))
@@ -208,16 +215,37 @@ export function ReaderApp({
     if (updated) void persistViewDefaults({ pageMode })
   }
 
-  async function persistViewDefaults(patch: { fitMode?: ReaderPresentation["fitMode"]; pageMode?: "single" | "double" }) {
+  async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
     const previous = viewDefaultsRef.current
-    viewDefaultsRef.current = { ...previous, ...patch }
+    const next = { ...previous, ...patch }
+    viewDefaultsRef.current = next
+    setViewDefaults(next)
     const generation = ++viewDefaultsGenerationRef.current
     try {
       const updated = await clientRef.current.updateViewDefaults({ viewDefaults: patch })
-      if (generation === viewDefaultsGenerationRef.current) viewDefaultsRef.current = updated
+      if (generation === viewDefaultsGenerationRef.current) {
+        viewDefaultsRef.current = updated
+        setViewDefaults(updated)
+      }
     } catch (cause) {
-      if (generation === viewDefaultsGenerationRef.current) viewDefaultsRef.current = previous
+      if (generation === viewDefaultsGenerationRef.current) {
+        viewDefaultsRef.current = previous
+        setViewDefaults(previous)
+      }
       setError(errorMessage(cause))
+    }
+  }
+
+  async function applyConfiguredViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
+    const fitMode = patch.fitMode
+    if (fitMode) {
+      presentationTouchedRef.current = true
+      setPresentation((current) => ({ ...current, fitMode, manualScale: 1 }))
+      await persistViewDefaults({ fitMode })
+    }
+    if (patch.pageMode) {
+      if (sessionRef.current) await updatePageMode(patch.pageMode)
+      else await persistViewDefaults({ pageMode: patch.pageMode })
     }
   }
 
@@ -378,7 +406,16 @@ export function ReaderApp({
     ),
   } : undefined
 
-  const panelContext = { client, disabled: busy, onGoTo: goTo, shell, onBoardLayout: commitBoardLayout, ...(session ? { session } : {}) }
+  const panelContext = {
+    client,
+    disabled: busy,
+    onGoTo: goTo,
+    shell,
+    onBoardLayout: commitBoardLayout,
+    viewDefaults,
+    onViewDefaults: applyConfiguredViewDefaults,
+    ...(session ? { session } : {}),
+  }
   const leftEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {
     ariaLabel: "NeoView 左侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
@@ -441,7 +478,13 @@ export function ReaderApp({
       </ReaderEdgeShell>
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
-          <LazyReaderSettingsWindow shell={shell} onClose={() => setSettingsOpen(false)} onBoardLayout={commitBoardLayout} />
+          <LazyReaderSettingsWindow
+            shell={shell}
+            viewDefaults={viewDefaults}
+            onClose={() => setSettingsOpen(false)}
+            onBoardLayout={commitBoardLayout}
+            onViewDefaults={applyConfiguredViewDefaults}
+          />
         </Suspense>
       ) : null}
     </div>

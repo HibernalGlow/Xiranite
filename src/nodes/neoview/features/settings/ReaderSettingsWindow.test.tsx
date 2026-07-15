@@ -12,7 +12,16 @@ afterEach(cleanup)
 describe("ReaderSettingsWindow", () => {
   it("[neoview.settings.window] follows the standalone categorized settings fixture and defers Kanban", async () => {
     const save = vi.fn(async () => undefined)
-    render(<ReaderSettingsWindow shell={shell()} onClose={vi.fn()} onBoardLayout={save} />)
+    const saveViewDefaults = vi.fn(async () => undefined)
+    render(
+      <ReaderSettingsWindow
+        shell={shell()}
+        viewDefaults={{ fitMode: "fit", pageMode: "single" }}
+        onClose={vi.fn()}
+        onBoardLayout={save}
+        onViewDefaults={saveViewDefaults}
+      />,
+    )
     expect(screen.getByRole("dialog")).toBeTruthy()
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("navigation", { name: "NeoView 设置分类" })).toBeTruthy()
@@ -23,6 +32,11 @@ describe("ReaderSettingsWindow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "卡片管理" }))
     expect(await screen.findByTestId("panel-layout-editor")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "视图" }))
+    expect(await screen.findByRole("heading", { name: "视图默认值" })).toBeTruthy()
+    fireEvent.change(screen.getByRole("combobox", { name: "默认缩放模式" }), { target: { value: "fit-width" } })
+    expect(saveViewDefaults).toHaveBeenCalledWith({ fitMode: "fit-width" })
   })
 })
 

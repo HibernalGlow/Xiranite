@@ -14,7 +14,14 @@ import {
 } from "@xiranite/node-neoview/core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
-import type { ReaderBoardLayoutPatch, ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import type {
+  ReaderBoardLayoutPatch,
+  ReaderHttpClient,
+  ReaderRuntimeConfigDto,
+  ReaderSessionDto,
+  ReaderShellConfigDto,
+  ReaderViewDefaultsPatch,
+} from "../../adapters/reader-http-client"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
@@ -26,6 +33,8 @@ export interface ReaderPanelContext {
   onGoTo(pageIndex: number): void | Promise<void>
   shell?: ReaderShellConfigDto
   onBoardLayout?(patch: ReaderBoardLayoutPatch): Promise<void>
+  viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
+  onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
 }
 
 export interface ReaderPanelDefinition {
@@ -46,7 +55,7 @@ export interface ReaderCardDefinition {
   defaultPanel: LegacyPanelId
   canHide: boolean
   requiresSession: boolean
-  settingsSectionId?: "sidebar" | "cards"
+  settingsSectionId?: "view" | "sidebar" | "cards"
   defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
   loadSettings?(): Promise<{ default: ComponentType<ReaderSettingsCardContext> }>
@@ -55,6 +64,8 @@ export interface ReaderCardDefinition {
 export interface ReaderSettingsCardContext {
   shell: ReaderShellConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+  viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
+  onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
 }
 
 export interface LegacyPanelConfig {
@@ -84,11 +95,13 @@ export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_
 const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "page-navigation": () => import("./cards/PageNavigationCard"),
   "book-information": () => import("./cards/BookInformationCard"),
+  "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
   "panel-layout-settings": () => import("../settings/cards/PanelLayoutSettingsCard"),
   "sidebar-management-settings": () => import("../settings/cards/SidebarManagementSettingsCard"),
 }
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {
+  "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
   "panel-layout-settings": async () => ({ default: (await import("../settings/cards/PanelLayoutSettingsCard")).PanelLayoutSettingsCard }),
   "sidebar-management-settings": async () => ({ default: (await import("../settings/cards/SidebarManagementSettingsCard")).SidebarManagementSettingsCard }),
 }

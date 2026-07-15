@@ -191,6 +191,19 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   expect(settingsBox!.width).toBeGreaterThan(settingsViewport.width * 0.65)
   expect(settingsBox!.height).toBeGreaterThan(settingsViewport.height * 0.8)
   await page.screenshot({ path: testInfo.outputPath(`neoview-settings-${testInfo.project.name}.png`) })
+  await page.getByRole("button", { name: "视图" }).click()
+  await expect(page.getByRole("heading", { name: "视图默认值" })).toBeVisible()
+  const settingsFitResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"fitMode":"fit-width"') === true
+  ))
+  await page.getByRole("combobox", { name: "默认缩放模式" }).selectOption("fit-width")
+  expect((await settingsFitResponse).status()).toBe(200)
+  await expect(readerViewport).toHaveAttribute("data-reader-fit-mode", "fit-width")
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toContain('default_zoom_mode = "fitWidth"')
+  await page.getByRole("button", { name: "边栏管理" }).click()
   await page.getByRole("combobox", { name: "历史记录位置" }).selectOption("right")
   expect(boardPatchRequests).toBe(0)
   const sidebarBoardResponse = page.waitForResponse((response) => (

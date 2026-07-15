@@ -2,17 +2,21 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { Suspense, useState, type ComponentType } from "react"
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderRuntimeConfigDto, ReaderShellConfigDto, ReaderViewDefaultsPatch } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 
 export function ReaderSettingsWindow({
   shell,
+  viewDefaults,
   onClose,
   onBoardLayout,
+  onViewDefaults,
 }: {
   shell: ReaderShellConfigDto
+  viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
+  onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
 }) {
   const [active, setActive] = useState<SettingsSectionId>("sidebar")
   return (
@@ -42,7 +46,7 @@ export function ReaderSettingsWindow({
             })}
           </nav>
           <div className="min-h-0 overflow-y-auto p-4">
-            <SettingsSection sectionId={active} shell={shell} onSave={onBoardLayout} />
+            <SettingsSection sectionId={active} shell={shell} viewDefaults={viewDefaults} onSave={onBoardLayout} onViewDefaults={onViewDefaults} />
           </div>
         </div>
       </DialogContent>
@@ -53,11 +57,15 @@ export function ReaderSettingsWindow({
 function SettingsSection({
   sectionId,
   shell,
+  viewDefaults,
   onSave,
+  onViewDefaults,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
+  viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+  onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
 }) {
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) return <SettingsPlaceholder title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} />
@@ -65,7 +73,7 @@ function SettingsSection({
     const Card = lazyReaderSettingsCard(definition.id)
     return Card ? (
       <Suspense key={definition.id} fallback={<div className="h-24 animate-pulse rounded-md bg-muted/35" aria-label={`正在加载${definition.title}`} />}>
-        <Card shell={shell} onSave={onSave} />
+        <Card shell={shell} viewDefaults={viewDefaults} onSave={onSave} onViewDefaults={onViewDefaults} />
       </Suspense>
     ) : null
   })

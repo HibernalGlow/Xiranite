@@ -21,7 +21,7 @@ export interface ReaderCardManifestEntry {
   defaultOrder: number
   canHide: boolean
   requiresSession: boolean
-  settingsSectionId?: "sidebar" | "cards"
+  settingsSectionId?: "view" | "sidebar" | "cards"
 }
 
 export const READER_PANEL_MANIFEST = [
@@ -44,6 +44,7 @@ export const READER_PANEL_MANIFEST = [
 export const READER_CARD_MANIFEST = [
   card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
   card("book-information", "书籍信息", "info", true, true, 0, false, true),
+  card("view-defaults-settings", "视图默认值", "settings", false, true, 0, true, false, "view"),
   card("panel-layout-settings", "面板布局设置", "settings", false, true, 0, true, false, "cards"),
   card("sidebar-management-settings", "边栏管理设置", "settings", false, true, 1, true, false, "sidebar"),
 ] as const satisfies readonly ReaderCardManifestEntry[]
