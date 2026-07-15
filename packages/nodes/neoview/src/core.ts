@@ -8,6 +8,13 @@ export {
 export { CoreReaderService } from "./application/reader/ReaderService.js"
 export { CoreReaderSession } from "./application/reader/ReaderSession.js"
 export {
+  ReaderSlideshow,
+  type ReaderSlideshowOptions,
+  type ReaderSlideshowPosition,
+  type ReaderSlideshowSnapshot,
+  type ReaderSlideshowState,
+} from "./application/slideshow/ReaderSlideshow.js"
+export {
   ReaderHeadlessController,
   type HeadlessPageStream,
   type HeadlessReaderBookSnapshot,

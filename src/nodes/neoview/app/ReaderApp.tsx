@@ -4,6 +4,7 @@ import {
   DEFAULT_READER_PRESENTATION,
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,
+  ReaderSlideshow,
   rotateReaderPresentation,
   stepReaderManualScale,
   type ReaderPresentation,
@@ -93,6 +94,20 @@ export function ReaderApp({
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
+  const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
+  const [slideshow] = useState(() => new ReaderSlideshow({
+    readPosition: () => {
+      const current = slideshowSessionRef.current
+      return {
+        pageCount: current?.book.pageCount ?? 0,
+        currentPageIndex: current?.frame.anchorPageIndex ?? 0,
+        atEnd: current?.frame.atEnd ?? true,
+      }
+    },
+    nextPage: () => navigate("next", true),
+    goToPage: (pageIndex) => goTo(pageIndex, true),
+    onError: (cause) => setError(errorMessage(cause)),
+  }))
   const viewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const viewDefaultsWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -107,9 +122,11 @@ export function ReaderApp({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
+  slideshowSessionRef.current = session
 
   useEffect(() => () => {
     operationRef.current?.abort()
+    slideshow.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
   }, [])
@@ -133,6 +150,7 @@ export function ReaderApp({
   async function openPath(nextPath = path) {
     const normalizedPath = nextPath.trim()
     if (!normalizedPath || busy) return
+    slideshow.stop()
     operationRef.current?.abort()
     const controller = new AbortController()
     operationRef.current = controller
@@ -169,13 +187,17 @@ export function ReaderApp({
     }
   }
 
-  async function navigate(action: "next" | "previous") {
-    await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal))
+  async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal))
+    if (updated && !slideshowAction) slideshow.resetOnUserAction()
+    return updated
   }
 
-  async function goTo(pageIndex: number) {
-    if (pageIndex === session?.frame.anchorPageIndex) return
-    await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
+  async function goTo(pageIndex: number, slideshowAction = false): Promise<boolean> {
+    if (pageIndex === slideshowSessionRef.current?.frame.anchorPageIndex) return false
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
+    if (updated && !slideshowAction) slideshow.resetOnUserAction()
+    return updated
   }
 
   async function updateNavigation(
@@ -258,6 +280,7 @@ export function ReaderApp({
   }
 
   async function closeSession() {
+    slideshow.stop()
     operationRef.current?.abort()
     operationRef.current = undefined
     const sessionId = sessionRef.current
@@ -370,6 +393,7 @@ export function ReaderApp({
               presentation={presentation}
               onChange={updatePresentation}
               onPageModeChange={(pageMode) => void updatePageMode(pageMode)}
+              slideshow={slideshow}
             />
           </Suspense>
         ) : null}
