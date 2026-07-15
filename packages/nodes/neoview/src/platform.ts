@@ -8,6 +8,7 @@ import type { ReaderService } from "./application/reader/contracts.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
+import type { ReaderLibraryStore } from "./ports/ReaderLibraryStore.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
@@ -91,21 +92,20 @@ export async function createReaderHttpController(
   options: ReaderHttpCompositionOptions,
 ): Promise<ReaderHttpController> {
   const { ReaderHttpController } = await import("./platform/asset-route/ReaderHttpController.js")
+  const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  const useDefaultDataStore = options.legacyThumbnailDatabasePath !== false
+    && (typeof options.legacyThumbnailDatabasePath === "string" || options.useDefaultLegacyProgressStore)
+  const dataStore = useDefaultDataStore
+    ? await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(
+        typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
+      ))
+    : undefined
   const progressStore = options.progressStore === false
     ? undefined
-    : options.progressStore ?? (typeof options.legacyThumbnailDatabasePath === "string"
-      ? await createSqliteReaderProgressStore(options.legacyThumbnailDatabasePath)
-      : options.legacyThumbnailDatabasePath !== false && options.useDefaultLegacyProgressStore
-        ? await createSqliteReaderProgressStore(await legacyNeoViewDatabasePath())
-        : undefined)
-  const libraryService = options.legacyThumbnailDatabasePath === false
-    || (typeof options.legacyThumbnailDatabasePath !== "string" && !options.useDefaultLegacyProgressStore)
-      ? undefined
-      : await createReaderLibraryService(
-          typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
-        )
+    : options.progressStore ?? dataStore
+  const libraryService = dataStore ? new ReaderLibraryService(dataStore) : undefined
   let thumbnailStore = options.thumbnailStore
   let disposeThumbnailStore = options.disposeThumbnailStore
   if (!thumbnailStore && options.legacyThumbnailDatabasePath !== false) {
@@ -209,9 +209,8 @@ export async function createFfmpegVideoThumbnailProvider(
 
 export async function createReaderLibraryService(databasePath?: string): Promise<ReaderLibraryService> {
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
-  const { SqliteReaderLibraryStore } = await import("./platform/persistence/SqliteReaderLibraryStore.js")
   return new ReaderLibraryService(
-    await SqliteReaderLibraryStore.open(await legacyNeoViewDatabasePath(databasePath)),
+    await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(databasePath)),
   )
 }
 
@@ -228,7 +227,7 @@ export async function createReaderHeadlessController(
     ? undefined
     : options.progressStore ?? (options.legacyThumbnailDatabasePath === false
       ? undefined
-      : await createSqliteReaderProgressStore(await legacyNeoViewDatabasePath(options.legacyThumbnailDatabasePath)))
+      : await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(options.legacyThumbnailDatabasePath)))
   const ownsCache = !options.solidArchiveCache
   const solidArchiveCache = options.solidArchiveCache ?? new SolidArchiveCache({
     maxBytes: options.maxSolidArchiveCacheBytes,
@@ -244,9 +243,9 @@ export async function createReaderHeadlessController(
   )
 }
 
-async function createSqliteReaderProgressStore(databasePath: string): Promise<ReaderProgressStore> {
-  const { SqliteReaderProgressStore } = await import("./platform/persistence/SqliteReaderProgressStore.js")
-  return SqliteReaderProgressStore.open(databasePath)
+async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderProgressStore & ReaderLibraryStore> {
+  const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
+  return SqliteReaderDataStore.open(databasePath)
 }
 
 async function legacyNeoViewDatabasePath(explicitPath?: string): Promise<string> {

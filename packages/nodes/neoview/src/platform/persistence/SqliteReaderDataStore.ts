@@ -6,15 +6,15 @@ import type {
   ReaderLibraryStore,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
-import type { ReaderProgressRecord } from "../../ports/ReaderProgressStore.js"
+import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 
-export class SqliteReaderLibraryStore implements ReaderLibraryStore {
+export class SqliteReaderDataStore implements ReaderLibraryStore, ReaderProgressStore {
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {}
 
-  static async open(path: string): Promise<SqliteReaderLibraryStore> {
+  static async open(path: string): Promise<SqliteReaderDataStore> {
     const database = await openWritableSqlite(path, { create: true })
     try {
       database.exec(`
@@ -56,11 +56,45 @@ export class SqliteReaderLibraryStore implements ReaderLibraryStore {
           ON xr_reader_bookmark_memberships (list_id, bookmark_id);
         PRAGMA busy_timeout = 50;
       `)
-      return new SqliteReaderLibraryStore(database)
+      return new SqliteReaderDataStore(database)
     } catch (error) {
       database.close()
       throw error
     }
+  }
+
+  async get(bookId: string): Promise<ReaderProgressRecord | undefined> {
+    this.#assertOpen()
+    const row = this.database.get(
+      `SELECT book_id, source_json, display_name, page_index, page_count, updated_at
+       FROM xr_reader_progress WHERE book_id = ?1`,
+      bookId,
+    )
+    return row ? parseProgress(row) : undefined
+  }
+
+  async save(progress: ReaderProgressRecord): Promise<void> {
+    this.#assertOpen()
+    assertProgress(progress)
+    await this.#write(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_progress (
+           book_id, source_json, display_name, page_index, page_count, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(book_id) DO UPDATE SET
+           source_json = excluded.source_json,
+           display_name = excluded.display_name,
+           page_index = excluded.page_index,
+           page_count = excluded.page_count,
+           updated_at = excluded.updated_at`,
+        progress.bookId,
+        JSON.stringify(progress.source),
+        progress.displayName,
+        progress.pageIndex,
+        progress.pageCount,
+        progress.updatedAt,
+      )
+    })
   }
 
   async listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]> {
@@ -246,7 +280,7 @@ function bookmarkListCondition(listId: string | undefined): { sql: string; bindi
 }
 
 function parseProgress(row: Record<string, unknown>): ReaderProgressRecord {
-  return {
+  const progress = {
     bookId: requireString(row.book_id, "progress book id"),
     source: parseSource(row.source_json),
     displayName: requireString(row.display_name, "progress display name"),
@@ -254,6 +288,17 @@ function parseProgress(row: Record<string, unknown>): ReaderProgressRecord {
     pageCount: requireInteger(row.page_count, "progress page count"),
     updatedAt: requireInteger(row.updated_at, "progress updated time"),
   }
+  assertProgress(progress)
+  return progress
+}
+
+function assertProgress(progress: ReaderProgressRecord): void {
+  if (!progress.bookId || !progress.displayName) throw new Error("Reader progress identity must not be empty.")
+  if (!Number.isSafeInteger(progress.pageCount) || progress.pageCount < 0) throw new Error("Reader progress pageCount is invalid.")
+  if (!Number.isSafeInteger(progress.pageIndex) || progress.pageIndex < 0 || (progress.pageCount > 0 && progress.pageIndex >= progress.pageCount)) {
+    throw new Error("Reader progress pageIndex is invalid.")
+  }
+  if (!Number.isSafeInteger(progress.updatedAt) || progress.updatedAt < 0) throw new Error("Reader progress updatedAt is invalid.")
 }
 
 function parseBookmark(row: Record<string, unknown>, listIds: readonly string[]): ReaderBookmarkRecord {

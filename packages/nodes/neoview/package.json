@@ -40,8 +40,8 @@
   },
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:tsc": "tsc -p tsconfig.json",
+    "build": "bun scripts/build.ts",
+    "build:tsc": "bun scripts/build.ts",
     "test": "vitest run src --environment node --exclude src/testing/Tui.bun.test.tsx && bun test src/testing/Tui.bun.test.tsx"
   },
   "dependencies": {

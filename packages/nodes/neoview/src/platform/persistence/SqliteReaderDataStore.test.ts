@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { inspectLegacyThumbnailDatabase } from "../thumbnails/LegacyThumbnailDatabaseInspector.js"
-import { SqliteReaderLibraryStore } from "./SqliteReaderLibraryStore.js"
+import { SqliteReaderDataStore } from "./SqliteReaderDataStore.js"
 
 const directories: string[] = []
 
@@ -12,23 +12,41 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
 })
 
-describe("SqliteReaderLibraryStore", () => {
-  it("[neoview.library.sqlite] reuses progress for recents and preserves the legacy database", async () => {
+describe("SqliteReaderDataStore", () => {
+  it("[neoview.progress.sqlite] [neoview.library.sqlite] reuses progress for recents and preserves the legacy database", async () => {
     const { path } = await fixture()
-    const store = await SqliteReaderLibraryStore.open(path)
-    const database = await openFixtureDatabase(path)
-    database.exec(`
-      INSERT INTO xr_reader_progress VALUES
-        ('older', '{"kind":"directory","path":"D:/old"}', 'Old', 1, 10, 100),
-        ('newer', '{"kind":"archive","path":"D:/new.cbz"}', 'New', 2, 20, 200);
-    `)
-    database.close()
+    const store = await SqliteReaderDataStore.open(path)
+    await store.save({
+      bookId: "older",
+      source: { kind: "directory", path: "D:/old" },
+      displayName: "Old",
+      pageIndex: 1,
+      pageCount: 10,
+      updatedAt: 100,
+    })
+    await store.save({
+      bookId: "newer",
+      source: { kind: "archive", path: "D:/new.cbz" },
+      displayName: "New",
+      pageIndex: 2,
+      pageCount: 20,
+      updatedAt: 200,
+    })
 
+    await expect(store.get("newer")).resolves.toEqual({
+      bookId: "newer",
+      source: { kind: "archive", path: "D:/new.cbz" },
+      displayName: "New",
+      pageIndex: 2,
+      pageCount: 20,
+      updatedAt: 200,
+    })
     await expect(store.listRecent({ limit: 1, offset: 0 })).resolves.toEqual([
       expect.objectContaining({ bookId: "newer", displayName: "New", pageIndex: 2 }),
     ])
     await expect(store.clearRecentBefore(150, 10)).resolves.toBe(1)
     await expect(store.deleteRecent("newer")).resolves.toBe(true)
+    await store.close()
     await store.close()
 
     const report = await inspectLegacyThumbnailDatabase(path)
@@ -41,7 +59,7 @@ describe("SqliteReaderLibraryStore", () => {
 
   it("[neoview.library.bookmarks] stores normalized lists and filters synthetic views", async () => {
     const { path } = await fixture()
-    const store = await SqliteReaderLibraryStore.open(path)
+    const store = await SqliteReaderDataStore.open(path)
     await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: true, createdAt: 1, updatedAt: 1 })
     await store.upsertBookmark(bookmark("one", false, []))
     await store.upsertBookmark(bookmark("two", true, ["reading", "missing"]))
