@@ -40,20 +40,23 @@ test("floating component query params still render a popup window", async ({ pag
     await openApp(
       page,
       backend,
-      "/?floatingComponent=comp-popup&moduleId=scratch&windowId=popup-url-state&title=Popup%20Smoke",
+      "/?floatingComponent=comp-popup-xlchemy&moduleId=xlchemy&windowId=popup-url-state&title=Popup%20Smoke",
     )
 
     await expect(page.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText("Popup Smoke")).toBeVisible()
-    await expect(page.locator("main.xiranite-app-region-no-drag")).toBeVisible()
+    await expect(page.getByText("Popup Smoke")).toHaveCount(0)
+    await expect(page.locator("main")).toBeVisible()
 
-    const titlebar = page.getByTestId("floating-window-titlebar")
-    const captionControls = page.getByTestId("floating-window-caption-controls")
+    await expect(page.getByTestId("floating-window-titlebar")).toHaveCount(0)
+    const nodeTitlebar = page.getByTestId("xlchemy-header")
+    await expect(nodeTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
+    await expect(page.getByTestId("floating-window-fallback-controls")).toHaveCount(0)
+    const captionControls = page.getByTestId("floating-window-integrated-controls")
     await expect(captionControls.getByRole("button")).toHaveCount(3)
     await expect.poll(async () => {
-      const titlebarBox = await titlebar.boundingBox()
+      const titlebarBox = await nodeTitlebar.boundingBox()
       const controlsBox = await captionControls.boundingBox()
-      if (!titlebarBox || !controlsBox) return false
+      if (!controlsBox || !titlebarBox) return false
       return Math.abs(controlsBox.y - titlebarBox.y) <= 1
         && Math.abs((controlsBox.y + controlsBox.height) - (titlebarBox.y + titlebarBox.height)) <= 1
         && Math.abs((controlsBox.x + controlsBox.width) - (titlebarBox.x + titlebarBox.width)) <= 1
@@ -72,7 +75,11 @@ async function openApp(
     ;(window as typeof window & { __XIRANITE_BACKEND__?: unknown }).__XIRANITE_BACKEND__ = config
   }, { baseUrl: backend.url, token: backend.token })
   await page.goto(url, { waitUntil: "domcontentloaded" })
-  await expect(page.getByRole("banner")).toBeVisible({ timeout: 15_000 })
+  if (url.includes("floatingComponent=")) {
+    await expect(page.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })
+  } else {
+    await expect(page.getByRole("banner")).toBeVisible({ timeout: 15_000 })
+  }
   await expect(page.locator("main")).toBeVisible({ timeout: 15_000 })
 }
 
@@ -88,7 +95,7 @@ async function seedUrlWorkspace(backend: Awaited<ReturnType<typeof startBackend>
     ],
     components: [
       { id: "comp-url-b", moduleId: "scratch", workspaceId: "ws-url-b", laneId: "lane-url-b", createdAt: now, updatedAt: now },
-      { id: "comp-popup", moduleId: "scratch", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
+      { id: "comp-popup-xlchemy", moduleId: "xlchemy", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
     ],
   }
   const response = await fetch(new URL("/workspace/snapshot", backend.url), {

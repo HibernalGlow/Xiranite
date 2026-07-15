@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { getModule } from "@/components/modules/registry"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { useWindowControls } from "@/hooks/useWindowControls"
+import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "./FloatingWindowFrame"
+import type { MainWindowAction } from "@/backend/runtime/runtime"
 import type { ComponentInstance } from "@/types/workspace"
-import { Minus, Minimize2, Square, X } from "lucide-react"
 
 interface Props {
   compId: string
@@ -15,8 +15,8 @@ interface Props {
   titleFallback?: string | null
 }
 
-export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, titleFallback }: Props) {
-  const { t, i18n } = useTranslation()
+export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: Props) {
+  const { t } = useTranslation()
   const comp = useWorkspaceComponent(compId)
   const { activeCustomThemeName, activeWorkspaceId, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
     activeCustomThemeName: state.activeCustomThemeName,
@@ -26,21 +26,11 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
   }))
   const workspaceActions = useWorkspaceActions()
   const [isMaximized, setIsMaximized] = useState(false)
+  const [integratedTitlebars, setIntegratedTitlebars] = useState(0)
   const { controlMain, controlMainPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
-  const mod = getModule(moduleId)
-  const title = titleFallback
-    || (mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : mod?.name)
-    || moduleId
-    || t("view:floating.title")
 
   const themeClass = activeCustomThemeName ? "" : theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
-
-  const detail = useMemo(() => {
-    if (!moduleId) return t("view:floating.missingModule")
-    if (!comp) return t("view:floating.loadingState")
-    return `${comp.workspaceId} / ${comp.id}`
-  }, [comp, moduleId, t])
 
   useEffect(() => {
     if (!moduleId || comp) return
@@ -65,7 +55,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
     workspaceActions.ensureComponent(fallbackComponent)
   }, [activeWorkspaceId, comp, compId, moduleId, workspaceActions, zCounter])
 
-  async function controlWindow(action: "minimize" | "maximize" | "close") {
+  const controlWindow = useCallback(async (action: MainWindowAction) => {
     try {
       const result = await controlMain(action)
       if (result.success && result.state) {
@@ -83,76 +73,44 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback, ti
     if (action === "close") {
       window.close()
     }
-  }
+  }, [closeComponent, compId, controlMain, windowId])
 
-  function handleTitleBarDoubleClick(event: MouseEvent<HTMLElement>) {
+  const handleTitleBarDoubleClick = useCallback((event: MouseEvent<HTMLElement>) => {
     if (event.target instanceof Element && event.target.closest(".xiranite-app-region-no-drag")) return
 
     event.preventDefault()
     void controlWindow("maximize")
-  }
+  }, [controlWindow])
+
+  const registerIntegratedTitlebar = useCallback(() => {
+    setIntegratedTitlebars((count) => count + 1)
+    return () => setIntegratedTitlebars((count) => Math.max(0, count - 1))
+  }, [])
+
+  const frame = useMemo(() => ({
+    isMaximized,
+    pending: controlMainPending,
+    control: (action: MainWindowAction) => void controlWindow(action),
+    handleTitlebarDoubleClick: handleTitleBarDoubleClick,
+    registerIntegratedTitlebar,
+  }), [controlMainPending, controlWindow, handleTitleBarDoubleClick, isMaximized, registerIntegratedTitlebar])
 
   return (
-    <div className={cn("xiranite-floating-window flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
-      <header
-        data-testid="floating-window-titlebar"
-        onDoubleClick={handleTitleBarDoubleClick}
-        className="xiranite-app-region-drag flex h-10 shrink-0 select-none items-stretch border-b border-border bg-background"
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2 pl-3 pr-2">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-mono text-[11px] font-semibold uppercase tracking-normal">{title}</div>
-            <div className="truncate font-mono text-[9px] text-muted-foreground">{detail}</div>
-          </div>
-        </div>
-        <div
-          data-testid="floating-window-caption-controls"
-          className="xiranite-app-region-no-drag flex shrink-0 items-stretch"
-        >
-          <button
-            type="button"
-            title={t("common:minimize")}
-            aria-label={t("common:minimize")}
-            disabled={controlMainPending}
-            onClick={() => controlWindow("minimize")}
-            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title={t("common:maximize")}
-            aria-label={t("common:maximize")}
-            aria-pressed={isMaximized}
-            disabled={controlMainPending}
-            onClick={() => controlWindow("maximize")}
-            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-          >
-            {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Square className="h-3 w-3" />}
-          </button>
-          <button
-            type="button"
-            title={t("common:closeWindow")}
-            aria-label={t("common:closeWindow")}
-            disabled={controlMainPending}
-            onClick={() => controlWindow("close")}
-            className="grid w-11 place-items-center text-muted-foreground transition-colors hover:bg-[#c42b1c] hover:text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </header>
-
-      <main className="xiranite-app-region-no-drag min-h-0 flex-1 overflow-hidden p-2">
-        {moduleId ? (
-          <ModuleRenderer moduleId={moduleId} compId={compId} />
-        ) : (
-          <div className="grid h-full place-items-center font-mono text-xs text-muted-foreground">
-            {t("view:floating.missingTarget")}
-          </div>
-        )}
-      </main>
-    </div>
+    <FloatingWindowFrameProvider value={frame}>
+      <div className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
+        <main className="min-h-0 flex-1 overflow-hidden">
+          {moduleId ? (
+            <ModuleRenderer moduleId={moduleId} compId={compId} />
+          ) : (
+            <div className="grid h-full place-items-center font-mono text-xs text-muted-foreground">
+              {t("view:floating.missingTarget")}
+            </div>
+          )}
+        </main>
+        {integratedTitlebars === 0 ? (
+          <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
+        ) : null}
+      </div>
+    </FloatingWindowFrameProvider>
   )
 }

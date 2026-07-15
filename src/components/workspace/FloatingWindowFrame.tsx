@@ -1,0 +1,72 @@
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  type MouseEvent,
+  type ReactNode,
+} from "react"
+import { useTranslation } from "react-i18next"
+import { Minus, Minimize2, X } from "lucide-react"
+import type { MainWindowAction } from "@/backend/runtime/runtime"
+import { cn } from "@/lib/utils"
+
+interface FloatingWindowFrameValue {
+  isMaximized: boolean
+  pending: boolean
+  control: (action: MainWindowAction) => void
+  handleTitlebarDoubleClick: (event: MouseEvent<HTMLElement>) => void
+  registerIntegratedTitlebar: () => () => void
+}
+
+const FloatingWindowFrameContext = createContext<FloatingWindowFrameValue | null>(null)
+
+export function FloatingWindowFrameProvider({ children, value }: {
+  children: ReactNode
+  value: FloatingWindowFrameValue
+}) {
+  return (
+    <FloatingWindowFrameContext.Provider value={value}>
+      {children}
+    </FloatingWindowFrameContext.Provider>
+  )
+}
+
+export function useFloatingWindowFrame() {
+  return useContext(FloatingWindowFrameContext)
+}
+
+export function FloatingWindowCaptionControls({ className, integrated = false }: {
+  className?: string
+  integrated?: boolean
+}) {
+  const frame = useFloatingWindowFrame()
+  const { t } = useTranslation()
+
+  useLayoutEffect(() => {
+    if (!frame || !integrated) return
+    return frame.registerIntegratedTitlebar()
+  }, [frame, integrated])
+
+  if (!frame) return null
+
+  const buttonClass = "grid min-h-9 w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+
+  return (
+    <div
+      data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
+      className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
+    >
+      <button type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
+        {frame.isMaximized
+          ? <Minimize2 className="h-3.5 w-3.5" />
+          : <span aria-hidden="true" className="block h-2.5 w-3 border border-current" />}
+      </button>
+      <button type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
