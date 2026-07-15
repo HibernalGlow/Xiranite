@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "legacyRegistry": "src/lib/cards/registry.ts",
+    "cardCount": 77,
+    "inventory": "migration/neoview/card-compatibility.json"
+  },
+  "policy": "Every legacy Card must have a source-evidenced compatibility checklist before implementation. A Card cannot be marked complete from API or smoke UI coverage alone.",
+  "requiredItemFields": [
+    "id",
+    "category",
+    "title",
+    "sourceEvidence",
+    "targetContract",
+    "surfaces",
+    "status",
+    "testIds",
+    "notes"
+  ],
+  "requiredDimensions": [
+    {
+      "id": "capabilities",
+      "requirement": "Enumerate every user-visible command, mode, data field, batch action and integration from the frozen source."
+    },
+    {
+      "id": "ui-parity",
+      "requirement": "Freeze layout hierarchy, controls, icon meaning, density, labels and responsive geometry; record intentional XR-token adaptations."
+    },
+    {
+      "id": "interaction-states",
+      "requirement": "Cover default, hover, focus, selected, active, disabled, loading, empty, partial, error, retry and disposed states."
+    },
+    {
+      "id": "settings",
+      "requirement": "List defaults, persistence keys, precedence, migration source and reset behavior; target one canonical storage version."
+    },
+    {
+      "id": "keyboard-accessibility",
+      "requirement": "List shortcuts, focus order, semantic roles, keyboard equivalents, IME/input exclusions and screen-reader labels."
+    },
+    {
+      "id": "data-contract",
+      "requirement": "Define stable DTOs, identity, pagination/streaming, cancellation, generation, error and stale-result semantics shared by GUI/CLI/TUI."
+    },
+    {
+      "id": "lifecycle",
+      "requirement": "Define lazy load, open, suspend, resume, close, dispose and failure cleanup; prove background work stops when the Card is inactive."
+    },
+    {
+      "id": "performance",
+      "requirement": "Set representative corpus, latency, memory, DOM/task/cache bounds and regression budgets; run heavy checks serially on Windows."
+    },
+    {
+      "id": "tests",
+      "requirement": "Each completed checklist item has stable automated test IDs; GUI behavior includes interaction and screenshot/geometry evidence where relevant."
+    },
+    {
+      "id": "deviations",
+      "requirement": "Any removed, replaced or deliberately changed legacy behavior needs an explicit rationale and replacement contract."
+    }
+  ],
+  "completionGate": [
+    "No pending or partial checklist items remain for the Card.",
+    "Every item has source evidence and at least one automated test ID.",
+    "GUI, CLI and TUI use the same core/application contract where the capability is non-visual.",
+    "Visual parity has desktop and constrained-card evidence.",
+    "Canonical persistence and legacy import are verified without dual runtime versions.",
+    "Lifecycle and performance budgets pass without running heavy jobs concurrently."
+  ]
+}

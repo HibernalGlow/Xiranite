@@ -1,0 +1,838 @@
+{
+  "schemaVersion": 1,
+  "featureId": "folder-main",
+  "legacyCardId": "folderMain",
+  "title": "文件浏览器",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri/src/lib/components/panels/folderPanel",
+  "statusValues": ["pending", "partial", "complete"],
+  "completionRule": "Only complete when the target contract, source UI parity, persisted settings, keyboard behavior, error states, GUI tests and shared CLI/TUI application contracts are all covered. API availability alone is insufficient.",
+  "items": [
+    {
+      "id": "folder.arch.session",
+      "category": "architecture",
+      "title": "有界目录浏览会话",
+      "sourceEvidence": ["stores/folderPanelStore/core.svelte.ts", "components/FolderStack/FolderDataLoader.ts"],
+      "targetContract": "一个 ReaderFileTreeService 会话维护稳定 generation、显式关闭、取消和有界缓存；GUI/CLI/TUI 不各建目录实现。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.browser-session", "neoview.folder.catalog-bounds"],
+      "notes": "当前 CoreReaderDirectoryBrowser 与 12x128 稀疏 catalog 已覆盖基础纵切，最终需并入统一服务。"
+    },
+    {
+      "id": "folder.arch.page",
+      "category": "architecture",
+      "title": "任意 cursor 分页与稳定快照",
+      "sourceEvidence": ["components/FolderStack/FolderDataLoader.ts", "stores/folderPanelStore/types.ts"],
+      "targetContract": "可按任意 cursor/limit 拉取稳定快照，目录变化通过 generation 失效，不向前端一次性返回完整大目录。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.browser-page", "neoview.folder.catalog-sparse"],
+      "notes": "当前每页 128 项；尚未完成排序/过滤后稳定分页契约。"
+    },
+    {
+      "id": "folder.arch.scan",
+      "category": "architecture",
+      "title": "单层与递归扫描分层",
+      "sourceEvidence": ["utils/directoryTreeCache.ts", "components/FolderTree.svelte"],
+      "targetContract": "单层列举使用原生 opendir/Dirent；递归索引与搜索使用唯一 readdirp adapter，支持 AbortSignal、背压和批次输出。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.native-listing", "neoview.folder.recursive-scanner"],
+      "notes": "scanner adapter 已加入但仍需完成聚焦验证与统一服务接线。"
+    },
+    {
+      "id": "folder.arch.watch",
+      "category": "architecture",
+      "title": "文件树增量监听",
+      "sourceEvidence": ["utils/directoryTreeCache.ts", "components/FolderTree.svelte"],
+      "targetContract": "按需动态加载 @parcel/watcher，仅监听活动根；事件合并后增量修补 generation，最后消费者关闭即 unsubscribe。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.watcher-lifecycle"],
+      "notes": "Windows/Bun create 事件探针已通过，尚未接入目录快照增量刷新。"
+    },
+    {
+      "id": "folder.arch.dispose",
+      "category": "architecture",
+      "title": "取消、释放与休眠",
+      "sourceEvidence": ["components/FolderStack.svelte", "utils/directoryTreeCache.ts"],
+      "targetContract": "折叠、切目录、关闭标签和卸载 Card 时取消过期分页/扫描/缩略图，释放 watcher、thumbnail context、browser session 和 Worker。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.thumbnail-release", "neoview.folder.session-dispose"],
+      "notes": "当前 Card 已释放分页、缩略图 context 和会话。"
+    },
+
+    {
+      "id": "folder.nav.path",
+      "category": "navigation",
+      "title": "路径输入与直接跳转",
+      "sourceEvidence": ["components/BreadcrumbBar.svelte"],
+      "targetContract": "面包屑与可编辑路径输入可互换；Enter 确认、Escape 取消、blur 行为及无效路径反馈与原版一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.path-navigation"],
+      "notes": "当前只有路径输入和转到按钮，尚无原版面包屑编辑体验。"
+    },
+    {
+      "id": "folder.nav.history",
+      "category": "navigation",
+      "title": "前进、后退与导航历史",
+      "sourceEvidence": ["stores/folderTabStore/navigationHistory.svelte.ts", "components/FolderToolbar/NavigationButtons.svelte"],
+      "targetContract": "每标签维护分支正确的前进/后退历史，并恢复目录、滚动、焦点、选择和临时排序。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.navigation-history", "neoview.folder.restore-snapshot"],
+      "notes": "当前单 Card 路径历史和 Virtuoso snapshot 已有基础实现。"
+    },
+    {
+      "id": "folder.nav.parent",
+      "category": "navigation",
+      "title": "返回上级并定位原目录",
+      "sourceEvidence": ["components/FolderStack/folderStackNavigation.ts", "components/FolderToolbar/NavigationButtons.svelte"],
+      "targetContract": "返回上级后自动选中并滚动到刚离开的子目录；远端批次尚未加载时先定位索引再取页。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.parent-suggested-selection"],
+      "notes": "后端 suggestedSelection 与前端远端定位已接入。"
+    },
+    {
+      "id": "folder.nav.home-refresh",
+      "category": "navigation",
+      "title": "主页、设为主页与刷新",
+      "sourceEvidence": ["components/FolderToolbar/NavigationButtons.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "主页跳转、修饰键设为主页、F5/按钮刷新均保留当前位置策略并给出加载状态。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.refresh"],
+      "notes": "刷新按钮已有；主页和持久化设置未实现。"
+    },
+    {
+      "id": "folder.nav.stack",
+      "category": "navigation",
+      "title": "FolderStack 分层浏览",
+      "sourceEvidence": ["components/FolderStack.svelte", "components/FolderStack/FolderStackState.svelte.ts", "components/FolderStack/folderStackNavigation.ts"],
+      "targetContract": "保留父/当前/子层的分层浏览、预加载和每层独立滚动/选择状态，路径切换不重置无关层。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不得用单列列表替代后宣称 UI 兼容。"
+    },
+    {
+      "id": "folder.nav.blank-action",
+      "category": "navigation",
+      "title": "空白单击/双击导航动作",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderToolbar/tabs/OtherTab.svelte"],
+      "targetContract": "空白单击和双击分别支持 none/goUp/goBack，并避免与选择清空和双击项打开冲突。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "设置与事件优先级均需迁移。"
+    },
+    {
+      "id": "folder.nav.bottom-return",
+      "category": "navigation",
+      "title": "列表底部返回按钮",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
+      "targetContract": "按设置在列表末尾显示返回上级/后退入口，虚拟列表中不破坏索引和恢复定位。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "必须作为 Virtuoso footer，不计入文件 entry 索引。"
+    },
+
+    {
+      "id": "folder.tabs.lifecycle",
+      "category": "tabs",
+      "title": "多标签创建、切换与关闭",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
+      "targetContract": "创建、切换、关闭标签；关闭最后标签的策略与原版一致，每标签拥有隔离浏览状态。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "当前 FolderMainCard 只有单会话。"
+    },
+    {
+      "id": "folder.tabs.bulk-close",
+      "category": "tabs",
+      "title": "关闭其他/左侧/右侧标签",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
+      "targetContract": "上下文菜单支持关闭其他、左侧和右侧标签，固定标签保护规则与原版一致。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "批量关闭必须释放对应会话资源。"
+    },
+    {
+      "id": "folder.tabs.pin-duplicate",
+      "category": "tabs",
+      "title": "固定与复制标签",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
+      "targetContract": "标签可固定/取消固定并复制完整浏览状态；固定状态持久化。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "与侧栏 pin 是不同能力。"
+    },
+    {
+      "id": "folder.tabs.reopen",
+      "category": "tabs",
+      "title": "最近关闭与恢复标签",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/tabManagement.svelte.ts"],
+      "targetContract": "持有最近关闭 10 项，支持菜单和快捷动作恢复，恢复路径、历史、视图和排序状态。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "淘汰顺序与固定上限需测试。"
+    },
+    {
+      "id": "folder.tabs.navigation-history",
+      "category": "tabs",
+      "title": "标签切换历史",
+      "sourceEvidence": ["stores/folderTabStore/tabManagement.svelte.ts"],
+      "targetContract": "维护标签访问历史并在关闭活动标签时选择正确的最近标签。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不能简单选择数组相邻项。"
+    },
+    {
+      "id": "folder.tabs.layout",
+      "category": "tabs",
+      "title": "标签栏/工具栏/面包屑布局",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "stores/folderTabStore/layoutSettings.svelte.ts"],
+      "targetContract": "标签栏布局以及工具栏、面包屑位置可配置并持久化，窄侧栏下保持原版密度和溢出行为。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "纳入截图与几何验收。"
+    },
+
+    {
+      "id": "folder.view.modes",
+      "category": "view",
+      "title": "list/content/banner/thumbnail 四种原版视图",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderListItem.svelte", "components/FolderToolbar/ViewModeButtons.svelte"],
+      "targetContract": "完整保留 list、content、banner、thumbnail 的信息密度、缩略图位置、选中/hover/focus 表现；目标内部可用更清晰的 mode 名。",
+      "surfaces": ["GUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.view-compact", "neoview.folder.view-cover-grid"],
+      "notes": "当前 compact 与 cover-grid 仅覆盖两条基础形态，不等于原版四模式完成。"
+    },
+    {
+      "id": "folder.view.details",
+      "category": "view",
+      "title": "详细信息视图与列",
+      "sourceEvidence": ["components/FolderListItem.svelte", "stores/folderPanelStore/types.ts"],
+      "targetContract": "显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "GUI 优先扩展现有 Niko Table，不引入第二套表格体系。"
+    },
+    {
+      "id": "folder.view.thumbnail-size",
+      "category": "view",
+      "title": "缩略图宽度调节",
+      "sourceEvidence": ["components/FolderToolbar/ViewPanel.svelte", "stores/folderTabStore/layoutSettings.svelte.ts"],
+      "targetContract": "连续调节缩略图宽度并持久化；调整时虚拟布局重测但不丢失锚点和选中项。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "需覆盖窄栏和高 DPI。"
+    },
+    {
+      "id": "folder.view.banner-width",
+      "category": "view",
+      "title": "横幅列宽调节",
+      "sourceEvidence": ["components/FolderToolbar/ViewPanel.svelte", "stores/folderTabStore/layoutSettings.svelte.ts"],
+      "targetContract": "banner 宽度百分比可调且持久化，文本列与预览列不重叠。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "纳入几何回归。"
+    },
+    {
+      "id": "folder.view.hover-preview",
+      "category": "preview",
+      "title": "Hover 预览与延迟",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
+      "targetContract": "支持关闭及 200/500/800/1200ms 延迟；离开、滚动、切标签和卸载立即取消过期预览。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不得为离屏项生成预览。"
+    },
+    {
+      "id": "folder.view.folder-mosaic",
+      "category": "preview",
+      "title": "文件夹 4/9/16 图多预览",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FolderToolbar/tabs/DisplayTab.svelte"],
+      "targetContract": "文件夹缩略图支持单封面及 4/9/16 图 mosaic，稳定选图、异步缺图占位和可见范围批量 demand。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "用户特别要求单预览与四预览，原版还包含 9/16。"
+    },
+    {
+      "id": "folder.view.thumbnail-pipeline",
+      "category": "preview",
+      "title": "可见范围缩略图管线",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderListItem.svelte"],
+      "targetContract": "仅对可见+overscan 项按 32-64 对齐窗口注册，opaque URL 输出，按字节预算缓存并在 context 释放后取消低优先级任务。",
+      "surfaces": ["GUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.thumbnail-visible-batch", "neoview.folder.thumbnail-release"],
+      "notes": "当前最多 64 项 demand 已接入。"
+    },
+    {
+      "id": "folder.view.virtualization",
+      "category": "performance",
+      "title": "高性能列表与 Grid 虚拟化",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderStack.svelte"],
+      "targetContract": "React Virtuoso/VirtuosoGrid 保持 DOM 有界、支持稀疏分页、动态尺寸、scroll snapshot 和精确 scrollToIndex；10K/100K corpus 不线性占用 DOM/JS heap。",
+      "surfaces": ["GUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.virtuoso-list", "neoview.folder.virtuoso-grid", "neoview.folder.catalog-bounds"],
+      "notes": "尚缺大数据集 Playwright/内存门禁。"
+    },
+
+    {
+      "id": "folder.sort.fields",
+      "category": "sorting",
+      "title": "八类排序字段",
+      "sourceEvidence": ["stores/folderPanelStore/types.ts", "components/FolderToolbar/SortPanel.svelte", "components/FolderStack/sortingUtils.ts"],
+      "targetContract": "支持 name/date/size/type/random/rating/path/collectTagCount 和 asc/desc，不得收缩为自然排序。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "这是 folderMain 兼容性的硬门禁。"
+    },
+    {
+      "id": "folder.sort.name",
+      "category": "sorting",
+      "title": "数字感知名称排序与稳定兜底",
+      "sourceEvidence": ["components/FolderStack/sortingUtils.ts"],
+      "targetContract": "名称比较数字感知、大小写/locale 行为冻结；其他字段相等时按名称与稳定 entry ID 兜底。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "必须用固定 fixture 覆盖 2/10、全半角和同名项。"
+    },
+    {
+      "id": "folder.sort.directories-first",
+      "category": "sorting",
+      "title": "目录优先与虚拟路径例外",
+      "sourceEvidence": ["components/FolderStack/sortingUtils.ts", "utils/virtualPathLoader.ts"],
+      "targetContract": "真实目录默认 folders-first；History/Bookmark/Search 等虚拟源按原规则关闭或配置目录优先。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "排序服务必须知道数据源语义。"
+    },
+    {
+      "id": "folder.sort.folder-size",
+      "category": "sorting",
+      "title": "文件夹大小异步 hydration 后重排",
+      "sourceEvidence": ["components/FolderStack/sortingUtils.ts", "components/FolderStack/FolderDataLoader.ts"],
+      "targetContract": "文件大小即时，目录大小后台有界计算；结果按 generation 合并并重排，同时保持选中项身份与合理滚动锚点。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "大目录不得同步递归求大小。"
+    },
+    {
+      "id": "folder.sort.random",
+      "category": "sorting",
+      "title": "稳定随机种子",
+      "sourceEvidence": ["stores/folderPanelStore/panelState.svelte.ts", "components/FolderStack/sortingUtils.ts"],
+      "targetContract": "随机排序按路径/标签稳定种子生成，返回目录和刷新时顺序保持，显式重随机才更换种子。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不能每次 render 调 Math.random。"
+    },
+    {
+      "id": "folder.sort.emm",
+      "category": "sorting",
+      "title": "EMM 评分与收藏标签数量排序",
+      "sourceEvidence": ["components/FolderStack/sortingUtils.ts", "stores/folderPanelStore/types.ts"],
+      "targetContract": "rating 使用默认评分兜底；collectTagCount 使用 EMM 批量 hydration，缺失/错误值排序稳定。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不得逐项 N+1 查询数据库。"
+    },
+    {
+      "id": "folder.sort.precedence",
+      "category": "sorting",
+      "title": "排序规则优先级",
+      "sourceEvidence": ["stores/folderTabStore/sortingFiltering.svelte.ts", "stores/folderPanelStore/core.svelte.ts"],
+      "targetContract": "严格实现 临时当前目录规则 > 文件夹记忆 > 标签默认 > 全局默认，并在导航/恢复时可解释当前来源。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "优先级需用表驱动测试冻结。"
+    },
+    {
+      "id": "folder.sort.memory",
+      "category": "sorting",
+      "title": "文件夹排序记忆与清除",
+      "sourceEvidence": ["stores/folderTabStore/sortingFiltering.svelte.ts", "components/FolderToolbar/SortPanel.svelte"],
+      "targetContract": "可锁定/记忆单目录排序，清除当前目录或全部记忆，并可把当前排序设为标签或全局默认。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "所有写入通过规范 TOML/数据库单一版本。"
+    },
+    {
+      "id": "folder.sort.virtual",
+      "category": "sorting",
+      "title": "History/Bookmark 独立排序语义",
+      "sourceEvidence": ["utils/virtualPathLoader.ts", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "History 的 date 表示访问时间、Bookmark 的 date 表示创建时间；各自保存视图/排序设置而不污染普通目录。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "虚拟源不是普通 stat 数据。"
+    },
+
+    {
+      "id": "folder.select.basic",
+      "category": "selection",
+      "title": "单选、Ctrl/Meta toggle 与焦点项",
+      "sourceEvidence": ["stores/folderPanelStore/selectionState.svelte.ts", "components/FolderListItem.svelte"],
+      "targetContract": "单击单选，Ctrl/Meta 切换，focused item 与 selected set 分离，虚拟化卸载不丢身份。",
+      "surfaces": ["GUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.selection-basic"],
+      "notes": "当前基础单选和 Ctrl/Meta 已有。"
+    },
+    {
+      "id": "folder.select.range",
+      "category": "selection",
+      "title": "Shift 范围与链式选择",
+      "sourceEvidence": ["stores/chainSelectStore.svelte.ts", "components/FolderStack/FolderSelectionHandler.ts"],
+      "targetContract": "Shift 以稳定 anchor index 范围选择；链式选择按标签隔离，跨未加载分页也正确。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不得只对当前 DOM 范围操作。"
+    },
+    {
+      "id": "folder.select.bulk",
+      "category": "selection",
+      "title": "全选、反选、取消与选择栏",
+      "sourceEvidence": ["components/SelectionBar.svelte", "stores/folderPanelStore/selectionState.svelte.ts"],
+      "targetContract": "全选/反选/取消作用于稳定 catalog，SelectionBar 显示数量与批量动作；大目录避免物化百万路径。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "需要 all-except selection 表达或服务端 selection token。"
+    },
+    {
+      "id": "folder.select.restore",
+      "category": "selection",
+      "title": "导航状态恢复与自动定位",
+      "sourceEvidence": ["stores/folderTabStore/navigationHistory.svelte.ts", "components/FolderStack/FolderStackState.svelte.ts"],
+      "targetContract": "保存 scrollTop/snapshot、selectedItemPath、focused path/index 和 pendingFocusPath；前进后退/标签切换后自动定位。",
+      "surfaces": ["GUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.restore-snapshot", "neoview.folder.parent-suggested-selection"],
+      "notes": "当前单标签快照已覆盖基础路径。"
+    },
+    {
+      "id": "folder.keyboard.navigation",
+      "category": "keyboard",
+      "title": "键盘焦点与方向导航",
+      "sourceEvidence": ["utils/keyboardHandler.ts", "components/FolderList.svelte"],
+      "targetContract": "ArrowUp/Down/Left/Right、Home/End、PageUp/PageDown 根据 list/grid 几何移动焦点并滚入视口；补齐原版未完成的上下箭头遗留。",
+      "surfaces": ["GUI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "原源码的 ArrowUp/ArrowDown TODO 也属于目标兼容范围。"
+    },
+    {
+      "id": "folder.keyboard.commands",
+      "category": "keyboard",
+      "title": "打开、返回、刷新、搜索、删除快捷键",
+      "sourceEvidence": ["utils/keyboardHandler.ts"],
+      "targetContract": "Enter 打开、Backspace 后退、F5 刷新、Delete 按删除策略、Ctrl/Cmd+A 全选、Ctrl/Cmd+F 搜索、Escape 取消多选。",
+      "surfaces": ["GUI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "输入框、菜单和 IME 激活时不得误触发。"
+    },
+
+    {
+      "id": "folder.search.current",
+      "category": "search",
+      "title": "当前目录搜索",
+      "sourceEvidence": ["components/SearchResultList.svelte", "stores/folderTabStore/sortingFiltering.svelte.ts"],
+      "targetContract": "按名称或路径搜索当前目录，支持清除、空态、加载态、错误态和搜索历史。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "搜索结果必须继续虚拟化。"
+    },
+    {
+      "id": "folder.search.recursive",
+      "category": "search",
+      "title": "包含子目录的流式搜索",
+      "sourceEvidence": ["components/SearchResultList.svelte", "components/FolderToolbar/ActionButtons.svelte"],
+      "targetContract": "递归搜索通过 readdirp stream 分批返回、可取消、可限制并发；不阻塞 Bun 事件循环。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.recursive-scanner"],
+      "notes": "底层 adapter 已草拟，搜索会话尚未完成。"
+    },
+    {
+      "id": "folder.search.emm-tags",
+      "category": "search",
+      "title": "EMM 标签、收藏标签与随机标签搜索",
+      "sourceEvidence": ["components/FavoriteTagPanel.svelte", "components/SearchResultList.svelte"],
+      "targetContract": "支持 EMM 标签条件、收藏标签快捷筛选和随机标签；标签组合修饰键行为与原版一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "查询走统一 EMM provider，不扫描 UI store。"
+    },
+    {
+      "id": "folder.filter.type",
+      "category": "filtering",
+      "title": "类型筛选",
+      "sourceEvidence": ["components/FolderToolbar/TypeFilterBar.svelte", "utils/virtualPathLoader.ts"],
+      "targetContract": "支持全部、压缩包、文件夹、视频类型筛选，并与排序、搜索和虚拟源组合。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "扩展名和 MIME 规则需单一共享定义。"
+    },
+
+    {
+      "id": "folder.tree.panel",
+      "category": "tree",
+      "title": "文件树面板与展开/折叠",
+      "sourceEvidence": ["components/FolderTree.svelte", "utils/directoryTreeCache.ts"],
+      "targetContract": "树节点按需加载、展开/折叠、选中同步、加载占位、错误重试和缓存失效完整迁移。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不得预加载整棵磁盘树。"
+    },
+    {
+      "id": "folder.tree.layout-pin",
+      "category": "tree",
+      "title": "文件树位置、尺寸与 pin",
+      "sourceEvidence": ["components/FolderTree.svelte", "components/FolderToolbar/TreePanel.svelte"],
+      "targetContract": "文件树支持 left/right/top/bottom、尺寸拖动、固定/自动收起；状态持久化且与 Reader 侧栏 pin 语义协调。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "用户明确要求迁移 pin。"
+    },
+    {
+      "id": "folder.tree.inline",
+      "category": "tree",
+      "title": "主视图内联树",
+      "sourceEvidence": ["components/InlineTreeList.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "内联树作为虚拟化数据源模式，支持层级缩进、展开、选择、预览和键盘导航。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不能渲染无界嵌套 DOM。"
+    },
+    {
+      "id": "folder.tree.cache",
+      "category": "tree",
+      "title": "树缓存清理与排除目录",
+      "sourceEvidence": ["utils/directoryTreeCache.ts", "components/FolderToolbar/CleanupOptionsDialog.svelte"],
+      "targetContract": "支持清理树缓存、排除目录、取消排除和重新加载；排除规则持久化并应用于扫描/搜索/树。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "三条路径共享一份 exclusion policy。"
+    },
+
+    {
+      "id": "folder.virtual.sources",
+      "category": "virtual-sources",
+      "title": "Folder/Bookmark/History/Search 虚拟数据源",
+      "sourceEvidence": ["utils/virtualPathLoader.ts", "components/BreadcrumbBar.svelte", "components/SearchResultList.svelte"],
+      "targetContract": "统一数据源接口承载真实目录、书签、历史和搜索，保留各自日期/删除/同步语义与面包屑图标。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "不能把虚拟路径伪造成可 stat 的真实目录。"
+    },
+    {
+      "id": "folder.virtual.cleanup",
+      "category": "virtual-sources",
+      "title": "无效书签/历史清理与同步",
+      "sourceEvidence": ["utils/virtualPathLoader.ts"],
+      "targetContract": "首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "清理失败不能阻断列表首屏。"
+    },
+
+    {
+      "id": "folder.op.open",
+      "category": "operations",
+      "title": "打开、浏览、新标签与作为书籍打开",
+      "sourceEvidence": ["components/FolderContextMenu.svelte"],
+      "targetContract": "按项目类型提供默认打开、浏览文件夹、新标签打开、文件夹作为书籍打开；禁用项和默认动作与原版一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.activate-entry"],
+      "notes": "当前仅目录导航和受支持文件 onOpen。"
+    },
+    {
+      "id": "folder.op.system",
+      "category": "operations",
+      "title": "系统默认程序与资源管理器定位",
+      "sourceEvidence": ["components/FolderContextMenu.svelte"],
+      "targetContract": "通过 platform capability 安全调用系统默认程序和 Explorer/Finder 定位，不在 core 中拼 shell 命令。",
+      "surfaces": ["GUI", "CLI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "TUI 可暴露命令但需显式确认外部启动。"
+    },
+    {
+      "id": "folder.op.clipboard",
+      "category": "operations",
+      "title": "复制、剪切、粘贴",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/SelectionBar.svelte"],
+      "targetContract": "单项/批量复制剪切粘贴，处理冲突、跨卷、取消、进度、部分失败和 watcher 回写。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "文件事务服务独立于 React。"
+    },
+    {
+      "id": "folder.op.copy-metadata",
+      "category": "operations",
+      "title": "复制路径与名称",
+      "sourceEvidence": ["components/FolderContextMenu.svelte"],
+      "targetContract": "复制单项/多项路径或名称，换行格式和通知与原版一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "GUI clipboard 走宿主 adapter。"
+    },
+    {
+      "id": "folder.op.rename",
+      "category": "operations",
+      "title": "重命名",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/FolderListItem.svelte"],
+      "targetContract": "内联/弹窗重命名保留扩展名策略、校验、冲突提示、取消和完成后选中项路径更新。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "watcher 事件不能造成重复项。"
+    },
+    {
+      "id": "folder.op.delete",
+      "category": "operations",
+      "title": "回收站、永久删除与批量删除",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/SelectionBar.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "删除策略可切换回收站/永久删除；单项/批量确认、进度、部分失败、焦点迁移和安全边界完整。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "永久删除必须显式二次确认。"
+    },
+    {
+      "id": "folder.op.undo-delete",
+      "category": "operations",
+      "title": "撤销删除",
+      "sourceEvidence": ["components/SelectionBar.svelte", "components/FolderToolbar/ActionButtons.svelte"],
+      "targetContract": "仅对可恢复删除提供撤销，恢复冲突与过期状态明确；永久删除不伪装可撤销。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "需平台能力声明。"
+    },
+    {
+      "id": "folder.op.bookmark",
+      "category": "operations",
+      "title": "添加/移除书签",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "utils/virtualPathLoader.ts"],
+      "targetContract": "单项/批量加入书签列表，重复项、列表选择、移除和虚拟源实时同步。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "与 bookmarkList Card 共用应用服务。"
+    },
+    {
+      "id": "folder.op.thumbnail",
+      "category": "operations",
+      "title": "重生成、预热和取消缩略图",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/FolderToolbar/ActionButtons.svelte"],
+      "targetContract": "支持选中/全部重生成、当前目录预热、取消和进度；任务低优先级、可取消、去重且不阻塞当前页。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "使用统一 presentation cache。"
+    },
+    {
+      "id": "folder.op.context-menu",
+      "category": "operations",
+      "title": "完整右键菜单与可用性规则",
+      "sourceEvidence": ["components/FolderContextMenu.svelte"],
+      "targetContract": "菜单分组、图标、快捷键提示、嵌套项、单/多选上下文、虚拟源差异、disabled 与关闭行为尽量保持原版一致。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "UI parity 必须截图和交互测试。"
+    },
+
+    {
+      "id": "folder.emm.metadata",
+      "category": "emm",
+      "title": "EMM 元数据批量 hydration",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FolderStack/sortingUtils.ts"],
+      "targetContract": "可见/排序需求按批查询评分、标签、收藏标签数等元数据，带 generation 和缓存，不产生逐文件 N+1。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "EMM provider 是可选 capability，缺失时优雅降级。"
+    },
+    {
+      "id": "folder.emm.display",
+      "category": "emm",
+      "title": "评分、标签与收藏信息显示",
+      "sourceEvidence": ["components/FolderListItem.svelte", "components/FavoriteTagPanel.svelte"],
+      "targetContract": "各视图按空间显示评分、标签、收藏数量和缺失态，tooltip 提供完整信息。",
+      "surfaces": ["GUI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "默认评分设置参与显示与排序。"
+    },
+    {
+      "id": "folder.emm.edit",
+      "category": "emm",
+      "title": "编辑 EMM 标签与评分",
+      "sourceEvidence": ["components/FolderContextMenu.svelte", "components/FavoriteTagPanel.svelte"],
+      "targetContract": "单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "与独立 EMM Card 共用命令服务。"
+    },
+
+    {
+      "id": "folder.penetrate.mode",
+      "category": "penetration",
+      "title": "递归显示/穿透模式",
+      "sourceEvidence": ["components/FolderToolbar/FolderToolbar.svelte", "components/FolderToolbar/tabs/OtherTab.svelte"],
+      "targetContract": "支持关闭/开启穿透、single/all 范围和递归显示，结果保留来源路径与层级语义。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "底层走流式 scanner，不复制另一套遍历器。"
+    },
+    {
+      "id": "folder.penetrate.depth",
+      "category": "penetration",
+      "title": "穿透最大深度",
+      "sourceEvidence": ["components/FolderToolbar/tabs/OtherTab.svelte"],
+      "targetContract": "最大深度支持 1/2/3/5/10/无限，并在循环链接、权限错误和巨大树上有安全上限。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "无限指逻辑深度不限，仍受资源预算和取消约束。"
+    },
+    {
+      "id": "folder.penetrate.internal-files",
+      "category": "penetration",
+      "title": "内部文件策略与纯媒体文件夹",
+      "sourceEvidence": ["components/FolderToolbar/tabs/OtherTab.svelte"],
+      "targetContract": "内部文件支持 none/penetrate/always；纯媒体文件夹按设置直接作为书籍打开。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "判定使用共享 media/archive capability。"
+    },
+
+    {
+      "id": "folder.migration.bar",
+      "category": "migration",
+      "title": "迁移栏与迁移管理",
+      "sourceEvidence": ["components/MigrationBar.svelte", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "保留迁移栏显隐、来源/目标、队列、执行、取消、进度和错误摘要；History/Bookmark 可有独立显隐设置。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "具体文件迁移必须复用文件事务服务。"
+    },
+
+    {
+      "id": "folder.ui.parity",
+      "category": "ui-compatibility",
+      "title": "原版结构、密度与视觉状态一致",
+      "sourceEvidence": ["components/FolderTabBar.svelte", "components/BreadcrumbBar.svelte", "components/FolderToolbar/FolderToolbar.svelte", "components/FolderStack.svelte", "components/FolderListItem.svelte"],
+      "targetContract": "标签栏、面包屑、工具栏、树、列表、选择栏、迁移栏和菜单的层级、密度、图标、控件顺序及 hover/focus/selected/disabled/loading 状态尽量与原版一致。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "允许适配 XR 设计 token，但不得无依据删减或重新布局。"
+    },
+    {
+      "id": "folder.ui.responsive",
+      "category": "ui-compatibility",
+      "title": "侧栏尺寸、窄视口与可停靠布局",
+      "sourceEvidence": ["components/FolderStack.svelte", "components/FolderTree.svelte", "stores/folderTabStore/layoutSettings.svelte.ts"],
+      "targetContract": "在左右侧栏、独立窗口和窄高 Card 中控件不重叠，虚拟视口尺寸稳定，pin/折叠/resize 后恢复正确。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "桌面和 420x360 均需几何测试。"
+    },
+    {
+      "id": "folder.ui.states",
+      "category": "ui-compatibility",
+      "title": "空态、加载态、权限与错误恢复",
+      "sourceEvidence": ["components/FolderList.svelte", "components/SearchResultList.svelte", "components/FolderTree.svelte"],
+      "targetContract": "空目录、无结果、加载、部分分页失败、权限拒绝、路径消失、文件变化和缩略图失败均有稳定 UI、重试和 Toast，不清空最后可用快照。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "partial",
+      "testIds": ["neoview.folder.error-state"],
+      "notes": "当前 Card 有基础 loading/error 文本，尚未覆盖完整状态模型。"
+    },
+    {
+      "id": "folder.ui.accessibility",
+      "category": "ui-compatibility",
+      "title": "键盘、语义与可访问性",
+      "sourceEvidence": ["components/FolderList.svelte", "components/FolderTabBar.svelte", "components/FolderContextMenu.svelte"],
+      "targetContract": "列表/Grid/树/标签/菜单具备正确 role、可见焦点、roving tabindex、aria-selected/expanded、屏幕阅读器名称和键盘等价操作。",
+      "surfaces": ["GUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "虚拟化焦点必须在卸载前转移。"
+    },
+    {
+      "id": "folder.settings.persistence",
+      "category": "settings",
+      "title": "全部文件浏览设置单一持久化版本",
+      "sourceEvidence": ["stores/folderTabStore/layoutSettings.svelte.ts", "stores/folderTabStore/sortingFiltering.svelte.ts", "components/FolderToolbar/FolderToolbar.svelte"],
+      "targetContract": "视图、排序、工具栏、树、预览、删除、穿透、空白动作和虚拟源设置规范化到 Xiranite TOML/专用数据库，不保留 localStorage 与多版本实现并存。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "旧设置只在 migration codec 读取一次。"
+    },
+    {
+      "id": "folder.performance.budgets",
+      "category": "performance",
+      "title": "10K/100K 目录性能与内存门禁",
+      "sourceEvidence": ["components/FolderList.svelte", "utils/directoryTreeCache.ts"],
+      "targetContract": "建立冷/热首屏、滚动帧、前进后退定位、搜索首批、缩略图吞吐、DOM 数、JS heap/RSS、取消延迟和关闭后回收基准；Reader 热翻页不回退。",
+      "surfaces": ["GUI", "CLI", "TUI"],
+      "status": "pending",
+      "testIds": [],
+      "notes": "所有重型门禁严格串行，Vitest maxWorkers=1。"
+    }
+  ]
+}
