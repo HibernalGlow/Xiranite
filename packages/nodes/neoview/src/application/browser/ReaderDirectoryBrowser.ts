@@ -3,7 +3,10 @@ import type {
   ReaderDirectoryListing,
   ReaderDirectoryListingProvider,
 } from "../../ports/ReaderDirectoryListingProvider.js"
-import type { ReaderDirectoryMetadataProvider } from "../../ports/ReaderDirectoryMetadataProvider.js"
+import type {
+  ReaderDirectoryMetadataField,
+  ReaderDirectoryMetadataProvider,
+} from "../../ports/ReaderDirectoryMetadataProvider.js"
 import {
   READER_DIRECTORY_SORT_FIELDS,
   readerDirectoryMetadataFields,
@@ -40,6 +43,7 @@ export interface ReaderDirectoryPage {
   generation: number
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
+  metadataFields: readonly ReaderDirectoryMetadataField[]
   sortSource: ReaderDirectorySortPreferenceSnapshot["source"]
   sortTemporary: boolean
   globalDefaultSort: ReaderDirectorySortRule
@@ -73,7 +77,12 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     private readonly sortPreferences = new CoreReaderDirectorySortPreferences(),
   ) {}
 
-  async open(path: string, signal?: AbortSignal, scopeId = "folder-main"): Promise<ReaderDirectoryPage> {
+  async open(
+    path: string,
+    signal?: AbortSignal,
+    scopeId = "folder-main",
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+  ): Promise<ReaderDirectoryPage> {
     this.#assertOpen()
     const rawListing = await this.provider.read(path, signal)
     const sortPreference = await this.sortPreferences.resolve(scopeId, rawListing.path)
@@ -95,22 +104,33 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     }
     if (this.#sessions.size >= 8) this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
-    return pageOf(session, 0, 128)
+    return this.#page(session, 0, 128, displayFields, signal)
   }
 
-  list(sessionId: string, cursor = 0, limit = 128): ReaderDirectoryPage | undefined {
+  async list(
+    sessionId: string,
+    cursor = 0,
+    limit = 128,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
     assertPage(cursor, limit, session.listing.entries.length)
-    return pageOf(session, cursor, limit)
+    return this.#page(session, cursor, limit, displayFields, signal)
   }
 
-  async navigate(sessionId: string, navigation: ReaderDirectoryNavigation, signal?: AbortSignal): Promise<ReaderDirectoryPage | undefined> {
+  async navigate(
+    sessionId: string,
+    navigation: ReaderDirectoryNavigation,
+    signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+  ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
     const previousPath = session.listing.path
     const target = targetPath(session, navigation)
-    if (!target) return pageOf(session, 0, 128)
+    if (!target) return this.#page(session, 0, 128, displayFields, signal)
 
     session.operation?.abort()
     const controller = new AbortController()
@@ -134,7 +154,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       session.sort = sortPreference.sort
       session.sortPreference = sortPreference
       session.generation = generation
-      return pageOf(session, 0, 128, suggestedSelection(navigation, listing, previousPath))
+      return await this.#page(session, 0, 128, displayFields, combinedSignal, suggestedSelection(navigation, listing, previousPath))
     } finally {
       if (session.operation === controller) session.operation = undefined
     }
@@ -145,6 +165,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     sort: ReaderDirectorySortRule,
     focusPath?: string,
     signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
@@ -174,7 +195,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       )
       session.generation += 1
       const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
-      return pageOf(session, 0, 128, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
+      return await this.#page(session, 0, 128, displayFields, combinedSignal, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
     } finally {
       if (session.operation === controller) session.operation = undefined
     }
@@ -185,6 +206,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     command: ReaderDirectorySortPreferenceCommand,
     focusPath?: string,
     signal?: AbortSignal,
+    displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
@@ -226,7 +248,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       )
       session.generation += 1
       const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
-      return pageOf(session, 0, 128, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
+      return await this.#page(session, 0, 128, displayFields, combinedSignal, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
     } finally {
       if (session.operation === controller) session.operation = undefined
     }
@@ -273,6 +295,22 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       throw new Error(`Directory sort field is unavailable: ${sort.field}`)
     }
   }
+
+  async #page(
+    session: BrowserSession,
+    cursor: number,
+    limit: number,
+    requestedFields: ReadonlySet<ReaderDirectoryMetadataField>,
+    signal?: AbortSignal,
+    suggestedSelectionValue?: ReaderDirectoryPage["suggestedSelection"],
+  ): Promise<ReaderDirectoryPage> {
+    const metadataFields = [...requestedFields].filter((field) => this.metadataProvider?.supportedFields.has(field))
+    const page = pageOf(session, cursor, limit, suggestedSelectionValue, metadataFields)
+    if (!metadataFields.length || !this.metadataProvider) return page
+    const entries = await this.metadataProvider.hydrate(page.entries, new Set(metadataFields), signal)
+    signal?.throwIfAborted()
+    return { ...page, entries }
+  }
 }
 
 function targetPath(session: BrowserSession, navigation: ReaderDirectoryNavigation): string | undefined {
@@ -305,6 +343,7 @@ function pageOf(
   cursor: number,
   limit: number,
   suggestedSelectionValue?: ReaderDirectoryPage["suggestedSelection"],
+  metadataFields: readonly ReaderDirectoryMetadataField[] = [],
 ): ReaderDirectoryPage {
   const entries = session.listing.entries.slice(cursor, cursor + limit)
   return {
@@ -320,6 +359,7 @@ function pageOf(
     generation: session.generation,
     sort: session.sort,
     sortFields: session.sortFields,
+    metadataFields,
     sortSource: session.sortPreference.source,
     sortTemporary: session.sortPreference.temporary,
     globalDefaultSort: session.sortPreference.globalDefault,

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { VirtuosoGridMockContext } from "react-virtuoso"
+import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../adapters/reader-http-client"
@@ -116,7 +116,11 @@ describe("FolderMainCard", () => {
       updateDirectorySortPreference,
       closeDirectoryBrowser: vi.fn(async () => undefined),
     } as unknown as ReaderHttpClient
-    const view = render(<FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />)
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
     const currentView = within(view.container)
     await waitFor(() => expect(currentView.getByRole("button", { name: "升序" })).toBeTruthy())
     fireEvent.click(currentView.getByRole("button", { name: "升序" }))
@@ -136,6 +140,34 @@ describe("FolderMainCard", () => {
     ))
     await waitFor(() => expect(currentView.getByRole("button", { name: "取消临时排序" })).toBeTruthy())
   })
+
+  it("[neoview.folder.emm-display] shows hydrated rating and favorite-tag counts without per-row requests", async () => {
+    const opened = page({
+      total: 1,
+      metadataFields: ["rating", "collectTagCount"],
+      sortFields: ["name", "rating", "collectTagCount"],
+      entries: [{
+        name: "book.cbz",
+        path: "C:/books/book.cbz",
+        kind: "file",
+        readerSupported: true,
+        rating: 4.8,
+        collectTagCount: 3,
+      }],
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await waitFor(() => expect(currentView.getByTitle("评分 4.8")).toBeTruthy())
+    expect(currentView.getByTitle("收藏标签 3")).toBeTruthy()
+  })
 })
 
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {
@@ -150,6 +182,7 @@ function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDt
     generation: 1,
     sort: { field: "name", order: "asc", directoriesFirst: true },
     sortFields: ["name", "date", "size", "type", "random", "path"],
+    metadataFields: [],
     sortSource: "global-default",
     sortTemporary: false,
     globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },

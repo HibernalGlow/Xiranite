@@ -1,3 +1,5 @@
+import { scheduler } from "node:timers/promises"
+
 import type { ViewSource } from "../../domain/book/book.js"
 import type {
   ReaderBookmarkListRecord,
@@ -13,15 +15,23 @@ import {
   type ReaderDirectorySortRule,
 } from "../../application/browser/ReaderDirectorySort.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
+import type {
+  ReaderDirectoryEmmRecord,
+  ReaderDirectoryEmmRecordStore,
+} from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 
 const GLOBAL_SORT_SCOPE = "__global__"
 const MAX_FOLDER_SORT_RULES = 1_000
 
-export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore {
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore, ReaderDirectoryEmmRecordStore {
+  readonly directoryEmmAvailable: boolean
   #closed = false
 
-  private constructor(private readonly database: WritableSqliteConnection) {}
+  private constructor(private readonly database: WritableSqliteConnection) {
+    const columns = new Set(database.all("PRAGMA table_info(thumbs)").flatMap((row) => typeof row.name === "string" ? [row.name] : []))
+    this.directoryEmmAvailable = columns.has("key") && columns.has("rating_data") && columns.has("emm_json")
+  }
 
   static async open(path: string): Promise<SqliteReaderDataStore> {
     const database = await openWritableSqlite(path, { create: true })
@@ -435,6 +445,36 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySo
     return result
   }
 
+  async readDirectoryEmmRecords(
+    paths: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<ReadonlyMap<string, ReaderDirectoryEmmRecord>> {
+    this.#assertOpen()
+    if (!this.directoryEmmAvailable || !paths.length) return new Map()
+    if (paths.length > 100_000) throw new RangeError("Directory EMM metadata batch cannot exceed 100000 paths.")
+    const output = new Map<string, ReaderDirectoryEmmRecord>()
+    const unique = [...new Set(paths)]
+    for (let cursor = 0; cursor < unique.length; cursor += 256) {
+      signal?.throwIfAborted()
+      const batch = unique.slice(cursor, cursor + 256)
+      const placeholders = batch.map((_, index) => `?${index + 1}`).join(", ")
+      const rows = this.database.all(
+        `SELECT key, rating_data, emm_json FROM thumbs WHERE key IN (${placeholders})`,
+        ...batch,
+      )
+      for (const row of rows) {
+        const key = requireString(row.key, "EMM path")
+        output.set(key, {
+          ratingData: optionalText(row.rating_data),
+          emmJson: optionalText(row.emm_json),
+        })
+      }
+      if (cursor && cursor % 2_048 === 0) await scheduler.yield()
+    }
+    signal?.throwIfAborted()
+    return output
+  }
+
   close(): Promise<void> {
     if (this.#closed) return Promise.resolve()
     this.#closed = true
@@ -611,6 +651,10 @@ function parseSource(value: unknown): ViewSource {
 function requireString(value: unknown, name: string): string {
   if (typeof value !== "string" || !value) throw new Error(`Stored reader ${name} is invalid.`)
   return value
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined
 }
 
 function requireInteger(value: unknown, name: string): number {

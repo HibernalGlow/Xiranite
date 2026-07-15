@@ -10,6 +10,7 @@ import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
 import type { ReaderDirectorySortPreferenceStore } from "./application/browser/ReaderDirectorySortPreferences.js"
+import type { ReaderDirectoryEmmRecordStore } from "./ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderPresentationDiskCache } from "./ports/ReaderPresentationDiskCache.js"
 import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
 import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
@@ -147,6 +148,7 @@ export async function createReaderHttpController(
     progressStore,
     libraryService,
     directorySortPreferenceStore: dataStore,
+    directoryEmmRecordStore: dataStore,
     disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
     shellOptions: runtimeConfig.shellOptions,
@@ -302,7 +304,7 @@ export async function createReaderHeadlessController(
   )
 }
 
-async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore> {
+async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
 }

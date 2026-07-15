@@ -13,20 +13,26 @@ import {
 } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
+import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderDirectoryMetadataField } from "../../ports/ReaderDirectoryMetadataProvider.js"
 
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
 const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
+const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount"])
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: CoreReaderDirectoryBrowser
 
-  constructor(sortPreferenceStore?: ReaderDirectorySortPreferenceStore) {
+  constructor(
+    sortPreferenceStore?: ReaderDirectorySortPreferenceStore,
+    emmRecordStore?: ReaderDirectoryEmmRecordStore,
+  ) {
     this.#browser = new CoreReaderDirectoryBrowser(
       new PlatformDirectoryListingProvider(),
-      new PlatformDirectoryMetadataProvider(),
+      new PlatformDirectoryMetadataProvider(emmRecordStore),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
     )
   }
@@ -36,7 +42,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
 
     const entriesMatch = BROWSER_ENTRIES_PATH.exec(url.pathname)
-    if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url)
+    if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url, request.signal)
     const navigateMatch = BROWSER_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
     const sortPreferencesMatch = BROWSER_SORT_PREFERENCES_PATH.exec(url.pathname)
@@ -60,20 +66,25 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (typeof body?.path !== "string" || !body.path.trim()) return errorResponse("path must be a non-empty string", 400)
     if (body.scopeId !== undefined && (typeof body.scopeId !== "string" || !body.scopeId.trim())) return errorResponse("scopeId must be a non-empty string", 400)
     try {
-      return Response.json(await this.#browser.open(body.path, request.signal, typeof body.scopeId === "string" ? body.scopeId : undefined), responseInit(201))
+      return Response.json(await this.#browser.open(
+        body.path,
+        request.signal,
+        typeof body.scopeId === "string" ? body.scopeId : undefined,
+        DISPLAY_METADATA_FIELDS,
+      ), responseInit(201))
     } catch (error) {
       if (request.signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)
     }
   }
 
-  #list(encodedSessionId: string, url: URL): Response {
+  async #list(encodedSessionId: string, url: URL, signal: AbortSignal): Promise<Response> {
     const sessionId = safeDecode(encodedSessionId)
     if (!sessionId) return errorResponse("Browser session not found", 404)
     const cursor = integer(url.searchParams.get("cursor"), 0)
     const limit = integer(url.searchParams.get("limit"), 128)
     try {
-      const result = this.#browser.list(sessionId, cursor, limit)
+      const result = await this.#browser.list(sessionId, cursor, limit, DISPLAY_METADATA_FIELDS, signal)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       return errorResponse(errorMessage(error), 400)
@@ -87,7 +98,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const navigation = parseNavigation(body)
     if (!navigation) return errorResponse("Invalid browser navigation", 400)
     try {
-      const result = await this.#browser.navigate(sessionId, navigation, request.signal)
+      const result = await this.#browser.navigate(sessionId, navigation, request.signal, DISPLAY_METADATA_FIELDS)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -102,7 +113,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const command = parseSort(body)
     if (!command) return errorResponse("Invalid browser sort", 400)
     try {
-      const result = await this.#browser.sort(sessionId, command.sort, command.focusPath, request.signal)
+      const result = await this.#browser.sort(sessionId, command.sort, command.focusPath, request.signal, DISPLAY_METADATA_FIELDS)
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -122,6 +133,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         command,
         typeof body?.focusPath === "string" ? body.focusPath : undefined,
         request.signal,
+        DISPLAY_METADATA_FIELDS,
       )
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {

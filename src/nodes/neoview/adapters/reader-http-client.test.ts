@@ -130,6 +130,7 @@ describe("reader-http-client", () => {
       generation: 2,
       sort: { field: "date", order: "desc", directoriesFirst: true },
       sortFields: ["name", "date", "size", "type", "random", "path"],
+      metadataFields: [],
       sortSource: "memory",
       sortTemporary: false,
       globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },

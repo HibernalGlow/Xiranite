@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { PlatformDirectoryMetadataProvider } from "./PlatformDirectoryMetadataProvider.js"
 
@@ -27,5 +27,27 @@ describe("PlatformDirectoryMetadataProvider", () => {
     expect(entries[0]).toMatchObject({ size: 5, modifiedAt: expect.any(Number) })
     expect(entries[1]).toMatchObject({ modifiedAt: expect.any(Number) })
     expect(entries[1]?.size).toBeUndefined()
+  })
+
+  it("[neoview.folder.emm-batch] merges rating fallback and favorite tag counts in one batch", async () => {
+    const readDirectoryEmmRecords = vi.fn(async () => new Map([
+      ["D:/one.cbz", { ratingData: JSON.stringify({ value: 4.8 }), emmJson: JSON.stringify({ tags: [{ namespace: "female", tag: "glasses" }] }) }],
+      ["D:/two.cbz", { emmJson: JSON.stringify({ rating: 3.5, tags: [{ namespace: "male", tag: "glasses" }] }) }],
+    ]))
+    const provider = new PlatformDirectoryMetadataProvider(
+      { directoryEmmAvailable: true, readDirectoryEmmRecords },
+      { load: async () => ({ tags: [{ category: "female", tag: "glasses" }], mixedGender: true }) } as never,
+    )
+    const entries = await provider.hydrate([
+      { name: "one.cbz", path: "D:/one.cbz", kind: "file", readerSupported: true },
+      { name: "two.cbz", path: "D:/two.cbz", kind: "file", readerSupported: true },
+      { name: "three.cbz", path: "D:/three.cbz", kind: "file", readerSupported: true },
+    ], new Set(["rating", "collectTagCount"]))
+    expect(readDirectoryEmmRecords).toHaveBeenCalledTimes(1)
+    expect(entries).toEqual([
+      expect.objectContaining({ rating: 4.8, collectTagCount: 1 }),
+      expect.objectContaining({ rating: 3.5, collectTagCount: 1 }),
+      expect.objectContaining({ rating: 4.2, collectTagCount: 0 }),
+    ])
   })
 })

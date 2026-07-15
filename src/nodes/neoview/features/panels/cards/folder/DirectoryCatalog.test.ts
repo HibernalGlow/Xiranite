@@ -45,6 +45,7 @@ function page(cursor: number, total: number): ReaderDirectoryPageDto {
     generation: 1,
     sort: { field: "name", order: "asc", directoriesFirst: true },
     sortFields: ["name", "date", "size", "type", "random", "path"],
+    metadataFields: [],
     sortSource: "global-default",
     sortTemporary: false,
     globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },

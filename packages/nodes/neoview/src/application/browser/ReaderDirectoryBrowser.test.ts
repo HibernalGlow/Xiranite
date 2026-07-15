@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryListingProvider } from "../../ports/ReaderDirectoryListingProvider.js"
 import { CoreReaderDirectoryBrowser } from "./ReaderDirectoryBrowser.js"
@@ -23,7 +23,7 @@ describe("CoreReaderDirectoryBrowser", () => {
     const browser = new CoreReaderDirectoryBrowser(provider)
     const opened = await browser.open("C:/books")
     expect(opened.entries).toHaveLength(128)
-    expect(browser.list(opened.sessionId, opened.nextCursor, 32)?.entries).toHaveLength(12)
+    expect((await browser.list(opened.sessionId, opened.nextCursor, 32))?.entries).toHaveLength(12)
     const parent = await browser.navigate(opened.sessionId, { action: "up" })
     expect(parent).toMatchObject({
       path: "C:/",
@@ -34,6 +34,29 @@ describe("CoreReaderDirectoryBrowser", () => {
     })
     const back = await browser.navigate(opened.sessionId, { action: "back" })
     expect(back).toMatchObject({ path: "C:/books", canGoBack: false, canGoForward: true, generation: 3 })
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.folder.emm-visible-batch] hydrates only the requested page with supported display metadata", async () => {
+    const hydrate = vi.fn(async (entries) => entries.map((entry) => ({ ...entry, rating: 4.5, collectTagCount: 2 })))
+    const browser = new CoreReaderDirectoryBrowser({
+      async read(path) {
+        return {
+          path,
+          entries: Array.from({ length: 260 }, (_, index) => ({
+            name: `book-${index}.cbz`, path: `${path}/book-${index}.cbz`, kind: "file" as const, readerSupported: true,
+          })),
+        }
+      },
+    }, { supportedFields: new Set(["rating", "collectTagCount"]), hydrate })
+    const fields = new Set(["rating", "collectTagCount"] as const)
+    const opened = await browser.open("C:/books", undefined, "tab", fields)
+    expect(opened.metadataFields).toEqual(["rating", "collectTagCount"])
+    expect(opened.entries).toHaveLength(128)
+    expect(hydrate).toHaveBeenLastCalledWith(expect.any(Array), fields, undefined)
+    const page = await browser.list(opened.sessionId, 256, 64, fields)
+    expect(page?.entries).toHaveLength(4)
+    expect(hydrate.mock.calls.at(-1)?.[0]).toHaveLength(4)
     await browser[Symbol.asyncDispose]()
   })
 

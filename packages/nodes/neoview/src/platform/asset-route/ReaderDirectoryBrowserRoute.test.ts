@@ -96,4 +96,44 @@ describe("ReaderDirectoryBrowserRoute", () => {
       await store.close()
     }
   })
+
+  it("[neoview.folder.emm-route] exposes EMM sort capabilities and hydrates the visible batch", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-emm-"))
+    directories.push(directory)
+    const first = join(directory, "first.cbz")
+    const second = join(directory, "second.cbz")
+    await writeFile(first, "one")
+    await writeFile(second, "two")
+    const route = new ReaderDirectoryBrowserRoute(undefined, {
+      directoryEmmAvailable: true,
+      readDirectoryEmmRecords: async () => new Map([
+        [first, { ratingData: JSON.stringify({ value: 2 }) }],
+        [second, { emmJson: JSON.stringify({ rating: 5, tags: [] }) }],
+      ]),
+    })
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const body = await opened.json() as { sessionId: string; sortFields: string[]; metadataFields: string[]; entries: Array<{ name: string; rating: number }> }
+      expect(body.sortFields).toContain("rating")
+      expect(body.sortFields).toContain("collectTagCount")
+      expect(body.metadataFields).toEqual(["rating", "collectTagCount"])
+      expect(body.entries).toEqual([
+        expect.objectContaining({ name: "first.cbz", rating: 2, collectTagCount: 0 }),
+        expect.objectContaining({ name: "second.cbz", rating: 5, collectTagCount: 0 }),
+      ])
+      const sorted = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/sort`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ field: "rating", order: "desc", directoriesFirst: true }),
+      })))!
+      const sortedBody = await sorted.json() as { entries: Array<{ name: string }> }
+      expect(sortedBody.entries.map((entry) => entry.name)).toEqual(["second.cbz", "first.cbz"])
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
 })

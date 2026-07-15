@@ -12,7 +12,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`partial=23`，`pending=51`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`partial=26`，`pending=48`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### architecture（5）
 
@@ -197,8 +197,8 @@
 - [ ] `folder.sort.emm` EMM 评分与收藏标签数量排序
   - 目标：rating 使用默认评分兜底；collectTagCount 使用 EMM 批量 hydration，缺失/错误值排序稳定。
   - 源码：`components/FolderStack/sortingUtils.ts`、`stores/folderPanelStore/types.ts`
-  - 测试：待补
-  - 备注：不得逐项 N+1 查询数据库。
+  - 测试：`neoview.folder.emm-batch`、`neoview.folder.emm-route`、`neoview.folder.sort-fields`
+  - 备注：rating_data/emm_json 经同一 Reader SQLite 连接按 256 项批量读取，默认评分 4.2，收藏标签从 EMM setting.json 按需加载；完整 EMM 配置 UI 与大目录专项基准仍待完成。
 - [ ] `folder.sort.precedence` 排序规则优先级
   - 目标：严格实现 临时当前目录规则 > 文件夹记忆 > 标签默认 > 全局默认，并在导航/恢复时可解释当前来源。
   - 源码：`stores/folderTabStore/sortingFiltering.svelte.ts`、`stores/folderPanelStore/core.svelte.ts`
@@ -371,13 +371,13 @@
 - [ ] `folder.emm.metadata` EMM 元数据批量 hydration
   - 目标：可见/排序需求按批查询评分、标签、收藏标签数等元数据，带 generation 和缓存，不产生逐文件 N+1。
   - 源码：`components/FolderListItem.svelte`、`components/FolderStack/sortingUtils.ts`
-  - 测试：待补
-  - 备注：EMM provider 是可选 capability，缺失时优雅降级。
+  - 测试：`neoview.folder.emm-sqlite-batch`、`neoview.folder.emm-settings`、`neoview.folder.emm-batch`、`neoview.folder.emm-visible-batch`、`neoview.folder.emm-route`
+  - 备注：现有 SqliteReaderDataStore 实现可选 EMM record port；首批与稀疏页仅 hydration 当前 128 项，排序时按 256 项批次读取并定期 yield，缺少兼容 thumbs 列时不开放字段。完整标签 DTO、缓存失效与搜索 provider 仍待完成。
 - [ ] `folder.emm.display` 评分、标签与收藏信息显示
   - 目标：各视图按空间显示评分、标签、收藏数量和缺失态，tooltip 提供完整信息。
   - 源码：`components/FolderListItem.svelte`、`components/FavoriteTagPanel.svelte`
-  - 测试：待补
-  - 备注：默认评分设置参与显示与排序。
+  - 测试：`neoview.folder.emm-display`
+  - 备注：compact 与 cover-grid 已显示评分和收藏标签数，默认评分 4.2 同时参与显示/排序；完整标签、其余四种视图、tooltip 详情与可配置默认评分仍待完成。
 - [ ] `folder.emm.edit` 编辑 EMM 标签与评分
   - 目标：单项/批量编辑标签与评分，乐观更新、失败回滚并让搜索/排序立即一致。
   - 源码：`components/FolderContextMenu.svelte`、`components/FavoriteTagPanel.svelte`

@@ -108,6 +108,7 @@ export interface ReaderDirectoryEntryDto {
 }
 
 export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
+export type ReaderDirectoryMetadataFieldDto = "date" | "size" | "rating" | "collectTagCount"
 export type ReaderDirectorySortOrderDto = "asc" | "desc"
 
 export interface ReaderDirectorySortDto {
@@ -135,6 +136,7 @@ export interface ReaderDirectoryPageDto {
   generation: number
   sort: ReaderDirectorySortDto
   sortFields: ReaderDirectorySortFieldDto[]
+  metadataFields: ReaderDirectoryMetadataFieldDto[]
   sortSource: ReaderDirectorySortSourceDto
   sortTemporary: boolean
   globalDefaultSort: ReaderDirectorySortDto

@@ -151,6 +151,23 @@ describe("SqliteReaderDataStore", () => {
     expect(verified.get("SELECT COUNT(*) AS count FROM xr_reader_folder_sort_defaults")).toEqual({ count: 2 })
     verified.close()
   })
+
+  it("[neoview.folder.emm-sqlite-batch] reads legacy EMM business columns without decoding thumbnail blobs", async () => {
+    const { path } = await fixture()
+    const seeded = await openFixtureDatabase(path)
+    seeded.exec(`
+      UPDATE thumbs SET rating_data = '{"value":4.7}', emm_json = '{"rating":3.0,"tags":[]}' WHERE key = 'D:/cover.jpg';
+      INSERT INTO thumbs (key, category, value, emm_json) VALUES ('D:/other.cbz', 'file', X'00', '{"rating":2.5,"tags":[]}');
+    `)
+    seeded.close()
+    const store = await SqliteReaderDataStore.open(path)
+    expect(store.directoryEmmAvailable).toBe(true)
+    await expect(store.readDirectoryEmmRecords(["D:/cover.jpg", "D:/other.cbz", "D:/missing.cbz"])).resolves.toEqual(new Map([
+      ["D:/cover.jpg", { ratingData: '{"value":4.7}', emmJson: '{"rating":3.0,"tags":[]}' }],
+      ["D:/other.cbz", { ratingData: undefined, emmJson: '{"rating":2.5,"tags":[]}' }],
+    ]))
+    await store.close()
+  })
 })
 
 function bookmark(id: string, starred: boolean, listIds: readonly string[]) {

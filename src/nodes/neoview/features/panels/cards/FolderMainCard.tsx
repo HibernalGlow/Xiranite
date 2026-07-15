@@ -7,7 +7,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, Grid2X2, List, Lock, MoreHorizontal, RefreshCw, Unlock } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, Grid2X2, Heart, List, Lock, MoreHorizontal, RefreshCw, Star, Unlock } from "lucide-react"
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -546,6 +546,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
                   disabled={disabled}
                   selected={Boolean(entry && selectedPaths.has(entry.path))}
                   focused={entry?.path === focusedPath}
+                  showRating={catalog.metadataFields.includes("rating")}
+                  showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   onSelect={selectEntry}
                   onActivate={activate}
                 />
@@ -575,6 +577,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
                   disabled={disabled}
                   selected={Boolean(entry && selectedPaths.has(entry.path))}
                   focused={entry?.path === focusedPath}
+                  showRating={catalog.metadataFields.includes("rating")}
+                  showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
                   onSelect={selectEntry}
                   onActivate={activate}
@@ -589,7 +593,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   )
 }
 
-function DirectoryListItem({ entry, index, disabled, selected, focused, onSelect, onActivate }: DirectoryItemProps) {
+function DirectoryListItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, onSelect, onActivate }: DirectoryItemProps) {
   if (!entry) return <div className="h-[34px] animate-pulse border-b bg-muted/30" aria-hidden="true" />
   return (
     <button
@@ -604,17 +608,19 @@ function DirectoryListItem({ entry, index, disabled, selected, focused, onSelect
       onKeyDown={(event) => { if (event.key === "Enter") onActivate(entry) }}
     >
       <EntryIcon entry={entry} />
-      <span className="truncate">{entry.name}</span>
+      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+      <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
     </button>
   )
 }
 
-function DirectoryGridItem({ entry, index, disabled, selected, focused, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { thumbnailUrl?: string }) {
+function DirectoryGridItem({ entry, index, disabled, selected, focused, showRating, showCollectTagCount, thumbnailUrl, onSelect, onActivate }: DirectoryItemProps & { thumbnailUrl?: string }) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
+  const showMetadata = showRating || showCollectTagCount
   return (
     <button
       type="button"
-      className="grid h-36 w-full grid-rows-[1fr_auto] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent"
+      className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
       aria-selected={selected}
       data-focused={focused || undefined}
       disabled={disabled}
@@ -632,6 +638,7 @@ function DirectoryGridItem({ entry, index, disabled, selected, focused, thumbnai
         <EntryIcon entry={entry} className="size-3.5" />
         <span className="truncate">{entry.name}</span>
       </span>
+      {showMetadata ? <EntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>
   )
 }
@@ -642,8 +649,33 @@ interface DirectoryItemProps {
   disabled: boolean
   selected: boolean
   focused: boolean
+  showRating: boolean
+  showCollectTagCount: boolean
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
   onActivate(entry: ReaderDirectoryEntryDto): void
+}
+
+function EntryMetadata({
+  entry,
+  showRating,
+  showCollectTagCount,
+  className = "",
+}: {
+  entry: ReaderDirectoryEntryDto
+  showRating: boolean
+  showCollectTagCount: boolean
+  className?: string
+}) {
+  return (
+    <span className={`flex shrink-0 items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground ${className}`}>
+      {showRating ? <span className="inline-flex items-center gap-0.5" title={`评分 ${formatRating(entry.rating)}`}><Star className="size-3" />{formatRating(entry.rating)}</span> : null}
+      {showCollectTagCount ? <span className="inline-flex items-center gap-0.5" title={`收藏标签 ${entry.collectTagCount ?? 0}`}><Heart className="size-3" />{entry.collectTagCount ?? 0}</span> : null}
+    </span>
+  )
+}
+
+function formatRating(value: number | undefined): string {
+  return Number.isFinite(value) ? value!.toFixed(1) : "-"
 }
 
 function EntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
