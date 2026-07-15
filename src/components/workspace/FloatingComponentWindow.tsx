@@ -108,7 +108,15 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
           )}
         </main>
         {integratedTitlebars === 0 ? (
-          <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
+          <>
+            <div
+              aria-hidden="true"
+              data-testid="floating-window-fallback-drag-region"
+              onDoubleClick={handleTitleBarDoubleClick}
+              className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
+            />
+            <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
+          </>
         ) : null}
       </div>
     </FloatingWindowFrameProvider>

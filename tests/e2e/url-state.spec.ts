@@ -50,6 +50,12 @@ test("floating component query params still render a popup window", async ({ pag
     await expect(page.getByTestId("floating-window-titlebar")).toHaveCount(0)
     const nodeTitlebar = page.getByTestId("xlchemy-header")
     await expect(nodeTitlebar).toHaveAttribute("data-floating-window-titlebar", "true")
+    const dragRegion = page.getByTestId("xlchemy-window-drag-region")
+    await expect.poll(() => dragRegion.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return style.getPropertyValue("--wails-draggable").trim() === "drag"
+        && element.getBoundingClientRect().width >= 100
+    })).toBe(true)
     await expect(page.getByTestId("floating-window-fallback-controls")).toHaveCount(0)
     const captionControls = page.getByTestId("floating-window-integrated-controls")
     await expect(captionControls.getByRole("button")).toHaveCount(3)
@@ -66,6 +72,12 @@ test("floating component query params still render a popup window", async ({ pag
         && Math.abs((controlsBox.y + controlsBox.height) - (titlebarBox.y + titlebarBox.height)) <= 1
         && Math.abs((controlsBox.x + controlsBox.width) - (titlebarBox.x + titlebarBox.width)) <= 1
     }).toBe(true)
+
+    await openApp(page, backend, "/?floatingComponent=comp-popup-fallback&moduleId=scratch&windowId=popup-fallback")
+    await expect(page.getByTestId("floating-window-fallback-controls").getByRole("button")).toHaveCount(3)
+    await expect.poll(() => page.getByTestId("floating-window-fallback-drag-region").evaluate((element) => (
+      getComputedStyle(element).getPropertyValue("--wails-draggable").trim()
+    ))).toBe("drag")
   } finally {
     backend.close()
   }

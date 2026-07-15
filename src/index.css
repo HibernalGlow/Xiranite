@@ -75,26 +75,31 @@ samp {
 .xiranite-app-region-drag,
 .xiranite-app-region-drag * {
   --wails-draggable: drag;
+  -webkit-app-region: drag;
 }
 
 .xiranite-app-region-no-drag,
 .xiranite-app-region-no-drag * {
   --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 .xiranite-floating-window,
 .xiranite-floating-window * {
   --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 .xiranite-floating-window .xiranite-app-region-drag,
 .xiranite-floating-window .xiranite-app-region-drag * {
   --wails-draggable: drag;
+  -webkit-app-region: drag;
 }
 
 .xiranite-floating-window .xiranite-app-region-no-drag,
 .xiranite-floating-window .xiranite-app-region-no-drag * {
   --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 /* Window caption controls are host chrome, not node controls. Keep them out
