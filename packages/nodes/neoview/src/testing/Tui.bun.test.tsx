@@ -9,6 +9,7 @@ import sharp from "sharp"
 import type { HeadlessReaderSnapshot } from "../core.js"
 import { createNeoviewTuiDefinition } from "../interaction.js"
 import { NeoviewTui } from "../Tui.js"
+import { createZipFixture } from "../../test/fixture-builders/create-zip-fixture.js"
 
 test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader and navigates with shared controller methods", async () => {
   let current = 0
@@ -88,8 +89,31 @@ test("[neoview.tui.image] renders a real directory page through the shared termi
     create: { width: 8, height: 12, channels: 4, background: "#d45d4c" },
   }).png().toBuffer()
   await writeFile(join(root, "001.png"), pageBytes)
+  try {
+    await expectRealSourceRenders(root, "001.png")
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("[neoview.tui.archive] renders a real CBZ page through the existing archive provider", async () => {
+  const pageBytes = await sharp({
+    create: { width: 8, height: 12, channels: 4, background: "#4f6fc4" },
+  }).png().toBuffer()
+  const fixture = await createZipFixture({
+    name: "prototype.cbz",
+    entries: [{ path: "pages/001.png", bytes: pageBytes, level: 6 }],
+  })
+  try {
+    await expectRealSourceRenders(fixture.path, "001.png")
+  } finally {
+    await fixture.cleanup()
+  }
+})
+
+async function expectRealSourceRenders(path: string, pageName: string): Promise<void> {
   const definition = createNeoviewTuiDefinition("zh")
-  definition.schema.initialValues.path = root
+  definition.schema.initialValues.path = path
   const screen = await testRender(
     <NeoviewTui definition={definition} language="zh" onExit={() => undefined} imageBackend="half-block" />,
     { width: 132, height: 34, useMouse: true },
@@ -101,7 +125,7 @@ test("[neoview.tui.image] renders a real directory page through the shared termi
     await act(async () => screen.mockMouse.click(open!.x + 1, open!.y + Math.max(0, Math.floor(open!.height / 2))))
     await act(async () => screen.flush())
     await act(async () => waitUntil(
-      () => screen.captureCharFrame().includes("001.png"),
+      () => screen.captureCharFrame().includes(pageName),
       () => screen.captureCharFrame(),
       5_000,
     ))
@@ -114,9 +138,8 @@ test("[neoview.tui.image] renders a real directory page through the shared termi
     expect(screen.captureCharFrame()).toContain("1 / 1")
   } finally {
     await act(async () => screen.renderer.destroy())
-    await rm(root, { recursive: true, force: true })
   }
-})
+}
 
 async function waitUntil(predicate: () => boolean, describe: () => string, timeoutMs = 2_000): Promise<void> {
   const deadline = Date.now() + timeoutMs

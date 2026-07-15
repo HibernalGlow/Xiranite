@@ -1432,7 +1432,7 @@ xneoview --connect inspect book.cbz
   -> 连接已运行的 Xiranite 后端，共享 session/index/cache
 ```
 
-`--connect` 是后续能力，不阻塞当前本地 CLI。现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；CLI 与 OpenTUI React 工作台都调用这个 controller，不直接访问 provider。TUI 已支持路径打开、关闭、100 页有界页面列表、当前单/双页 frame、上一页、下一页和页码跳转；当前页面以可取消的 `HeadlessPageStream` 进入共享 `TerminalImagePreview`，原型默认使用 SIXEL，并保留 Kitty、auto 和 truecolor half-block 可注入后端，替换/退出时关闭 stream/source。自动化已覆盖 fake session 翻页资源归零和真实目录图片的 half-block 像素显示；真实 SIXEL/Kitty 终端、缩略图 gallery、连接常驻 backend、设置与更多 feature 命令仍属于后续能力，不能把当前原型描述成完整 TUI。
+`--connect` 是后续能力，不阻塞当前本地 CLI。现有 `ReaderHeadlessController` 位于 application 层，只依赖 `ReaderService`，由 `platform.ts` 延迟装配目录、ZIP、7-Zip 和流式元数据探测；CLI 与 OpenTUI React 工作台都调用这个 controller，不直接访问 provider。TUI 已支持路径打开、关闭、100 页有界页面列表、当前单/双页 frame、上一页、下一页和页码跳转；当前页面以可取消的 `HeadlessPageStream` 进入共享 `TerminalImagePreview`，原型默认使用 SIXEL，并保留 Kitty、auto 和 truecolor half-block 可注入后端，替换/退出时关闭 stream/source。自动化已覆盖 fake session 翻页资源归零、真实目录图片和真实 Deflate CBZ 的 half-block 像素显示；CBZ 测试只向默认 controller 传 archive path，不包含 TUI 专属 ZIP 分支。真实 SIXEL/Kitty 终端、7z/RAR 的 TUI 集成语料、缩略图 gallery、连接常驻 backend、设置与更多 feature 命令仍属于后续能力，不能把当前原型描述成完整 TUI。
 
 CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`。不提供明文 `--password`，密码不会进入 URL、JSON、日志或 TOML；环境变量值会复制为每次 open 独立的 `Uint8Array`，在 open 返回后由 session credential store 接管副本，CLI 临时字节在命令结束时主动覆零。JSON DTO 不包含本地 source path、临时物化路径或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
 
