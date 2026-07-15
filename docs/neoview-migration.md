@@ -1688,6 +1688,8 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 - Thumbnail V1/V3/V4 的服务实现仍要收口为一个 adapter，但不能因此丢失原库已有记录；
 - 缩略图清理、统计、vacuum、损坏恢复和 EMM 同步等现有数据库能力必须保留。
 
+当前已完成非破坏性接入的第一条纵切：`LegacyNeoViewDataLocator` 在 Windows 固定解析 `%APPDATA%\NeoView\thumbnails.db`，并显式返回同目录 WAL/SHM；macOS/Linux 使用对应 Tauri app-data 约定，绝不读取 TOML 的 `paths.thumbnail_directory` 作为主库。`LegacyThumbnailDatabaseInspector` 以 SQLite 只读/query-only 模式检查文件、sidecar、`user_version`、`journal_mode`、表、列、索引和 `metadata.version`，按 `current`、`legacy-upgrade-required`、`newer-read-only`、`incompatible` 分类；它不会创建缺失数据库、checkpoint、ALTER 或读取任何 key/blob/EMM 内容。`xneoview thumbnail-db-inspect [path] [--json]` 默认检查原版位置，也可检查脱敏副本。fixture 覆盖冻结的 2.4 schema、活动 WAL/SHM、旧版缺列、较新版本、无关 SQLite 和损坏文件；当前机器的真实原版库也已只读验证为 2.4/current。该 feature 仍保持 `pending`，直到 LZ4 blob 读取、批量命中/生成、单写者、维护、备份迁移和 V1/V3/V4 service 收口全部完成。
+
 `system.thumbnailDirectory`/TOML `nodes.neoview.paths.thumbnail_directory` 是用户配置的缩略图、超分或临时产物目录，不等于上述 SQLite 主库路径。导入时应保留这个设置，但它不能把主数据库从 `%APPDATA%\NeoView\thumbnails.db` 悄悄迁走。若检测到历史版本曾在自定义目录创建另一个 `thumbnails.db`，应作为一次性兼容源合并或挂载，并在报告中展示，不能恢复多主库运行模式。
 
 ### 18.6 兼容性验收

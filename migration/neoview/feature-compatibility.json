@@ -113,8 +113,8 @@
       "legacyCommandPatterns": ["(thumbnail|thumb_v4|failed_thumbnail|failed_thumbnails|failed_count_v3|cleanup_by_path_prefix_v3|cleanup_invalid_paths_v3|collect_tags|matching_collect)"],
       "settingsKeys": ["system.thumbnailDirectory"],
       "dataStores": ["%APPDATA%/NeoView/thumbnails.db", "thumbnail V1/V3/V4 records", "WAL/SHM"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
-      "behaviorCases": ["原数据库位置沿用", "批量命中与生成", "失败记录", "清理/vacuum/统计", "V1/V3/V4 兼容迁移", "视频和归档缩略图"],
-      "testIds": [], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch"], "knownDifferences": []
+      "behaviorCases": ["原数据库位置沿用", "只读 schema/WAL 探测", "批量命中与生成", "失败记录", "清理/vacuum/统计", "V1/V3/V4 兼容迁移", "视频和归档缩略图"],
+      "testIds": ["neoview.thumbnail.legacy-path", "neoview.thumbnail.schema", "neoview.thumbnail.inspect-cli"], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch"], "knownDifferences": []
     },
     {
       "id": "cache-lifecycle",

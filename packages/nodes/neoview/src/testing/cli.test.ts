@@ -225,6 +225,20 @@ describe("NeoView CLI", () => {
       await rm(directory, { recursive: true, force: true })
     }
   })
+
+  it("[neoview.thumbnail.inspect-cli] inspects the original app-data path without creating a database", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-thumbnail-inspect-"))
+    try {
+      const output: unknown[] = []
+      await runProgram(["thumbnail-db-inspect", "--json"], host(output, { APPDATA: directory }))
+      const report = JSON.parse(output.join(""))
+      expect(report).toMatchObject({ exists: false, compatibility: "missing" })
+      expect(report.path.replace(/\\/g, "/")).toBe(`${directory.replace(/\\/g, "/")}/NeoView/thumbnails.db`)
+      await expect(readFile(report.path, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({

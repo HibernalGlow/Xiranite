@@ -24,7 +24,7 @@
 | 8 | `image-decode-formats` | 图片格式、方向、尺寸与浏览器直出/转换 | pending | gui/cli/tui | 21 | 37 | JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG<br>EXIF 方向<br>ICC/透明度<br>坏图<br>超大图<br>浏览器直出和转换 fallback |
 | 9 | `animated-image-video` | 动图、视频、字幕和播放控制 | pending | gui | 11 | 21 | 动图自动播放与暂停<br>视频进度/音量/倍速<br>字幕轨道<br>切页停止与恢复<br>FFmpeg 缺失诊断<br>视频缩略图 |
 | 10 | `preload-stream-scheduler` | 预读、渐进加载、流传输和全局调度 | pending | gui/cli/tui | 26 | 22 | View/Ahead/Background 优先级<br>方向感知预读<br>渐进批次<br>背压<br>快速翻页取消<br>多节点资源配额 |
-| 11 | `thumbnail-system` | 统一缩略图生成、持久化、数据库维护与迁移 | pending | gui/cli/tui | 49 | 48 | 原数据库位置沿用<br>批量命中与生成<br>失败记录<br>清理/vacuum/统计<br>V1/V3/V4 兼容迁移<br>视频和归档缩略图 |
+| 11 | `thumbnail-system` | 统一缩略图生成、持久化、数据库维护与迁移 | pending | gui/cli/tui | 49 | 48 | 原数据库位置沿用<br>只读 schema/WAL 探测<br>批量命中与生成<br>失败记录<br>清理/vacuum/统计<br>V1/V3/V4 兼容迁移<br>视频和归档缩略图 |
 | 12 | `cache-lifecycle` | 内存、磁盘、索引和资源缓存生命周期 | pending | gui/cli/tui | 32 | 15 | 真实字节预算<br>pin 和方向淘汰<br>mtime/hash 失效<br>损坏恢复<br>80% hysteresis<br>session close/hibernate 回收 |
 | 13 | `super-resolution` | 超分模型、预览、队列、缓存与保存 | pending | gui/cli/tui | 65 | 50 | OpenComic system CLI 探测<br>Upscayl daemon<br>waifu2x/realcugan<br>IllustrationJaNai/MangaJaNai<br>tile/scale/TTA/GPU<br>AVIF/JXL 无损输入<br>取消和保存 |
 | 14 | `metadata-dimensions-properties` | 文件信息、图片属性、尺寸扫描和系统元数据 | pending | gui/cli/tui | 14 | 15 | 尺寸/格式/大小/时间<br>批量尺寸扫描<br>归档 entry 属性<br>取消扫描<br>系统 shell 元数据 fallback |
@@ -163,8 +163,8 @@
 - 端：gui、cli、tui
 - 设置：`system.thumbnailDirectory`
 - 数据：%APPDATA%/NeoView/thumbnails.db、thumbnail V1/V3/V4 records、WAL/SHM
-- 行为：原数据库位置沿用；批量命中与生成；失败记录；清理/vacuum/统计；V1/V3/V4 兼容迁移；视频和归档缩略图
-- 测试：待补
+- 行为：原数据库位置沿用；只读 schema/WAL 探测；批量命中与生成；失败记录；清理/vacuum/统计；V1/V3/V4 兼容迁移；视频和归档缩略图
+- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`
 - 性能基准：`thumbnail-hit`、`thumbnail-batch`
 - 已知差异：无
 

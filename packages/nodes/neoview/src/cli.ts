@@ -13,7 +13,7 @@ import { createReaderHeadlessController } from "./platform.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 
 const CLI_NAME = "xneoview"
-const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import"])
+const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import", "thumbnail-db-inspect"])
 const VALUE_FLAGS = new Set([
   "--entry",
   "--index",
@@ -66,6 +66,11 @@ export async function runProgram(
 
   const parsed = parseArguments(args.slice(1))
   validateCommandOptions(command, parsed)
+  if (command === "thumbnail-db-inspect") {
+    if (parsed.positionals.length > 1) throw usage("thumbnail-db-inspect accepts at most one database path.")
+    await runThumbnailDatabaseInspect(parsed.positionals[0], parsed.booleans.has("--json"), host)
+    return
+  }
   const path = parsed.positionals[0]
   if (!path || parsed.positionals.length !== 1) {
     const kind = command.startsWith("settings-") ? "settings JSON path" : "book path"
@@ -116,9 +121,33 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json", "--yes", "--config", "--strategy", "--modules"]))
     return
   }
+  if (command === "thumbnail-db-inspect") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
   for (const option of ["--strategy", "--modules", "--yes"]) {
     if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
   }
+}
+
+async function runThumbnailDatabaseInspect(path: string | undefined, json: boolean, host: CliHost): Promise<void> {
+  let databasePath: string
+  if (path) databasePath = resolve(host.cwd, path)
+  else {
+    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+    databasePath = new LegacyNeoViewDataLocator().locate({ env: host.env }).thumbnailDatabasePath
+  }
+  const { inspectLegacyThumbnailDatabase } = await import("./platform/thumbnails/LegacyThumbnailDatabaseInspector.js")
+  const report = await inspectLegacyThumbnailDatabase(databasePath)
+  if (json) {
+    writeJson(host, report)
+    return
+  }
+  writeLine(host, `NeoView thumbnail database: ${report.path}`)
+  writeLine(host, `Compatibility: ${report.compatibility}${report.bytes === undefined ? "" : ` (${report.bytes} bytes)`}`)
+  writeLine(host, `Version: metadata=${report.metadataVersion ?? "-"} user_version=${report.userVersion ?? "-"} journal=${report.journalMode ?? "-"}`)
+  writeLine(host, `Sidecars: WAL=${report.sidecars.wal.exists ? report.sidecars.wal.bytes ?? 0 : "missing"} SHM=${report.sidecars.shm.exists ? report.sidecars.shm.bytes ?? 0 : "missing"}`)
+  for (const issue of report.issues) writeLine(host, `- ${issue}`)
 }
 
 function rejectOptions(parsed: ParsedArguments, allowed: ReadonlySet<string>): void {
@@ -401,6 +430,7 @@ function formatCliHelp(): string {
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
+    "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
