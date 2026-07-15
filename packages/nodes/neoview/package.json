@@ -17,6 +17,10 @@
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
+    "./ui-core": {
+      "types": "./dist/ui-core.d.ts",
+      "default": "./dist/ui-core.js"
+    },
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"

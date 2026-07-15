@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -119,6 +119,57 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: {} })).toThrow("at least one")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { fitMode: "stretch" } })).toThrow("fitMode")
+  })
+
+  it("[neoview.folder.settings] normalizes the six views and bounded Niko column layout", () => {
+    expect(parseNeoviewRuntimeConfig({ folder: {
+      view_mode: "details",
+      preview_count: 9,
+      details: {
+        column_order: ["name", "rating", "path"],
+        hidden_columns: ["tags", "future-column"],
+        pinned_left: ["name", "rating"],
+        pinned_right: ["rating", "tags"],
+      },
+    } }).folderView).toEqual({
+      viewMode: "details",
+      previewCount: 9,
+      details: {
+        columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+        hiddenColumns: ["tags"],
+        pinnedLeft: ["name", "rating"],
+        pinnedRight: ["tags"],
+      },
+    })
+    expect(parseNeoviewFolderViewPatch({ folderView: {
+      viewMode: "mosaic-grid",
+      previewCount: 16,
+      details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+    } })).toEqual({
+      patch: { folderView: {
+        viewMode: "mosaic-grid",
+        previewCount: 16,
+        details: {
+          columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+          hiddenColumns: ["tags"],
+          pinnedLeft: ["name"],
+          pinnedRight: ["rating"],
+        },
+      } },
+      tomlPatch: { folder: {
+        view_mode: "mosaic-grid",
+        preview_count: 16,
+        details: {
+          column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
+          hidden_columns: ["tags"],
+          pinned_left: ["name"],
+          pinned_right: ["rating"],
+        },
+      } },
+    })
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")
   })
 
   it("[neoview.settings.shell] normalizes legacy panel settings into bounded shell options", () => {

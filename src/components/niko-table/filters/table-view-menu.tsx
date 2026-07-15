@@ -72,6 +72,10 @@ export interface TableViewMenuProps<TData> {
   onReset?: () => void
   /** Label for the reset button. Defaults to "Reset to defaults". */
   resetLabel?: string
+  triggerLabel?: string
+  triggerAriaLabel?: string
+  searchPlaceholder?: string
+  emptyLabel?: string
 }
 
 interface MenuRowProps<TData> {
@@ -114,6 +118,11 @@ export function TableViewMenu<TData>({
   lockedColumnIds,
   onReset,
   resetLabel,
+  triggerLabel = "View",
+  triggerAriaLabel = "Toggle columns",
+  searchPlaceholder = "Search columns...",
+  emptyLabel = "No columns found.",
+  className,
 }: TableViewMenuProps<TData>) {
   // Controlled search. cmdk's built-in filter hides non-matching `CommandItem`s
   // but still renders all of them — at 200+ columns that's the bottleneck.
@@ -162,26 +171,26 @@ export function TableViewMenu<TData>({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          aria-label="Toggle columns"
+          aria-label={triggerAriaLabel}
           role="combobox"
           variant="outline"
           size="sm"
-          className="ml-auto hidden h-8 lg:flex"
+          className={cn("ml-auto hidden h-8 lg:flex", className)}
         >
           <Settings2 />
-          View
+          {triggerLabel}
           <ChevronsUpDown className="ml-auto opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-fit p-0">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search columns..."
+            placeholder={searchPlaceholder}
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
-            <CommandEmpty>No columns found.</CommandEmpty>
+            <CommandEmpty>{emptyLabel}</CommandEmpty>
             <CommandGroup>
               {visibleColumns.map(column => (
                 <MenuRow

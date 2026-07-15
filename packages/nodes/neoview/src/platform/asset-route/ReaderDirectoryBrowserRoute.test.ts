@@ -13,6 +13,29 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.open-file-location] opens a file's parent directory and returns its stable selection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-file-location-"))
+    directories.push(directory)
+    const selectedPath = join(directory, "selected.cbz")
+    await writeFile(join(directory, "before.cbz"), "before")
+    await writeFile(selectedPath, "selected")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: selectedPath }),
+      })))!
+      expect(response.status).toBe(201)
+      await expect(response.json()).resolves.toMatchObject({
+        path: directory,
+        suggestedSelection: { path: selectedPath, index: 1 },
+      })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.browser.http] returns directories and naturally sorted reader sources", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-"))
     directories.push(directory)

@@ -11,7 +11,7 @@ import {
   READER_PANEL_MANIFEST,
   type ReaderCardId,
   type ReaderPanelId,
-} from "@xiranite/node-neoview/core"
+} from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
 import type {
@@ -21,6 +21,7 @@ import type {
   ReaderSessionDto,
   ReaderShellConfigDto,
   ReaderViewDefaultsPatch,
+  ReaderFolderViewPatch,
 } from "../../adapters/reader-http-client"
 
 export type ReaderPanelSide = "left" | "right"
@@ -37,6 +38,8 @@ export interface ReaderPanelContext {
   onBoardLayout?(patch: ReaderBoardLayoutPatch): Promise<void>
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
+  folderView?: ReaderRuntimeConfigDto["folderView"]
+  onFolderView?(patch: ReaderFolderViewPatch["folderView"]): Promise<void>
 }
 
 export interface ReaderPanelDefinition {

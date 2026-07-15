@@ -6,7 +6,7 @@
  */
 import { Columns2, Eye, Square } from "lucide-react"
 import { useState } from "react"
-import type { ReaderFitMode } from "@xiranite/node-neoview/core"
+import type { ReaderFitMode } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
 import type { ReaderRuntimeConfigDto, ReaderViewDefaultsPatch } from "../../../adapters/reader-http-client"

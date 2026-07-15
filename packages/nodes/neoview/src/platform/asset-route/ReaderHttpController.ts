@@ -31,6 +31,8 @@ import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import {
+  parseNeoviewFolderViewPatch,
+  DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
@@ -45,6 +47,8 @@ import {
   type NeoviewShellConfigPatch,
   type NeoviewViewDefaults,
   type NeoviewViewDefaultsPatch,
+  type NeoviewFolderViewConfig,
+  type NeoviewFolderViewPatch,
 } from "../../application/config/ReaderRuntimeConfig.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -98,6 +102,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateShellOptions?: (patch: NeoviewShellConfigPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewShellConfig>
   viewDefaults?: NeoviewViewDefaults
   updateViewDefaults?: (patch: NeoviewViewDefaultsPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewViewDefaults>
+  folderView?: NeoviewFolderViewConfig
+  updateFolderView?: (patch: NeoviewFolderViewPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewFolderViewConfig>
   slideshow?: NeoviewSlideshowConfig
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
 }
@@ -120,10 +126,12 @@ export class ReaderHttpController implements AsyncDisposable {
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
+  #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
+  readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
@@ -196,10 +204,12 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
     this.#viewDefaults = options.viewDefaults ?? DEFAULT_NEOVIEW_VIEW_DEFAULTS
+    this.#folderView = options.folderView ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
     this.#slideshow = options.slideshow ?? DEFAULT_NEOVIEW_SLIDESHOW_CONFIG
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
+    this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
   }
 
@@ -397,6 +407,27 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "folderView")) {
+      if (!this.#updateFolderView) return jsonResponse({ error: "Reader folder view config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewFolderViewPatch>
+      try {
+        parsed = parseNeoviewFolderViewPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      let updated: NeoviewFolderViewConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateFolderView!(parsed.patch, parsed.tomlPatch)
+        this.#folderView = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
     let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch> | ReturnType<typeof parseNeoviewBoardLayoutPatch>
     try {
@@ -434,6 +465,7 @@ export class ReaderHttpController implements AsyncDisposable {
       schemaVersion: 1 as const,
       shell: { ...this.#shellOptions, revision: this.#shellRevision },
       viewDefaults: this.#viewDefaults,
+      folderView: this.#folderView,
       slideshow: this.#slideshow,
     }
   }

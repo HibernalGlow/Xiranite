@@ -14,7 +14,7 @@ import {
   type ReaderFitMode,
   type ReaderPresentation,
   type ReaderSlideshow,
-} from "@xiranite/node-neoview/core"
+} from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"

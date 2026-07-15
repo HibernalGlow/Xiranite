@@ -13,6 +13,7 @@ describe("reader-http-client", () => {
       if (url.endsWith("/reader/config")) return Response.json({
         shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
         viewDefaults: { fitMode: "fit", pageMode: "single" },
+        folderView: { viewMode: "compact", previewCount: 4, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [] } },
         slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
       })
       if (url.endsWith("/reader/sessions")) return Response.json({ sessionId: "reader-1" })
@@ -26,12 +27,14 @@ describe("reader-http-client", () => {
     expect(await client.config()).toEqual({
       shell: { showDelayMs: 0, panelLayout: {}, cardLayout: {} },
       viewDefaults: { fitMode: "fit", pageMode: "single" },
+      folderView: { viewMode: "compact", previewCount: 4, details: { columnOrder: ["name"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [] } },
       slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
     })
     expect(await client.updateSidebarLayout({ side: "left", pinned: false, width: 360 })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateCardLayout({ cardId: "page-navigation", expanded: false })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateBoardLayout({ expectedRevision: 4, board: { panels: [], cards: [] } })).toEqual({ showDelayMs: 0, panelLayout: {}, cardLayout: {} })
     expect(await client.updateViewDefaults({ viewDefaults: { fitMode: "fit-width" } })).toEqual({ fitMode: "fit", pageMode: "single" })
+    expect(await client.updateFolderView!({ folderView: { viewMode: "details", previewCount: 9 } })).toMatchObject({ viewMode: "compact", previewCount: 4 })
     expect(await client.updateSlideshow({ slideshow: { intervalSeconds: 8, loop: true } })).toEqual({ intervalSeconds: 5, loop: false, random: false, fadeTransition: true })
     await client.open("D:/books/demo.cbz")
     await client.listPages("reader-1", 64, 32)
@@ -41,26 +44,27 @@ describe("reader-http-client", () => {
     await client.updateSessionOptions("reader-1", { layout: { pageMode: "double" } })
     await client.close("reader-1")
 
-    expect(fetchMock).toHaveBeenCalledTimes(13)
+    expect(fetchMock).toHaveBeenCalledTimes(14)
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/config")
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "PATCH" })
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ side: "left", pinned: false, width: 360 })
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cardId: "page-navigation", expanded: false })
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ expectedRevision: 4, board: { panels: [], cards: [] } })
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ viewDefaults: { fitMode: "fit-width" } })
-    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ slideshow: { intervalSeconds: 8, loop: true } })
-    const [openUrl, openInit] = fetchMock.mock.calls[6]!
+    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ folderView: { viewMode: "details", previewCount: 9 } })
+    expect(JSON.parse(String(fetchMock.mock.calls[6]?.[1]?.body))).toEqual({ slideshow: { intervalSeconds: 8, loop: true } })
+    const [openUrl, openInit] = fetchMock.mock.calls[7]!
     expect(String(openUrl)).toBe("http://127.0.0.1:41000/reader/sessions")
     expect(openInit?.method).toBe("POST")
     expect(new Headers(openInit?.headers).get("x-xiranite-token")).toBe("reader-token")
     expect(JSON.parse(String(openInit?.body))).toEqual({ path: "D:/books/demo.cbz" })
-    expect(String(fetchMock.mock.calls[7]?.[0])).toContain("/reader/s/reader-1/pages?cursor=64&limit=32")
-    expect(String(fetchMock.mock.calls[8]?.[0])).toContain("/reader/s/reader-1/pages?cursor=0&limit=64&query=cover&thumbnails=0")
-    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("/reader/s/reader-1/navigate")
-    expect(JSON.parse(String(fetchMock.mock.calls[10]?.[1]?.body))).toEqual({ action: "goTo", pageIndex: 17 })
-    expect(String(fetchMock.mock.calls[11]?.[0])).toContain("/reader/s/reader-1/options")
-    expect(JSON.parse(String(fetchMock.mock.calls[11]?.[1]?.body))).toEqual({ layout: { pageMode: "double" } })
-    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE", keepalive: true })
+    expect(String(fetchMock.mock.calls[8]?.[0])).toContain("/reader/s/reader-1/pages?cursor=64&limit=32")
+    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("/reader/s/reader-1/pages?cursor=0&limit=64&query=cover&thumbnails=0")
+    expect(String(fetchMock.mock.calls[10]?.[0])).toContain("/reader/s/reader-1/navigate")
+    expect(JSON.parse(String(fetchMock.mock.calls[11]?.[1]?.body))).toEqual({ action: "goTo", pageIndex: 17 })
+    expect(String(fetchMock.mock.calls[12]?.[0])).toContain("/reader/s/reader-1/options")
+    expect(JSON.parse(String(fetchMock.mock.calls[12]?.[1]?.body))).toEqual({ layout: { pageMode: "double" } })
+    expect(fetchMock.mock.calls[13]?.[1]).toMatchObject({ method: "DELETE", keepalive: true })
   })
 
   it("[neoview.react.control] surfaces structured backend errors", async () => {

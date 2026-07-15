@@ -11,8 +11,35 @@ export interface NeoviewRuntimeConfig {
   sessionOptions: Partial<ReaderSessionOptions>
   shellOptions: NeoviewShellConfig
   viewDefaults: NeoviewViewDefaults
+  folderView: NeoviewFolderViewConfig
   slideshow: NeoviewSlideshowConfig
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
+}
+
+export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
+export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
+export type NeoviewFolderViewMode = typeof NEOVIEW_FOLDER_VIEW_MODES[number]
+export type NeoviewFolderDetailColumn = typeof NEOVIEW_FOLDER_DETAIL_COLUMNS[number]
+
+export interface NeoviewFolderDetailsConfig {
+  columnOrder: NeoviewFolderDetailColumn[]
+  hiddenColumns: NeoviewFolderDetailColumn[]
+  pinnedLeft: NeoviewFolderDetailColumn[]
+  pinnedRight: NeoviewFolderDetailColumn[]
+}
+
+export interface NeoviewFolderViewConfig {
+  viewMode: NeoviewFolderViewMode
+  previewCount: 4 | 9 | 16
+  details: NeoviewFolderDetailsConfig
+}
+
+export interface NeoviewFolderViewPatch {
+  folderView: {
+    viewMode?: NeoviewFolderViewMode
+    previewCount?: 4 | 9 | 16
+    details?: Partial<NeoviewFolderDetailsConfig>
+  }
 }
 
 export interface NeoviewPresentationDiskCacheConfig {
@@ -119,6 +146,17 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
 }
 
+export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
+  viewMode: "compact",
+  previewCount: 4,
+  details: {
+    columnOrder: [...NEOVIEW_FOLDER_DETAIL_COLUMNS],
+    hiddenColumns: [],
+    pinnedLeft: ["name"],
+    pinnedRight: [],
+  },
+}
+
 export const DEFAULT_NEOVIEW_SLIDESHOW_CONFIG: NeoviewSlideshowConfig = {
   intervalSeconds: 5,
   loop: false,
@@ -169,6 +207,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     sessionOptions: {},
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
+    folderView: DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
   }
@@ -178,6 +217,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const reader = optionalRecord(config.reader, "[nodes.neoview.reader]")
   const panels = optionalRecord(config.panels, "[nodes.neoview.panels]")
   const slideshow = optionalRecord(config.slideshow, "[nodes.neoview.slideshow]")
+  const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
@@ -215,9 +255,107 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels),
     viewDefaults: { fitMode, pageMode },
+    folderView: parseFolderViewConfig(folder),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
   }
+}
+
+export function parseNeoviewFolderViewPatch(value: unknown): {
+  patch: NeoviewFolderViewPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader folder view patch")
+  if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
+  const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
+  const allowed = new Set(["viewMode", "previewCount", "details"])
+  const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: NeoviewFolderViewPatch = { folderView: {} }
+  const toml: Record<string, unknown> = {}
+  if (folder.viewMode !== undefined) {
+    patch.folderView.viewMode = optionalEnum(folder.viewMode, "reader folder view patch.viewMode", NEOVIEW_FOLDER_VIEW_MODES)
+    toml.view_mode = patch.folderView.viewMode
+  }
+  if (folder.previewCount !== undefined) {
+    const count = boundedInteger(folder.previewCount, 4, 16, "reader folder view patch.previewCount")
+    if (count !== 4 && count !== 9 && count !== 16) throw new Error("reader folder view patch.previewCount must be 4, 9 or 16.")
+    patch.folderView.previewCount = count
+    toml.preview_count = count
+  }
+  if (folder.details !== undefined) {
+    const details = requireRecord(folder.details, "reader folder view patch.details")
+    const detailKeys = new Set(["columnOrder", "hiddenColumns", "pinnedLeft", "pinnedRight"])
+    const unknownDetails = Object.keys(details).filter((key) => !detailKeys.has(key))
+    if (unknownDetails.length) throw new Error(`reader folder view patch.details contains unsupported fields: ${unknownDetails.join(", ")}.`)
+    const detailPatch: Partial<NeoviewFolderDetailsConfig> = {}
+    const detailToml: Record<string, unknown> = {}
+    if (details.columnOrder !== undefined) {
+      detailPatch.columnOrder = normalizedDetailColumns(details.columnOrder, "columnOrder", true)
+      detailToml.column_order = detailPatch.columnOrder
+    }
+    if (details.hiddenColumns !== undefined) {
+      detailPatch.hiddenColumns = normalizedDetailColumns(details.hiddenColumns, "hiddenColumns", false)
+      if (detailPatch.hiddenColumns.includes("name")) throw new Error("reader folder view patch.details.hiddenColumns cannot hide name.")
+      detailToml.hidden_columns = detailPatch.hiddenColumns
+    }
+    if (details.pinnedLeft !== undefined) {
+      detailPatch.pinnedLeft = normalizedDetailColumns(details.pinnedLeft, "pinnedLeft", false)
+      detailToml.pinned_left = detailPatch.pinnedLeft
+    }
+    if (details.pinnedRight !== undefined) {
+      detailPatch.pinnedRight = normalizedDetailColumns(details.pinnedRight, "pinnedRight", false)
+      detailToml.pinned_right = detailPatch.pinnedRight
+    }
+    if (!Object.keys(detailPatch).length) throw new Error("reader folder view patch.details must change at least one field.")
+    if (detailPatch.pinnedLeft && detailPatch.pinnedRight && detailPatch.pinnedLeft.some((id) => detailPatch.pinnedRight!.includes(id))) {
+      throw new Error("reader folder view patch.details cannot pin a column to both sides.")
+    }
+    patch.folderView.details = detailPatch
+    toml.details = detailToml
+  }
+  if (!Object.keys(patch.folderView).length) throw new Error("reader folder view patch must change at least one field.")
+  return { patch, tomlPatch: { folder: toml } }
+}
+
+function parseFolderViewConfig(value: Record<string, unknown> | undefined): NeoviewFolderViewConfig {
+  if (!value) return DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
+  const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
+  const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
+    .filter((id) => id !== "name")
+  const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
+  const pinnedRight = normalizedDetailColumns(details?.pinned_right ?? [], "[nodes.neoview.folder.details].pinned_right", false, false)
+    .filter((id) => !pinnedLeft.includes(id))
+  const previewCount = value.preview_count === undefined
+    ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.previewCount
+    : boundedInteger(value.preview_count, 4, 16, "[nodes.neoview.folder].preview_count")
+  if (previewCount !== 4 && previewCount !== 9 && previewCount !== 16) throw new Error("[nodes.neoview.folder].preview_count must be 4, 9 or 16.")
+  return {
+    viewMode: optionalEnum(value.view_mode, "[nodes.neoview.folder].view_mode", NEOVIEW_FOLDER_VIEW_MODES) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.viewMode,
+    previewCount,
+    details: {
+      columnOrder: normalizedDetailColumns(details?.column_order ?? NEOVIEW_FOLDER_DETAIL_COLUMNS, "[nodes.neoview.folder.details].column_order", true, false),
+      hiddenColumns,
+      pinnedLeft,
+      pinnedRight,
+    },
+  }
+}
+
+function normalizedDetailColumns(value: unknown, path: string, appendMissing: boolean, strict = true): NeoviewFolderDetailColumn[] {
+  if (!Array.isArray(value) || value.length > (strict ? NEOVIEW_FOLDER_DETAIL_COLUMNS.length : 64)) throw new Error(`${path} must be a bounded array of known column IDs.`)
+  const known = new Set<string>(NEOVIEW_FOLDER_DETAIL_COLUMNS)
+  const result: NeoviewFolderDetailColumn[] = []
+  for (const item of value) {
+    if (typeof item !== "string" || !known.has(item)) {
+      if (strict) throw new Error(`${path} contains an unknown column ID.`)
+      continue
+    }
+    const column = item as NeoviewFolderDetailColumn
+    if (!result.includes(column)) result.push(column)
+  }
+  if (appendMissing) for (const column of NEOVIEW_FOLDER_DETAIL_COLUMNS) if (!result.includes(column)) result.push(column)
+  return result
 }
 
 function parsePresentationDiskCache(value: Record<string, unknown> | undefined): NeoviewPresentationDiskCacheConfig {

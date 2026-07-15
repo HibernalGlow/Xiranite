@@ -8,7 +8,7 @@
  */
 import { Pause, Play, Repeat2, Shuffle } from "lucide-react"
 import { useSyncExternalStore } from "react"
-import type { ReaderSlideshow } from "@xiranite/node-neoview/core"
+import type { ReaderSlideshow } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"

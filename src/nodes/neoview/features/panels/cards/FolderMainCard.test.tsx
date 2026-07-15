@@ -221,6 +221,41 @@ describe("FolderMainCard", () => {
     ))
     expect(currentView.getByText("扩展名")).toBeTruthy()
   })
+
+  it("[neoview.folder.settings-persistence] restores the configured renderer and persists one settled view change", async () => {
+    const onFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => page({ total: 0 })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={{
+            viewMode: "details",
+            previewCount: 9,
+            details: {
+              columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+              hiddenColumns: ["tags"],
+              pinnedLeft: ["name"],
+              pinnedRight: ["rating"],
+            },
+          }}
+          onFolderView={onFolderView}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const currentView = within(view.container)
+    await waitFor(() => expect(currentView.getByLabelText("详细信息").getAttribute("data-state")).toBe("on"))
+    fireEvent.click(currentView.getByLabelText("封面列表"))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
+    expect(onFolderView).toHaveBeenCalledWith({ viewMode: "cover-list" })
+  })
 })
 
 function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDto {

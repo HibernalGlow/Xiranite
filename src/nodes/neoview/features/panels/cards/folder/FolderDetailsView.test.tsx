@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import type { DirectoryCatalog } from "./DirectoryCatalog"
@@ -14,9 +14,16 @@ describe("FolderDetailsView", () => {
         catalog={catalog()}
         disabled={false}
         selectedPaths={new Set(["C:/books/book.cbz"])}
+        layout={{
+          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          hiddenColumns: [],
+          pinnedLeft: ["name"],
+          pinnedRight: [],
+        }}
         onRangeChange={onRangeChange}
         onSelect={onSelect}
         onActivate={onActivate}
+        onLayoutChange={vi.fn()}
       />,
     )
 
@@ -29,6 +36,33 @@ describe("FolderDetailsView", () => {
     expect(tableHost.getAttribute("data-total-rows")).toBe("10000")
     expect(tableHost.querySelectorAll("tbody tr").length).toBeLessThan(80)
     view.unmount()
+  })
+
+  it("[neoview.folder.details-columns] reuses Niko column controls and emits one canonical visibility change", async () => {
+    const onLayoutChange = vi.fn()
+    render(
+      <FolderDetailsView
+        catalog={catalog()}
+        disabled={false}
+        selectedPaths={new Set()}
+        layout={{
+          columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+          hiddenColumns: [],
+          pinnedLeft: ["name"],
+          pinnedRight: [],
+        }}
+        onRangeChange={vi.fn()}
+        onSelect={vi.fn()}
+        onActivate={vi.fn()}
+        onLayoutChange={onLayoutChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole("combobox", { name: "管理详细信息列" }))
+    const tagMenuItem = (await screen.findAllByText("标签")).find((element) => element.closest("[cmdk-item]"))
+    expect(tagMenuItem).toBeTruthy()
+    fireEvent.click(tagMenuItem!)
+    await waitFor(() => expect(onLayoutChange).toHaveBeenCalledTimes(1))
+    expect(onLayoutChange).toHaveBeenCalledWith({ hiddenColumns: ["tags"] })
   })
 })
 

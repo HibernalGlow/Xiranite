@@ -73,11 +73,16 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (typeof body?.path !== "string" || !body.path.trim()) return errorResponse("path must be a non-empty string", 400)
     if (body.scopeId !== undefined && (typeof body.scopeId !== "string" || !body.scopeId.trim())) return errorResponse("scopeId must be a non-empty string", 400)
     try {
+      const resolvedPath = await realpath(body.path)
+      const pathStats = await stat(resolvedPath)
+      const directoryPath = pathStats.isDirectory() ? resolvedPath : dirname(resolvedPath)
+      const focusPath = pathStats.isDirectory() ? undefined : resolvedPath
       return Response.json(await this.#browser.open(
-        body.path,
+        directoryPath,
         request.signal,
         typeof body.scopeId === "string" ? body.scopeId : undefined,
         DISPLAY_METADATA_FIELDS,
+        focusPath,
       ), responseInit(201))
     } catch (error) {
       if (request.signal.aborted) throw error
@@ -217,3 +222,5 @@ function errorResponse(error: string, status: number): Response {
 function responseInit(status = 200): ResponseInit {
   return { status, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } }
 }
+import { realpath, stat } from "node:fs/promises"
+import { dirname } from "node:path"

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { DEFAULT_READER_PRESENTATION, ReaderSlideshow } from "@xiranite/node-neoview/core"
+import { DEFAULT_READER_PRESENTATION, ReaderSlideshow } from "@xiranite/node-neoview/ui-core"
 
 import { ReaderViewToolbar } from "./ReaderViewToolbar"
 

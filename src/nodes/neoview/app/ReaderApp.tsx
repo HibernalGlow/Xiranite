@@ -8,7 +8,7 @@ import {
   rotateReaderPresentation,
   stepReaderManualScale,
   type ReaderPresentation,
-} from "@xiranite/node-neoview/core"
+} from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,8 @@ import {
   type ReaderCardLayoutPatch,
   type ReaderBoardLayoutPatch,
   type ReaderViewDefaultsPatch,
+  type ReaderFolderViewConfig,
+  type ReaderFolderViewPatch,
   type ReaderSlideshowConfig,
   type ReaderSlideshowPatch,
 } from "../adapters/reader-http-client"
@@ -45,6 +47,16 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   loop: false,
   random: false,
   fadeTransition: true,
+}
+const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
+  viewMode: "compact",
+  previewCount: 4,
+  details: {
+    columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+    hiddenColumns: [],
+    pinnedLeft: ["name"],
+    pinnedRight: [],
+  },
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
@@ -124,6 +136,10 @@ export function ReaderApp({
   const confirmedSlideshowConfigRef = useRef<ReaderSlideshowConfig>({ ...INITIAL_SLIDESHOW_CONFIG })
   const slideshowWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const slideshowGenerationRef = useRef(0)
+  const folderViewRef = useRef<ReaderFolderViewConfig>(structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
+  const confirmedFolderViewRef = useRef<ReaderFolderViewConfig>(structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
+  const folderViewWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const folderViewGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
@@ -131,6 +147,7 @@ export function ReaderApp({
   const [error, setError] = useState<string | undefined>(undefined)
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
   const [viewDefaults, setViewDefaults] = useState<ReaderRuntimeConfigDto["viewDefaults"]>(() => ({ ...INITIAL_VIEW_DEFAULTS }))
+  const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
@@ -152,6 +169,11 @@ export function ReaderApp({
         setViewDefaults(config.viewDefaults)
       }
       setShell(config.shell)
+      if (folderViewGenerationRef.current === 0) {
+        folderViewRef.current = config.folderView
+        confirmedFolderViewRef.current = config.folderView
+        setFolderView(config.folderView)
+      }
       if (slideshowGenerationRef.current === 0) {
         slideshowConfigRef.current = config.slideshow
         confirmedSlideshowConfigRef.current = config.slideshow
@@ -325,6 +347,40 @@ export function ReaderApp({
     await write
   }
 
+  async function persistFolderView(patch: ReaderFolderViewPatch["folderView"]) {
+    const next: ReaderFolderViewConfig = {
+      ...folderViewRef.current,
+      ...patch,
+      details: { ...folderViewRef.current.details, ...patch.details },
+    }
+    folderViewRef.current = next
+    setFolderView(next)
+    if (!clientRef.current.updateFolderView) {
+      confirmedFolderViewRef.current = next
+      return
+    }
+    const generation = ++folderViewGenerationRef.current
+    const write = folderViewWriteQueueRef.current.then(async () => {
+      try {
+        const updated = await clientRef.current.updateFolderView!({ folderView: patch })
+        confirmedFolderViewRef.current = updated
+        if (generation === folderViewGenerationRef.current) {
+          folderViewRef.current = updated
+          setFolderView(updated)
+        }
+      } catch (cause) {
+        if (generation === folderViewGenerationRef.current) {
+          const confirmed = confirmedFolderViewRef.current
+          folderViewRef.current = confirmed
+          setFolderView(confirmed)
+        }
+        setError(errorMessage(cause))
+      }
+    })
+    folderViewWriteQueueRef.current = write
+    await write
+  }
+
   async function closeSession() {
     slideshow.stop()
     operationRef.current?.abort()
@@ -495,6 +551,8 @@ export function ReaderApp({
     onBoardLayout: commitBoardLayout,
     viewDefaults,
     onViewDefaults: applyConfiguredViewDefaults,
+    folderView,
+    onFolderView: persistFolderView,
     ...(session ? { session } : {}),
   }
   const leftEdge: ReaderEdgeSlot | undefined = (session || hasSessionlessPanel("left", shell)) && (shell?.edges.left.enabled ?? true) ? {

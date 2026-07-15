@@ -10,7 +10,7 @@ import {
   calculateReaderScale,
   type PresentationSize,
   type ReaderPresentation,
-} from "@xiranite/node-neoview/core"
+} from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { PageImage } from "./PageImage"

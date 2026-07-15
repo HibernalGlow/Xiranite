@@ -81,6 +81,16 @@ describe("ReaderHttpController", () => {
       random: patch.slideshow.random ?? true,
       fadeTransition: patch.slideshow.fadeTransition ?? true,
     }))
+    const updateFolderView = vi.fn(async (patch) => ({
+      viewMode: patch.folderView.viewMode ?? "compact" as const,
+      previewCount: patch.folderView.previewCount ?? 4 as const,
+      details: {
+        columnOrder: patch.folderView.details?.columnOrder ?? ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+        hiddenColumns: patch.folderView.details?.hiddenColumns ?? [],
+        pinnedLeft: patch.folderView.details?.pinnedLeft ?? ["name"],
+        pinnedRight: patch.folderView.details?.pinnedRight ?? [],
+      },
+    }))
     const updateShellOptions = vi.fn(async (patch) => ({
       showDelayMs: 50,
       hideDelayMs: 200,
@@ -123,6 +133,12 @@ describe("ReaderHttpController", () => {
       updateShellOptions,
       viewDefaults: { fitMode: "fit-height", pageMode: "single" },
       updateViewDefaults,
+      folderView: {
+        viewMode: "compact",
+        previewCount: 4,
+        details: { columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"], hiddenColumns: [], pinnedLeft: ["name"], pinnedRight: [] },
+      },
+      updateFolderView,
       slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
       updateSlideshow,
     })
@@ -135,9 +151,11 @@ describe("ReaderHttpController", () => {
         schemaVersion: 1,
         shell: { revision: 0, showDelayMs: 50, sidebars: { left: { width: 333 } } },
         viewDefaults: { fitMode: "fit-height", pageMode: "single" },
+        folderView: { viewMode: "compact", previewCount: 4, details: { pinnedLeft: ["name"] } },
         slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
       })
-      expect(JSON.stringify(body)).not.toMatch(/path|token|password/i)
+      expect(body).not.toHaveProperty("token")
+      expect(JSON.stringify(body)).not.toMatch(/password|sourcePath/i)
       const patched = (await controller.handle(jsonRequest("/reader/config", { side: "left", width: 401 }, true, "PATCH")))!
       expect(patched.status).toBe(200)
       expect(await patched.json()).toMatchObject({ shell: { sidebars: { left: { width: 401 } } } })
@@ -177,6 +195,14 @@ describe("ReaderHttpController", () => {
       expect(updateViewDefaults).toHaveBeenCalledWith(
         { viewDefaults: { fitMode: "original", pageMode: "double" } },
         { reader: { default_zoom_mode: "original", double_page_view: true } },
+      )
+      const folderPatched = (await controller.handle(jsonRequest("/reader/config", {
+        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } },
+      }, true, "PATCH")))!
+      expect(await folderPatched.json()).toMatchObject({ folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } } })
+      expect(updateFolderView).toHaveBeenCalledWith(
+        { folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"] } } },
+        { folder: { view_mode: "details", preview_count: 9, details: { hidden_columns: ["tags"] } } },
       )
       const slideshowPatched = (await controller.handle(jsonRequest("/reader/config", {
         slideshow: { intervalSeconds: 11, loop: true },

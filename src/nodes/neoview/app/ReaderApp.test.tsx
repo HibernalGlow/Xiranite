@@ -417,6 +417,16 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
   return {
     shell: shellConfig(),
     viewDefaults: { fitMode: "fit", pageMode: "single" },
+    folderView: {
+      viewMode: "compact",
+      previewCount: 4,
+      details: {
+        columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+        hiddenColumns: [],
+        pinnedLeft: ["name"],
+        pinnedRight: [],
+      },
+    },
     slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
   }
 }

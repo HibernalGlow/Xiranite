@@ -1,0 +1,44 @@
+export type { ReaderBook, ViewSource } from "./domain/book/book.js"
+export {
+  DEFAULT_READER_LAYOUT,
+  type FramePage,
+  type FrameSnapshot,
+  type PageMode,
+  type ReaderGeneration,
+  type ReaderLayout,
+} from "./domain/frame/frame.js"
+export {
+  calculateReaderFrameSize,
+  calculateReaderScale,
+  DEFAULT_READER_PRESENTATION,
+  normalizeReaderManualScale,
+  normalizeReaderRotation,
+  rotatePresentationSize,
+  rotateReaderPresentation,
+  stepReaderManualScale,
+  type PresentationSize,
+  type ReaderFitMode,
+  type ReaderPresentation,
+  type ReaderRotation,
+} from "./domain/presentation/presentation.js"
+export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
+export type { PageDimensions, PageId, PageMediaKind, ReaderPage } from "./domain/page/page.js"
+export {
+  ReaderSlideshow,
+  type ReaderSlideshowConfig,
+  type ReaderSlideshowOptions,
+  type ReaderSlideshowPosition,
+  type ReaderSlideshowSnapshot,
+  type ReaderSlideshowState,
+} from "./application/slideshow/ReaderSlideshow.js"
+export {
+  READER_CARD_MANIFEST,
+  READER_PANEL_MANIFEST,
+  readerCardCanMoveTo,
+  readerPanelAcceptsCards,
+  type ReaderCardId,
+  type ReaderCardManifestEntry,
+  type ReaderPanelId,
+  type ReaderPanelManifestEntry,
+  type ReaderPanelPosition,
+} from "./application/config/ReaderLayoutManifest.js"

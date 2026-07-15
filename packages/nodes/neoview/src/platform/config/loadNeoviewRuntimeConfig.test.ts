@@ -127,7 +127,7 @@ describe("loadNeoviewSessionOptions", () => {
     })
   })
 
-  it("[neoview.settings.runtime-gui] applies the same TOML defaults in the HTTP composition", async () => {
+  it("[neoview.settings.runtime-gui] [neoview.folder.settings-toml] applies the same TOML defaults in the HTTP composition", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-runtime-http-"))
     roots.push(root)
     const bookPath = join(root, "book")
@@ -190,6 +190,28 @@ describe("loadNeoviewSessionOptions", () => {
       expect(persistedConfig).toContain("[nodes.neoview.slideshow]")
       expect(persistedConfig).toContain("interval_seconds = 14")
       expect(persistedConfig).toContain("fade_transition = false")
+      const folderPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ folderView: {
+          viewMode: "details",
+          previewCount: 9,
+          details: { columnOrder: ["name", "rating", "path"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+        } }),
+      }))
+      expect(await folderPatched?.json()).toMatchObject({
+        folderView: { viewMode: "details", previewCount: 9, details: { hiddenColumns: ["tags"], pinnedRight: ["rating"] } },
+      })
+      const folderConfig = await readFile(configPath, "utf8")
+      expect(folderConfig).toContain("[nodes.neoview.folder]")
+      expect(folderConfig).toContain("view_mode = \"details\"")
+      expect(folderConfig).toContain("preview_count = 9")
+      expect(folderConfig).toContain("[nodes.neoview.folder.details]")
+      expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({
+        viewMode: "details",
+        previewCount: 9,
+        details: { columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"] },
+      })
       const reopened = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

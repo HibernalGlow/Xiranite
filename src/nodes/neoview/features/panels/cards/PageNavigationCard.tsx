@@ -158,7 +158,7 @@ function PageListCard({
   }
 
   return (
-    <div className="flex h-full min-h-80 flex-col gap-2" data-neoview-page-list="true">
+    <div className="flex h-[clamp(20rem,60vh,36rem)] min-h-0 flex-col gap-2" data-neoview-page-list="true">
       <div className="flex items-center gap-1">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />

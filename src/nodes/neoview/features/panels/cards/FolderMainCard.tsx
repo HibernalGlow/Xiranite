@@ -31,6 +31,8 @@ import type {
   ReaderDirectorySortFieldDto,
   ReaderDirectorySortPreferenceCommandDto,
   ReaderDirectorySortSourceDto,
+  ReaderFolderViewMode,
+  ReaderFolderViewConfig,
 } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import {
@@ -69,8 +71,19 @@ const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
   "global-default": "全局默认",
 }
 
-type FolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
+type FolderViewMode = ReaderFolderViewMode
 type FolderPreviewCount = 4 | 9 | 16
+
+const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
+  viewMode: "compact",
+  previewCount: 4,
+  details: {
+    columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+    hiddenColumns: [],
+    pinnedLeft: ["name"],
+    pinnedRight: [],
+  },
+}
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 
@@ -85,7 +98,7 @@ interface SavedDirectoryState {
   gridSnapshot?: GridStateSnapshot
 }
 
-export default function FolderMainCard({ client, disabled, sourcePath, onOpen }: ReaderPanelContext) {
+export default function FolderMainCard({ client, disabled, sourcePath, onOpen, folderView = DEFAULT_FOLDER_VIEW, onFolderView }: ReaderPanelContext) {
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
@@ -105,8 +118,8 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
   const historyStatesRef = useRef(new Map<string, SavedDirectoryState>())
   const [draftPath, setDraftPath] = useState(sourcePath ?? "")
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
-  const [viewMode, setViewMode] = useState<FolderViewMode>("compact")
-  const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(4)
+  const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
+  const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set())
   const [focusedPath, setFocusedPath] = useState<string>()
@@ -120,6 +133,9 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     void openBrowser(sourcePath)
     return disposeBrowser
   }, [sourcePath])
+
+  useEffect(() => setViewMode(folderView.viewMode), [folderView.viewMode])
+  useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
 
   useEffect(() => {
     if (!catalog || !viewUsesThumbnails(viewMode)) return
@@ -392,6 +408,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     }
     setRestoreState(nextState)
     setViewMode(next)
+    void onFolderView?.({ viewMode: next })
   }
 
   function switchPreviewCount(next: FolderPreviewCount) {
@@ -401,6 +418,7 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     setThumbnailUrls(new Map())
     setPreviewCount(next)
     thumbnailSignatureRef.current = ""
+    void onFolderView?.({ previewCount: next })
   }
 
   function selectEntry(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent) {
@@ -619,9 +637,11 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
               disabled={disabled}
               selectedPaths={selectedPaths}
               initialIndex={restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined}
+              layout={folderView.details}
               onRangeChange={requestRange}
               onSelect={selectEntry}
               onActivate={activate}
+              onLayoutChange={(details) => { void onFolderView?.({ details }) }}
             />
           </Suspense>
         ) : null}

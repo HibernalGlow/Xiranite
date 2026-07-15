@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderFitMode, ViewSource } from "@xiranite/node-neoview/ui-core"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export interface ReaderPageDto {
@@ -194,7 +194,32 @@ export interface ReaderShellConfigDto {
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode }
+  folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
+}
+
+export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
+export type ReaderFolderDetailColumn = "name" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
+
+export interface ReaderFolderDetailsConfig {
+  columnOrder: ReaderFolderDetailColumn[]
+  hiddenColumns: ReaderFolderDetailColumn[]
+  pinnedLeft: ReaderFolderDetailColumn[]
+  pinnedRight: ReaderFolderDetailColumn[]
+}
+
+export interface ReaderFolderViewConfig {
+  viewMode: ReaderFolderViewMode
+  previewCount: 4 | 9 | 16
+  details: ReaderFolderDetailsConfig
+}
+
+export interface ReaderFolderViewPatch {
+  folderView: {
+    viewMode?: ReaderFolderViewMode
+    previewCount?: 4 | 9 | 16
+    details?: Partial<ReaderFolderDetailsConfig>
+  }
 }
 
 export interface ReaderViewDefaultsPatch {
@@ -245,6 +270,7 @@ export interface ReaderHttpClient {
   updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
+  updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string): Promise<ReaderDirectoryPageDto>
@@ -335,6 +361,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.viewDefaults),
+    updateFolderView: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.folderView),
     updateSlideshow: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },

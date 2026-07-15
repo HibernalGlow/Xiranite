@@ -110,7 +110,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   }
   expect(opened.visiblePages[0]?.dimensions).toEqual({ width: 2000, height: 3000 })
 
-  const first = page.getByRole("img", { name: "001.jpg" })
+  const first = page.locator('img[alt="001.jpg"]')
   await expect(first).toBeVisible()
   await expect.poll(() => first.getAttribute("src")).not.toContain("format=webp")
   await expect.poll(() => first.evaluate((image: HTMLImageElement) => (
@@ -252,6 +252,32 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await page.locator('[data-reader-edge-trigger="left"]').hover()
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
+  await expect(leftSidebar.locator('[data-neoview-folder-card="true"]')).toBeVisible()
+  const folderViewResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"viewMode":"details"') === true
+  ))
+  await leftSidebar.getByRole("radio", { name: "详细信息" }).click()
+  expect((await folderViewResponse).status()).toBe(200)
+  await expect(leftSidebar.locator('[data-table-engine="niko-sparse"]')).toBeVisible()
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
+  const folderColumnsResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"hiddenColumns":["tags"]') === true
+  ))
+  await leftSidebar.getByRole("combobox", { name: "管理详细信息列" }).click()
+  await page.locator('[cmdk-item]').filter({ hasText: /^标签$/ }).click()
+  expect((await folderColumnsResponse).status()).toBe(200)
+  const folderToml = await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")
+  expect(folderToml).toContain("[nodes.neoview.folder]")
+  expect(folderToml).toContain('view_mode = "details"')
+  expect(folderToml).toContain("[nodes.neoview.folder.details]")
+  expect(folderToml).toMatch(/hidden_columns\s*=\s*\[\s*"tags"\s*\]/)
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
+  await page.keyboard.press("Escape")
+  await expect(page.locator('[cmdk-item]')).toHaveCount(0)
   await leftSidebar.getByRole("button", { name: "设置", exact: true }).click()
   await expect(page.locator('[data-reader-card="面板布局设置"]')).toBeVisible()
   await expect(page.locator('[data-reader-card="边栏管理设置"]')).toBeVisible()

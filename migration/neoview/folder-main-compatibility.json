@@ -227,8 +227,8 @@
       "targetContract": "显示名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分和标签信息；列宽/截断/tooltip 与原版一致。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.details-lazy", "neoview.folder.details-niko-sparse", "neoview.folder.details-on-demand", "neoview.folder.details-metadata", "neoview.folder.media-metadata-batch", "neoview.folder.media-metadata-fallback", "neoview.folder.media-metadata-emm-hit"],
-      "notes": "已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供名称、路径、类型、扩展名、大小、修改时间、尺寸、页数、评分、标签十列。Niko 仅在切换 details 后二级动态加载；显式 details 分页才按需请求 date/size/dimensions/pageCount/tags，图片尺寸复用 StreamingImageMetadataProbe，缺失归档页数复用 ReaderBookLoader，EMM page_count 命中时不打开归档；媒体并发固定为 2，单项失败保留基础行。列设置持久化、真实 Chromium 滚动/定位和原版视觉证据仍待完成。"
+      "testIds": ["neoview.folder.details-lazy", "neoview.folder.details-niko-sparse", "neoview.folder.details-columns", "neoview.folder.details-on-demand", "neoview.folder.details-metadata", "neoview.folder.media-metadata-batch", "neoview.folder.media-metadata-fallback", "neoview.folder.media-metadata-emm-hit"],
+      "notes": "已扩展现有 Niko Table 虚拟体支持 totalCount + 全局索引到已加载 row ID 的稀疏远端模式；10K 总量测试只向 TanStack 提交 2 条实体，并提供十列。Niko 仅在切换 details 后二级动态加载；显式 details 分页才按需请求昂贵 metadata，媒体并发固定为 2，单项失败保留基础行。列显隐复用 Niko ViewMenu、顺序复用 Niko/dnd-kit、固定复用 TanStack pinning，完整布局规范化写入 [nodes.neoview.folder.details]；名称列不可隐藏、未知未来列只在 DTO 中忽略而不破坏 TOML。列宽、真实 Chromium 滚动/定位和原版视觉证据仍待完成。"
     },
     {
       "id": "folder.view.thumbnail-size",
@@ -272,7 +272,7 @@
       "surfaces": ["GUI"],
       "status": "partial",
       "testIds": ["neoview.folder.mosaic-4", "neoview.folder.mosaic-9", "neoview.folder.mosaic-16", "neoview.folder.mosaic-single-image-dom"],
-      "notes": "文件夹已支持 4/9/16 选择，服务端按自然顺序稳定选取前 N 张并通过 sharp.composite() 合成为单个 WebP；前端每项始终只挂一个 img，文件项强制单预览。仍缺持久设置、缺图视觉 characterization、磁盘 profile 缓存与 10K/100K 性能门禁。"
+      "notes": "文件夹已支持 4/9/16 选择，服务端按自然顺序稳定选取前 N 张并通过 sharp.composite() 合成为单个 WebP；前端每项始终只挂一个 img，文件项强制单预览。preview_count 已规范化写入 [nodes.neoview.folder]；仍缺缺图视觉 characterization、磁盘 profile 缓存与 10K/100K 性能门禁。"
     },
     {
       "id": "folder.view.thumbnail-pipeline",
@@ -585,8 +585,8 @@
       "targetContract": "按项目类型提供默认打开、浏览文件夹、新标签打开、文件夹作为书籍打开；禁用项和默认动作与原版一致。",
       "surfaces": ["GUI", "CLI", "TUI"],
       "status": "partial",
-      "testIds": ["neoview.folder.activate-entry"],
-      "notes": "当前仅目录导航和受支持文件 onOpen。"
+      "testIds": ["neoview.folder.activate-entry", "neoview.folder.open-file-location"],
+      "notes": "目录导航和受支持文件 onOpen 已接入；browser session 现在接受文件或目录路径，文件路径由平台 fs.stat/realpath 打开父目录并返回稳定 suggestedSelection，Reader 打开 CBZ 后文件浏览器可自动选中当前文件。新标签打开、系统默认动作和文件夹作为书籍的完整菜单仍待完成。"
     },
     {
       "id": "folder.op.system",
@@ -819,9 +819,9 @@
       "sourceEvidence": ["stores/folderTabStore/layoutSettings.svelte.ts", "stores/folderTabStore/sortingFiltering.svelte.ts", "components/FolderToolbar/FolderToolbar.svelte"],
       "targetContract": "视图、排序、工具栏、树、预览、删除、穿透、空白动作和虚拟源设置规范化到 Xiranite TOML/专用数据库，不保留 localStorage 与多版本实现并存。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "旧设置只在 migration codec 读取一次。"
+      "status": "partial",
+      "testIds": ["neoview.folder.settings-persistence", "neoview.folder.details-columns", "neoview.folder.settings-toml"],
+      "notes": "六种 view_mode、4/9/16 preview_count 和 details 十列顺序/隐藏/左右固定已通过唯一 Reader config PATCH 规范化到 [nodes.neoview.folder]，串行乐观写入、失败回滚且不使用 localStorage；真实 TOML 落盘与重读已覆盖。排序、工具栏、树、删除、穿透、空白动作、虚拟源以及旧 folder localStorage 一次性导入仍待完成。"
     },
     {
       "id": "folder.performance.budgets",

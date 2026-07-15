@@ -1,5 +1,5 @@
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
-import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/core"
+import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/ui-core"
 
 export interface PageImageProps {
   page: ReaderPageDto

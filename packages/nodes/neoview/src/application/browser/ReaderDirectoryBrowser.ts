@@ -83,6 +83,7 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     signal?: AbortSignal,
     scopeId = "folder-main",
     displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+    focusPath?: string,
   ): Promise<ReaderDirectoryPage> {
     this.#assertOpen()
     const rawListing = await this.provider.read(path, signal)
@@ -105,7 +106,15 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     }
     if (this.#sessions.size >= 8) this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
-    return this.#page(session, 0, 128, displayFields, signal)
+    const focusIndex = focusPath ? listing.entries.findIndex((entry) => entry.path === focusPath) : -1
+    return this.#page(
+      session,
+      0,
+      128,
+      displayFields,
+      signal,
+      focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex },
+    )
   }
 
   async list(
