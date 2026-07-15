@@ -26,9 +26,17 @@ export interface ReaderNavigationDto {
   visiblePages: ReaderPageDto[]
 }
 
+export interface ReaderPageListDto {
+  pages: ReaderPageDto[]
+  nextCursor?: number
+  total: number
+}
+
 export interface ReaderHttpClient {
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
+  goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   close(sessionId: string): Promise<void>
 }
 
@@ -53,12 +61,25 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path }),
       signal,
     }),
+    listPages: (sessionId, cursor, limit, signal) => request<ReaderPageListDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
+      { signal },
+    ),
     navigate: (sessionId, action, signal) => request<ReaderNavigationDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/navigate`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),
+        signal,
+      },
+    ),
+    goTo: (sessionId, pageIndex, signal) => request<ReaderNavigationDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/navigate`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "goTo", pageIndex }),
         signal,
       },
     ),

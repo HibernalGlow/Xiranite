@@ -1,27 +1,18 @@
-import { fireEvent, render } from "@testing-library/react"
+import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { PageImage } from "./PageImage"
 
 describe("PageImage", () => {
-  it("[neoview.react.presentation-img] keeps the DOM img chain while selecting a transformed asset URL", () => {
-    const view = render(<PageImage page={page()} viewport={{ width: 800, height: 600, dpr: 1 }} visiblePageCount={1} />)
+  it("[neoview.react.presentation-img] [neoview.react.presentation-direct] uses the original asset URL on the only DOM img chain", () => {
+    const source = page()
+    const view = render(<PageImage page={source} />)
     const image = view.container.querySelector("img")!
     expect(image.tagName).toBe("IMG")
-    expect(new URL(image.getAttribute("src")!).searchParams.get("format")).toBe("webp")
+    expect(image.getAttribute("src")).toBe(source.assetUrl)
+    expect(new URL(image.getAttribute("src")!).searchParams.has("format")).toBe(false)
     expect(document.querySelector("canvas")).toBeNull()
-  })
-
-  it("[neoview.react.presentation-fallback] falls back to the original asset when native transform fails", () => {
-    const source = page()
-    const view = render(<PageImage page={source} viewport={{ width: 800, height: 600, dpr: 1 }} visiblePageCount={1} />)
-    const image = view.container.querySelector("img")!
-    expect(image.getAttribute("src")).not.toBe(source.assetUrl)
-    fireEvent.error(image)
-    expect(image.getAttribute("src")).toBe(source.assetUrl)
-    fireEvent.error(image)
-    expect(image.getAttribute("src")).toBe(source.assetUrl)
   })
 })
 

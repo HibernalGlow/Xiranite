@@ -32,7 +32,7 @@
 | 16 | `history-bookmarks-progress` | 历史、书签、阅读进度和数据洞察 | pending | gui/cli/tui | 1 | 20 | 记录和恢复进度<br>历史大小与自动清理<br>书签排序/搜索<br>历史与文件树联动<br>热力图和连续阅读统计 |
 | 17 | `search-sort-filter-library` | 搜索、排序、过滤、黑名单和快速库 | pending | gui/cli/tui | 9 | 16 | 名称/路径/标签搜索<br>自然排序和正逆序<br>媒体类型过滤<br>排除路径<br>快速库目标<br>大目录流式搜索取消 |
 | 18 | `input-bindings-radial-voice` | 键盘、鼠标、触摸、区域、径向菜单和语音控制 | pending | gui/tui | 1 | 38 | 上下文键绑定<br>鼠标单击/双击/按住<br>九宫格区域<br>手势录制<br>冲突管理<br>径向菜单<br>语音命令启停 |
-| 19 | `panels-toolbar-shell` | 左右边栏、顶部工具栏、底栏、面板和通知 | pending | gui | 1 | 173 | 边栏拖拽/尺寸/位置<br>面板排序和跨边栏移动<br>自动隐藏和触发区<br>置顶工具栏/底栏<br>通知样式/位置/占位<br>重启恢复 |
+| 19 | `panels-toolbar-shell` | 左右边栏、顶部工具栏、底栏、面板和通知 | pending | gui | 1 | 173 | 顶部标题/工具栏自动隐藏<br>底部缩略图/进度栏自动隐藏<br>左右侧栏独立显隐/固定/浮动<br>四边 hover 触发区和显示/隐藏延迟<br>左右侧栏拖拽宽度/高度/位置/对齐<br>面板排序和跨左右边栏移动<br>关闭边栏不挂载重面板<br>通知样式/位置/占位<br>重启恢复 |
 | 20 | `theme-background-empty-state` | 主题接管、阅读背景和空页面背景 | pending | gui | 1 | 14 | 旧主题字段仅导入报告<br>Xiranite 主题接管<br>solid/ambient/aurora/spotlight 阅读背景<br>空页图片/视频背景设置 |
 | 21 | `settings-import-export-backup` | 设置、完整导入导出、备份、Gist 和 TOML 统一 | pending | gui/cli/tui | 12 | 45 | 全部非主题字段可识别<br>模块选择<br>merge/overwrite<br>幂等导入<br>完整备份<br>Gist 同步<br>GUI/CLI/TUI 共用 TOML<br>运行时只写 TOML<br>未知字段报告 |
 | 22 | `startup-window-cli-lifecycle` | 启动参数、窗口状态、托盘、卡片窗口和生命周期 | pending | gui/cli | 7 | 11 | CLI 路径打开<br>窗口大小/位置恢复<br>最小化托盘<br>卡片窗口恢复<br>单实例导航<br>宿主关闭释放所有进程 |
@@ -109,7 +109,7 @@
 - 设置：`book.doublePageView`、`view.pageLayout`、`image.longImageScrollMode`、`view.autoRotate`
 - 数据：view state、per-book layout
 - 行为：封面和末页单页；宽页拆分或成对；不同尺寸双页对齐；全景组合；连续长图虚拟窗口；旋转后重排
-- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`、`neoview.react.presentation-double`、`neoview.react.presentation-resize`
+- 测试：`neoview.frame.layout`、`neoview.image.probe-layout`、`neoview.image.probe-orientation`
 - 性能基准：`layout-switch`、`continuous-scroll`
 - 已知差异：无
 
@@ -131,8 +131,8 @@
 - 设置：`image.supportedFormats`、`image.nativeJxl`、`performance.protocolDirectEnabled`、`performance.directUrlThresholdMB`
 - 数据：dimension cache、decoded image cache
 - 行为：JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG；EXIF 方向；ICC/透明度；坏图；超大图；浏览器直出和转换 fallback
-- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.react.presentation-original`、`neoview.react.presentation-transform`、`neoview.react.presentation-stability`、`neoview.react.presentation-double`、`neoview.react.presentation-img`、`neoview.react.presentation-resize`、`neoview.react.presentation-fallback`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`、`neoview.image.transform-query`、`neoview.image.transform-validation`、`neoview.image.transform-route`、`neoview.image.transform-sharp`、`neoview.image.transform-cancellation`、`neoview.image.transform-http`
-- 性能基准：`image-decode`、`image-first-frame`
+- 测试：`neoview.asset.security`、`neoview.asset.range`、`neoview.asset.archive-stream`、`neoview.asset.cancellation`、`neoview.http.e2e`、`neoview.react.smoke`、`neoview.react.cbz-e2e`、`neoview.react.presentation-img`、`neoview.react.presentation-direct`、`neoview.react.predecode`、`neoview.image.probe-formats`、`neoview.image.probe-orientation`、`neoview.image.probe-errors`、`neoview.image.probe-streaming`、`neoview.image.probe-budget`、`neoview.image.probe-cancellation`、`neoview.image.probe-fallback`、`neoview.image.probe-archive`、`neoview.image.probe-layout`、`neoview.image.transform-query`、`neoview.image.transform-validation`、`neoview.image.transform-route`、`neoview.image.transform-sharp`、`neoview.image.transform-cancellation`、`neoview.image.transform-http`
+- 性能基准：`image-decode`、`image-first-frame`、`reader-hot-page-turn`
 - 已知差异：无
 
 ### 动图、视频、字幕和播放控制（`animated-image-video`）
@@ -153,8 +153,8 @@
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`
-- 性能基准：`scheduler-contention`、`cancel-latency`
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`、`neoview.react.predecode`、`neoview.thumbnail.react-list`
+- 性能基准：`scheduler-contention`、`cancel-latency`、`reader-hot-page-turn`、`reader-loopback-pipeline`
 - 已知差异：无
 
 ### 统一缩略图生成、持久化、数据库维护与迁移（`thumbnail-system`）
@@ -164,8 +164,8 @@
 - 设置：`system.thumbnailDirectory`
 - 数据：%APPDATA%/NeoView/thumbnails.db、thumbnail V1/V3/V4 records、WAL/SHM
 - 行为：原数据库位置沿用；只读 schema/WAL 探测；批量命中与生成；失败记录；清理/vacuum/统计；V1/V3/V4 兼容迁移；视频和归档缩略图
-- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`、`neoview.thumbnail.asset-route`、`neoview.thumbnail.http`、`neoview.thumbnail.http-e2e`
-- 性能基准：`thumbnail-hit`、`thumbnail-batch`
+- 测试：`neoview.thumbnail.legacy-path`、`neoview.thumbnail.schema`、`neoview.thumbnail.inspect-cli`、`neoview.thumbnail.blob`、`neoview.thumbnail.read`、`neoview.thumbnail.asset-route`、`neoview.thumbnail.http`、`neoview.thumbnail.http-e2e`、`neoview.thumbnail.react-list`、`neoview.thumbnail.react-e2e`
+- 性能基准：`thumbnail-hit`、`thumbnail-batch`、`reader-hot-page-turn`
 - 已知差异：嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl
 
 ### 内存、磁盘、索引和资源缓存生命周期（`cache-lifecycle`）
@@ -175,7 +175,7 @@
 - 设置：`performance.cacheMemorySize`
 - 数据：memory LRU、persistent cache、cache index DB
 - 行为：真实字节预算；pin 和方向淘汰；mtime/hash 失效；损坏恢复；80% hysteresis；session close/hibernate 回收
-- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.react.presentation-stability`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`
+- 测试：`neoview.cache.weighted-lru`、`neoview.cache.byte-budget`、`neoview.cache.singleflight`、`neoview.cache.oversized-bypass`、`neoview.cache.waiter-cancellation`、`neoview.cache.failure-retry`、`neoview.cache.lifecycle`、`neoview.http.e2e`、`neoview.sevenzip.solid-cache-singleflight`、`neoview.sevenzip.solid-cache-incomplete`、`neoview.sevenzip.solid-cache-lru`、`neoview.sevenzip.solid-cache-fingerprint`、`neoview.sevenzip.solid-cache-reuse`、`neoview.sevenzip.solid-session-cache`
 - 性能基准：`cache-memory-budget`、`solid-cross-session`
 - 已知差异：无
 
@@ -251,7 +251,7 @@
 - 端：gui
 - 设置：`panels`、`uiState`、`panelsLayout`、`panelViewModes`、`view.notification`、`view.switchToast`
 - 数据：panel layout、sidebar tabs、toast queue
-- 行为：边栏拖拽/尺寸/位置；面板排序和跨边栏移动；自动隐藏和触发区；置顶工具栏/底栏；通知样式/位置/占位；重启恢复
+- 行为：顶部标题/工具栏自动隐藏；底部缩略图/进度栏自动隐藏；左右侧栏独立显隐/固定/浮动；四边 hover 触发区和显示/隐藏延迟；左右侧栏拖拽宽度/高度/位置/对齐；面板排序和跨左右边栏移动；关闭边栏不挂载重面板；通知样式/位置/占位；重启恢复
 - 测试：待补
 - 性能基准：`panel-render`
 - 已知差异：无
@@ -318,8 +318,8 @@
 - 设置：`performance`
 - 数据：benchmark reports、pipeline latency
 - 行为：冷/热基准；算法对照；系统 CPU/RSS/GPU 观测；任务队列状态；报告导出；基准不污染用户缓存
-- 测试：待补
-- 性能基准：`neoview-full-suite`
+- 测试：`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
+- 性能基准：`neoview-full-suite`、`reader-loopback-pipeline`、`reader-hot-page-turn`、`build-chunk`
 - 已知差异：无
 
 ### 图片裁边、颜色滤镜、页面过渡和悬停滚动（`image-effects-transitions`）

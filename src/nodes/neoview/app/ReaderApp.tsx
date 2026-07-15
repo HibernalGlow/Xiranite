@@ -12,7 +12,8 @@ import {
   type ReaderSessionDto,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
-import { useReaderViewport } from "./useReaderViewport"
+import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
+import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 
 export interface ReaderAppProps {
   initialPath?: string
@@ -34,12 +35,11 @@ export function ReaderApp({
   const clientRef = useRef(client)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
-  const viewerRef = useRef<HTMLDivElement>(null)
-  const viewport = useReaderViewport(viewerRef)
   const [path, setPath] = useState(initialPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
+  const prefetchPages = useReaderImagePreloader(session?.sessionId)
 
   useEffect(() => () => {
     operationRef.current?.abort()
@@ -75,6 +75,17 @@ export function ReaderApp({
   }
 
   async function navigate(action: "next" | "previous") {
+    await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal))
+  }
+
+  async function goTo(pageIndex: number) {
+    if (pageIndex === session?.frame.anchorPageIndex) return
+    await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal))
+  }
+
+  async function updateNavigation(
+    request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
+  ) {
     const sessionId = sessionRef.current
     if (!sessionId || busy) return
     const controller = new AbortController()
@@ -83,7 +94,7 @@ export function ReaderApp({
     setBusy(true)
     setError(undefined)
     try {
-      const result = await clientRef.current.navigate(sessionId, action, controller.signal)
+      const result = await request(sessionId, controller.signal)
       if (!controller.signal.aborted) setSession((current) => current ? applyNavigation(current, result) : current)
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause))
@@ -149,7 +160,7 @@ export function ReaderApp({
         </Button>
       </div>
 
-      <div ref={viewerRef} className="relative min-h-0 flex-1 overflow-hidden bg-black/95">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-black/95">
         {!session ? (
           <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
             <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
@@ -160,14 +171,26 @@ export function ReaderApp({
               <PageImage
                 key={`${page.id}:${page.contentVersion}`}
                 page={page}
-                viewport={viewport}
-                visiblePageCount={session.visiblePages.length}
               />
             ))}
           </div>
         )}
         {busy && session && <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div>}
       </div>
+
+      {session && session.book.pageCount > 1 ? (
+        <ThumbnailStrip
+          sessionId={session.sessionId}
+          totalPages={session.book.pageCount}
+          activePageIndex={session.frame.anchorPageIndex}
+          currentPages={session.visiblePages}
+          client={client}
+          compact={compact}
+          disabled={busy}
+          onSelect={goTo}
+          onPrefetchPages={prefetchPages}
+        />
+      ) : null}
 
       {session && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/70 px-3 py-2">

@@ -9,10 +9,12 @@ describe("ReaderApp", () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
       open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
         frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
         visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
       })),
+      goTo: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     const committed = vi.fn()
@@ -43,7 +45,9 @@ describe("ReaderApp", () => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
       })),
+      listPages: vi.fn(),
       navigate: vi.fn(),
+      goTo: vi.fn(),
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/books/missing.cbz" client={client} />)
@@ -51,6 +55,36 @@ describe("ReaderApp", () => {
     view.unmount()
     await act(async () => rejectOpen(new Error("missing")))
     expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("[neoview.thumbnail.react-list] navigates the shared reader session from a thumbnail", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const secondPage = {
+      ...opened.visiblePages[0]!,
+      id: "page-2",
+      index: 1,
+      name: "002.jpg",
+      assetUrl: "http://127.0.0.1:41000/reader/page-2",
+      thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-2",
+    }
+    const client: ReaderHttpClient = {
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({
+        pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
+        total: 2,
+      })),
+      navigate: vi.fn(),
+      goTo: vi.fn(async () => ({
+        frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
+        visiblePages: [secondPage],
+      })),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "转到第 2 页：002.jpg" }))
+    await screen.findByRole("img", { name: "002.jpg" })
+    expect(client.goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal))
   })
 })
 

@@ -64,7 +64,7 @@
       "settingsKeys": ["book.doublePageView", "view.pageLayout", "image.longImageScrollMode", "view.autoRotate"],
       "dataStores": ["view state", "per-book layout"], "surfaces": ["gui"], "status": "pending",
       "behaviorCases": ["封面和末页单页", "宽页拆分或成对", "不同尺寸双页对齐", "全景组合", "连续长图虚拟窗口", "旋转后重排"],
-      "testIds": ["neoview.frame.layout", "neoview.image.probe-layout", "neoview.image.probe-orientation", "neoview.react.presentation-double", "neoview.react.presentation-resize"], "benchmarkIds": ["layout-switch", "continuous-scroll"], "knownDifferences": []
+      "testIds": ["neoview.frame.layout", "neoview.image.probe-layout", "neoview.image.probe-orientation"], "benchmarkIds": ["layout-switch", "continuous-scroll"], "knownDifferences": []
     },
     {
       "id": "zoom-rotate-magnifier",
@@ -84,7 +84,7 @@
       "settingsKeys": ["image.supportedFormats", "image.nativeJxl", "performance.protocolDirectEnabled", "performance.directUrlThresholdMB"],
       "dataStores": ["dimension cache", "decoded image cache"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG", "EXIF 方向", "ICC/透明度", "坏图", "超大图", "浏览器直出和转换 fallback"],
-      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.react.presentation-original", "neoview.react.presentation-transform", "neoview.react.presentation-stability", "neoview.react.presentation-double", "neoview.react.presentation-img", "neoview.react.presentation-resize", "neoview.react.presentation-fallback", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout", "neoview.image.transform-query", "neoview.image.transform-validation", "neoview.image.transform-route", "neoview.image.transform-sharp", "neoview.image.transform-cancellation", "neoview.image.transform-http"], "benchmarkIds": ["image-decode", "image-first-frame"], "knownDifferences": []
+      "testIds": ["neoview.asset.security", "neoview.asset.range", "neoview.asset.archive-stream", "neoview.asset.cancellation", "neoview.http.e2e", "neoview.react.smoke", "neoview.react.cbz-e2e", "neoview.react.presentation-img", "neoview.react.presentation-direct", "neoview.react.predecode", "neoview.image.probe-formats", "neoview.image.probe-orientation", "neoview.image.probe-errors", "neoview.image.probe-streaming", "neoview.image.probe-budget", "neoview.image.probe-cancellation", "neoview.image.probe-fallback", "neoview.image.probe-archive", "neoview.image.probe-layout", "neoview.image.transform-query", "neoview.image.transform-validation", "neoview.image.transform-route", "neoview.image.transform-sharp", "neoview.image.transform-cancellation", "neoview.image.transform-http"], "benchmarkIds": ["image-decode", "image-first-frame", "reader-hot-page-turn"], "knownDifferences": []
     },
     {
       "id": "animated-image-video",
@@ -104,7 +104,7 @@
       "settingsKeys": ["performance.preLoadSize", "performance.adaptivePreload", "performance.preDecodeCacheSize", "performance.progressiveLoad", "image.preloadCount", "book.preloadPages"],
       "dataStores": ["priority queues", "request dedup"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["View/Ahead/Background 优先级", "方向感知预读", "渐进批次", "背压", "快速翻页取消", "多节点资源配额"],
-      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation", "neoview.cache.singleflight", "neoview.cache.waiter-cancellation", "neoview.sevenzip.scheduler", "neoview.archive.materialize-lease", "neoview.archive.materialize-cancellation"], "benchmarkIds": ["scheduler-contention", "cancel-latency"], "knownDifferences": []
+      "testIds": ["neoview.scheduler.interactive-slot", "neoview.scheduler.cancellation", "neoview.scheduler.host-injection", "xiranite.scheduler.priority", "xiranite.scheduler.pools", "neoview.image.transform-cancellation", "neoview.cache.singleflight", "neoview.cache.waiter-cancellation", "neoview.sevenzip.scheduler", "neoview.archive.materialize-lease", "neoview.archive.materialize-cancellation", "neoview.react.predecode", "neoview.thumbnail.react-list"], "benchmarkIds": ["scheduler-contention", "cancel-latency", "reader-hot-page-turn", "reader-loopback-pipeline"], "knownDifferences": []
     },
     {
       "id": "thumbnail-system",
@@ -114,7 +114,7 @@
       "settingsKeys": ["system.thumbnailDirectory"],
       "dataStores": ["%APPDATA%/NeoView/thumbnails.db", "thumbnail V1/V3/V4 records", "WAL/SHM"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["原数据库位置沿用", "只读 schema/WAL 探测", "批量命中与生成", "失败记录", "清理/vacuum/统计", "V1/V3/V4 兼容迁移", "视频和归档缩略图"],
-      "testIds": ["neoview.thumbnail.legacy-path", "neoview.thumbnail.schema", "neoview.thumbnail.inspect-cli", "neoview.thumbnail.blob", "neoview.thumbnail.read", "neoview.thumbnail.asset-route", "neoview.thumbnail.http", "neoview.thumbnail.http-e2e"], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch"], "knownDifferences": ["嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl"]
+      "testIds": ["neoview.thumbnail.legacy-path", "neoview.thumbnail.schema", "neoview.thumbnail.inspect-cli", "neoview.thumbnail.blob", "neoview.thumbnail.read", "neoview.thumbnail.asset-route", "neoview.thumbnail.http", "neoview.thumbnail.http-e2e", "neoview.thumbnail.react-list", "neoview.thumbnail.react-e2e"], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch", "reader-hot-page-turn"], "knownDifferences": ["嵌套归档页在旧版键语义得到可靠证明前不提供旧数据库 thumbnailUrl"]
     },
     {
       "id": "cache-lifecycle",
@@ -124,7 +124,7 @@
       "settingsKeys": ["performance.cacheMemorySize"],
       "dataStores": ["memory LRU", "persistent cache", "cache index DB"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["真实字节预算", "pin 和方向淘汰", "mtime/hash 失效", "损坏恢复", "80% hysteresis", "session close/hibernate 回收"],
-      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.react.presentation-stability", "neoview.http.e2e", "neoview.sevenzip.solid-cache-singleflight", "neoview.sevenzip.solid-cache-incomplete", "neoview.sevenzip.solid-cache-lru", "neoview.sevenzip.solid-cache-fingerprint", "neoview.sevenzip.solid-cache-reuse", "neoview.sevenzip.solid-session-cache"], "benchmarkIds": ["cache-memory-budget", "solid-cross-session"], "knownDifferences": []
+      "testIds": ["neoview.cache.weighted-lru", "neoview.cache.byte-budget", "neoview.cache.singleflight", "neoview.cache.oversized-bypass", "neoview.cache.waiter-cancellation", "neoview.cache.failure-retry", "neoview.cache.lifecycle", "neoview.http.e2e", "neoview.sevenzip.solid-cache-singleflight", "neoview.sevenzip.solid-cache-incomplete", "neoview.sevenzip.solid-cache-lru", "neoview.sevenzip.solid-cache-fingerprint", "neoview.sevenzip.solid-cache-reuse", "neoview.sevenzip.solid-session-cache"], "benchmarkIds": ["cache-memory-budget", "solid-cross-session"], "knownDifferences": []
     },
     {
       "id": "super-resolution",
@@ -192,7 +192,7 @@
       "legacyCommandPatterns": ["^get_active"],
       "settingsKeys": ["panels", "uiState", "panelsLayout", "panelViewModes", "view.notification", "view.switchToast"],
       "dataStores": ["panel layout", "sidebar tabs", "toast queue"], "surfaces": ["gui"], "status": "pending",
-      "behaviorCases": ["边栏拖拽/尺寸/位置", "面板排序和跨边栏移动", "自动隐藏和触发区", "置顶工具栏/底栏", "通知样式/位置/占位", "重启恢复"],
+      "behaviorCases": ["顶部标题/工具栏自动隐藏", "底部缩略图/进度栏自动隐藏", "左右侧栏独立显隐/固定/浮动", "四边 hover 触发区和显示/隐藏延迟", "左右侧栏拖拽宽度/高度/位置/对齐", "面板排序和跨左右边栏移动", "关闭边栏不挂载重面板", "通知样式/位置/占位", "重启恢复"],
       "testIds": [], "benchmarkIds": ["panel-render"], "knownDifferences": []
     },
     {
@@ -253,7 +253,7 @@
       "settingsKeys": ["performance"],
       "dataStores": ["benchmark reports", "pipeline latency"], "surfaces": ["gui", "cli"], "status": "pending",
       "behaviorCases": ["冷/热基准", "算法对照", "系统 CPU/RSS/GPU 观测", "任务队列状态", "报告导出", "基准不污染用户缓存"],
-      "testIds": [], "benchmarkIds": ["neoview-full-suite"], "knownDifferences": []
+      "testIds": ["neoview.react.predecode", "neoview.react.cbz-e2e", "neoview.thumbnail.react-e2e"], "benchmarkIds": ["neoview-full-suite", "reader-loopback-pipeline", "reader-hot-page-turn", "build-chunk"], "knownDifferences": []
     },
     {
       "id": "image-effects-transitions",
