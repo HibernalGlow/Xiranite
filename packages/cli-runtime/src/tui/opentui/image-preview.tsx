@@ -6,6 +6,7 @@ import {
   type TerminalCapabilities,
 } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
+import { Readable } from "node:stream";
 import { image2sixel } from "sixel";
 import sharp from "sharp";
 import {
@@ -18,8 +19,17 @@ import {
 } from "react";
 
 export type TerminalImageBackend = "auto" | "sixel" | "kitty" | "half-block";
+export interface TerminalImageStreamHandle extends AsyncDisposable {
+  readonly stream: ReadableStream<Uint8Array>;
+  close(): Promise<void>;
+}
+export interface TerminalImageStreamSource {
+  readonly cacheKey: string;
+  open(signal: AbortSignal): Promise<TerminalImageStreamHandle>;
+}
+export type TerminalImageSource = string | Uint8Array | TerminalImageStreamSource;
 export interface TerminalImagePreviewProps {
-  source?: string;
+  source?: TerminalImageSource;
   width: number;
   height: number;
   alt?: string;
@@ -78,6 +88,7 @@ export function TerminalImagePreview({
 
   useEffect(() => {
     let cancelled = false;
+    const abort = new AbortController();
     setFrames([]);
     setFrameIndex(0);
     setFailed(false);
@@ -87,12 +98,13 @@ export function TerminalImagePreview({
       if (started) return;
       started = true;
       renderer.off(CliRenderEvents.FRAME, maybeLoad);
-      void getCachedTerminalImageFrames(
+      void loadTerminalImageFrames(
         source,
         pixelSize.width,
         pixelSize.height,
         fit,
         maxAnimationFrames,
+        abort.signal,
       )
         .then((next) => {
           if (!cancelled) setFrames(next);
@@ -121,6 +133,7 @@ export function TerminalImagePreview({
     } else load();
     return () => {
       cancelled = true;
+      abort.abort("terminal image preview replaced");
       renderer.off(CliRenderEvents.FRAME, maybeLoad);
     };
   }, [
@@ -272,12 +285,17 @@ export function resolveTerminalImageBackend(
 }
 
 export async function decodeTerminalImageFrames(
-  source: string | Uint8Array,
+  source: string | Uint8Array | ReadableStream<Uint8Array>,
   width: number,
   height: number,
   fit: "contain" | "cover",
   maxFrames: number,
+  signal?: AbortSignal,
 ): Promise<TerminalImageFrame[]> {
+  signal?.throwIfAborted();
+  if (source instanceof ReadableStream) {
+    return decodeTerminalImageStream(source, width, height, fit, signal);
+  }
   const metadata = await sharp(source, { animated: true }).metadata();
   const pageCount = Math.max(1, Math.min(metadata.pages ?? 1, maxFrames));
   const delays = metadata.delay ?? [];
@@ -305,6 +323,80 @@ export async function decodeTerminalImageFrames(
   return frames;
 }
 
+async function decodeTerminalImageStream(
+  source: ReadableStream<Uint8Array>,
+  width: number,
+  height: number,
+  fit: "contain" | "cover",
+  signal?: AbortSignal,
+): Promise<TerminalImageFrame[]> {
+  signal?.throwIfAborted();
+  const input = Readable.fromWeb(source as never);
+  const pipeline = sharp({
+    animated: false,
+    failOn: "warning",
+    limitInputPixels: 100_000_000,
+    sequentialRead: true,
+  })
+    .resize(width, height, {
+      fit,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .ensureAlpha();
+  const abort = () => {
+    const error = new DOMException("Terminal image decode aborted", "AbortError");
+    input.destroy(error);
+    pipeline.destroy(error);
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  input.on("error", (error) => pipeline.destroy(error));
+  input.pipe(pipeline);
+  try {
+    const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+    signal?.throwIfAborted();
+    const png = await sharp(data, { raw: info }).png().toBuffer();
+    signal?.throwIfAborted();
+    return [{
+      rgba: new Uint8Array(data),
+      width: info.width,
+      height: info.height,
+      delayMs: 100,
+      png: new Uint8Array(png),
+    }];
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    input.destroy();
+  }
+}
+
+function loadTerminalImageFrames(
+  source: TerminalImageSource,
+  width: number,
+  height: number,
+  fit: "contain" | "cover",
+  maxFrames: number,
+  signal: AbortSignal,
+): Promise<TerminalImageFrame[]> {
+  if (typeof source === "string") {
+    return getCachedTerminalImageFrames(source, width, height, fit, maxFrames);
+  }
+  if (source instanceof Uint8Array) {
+    return scheduleDecodeTask(
+      () => decodeTerminalImageFrames(source, width, height, fit, maxFrames, signal),
+      signal,
+    );
+  }
+  return scheduleDecodeTask(async () => {
+    signal.throwIfAborted();
+    const handle = await source.open(signal);
+    try {
+      return await decodeTerminalImageFrames(handle.stream, width, height, fit, 1, signal);
+    } finally {
+      await handle.close();
+    }
+  }, signal);
+}
+
 function getCachedTerminalImageFrames(
   source: string,
   width: number,
@@ -326,9 +418,13 @@ function getCachedTerminalImageFrames(
   return pending;
 }
 
-function scheduleDecodeTask<T>(task: () => Promise<T>): Promise<T> {
+function scheduleDecodeTask<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     pendingDecodeTasks.push(() => {
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
       activeDecodeTasks += 1;
       void task()
         .then(resolve, reject)

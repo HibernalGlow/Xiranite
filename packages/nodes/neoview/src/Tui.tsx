@@ -1,12 +1,13 @@
 /* @jsxImportSource @opentui/react */
-import { useKeyboard } from "@opentui/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useKeyboard, useTerminalDimensions } from "@opentui/react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { InteractionField } from "@xiranite/cli-runtime/interaction"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import {
   ProgressBar,
   NumberInput,
+  TerminalImagePreview,
   TerminalThemeProvider,
   WorkbenchButton,
   WorkbenchField,
@@ -15,6 +16,8 @@ import {
   terminalIcon,
   useTerminalChromeActions,
   useTerminalTheme,
+  type TerminalImageBackend,
+  type TerminalImageStreamSource,
 } from "@xiranite/cli-runtime/terminal/opentui"
 import type {
   HeadlessPageStream,
@@ -37,6 +40,7 @@ interface ReaderTuiPort extends AsyncDisposable {
 
 export interface NeoviewTuiProps extends TerminalUiScreenProps<NeoviewTuiInput, NeoviewTuiResult> {
   createController?: () => Promise<ReaderTuiPort>
+  imageBackend?: TerminalImageBackend
 }
 
 export function NeoviewTui(props: NeoviewTuiProps) {
@@ -53,8 +57,10 @@ function ReaderWorkbench({
   language,
   onExit,
   createController = createReaderHeadlessController,
+  imageBackend = "sixel",
 }: NeoviewTuiProps) {
   const theme = useTerminalTheme()
+  const dimensions = useTerminalDimensions()
   const t = createTerminalTranslator(language)
   const pathField = defaultPathField(language)
   const controller = useRef<ReaderTuiPort | undefined>(undefined)
@@ -74,16 +80,16 @@ function ReaderWorkbench({
   }, [createController])
 
   const applySnapshot = useCallback((value: HeadlessReaderSnapshot, port: ReaderTuiPort) => {
-    const pageLimit = Math.min(value.book.pageCount, 500)
+    const pageLimit = Math.min(value.book.pageCount, 100)
     const cursor = Math.max(0, Math.min(value.frame.anchorPageIndex - Math.floor(pageLimit / 2), value.book.pageCount - pageLimit))
     setSnapshot(value)
     setPageInput(value.frame.anchorPageIndex + 1)
     setPageCursor(cursor)
     setPages(port.listPages(cursor, pageLimit || 1))
-    setStatus(`${value.book.displayName} · ${value.book.pageCount}`)
+    setStatus(`${value.book.displayName} · ${value.book.pageCount} ${language === "zh" ? "页" : "pages"}`)
     setPhase("ready")
     setFocused("viewer")
-  }, [])
+  }, [language])
 
   const run = useCallback(async (operation: (port: ReaderTuiPort, signal: AbortSignal) => Promise<HeadlessReaderSnapshot>, nextPhase: "opening" | "navigating") => {
     activeAbort.current?.abort()
@@ -177,6 +183,15 @@ function ReaderWorkbench({
   const activePages = new Set(snapshot?.frame.pages.map((page) => page.pageIndex) ?? [])
   const currentPage = snapshot?.visiblePages[0]
   const busy = phase === "opening" || phase === "navigating"
+  const pagePaneWidth = Math.max(24, Math.min(42, Math.floor(dimensions.width * 0.3)))
+  const framePaneWidth = Math.max(20, dimensions.width - pagePaneWidth - 8)
+  const previewHeight = Math.max(6, dimensions.height - 21)
+  const visiblePageCount = Math.max(1, snapshot?.visiblePages.length ?? 1)
+  const previewWidth = Math.max(8, Math.floor((framePaneWidth - visiblePageCount + 1) / visiblePageCount))
+  const openPage = useCallback(async (pageIndex: number, signal: AbortSignal) => {
+    const port = await ensureController()
+    return port.openPageStream(pageIndex, signal)
+  }, [ensureController])
 
   return (
     <box width="100%" height="100%" paddingLeft={1} paddingRight={1} flexDirection="column" overflow="hidden">
@@ -206,7 +221,7 @@ function ReaderWorkbench({
       </box>
 
       <box flexGrow={1} minHeight={0} flexDirection="row" gap={1}>
-        <WorkbenchPanel title={`${language === "zh" ? "页面" : "Pages"} · ${snapshot?.book.pageCount ?? 0}`} description={pages.length < (snapshot?.book.pageCount ?? 0) ? `${pageCursor + 1}-${pageCursor + pages.length} / ${snapshot?.book.pageCount}` : undefined} width="38%">
+        <WorkbenchPanel title={`${language === "zh" ? "页面" : "Pages"} · ${snapshot?.book.pageCount ?? 0}`} description={pages.length < (snapshot?.book.pageCount ?? 0) ? `${pageCursor + 1}-${pageCursor + pages.length} / ${snapshot?.book.pageCount}` : undefined} width={pagePaneWidth}>
           <scrollbox id="neoview-pages" flexGrow={1}>
             {pages.map((page) => (
               <box key={page.id} flexDirection="row">
@@ -221,24 +236,22 @@ function ReaderWorkbench({
         <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode}` : undefined} flexGrow={1}>
           {snapshot ? (
             <box flexGrow={1} flexDirection="column">
-              <box height={6} flexShrink={0} borderStyle="rounded" borderColor={theme.colors.focusRing} paddingLeft={1} paddingRight={1} flexDirection="column" justifyContent="center">
+              <box height={previewHeight} flexShrink={0} flexDirection="row" gap={1} justifyContent="center" overflow="hidden">
+                {snapshot.visiblePages.map((page) => (
+                  <ReaderPagePreview
+                    key={`${page.id}:${page.contentVersion}`}
+                    page={page}
+                    width={previewWidth}
+                    height={previewHeight}
+                    openPage={openPage}
+                    backend={imageBackend}
+                  />
+                ))}
+              </box>
+              <box height={3} flexShrink={0} marginTop={1} paddingLeft={1} paddingRight={1} flexDirection="column">
                 <text fg={theme.colors.primary}><b>{snapshot.visiblePages.map((page) => page.name).join("  |  ")}</b></text>
-                <text fg={theme.colors.mutedForeground}>{`${snapshot.frame.anchorPageIndex + 1} / ${snapshot.book.pageCount}`}</text>
+                <text fg={theme.colors.mutedForeground}>{`${snapshot.frame.anchorPageIndex + 1} / ${snapshot.book.pageCount} · ${currentPage?.dimensions ? `${currentPage.dimensions.width} x ${currentPage.dimensions.height}` : currentPage?.mimeType ?? currentPage?.mediaKind ?? "-"}`}</text>
               </box>
-              <box marginTop={1} flexDirection="row" gap={1}>
-                <WorkbenchPanel title={language === "zh" ? "页面元数据" : "Page metadata"} width="55%">
-                  <text>{currentPage?.mediaKind ?? "-"}</text>
-                  <text>{currentPage?.mimeType ?? "unknown type"}</text>
-                  <text>{currentPage?.dimensions ? `${currentPage.dimensions.width} x ${currentPage.dimensions.height}` : "dimensions pending"}</text>
-                  <text>{currentPage?.byteLength === undefined ? "size unknown" : `${currentPage.byteLength} bytes`}</text>
-                </WorkbenchPanel>
-                <WorkbenchPanel title={language === "zh" ? "画面状态" : "Frame state"} flexGrow={1}>
-                  <text>{`generation ${snapshot.frame.generation}`}</text>
-                  <text>{snapshot.frame.atStart ? "start" : snapshot.frame.atEnd ? "end" : "middle"}</text>
-                  <text>{snapshot.frame.layout.panorama ? "panorama" : snapshot.frame.layout.pageMode}</text>
-                </WorkbenchPanel>
-              </box>
-              <box flexGrow={1} />
               <ProgressBar value={snapshot.book.pageCount ? ((snapshot.frame.anchorPageIndex + 1) / snapshot.book.pageCount) * 100 : 0} label={status} />
             </box>
           ) : (
@@ -247,6 +260,36 @@ function ReaderWorkbench({
         </WorkbenchPanel>
       </box>
     </box>
+  )
+}
+
+function ReaderPagePreview({
+  page,
+  width,
+  height,
+  openPage,
+  backend,
+}: {
+  page: HeadlessReaderPageSnapshot
+  width: number
+  height: number
+  openPage: (pageIndex: number, signal: AbortSignal) => Promise<HeadlessPageStream>
+  backend: TerminalImageBackend
+}) {
+  const source = useMemo<TerminalImageStreamSource>(() => ({
+    cacheKey: `neoview:${page.id}:${page.contentVersion}`,
+    open: (signal) => openPage(page.index, signal),
+  }), [openPage, page.contentVersion, page.id, page.index])
+  return (
+    <TerminalImagePreview
+      source={source}
+      width={width}
+      height={height}
+      alt={page.name}
+      fit="contain"
+      backend={backend}
+      maxAnimationFrames={1}
+    />
   )
 }
 

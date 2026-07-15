@@ -29,6 +29,9 @@ export {
   type TerminalImageBackend,
   type TerminalImageFrame,
   type TerminalImagePreviewProps,
+  type TerminalImageSource,
+  type TerminalImageStreamHandle,
+  type TerminalImageStreamSource,
 } from "./image-preview.js";
 export { TerminalPreferencesScreen } from "./app.js";
 export { TerminalTaskQueueScreen } from "./task-queue-screen.js";

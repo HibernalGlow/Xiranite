@@ -2,6 +2,10 @@
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
 import { expect, test } from "bun:test"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import sharp from "sharp"
 import type { HeadlessReaderSnapshot } from "../core.js"
 import { createNeoviewTuiDefinition } from "../interaction.js"
 import { NeoviewTui } from "../Tui.js"
@@ -10,14 +14,35 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
   let current = 0
   let opens = 0
   let nextCalls = 0
+  let pageStreamOpens = 0
+  let pageStreamCloses = 0
   let disposed = 0
+  const pageBytes = await sharp({
+    create: { width: 4, height: 6, channels: 4, background: "#4c8f6b" },
+  }).png().toBuffer()
   const port = {
     async open() { opens += 1; return snapshot(current = 0) },
     listPages: () => pageList,
     async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1)) },
     async previous() { return snapshot(current = Math.max(0, current - 1)) },
     async goTo(index: number) { return snapshot(current = index) },
-    async openPageStream() { throw new Error("not used") },
+    async openPageStream() {
+      pageStreamOpens += 1
+      let closed = false
+      const close = async () => {
+        if (closed) return
+        closed = true
+        pageStreamCloses += 1
+      }
+      return {
+        page: pageList[current]!,
+        stream: new Blob([pageBytes]).stream() as ReadableStream<Uint8Array>,
+        byteLength: pageBytes.length,
+        contentType: "image/png",
+        close,
+        async [Symbol.asyncDispose]() { await close() },
+      }
+    },
     async closeBook() { current = 0 },
     async [Symbol.asyncDispose]() { disposed += 1 },
   }
@@ -39,7 +64,12 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
     await click("open")
     await screen.waitFor(() => opens === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("001.png"))
-    expect(screen.captureCharFrame()).toContain("页面元数据")
+    await act(async () => waitUntil(
+      () => pageStreamOpens >= 1 && pageStreamCloses === pageStreamOpens,
+      () => `opens=${pageStreamOpens} closes=${pageStreamCloses}`,
+    ))
+    await screen.flush()
+    expect(screen.captureCharFrame()).toContain("当前画面")
     await click("next")
     await screen.waitFor(() => nextCalls === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("2 / 3"))
@@ -47,8 +77,54 @@ test("[neoview.tui.reader] [neoview.tui.navigation] opens a persistent reader an
   } finally {
     await act(async () => screen.renderer.destroy())
   }
+  expect(pageStreamOpens).toBeGreaterThanOrEqual(2)
+  expect(pageStreamCloses).toBe(pageStreamOpens)
   expect(disposed).toBe(1)
 })
+
+test("[neoview.tui.image] renders a real directory page through the shared terminal image surface", async () => {
+  const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-tui-"))
+  const pageBytes = await sharp({
+    create: { width: 8, height: 12, channels: 4, background: "#d45d4c" },
+  }).png().toBuffer()
+  await writeFile(join(root, "001.png"), pageBytes)
+  const definition = createNeoviewTuiDefinition("zh")
+  definition.schema.initialValues.path = root
+  const screen = await testRender(
+    <NeoviewTui definition={definition} language="zh" onExit={() => undefined} imageBackend="half-block" />,
+    { width: 132, height: 34, useMouse: true },
+  )
+  try {
+    await act(async () => screen.renderOnce())
+    const open = screen.renderer.root.findDescendantById("open")
+    expect(open).toBeDefined()
+    await act(async () => screen.mockMouse.click(open!.x + 1, open!.y + Math.max(0, Math.floor(open!.height / 2))))
+    await act(async () => screen.flush())
+    await act(async () => waitUntil(
+      () => screen.captureCharFrame().includes("001.png"),
+      () => screen.captureCharFrame(),
+      5_000,
+    ))
+    await act(async () => waitUntil(
+      () => screen.captureCharFrame().includes("▀"),
+      () => screen.captureCharFrame(),
+      5_000,
+    ))
+    await screen.flush()
+    expect(screen.captureCharFrame()).toContain("1 / 1")
+  } finally {
+    await act(async () => screen.renderer.destroy())
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+async function waitUntil(predicate: () => boolean, describe: () => string, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for the TUI condition: ${describe()}`)
+    await Bun.sleep(10)
+  }
+}
 
 const pageList = [0, 1, 2].map((index) => ({
   id: `p${index}`,

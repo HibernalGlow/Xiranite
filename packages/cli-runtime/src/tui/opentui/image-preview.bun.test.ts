@@ -107,3 +107,16 @@ test("decodes animated GIF pages and preserves frame delays", async () => {
   expect(frames).toHaveLength(2);
   expect(frames.map((frame) => frame.delayMs)).toEqual([60, 90]);
 });
+
+test("decodes a Web stream without collecting the original image in the caller", async () => {
+  const png = await sharp({
+    create: { width: 4, height: 6, channels: 4, background: "#4c8f6b" },
+  }).png().toBuffer();
+  const stream = new Blob([png]).stream() as ReadableStream<Uint8Array>;
+  const frames = await decodeTerminalImageFrames(stream, 8, 8, "contain", 1);
+
+  expect(frames).toHaveLength(1);
+  expect(frames[0]?.width).toBeLessThanOrEqual(8);
+  expect(frames[0]?.height).toBeLessThanOrEqual(8);
+  expect(frames[0]?.png.length).toBeGreaterThan(0);
+});
