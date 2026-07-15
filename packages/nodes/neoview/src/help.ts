@@ -14,6 +14,7 @@ export const help = {
       cli: [
         "Run `xiranite neoview inspect <path> --json` for book and current-frame metadata.",
         "Run `xiranite neoview extract-page <path> --index 0 --output -` for binary stdout.",
+        "Run `xiranite neoview thumbnail-db-stats --json` for aggregate thumbnail database health.",
       ],
     },
     {
@@ -40,6 +41,16 @@ export const help = {
         },
       ],
     },
+    {
+      title: "Maintain thumbnail data",
+      command: "xiranite neoview thumbnail-db-stats --json",
+      description: "Inspect aggregate row, failure, WAL and writer statistics without exposing thumbnail keys.",
+      examples: [{
+        label: "Remove one expired batch",
+        command: "xiranite neoview thumbnail-db-cleanup --kind expired --days 30 --limit 500 --yes --json",
+        description: "Delete at most 500 expired file thumbnails while preserving every folder thumbnail.",
+      }],
+    },
   ],
   safety: {
     defaultMode: "read-only",
@@ -47,6 +58,7 @@ export const help = {
       "Existing output files are not overwritten unless --force is explicit.",
       "Archive passwords are read from named environment variables and never accepted as argv values.",
       "Binary stdout never contains status or log text.",
+      "Thumbnail cleanup is bounded and requires --yes; online cleanup never runs VACUUM or TRUNCATE checkpoint.",
     ],
   },
 } satisfies NodeHelp

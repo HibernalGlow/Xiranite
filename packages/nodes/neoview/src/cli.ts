@@ -8,12 +8,20 @@ import type {
   HeadlessReaderSnapshot,
   ReaderHeadlessController,
 } from "./core.js"
+import type {
+  ReaderThumbnailCleanupRequest,
+  ReaderThumbnailInvalidCleanupResult,
+  ReaderThumbnailMaintenanceSnapshot,
+} from "./ports/ReaderThumbnailStore.js"
 import { help } from "./help.js"
 import { createReaderHeadlessController } from "./platform.js"
 import type { ReaderCompositionOptions } from "./platform.js"
 
 const CLI_NAME = "xneoview"
-const COMMANDS = new Set(["inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import", "thumbnail-db-inspect"])
+const COMMANDS = new Set([
+  "inspect", "pages", "frame", "extract-page", "settings-inspect", "settings-import",
+  "thumbnail-db-inspect", "thumbnail-db-stats", "thumbnail-db-cleanup", "thumbnail-db-clear-failures",
+])
 const VALUE_FLAGS = new Set([
   "--entry",
   "--index",
@@ -25,6 +33,10 @@ const VALUE_FLAGS = new Set([
   "--config",
   "--strategy",
   "--modules",
+  "--kind",
+  "--days",
+  "--scan-limit",
+  "--reason",
 ])
 const BOOLEAN_FLAGS = new Set(["--json", "--force", "--yes"])
 const MAX_SETTINGS_BYTES = 64 * 1024 * 1024
@@ -37,6 +49,14 @@ export const cli: CliCommand = {
 
 export interface NeoviewCliDependencies {
   createController: (options?: ReaderCompositionOptions) => Promise<ReaderHeadlessController>
+  openThumbnailStore?: (path: string) => Promise<CliThumbnailMaintenanceStore>
+}
+
+interface CliThumbnailMaintenanceStore extends AsyncDisposable {
+  maintenanceSnapshot(): Promise<ReaderThumbnailMaintenanceSnapshot>
+  cleanup(request: ReaderThumbnailCleanupRequest): Promise<number>
+  cleanupInvalid(options: { scanLimit: number; deleteLimit: number }): Promise<ReaderThumbnailInvalidCleanupResult>
+  clearFailures(options: { reason?: string; limit: number }): Promise<number>
 }
 
 const DEFAULT_DEPENDENCIES: NeoviewCliDependencies = {
@@ -69,6 +89,11 @@ export async function runProgram(
   if (command === "thumbnail-db-inspect") {
     if (parsed.positionals.length > 1) throw usage("thumbnail-db-inspect accepts at most one database path.")
     await runThumbnailDatabaseInspect(parsed.positionals[0], parsed.booleans.has("--json"), host)
+    return
+  }
+  if (command.startsWith("thumbnail-db-")) {
+    if (parsed.positionals.length > 1) throw usage(`${command} accepts at most one database path.`)
+    await runThumbnailMaintenanceCommand(command, parsed.positionals[0], parsed, host, dependencies)
     return
   }
   const path = parsed.positionals[0]
@@ -125,18 +150,25 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     rejectOptions(parsed, new Set(["--json"]))
     return
   }
+  if (command === "thumbnail-db-stats") {
+    rejectOptions(parsed, new Set(["--json"]))
+    return
+  }
+  if (command === "thumbnail-db-cleanup") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--kind", "--days", "--limit", "--scan-limit"]))
+    return
+  }
+  if (command === "thumbnail-db-clear-failures") {
+    rejectOptions(parsed, new Set(["--json", "--yes", "--reason", "--limit"]))
+    return
+  }
   for (const option of ["--strategy", "--modules", "--yes"]) {
     if (parsed.values.has(option) || parsed.booleans.has(option)) throw usage(`${command} does not accept ${option}.`)
   }
 }
 
 async function runThumbnailDatabaseInspect(path: string | undefined, json: boolean, host: CliHost): Promise<void> {
-  let databasePath: string
-  if (path) databasePath = resolve(host.cwd, path)
-  else {
-    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
-    databasePath = new LegacyNeoViewDataLocator().locate({ env: host.env }).thumbnailDatabasePath
-  }
+  const databasePath = await resolveThumbnailDatabasePath(path, host)
   const { inspectLegacyThumbnailDatabase } = await import("./platform/thumbnails/LegacyThumbnailDatabaseInspector.js")
   const report = await inspectLegacyThumbnailDatabase(databasePath)
   if (json) {
@@ -150,12 +182,113 @@ async function runThumbnailDatabaseInspect(path: string | undefined, json: boole
   for (const issue of report.issues) writeLine(host, `- ${issue}`)
 }
 
+async function runThumbnailMaintenanceCommand(
+  command: string,
+  path: string | undefined,
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (command !== "thumbnail-db-stats" && !parsed.booleans.has("--yes")) {
+    throw usage(`${command} requires --yes because it modifies the thumbnail database.`)
+  }
+  const plan = thumbnailMaintenancePlan(command, parsed)
+  const databasePath = await resolveThumbnailDatabasePath(path, host)
+  const openStore = dependencies.openThumbnailStore ?? (async (target: string): Promise<CliThumbnailMaintenanceStore> => {
+    const { createWritableLegacyThumbnailStore } = await import("./platform.js")
+    return createWritableLegacyThumbnailStore(target)
+  })
+  const store = await openStore(databasePath)
+  try {
+    if (plan.kind === "stats") {
+      printThumbnailStats(await store.maintenanceSnapshot(), parsed.booleans.has("--json"), host)
+      return
+    }
+    if (plan.kind === "clear-failures") {
+      const result = { operation: plan.kind, deleted: await store.clearFailures({ reason: plan.reason, limit: plan.limit }) }
+      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+    }
+    if (plan.kind === "invalid") {
+      const result = { operation: plan.kind, ...await store.cleanupInvalid({ scanLimit: plan.scanLimit, deleteLimit: plan.limit }) }
+      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+    }
+    if (plan.kind === "empty") {
+      const result = { operation: plan.kind, deleted: await store.cleanup({ kind: plan.kind, limit: plan.limit }) }
+      return printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+    }
+    const result = {
+      operation: plan.kind,
+      deleted: await store.cleanup({ kind: plan.kind, cutoff: plan.cutoff, limit: plan.limit, preserveFolders: true }),
+      cutoff: plan.cutoff,
+      foldersPreserved: true,
+    }
+    printMaintenanceResult(result, parsed.booleans.has("--json"), host)
+  } finally {
+    await store[Symbol.asyncDispose]()
+  }
+}
+
+type ThumbnailMaintenancePlan =
+  | { kind: "stats" }
+  | { kind: "clear-failures"; reason?: string; limit: number }
+  | { kind: "empty"; limit: number }
+  | { kind: "expired"; limit: number; cutoff: string }
+  | { kind: "invalid"; limit: number; scanLimit: number }
+
+function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): ThumbnailMaintenancePlan {
+  if (command === "thumbnail-db-stats") return { kind: "stats" }
+  const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
+  if (command === "thumbnail-db-clear-failures") {
+    const reason = oneValue(parsed, "--reason")
+    if (reason !== undefined && (!reason || reason.length > 128)) throw usage("--reason must be 1..128 characters.")
+    return { kind: "clear-failures", reason, limit }
+  }
+  const kind = oneValue(parsed, "--kind")
+  if (kind !== "empty" && kind !== "expired" && kind !== "invalid") {
+    throw usage("thumbnail-db-cleanup requires --kind empty|expired|invalid.")
+  }
+  if (kind === "invalid") {
+    if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
+    return { kind, limit, scanLimit: integerOption(parsed, "--scan-limit", 1, 2_000, 500) }
+  }
+  if (parsed.values.has("--scan-limit")) throw usage("--scan-limit is only valid with --kind invalid.")
+  if (kind === "empty") {
+    if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
+    return { kind, limit }
+  }
+  const days = integerOption(parsed, "--days", 1, 3_650, 30)
+  return { kind, limit, cutoff: sqliteTimestamp(new Date(Date.now() - days * 86_400_000)) }
+}
+
+async function resolveThumbnailDatabasePath(path: string | undefined, host: CliHost): Promise<string> {
+  if (path) return resolve(host.cwd, path)
+  const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+  return new LegacyNeoViewDataLocator().locate({ env: host.env }).thumbnailDatabasePath
+}
+
+function printThumbnailStats(snapshot: ReaderThumbnailMaintenanceSnapshot, json: boolean, host: CliHost): void {
+  if (json) return writeJson(host, snapshot)
+  writeLine(host, `Thumbnails: total=${snapshot.totalRows} file=${snapshot.fileRows} folder=${snapshot.folderRows} empty=${snapshot.emptyBlobs}`)
+  writeLine(host, `Storage: blobs=${snapshot.blobBytes} database=${snapshot.databaseBytes ?? 0} wal=${snapshot.walBytes ?? 0} shm=${snapshot.shmBytes ?? 0}`)
+  writeLine(host, `Failures: total=${snapshot.failedRows} ${Object.entries(snapshot.failuresByReason).map(([reason, count]) => `${reason}=${count}`).join(" ")}`.trim())
+  writeLine(host, `Writer: pending=${snapshot.writer.pendingWrites} retries=${snapshot.writer.busyRetries} failed=${snapshot.writer.failedBatches}`)
+}
+
+function printMaintenanceResult(result: Record<string, unknown>, json: boolean, host: CliHost): void {
+  if (json) writeJson(host, result)
+  else writeLine(host, Object.entries(result).map(([key, value]) => `${key}=${String(value)}`).join(" "))
+}
+
+function sqliteTimestamp(value: Date): string {
+  return value.toISOString().replace("T", " ").slice(0, 19)
+}
+
 function rejectOptions(parsed: ParsedArguments, allowed: ReadonlySet<string>): void {
   for (const option of parsed.values.keys()) {
-    if (!allowed.has(option)) throw usage(`Settings command does not accept ${option}.`)
+    if (!allowed.has(option)) throw usage(`Command does not accept ${option}.`)
   }
   for (const option of parsed.booleans) {
-    if (!allowed.has(option)) throw usage(`Settings command does not accept ${option}.`)
+    if (!allowed.has(option)) throw usage(`Command does not accept ${option}.`)
   }
 }
 
@@ -431,6 +564,9 @@ function formatCliHelp(): string {
     "  settings-inspect <json>  Preview a legacy settings migration",
     "  settings-import <json>   Import legacy settings into [nodes.neoview] TOML",
     "  thumbnail-db-inspect [path]  Inspect the original thumbnail DB without writing",
+    "  thumbnail-db-stats [path]    Show aggregate DB/writer statistics",
+    "  thumbnail-db-cleanup [path]  Run one bounded empty/expired/invalid cleanup batch",
+    "  thumbnail-db-clear-failures [path]  Clear a bounded failure batch",
     "  ui                   Open the persistent terminal reader",
     "",
     "Options:",
@@ -448,6 +584,11 @@ function formatCliHelp(): string {
     "                       native-settings,keybindings,emm,file-browser,ui,panels,bookmarks,history,",
     "                       search-history,upscale,performance,folder-ratings,voice-control",
     "  --yes                Confirm settings-import after preview",
+    "                       Also required for thumbnail database mutations",
+    "  --kind KIND          Thumbnail cleanup kind: empty, expired or invalid",
+    "  --days N             Expiration age in days (default 30)",
+    "  --scan-limit N       Invalid-path scan batch (default 500)",
+    "  --reason REASON      Limit failure clearing to one normalized reason",
   ].join("\n")
 }
 

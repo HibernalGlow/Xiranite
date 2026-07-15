@@ -239,6 +239,58 @@ describe("NeoView CLI", () => {
       await rm(directory, { recursive: true, force: true })
     }
   })
+
+  it("[neoview.thumbnail.maintenance-cli] reuses the bounded store API and never prints database keys", async () => {
+    const output: unknown[] = []
+    const cleanupInvalid = vi.fn(async () => ({ scanned: 10, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false }))
+    const clearFailures = vi.fn(async () => 3)
+    const dispose = vi.fn(async () => undefined)
+    const openThumbnailStore = vi.fn(async () => ({
+      maintenanceSnapshot: async () => ({
+        totalRows: 10,
+        fileRows: 6,
+        folderRows: 4,
+        blobBytes: 1024,
+        emptyBlobs: 0,
+        failedRows: 1,
+        failuresByReason: { "decode-error": 1 },
+        writer: { pendingWrites: 0, flushing: false, committedBatches: 1, committedWrites: 2, busyRetries: 0, failedBatches: 0 },
+      }),
+      cleanup: vi.fn(async () => 0),
+      cleanupInvalid,
+      clearFailures,
+      [Symbol.asyncDispose]: dispose,
+    }))
+    const dependencies = { createController: async () => fakeReader(), openThumbnailStore }
+
+    await runProgram(["thumbnail-db-stats", "private/thumbnails.db", "--json"], host(output), dependencies)
+    const statsText = output.join("")
+    expect(JSON.parse(statsText)).toMatchObject({ totalRows: 10, failedRows: 1 })
+    expect(statsText).not.toContain("private/thumbnails.db")
+    expect(String(openThumbnailStore.mock.calls[0]?.[0]).replace(/\\/g, "/")).toMatch(/private\/thumbnails\.db$/)
+
+    await expect(runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "invalid", "--limit", "20", "--json",
+    ], host([]), dependencies)).rejects.toThrow("requires --yes")
+    expect(openThumbnailStore).toHaveBeenCalledTimes(1)
+
+    const cleanupOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-cleanup", "private/thumbnails.db", "--kind", "invalid", "--scan-limit", "10", "--limit", "20", "--yes", "--json",
+    ], host(cleanupOutput), dependencies)
+    expect(JSON.parse(cleanupOutput.join(""))).toEqual({
+      operation: "invalid", scanned: 10, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false,
+    })
+    expect(cleanupInvalid).toHaveBeenCalledWith({ scanLimit: 10, deleteLimit: 20 })
+
+    const failureOutput: unknown[] = []
+    await runProgram([
+      "thumbnail-db-clear-failures", "private/thumbnails.db", "--reason", "decode-error", "--limit", "50", "--yes", "--json",
+    ], host(failureOutput), dependencies)
+    expect(JSON.parse(failureOutput.join(""))).toEqual({ operation: "clear-failures", deleted: 3 })
+    expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 50 })
+    expect(dispose).toHaveBeenCalledTimes(3)
+  })
 })
 
 const pages: readonly HeadlessReaderPageSnapshot[] = [0, 1, 2].map((index) => ({
