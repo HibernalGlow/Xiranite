@@ -100,12 +100,20 @@ describe("FolderMainCard", () => {
       ...opened,
       generation: 2,
       sort: { field: "name", order: "desc", directoriesFirst: true },
+      sortSource: "memory",
       suggestedSelection: { path: "C:/books/book.cbz", index: 0 },
     })
     const sortDirectoryBrowser = vi.fn(async () => sorted)
+    const updateDirectorySortPreference = vi.fn(async () => page({
+      ...sorted,
+      generation: 3,
+      sortSource: "temporary",
+      sortTemporary: true,
+    }))
     const client = {
       openDirectoryBrowser: vi.fn(async () => opened),
       sortDirectoryBrowser,
+      updateDirectorySortPreference,
       closeDirectoryBrowser: vi.fn(async () => undefined),
     } as unknown as ReaderHttpClient
     const view = render(<FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />)
@@ -119,6 +127,14 @@ describe("FolderMainCard", () => {
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(currentView.getByRole("button", { name: "降序" })).toBeTruthy())
+    fireEvent.click(currentView.getByRole("button", { name: "锁定当前目录排序" }))
+    await waitFor(() => expect(updateDirectorySortPreference).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "temporary", enabled: true },
+      "C:/books/book.cbz",
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(currentView.getByRole("button", { name: "取消临时排序" })).toBeTruthy())
   })
 })
 
@@ -134,6 +150,10 @@ function page(overrides: Partial<ReaderDirectoryPageDto>): ReaderDirectoryPageDt
     generation: 1,
     sort: { field: "name", order: "asc", directoriesFirst: true },
     sortFields: ["name", "date", "size", "type", "random", "path"],
+    sortSource: "global-default",
+    sortTemporary: false,
+    globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     ...overrides,
   }
 }

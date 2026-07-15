@@ -12,6 +12,7 @@ import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
@@ -86,6 +87,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   disposeThumbnailStore?: () => void | Promise<void>
   progressStore?: ReaderProgressStore | false
   libraryService?: ReaderLibraryService
+  directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   disposeLibraryService?: boolean
   presentationDiskCache?: ReaderPresentationDiskCache
   disposePresentationDiskCache?: boolean
@@ -170,7 +172,7 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })
-    this.#directoryBrowser = new ReaderDirectoryBrowserRoute()
+    this.#directoryBrowser = new ReaderDirectoryBrowserRoute(options.directorySortPreferenceStore)
     this.#libraryService = options.libraryService
     this.#library = options.libraryService ? new ReaderLibraryHttpController(options.libraryService) : undefined
     this.#disposeLibraryService = options.disposeLibraryService ?? false

@@ -5,17 +5,27 @@ import type {
 } from "../../ports/ReaderDirectoryListingProvider.js"
 import type { ReaderDirectoryMetadataProvider } from "../../ports/ReaderDirectoryMetadataProvider.js"
 import {
-  DEFAULT_READER_DIRECTORY_SORT,
   READER_DIRECTORY_SORT_FIELDS,
   readerDirectoryMetadataFields,
   sortReaderDirectoryEntries,
   type ReaderDirectorySortField,
   type ReaderDirectorySortRule,
 } from "./ReaderDirectorySort.js"
+import {
+  CoreReaderDirectorySortPreferences,
+  type ReaderDirectorySortDefaultScope,
+  type ReaderDirectorySortPreferenceSnapshot,
+  type ReaderDirectoryTemporarySortRule,
+} from "./ReaderDirectorySortPreferences.js"
 
 export type ReaderDirectoryNavigation =
   | { action: "path"; path: string }
   | { action: "back" | "forward" | "up" | "refresh" }
+
+export type ReaderDirectorySortPreferenceCommand =
+  | { action: "temporary"; enabled: boolean }
+  | { action: "set-default"; scope: ReaderDirectorySortDefaultScope }
+  | { action: "clear-memory"; scope: "current" | "all" }
 
 export interface ReaderDirectoryPage {
   sessionId: string
@@ -30,6 +40,10 @@ export interface ReaderDirectoryPage {
   generation: number
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
+  sortSource: ReaderDirectorySortPreferenceSnapshot["source"]
+  sortTemporary: boolean
+  globalDefaultSort: ReaderDirectorySortRule
+  tabDefaultSort: ReaderDirectorySortRule
   suggestedSelection?: { path: string; index: number }
 }
 
@@ -39,7 +53,10 @@ interface BrowserSession {
   back: string[]
   forward: string[]
   generation: number
+  scopeId: string
   sort: ReaderDirectorySortRule
+  sortPreference: ReaderDirectorySortPreferenceSnapshot
+  temporarySort?: ReaderDirectoryTemporarySortRule
   sortFields: readonly ReaderDirectorySortField[]
   randomSeeds: Map<string, string>
   operation?: AbortController
@@ -53,11 +70,16 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
   constructor(
     private readonly provider: ReaderDirectoryListingProvider,
     private readonly metadataProvider?: ReaderDirectoryMetadataProvider,
+    private readonly sortPreferences = new CoreReaderDirectorySortPreferences(),
   ) {}
 
-  async open(path: string, signal?: AbortSignal): Promise<ReaderDirectoryPage> {
+  async open(path: string, signal?: AbortSignal, scopeId = "folder-main"): Promise<ReaderDirectoryPage> {
     this.#assertOpen()
-    const listing = sortListing(await this.provider.read(path, signal), DEFAULT_READER_DIRECTORY_SORT, path)
+    const rawListing = await this.provider.read(path, signal)
+    const sortPreference = await this.sortPreferences.resolve(scopeId, rawListing.path)
+    this.#assertSortAvailable(sortPreference.sort)
+    const hydratedEntries = await this.#hydrate(rawListing.entries, sortPreference.sort, signal)
+    const listing = sortListing({ ...rawListing, entries: hydratedEntries }, sortPreference.sort, rawListing.path)
     signal?.throwIfAborted()
     const session: BrowserSession = {
       id: `browser-${this.#nextSessionId++}`,
@@ -65,7 +87,9 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       back: [],
       forward: [],
       generation: 1,
-      sort: DEFAULT_READER_DIRECTORY_SORT,
+      scopeId,
+      sort: sortPreference.sort,
+      sortPreference,
       sortFields: this.#availableSortFields(),
       randomSeeds: new Map(),
     }
@@ -95,16 +119,20 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     const generation = session.generation + 1
     try {
       const rawListing = await this.provider.read(target, combinedSignal)
-      const hydratedEntries = await this.#hydrate(rawListing.entries, session.sort, combinedSignal)
+      const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
+      this.#assertSortAvailable(sortPreference.sort)
+      const hydratedEntries = await this.#hydrate(rawListing.entries, sortPreference.sort, combinedSignal)
       const listing = sortListing(
         { ...rawListing, entries: hydratedEntries },
-        session.sort,
+        sortPreference.sort,
         randomSeedForPath(session, rawListing.path),
       )
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       updateHistory(session, navigation, listing.path)
       session.listing = listing
+      session.sort = sortPreference.sort
+      session.sortPreference = sortPreference
       session.generation = generation
       return pageOf(session, 0, 128, suggestedSelection(navigation, listing, previousPath))
     } finally {
@@ -128,11 +156,72 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
     try {
       const entries = await this.#hydrate(session.listing.entries, sort, combinedSignal)
       combinedSignal.throwIfAborted()
+      const remembered = await this.sortPreferences.rememberCurrent(
+        session.scopeId,
+        session.listing.path,
+        sort,
+        session.temporarySort,
+      )
+      combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       session.sort = sort
+      session.sortPreference = remembered.preference
+      session.temporarySort = remembered.temporary
       session.listing = sortListing(
         { ...session.listing, entries },
         sort,
+        randomSeedForPath(session, session.listing.path),
+      )
+      session.generation += 1
+      const focusIndex = focusPath ? session.listing.entries.findIndex((entry) => entry.path === focusPath) : -1
+      return pageOf(session, 0, 128, focusIndex < 0 ? undefined : { path: focusPath!, index: focusIndex })
+    } finally {
+      if (session.operation === controller) session.operation = undefined
+    }
+  }
+
+  async updateSortPreference(
+    sessionId: string,
+    command: ReaderDirectorySortPreferenceCommand,
+    focusPath?: string,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryPage | undefined> {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    session.operation?.abort()
+    const controller = new AbortController()
+    session.operation = controller
+    const combinedSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    try {
+      let next: { preference: ReaderDirectorySortPreferenceSnapshot; temporary?: ReaderDirectoryTemporarySortRule }
+      if (command.action === "temporary") {
+        next = await this.sortPreferences.setTemporary(
+          session.scopeId,
+          session.listing.path,
+          command.enabled,
+          session.sort,
+        )
+      } else {
+        if (command.action === "set-default") {
+          await this.sortPreferences.setDefault(session.scopeId, command.scope, session.sort)
+        } else {
+          await this.sortPreferences.clearMemory(command.scope === "current" ? session.listing.path : undefined)
+        }
+        next = {
+          preference: await this.sortPreferences.resolve(session.scopeId, session.listing.path, session.temporarySort),
+          temporary: session.temporarySort,
+        }
+      }
+      this.#assertSortAvailable(next.preference.sort)
+      const entries = await this.#hydrate(session.listing.entries, next.preference.sort, combinedSignal)
+      combinedSignal.throwIfAborted()
+      if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
+      session.sort = next.preference.sort
+      session.sortPreference = next.preference
+      session.temporarySort = next.temporary
+      session.listing = sortListing(
+        { ...session.listing, entries },
+        session.sort,
         randomSeedForPath(session, session.listing.path),
       )
       session.generation += 1
@@ -177,6 +266,12 @@ export class CoreReaderDirectoryBrowser implements AsyncDisposable {
       const required = readerDirectoryMetadataFields(field)
       return !required.size || [...required].every((value) => metadataFields.has(value))
     })
+  }
+
+  #assertSortAvailable(sort: ReaderDirectorySortRule): void {
+    if (!this.#availableSortFields().includes(sort.field)) {
+      throw new Error(`Directory sort field is unavailable: ${sort.field}`)
+    }
   }
 }
 
@@ -225,6 +320,10 @@ function pageOf(
     generation: session.generation,
     sort: session.sort,
     sortFields: session.sortFields,
+    sortSource: session.sortPreference.source,
+    sortTemporary: session.sortPreference.temporary,
+    globalDefaultSort: session.sortPreference.globalDefault,
+    tabDefaultSort: session.sortPreference.tabDefault,
     suggestedSelection: suggestedSelectionValue,
   }
 }

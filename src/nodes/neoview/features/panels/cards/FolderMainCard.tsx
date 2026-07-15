@@ -7,10 +7,18 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, Grid2X2, List, RefreshCw } from "lucide-react"
+import { ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, File, Folder, Grid2X2, List, Lock, MoreHorizontal, RefreshCw, Unlock } from "lucide-react"
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -20,6 +28,8 @@ import type {
   ReaderDirectoryPageDto,
   ReaderDirectorySortDto,
   ReaderDirectorySortFieldDto,
+  ReaderDirectorySortPreferenceCommandDto,
+  ReaderDirectorySortSourceDto,
 } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import {
@@ -46,6 +56,12 @@ const SORT_LABELS: Record<ReaderDirectorySortFieldDto, string> = {
   rating: "评分",
   path: "路径",
   collectTagCount: "收藏标签数",
+}
+const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
+  temporary: "当前目录临时规则",
+  memory: "文件夹记忆",
+  "tab-default": "标签默认",
+  "global-default": "全局默认",
 }
 
 type FolderViewMode = "compact" | "cover-grid"
@@ -245,6 +261,37 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
     }
   }
 
+  async function updateSortPreference(command: ReaderDirectorySortPreferenceCommandDto) {
+    const sessionId = sessionIdRef.current
+    const current = catalogRef.current
+    if (!sessionId || !current || !client.updateDirectorySortPreference) return
+    captureCurrentState()
+    const generation = beginNavigation()
+    setLoading(true)
+    setError(undefined)
+    try {
+      const result = await client.updateDirectorySortPreference(
+        sessionId,
+        command,
+        focusedPath,
+        navigationRequestRef.current?.signal,
+      )
+      if (generation !== navigationGenerationRef.current) return
+      const focusIndex = result.suggestedSelection?.index
+      applyPage(result, {
+        viewMode,
+        selectedPaths: [...selectedPaths],
+        focusedPath,
+        focusedIndex: focusIndex,
+        anchorIndex: focusIndex ?? 0,
+      })
+    } catch (cause) {
+      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(errorMessage(cause))
+    } finally {
+      if (generation === navigationGenerationRef.current) setLoading(false)
+    }
+  }
+
   function requestRange(range: ListRange) {
     visibleRangeRef.current = range
     const current = catalogRef.current
@@ -398,19 +445,32 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
         <Input aria-label="浏览路径" value={draftPath} onChange={(event) => setDraftPath(event.currentTarget.value)} />
         <Button type="submit" size="sm" variant="outline" disabled={disabled || loading || !draftPath.trim()}>转到</Button>
       </form>
-      <div className="flex items-center gap-1">
-        <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
-        <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
-        <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
-        <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+      <div className="grid gap-1">
+        <div className="flex min-w-0 items-center gap-1">
+          <BrowserButton label="后退" disabled={!catalog?.canGoBack || loading} onClick={() => void navigate({ action: "back" })}><ArrowLeft /></BrowserButton>
+          <BrowserButton label="前进" disabled={!catalog?.canGoForward || loading} onClick={() => void navigate({ action: "forward" })}><ArrowRight /></BrowserButton>
+          <BrowserButton label="上级" disabled={!catalog?.parentPath || loading} onClick={() => void navigate({ action: "up" })}><ArrowUp /></BrowserButton>
+          <BrowserButton label="刷新" disabled={!catalog || loading} onClick={() => void navigate({ action: "refresh" })}><RefreshCw className={loading ? "animate-spin" : undefined} /></BrowserButton>
+          <ToggleGroup
+            type="single"
+            size="sm"
+            value={viewMode}
+            className="ml-auto"
+            onValueChange={(value) => { if (value) switchView(value as FolderViewMode) }}
+          >
+            <ToggleGroupItem value="compact" aria-label="紧凑列表" title="紧凑列表"><List /></ToggleGroupItem>
+            <ToggleGroupItem value="cover-grid" aria-label="封面网格" title="封面网格"><Grid2X2 /></ToggleGroupItem>
+          </ToggleGroup>
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
+        </div>
         {catalog ? (
-          <>
+          <div className="grid grid-cols-[minmax(6rem,1fr)_2rem_2rem_2rem] items-center gap-1">
             <Select
               value={catalog.sort.field}
               disabled={loading || !client.sortDirectoryBrowser}
               onValueChange={(field) => void updateSort({ ...catalog.sort, field: field as ReaderDirectorySortFieldDto })}
             >
-              <SelectTrigger size="sm" className="h-7 w-24 text-xs" aria-label="排序字段">
+              <SelectTrigger size="sm" className="h-7 min-w-0 text-xs" aria-label="排序字段">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -424,19 +484,45 @@ export default function FolderMainCard({ client, disabled, sourcePath, onOpen }:
             >
               {catalog.sort.order === "asc" ? <ArrowUpAZ /> : <ArrowDownAZ />}
             </BrowserButton>
-          </>
+            <BrowserButton
+              label={catalog.sortTemporary ? "取消临时排序" : "锁定当前目录排序"}
+              disabled={loading || !client.updateDirectorySortPreference}
+              onClick={() => void updateSortPreference({ action: "temporary", enabled: !catalog.sortTemporary })}
+            >
+              {catalog.sortTemporary ? <Lock /> : <Unlock />}
+            </BrowserButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="排序设置"
+                  title="排序设置"
+                  disabled={loading || !client.updateDirectorySortPreference}
+                >
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel>{SORT_SOURCE_LABELS[catalog.sortSource]}</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "tab" })}>
+                  设为标签默认
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "set-default", scope: "global" })}>
+                  设为全局默认
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "current" })}>
+                  清除此文件夹记忆
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void updateSortPreference({ action: "clear-memory", scope: "all" })}>
+                  清除全部排序记忆
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ) : null}
-        <ToggleGroup
-          type="single"
-          size="sm"
-          value={viewMode}
-          className="ml-auto"
-          onValueChange={(value) => { if (value) switchView(value as FolderViewMode) }}
-        >
-          <ToggleGroupItem value="compact" aria-label="紧凑列表" title="紧凑列表"><List /></ToggleGroupItem>
-          <ToggleGroupItem value="cover-grid" aria-label="封面网格" title="封面网格"><Grid2X2 /></ToggleGroupItem>
-        </ToggleGroup>
-        <span className="text-[10px] tabular-nums text-muted-foreground">{loadedCount} / {catalog?.total ?? 0}</span>
       </div>
       {error ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div> : null}
       <div className="min-h-32 overflow-hidden rounded border bg-background/60" data-neoview-folder-list="true">

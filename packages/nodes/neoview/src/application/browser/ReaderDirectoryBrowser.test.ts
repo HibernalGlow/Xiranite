@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import type { ReaderDirectoryListingProvider } from "../../ports/ReaderDirectoryListingProvider.js"
 import { CoreReaderDirectoryBrowser } from "./ReaderDirectoryBrowser.js"
+import { CoreReaderDirectorySortPreferences } from "./ReaderDirectorySortPreferences.js"
 
 describe("CoreReaderDirectoryBrowser", () => {
   it("[neoview.browser.navigation] pages stable snapshots and maintains navigation history", async () => {
@@ -87,6 +88,38 @@ describe("CoreReaderDirectoryBrowser", () => {
       suggestedSelection: { path: "C:/books/book2.cbz", index: 1 },
     })
     expect(sorted?.entries.map((entry) => entry.name)).toEqual(["book10.cbz", "book2.cbz"])
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.folder.sort-preference-session] applies folder memory and temporary lock across navigation", async () => {
+    const provider: ReaderDirectoryListingProvider = {
+      async read(path) {
+        return {
+          path,
+          parentPath: path === "C:/" ? undefined : "C:/",
+          entries: [
+            { name: "book10.cbz", path: `${path}/book10.cbz`, kind: "file", readerSupported: true },
+            { name: "book2.zip", path: `${path}/book2.zip`, kind: "file", readerSupported: true },
+          ],
+        }
+      },
+    }
+    const preferences = new CoreReaderDirectorySortPreferences()
+    await preferences.setDefault("tab-1", "global", { field: "type", order: "desc", directoriesFirst: true })
+    const browser = new CoreReaderDirectoryBrowser(provider, undefined, preferences)
+    const opened = await browser.open("C:/books", undefined, "tab-1")
+    expect(opened).toMatchObject({ sortSource: "global-default", sort: { field: "type", order: "desc" } })
+    const remembered = await browser.sort(opened.sessionId, { field: "name", order: "desc", directoriesFirst: true })
+    expect(remembered).toMatchObject({ sortSource: "memory", sortTemporary: false })
+    const locked = await browser.updateSortPreference(opened.sessionId, { action: "temporary", enabled: true })
+    expect(locked).toMatchObject({ sortSource: "temporary", sortTemporary: true })
+    const temporary = await browser.sort(opened.sessionId, { field: "random", order: "asc", directoriesFirst: true })
+    expect(temporary).toMatchObject({ sortSource: "temporary", sort: { field: "random" } })
+    await browser.navigate(opened.sessionId, { action: "path", path: "C:/other" })
+    const returned = await browser.navigate(opened.sessionId, { action: "back" })
+    expect(returned).toMatchObject({ path: "C:/books", sortSource: "temporary", sort: { field: "random" } })
+    const unlocked = await browser.updateSortPreference(opened.sessionId, { action: "temporary", enabled: false })
+    expect(unlocked).toMatchObject({ sortSource: "memory", sortTemporary: false, sort: { field: "name", order: "desc" } })
     await browser[Symbol.asyncDispose]()
   })
 })

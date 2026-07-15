@@ -8,9 +8,17 @@ import type {
 } from "../../ports/ReaderLibraryStore.js"
 import type { ReaderDataImportBatch, ReaderDataImportResult, ReaderDataStore } from "../../ports/ReaderDataStore.js"
 import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
+import {
+  isReaderDirectorySortField,
+  type ReaderDirectorySortRule,
+} from "../../application/browser/ReaderDirectorySort.js"
+import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { openWritableSqlite, type WritableSqliteConnection } from "../sqlite/openWritableSqlite.js"
 
-export class SqliteReaderDataStore implements ReaderDataStore {
+const GLOBAL_SORT_SCOPE = "__global__"
+const MAX_FOLDER_SORT_RULES = 1_000
+
+export class SqliteReaderDataStore implements ReaderDataStore, ReaderDirectorySortPreferenceStore {
   #closed = false
 
   private constructor(private readonly database: WritableSqliteConnection) {}
@@ -67,6 +75,23 @@ export class SqliteReaderDataStore implements ReaderDataStore {
           completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0, 1)),
           updated_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS xr_reader_folder_sort_defaults (
+          scope_id TEXT PRIMARY KEY NOT NULL,
+          sort_field TEXT NOT NULL,
+          sort_order TEXT NOT NULL CHECK (sort_order IN ('asc', 'desc')),
+          directories_first INTEGER NOT NULL DEFAULT 1 CHECK (directories_first IN (0, 1)),
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS xr_reader_folder_sort_rules (
+          path_key TEXT PRIMARY KEY NOT NULL,
+          display_path TEXT NOT NULL,
+          sort_field TEXT NOT NULL,
+          sort_order TEXT NOT NULL CHECK (sort_order IN ('asc', 'desc')),
+          directories_first INTEGER NOT NULL DEFAULT 1 CHECK (directories_first IN (0, 1)),
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_folder_sort_rules_updated_idx
+          ON xr_reader_folder_sort_rules (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database)
@@ -247,6 +272,85 @@ export class SqliteReaderDataStore implements ReaderDataStore {
     return deleted
   }
 
+  async getGlobalDefault(): Promise<ReaderDirectorySortRule | undefined> {
+    this.#assertOpen()
+    return parseDirectorySort(this.database.get(
+      `SELECT sort_field, sort_order, directories_first
+       FROM xr_reader_folder_sort_defaults WHERE scope_id = ?1`,
+      GLOBAL_SORT_SCOPE,
+    ))
+  }
+
+  async setGlobalDefault(sort: ReaderDirectorySortRule): Promise<void> {
+    await this.#setSortDefault(GLOBAL_SORT_SCOPE, sort)
+  }
+
+  async getTabDefault(scopeId: string): Promise<ReaderDirectorySortRule | undefined> {
+    this.#assertOpen()
+    return parseDirectorySort(this.database.get(
+      `SELECT sort_field, sort_order, directories_first
+       FROM xr_reader_folder_sort_defaults WHERE scope_id = ?1`,
+      requireSortIdentity(scopeId, "sort scope"),
+    ))
+  }
+
+  async setTabDefault(scopeId: string, sort: ReaderDirectorySortRule): Promise<void> {
+    await this.#setSortDefault(requireSortIdentity(scopeId, "sort scope"), sort)
+  }
+
+  async getFolderRule(pathKey: string): Promise<ReaderDirectorySortRule | undefined> {
+    this.#assertOpen()
+    return parseDirectorySort(this.database.get(
+      `SELECT sort_field, sort_order, directories_first
+       FROM xr_reader_folder_sort_rules WHERE path_key = ?1`,
+      requireSortIdentity(pathKey, "folder sort path key"),
+    ))
+  }
+
+  async setFolderRule(
+    pathKey: string,
+    path: string,
+    sort: ReaderDirectorySortRule,
+    updatedAt: number,
+  ): Promise<void> {
+    this.#assertOpen()
+    assertDirectorySort(sort)
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Folder sort updatedAt is invalid.")
+    await this.#transaction(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_folder_sort_rules (
+           path_key, display_path, sort_field, sort_order, directories_first, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(path_key) DO UPDATE SET display_path = excluded.display_path,
+           sort_field = excluded.sort_field, sort_order = excluded.sort_order,
+           directories_first = excluded.directories_first, updated_at = excluded.updated_at`,
+        requireSortIdentity(pathKey, "folder sort path key"),
+        requireSortIdentity(path, "folder sort display path"),
+        sort.field,
+        sort.order,
+        sort.directoriesFirst ? 1 : 0,
+        updatedAt,
+      )
+      this.database.run(
+        `DELETE FROM xr_reader_folder_sort_rules WHERE path_key IN (
+           SELECT path_key FROM xr_reader_folder_sort_rules
+           ORDER BY updated_at DESC, path_key ASC LIMIT -1 OFFSET ?1
+         )`,
+        MAX_FOLDER_SORT_RULES,
+      )
+    })
+  }
+
+  async clearFolderRules(pathKey?: string): Promise<number> {
+    this.#assertOpen()
+    return this.#write(() => pathKey
+      ? this.database.run(
+          "DELETE FROM xr_reader_folder_sort_rules WHERE path_key = ?1",
+          requireSortIdentity(pathKey, "folder sort path key"),
+        ).changes
+      : this.database.run("DELETE FROM xr_reader_folder_sort_rules").changes)
+  }
+
   async importData(batch: ReaderDataImportBatch, strategy: "merge" | "overwrite"): Promise<ReaderDataImportResult> {
     this.#assertOpen()
     const result: ReaderDataImportResult = { progress: 0, bookmarks: 0, bookmarkLists: 0, pathStacks: 0, mediaProgress: 0 }
@@ -355,6 +459,26 @@ export class SqliteReaderDataStore implements ReaderDataStore {
     })
   }
 
+  async #setSortDefault(scopeId: string, sort: ReaderDirectorySortRule): Promise<void> {
+    this.#assertOpen()
+    assertDirectorySort(sort)
+    await this.#write(() => {
+      this.database.run(
+        `INSERT INTO xr_reader_folder_sort_defaults (
+           scope_id, sort_field, sort_order, directories_first, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(scope_id) DO UPDATE SET sort_field = excluded.sort_field,
+           sort_order = excluded.sort_order, directories_first = excluded.directories_first,
+           updated_at = excluded.updated_at`,
+        scopeId,
+        sort.field,
+        sort.order,
+        sort.directoriesFirst ? 1 : 0,
+        Date.now(),
+      )
+    })
+  }
+
   async #write<T>(operation: () => T): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -416,6 +540,32 @@ function assertProgress(progress: ReaderProgressRecord): void {
     throw new Error("Reader progress pageIndex is invalid.")
   }
   if (!Number.isSafeInteger(progress.updatedAt) || progress.updatedAt < 0) throw new Error("Reader progress updatedAt is invalid.")
+}
+
+function parseDirectorySort(row: Record<string, unknown> | undefined): ReaderDirectorySortRule | undefined {
+  if (!row) return undefined
+  const field = row.sort_field
+  const order = row.sort_order
+  const directoriesFirst = row.directories_first
+  if (!isReaderDirectorySortField(field) || (order !== "asc" && order !== "desc")) {
+    throw new Error("Stored folder sort rule is invalid.")
+  }
+  if (directoriesFirst !== 0 && directoriesFirst !== 1 && directoriesFirst !== 0n && directoriesFirst !== 1n) {
+    throw new Error("Stored folder sort directory priority is invalid.")
+  }
+  return { field, order, directoriesFirst: directoriesFirst === 1 || directoriesFirst === 1n }
+}
+
+function assertDirectorySort(sort: ReaderDirectorySortRule): void {
+  if (!isReaderDirectorySortField(sort.field) || (sort.order !== "asc" && sort.order !== "desc")) {
+    throw new Error("Folder sort rule is invalid.")
+  }
+}
+
+function requireSortIdentity(value: string, label: string): string {
+  const normalized = value.trim()
+  if (!normalized || normalized.length > 4_096) throw new Error(`${label} is invalid.`)
+  return normalized
 }
 
 function parseBookmark(row: Record<string, unknown>, listIds: readonly string[]): ReaderBookmarkRecord {

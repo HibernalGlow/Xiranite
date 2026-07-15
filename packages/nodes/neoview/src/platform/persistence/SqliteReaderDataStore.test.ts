@@ -129,6 +129,28 @@ describe("SqliteReaderDataStore", () => {
       .toEqual({ count: 2 })
     database.close()
   })
+
+  it("[neoview.folder.sort-sqlite] persists global, tab and normalized folder rules without touching legacy rows", async () => {
+    const { path } = await fixture()
+    const store = await SqliteReaderDataStore.open(path)
+    const globalSort = { field: "date" as const, order: "desc" as const, directoriesFirst: true }
+    const tabSort = { field: "size" as const, order: "desc" as const, directoriesFirst: true }
+    const folderSort = { field: "type" as const, order: "asc" as const, directoriesFirst: true }
+    await store.setGlobalDefault(globalSort)
+    await store.setTabDefault("tab-1", tabSort)
+    await store.setFolderRule("d:/books", "D:/Books", folderSort, 100)
+    await expect(store.getGlobalDefault()).resolves.toEqual(globalSort)
+    await expect(store.getTabDefault("tab-1")).resolves.toEqual(tabSort)
+    await expect(store.getFolderRule("d:/books")).resolves.toEqual(folderSort)
+    await expect(store.clearFolderRules("d:/books")).resolves.toBe(1)
+    await expect(store.getFolderRule("d:/books")).resolves.toBeUndefined()
+    await store.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT COUNT(*) AS count FROM thumbs WHERE key = 'D:/cover.jpg'")).toEqual({ count: 1 })
+    expect(verified.get("SELECT COUNT(*) AS count FROM xr_reader_folder_sort_defaults")).toEqual({ count: 2 })
+    verified.close()
+  })
 })
 
 function bookmark(id: string, starred: boolean, listIds: readonly string[]) {

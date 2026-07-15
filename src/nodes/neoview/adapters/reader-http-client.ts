@@ -116,6 +116,12 @@ export interface ReaderDirectorySortDto {
   directoriesFirst: boolean
 }
 
+export type ReaderDirectorySortSourceDto = "temporary" | "memory" | "tab-default" | "global-default"
+export type ReaderDirectorySortPreferenceCommandDto =
+  | { action: "temporary"; enabled: boolean }
+  | { action: "set-default"; scope: "global" | "tab" }
+  | { action: "clear-memory"; scope: "current" | "all" }
+
 export interface ReaderDirectoryPageDto {
   sessionId: string
   path: string
@@ -129,6 +135,10 @@ export interface ReaderDirectoryPageDto {
   generation: number
   sort: ReaderDirectorySortDto
   sortFields: ReaderDirectorySortFieldDto[]
+  sortSource: ReaderDirectorySortSourceDto
+  sortTemporary: boolean
+  globalDefaultSort: ReaderDirectorySortDto
+  tabDefaultSort: ReaderDirectorySortDto
   suggestedSelection?: { path: string; index: number }
 }
 
@@ -222,10 +232,16 @@ export interface ReaderHttpClient {
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
-  openDirectoryBrowser?(path: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string): Promise<ReaderDirectoryPageDto>
   listDirectoryBrowser?(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  updateDirectorySortPreference?(
+    sessionId: string,
+    command: ReaderDirectorySortPreferenceCommandDto,
+    focusPath?: string,
+    signal?: AbortSignal,
+  ): Promise<ReaderDirectoryPageDto>
   closeDirectoryBrowser?(sessionId: string): Promise<void>
   registerLibraryThumbnails?(
     contextId: string,
@@ -310,10 +326,10 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path }),
       signal,
     }),
-    openDirectoryBrowser: (path, signal) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
+    openDirectoryBrowser: (path, signal, scopeId) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, scopeId }),
       signal,
     }),
     listDirectoryBrowser: (sessionId, cursor, limit, signal) => request<ReaderDirectoryPageDto>(
@@ -335,6 +351,15 @@ export function createReaderHttpClient(
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...sort, focusPath }),
+        signal,
+      },
+    ),
+    updateDirectorySortPreference: (sessionId, command, focusPath, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/sort/preferences`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...command, focusPath }),
         signal,
       },
     ),

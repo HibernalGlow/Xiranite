@@ -3,6 +3,7 @@ import type {
   ReaderDirectoryPageDto,
   ReaderDirectorySortDto,
   ReaderDirectorySortFieldDto,
+  ReaderDirectorySortSourceDto,
 } from "../../../../adapters/reader-http-client"
 
 export interface DirectoryCatalog {
@@ -15,6 +16,10 @@ export interface DirectoryCatalog {
   canGoForward: boolean
   sort: ReaderDirectorySortDto
   sortFields: readonly ReaderDirectorySortFieldDto[]
+  sortSource: ReaderDirectorySortSourceDto
+  sortTemporary: boolean
+  globalDefaultSort: ReaderDirectorySortDto
+  tabDefaultSort: ReaderDirectorySortDto
   suggestedSelection?: { path: string; index: number }
   pages: ReadonlyMap<number, readonly ReaderDirectoryEntryDto[]>
 }
@@ -30,6 +35,10 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     canGoForward: page.canGoForward,
     sort: page.sort,
     sortFields: page.sortFields,
+    sortSource: page.sortSource,
+    sortTemporary: page.sortTemporary,
+    globalDefaultSort: page.globalDefaultSort,
+    tabDefaultSort: page.tabDefaultSort,
     suggestedSelection: page.suggestedSelection,
     pages: new Map([[page.cursor, page.entries]]),
   }

@@ -370,9 +370,9 @@
       "sourceEvidence": ["stores/folderTabStore/sortingFiltering.svelte.ts", "stores/folderPanelStore/core.svelte.ts"],
       "targetContract": "严格实现 临时当前目录规则 > 文件夹记忆 > 标签默认 > 全局默认，并在导航/恢复时可解释当前来源。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "优先级需用表驱动测试冻结。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-precedence", "neoview.folder.sort-preference-session"],
+      "notes": "共享偏好服务已严格实现 temporary > memory > tab-default > global-default 并返回 source；真实多标签 scope 与 CLI/TUI 命令界面尚待接入。"
     },
     {
       "id": "folder.sort.memory",
@@ -381,9 +381,9 @@
       "sourceEvidence": ["stores/folderTabStore/sortingFiltering.svelte.ts", "components/FolderToolbar/SortPanel.svelte"],
       "targetContract": "可锁定/记忆单目录排序，清除当前目录或全部记忆，并可把当前排序设为标签或全局默认。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "所有写入通过规范 TOML/数据库单一版本。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-memory-clear", "neoview.folder.sort-sqlite", "neoview.folder.sort-ui"],
+      "notes": "全局/标签默认与最多 1000 项文件夹记忆已进入现有 Reader SQLite，GUI 可锁定临时规则、设默认和清除当前/全部记忆；多标签 UI 与旧 localStorage 导入尚待完成。"
     },
     {
       "id": "folder.sort.virtual",

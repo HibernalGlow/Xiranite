@@ -130,6 +130,10 @@ describe("reader-http-client", () => {
       generation: 2,
       sort: { field: "date", order: "desc", directoriesFirst: true },
       sortFields: ["name", "date", "size", "type", "random", "path"],
+      sortSource: "memory",
+      sortTemporary: false,
+      globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+      tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     }))
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
@@ -138,12 +142,23 @@ describe("reader-http-client", () => {
       { field: "date", order: "desc", directoriesFirst: true },
       "D:/books/book.cbz",
     )
+    await client.updateDirectorySortPreference!(
+      "browser-1",
+      { action: "set-default", scope: "tab" },
+      "D:/books/book.cbz",
+    )
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/browser/s/browser-1/sort")
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       field: "date",
       order: "desc",
       directoriesFirst: true,
+      focusPath: "D:/books/book.cbz",
+    })
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/browser/s/browser-1/sort/preferences")
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      action: "set-default",
+      scope: "tab",
       focusPath: "D:/books/book.cbz",
     })
   })
