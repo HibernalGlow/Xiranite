@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises"
+import { openReadonlySqlite, type ReadonlySqliteConnection } from "../sqlite/openReadonlySqlite.js"
 
 export const LEGACY_THUMBNAIL_DATABASE_VERSION = "2.4"
 
@@ -28,13 +29,6 @@ export interface LegacyThumbnailDatabaseReport {
   issues: string[]
 }
 
-interface SqliteReadConnection {
-  all(sql: string): Record<string, unknown>[]
-  get(sql: string): Record<string, unknown> | undefined
-  exec(sql: string): void
-  close(): void
-}
-
 const CURRENT_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   thumbs: ["key", "size", "date", "ghash", "category", "value", "emm_json", "rating_data", "ai_translation", "manual_tags"],
   failed_thumbnails: ["key", "reason", "retry_count", "last_attempt", "error_message"],
@@ -56,9 +50,9 @@ export async function inspectLegacyThumbnailDatabase(path: string): Promise<Lega
     return { path, exists: false, compatibility: "missing", tables: {}, indexes: [], sidecars, issues: [] }
   }
 
-  let database: SqliteReadConnection | undefined
+  let database: ReadonlySqliteConnection | undefined
   try {
-    database = await openReadOnlyDatabase(path)
+    database = await openReadonlySqlite(path)
     database.exec("PRAGMA query_only = ON; PRAGMA busy_timeout = 1000;")
     const userVersion = numericCell(database.get("PRAGMA user_version"), "user_version")
     const journalMode = stringCell(database.get("PRAGMA journal_mode"), "journal_mode")
@@ -152,35 +146,6 @@ function compareVersions(value: string | undefined, target: string): "older" | "
     if (difference > 0) return "newer-or-unknown"
   }
   return "equal"
-}
-
-async function openReadOnlyDatabase(path: string): Promise<SqliteReadConnection> {
-  if (process.versions.bun) {
-    const moduleName = "bun:sqlite"
-    const sqlite = await import(moduleName) as unknown as {
-      Database: new (path: string, options: { readonly: boolean; strict: boolean }) => {
-        query(sql: string): { all(): Record<string, unknown>[]; get(): Record<string, unknown> | null }
-        exec(sql: string): void
-        close(): void
-      }
-    }
-    const database = new sqlite.Database(path, { readonly: true, strict: true })
-    return {
-      all: (sql) => database.query(sql).all(),
-      get: (sql) => database.query(sql).get() ?? undefined,
-      exec: (sql) => database.exec(sql),
-      close: () => database.close(),
-    }
-  }
-  const moduleName = "node:sqlite"
-  const sqlite = await import(moduleName) as typeof import("node:sqlite")
-  const database = new sqlite.DatabaseSync(path, { readOnly: true })
-  return {
-    all: (sql) => database.prepare(sql).all() as Record<string, unknown>[],
-    get: (sql) => database.prepare(sql).get() as Record<string, unknown> | undefined,
-    exec: (sql) => database.exec(sql),
-    close: () => database.close(),
-  }
 }
 
 function quoteIdentifier(value: string): string {

@@ -61,6 +61,7 @@
     "benchmark:react-compiler": "bun scripts/benchmark-react-compiler.ts",
     "benchmark:neoview-zip": "bun scripts/benchmark-neoview-zip.ts",
     "benchmark:neoview-cache": "bun scripts/benchmark-neoview-cache.ts",
+    "benchmark:neoview-thumbnails": "bun scripts/benchmark-neoview-thumbnails.ts",
     "benchmark:neoview-sevenzip": "bun scripts/benchmark-neoview-sevenzip.ts",
     "test:unit": "vitest run --dir . --exclude \"**/dist/**\" --exclude \"**/artifacts/**\" --exclude \"**/build/**\" --exclude \"**/vendor/**\" --exclude \"**/ref/**\" --exclude \"**/tests/e2e/**\"",
     "test:e2e": "playwright test --pass-with-no-tests",

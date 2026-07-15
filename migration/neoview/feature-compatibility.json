@@ -114,7 +114,7 @@
       "settingsKeys": ["system.thumbnailDirectory"],
       "dataStores": ["%APPDATA%/NeoView/thumbnails.db", "thumbnail V1/V3/V4 records", "WAL/SHM"], "surfaces": ["gui", "cli", "tui"], "status": "pending",
       "behaviorCases": ["原数据库位置沿用", "只读 schema/WAL 探测", "批量命中与生成", "失败记录", "清理/vacuum/统计", "V1/V3/V4 兼容迁移", "视频和归档缩略图"],
-      "testIds": ["neoview.thumbnail.legacy-path", "neoview.thumbnail.schema", "neoview.thumbnail.inspect-cli"], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch"], "knownDifferences": []
+      "testIds": ["neoview.thumbnail.legacy-path", "neoview.thumbnail.schema", "neoview.thumbnail.inspect-cli", "neoview.thumbnail.blob", "neoview.thumbnail.read"], "benchmarkIds": ["thumbnail-hit", "thumbnail-batch"], "knownDifferences": []
     },
     {
       "id": "cache-lifecycle",

@@ -1690,6 +1690,8 @@ Xiranite Reader 必须通过 `LegacyNeoViewDataLocator` 解析并继续使用这
 
 当前已完成非破坏性接入的第一条纵切：`LegacyNeoViewDataLocator` 在 Windows 固定解析 `%APPDATA%\NeoView\thumbnails.db`，并显式返回同目录 WAL/SHM；macOS/Linux 使用对应 Tauri app-data 约定，绝不读取 TOML 的 `paths.thumbnail_directory` 作为主库。`LegacyThumbnailDatabaseInspector` 以 SQLite 只读/query-only 模式检查文件、sidecar、`user_version`、`journal_mode`、表、列、索引和 `metadata.version`，按 `current`、`legacy-upgrade-required`、`newer-read-only`、`incompatible` 分类；它不会创建缺失数据库、checkpoint、ALTER 或读取任何 key/blob/EMM 内容。`xneoview thumbnail-db-inspect [path] [--json]` 默认检查原版位置，也可检查脱敏副本。fixture 覆盖冻结的 2.4 schema、活动 WAL/SHM、旧版缺列、较新版本、无关 SQLite 和损坏文件；当前机器的真实原版库也已只读验证为 2.4/current。该 feature 仍保持 `pending`，直到 LZ4 blob 读取、批量命中/生成、单写者、维护、备份迁移和 V1/V3/V4 service 收口全部完成。
 
+只读命中 adapter 也已接入 `platform` 的懒工厂：`ReadonlyLegacyThumbnailStore` 在连接生命周期内缓存 prepared statement，提供严格的 `key + category` 单条查询和最多 512 key 的去重批量查询，不更新旧库访问时间；原始 blob 零额外复制返回，`LZ4\0 + lz4_flex size-prepended block` 通过约 603 KB 的 `lz4-napi` 当前平台预编译包异步解压，并在解压前校验声明长度、默认 16 MiB 上限和解压后长度，防止压缩炸弹。内容类型由 PNG/JPEG/WebP/GIF/AVIF/JXL 魔数判断，不信任 key 扩展名。`bun run benchmark:neoview-thumbnails -- --iterations 1000 --batch 100` 会分别预热单条/批量 statement，批量至少运行 50 轮，只输出聚合值而不输出任何数据库 key；当前真实 2.4 库连续两轮单条命中为 `0.0725～0.0728 ms`，100 条批量为 `19.24～21.15 ms/批`（`0.192～0.212 ms/条`）。该读 adapter 尚未代表完整 thumbnail feature：生成、写入、维护、迁移锁和 HTTP asset route 仍待后续纵切。
+
 `system.thumbnailDirectory`/TOML `nodes.neoview.paths.thumbnail_directory` 是用户配置的缩略图、超分或临时产物目录，不等于上述 SQLite 主库路径。导入时应保留这个设置，但它不能把主数据库从 `%APPDATA%\NeoView\thumbnails.db` 悄悄迁走。若检测到历史版本曾在自定义目录创建另一个 `thumbnails.db`，应作为一次性兼容源合并或挂载，并在报告中展示，不能恢复多主库运行模式。
 
 ### 18.6 兼容性验收

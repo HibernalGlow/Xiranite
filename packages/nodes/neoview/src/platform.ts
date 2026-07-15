@@ -10,6 +10,10 @@ import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformR
 import type { ReaderHeadlessController } from "./application/headless/ReaderHeadlessController.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
+import type {
+  ReadonlyLegacyThumbnailStore,
+  ReadonlyLegacyThumbnailStoreOptions,
+} from "./platform/thumbnails/ReadonlyLegacyThumbnailStore.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
 export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
@@ -73,6 +77,19 @@ export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
 export async function createSolidArchiveCache(options: SolidArchiveCacheOptions = {}): Promise<SolidArchiveCache> {
   const { SolidArchiveCache } = await import("./platform/archives/sevenzip/SolidArchiveCache.js")
   return new SolidArchiveCache(options)
+}
+
+export async function createReadonlyLegacyThumbnailStore(
+  databasePath?: string,
+  options: ReadonlyLegacyThumbnailStoreOptions = {},
+): Promise<ReadonlyLegacyThumbnailStore> {
+  let path = databasePath
+  if (!path) {
+    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+    path = new LegacyNeoViewDataLocator().locate().thumbnailDatabasePath
+  }
+  const { ReadonlyLegacyThumbnailStore } = await import("./platform/thumbnails/ReadonlyLegacyThumbnailStore.js")
+  return ReadonlyLegacyThumbnailStore.open(path, options)
 }
 
 export async function createReaderHeadlessController(
