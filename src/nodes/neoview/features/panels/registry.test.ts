@@ -48,4 +48,12 @@ describe("NeoView panel and card registries", () => {
       },
     } as never).map((panel) => panel.id)).toEqual(["info"])
   })
+
+  it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {
+    expect(availablePanels("left").map((panel) => panel.id)).not.toContain("settings")
+    expect(availablePanels("left", {
+      panelLayout: { settings: { visible: true, order: 99, position: "left" } },
+      cardLayout: { "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 } },
+    } as never).map((panel) => panel.id)).toContain("settings")
+  })
 })

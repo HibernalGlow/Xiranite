@@ -8,7 +8,7 @@
  */
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 
-import type { ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../../adapters/reader-http-client"
+import type { ReaderBoardLayoutPatch, ReaderHttpClient, ReaderSessionDto, ReaderShellConfigDto } from "../../adapters/reader-http-client"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = "folder" | "history" | "bookmark" | "pageList" | "playlist" | "info" | "properties" | "upscale" | "insights" | "settings" | "benchmark" | "ai" | "control" | "cardwindow"
@@ -18,6 +18,8 @@ export interface ReaderPanelContext {
   client: ReaderHttpClient
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  shell?: ReaderShellConfigDto
+  onBoardLayout?(patch: ReaderBoardLayoutPatch): Promise<void>
 }
 
 export interface ReaderPanelDefinition {
@@ -36,6 +38,7 @@ export interface ReaderCardDefinition {
   title: string
   defaultPanel: LegacyPanelId
   canHide: boolean
+  defaultSidebarVisible?: boolean
   load(): Promise<{ default: ComponentType<ReaderPanelContext> }>
 }
 
@@ -83,6 +86,14 @@ export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = [
     canHide: false,
     load: () => import("./cards/BookInformationCard"),
   },
+  {
+    id: "panel-layout-settings",
+    title: "面板布局设置",
+    defaultPanel: "settings",
+    canHide: true,
+    defaultSidebarVisible: false,
+    load: () => import("../settings/cards/PanelLayoutSettingsCard"),
+  },
 ]
 
 const panelById = new Map(PANEL_DEFINITIONS.map((definition) => [definition.id, definition]))
@@ -90,13 +101,12 @@ const cardById = new Map(CARD_DEFINITIONS.map((definition) => [definition.id, de
 const lazyCards = new Map<string, LazyExoticComponent<ComponentType<ReaderPanelContext>>>()
 
 export function availablePanels(side: ReaderPanelSide, shell?: ReaderShellConfigDto): ReaderPanelDefinition[] {
-  const panelsWithCards = new Set(CARD_DEFINITIONS.map((card) => card.defaultPanel))
   return PANEL_DEFINITIONS
     .filter((definition) => {
       const config = shell?.panelLayout[definition.id]
       return (config?.position ?? definition.defaultSide) === side
         && (config?.visible ?? definition.defaultVisible)
-        && panelsWithCards.has(definition.id)
+        && cardsForPanel(definition.id, shell).length > 0
     })
     .toSorted((left, right) => (shell?.panelLayout[left.id]?.order ?? left.defaultOrder) - (shell?.panelLayout[right.id]?.order ?? right.defaultOrder))
 }
@@ -108,10 +118,10 @@ export function visiblePanelIds(side: ReaderPanelSide, shell?: ReaderShellConfig
 export function cardsForPanel(panelId: LegacyPanelId, shell?: ReaderShellConfigDto): ReaderCardDefinition[] {
   return CARD_DEFINITIONS
     .filter((definition) => {
-      const config = shell?.cardLayout[definition.id]
-      return (config?.panelId ?? definition.defaultPanel) === panelId && (config?.visible ?? true)
+      const config = shell?.cardLayout?.[definition.id]
+      return (config?.panelId ?? definition.defaultPanel) === panelId && (config?.visible ?? definition.defaultSidebarVisible ?? true)
     })
-    .toSorted((left, right) => (shell?.cardLayout[left.id]?.order ?? 0) - (shell?.cardLayout[right.id]?.order ?? 0))
+    .toSorted((left, right) => (shell?.cardLayout?.[left.id]?.order ?? 0) - (shell?.cardLayout?.[right.id]?.order ?? 0))
 }
 
 export function lazyReaderCard(cardId: string): LazyExoticComponent<ComponentType<ReaderPanelContext>> | undefined {

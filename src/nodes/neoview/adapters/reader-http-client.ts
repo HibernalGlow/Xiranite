@@ -61,10 +61,18 @@ export interface ReaderCardLayoutPatch {
   height?: number
 }
 
+export interface ReaderBoardLayoutPatch {
+  board: {
+    panels: Array<{ id: string; visible: boolean; order: number; position: ReaderShellConfigDto["panelLayout"][string]["position"] }>
+    cards: Array<{ cardId: string; panelId: string; visible: boolean; order: number }>
+  }
+}
+
 export interface ReaderHttpClient {
   config(signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateSidebarLayout(patch: ReaderSidebarLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   updateCardLayout(patch: ReaderCardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
+  updateBoardLayout(patch: ReaderBoardLayoutPatch, signal?: AbortSignal): Promise<ReaderShellConfigDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -95,6 +103,12 @@ export function createReaderHttpClient(
       signal,
     }).then((value) => value.shell),
     updateCardLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.shell),
+    updateBoardLayout: (patch, signal) => request<{ shell: ReaderShellConfigDto }>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),

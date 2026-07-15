@@ -63,6 +63,7 @@ function clientWith(overrides: Partial<ReaderHttpClient>): ReaderHttpClient {
     config: vi.fn(),
     updateSidebarLayout: vi.fn(),
     updateCardLayout: vi.fn(),
+    updateBoardLayout: vi.fn(),
     open: vi.fn(),
     listPages: vi.fn(),
     navigate: vi.fn(),

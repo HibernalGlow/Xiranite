@@ -13,6 +13,7 @@ import { SolidArchiveCache } from "../archives/sevenzip/SolidArchiveCache.js"
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
+  parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewSidebarLayoutPatch,
   type NeoviewShellConfig,
@@ -185,11 +186,13 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!this.#updateShellOptions) return jsonResponse({ error: "Reader shell config is read-only" }, 405)
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader shell patch must be a JSON object" }, 400)
-    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch>
+    let parsed: ReturnType<typeof parseNeoviewSidebarLayoutPatch> | ReturnType<typeof parseNeoviewCardLayoutPatch> | ReturnType<typeof parseNeoviewBoardLayoutPatch>
     try {
-      parsed = Object.hasOwn(body, "cardId")
-        ? parseNeoviewCardLayoutPatch(body)
-        : parseNeoviewSidebarLayoutPatch(body)
+      parsed = Object.hasOwn(body, "board")
+        ? parseNeoviewBoardLayoutPatch(body)
+        : Object.hasOwn(body, "cardId")
+          ? parseNeoviewCardLayoutPatch(body)
+          : parseNeoviewSidebarLayoutPatch(body)
     } catch (error) {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }

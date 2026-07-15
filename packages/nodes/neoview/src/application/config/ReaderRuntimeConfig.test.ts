@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewCardLayoutPatch, parseNeoviewRuntimeConfig, parseNeoviewSidebarLayoutPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -165,5 +165,25 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "../bad", expanded: false })).toThrow("cardId")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation" })).toThrow("at least one")
     expect(() => parseNeoviewCardLayoutPatch({ cardId: "page-navigation", height: 20 })).toThrow("height")
+  })
+
+  it("[neoview.settings.board-patch] compacts a complete editor draft into one canonical patch", () => {
+    expect(parseNeoviewBoardLayoutPatch({ board: {
+      panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
+      cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
+    } })).toEqual({
+      patch: { board: {
+        panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
+        cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
+      } },
+      tomlPatch: { panels: {
+        panel_state: { pageList: { visible: true, order: 0, position: "left" } },
+        card_state: { "book-information": { visible: true, order: 0, panel_id: "pageList" } },
+      } },
+    })
+    expect(() => parseNeoviewBoardLayoutPatch({ board: { panels: [], cards: [
+      { cardId: "same", panelId: "info", visible: true, order: 0 },
+      { cardId: "same", panelId: "info", visible: true, order: 1 },
+    ] } })).toThrow("duplicate card")
   })
 })

@@ -66,7 +66,14 @@ export interface NeoviewCardLayoutPatch {
   height?: number
 }
 
-export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch
+export interface NeoviewBoardLayoutPatch {
+  board: {
+    panels: Array<{ id: string; visible: boolean; order: number; position: NeoviewPanelLayout["position"] }>
+    cards: Array<{ cardId: string; panelId: string; visible: boolean; order: number }>
+  }
+}
+
+export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLayoutPatch | NeoviewBoardLayoutPatch
 
 export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   showDelayMs: 0,
@@ -102,6 +109,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
   cardLayout: {
     "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
     "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
+    "panel-layout-settings": { panelId: "settings", visible: false, expanded: true, order: 0 },
   },
 }
 
@@ -195,6 +203,50 @@ export function parseNeoviewCardLayoutPatch(value: unknown): {
   return { patch, tomlPatch: { panels: { card_state: { [patch.cardId]: state } } } }
 }
 
+export function parseNeoviewBoardLayoutPatch(value: unknown): {
+  patch: NeoviewBoardLayoutPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader board patch")
+  if (Object.keys(record).some((key) => key !== "board")) throw new Error("reader board patch contains unsupported fields.")
+  const board = requireRecord(record.board, "reader board patch.board")
+  if (Object.keys(board).some((key) => key !== "panels" && key !== "cards")) throw new Error("reader board patch.board contains unsupported fields.")
+  if (!Array.isArray(board.panels) || !Array.isArray(board.cards)) throw new Error("reader board patch requires panels and cards arrays.")
+  if (board.panels.length > 128 || board.cards.length > 512) throw new Error("reader board patch exceeds the layout item limit.")
+  const panelIds = new Set<string>()
+  const panels = board.panels.map((value, index) => {
+    const item = requireRecord(value, `reader board patch.panels[${index}]`)
+    const id = requireLayoutId(item.id, `reader board patch.panels[${index}].id`)
+    if (panelIds.has(id)) throw new Error(`reader board patch contains duplicate panel ${id}.`)
+    panelIds.add(id)
+    return {
+      id,
+      visible: requiredBoolean(item.visible, `${id}.visible`),
+      order: boundedNumber(item.order, 0, 10_000, 0, `${id}.order`),
+      position: optionalEnum(item.position, `${id}.position`, ["left", "right", "bottom", "floating"] as const) ?? "left",
+    }
+  })
+  const cardIds = new Set<string>()
+  const cards = board.cards.map((value, index) => {
+    const item = requireRecord(value, `reader board patch.cards[${index}]`)
+    const cardId = requireLayoutId(item.cardId, `reader board patch.cards[${index}].cardId`)
+    if (cardIds.has(cardId)) throw new Error(`reader board patch contains duplicate card ${cardId}.`)
+    cardIds.add(cardId)
+    return {
+      cardId,
+      panelId: requireLayoutId(item.panelId, `${cardId}.panelId`),
+      visible: requiredBoolean(item.visible, `${cardId}.visible`),
+      order: boundedNumber(item.order, 0, 10_000, 0, `${cardId}.order`),
+    }
+  })
+  const panelState = Object.fromEntries(panels.map(({ id, ...state }) => [id, state]))
+  const cardState = Object.fromEntries(cards.map(({ cardId, panelId, ...state }) => [cardId, { ...state, panel_id: panelId }]))
+  return {
+    patch: { board: { panels, cards } },
+    tomlPatch: { panels: { panel_state: panelState, card_state: cardState } },
+  }
+}
+
 function parseShellOptions(panels: Record<string, unknown> | undefined): NeoviewShellConfig {
   if (!panels) return DEFAULT_NEOVIEW_SHELL_CONFIG
   const hover = optionalRecord(panels.hover_areas, "[nodes.neoview.panels.hover_areas]")
@@ -281,6 +333,15 @@ function parsePanelLayout(panels: Record<string, unknown>): Record<string, Neovi
       }
     }
   }
+  const canonical = optionalRecord(panels.panel_state, "[nodes.neoview.panels.panel_state]")
+  for (const [id, value] of Object.entries(canonical ?? {})) {
+    if (!isRecord(value)) throw new Error(`[nodes.neoview.panels.panel_state.${id}] must be a table.`)
+    result[id] = {
+      visible: optionalBoolean(value.visible, `${id}.visible`) ?? result[id]?.visible ?? true,
+      order: boundedNumber(value.order, 0, 10_000, result[id]?.order ?? 0, `${id}.order`),
+      position: optionalEnum(value.position, `${id}.position`, ["left", "right", "bottom", "floating"] as const) ?? result[id]?.position ?? "left",
+    }
+  }
   return result
 }
 
@@ -346,6 +407,17 @@ function nestedValue(record: Record<string, unknown> | undefined, section: strin
 function optionalBoolean(value: unknown, path: string): boolean | undefined {
   if (value === undefined) return undefined
   if (typeof value !== "boolean") throw new Error(`${path} must be a boolean.`)
+  return value
+}
+
+function requiredBoolean(value: unknown, path: string): boolean {
+  const parsed = optionalBoolean(value, path)
+  if (parsed === undefined) throw new Error(`${path} is required.`)
+  return parsed
+}
+
+function requireLayoutId(value: unknown, path: string): string {
+  if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value)) throw new Error(`${path} is invalid.`)
   return value
 }
 

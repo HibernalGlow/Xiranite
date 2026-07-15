@@ -102,6 +102,7 @@ function context(): ReaderPanelContext {
     config: vi.fn(),
     updateSidebarLayout: vi.fn(),
     updateCardLayout: vi.fn(),
+    updateBoardLayout: vi.fn(),
     open: vi.fn(),
     listPages: vi.fn(async () => ({ pages: [], total: 1 })),
     navigate: vi.fn(),

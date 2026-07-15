@@ -84,6 +84,18 @@ describe("ReaderEdgeShell", () => {
     expect(screen.queryByText("cards")).toBeNull()
   })
 
+  it("[neoview.shell.modal-protection] lets a settings dialog own Escape without retracting edges", () => {
+    render(
+      <ReaderEdgeShell edges={{ bottom: { ...slot("bottom", <div>thumbnails</div>), initialVisible: true } }}>
+        <div role="dialog"><button type="button">modal control</button></div>
+      </ReaderEdgeShell>,
+    )
+    const control = screen.getByRole("button", { name: "modal control" })
+    control.focus()
+    fireEvent.keyDown(control, { key: "Escape" })
+    expect(screen.getByText("thumbnails")).toBeTruthy()
+  })
+
   it("[neoview.shell.floating-protection] keeps an edge mounted while its context interaction is active", () => {
     vi.useFakeTimers()
     render(

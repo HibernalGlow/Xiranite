@@ -126,6 +126,7 @@ function ReaderEdgeSurface({
     if (!visible || pinned) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"]'))) return
         protectedInteractionRef.current = false
         commitVisible(false)
       }

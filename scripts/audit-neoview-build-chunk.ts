@@ -38,6 +38,24 @@ for (const chunk of deferredPanelChunks) {
   if (chunk.bytes > 32 * 1024) throw new Error(`NeoView deferred panel chunk ${chunk.fileName} is ${chunk.bytes} bytes, above 32 KiB.`)
 }
 
+const settingsWindowChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]ReaderSettingsWindow\.tsx$/i.test(module)))
+const panelLayoutEditorChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]settings[/\\]cards[/\\]PanelLayoutEditor\.tsx$/i.test(module)))
+const kanbanRuntimeChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]src[/\\]components[/\\]ui[/\\]kanban\.tsx$/i.test(module)))
+if (!settingsWindowChunk) throw new Error("NeoView settings window did not produce a deferred production chunk.")
+if (!panelLayoutEditorChunk) throw new Error("NeoView PanelLayoutEditor did not produce a second-level deferred production chunk.")
+if (!kanbanRuntimeChunk) throw new Error("Dice UI Kanban runtime chunk is missing from the PanelLayoutEditor build.")
+if (settingsWindowChunk === panelLayoutEditorChunk) throw new Error("NeoView PanelLayoutEditor leaked into the base settings window chunk.")
+if (initialChunk === kanbanRuntimeChunk || neoViewChunk === kanbanRuntimeChunk || settingsWindowChunk === kanbanRuntimeChunk) {
+  throw new Error("Dice UI Kanban runtime leaked into an eager NeoView/initial/settings-window chunk.")
+}
+if (panelLayoutEditorChunk.bytes > 64 * 1024) throw new Error(`NeoView PanelLayoutEditor chunk ${panelLayoutEditorChunk.fileName} is ${panelLayoutEditorChunk.bytes} bytes, above 64 KiB.`)
+if (kanbanRuntimeChunk.bytes > 64 * 1024) throw new Error(`Dice UI Kanban runtime chunk ${kanbanRuntimeChunk.fileName} is ${kanbanRuntimeChunk.bytes} bytes, above 64 KiB.`)
+const ordinaryReaderChunks = [neoViewChunk, ...deferredPanelChunks.filter((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]ReaderSidebar\.tsx$/i.test(module)))]
+const eagerEditorModules = ordinaryReaderChunks.flatMap((chunk) => chunk.modules
+  .filter((module) => /[/\\]features[/\\]settings[/\\]|@dnd-kit|[/\\]components[/\\]ui[/\\]kanban\.tsx$/i.test(module))
+  .map((module) => `${chunk.fileName}: ${module}`))
+if (eagerEditorModules.length) throw new Error(`NeoView settings/Kanban modules leaked into the ordinary reader path:\n${eagerEditorModules.join("\n")}`)
+
 const initialNeoViewModules = initialChunk.modules.filter((module) => /[/\\]neoview[/\\]/i.test(module))
 if (initialNeoViewModules.length) {
   throw new Error(`NeoView leaked into initial chunk ${initialScript}: ${initialNeoViewModules.join(", ")}`)
@@ -52,5 +70,8 @@ console.log(JSON.stringify({
   initialChunk: { fileName: initialChunk.fileName, bytes: initialChunk.bytes, neoviewModules: 0 },
   neoviewChunk: { fileName: neoViewChunk.fileName, bytes: neoViewChunk.bytes },
   deferredPanelChunks: deferredPanelChunks.map((chunk) => ({ fileName: chunk.fileName, bytes: chunk.bytes })),
+  settingsWindowChunk: { fileName: settingsWindowChunk.fileName, bytes: settingsWindowChunk.bytes },
+  panelLayoutEditorChunk: { fileName: panelLayoutEditorChunk.fileName, bytes: panelLayoutEditorChunk.bytes },
+  kanbanRuntimeChunk: { fileName: kanbanRuntimeChunk.fileName, bytes: kanbanRuntimeChunk.bytes },
   zipJsFrontendModules: 0,
 }, null, 2))

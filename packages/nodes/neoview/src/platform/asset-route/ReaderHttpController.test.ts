@@ -82,6 +82,19 @@ describe("ReaderHttpController", () => {
         { cardId: "page-navigation", expanded: false },
         { panels: { card_state: { "page-navigation": { expanded: false } } } },
       )
+      const board = {
+        board: {
+          panels: [{ id: "pageList", visible: true, order: 0, position: "left" }],
+          cards: [{ cardId: "book-information", panelId: "pageList", visible: true, order: 0 }],
+        },
+      }
+      expect((await controller.handle(jsonRequest("/reader/config", board, true, "PATCH")))?.status).toBe(200)
+      expect(updateShellOptions).toHaveBeenLastCalledWith(board, {
+        panels: {
+          panel_state: { pageList: { visible: true, order: 0, position: "left" } },
+          card_state: { "book-information": { visible: true, order: 0, panel_id: "pageList" } },
+        },
+      })
     } finally {
       await controller[Symbol.asyncDispose]()
     }

@@ -110,14 +110,50 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   ))).toBe(true)
   await expect(page.locator("canvas")).toHaveCount(0)
 
+  await first.evaluate((image) => image.setAttribute("data-neoview-settings-image-instance", "stable"))
+  let boardPatchRequests = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"board"')) boardPatchRequests += 1
+  })
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  const settingsDialog = page.getByRole("dialog")
+  await expect(settingsDialog).toBeVisible()
+  await expect(page.getByRole("heading", { name: "边栏布局" })).toBeVisible()
+  await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toHaveCount(0)
+  const settingsBox = await settingsDialog.boundingBox()
+  const settingsViewport = page.viewportSize()!
+  expect(settingsBox!.width).toBeGreaterThan(settingsViewport.width * 0.65)
+  expect(settingsBox!.height).toBeGreaterThan(settingsViewport.height * 0.8)
+  await page.screenshot({ path: testInfo.outputPath(`neoview-settings-${testInfo.project.name}.png`) })
+  await page.getByRole("button", { name: "卡片管理" }).click()
+  await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toBeVisible()
+  const dockedSettingCard = page.locator('[data-panel-layout-column="settings"] [data-panel-layout-card="panel-layout-settings"]')
+  await page.getByRole("combobox", { name: "移动面板布局设置到" }).selectOption("settings")
+  await expect(dockedSettingCard).toBeVisible()
+  const boardResponse = page.waitForResponse((response) => (
+    response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH" && response.request().postData()?.includes('"board"') === true
+  ))
+  await page.getByRole("button", { name: "保存面板布局" }).click()
+  expect((await boardResponse).status()).toBe(200)
+  expect(boardPatchRequests).toBe(1)
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toHaveCount(0)
+  expect(await first.getAttribute("data-neoview-settings-image-instance")).toBe("stable")
+
   const topEdge = page.getByRole("region", { name: "NeoView 顶部工具栏" })
   const bottomEdge = page.getByRole("region", { name: "NeoView 底部缩略图与导航栏" })
   await expect(topEdge).toBeVisible()
+  await page.locator('[data-reader-edge-trigger="bottom"]').hover()
   await expect(bottomEdge).toBeVisible()
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
   await page.locator('[data-reader-edge-trigger="left"]').hover()
   const leftSidebar = page.locator('[data-reader-sidebar="left"]')
   await expect(leftSidebar).toBeVisible({ timeout: 20_000 })
+  await leftSidebar.getByRole("button", { name: "设置", exact: true }).click()
+  await expect(page.locator('[data-reader-card="面板布局设置"]')).toBeVisible()
+  await expect(page.locator('[data-neoview-panel-layout-editor="true"]')).toBeVisible()
+  await leftSidebar.getByRole("button", { name: "页面列表", exact: true }).click()
   await expect(page.locator('[data-reader-card="页面导航"]')).toBeVisible()
   const collapseResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/config` && response.request().method() === "PATCH"
@@ -166,6 +202,8 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(page.locator("[data-reader-sidebar]")).toHaveCount(0)
   await page.locator('[data-reader-edge-trigger="bottom"]').hover()
   await expect(bottomEdge).toBeVisible()
+  await expect(bottomEdge).toHaveAttribute("data-pinned", "false")
+  await page.locator('[data-reader-viewport="true"]').click({ position: { x: viewport.width / 2, y: viewport.height / 2 }, force: true })
   await page.mouse.move(viewport.width / 2, viewport.height / 2)
   await expect(bottomEdge).toHaveCount(0, { timeout: 1_500 })
   await expect(page.getByTestId("neoview-thumbnail-viewport")).toHaveCount(0)

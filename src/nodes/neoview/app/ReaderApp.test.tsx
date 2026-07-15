@@ -13,6 +13,7 @@ describe("ReaderApp", () => {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(async () => ({
@@ -49,6 +50,7 @@ describe("ReaderApp", () => {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn((_path, signal) => new Promise((_resolve, reject) => {
         rejectOpen = reject
         signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
@@ -79,6 +81,7 @@ describe("ReaderApp", () => {
       config: vi.fn(async () => shellConfig()),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({
         pages: [{ ...opened.visiblePages[0]!, thumbnailUrl: "http://127.0.0.1:41000/reader/thumbnail-1" }, secondPage],
@@ -105,6 +108,7 @@ describe("ReaderApp", () => {
       config: vi.fn(() => new Promise((resolve) => { resolveConfig = resolve })),
       updateSidebarLayout: vi.fn(async () => shellConfig()),
       updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),
@@ -141,6 +145,7 @@ describe("ReaderApp", () => {
       config: vi.fn(async () => config),
       updateSidebarLayout: vi.fn(async () => config),
       updateCardLayout: vi.fn(() => new Promise((resolve) => { finishUpdate = resolve })),
+      updateBoardLayout: vi.fn(async () => config),
       open: vi.fn(async () => opened),
       listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
       navigate: vi.fn(),

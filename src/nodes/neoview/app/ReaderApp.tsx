@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
-import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
+import { BookOpen, ChevronLeft, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Settings2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ import {
   type ReaderShellConfigDto,
   type ReaderSidebarLayoutPatch,
   type ReaderCardLayoutPatch,
+  type ReaderBoardLayoutPatch,
 } from "../adapters/reader-http-client"
 import { PageImage } from "../features/reader/PageImage"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
@@ -27,6 +28,14 @@ function loadReaderSidebar(): Promise<ReaderSidebarModule> {
   return readerSidebarModule
 }
 const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
+
+type ReaderSettingsWindowModule = typeof import("../features/settings/ReaderSettingsWindow")
+let readerSettingsWindowModule: Promise<ReaderSettingsWindowModule> | undefined
+function loadReaderSettingsWindow(): Promise<ReaderSettingsWindowModule> {
+  readerSettingsWindowModule ??= import("../features/settings/ReaderSettingsWindow")
+  return readerSettingsWindowModule
+}
+const LazyReaderSettingsWindow = lazy(async () => ({ default: (await loadReaderSettingsWindow()).ReaderSettingsWindow }))
 
 export interface ReaderAppProps {
   initialPath?: string
@@ -53,6 +62,7 @@ export function ReaderApp({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const prefetchPages = useReaderImagePreloader(session?.sessionId)
 
   useEffect(() => () => {
@@ -162,6 +172,15 @@ export function ReaderApp({
     }
   }
 
+  async function commitBoardLayout(patch: ReaderBoardLayoutPatch) {
+    try {
+      setShell(await clientRef.current.updateBoardLayout(patch))
+    } catch (cause) {
+      setError(errorMessage(cause))
+      throw cause
+    }
+  }
+
   async function choose(source: "file" | "directory") {
     const selected = source === "file" ? await pickFile?.() : await pickDirectory?.()
     if (selected) {
@@ -210,6 +229,7 @@ export function ReaderApp({
             {busy && !session ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
             {compact ? null : "打开"}
           </Button>
+          <Button aria-label="打开 NeoView 设置" type="button" size="icon-sm" variant="ghost" disabled={!shell} onClick={() => setSettingsOpen(true)}><Settings2 /></Button>
         </div>
         {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
       </div>
@@ -252,7 +272,7 @@ export function ReaderApp({
     ),
   } : undefined
 
-  const panelContext = session ? { session, client, disabled: busy, onGoTo: goTo } : undefined
+  const panelContext = session ? { session, client, disabled: busy, onGoTo: goTo, shell, onBoardLayout: commitBoardLayout } : undefined
   const leftEdge: ReaderEdgeSlot | undefined = panelContext && (shell?.edges.left.enabled ?? true) ? {
     ariaLabel: "NeoView 左侧面板",
     showDelayMs: shell?.showDelayMs ?? 80,
@@ -313,6 +333,11 @@ export function ReaderApp({
           {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
         </div>
       </ReaderEdgeShell>
+      {settingsOpen && shell ? (
+        <Suspense fallback={null}>
+          <LazyReaderSettingsWindow shell={shell} onClose={() => setSettingsOpen(false)} onBoardLayout={commitBoardLayout} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }
