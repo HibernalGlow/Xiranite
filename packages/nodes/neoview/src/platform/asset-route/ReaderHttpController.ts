@@ -10,6 +10,7 @@ import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
 import type { ReaderThumbnailStore } from "../../ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import type { ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
@@ -69,6 +70,7 @@ export interface ReaderSessionDto {
   }
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
+  preload?: ReaderPreloadPlan
 }
 
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
@@ -466,7 +468,7 @@ export class ReaderHttpController implements AsyncDisposable {
         : body.action === "previous"
           ? await session.previous(request.signal)
           : await session.goTo(requirePageIndex(body.pageIndex), request.signal)
-      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame) })
+      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 400)
@@ -491,7 +493,7 @@ export class ReaderHttpController implements AsyncDisposable {
     try {
       const current = session.snapshot().layout
       const frame = await session.updateOptions({ layout: { ...current, pageMode: record.pageMode } }, request.signal)
-      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame) })
+      return jsonResponse({ frame, visiblePages: this.#visiblePages(session, frame), preload: session.preloadPlan() })
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: errorMessage(error) }, 400)
@@ -528,6 +530,7 @@ export class ReaderHttpController implements AsyncDisposable {
       },
       frame,
       visiblePages: this.#visiblePages(session, frame),
+      preload: session.preloadPlan(),
     }
   }
 

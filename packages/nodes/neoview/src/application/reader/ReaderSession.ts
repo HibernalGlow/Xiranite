@@ -3,6 +3,7 @@ import { buildFrameSnapshot } from "../../domain/frame/frame-builder.js"
 import type { FrameSnapshot, ReaderGeneration } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
+import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
   type ReaderSession,
@@ -25,6 +26,8 @@ export class CoreReaderSession implements ReaderSession {
   #metadataProbes = new Map<PageId, Promise<void>>()
   #onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>
   readonly #metadataProbe?: ImageMetadataProbe
+  readonly #preload: ReaderPreloadCoordinator
+  #preloadPlan?: ReaderPreloadPlan
 
   constructor(
     id: ReaderSessionId,
@@ -40,6 +43,7 @@ export class CoreReaderSession implements ReaderSession {
     this.#options = mergeOptions(DEFAULT_READER_SESSION_OPTIONS, options)
     this.#onClose = onClose
     this.#metadataProbe = metadataProbe
+    this.#preload = new ReaderPreloadCoordinator(book.pages)
   }
 
   get generation(): ReaderGeneration {
@@ -62,6 +66,10 @@ export class CoreReaderSession implements ReaderSession {
     return this.#pagesById.get(pageId)
   }
 
+  preloadPlan(): ReaderPreloadPlan | undefined {
+    return this.#preloadPlan
+  }
+
   async initialize(pageIndex = 0, signal?: AbortSignal): Promise<FrameSnapshot> {
     this.#assertOpen()
     signal?.throwIfAborted()
@@ -69,10 +77,16 @@ export class CoreReaderSession implements ReaderSession {
     await this.#prepareFrameMetadata(target, this.#options, signal)
     signal?.throwIfAborted()
     this.#anchorPageIndex = target
-    return this.snapshot()
+    const frame = this.snapshot()
+    this.#refreshPreload(frame, "initial")
+    return frame
   }
 
   async goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot> {
+    return this.#goTo(pageIndex, "go-to", signal)
+  }
+
+  async #goTo(pageIndex: number, intent: ReaderNavigationIntent, signal?: AbortSignal): Promise<FrameSnapshot> {
     this.#assertOpen()
     signal?.throwIfAborted()
     const target = clamp(pageIndex, this.book.pages.length)
@@ -80,14 +94,14 @@ export class CoreReaderSession implements ReaderSession {
     signal?.throwIfAborted()
     this.#anchorPageIndex = target
     this.#generation += 1
-    return this.#publishFrame()
+    return this.#publishFrame(intent)
   }
 
   async next(signal?: AbortSignal): Promise<FrameSnapshot> {
     const current = this.snapshot()
     if (current.atEnd) {
       if (this.#options.tailOverflow === "loop" || this.#options.tailOverflow === "seamless-loop") {
-        return this.goTo(0, signal)
+        return this.#goTo(0, "next", signal)
       }
       if (this.#options.tailOverflow === "next-book") {
         this.#emit({ type: "error", code: "NEXT_BOOK_REQUIRED", message: "The next book must be resolved by ReaderService.", recoverable: true })
@@ -96,14 +110,14 @@ export class CoreReaderSession implements ReaderSession {
       return current
     }
     const nextIndex = Math.max(...current.pages.map((page) => page.pageIndex)) + 1
-    return this.goTo(nextIndex, signal)
+    return this.#goTo(nextIndex, "next", signal)
   }
 
   async previous(signal?: AbortSignal): Promise<FrameSnapshot> {
     const current = this.snapshot()
     signal?.throwIfAborted()
     if (current.atStart) return current
-    return this.goTo(current.anchorPageIndex - Math.max(current.pages.length, 1), signal)
+    return this.#goTo(current.anchorPageIndex - Math.max(current.pages.length, 1), "previous", signal)
   }
 
   async updateOptions(options: Partial<ReaderSessionOptions>, signal?: AbortSignal): Promise<FrameSnapshot> {
@@ -114,7 +128,7 @@ export class CoreReaderSession implements ReaderSession {
     signal?.throwIfAborted()
     this.#options = nextOptions
     this.#generation += 1
-    return this.#publishFrame()
+    return this.#publishFrame("layout")
   }
 
   subscribe(listener: (event: ReaderSessionEvent) => void): () => void {
@@ -147,10 +161,15 @@ export class CoreReaderSession implements ReaderSession {
     await this.close()
   }
 
-  #publishFrame(): FrameSnapshot {
+  #publishFrame(intent: ReaderNavigationIntent): FrameSnapshot {
     const snapshot = this.snapshot()
+    this.#refreshPreload(snapshot, intent)
     this.#emit({ type: "frame", snapshot })
     return snapshot
+  }
+
+  #refreshPreload(frame: FrameSnapshot, intent: ReaderNavigationIntent): void {
+    this.#preloadPlan = this.#preload.update(frame, intent)
   }
 
   async #prepareFrameMetadata(

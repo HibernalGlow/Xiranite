@@ -6,6 +6,15 @@ export {
   type NeoViewRuntime,
 } from "./application/node/runNeoview.js"
 export { CoreReaderService } from "./application/reader/ReaderService.js"
+export {
+  ReaderPreloadCoordinator,
+  type ReaderNavigationIntent,
+  type ReaderPreloadCandidate,
+  type ReaderPreloadCoordinatorOptions,
+  type ReaderPreloadDirection,
+  type ReaderPreloadPlan,
+  type ReaderPreloadTier,
+} from "./application/preloading/PreloadCoordinator.js"
 export type { ReaderProgressRecord, ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 export {
   ReaderLibraryService,

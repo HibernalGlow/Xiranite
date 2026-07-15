@@ -253,6 +253,14 @@ describe("ReaderHttpController", () => {
       expect(session.book).toMatchObject({ displayName: expect.any(String), pageCount: 3 })
       expect(session.frame.anchorPageIndex).toBe(1)
       expect(session.visiblePages[0]?.name).toBe("2.jpg")
+      expect(session.preload).toMatchObject({
+        generation: 1,
+        direction: "forward",
+        candidates: [
+          { tier: "near", priority: "view", pageIndexes: [2] },
+          { tier: "background", priority: "background", pageIndexes: [0] },
+        ],
+      })
       expect(JSON.stringify(session)).not.toContain(directory)
 
       const metadata = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}/metadata`)))!
@@ -271,6 +279,7 @@ describe("ReaderHttpController", () => {
       expect(await options.json()).toMatchObject({
         frame: { layout: { pageMode: "double" }, pages: [{ pageIndex: 1 }, { pageIndex: 2 }] },
         visiblePages: [{ index: 1 }, { index: 2 }],
+        preload: { generation: 2, candidates: [{ tier: "background", pageIndexes: [0] }] },
       })
       expect((await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/options`,
@@ -317,7 +326,10 @@ describe("ReaderHttpController", () => {
         `/reader/s/${session.sessionId}/navigate`,
         { action: "next" },
       )))!
-      expect((await navigated.json() as { frame: { anchorPageIndex: number } }).frame.anchorPageIndex).toBe(2)
+      expect(await navigated.json()).toMatchObject({
+        frame: { anchorPageIndex: 2 },
+        preload: { generation: 4, direction: "forward", candidates: [{ tier: "background", pageIndexes: [1] }] },
+      })
 
       const closed = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))!
       expect(closed.status).toBe(204)

@@ -3,6 +3,7 @@ import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderGeneration, type 
 import type { ReadingDirection, TailOverflowBehavior } from "../../domain/navigation/navigation.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
+import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 
 export type ReaderSessionId = string
 
@@ -29,6 +30,7 @@ export interface ReaderSession extends AsyncDisposable {
   readonly book: ReaderBook
   readonly generation: ReaderGeneration
   snapshot(): FrameSnapshot
+  preloadPlan(): ReaderPreloadPlan | undefined
   getPage(pageId: PageId): ReaderPage | undefined
   goTo(pageIndex: number, signal?: AbortSignal): Promise<FrameSnapshot>
   next(signal?: AbortSignal): Promise<FrameSnapshot>

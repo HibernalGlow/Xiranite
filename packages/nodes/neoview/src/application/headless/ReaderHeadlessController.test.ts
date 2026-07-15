@@ -37,11 +37,12 @@ describe("ReaderHeadlessController", () => {
   it("[neoview.headless.navigation] shares frame navigation and bounded page listings", async () => {
     const controller = controllerFor("D:/book.cbz")
     try {
-      await controller.open({ path: "D:/book.cbz" })
+      const opened = await controller.open({ path: "D:/book.cbz" })
+      expect(opened.preload).toMatchObject({ generation: 1, direction: "forward" })
       expect(controller.listPages(1, 2).map((page) => page.name)).toEqual(["002.png", "003.png"])
-      expect((await controller.next()).frame.anchorPageIndex).toBe(1)
+      expect(await controller.next()).toMatchObject({ frame: { anchorPageIndex: 1 }, preload: { generation: 2, direction: "forward" } })
       expect((await controller.goTo(2)).visiblePages[0]?.index).toBe(2)
-      expect((await controller.previous()).frame.anchorPageIndex).toBe(1)
+      expect(await controller.previous()).toMatchObject({ frame: { anchorPageIndex: 1 }, preload: { direction: "backward" } })
       expect(() => controller.listPages(0, 501)).toThrow("limit")
     } finally {
       await controller[Symbol.asyncDispose]()

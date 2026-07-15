@@ -3,6 +3,7 @@ import type { FrameSnapshot } from "../../domain/frame/frame.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ArchivePasswordInput } from "../../ports/ReaderBookLoader.js"
+import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
 
 export interface OpenHeadlessReaderInput {
@@ -33,6 +34,7 @@ export interface HeadlessReaderSnapshot {
   book: HeadlessReaderBookSnapshot
   frame: FrameSnapshot
   visiblePages: readonly HeadlessReaderPageSnapshot[]
+  preload?: ReaderPreloadPlan
 }
 
 export interface HeadlessPageStream extends AsyncDisposable {
@@ -215,6 +217,7 @@ function snapshotOf(session: ReaderSession): HeadlessReaderSnapshot {
       pageCount: session.book.pages.length,
     },
     frame,
+    preload: session.preloadPlan(),
     visiblePages: frame.pages.flatMap(({ pageId }) => {
       const page = session.getPage(pageId)
       return page ? [pageSnapshot(page)] : []
