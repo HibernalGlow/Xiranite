@@ -35,7 +35,10 @@ const directoryCount = positiveInteger(parsed.values.files ?? (quick ? "1000" : 
 const windowSize = positiveInteger(parsed.values.window, "window", 512)
 const assertBudgets = parsed.values.assert
 const storageLabel = parsed.values["storage-label"]?.trim() || "unspecified"
-const realCorpus = Boolean(parsed.values["page-source"] && parsed.values["directory-source"])
+const hasRealPageCorpus = Boolean(parsed.values["page-source"])
+const hasRealDirectoryCorpus = Boolean(parsed.values["directory-source"])
+const realCorpus = hasRealPageCorpus && hasRealDirectoryCorpus
+const corpusKind = realCorpus ? "real" : hasRealPageCorpus || hasRealDirectoryCorpus ? "mixed-smoke" : "synthetic-smoke"
 const acceptanceEligible = realCorpus && pageCount >= 1_000 && directoryCount >= 10_000 && storageLabel !== "unspecified"
 if (assertBudgets && !acceptanceEligible) {
   throw new Error("--assert requires real --page-source and --directory-source corpora, at least 1000 pages/10000 entries, and --storage-label.")
@@ -56,7 +59,11 @@ let book: ReaderBook | undefined
 let pipeline: PlatformThumbnailPipeline | undefined
 try {
   const setupStarted = performance.now()
-  if (!realCorpus) fixture = await createSyntheticFixture(pageCount, directoryCount, parsed.values["work-root"])
+  if (!realCorpus) fixture = await createSyntheticFixture(
+    hasRealPageCorpus ? 0 : pageCount,
+    hasRealDirectoryCorpus ? 0 : directoryCount,
+    parsed.values["work-root"],
+  )
   const pageSource = resolve(parsed.values["page-source"] ?? fixture!.pageDirectory)
   const directorySource = resolve(parsed.values["directory-source"] ?? fixture!.browserDirectory)
   const setupMs = performance.now() - setupStarted
@@ -76,9 +83,10 @@ try {
   const rssBefore = process.memoryUsage().rss
   let peakRss = rssBefore
   const sample = pages.slice(0, pageCount)
-  const coldGenerationMs = await measureGeneration(pipeline, sample[0]!, "benchmark:cold")
+  const benchmarkPage = sample[0]!
+  const coldGenerationMs = await measureGeneration(pipeline, benchmarkPage, "benchmark:cold")
   pipeline.hibernateReader()
-  const warmGenerationMs = await measureGeneration(pipeline, sample[1]!, "benchmark:warm")
+  const warmGenerationMs = await measureGeneration(pipeline, benchmarkPage, "benchmark:warm")
   pipeline.hibernateReader()
   peakRss = Math.max(peakRss, process.memoryUsage().rss)
 
@@ -96,7 +104,7 @@ try {
     runtime: `Bun ${Bun.version}`,
     platform: `${process.platform}-${process.arch}`,
     corpus: {
-      kind: realCorpus ? "real" : "synthetic-smoke",
+      kind: corpusKind,
       acceptanceEligible,
       pageCount,
       directoryCount,
@@ -108,8 +116,7 @@ try {
     pages: {
       available: pages.length,
       openBookMs: round(openBookMs),
-      firstSample: pageDescriptor(sample[0]!),
-      secondSample: pageDescriptor(sample[1]!),
+      sample: pageDescriptor(benchmarkPage),
       coldGenerationMs: round(coldGenerationMs),
       warmGenerationMs: round(warmGenerationMs),
     },
@@ -254,19 +261,23 @@ async function createSyntheticFixture(pages: number, files: number, workRoot?: s
     const pageDirectory = join(root, "pages")
     const browserDirectory = join(root, "browser")
     await Promise.all([mkdir(pageDirectory), mkdir(browserDirectory)])
-    const sharpModule = await import("sharp")
-    type SharpFactory = (typeof import("sharp"))["default"]
-    const sharp = ((sharpModule as unknown as { default?: SharpFactory }).default ?? sharpModule) as SharpFactory
-    const raw = deterministicBytes(3_840 * 2_160 * 3)
-    const jpeg = await sharp(raw, { raw: { width: 3_840, height: 2_160, channels: 3 } }).jpeg({ quality: 88 }).toBuffer()
-    const seed = join(root, "seed.jpg")
-    await writeFile(seed, jpeg)
-    await pMap(Array.from({ length: pages }, (_, index) => index), async (index) => {
-      await link(seed, join(pageDirectory, `${String(index + 1).padStart(6, "0")}.jpg`))
-    }, { concurrency: 64 })
-    await pMap(Array.from({ length: files }, (_, index) => index), async (index) => {
-      await writeFile(join(browserDirectory, `${String(index + 1).padStart(6, "0")}.cbz`), new Uint8Array())
-    }, { concurrency: 64 })
+    if (pages) {
+      const sharpModule = await import("sharp")
+      type SharpFactory = (typeof import("sharp"))["default"]
+      const sharp = ((sharpModule as unknown as { default?: SharpFactory }).default ?? sharpModule) as SharpFactory
+      const raw = deterministicBytes(3_840 * 2_160 * 3)
+      const jpeg = await sharp(raw, { raw: { width: 3_840, height: 2_160, channels: 3 } }).jpeg({ quality: 88 }).toBuffer()
+      const seed = join(root, "seed.jpg")
+      await writeFile(seed, jpeg)
+      await pMap(Array.from({ length: pages }, (_, index) => index), async (index) => {
+        await link(seed, join(pageDirectory, `${String(index + 1).padStart(6, "0")}.jpg`))
+      }, { concurrency: 64 })
+    }
+    if (files) {
+      await pMap(Array.from({ length: files }, (_, index) => index), async (index) => {
+        await writeFile(join(browserDirectory, `${String(index + 1).padStart(6, "0")}.cbz`), new Uint8Array())
+      }, { concurrency: 64 })
+    }
     return { root, pageDirectory, browserDirectory }
   } catch (error) {
     await rm(root, { recursive: true, force: true })

@@ -13,6 +13,8 @@ This benchmark validates the complete backend thumbnail path rather than only SQ
 
 It never opens or writes `%APPDATA%\NeoView\thumbnails.db`.
 
+Cold and warm generation measure the same page. The pipeline evicts its encoded L1 entry between samples, so the warm result still performs archive/file access, decode, resize, and WebP encode while allowing operating-system and archive-source caches to remain warm.
+
 ## Synthetic structural smoke
 
 ```powershell
@@ -53,6 +55,34 @@ The full synthetic command above was run on Windows x64 with Bun 1.4.0. This is 
 | State after dispose | 0 demands / 0 flights / 0 cache bytes |
 
 The synthetic pages are hard links to one deterministic JPEG and benefit from shared filesystem cache. These numbers must not be described as HDD/SATA SSD/NVMe results.
+
+## Mixed real-page smoke
+
+Supplying only one real source is useful for targeted diagnostics, but it is never release acceptance. The benchmark generates only the missing half and reports:
+
+```json
+{ "kind": "mixed-smoke", "acceptanceEligible": false }
+```
+
+On 2026-07-16, a 1,008,450,309-byte ZIP containing 2,259 AVIF image entries was used as the real page source on an NVMe Predator SSD GM7 M.2 2TB. The directory side was a generated 1,000-entry fixture. Cold and warm generation used the same first AVIF entry with the encoded L1 entry evicted between samples:
+
+| Metric | Result |
+| --- | ---: |
+| 1,000-entry provider read | 5.60 ms |
+| Browser open and sort | 4.54 ms |
+| 2,259-page ZIP open | 55.34 ms |
+| Cold AVIF generation | 106.19 ms |
+| Warm AVIF generation after L1 eviction | 46.40 ms |
+| Demands / cancelled / failed | 1,024 / 992 / 0 |
+| Peak active / queued / running | 32 / 24 / 8 |
+| Final visible completed | 32/32 |
+| Final visible ready P95 | 2,430.83 ms |
+| L1 hit P95 | 0.02 ms |
+| RSS delta | 278.07 MiB |
+| Work after release | 0 demands / 0 flights |
+| State after dispose | 0 demands / 0 flights / 0 cache bytes |
+
+Generation and queue-lifecycle budgets passed, but this run exceeded the 256 MiB RSS-delta budget by 22.07 MiB. Mixed smoke does not execute `--assert`; the memory result remains an explicit optimization and real-corpus acceptance item rather than being hidden by the otherwise successful run.
 
 ## Real-corpus acceptance
 
