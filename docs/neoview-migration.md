@@ -1436,7 +1436,68 @@ xneoview --connect inspect book.cbz
 
 CLI 密码参数只接受 `--password-env VAR` 或 `--archive-password-env entry.cbz::nested.cbz=VAR`。不提供明文 `--password`，密码不会进入 URL、JSON、日志或 TOML；环境变量值会复制为每次 open 独立的 `Uint8Array`，在 open 返回后由 session credential store 接管副本，CLI 临时字节在命令结束时主动覆零。JSON DTO 不包含本地 source path、临时物化路径或密码。`extract-page --output -` 的 stdout 专用于二进制数据；写文件默认使用排他创建，只有显式 `--force` 才覆盖。
 
-### 15.1 超分统一使用 OpenComic TS 调度和系统 CLI
+### 15.1 TUI 图片阅读：复用共享能力，TUI 只做终端适配
+
+TUI 不是第二个 Reader，也不是把 GUI 的 DOM 图片链改写为 ANSI。它只能把终端 viewport、输入和图形协议翻译为共享 Reader 的 presentation request；排序、目录/归档读取、页面/frame、双页/RTL 顺序、尺寸探测、缩放、预读、缓存、调度、密码和资源释放均继续由 domain/application/platform 承担。目标是令 `packages/nodes/neoview/src/Tui.tsx` 保持为薄的 OpenTUI screen，而非累积 archive、sharp、chafa、缩略图和缓存实现。
+
+当前仓库已有可复用的终端图像能力，不得另起协议实现：
+
+| 目标 | 必须复用 | 参考路径 | NeoView 的接入方式 |
+| --- | --- | --- | --- |
+| 图像协议、像素尺寸、SIXEL/Kitty/half-block fallback、清理 | `TerminalImagePreview`、`resolveTerminalImageBackend`、`eraseTerminalGraphicsRect` | `packages/cli-runtime/src/tui/opentui/image-preview.tsx` | Reader frame 的受控 presentation asset 交给共享 component；不在 NeoView 重新编码 SIXEL/Kitty |
+| 滚动图集的可见区绘制/擦除 | EngineV gallery 的 pause、debounce、slot 计算 | `packages/nodes/enginev/src/Tui.tsx` 的 `EngineVGallery`、`resolveSixelImageSlots()`；`packages/nodes/enginev/src/Tui.bun.test.tsx` | Page strip/file gallery 只绘制 viewport 内 thumbnail，滚动中暂停绘制，稳定后重画且只擦除自身 slot |
+| 终端阅读模式与降级产品语义 | 像素协议与 cell reader 分层 | `ref/manga-tui/komado/src/app.js` 的 `openReader()`、`ref/manga-tui/komado/src/components/screens/ReaderScreen.js` | 有图像协议时显示像素 Reader；没有时明确显示 half-block/cell preview，不把低保真结果说成原图阅读 |
+| 图片协议严格能力选择 | 可探测 protocol widget，而非猜测终端类型 | `ref/manga-tui/manga-tui/src/view/pages/reader.rs`；`ref/manga-tui/manga-tui/Cargo.toml` | 只以 OpenTUI renderer capability 决定 SIXEL/Kitty；不支持时走共享 half-block fallback |
+
+`ref/manga-tui` 和 EngineV 只用于 clean-room 行为研究；Xiranite 生产代码不得从 `ref/` import，也不得复制其 GPL/第三方实现。
+
+为让 archive page、嵌套 archive 和目录 page 使用同一入口，后续在 application/ports 新增通用 presentation contract，而不是让 TUI 向 `ReaderHeadlessController.openPageStream()` 后自行读完原图：
+
+```ts
+interface ReaderPresentationRequest {
+  frame: FrameSnapshot
+  viewport: { columns: number; rows: number; pixelWidth?: number; pixelHeight?: number }
+  fit: "contain" | "cover"
+  output: "png-rgba"
+  priority: "visible" | "near"
+  signal: AbortSignal
+}
+
+interface ReaderPresentationAsset extends AsyncDisposable {
+  id: string
+  contentVersion: string
+  width: number
+  height: number
+  bytes: Uint8Array // 只允许终端目标尺寸后的有界结果
+}
+```
+
+contract 由 `ReaderHeadlessController` 暴露、由 platform 的 `ReaderPresentationRenderer` port 实现：`PageSource stream -> shared ImageTransformer -> bounded PNG/RGBA`。它继承当前 frame generation、`AbortSignal`、singleflight、`ResourceScheduler` 和 content version。TUI 只把返回 asset 传给共享 `TerminalImagePreview`；后者应演进为接受 `{ cacheKey, contentVersion, bytes | load(signal) }`，而非只接受本地文件路径。这样 ZIP/7z/RAR/嵌套包、单文件和未来远程页都无需在 TUI 内另写 loader，也不需要为了 `sharp`/Chafa 创建临时原图文件。
+
+共享层和 TUI 层的硬边界如下：
+
+| 必须在共享 TS 中 | 只允许在 TUI 中 |
+| --- | --- |
+| `ReaderSession`、`FrameSnapshot`、阅读方向、单双页组合、页码跳转、历史和书签 | 快捷键、焦点、OpenTUI box/scrollbox 布局、状态文本 |
+| `ReaderBookLoader`、目录/ZIP/7z/RAR/nested provider、密码 scope、`PageSource` 关闭 | terminal cell/pixel viewport 测量和 resize 事件 |
+| ImageTransformer、目标像素限制、presentation/thumbnail singleflight、预读 admission、缓存与全局 CPU/I/O lease | `TerminalImagePreview` 的放置、协议图形擦除、滚动暂停/重画 |
+| Page/file/folder thumbnail source、批量命中和失效 | 列数、tile 大小、选择态、可见窗口 cursor |
+
+禁止 TUI import `node:fs`、`node:child_process`、sharp、archive provider、SQLite store 或缩略图库路径；禁止维护独立 `Map<page, Buffer>`、独立 worker queue 或第二套页面预读逻辑。当前 `TerminalImagePreview` 的全局 160 项解码 cache 和固定 3 decode tasks 也不能直接成为 Reader 缓存/调度策略：应改为可注入、按实际字节计费且可由 session/host 释放的 shared presentation cache，并将 decode work 接入 `ResourceScheduler`。否则 EngineV gallery、NeoView TUI 和 GUI 会在同一进程中绕过彼此的资源配额。
+
+Chafa 不作为 NeoView 的默认或 SIXEL/Kitty 主路径。现有 shared component 已可直接输出这些协议；为主阅读器另起 `chafa` 子进程会增加启动、stdout placement、取消和图形残留风险。它最多作为用户显式选择的 `chafa-symbols` cell fallback：由一个共享 terminal-image adapter 以有界目标尺寸数据喂给 stdin、取得 host CPU/process lease，并在 abort/exit 时终止。Chafa 不得接收 archive path、密码、原始 4K/8K 页面，也不得写入单独的临时/磁盘缓存。默认 fallback 仍为现有 zero-install truecolor half-block，UI 必须显示实际 backend。
+
+TUI 交付顺序固定为：
+
+1. 先将单页/双页的 current `FrameSnapshot` 接到共享 terminal image surface，验证翻页、切书、终端 resize、退出均取消旧 asset 并只擦除自己的图形 placement；
+2. 接 P1 相邻 frame 的同 profile presentation prefetch，受第 13.1 节 coordinator 和全局 scheduler 控制；不预取原始 page Buffer；
+3. 接书内 Page strip：先窗口化的页号/名称/尺寸列表，`ThumbnailCoordinator` 可用后才增加 EngineV 式 thumbnail tile；
+4. 接目录/多图文件 gallery，它是独立的 FileBrowser/Library contract，不得为每个 tile 打开 ReaderSession；file/folder cover 统一走 thumbnail service；
+5. 最后才评估可选 `chafa-symbols`，并在真实终端上比较 SIXEL、Kitty、half-block 与 Chafa 的可读性、first-frame、RSS、取消延迟和滚动残影。
+
+最低验收包括：SIXEL/Kitty/half-block 三种 capability；目录、CBZ、non-solid/solid 7z/RAR 和嵌套 archive；单页、双页、RTL、快进快退、resize、快速滚动 gallery、切书与 TUI exit。测试必须复用 EngineV 的“只擦除 viewport 内 slot”断言，并新增断言：所有旧 generation 的 `ReaderPresentationAsset`、`PageSource`、scheduler lease 和终端 placement 最终为零；任何 TUI 图像任务都不能阻塞可见 page first byte。若 TUI 实现无法只依赖上述 shared contracts，则应先扩展 contract，不能在 `Tui.tsx` 引入临时旁路。
+
+### 15.2 超分统一使用 OpenComic TS 调度和系统 CLI
 
 超分主链确定为 `OpenComicAiSystemProvider`。GUI、CLI、TUI 只调用共享的 `SuperResolutionService`，不分别维护模型映射、进程队列或输出处理。目标实现复用 `opencomic-ai-bin` 的 TypeScript 调度思路、模型元数据和 Upscayl daemon 协议，但运行时只调用用户已经安装到系统中的 CLI：
 
