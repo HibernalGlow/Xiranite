@@ -489,6 +489,8 @@ export function ReaderApp({
     client,
     disabled: busy,
     onGoTo: goTo,
+    sourcePath: path,
+    onOpen: openPath,
     shell,
     onBoardLayout: commitBoardLayout,
     viewDefaults,

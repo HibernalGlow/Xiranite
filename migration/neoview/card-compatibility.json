@@ -473,7 +473,8 @@
       "panelId": "folder",
       "priority": "core",
       "featureId": "file-browser-navigation",
-      "status": "pending"
+      "status": "partial",
+      "currentCardId": "folder-main"
     },
     {
       "legacyId": "aiTags",

@@ -32,6 +32,30 @@ export interface ReaderPageListDto {
   total: number
 }
 
+export interface ReaderDirectoryEntryDto {
+  name: string
+  path: string
+  kind: "directory" | "file" | "other"
+  readerSupported: boolean
+}
+
+export interface ReaderDirectoryPageDto {
+  sessionId: string
+  path: string
+  parentPath?: string
+  entries: ReaderDirectoryEntryDto[]
+  cursor: number
+  nextCursor?: number
+  total: number
+  canGoBack: boolean
+  canGoForward: boolean
+  generation: number
+}
+
+export type ReaderDirectoryNavigationDto =
+  | { action: "path"; path: string }
+  | { action: "back" | "forward" | "up" | "refresh" }
+
 export interface ReaderShellConfigDto {
   revision?: number
   showDelayMs: number
@@ -100,6 +124,10 @@ export interface ReaderHttpClient {
   updateViewDefaults(patch: ReaderViewDefaultsPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["viewDefaults"]>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  openDirectoryBrowser?(path: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  listDirectoryBrowser?(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  closeDirectoryBrowser?(sessionId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -165,6 +193,29 @@ export function createReaderHttpClient(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path }),
       signal,
+    }),
+    openDirectoryBrowser: (path, signal) => request<ReaderDirectoryPageDto>("/reader/browser/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+      signal,
+    }),
+    listDirectoryBrowser: (sessionId, cursor, limit, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/entries?cursor=${cursor}&limit=${limit}`,
+      { signal },
+    ),
+    navigateDirectoryBrowser: (sessionId, navigation, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/navigate`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(navigation),
+        signal,
+      },
+    ),
+    closeDirectoryBrowser: (sessionId) => request<void>(`/reader/browser/s/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+      keepalive: true,
     }),
     listPages: (sessionId, cursor, limit, signal) => request<ReaderPageListDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,

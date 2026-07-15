@@ -31,6 +31,8 @@ export interface ReaderPanelContext {
   client: ReaderHttpClient
   disabled: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  sourcePath?: string
+  onOpen?(path: string): void | Promise<void>
   shell?: ReaderShellConfigDto
   onBoardLayout?(patch: ReaderBoardLayoutPatch): Promise<void>
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
@@ -93,6 +95,7 @@ export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_
 }))
 
 const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
+  "folder-main": () => import("./cards/FolderMainCard"),
   "page-navigation": () => import("./cards/PageNavigationCard"),
   "book-information": () => import("./cards/BookInformationCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),

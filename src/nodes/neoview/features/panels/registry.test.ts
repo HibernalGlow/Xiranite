@@ -12,7 +12,7 @@ describe("NeoView panel and card registries", () => {
 
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
-    expect(availablePanels("left").map((panel) => panel.id)).toEqual(["pageList"])
+    expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "pageList"])
     expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
@@ -34,7 +34,7 @@ describe("NeoView panel and card registries", () => {
         pageList: { visible: false, order: 20, position: "left" },
         folder: { visible: true, order: 0, position: "left" },
       },
-    } as never).map((panel) => panel.id)).toEqual([])
+    } as never).map((panel) => panel.id)).toEqual(["folder"])
     expect(availablePanels("right", {
       panelLayout: {
         info: { visible: true, order: 10, position: "right" },
@@ -46,7 +46,7 @@ describe("NeoView panel and card registries", () => {
         pageList: { visible: false, order: 20, position: "left" },
         info: { visible: true, order: 0, position: "left" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["info"])
+    } as never).map((panel) => panel.id)).toEqual(["folder", "info"])
   })
 
   it("[neoview.settings.card-docking] keeps setting cards undocked by default and allows explicit sidebar placement", () => {
@@ -68,6 +68,6 @@ describe("NeoView panel and card registries", () => {
         "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },
         "panel-layout-settings": { panelId: "settings", visible: true, expanded: true, order: 0 },
       },
-    } as never, false).map((panel) => panel.id)).toEqual(["settings"])
+    } as never, false).map((panel) => panel.id)).toEqual(["folder", "settings"])
   })
 })

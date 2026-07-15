@@ -62,6 +62,7 @@ describe("ReaderSidebar layout gestures", () => {
     const config = shell()
     config.cardLayout["page-navigation"]!.expanded = false
     render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
 
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "展开页面导航" }))
@@ -74,6 +75,7 @@ describe("ReaderSidebar layout gestures", () => {
     const config = shell()
     config.cardLayout["page-navigation"]!.height = 180
     render(<ReaderSidebar side="left" context={context()} shell={config} onCardLayoutCommit={cardCommit} />)
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
     const content = document.querySelector<HTMLElement>('[data-reader-card-content="页面导航"]')!
     const handle = screen.getByRole("button", { name: "调整页面导航高度" })
 
@@ -93,6 +95,7 @@ describe("ReaderSidebar layout gestures", () => {
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }
     config.cardLayout["panel-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
     render(<ReaderSidebar side="left" context={context(false)} shell={config} />)
+    fireEvent.click(screen.getByRole("button", { name: "设置" }))
 
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()

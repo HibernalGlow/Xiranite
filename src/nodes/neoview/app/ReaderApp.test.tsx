@@ -319,8 +319,9 @@ describe("ReaderApp", () => {
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "页面列表" }))
     await screen.findByRole("button", { name: "折叠页面导航" })
-    expect(screen.getByRole("spinbutton", { name: "跳转页码" })).toBeTruthy()
+    expect(await screen.findByRole("spinbutton", { name: "跳转页码" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "折叠页面导航" }))
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
     expect(client.updateCardLayout).toHaveBeenCalledWith({ cardId: "page-navigation", expanded: false })
@@ -351,6 +352,7 @@ describe("ReaderApp", () => {
     }
 
     render(<ReaderApp client={client} />)
+    fireEvent.click(await screen.findByRole("button", { name: "设置" }))
     expect(await screen.findByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
     expect(client.open).not.toHaveBeenCalled()

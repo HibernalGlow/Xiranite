@@ -17,6 +17,7 @@ import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRou
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
 import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
+import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
@@ -85,6 +86,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #libraryThumbnails: LibraryThumbnailRoute
   readonly #thumbnailPipeline: PlatformThumbnailPipeline
   readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
+  readonly #directoryBrowser: ReaderDirectoryBrowserRoute
   readonly #token: string
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
@@ -145,6 +147,7 @@ export class ReaderHttpController implements AsyncDisposable {
     })
     this.#libraryThumbnails = new LibraryThumbnailRoute(this.#thumbnailPipeline, options)
     this.#thumbnailMaintenance = new ThumbnailMaintenanceRoute({ token: options.token, thumbnailStore: options.thumbnailStore })
+    this.#directoryBrowser = new ReaderDirectoryBrowserRoute()
     this.#disposeThumbnailStore = options.disposeThumbnailStore
     this.#token = options.token
     this.#shellOptions = options.shellOptions ?? DEFAULT_NEOVIEW_SHELL_CONFIG
@@ -167,6 +170,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (libraryThumbnailResponse) return libraryThumbnailResponse
     const thumbnailMaintenanceResponse = await this.#thumbnailMaintenance.handle(request)
     if (thumbnailMaintenanceResponse) return thumbnailMaintenanceResponse
+    const directoryBrowserResponse = await this.#directoryBrowser.handle(request)
+    if (directoryBrowserResponse) return directoryBrowserResponse
 
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
@@ -194,6 +199,11 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#assets.close()
     this.#libraryThumbnails.close()
     const errors: unknown[] = []
+    try {
+      await this.#directoryBrowser[Symbol.asyncDispose]()
+    } catch (error) {
+      errors.push(error)
+    }
     try {
       await this.#thumbnailPipeline.dispose()
     } catch (error) {

@@ -42,6 +42,7 @@ export const READER_PANEL_MANIFEST = [
 ] as const satisfies readonly ReaderPanelManifestEntry[]
 
 export const READER_CARD_MANIFEST = [
+  card("folder-main", "文件浏览", "folder", true, true, 0, false, false),
   card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
   card("book-information", "书籍信息", "info", true, true, 0, false, true),
   card("view-defaults-settings", "视图默认值", "settings", false, true, 0, true, false, "view"),
