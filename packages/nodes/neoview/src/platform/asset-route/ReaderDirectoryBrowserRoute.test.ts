@@ -34,6 +34,17 @@ describe("ReaderDirectoryBrowserRoute", () => {
         expect.objectContaining({ name: "page2.png", kind: "file", readerSupported: true }),
         expect.objectContaining({ name: "page10.png", kind: "file", readerSupported: true }),
       ])
+      const sorted = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/sort`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ field: "size", order: "desc", directoriesFirst: true, focusPath: join(directory, "page2.png") }),
+      })))!
+      expect(sorted.status).toBe(200)
+      const sortedBody = await sorted.json() as { sort: { field: string; order: string }; sortFields: string[]; suggestedSelection: { path: string; index: number }; entries: Array<{ name: string; size?: number }> }
+      expect(sortedBody.sort).toEqual({ field: "size", order: "desc", directoriesFirst: true })
+      expect(sortedBody.sortFields).toEqual(["name", "date", "size", "type", "random", "path"])
+      expect(sortedBody.entries.map((entry) => entry.name)).toEqual(["nested", "notes.txt", "page2.png", "page10.png"])
+      expect(sortedBody.suggestedSelection).toMatchObject({ path: join(directory, "page2.png"), index: 2 })
       expect((await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
     } finally {
       await route[Symbol.asyncDispose]()

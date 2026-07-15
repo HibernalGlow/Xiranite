@@ -9,6 +9,8 @@ import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
 import type { ReaderThumbnailStore } from "./ports/ReaderThumbnailStore.js"
 import type { ReaderProgressStore } from "./ports/ReaderProgressStore.js"
 import type { ReaderDataStore } from "./ports/ReaderDataStore.js"
+import type { ReaderFileTreeWatcher } from "./ports/ReaderFileTreeWatcher.js"
+import type { ReaderFileTreeScanner } from "./ports/ReaderFileTreeScanner.js"
 import type { ReaderLibraryService } from "./application/library/ReaderLibraryService.js"
 import type { LegacyReaderDataImporter } from "./migration/LegacyReaderDataImporter.js"
 import type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
@@ -37,6 +39,18 @@ export type { SolidArchiveCacheOptions } from "./platform/archives/sevenzip/Soli
 export type { LibraryThumbnailKind, LibraryThumbnailSource, PlatformThumbnailPipelineOptions } from "./platform/thumbnails/PlatformThumbnailPipeline.js"
 export type { VideoThumbnailProvider, VideoThumbnailRequest, VideoThumbnailResult } from "./ports/VideoThumbnailProvider.js"
 export type { FfmpegVideoThumbnailProviderOptions } from "./platform/video/FfmpegVideoThumbnailProvider.js"
+export type {
+  ReaderFileTreeChange,
+  ReaderFileTreeChangeKind,
+  ReaderFileTreeSubscription,
+  ReaderFileTreeWatcher,
+} from "./ports/ReaderFileTreeWatcher.js"
+export type {
+  ReaderFileTreeEntry,
+  ReaderFileTreeEntryKind,
+  ReaderFileTreeScanner,
+  ReaderFileTreeScanOptions,
+} from "./ports/ReaderFileTreeScanner.js"
 
 export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & NeoviewRuntimeLoadOptions & {
   progressStore?: ReaderProgressStore | false
@@ -161,6 +175,16 @@ async function disposeLoadedThumbnailStore(store: ReaderThumbnailStore): Promise
 export async function createImageMetadataProbe(): Promise<ImageMetadataProbe> {
   const { StreamingImageMetadataProbe } = await import("./platform/images/StreamingImageMetadataProbe.js")
   return new StreamingImageMetadataProbe()
+}
+
+export async function createFileTreeWatcher(): Promise<ReaderFileTreeWatcher> {
+  const { PlatformFileTreeWatcher } = await import("./platform/filesystem/PlatformFileTreeWatcher.js")
+  return new PlatformFileTreeWatcher()
+}
+
+export async function createFileTreeScanner(): Promise<ReaderFileTreeScanner> {
+  const { PlatformFileTreeScanner } = await import("./platform/filesystem/PlatformFileTreeScanner.js")
+  return new PlatformFileTreeScanner()
 }
 
 export async function createSolidArchiveCache(options: SolidArchiveCacheOptions = {}): Promise<SolidArchiveCache> {

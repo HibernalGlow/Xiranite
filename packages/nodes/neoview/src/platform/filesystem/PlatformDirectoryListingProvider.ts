@@ -2,7 +2,6 @@ import { opendir, realpath, stat } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 import { pageMediaType, pathExtension } from "../../domain/page/media.js"
-import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type {
   ReaderDirectoryEntry,
   ReaderDirectoryListing,
@@ -36,7 +35,6 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
       })
     }
     signal?.throwIfAborted()
-    entries.sort(compareEntries)
     const parentPath = dirname(directoryPath)
     return {
       path: directoryPath,
@@ -44,12 +42,6 @@ export class PlatformDirectoryListingProvider implements ReaderDirectoryListingP
       entries,
     }
   }
-}
-
-function compareEntries(left: ReaderDirectoryEntry, right: ReaderDirectoryEntry): number {
-  const leftRank = left.kind === "directory" ? 0 : left.kind === "file" ? 1 : 2
-  const rightRank = right.kind === "directory" ? 0 : right.kind === "file" ? 1 : 2
-  return leftRank - rightRank || compareNaturalPath(left.name, right.name)
 }
 
 function isReaderSupported(path: string): boolean {

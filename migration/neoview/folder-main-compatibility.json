@@ -304,9 +304,9 @@
       "sourceEvidence": ["stores/folderPanelStore/types.ts", "components/FolderToolbar/SortPanel.svelte", "components/FolderStack/sortingUtils.ts"],
       "targetContract": "支持 name/date/size/type/random/rating/path/collectTagCount 和 asc/desc，不得收缩为自然排序。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "这是 folderMain 兼容性的硬门禁。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-fields", "neoview.folder.sort-session", "neoview.folder.sort-ui"],
+      "notes": "八字段共享契约已冻结；GUI 只开放 provider 已真实支持的 name/date/size/type/random/path，rating/collectTagCount 等待 EMM batch provider。"
     },
     {
       "id": "folder.sort.name",
@@ -315,9 +315,9 @@
       "sourceEvidence": ["components/FolderStack/sortingUtils.ts"],
       "targetContract": "名称比较数字感知、大小写/locale 行为冻结；其他字段相等时按名称与稳定 entry ID 兜底。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "必须用固定 fixture 覆盖 2/10、全半角和同名项。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-fields", "neoview.folder.sort-session"],
+      "notes": "Intl.Collator 数字感知与 name/path 稳定兜底已接入；仍需补全半角/全角/locale characterization fixture。"
     },
     {
       "id": "folder.sort.directories-first",
@@ -326,9 +326,9 @@
       "sourceEvidence": ["components/FolderStack/sortingUtils.ts", "utils/virtualPathLoader.ts"],
       "targetContract": "真实目录默认 folders-first；History/Bookmark/Search 等虚拟源按原规则关闭或配置目录优先。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "排序服务必须知道数据源语义。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-fields", "neoview.folder.sort-session"],
+      "notes": "真实目录的 directoriesFirst 已由唯一 session 排序器实现；虚拟源例外尚未接入。"
     },
     {
       "id": "folder.sort.folder-size",
@@ -348,9 +348,9 @@
       "sourceEvidence": ["stores/folderPanelStore/panelState.svelte.ts", "components/FolderStack/sortingUtils.ts"],
       "targetContract": "随机排序按路径/标签稳定种子生成，返回目录和刷新时顺序保持，显式重随机才更换种子。",
       "surfaces": ["GUI", "CLI", "TUI"],
-      "status": "pending",
-      "testIds": [],
-      "notes": "不能每次 render 调 Math.random。"
+      "status": "partial",
+      "testIds": ["neoview.folder.sort-random"],
+      "notes": "使用 Node crypto SHA-256 生成 session/path 稳定 rank，刷新和返回目录复用 seed；显式重随机与跨启动记忆仍待实现。"
     },
     {
       "id": "folder.sort.emm",

@@ -98,4 +98,53 @@ describe("reader-http-client", () => {
       expect(new Headers(call[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     }
   })
+
+  it("[neoview.file-browser.thumbnails] registers only opaque library thumbnail contexts and releases them", async () => {
+    const fetchMock = vi.fn(async (request: RequestInfo | URL) => String(request).endsWith("/reader/library/thumbnails")
+      ? Response.json({ contextId: "folder:browser-1", generation: 3, items: [] })
+      : new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.registerLibraryThumbnails!("folder:browser-1", 3, [
+      { id: "entry-7", path: "D:/books/demo.cbz", kind: "file" },
+    ])
+    await client.releaseLibraryThumbnailContext!("folder:browser-1")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      contextId: "folder:browser-1",
+      generation: 3,
+      items: [{ id: "entry-7", path: "D:/books/demo.cbz", kind: "file" }],
+    })
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/library/contexts/folder%3Abrowser-1")
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE", keepalive: true })
+  })
+
+  it("[neoview.file-browser.sort-client] sends sort rules and focus identity to the browser session", async () => {
+    const fetchMock = vi.fn(async () => Response.json({
+      sessionId: "browser-1",
+      path: "D:/books",
+      entries: [],
+      cursor: 0,
+      total: 0,
+      canGoBack: false,
+      canGoForward: false,
+      generation: 2,
+      sort: { field: "date", order: "desc", directoriesFirst: true },
+      sortFields: ["name", "date", "size", "type", "random", "path"],
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.sortDirectoryBrowser!(
+      "browser-1",
+      { field: "date", order: "desc", directoriesFirst: true },
+      "D:/books/book.cbz",
+    )
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/browser/s/browser-1/sort")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      field: "date",
+      order: "desc",
+      directoriesFirst: true,
+      focusPath: "D:/books/book.cbz",
+    })
+  })
 })

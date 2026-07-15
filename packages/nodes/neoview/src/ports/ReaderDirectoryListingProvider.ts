@@ -5,6 +5,10 @@ export interface ReaderDirectoryEntry {
   path: string
   kind: ReaderDirectoryEntryKind
   readerSupported: boolean
+  modifiedAt?: number
+  size?: number
+  rating?: number
+  collectTagCount?: number
 }
 
 export interface ReaderDirectoryListing {

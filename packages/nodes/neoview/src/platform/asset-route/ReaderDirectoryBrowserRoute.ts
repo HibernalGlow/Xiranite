@@ -1,12 +1,21 @@
 import { CoreReaderDirectoryBrowser, type ReaderDirectoryNavigation } from "../../application/browser/ReaderDirectoryBrowser.js"
+import {
+  isReaderDirectorySortField,
+  type ReaderDirectorySortRule,
+} from "../../application/browser/ReaderDirectorySort.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
+import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_NAVIGATE_PATH = /^\/reader\/browser\/s\/([^/]+)\/navigate$/
+const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
-  readonly #browser = new CoreReaderDirectoryBrowser(new PlatformDirectoryListingProvider())
+  readonly #browser = new CoreReaderDirectoryBrowser(
+    new PlatformDirectoryListingProvider(),
+    new PlatformDirectoryMetadataProvider(),
+  )
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
@@ -16,6 +25,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (entriesMatch && request.method === "GET") return this.#list(entriesMatch[1]!, url)
     const navigateMatch = BROWSER_NAVIGATE_PATH.exec(url.pathname)
     if (navigateMatch && request.method === "POST") return this.#navigate(navigateMatch[1]!, request)
+    const sortMatch = BROWSER_SORT_PATH.exec(url.pathname)
+    if (sortMatch && request.method === "PATCH") return this.#sort(sortMatch[1]!, request)
     const sessionMatch = BROWSER_SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "DELETE") {
       const sessionId = safeDecode(sessionMatch[1]!)
@@ -66,12 +77,38 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       return errorResponse(errorMessage(error), 400)
     }
   }
+
+  async #sort(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const body = await request.json().catch(() => undefined) as Record<string, unknown> | undefined
+    const command = parseSort(body)
+    if (!command) return errorResponse("Invalid browser sort", 400)
+    try {
+      const result = await this.#browser.sort(sessionId, command.sort, command.focusPath, request.signal)
+      return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
 }
 
 function parseNavigation(body: { action?: unknown; path?: unknown } | undefined): ReaderDirectoryNavigation | undefined {
   if (body?.action === "path") return typeof body.path === "string" && body.path.trim() ? { action: "path", path: body.path } : undefined
   if (body?.action === "back" || body?.action === "forward" || body?.action === "up" || body?.action === "refresh") return { action: body.action }
   return undefined
+}
+
+function parseSort(body: Record<string, unknown> | undefined): { sort: ReaderDirectorySortRule; focusPath?: string } | undefined {
+  if (!isReaderDirectorySortField(body?.field)) return undefined
+  if (body?.order !== "asc" && body?.order !== "desc") return undefined
+  if (body.directoriesFirst !== undefined && typeof body.directoriesFirst !== "boolean") return undefined
+  if (body.focusPath !== undefined && (typeof body.focusPath !== "string" || !body.focusPath.trim())) return undefined
+  return {
+    sort: { field: body.field, order: body.order, directoriesFirst: body.directoriesFirst ?? true },
+    focusPath: typeof body.focusPath === "string" ? body.focusPath : undefined,
+  }
 }
 
 function integer(value: string | null, fallback: number): number {

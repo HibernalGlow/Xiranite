@@ -101,6 +101,19 @@ export interface ReaderDirectoryEntryDto {
   path: string
   kind: "directory" | "file" | "other"
   readerSupported: boolean
+  modifiedAt?: number
+  size?: number
+  rating?: number
+  collectTagCount?: number
+}
+
+export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
+export type ReaderDirectorySortOrderDto = "asc" | "desc"
+
+export interface ReaderDirectorySortDto {
+  field: ReaderDirectorySortFieldDto
+  order: ReaderDirectorySortOrderDto
+  directoriesFirst: boolean
 }
 
 export interface ReaderDirectoryPageDto {
@@ -114,6 +127,27 @@ export interface ReaderDirectoryPageDto {
   canGoBack: boolean
   canGoForward: boolean
   generation: number
+  sort: ReaderDirectorySortDto
+  sortFields: ReaderDirectorySortFieldDto[]
+  suggestedSelection?: { path: string; index: number }
+}
+
+export interface ReaderLibraryThumbnailDto {
+  id: string
+  thumbnailUrl: string
+  contentVersion: string
+}
+
+export interface ReaderLibraryThumbnailBatchDto {
+  contextId: string
+  generation: number
+  items: ReaderLibraryThumbnailDto[]
+}
+
+export interface ReaderLibraryThumbnailRegistrationDto {
+  id: string
+  path: string
+  kind: "file" | "folder"
 }
 
 export type ReaderDirectoryNavigationDto =
@@ -191,7 +225,15 @@ export interface ReaderHttpClient {
   openDirectoryBrowser?(path: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   listDirectoryBrowser?(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   navigateDirectoryBrowser?(sessionId: string, navigation: ReaderDirectoryNavigationDto, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   closeDirectoryBrowser?(sessionId: string): Promise<void>
+  registerLibraryThumbnails?(
+    contextId: string,
+    generation: number,
+    items: readonly ReaderLibraryThumbnailRegistrationDto[],
+    signal?: AbortSignal,
+  ): Promise<ReaderLibraryThumbnailBatchDto>
+  releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   listPageCatalog?(sessionId: string, cursor: number, limit: number, options: { query?: string; thumbnails?: boolean }, signal?: AbortSignal): Promise<ReaderPageListDto>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
@@ -287,10 +329,32 @@ export function createReaderHttpClient(
         signal,
       },
     ),
+    sortDirectoryBrowser: (sessionId, sort, focusPath, signal) => request<ReaderDirectoryPageDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/sort`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...sort, focusPath }),
+        signal,
+      },
+    ),
     closeDirectoryBrowser: (sessionId) => request<void>(`/reader/browser/s/${encodeURIComponent(sessionId)}`, {
       method: "DELETE",
       keepalive: true,
     }),
+    registerLibraryThumbnails: (contextId, generation, items, signal) => request<ReaderLibraryThumbnailBatchDto>(
+      "/reader/library/thumbnails",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contextId, generation, items }),
+        signal,
+      },
+    ),
+    releaseLibraryThumbnailContext: (contextId) => request<void>(
+      `/reader/library/contexts/${encodeURIComponent(contextId)}`,
+      { method: "DELETE", keepalive: true },
+    ),
     listPages: (sessionId, cursor, limit, signal) => request<ReaderPageListDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/pages?cursor=${cursor}&limit=${limit}`,
       { signal },
